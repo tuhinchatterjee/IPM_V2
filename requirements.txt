@@ -1,0 +1,20 @@
+# Runtime dependencies — exact pins for reproducible installs.
+# Canonical source is pyproject.toml; keep these in sync when bumping versions.
+# Install:  python -m pip install -r requirements.txt
+# (uv is recommended on developer machines: `uv sync` — see docs/deploy.md)
+
+dash==4.3.0
+dash-bootstrap-components==2.0.4
+plotly==6.8.0
+pandas==3.0.3
+openpyxl==3.1.5
+requests==2.34.2
+anthropic==0.112.0
+python-dotenv==1.2.2
+waitress==3.0.2
+flask-compress==1.24
+sqlalchemy==2.0.51
+alembic==1.18.5
+psycopg[binary]==3.3.4
+flask-login==0.6.3
+argon2-cffi==25.1.0

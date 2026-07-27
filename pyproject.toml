@@ -1,0 +1,58 @@
+[project]
+name = "ipm-tool"
+version = "0.1.0"
+description = "Intelligent Portfolio Manager — credit-risk & CBUAE regulatory reporting cockpit."
+requires-python = ">=3.14"
+
+# Exact pins captured from the working environment (2026-07). Bump deliberately,
+# re-lock, and re-test — never float these, so every install is reproducible.
+dependencies = [
+    "dash==4.3.0",
+    "dash-bootstrap-components==2.0.4",
+    "plotly==6.8.0",
+    "pandas==3.0.3",
+    "openpyxl==3.1.5",
+    "requests==2.34.2",
+    "anthropic==0.112.0",
+    "python-dotenv==1.2.2",
+    "waitress==3.0.2",
+    "flask-compress==1.24",
+    "sqlalchemy==2.0.51",
+    "alembic==1.18.5",
+    "psycopg[binary]==3.3.4",
+    "flask-login==0.6.3",
+    "argon2-cffi==25.1.0",
+]
+
+[dependency-groups]
+# Dev-only tooling, excluded from prod installs. Lower bounds here; the exact
+# resolved versions are captured in requirements-dev.txt. Additional runtime
+# deps are added per upgrade phase.
+dev = [
+    "ruff>=0.6",
+    "pytest>=8.0",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# Line length is left to judgment rather than the linter — several tool-schema and
+# f-string literals are legitimately long. Every other E/F/I/UP/B check stays on.
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["backend", "frontend"]
+
+[tool.ruff.lint.per-file-ignores]
+# app.py deliberately calls init_logging() before importing local modules.
+"app.py" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"
+# Put the project root on sys.path so `backend`/`frontend` import under any runner.
+pythonpath = ["."]

@@ -1,0 +1,33 @@
+# ---- secrets & local config ----
+.env
+.claude/settings.local.json
+
+# ---- python ----
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# ---- runtime data & logs ----
+logs/
+uploads/
+backups/
+# Data Hub runtime artifacts (user uploads, staged/activated workbooks)
+Uploaded_Portfolio_Dataset.xlsx
+Staged_Portfolio_Dataset.xlsx
+
+# ---- large source artifacts (not needed at runtime) ----
+# Raw IMF WEO export; the compacted Macro_GCC_Compact.xlsx is what the app loads.
+dataset_*IMF*.xlsx
+# Source presentation deck (not used by the app).
+*.pptx
+
+# ---- IDE / OS ----
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
