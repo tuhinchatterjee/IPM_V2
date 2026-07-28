@@ -493,7 +493,7 @@ def render_chat_bubbles(history):
 MODEL_OPTIONS = {
     "sage": {"label": claude_chat.DISPLAY_NAME, "provider": "anthropic", "model": claude_chat.MODEL,
              "subtitle": ""},
-    "qwen": {"label": "Qwen 3.5 (local)", "provider": "ollama", "model": ai_chat.MODEL,
+    "qwen": {"label": f"{ai_chat.DISPLAY_NAME} (local)", "provider": "ollama", "model": ai_chat.MODEL,
              "subtitle": ""},
     "qwen_ultra": {"label": f"{qwen_ultra_chat.DISPLAY_NAME} (local)", "provider": "ollama",
                    "model": qwen_ultra_chat.MODEL,

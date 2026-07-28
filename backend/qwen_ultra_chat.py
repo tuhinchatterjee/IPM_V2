@@ -1,7 +1,7 @@
 """
-Chat backend for Qwen 2.5 3B Instruct, branded in the UI as "Qwen Ultra".
+Chat backend for Qwen 3.5 0.8B, branded in the UI as "Qwen Ultra".
 Uses the same Ollama tool-calling loop as ai_chat.py but routes to
-qwen2.5:3b-instruct instead of qwen3.5.
+qwen3.5:0.8b instead of the larger qwen3:4b backend.
 """
 
 import requests
@@ -9,9 +9,9 @@ import requests
 from backend import ai_chat
 from backend.services import ai_common
 
-DISPLAY_NAME = "Qwen 2.5 3B Instruct"
-MODEL = "qwen2.5:3b-instruct"
-# 3B model is fast — use a tighter timeout than the 10B backend
+DISPLAY_NAME = "Qwen 3.5 0.8B"
+MODEL = "qwen3.5:0.8b"
+# 0.8B model is fast — use a tighter timeout than the larger backend
 REQUEST_TIMEOUT = 90
 MAX_TOOL_ROUNDS = ai_chat.MAX_TOOL_ROUNDS
 

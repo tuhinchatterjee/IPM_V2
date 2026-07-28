@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-CimInstance Win32_Service -Filter \"Name='postgresql-x64-18'\")",
+      "PowerShell(ollama list 2>&1)",
+      "PowerShell(ollama ps 2>&1)"
+    ]
+  }
+}

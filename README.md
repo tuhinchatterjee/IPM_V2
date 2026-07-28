@@ -7,32 +7,84 @@ testing, a macroeconomic outlook (IMF WEO), CBUAE BRF regulatory returns, and a
 Data Hub for uploading portfolio workbooks — with an AI chat assistant grounded in
 the real data.
 
-## Quick start (development)
+## Quick start (development, local Windows)
 
 Prerequisites: Python 3.14, PostgreSQL 16+.
 
-```bash
-# 1. Install dependencies
+All commands below run from the project root in PowerShell. **Dependencies are
+installed into a project-local virtual environment (`.venv`), never into the
+system/global Python** — this keeps the interpreter and installed packages
+isolated per-project and matches what production uses (see
+[Running in production](#running-in-production) below).
+
+```powershell
+# 1. Create and activate the virtual environment (one-time setup)
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+# If PowerShell blocks the script with an execution-policy error, run once:
+#   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+# Your prompt should now be prefixed with (.venv). From here on, `python`/`pip`
+# resolve to .venv\Scripts\python.exe — packages install into .venv, not system Python.
+
+# 2. Install dependencies into the venv
+python -m pip install --upgrade pip
 python -m pip install -r requirements.txt      # or: uv sync
 
-# 2. Configure
+# 3. Configure
 copy .env.example .env                          # then edit values (see below)
+```
 
-# 3. Create the database (in psql, as the postgres superuser)
-#    CREATE ROLE ipm_app WITH LOGIN PASSWORD '...';
-#    CREATE DATABASE ipm OWNER ipm_app;
-#    Set DATABASE_URL in .env accordingly.
+### 4. Create the database
 
-# 4. Create the schema and seed the bundled dataset
+This step runs in `psql`, not PowerShell — it's a one-time setup of the
+PostgreSQL role and database the app will connect to.
+
+1. Open a **new** PowerShell window (leave the venv terminal as-is) and connect
+   to PostgreSQL as the superuser (installed with PostgreSQL as `postgres`):
+
+   ```powershell
+   psql -U postgres
+   ```
+
+   Enter the `postgres` superuser password when prompted (set during
+   PostgreSQL install).
+
+2. At the `postgres=#` prompt, create a dedicated app role and database —
+   replace `CHANGE_ME` with your own password:
+
+   ```sql
+   CREATE ROLE ipm_app WITH LOGIN PASSWORD 'CHANGE_ME';
+   CREATE DATABASE ipm OWNER ipm_app;
+   \q
+   ```
+
+3. Back in your original (venv) terminal, open `.env` and set `DATABASE_URL`
+   using the same password:
+
+   ```
+   DATABASE_URL=postgresql+psycopg://ipm_app:CHANGE_ME@localhost:5432/ipm
+   ```
+
+   (Template for this line is already in `.env.example`, commented out.)
+
+### 5. Create the schema, seed data, and run
+
+```powershell
+# Create the schema and seed the bundled dataset
 python -m alembic upgrade head
 python scripts/migrate_xlsx_to_pg.py
 
-# 5. Create the first user
+# Create the first user
 python scripts/manage_users.py add admin --role admin
 
-# 6. Run (development server)
+# Run (development server)
 python app.py                                   # http://127.0.0.1:8050
 ```
+
+Each new terminal session needs `.\.venv\Scripts\Activate.ps1` run again before
+using `python`/`pip`/`pytest` — the venv is not activated automatically. To
+deactivate: `deactivate`. `.venv/` is already covered by `.gitignore`.
 
 ## Configuration
 
@@ -50,11 +102,15 @@ service. See **[docs/deploy.md](docs/deploy.md)** for the NSSM service setup,
 firewall rule, PostgreSQL backup schedule, user management, and the secret-rotation
 runbook.
 
-```bash
-set ENV=prod
-set HOST=0.0.0.0
-python serve.py
+```powershell
+$env:ENV = "prod"
+$env:HOST = "0.0.0.0"
+.\.venv\Scripts\python.exe serve.py
 ```
+
+The NSSM service in [docs/deploy.md](docs/deploy.md) points directly at
+`.venv\Scripts\python.exe`, so the production service uses the same virtual
+environment as local development — no separate global install.
 
 Health probe: `GET /healthz` (no auth) returns JSON status incl. the active dataset
 version and a database check.
@@ -67,7 +123,9 @@ Manage users with `python scripts/manage_users.py` (add / reset-password / set-r
 
 ## Tests & lint
 
-```bash
+With the venv activated (`.\.venv\Scripts\Activate.ps1`):
+
+```powershell
 python -m pytest        # DB-free suite: BRF regulatory math, aggregations,
                         # upload validation, and the Parquet dataset codec
 python -m ruff check .  # lint

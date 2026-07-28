@@ -15,8 +15,9 @@ from backend.services import ai_common
 
 OLLAMA_URL = f"{settings.ollama_base_url}/api/chat"
 OLLAMA_TAGS_URL = f"{settings.ollama_base_url}/api/tags"
-MODEL = "qwen3.5"
-# Local CPU inference for a ~10B model is slow (observed 60-130s per full exchange) -
+DISPLAY_NAME = "Qwen 2.5 7B Instruct"
+MODEL = "qwen2.5:7b-instruct"
+# Local CPU inference is slow relative to a cloud API -
 # timeouts are generous on purpose rather than tuned for snappy cloud-API latency.
 REQUEST_TIMEOUT = 180
 HEALTH_CHECK_TIMEOUT = 2
@@ -24,7 +25,7 @@ MAX_TOOL_ROUNDS = 3
 MAX_HISTORY_MESSAGES = 16  # trailing messages kept, to bound prompt growth/latency
 
 UNAVAILABLE_MSG = (
-    "The Qwen3.5 assistant isn't reachable right now. Make sure Ollama is running "
+    "The Qwen 2.5 assistant isn't reachable right now. Make sure Ollama is running "
     f"(`ollama serve`) with the `{MODEL}` model pulled (`ollama pull {MODEL}`)."
 )
 
