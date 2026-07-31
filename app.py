@@ -31,8 +31,9 @@ from backend import ai_chat, claude_chat, qwen_ultra_chat, raroc2_data, raroc_da
 from backend import data_loader as dl
 from backend.auth.login import init_auth, install_gate
 from backend.auth.routes import register_auth_routes
+from backend.climate import store as climate_store
 from backend.services import ai_usage, data_store, rate_limit
-from frontend import brf_view, data_hub, macro_view, raroc2_view, raroc_view
+from frontend import brf_view, data_hub, esg_view, macro_view, raroc2_view, raroc_view
 
 # --------------------------------------------------------------------------- app
 
@@ -177,7 +178,8 @@ SECTION_TABS = {
     "stress": ["Scenario Lab", "Results", "Reverse Stress"],
     "macro": ["Outlook", "Sector Risk", "Portfolio Health"],
     "raroc": ["Post-Deal RAROC", "Deal Explorer", "Deal Detail", "Earnings & EVA", "Methodology"],
-    "esg": ["Scores", "Climate", "Industry KPIs"],
+    "esg": ["Results", "Drill-down", "Inputs", "Calibration", "Sensitivity", "Quality Checks",
+            "Runs", "Report"],
     "brf": ["Overview", "Asset Quality", "Economic Activity", "Large Exposures", "Calendar"],
     "reports": ["Review Pack", "Schedules", "Archive"],
 }
@@ -187,7 +189,7 @@ SECTION_TITLES = {
     "stress": "AI-Driven Stress Testing & Scenario Lab",
     "macro": "Macroeconomic Outlook & Forward Portfolio Health",
     "raroc": "RAROC — Post-Deal Risk-Adjusted Return on Capital",
-    "esg": "ESG & Physical Climate Risk",
+    "esg": "ESG & Climate Risk — Transition and Physical Stressed PD",
     "brf": "CBUAE BRF Regulatory Returns",
     "reports": "Management Portfolio Review Pack Generator",
 }
@@ -2094,77 +2096,9 @@ def build_pricing_body(quarter=None):
 
 
 # ==================================================================== ESG section
-
-def build_esg_scores_body(quarter=None):
-    quarter = quarter or dl.DEFAULT_QUARTER
-    data = dl.compute_esg_score(quarter)
-    grade_color = {"A": "green", "B": "blue", "C": "amber", "D": "red"}[data["grade"]]
-    sub = html.Div(f"Grade {data['grade']}", className="kpi-sub neutral")
-    if data["delta"] is not None:
-        up = data["delta"] >= 0
-        sub = html.Div(f"{'▲' if up else '▼'} {abs(data['delta']):.1f} QoQ", className=f"kpi-sub {'up-good' if up else 'up-bad'}")
-    kpi = [kpi_card("Portfolio ESG Score", f"{data['score']:.0f} / 100", grade_color, sub)]
-
-    rows = [
-        html.Tr([html.Td(r["sector"], className="metric-name"), html.Td(dl.fmt_bn(r["ead"], 2), className="num"),
-                  html.Td(str(r["score"]), className="num")])
-        for r in data["by_sector"]
-    ]
-    table = html.Table([html.Thead(html.Tr([html.Th("Sector"), html.Th("EAD", className="num"), html.Th("ESG Score", className="num")])),
-                          html.Tbody(rows)], className="dark-mini-table")
-    table_card = html.Div([html.Div([html.Span(className="kpi-dot green"), "ESG SCORE BY SECTOR"], className="dark-table-title"), table],
-                            className="dark-table-card")
-    insight = build_ai_insight_card(
-        f"Portfolio ESG score of {data['score']:.0f}/100 (Grade {data['grade']}) reflects sector composition — Energy and "
-        f"Contracting weigh on the score, while Healthcare and Telecom are the strongest contributors. This is an "
-        f"illustrative, sector-composition-based score, not a third-party ESG rating."
-    )
-    return [html.Div(kpi, className="signals-kpi-grid"), table_card, html.Div(insight, style={"marginTop": "20px"})]
-
-
-def build_esg_climate_body(quarter=None):
-    quarter = quarter or dl.DEFAULT_QUARTER
-    data = dl.compute_esg_climate(quarter)
-    kpi = [
-        kpi_card("Portfolio EAD", dl.fmt_bn(data["total"], 2), "blue", html.Div("GCC-wide", className="kpi-sub neutral")),
-        kpi_card("High Climate-Risk EAD", dl.fmt_bn(data["high_risk_ead"], 2), "amber", html.Div(f"{data['high_risk_pct']:.0f}% of book", className="kpi-sub neutral")),
-        kpi_card("Coastal-Flood EAD", dl.fmt_bn(data["coastal_flood_ead"], 2), "blue", html.Div("UAE / Qatar / Bahrain", className="kpi-sub neutral")),
-        kpi_card("Real Estate EAD", dl.fmt_bn(data["real_estate_ead"], 2), "red", html.Div("most rate-sensitive sector", className="kpi-sub neutral")),
-    ]
-    rows = [
-        html.Tr([html.Td(r["region"], className="metric-name"), html.Td(dl.fmt_bn(r["ead"], 2), className="num"),
-                  html.Td(f"{r['pct_of_book']:.1f}%", className="num"), html.Td(r["channel"])])
-        for r in data["rows"]
-    ]
-    table = html.Table([html.Thead(html.Tr([html.Th("Region"), html.Th("EAD", className="num"), html.Th("% of Book", className="num"), html.Th("Dominant Channel")])),
-                          html.Tbody(rows)], className="dark-mini-table")
-    table_card = html.Div([html.Div([html.Span(className="kpi-dot blue"), "EXPOSURE BY REGION & CLIMATE CHANNEL"], className="dark-table-title"), table],
-                            className="dark-table-card")
-    insight = build_ai_insight_card(
-        f"{data['high_risk_pct']:.0f}% of the book sits in physically climate-exposed sectors (Real Estate, Contracting, "
-        f"Hospitality, Transport), concentrated on the Gulf coastline. Recommend a physical-risk overlay on collateral "
-        f"valuations for coastal Real Estate facilities ahead of the next ICAAP cycle."
-    )
-    return [html.Div(kpi, className="signals-kpi-grid"), table_card, html.Div(insight, style={"marginTop": "20px"})]
-
-
-def build_esg_industry_kpis_body(quarter=None):
-    quarter = quarter or dl.DEFAULT_QUARTER
-    rows = dl.compute_sector_kpis(quarter)
-    body_rows = [
-        html.Tr([html.Td(r["sector"], className="metric-name"), html.Td(dl.fmt_bn(r["ead"], 2), className="num"),
-                  html.Td(str(r["borrower_count"]), className="num"), html.Td(f"{r['pd']:.1f}%", className="num"),
-                  html.Td(f"{r['stage2_pct']:.1f}%", className="num"), html.Td(f"{r['raroc']:.1f}%", className="num")])
-        for r in rows
-    ]
-    table = html.Table(
-        [html.Thead(html.Tr([html.Th("Sector"), html.Th("EAD", className="num"), html.Th("Borrowers", className="num"),
-                              html.Th("Avg PD", className="num"), html.Th("Stage 2 %", className="num"), html.Th("RAROC", className="num")])),
-         html.Tbody(body_rows)],
-        className="borrower-table signals-table",
-    )
-    return [html.Div([html.Div([html.Span("SECTOR KPI SUMMARY", className="table-title")], className="table-card-header"), table],
-                       className="table-card")]
+# The ESG section is built entirely in frontend/esg_view.py, on top of the
+# backend/climate engine. Its tab bodies are dispatched from
+# build_section_tab_body and its interactivity lives in the callbacks below.
 
 
 # ================================================================ REPORTS section
@@ -2382,12 +2316,18 @@ def build_section_tab_body(section_key, tab, stress_params=None):
         if tab == "Methodology":
             return raroc2_view.build_methodology_tab()
     if section_key == "esg":
-        if tab == "Scores":
-            return build_esg_scores_body(quarter)
-        if tab == "Climate":
-            return build_esg_climate_body(quarter)
-        if tab == "Industry KPIs":
-            return build_esg_industry_kpis_body(quarter)
+        builder = {
+            "Results": esg_view.build_results_tab,
+            "Drill-down": esg_view.build_drilldown_tab,
+            "Inputs": esg_view.build_inputs_tab,
+            "Calibration": esg_view.build_calibration_tab,
+            "Sensitivity": esg_view.build_sensitivity_tab,
+            "Quality Checks": esg_view.build_checks_tab,
+            "Runs": esg_view.build_runs_tab,
+            "Report": esg_view.build_report_tab,
+        }.get(tab)
+        if builder:
+            return builder()
     if section_key == "reports":
         if tab == "Review Pack":
             return build_review_pack_body(quarter)
@@ -2945,6 +2885,7 @@ def serve_layout():
             dcc.Interval(id="live-interval", interval=15_000, n_intervals=0),
             dcc.Download(id="brf-download"),
             dcc.Download(id="raroc-download"),
+            dcc.Download(id="esg-download"),
             # Chat Stores live here, outside page-content, so conversations survive
             # page navigation (page-content gets torn down and rebuilt on every
             # route change, but this part of the tree never does).
@@ -3888,6 +3829,271 @@ def export_brf_large_exposures(n_clicks, quarter):
         "Breach of 25% Cap": "Yes" if r["breach"] else "No",
     } for r in le["rows"]])
     return dcc.send_data_frame(df.to_csv, f"BRF_Large_Exposures_{quarter.replace(' ', '_')}.csv", index=False)
+
+
+# ------------------------------------------------ ESG / climate stressed PD
+# Every tab recalculates the whole model on any control change: 280 cells of pure
+# arithmetic is ~6ms, cheaper than round-tripping a cache. The stored model
+# version is never mutated by these controls — saving is explicit, on the Inputs
+# tab, and a version marked final is immutable.
+
+
+@app.callback(
+    Output("esg-res-body", "children"),
+    Input("esg-res-version", "value"),
+    Input("esg-res-horizon", "value"),
+    Input("esg-res-theta", "value"),
+    Input("esg-res-grade", "value"),
+    Input("esg-res-view", "value"),
+    prevent_initial_call=True,
+)
+def update_esg_results(version_id, horizon, theta, grade, view):
+    return esg_view.build_results_body(version_id, horizon, theta, grade, view or "summary")
+
+
+@app.callback(
+    Output("esg-dd-body", "children"),
+    Input("esg-dd-version", "value"),
+    Input("esg-dd-horizon", "value"),
+    Input("esg-dd-sector", "value"),
+    Input("esg-dd-grade", "value"),
+    Input("esg-dd-scenario", "value"),
+    prevent_initial_call=True,
+)
+def update_esg_drilldown(version_id, horizon, sector_id, grade, scenario):
+    if not (sector_id and grade and scenario):
+        raise PreventUpdate
+    return esg_view.build_drilldown_body(version_id, horizon, sector_id, grade, scenario)
+
+
+@app.callback(
+    Output("esg-in-body", "children"),
+    Input("esg-in-version", "value"),
+    Input("esg-in-block", "value"),
+    prevent_initial_call=True,
+)
+def update_esg_inputs(version_id, block):
+    return esg_view.build_inputs_body(version_id, block or "sectors")
+
+
+ESG_INPUT_TABLE_IDS = ["esg-tbl-sectors", "esg-tbl-emissions", "esg-tbl-scenarios",
+                       "esg-tbl-hazards", "esg-tbl-exposure", "esg-tbl-grades", "esg-tbl-settings"]
+
+
+@app.callback(
+    Output("esg-in-status", "children"),
+    Output("esg-in-body", "children", allow_duplicate=True),
+    Input("esg-in-save", "n_clicks"),
+    State("esg-in-version", "value"),
+    State("esg-in-block", "value"),
+    *[State(tid, "data") for tid in ESG_INPUT_TABLE_IDS],
+    prevent_initial_call=True,
+)
+def save_esg_inputs(n_clicks, version_id, block, *table_data):
+    """Fold the edited table back into the version. Rejected outright if the
+    version is final — that immutability is what the audit trail rests on."""
+    if not n_clicks:
+        raise PreventUpdate
+    block = block or "sectors"
+    rows = dict(zip(ESG_INPUT_TABLE_IDS, table_data, strict=True)).get(f"esg-tbl-{block}")
+    if not rows:
+        raise PreventUpdate
+
+    rec = climate_store.get_version(version_id) if version_id else None
+    if rec is None:
+        return html.Div("Select a model version first.", className="upload-verdict is-fail"), no_update
+    if rec["status"] == climate_store.STATUS_FINAL:
+        return (html.Div("This version is FINAL and cannot be edited. Use “Clone as draft” first.",
+                         className="upload-verdict is-fail"), no_update)
+
+    try:
+        updated = esg_view.apply_edits(rec["model"], block, rows)
+        climate_store.update_version(rec["id"], updated,
+                                     note=f"{block} edited via the Inputs tab")
+    except Exception as exc:
+        logger.exception("ESG input save failed")
+        return html.Div(f"Save failed: {exc}", className="upload-verdict is-fail"), no_update
+
+    logger.info("ESG: saved %s edits to model version %s", block, rec["id"])
+    msg = html.Div(f"Saved to version #{rec['id']}. Every downstream figure has been recalculated.",
+                   className="upload-verdict is-ok")
+    return msg, esg_view.build_inputs_body(rec["id"], block)
+
+
+@app.callback(
+    Output("esg-in-status", "children", allow_duplicate=True),
+    Output("esg-in-version", "options"),
+    Output("esg-in-version", "value"),
+    Input("esg-in-clone", "n_clicks"),
+    State("esg-in-version", "value"),
+    prevent_initial_call=True,
+)
+def clone_esg_version(n_clicks, version_id):
+    if not n_clicks or version_id is None:
+        raise PreventUpdate
+    src = climate_store.get_version(version_id)
+    if src is None:
+        raise PreventUpdate
+    new = climate_store.clone_version(
+        version_id, name=f"{src['name']} (draft)",
+        created_by=getattr(current_user, "username", "") or "")
+    msg = html.Div(f"Created draft version #{new['id']} from #{version_id}. Edits now go to the draft; "
+                   f"the parent stays immutable.", className="upload-verdict is-ok")
+    return msg, esg_view.version_options(), new["id"]
+
+
+@app.callback(
+    Output("esg-cal-body", "children"),
+    Input("esg-cal-version", "value"),
+    Input("esg-cal-anchor", "value"),
+    Input("esg-cal-route", "value"),
+    Input("esg-cal-theta", "value"),
+    prevent_initial_call=True,
+)
+def update_esg_calibration(version_id, anchor, route, theta):
+    return esg_view.build_calibration_body(version_id, anchor or "A", route or 1,
+                                           0.0 if theta is None else theta)
+
+
+@app.callback(
+    Output("esg-sens-body", "children"),
+    Input("esg-sens-version", "value"),
+    Input("esg-sens-horizon", "value"),
+    Input("esg-sens-param", "value"),
+    prevent_initial_call=True,
+)
+def update_esg_sensitivity(version_id, horizon, parameter):
+    return esg_view.build_sensitivity_body(version_id, horizon, parameter or "theta")
+
+
+@app.callback(
+    Output("esg-qc-body", "children"),
+    Input("esg-qc-version", "value"),
+    Input("esg-qc-horizon", "value"),
+    Input("esg-qc-theta", "value"),
+    prevent_initial_call=True,
+)
+def update_esg_checks(version_id, horizon, theta):
+    return esg_view.build_checks_body(version_id, horizon, theta)
+
+
+@app.callback(
+    Output("esg-run-status", "children"),
+    Output("esg-run-body", "children"),
+    Input("esg-run-calc", "n_clicks"),
+    Input("esg-run-final", "n_clicks"),
+    State("esg-run-version", "value"),
+    prevent_initial_call=True,
+)
+def esg_run_actions(calc_clicks, final_clicks, version_id):
+    if version_id is None or not ctx.triggered_id:
+        raise PreventUpdate
+
+    if ctx.triggered_id == "esg-run-calc":
+        if not calc_clicks:
+            raise PreventUpdate
+        run = climate_store.calculate_run(
+            version_id, created_by=getattr(current_user, "username", "") or "")
+        head = run["headline"]
+        tone = "is-ok" if head["can_finalise"] else "is-fail"
+        msg = html.Div(
+            f"Stored run #{run['id']} with a full input snapshot — {head['cells']} cells, "
+            f"worst {head['max_multiple']:.3f}x ({head['worst_sector']} · {head['worst_scenario']}), "
+            f"{head['checks_passed']}/{head['checks_total']} checks passing.",
+            className=f"upload-verdict {tone}")
+        logger.info("ESG: stored run %s for version %s", run["id"], version_id)
+        return msg, esg_view.build_runs_body(version_id)
+
+    if not final_clicks:
+        raise PreventUpdate
+    try:
+        rec = climate_store.set_status(version_id, climate_store.STATUS_FINAL)
+    except ValueError as exc:
+        return (html.Div(str(exc), className="upload-verdict is-fail"),
+                esg_view.build_runs_body(version_id))
+    msg = html.Div(f"Version #{rec['id']} marked final — its inputs are now immutable.",
+                   className="upload-verdict is-ok")
+    return msg, esg_view.build_runs_body(version_id)
+
+
+@app.callback(
+    Output("esg-run-diff", "children"),
+    Input("esg-run-a", "value"),
+    Input("esg-run-b", "value"),
+    prevent_initial_call=True,
+)
+def update_esg_run_diff(run_a, run_b):
+    return esg_view.build_run_diff(run_a, run_b)
+
+
+@app.callback(
+    Output("esg-rep-body", "children"),
+    Input("esg-rep-version", "value"),
+    Input("esg-rep-horizon", "value"),
+    Input("esg-rep-theta", "value"),
+    Input("esg-rep-grade", "value"),
+    prevent_initial_call=True,
+)
+def update_esg_report_preview(version_id, horizon, theta, grade):
+    return esg_view.build_report_body(version_id, horizon, theta, grade)
+
+
+@app.callback(
+    Output("esg-download", "data"),
+    Output("esg-rep-status", "children"),
+    Input("esg-rep-html", "n_clicks"),
+    State("esg-rep-version", "value"),
+    State("esg-rep-horizon", "value"),
+    State("esg-rep-theta", "value"),
+    State("esg-rep-grade", "value"),
+    State("esg-rep-tornado", "value"),
+    prevent_initial_call=True,
+)
+def download_esg_report(n_clicks, version_id, horizon, theta, grade, tornado):
+    if not n_clicks:
+        raise PreventUpdate
+    filename, doc = esg_view.build_report_download(
+        version_id, horizon, theta, grade, with_tornado=bool(tornado),
+        username=getattr(current_user, "username", "") or "")
+    msg = html.Div(f"Generated {filename} ({len(doc.encode()) / 1024:,.0f} KB) — a single "
+                   f"self-contained file, no external requests.", className="upload-verdict is-ok")
+    return dict(content=doc, filename=filename, type="text/html"), msg
+
+
+@app.callback(
+    Output("esg-download", "data", allow_duplicate=True),
+    Output("esg-rep-status", "children", allow_duplicate=True),
+    Input("esg-rep-xlsx", "n_clicks"),
+    State("esg-rep-version", "value"),
+    State("esg-rep-horizon", "value"),
+    State("esg-rep-theta", "value"),
+    State("esg-rep-grade", "value"),
+    prevent_initial_call=True,
+)
+def download_esg_excel(n_clicks, version_id, horizon, theta, grade):
+    if not n_clicks:
+        raise PreventUpdate
+    filename, payload = esg_view.build_excel_download(version_id, horizon, theta, grade)
+    msg = html.Div(f"Generated {filename} — inputs, intermediates, the full grid, the 24 checks and "
+                   f"all three registers.", className="upload-verdict is-ok")
+    return dcc.send_bytes(lambda buf: buf.write(payload), filename), msg
+
+
+@app.callback(
+    Output("esg-download", "data", allow_duplicate=True),
+    Input("esg-rep-csv", "n_clicks"),
+    State("esg-rep-version", "value"),
+    State("esg-rep-horizon", "value"),
+    State("esg-rep-theta", "value"),
+    State("esg-rep-grade", "value"),
+    prevent_initial_call=True,
+)
+def download_esg_grid_csv(n_clicks, version_id, horizon, theta, grade):
+    if not n_clicks:
+        raise PreventUpdate
+    rows = esg_view.build_grid_rows(version_id, horizon, theta, grade)
+    df = pd.DataFrame(rows)
+    return dcc.send_data_frame(df.to_csv, "Climate_StressedPD_Grid.csv", index=False)
 
 
 if __name__ == "__main__":

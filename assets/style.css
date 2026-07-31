@@ -1079,3 +1079,72 @@ th.weighted-col { color: var(--purple) !important; }
 .raroc-neg { color: var(--red-dark); }
 .raroc-toggles { display: inline-flex; gap: 16px; font-size: 12.5px; font-weight: 600; color: var(--text-mid); }
 .raroc-toggles label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+
+
+/* ==================================================== ESG / climate stressed PD
+   The climate module reproduces the Oman Climate Stressed PD workbook, so its UI
+   leans on status pills and provenance badges: every number a reviewer sees is
+   meant to carry where it came from and how far it can be trusted. */
+
+.esg-pill {
+  display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 0.05em;
+  padding: 3px 9px; border-radius: 999px; white-space: nowrap; text-transform: uppercase;
+}
+.esg-pill.ok { background: var(--green-bg); color: var(--green-dark); }
+.esg-pill.bad { background: var(--red-bg); color: var(--red-dark); }
+.esg-pill.warn { background: var(--amber-bg); color: var(--amber-dark); }
+.esg-pill.info { background: var(--blue-bg); color: var(--text-mid); }
+
+.esg-badge-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 20px; }
+.esg-badge {
+  display: inline-block; font-size: 11px; font-weight: 700; padding: 5px 11px;
+  border-radius: 8px; border: 1px solid transparent; line-height: 1.35;
+}
+.esg-badge.ok { background: var(--green-bg); color: var(--green-dark); border-color: #bfe8d5; }
+.esg-badge.bad { background: var(--red-bg); color: var(--red-dark); border-color: #f6c9c6; }
+.esg-badge.warn { background: var(--amber-bg); color: var(--amber-dark); border-color: #f7ddb8; }
+.esg-badge.info { background: var(--blue-bg); color: var(--text-mid); border-color: #d3e0fb; }
+
+/* Long explanatory cells: the "why" column on checks, registers and worked
+   examples. Wrapped and de-emphasised so it never competes with the figures. */
+.esg-working {
+  font-size: 11.5px; color: var(--text-muted); font-weight: 500; line-height: 1.5;
+  white-space: normal; max-width: 460px; text-align: left;
+}
+
+.esg-src-block { margin-top: 14px; display: flex; flex-direction: column; gap: 7px; }
+.esg-src-row { display: flex; align-items: flex-start; gap: 9px; }
+.esg-src-text { font-size: 11.5px; color: var(--text-muted); line-height: 1.5; }
+
+.esg-chart-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+@media (max-width: 1100px) { .esg-chart-pair { grid-template-columns: 1fr; } }
+
+.esg-insight-list { display: flex; flex-direction: column; gap: 14px; padding: 18px 20px; }
+.esg-insight-card {
+  border-left: 3px solid var(--teal); background: #f9fbfd; border-radius: 0 8px 8px 0;
+  padding: 12px 15px;
+}
+.esg-insight-title {
+  font-size: 12.5px; font-weight: 800; color: var(--text-dark); margin-bottom: 4px;
+  letter-spacing: 0.01em;
+}
+.esg-insight-body, .esg-insight-body p {
+  font-size: 12.5px; color: var(--text-mid); line-height: 1.65; margin: 0;
+}
+
+/* Dash styles its own Checklist options; only the type scale is adjusted here so
+   the section list matches the rest of the report panel. */
+.report-checklist .dash-options-list-option { font-size: 12.5px; font-weight: 600; padding: 4px 6px; }
+.report-config-note { margin-top: 14px; font-size: 11.5px; color: var(--text-faint); line-height: 1.6; }
+
+.upload-verdict.is-warn { background: var(--amber-bg); color: var(--amber-dark); }
+
+/* The report panel sits in the 380px side rail, so its three download buttons
+   stack rather than squeezing a three-word label onto three lines. */
+.esg-report-btns { flex-wrap: wrap; }
+.esg-report-btns .report-generate-btn { flex: 1 1 100%; }
+.esg-report-btns .report-secondary-btn { flex: 1 1 0; white-space: nowrap; }
+
+/* Action buttons that sit inline in a filters row must not stretch: the shared
+   .report-generate-btn is flex:1 because it lives in a stacked report panel. */
+.filters-row .esg-inline-btn { flex: 0 0 auto; padding: 9px 18px; }

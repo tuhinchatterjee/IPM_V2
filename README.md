@@ -3,9 +3,9 @@
 A credit-risk and CBUAE regulatory-reporting cockpit for a GCC wholesale/retail
 loan portfolio, built with Dash. Executive KPIs, AI early-warning signals,
 Borrower 360, IFRS 9 / ECL, concentration & rating migration, limits & stress
-testing, a macroeconomic outlook (IMF WEO), CBUAE BRF regulatory returns, and a
-Data Hub for uploading portfolio workbooks — with an AI chat assistant grounded in
-the real data.
+testing, a macroeconomic outlook (IMF WEO), CBUAE BRF regulatory returns, an
+ESG & climate transition/physical stressed-PD model, and a Data Hub for uploading
+portfolio workbooks — with an AI chat assistant grounded in the real data.
 
 ## Quick start (development)
 
@@ -69,7 +69,8 @@ Manage users with `python scripts/manage_users.py` (add / reset-password / set-r
 
 ```bash
 python -m pytest        # DB-free suite: BRF regulatory math, aggregations,
-                        # upload validation, and the Parquet dataset codec
+                        # upload validation, the Parquet dataset codec, and the
+                        # climate engine's Excel-parity golden master
 python -m ruff check .  # lint
 ```
 
@@ -88,16 +89,62 @@ backend/
   config.py, logging_setup.py
   data_loader.py            # ≈70 pure aggregation functions
   raroc_data.py, raroc2_data.py   # RAROC / post-deal RAROC engines
+  climate/                  # ESG & climate stressed-PD model (see below)
   ai_chat.py, qwen_ultra_chat.py, claude_chat.py   # AI chat backends
   db/                       # SQLAlchemy models + engine
   services/                 # data_store (versioned cache), rate_limit, ai_usage, ai_common
   auth/                     # Flask-Login, login routes, Argon2 hashing
 frontend/
   ui_common.py              # shared UI helpers
-  brf_view.py, macro_view.py, data_hub.py, raroc_view.py, raroc2_view.py
+  brf_view.py, macro_view.py, data_hub.py, raroc_view.py, raroc2_view.py, esg_view.py
 assets/                     # CSS + login background (served by Dash)
 alembic/  scripts/  tests/
 ```
+
+## ESG & climate stressed PD
+
+`backend/climate/` is a code reproduction of the **Oman Climate Stressed PD model
+v5.1** workbook (bundled as `Oman_Climate_StressedPD_v5 1.xlsx`), generalised to be
+multi-run, auditable and parameterisable per client/country. Output is a grid of
+stressed PDs — 10 sectors × 7 rating grades × 4 NGFS scenarios — plus every
+intermediate quantity, 24 structural quality checks, and sensitivity views. It
+computes no ECL and no LGD: it stops at the PD signal, exactly like the workbook.
+
+```
+stressed_PD = N( N⁻¹(PD₀) + push + macro_shift )
+push        = k × g(transition cost ratio + physical cost ratio),  g(x,θ) = ((1+x)^θ − 1)/θ
+```
+
+```
+backend/climate/
+  normal.py        AS241 inverse normal + erfc CDF — Excel NORMSINV/NORMSDIST parity
+  defaults.py      the v5.1 Oman dataset as a plain JSON-serialisable model dict
+  registers.py     source / assumption / verification registers (the audit trail)
+  engine.py        pure deterministic calculation: model dict -> result dict
+  checks.py        the 24 live quality checks, run on every calculation
+  sensitivity.py   one-way tornado over the five control levers + run comparison
+  store.py         model versions + immutable runs carrying full input snapshots
+  svg.py           inline-SVG charts for the offline report
+  report.py        self-contained HTML summary pack + Excel regulator pack
+```
+
+Three invariants the engine deliberately protects, each of which the workbook got
+wrong at least once before fixing: the two cost ratios are summed **inside** `g()`
+(it is concave, so two separate pushes understate facing both shocks at once);
+**k is a function of θ** and is refitted whenever θ moves; and the macro leg
+consumes a GDP **level** deviation, never a growth rate.
+
+`tests/test_climate_engine.py` is a golden-master suite: it asserts the engine
+reproduces the workbook's published figures — k = 0.263009761023414, the full
+intensity and cost-ratio tables, the MR5 grid, the θ band and the k-sensitivity
+grid — to 1e-11 relative, which is tighter than Excel's own precision. Property
+tests then cover what a golden master cannot: zero shocks return the baseline
+exactly, exposure weights are scale-invariant, and both scenario orderings hold.
+
+Model versions and runs are stored as JSON documents under `uploads/climate/`
+(no schema migration; the payloads are documents, not relations). A version marked
+`final` is immutable — editing requires cloning it — and cannot be promoted while
+any quality check is failing.
 
 Everything runs from the project root (`python app.py`, `python serve.py`,
 `python -m pytest`, `python -m alembic …`, `python scripts/…`), which puts the

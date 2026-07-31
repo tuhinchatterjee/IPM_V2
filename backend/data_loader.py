@@ -1153,42 +1153,6 @@ def compute_watchlist_board(quarter: str, top_n_per_col: int = 6) -> dict:
     return {"board": board, "counts": total_counts}
 
 
-# -------------------------------------------------------------------------- ESG
-
-CLIMATE_CHANNEL_BY_REGION = {
-    "UAE": "Coastal flood / heat stress", "Qatar": "Coastal flood / heat stress",
-    "Bahrain": "Coastal flood / sea-level rise", "Kuwait": "Extreme heat / water scarcity",
-    "Saudi Arabia": "Extreme heat / water scarcity", "Oman": "Coastal flood / cyclone",
-}
-
-
-def compute_esg_climate(quarter: str) -> dict:
-    """Physical-climate overlay by GCC region: real EAD, tagged with a climate
-    transmission channel by geography (Gulf-coast vs inland exposure)."""
-    cur = filtered_quarter(quarter)
-    total = float(cur[EAD_COL].sum())
-    high_risk_sectors = ["Real Estate", "Contracting", "Hospitality", "Transport"]
-    high_risk_ead = float(cur.loc[cur["Sector"].isin(high_risk_sectors), EAD_COL].sum())
-
-    rows = []
-    for region, sub in cur.groupby("Region"):
-        ead = float(sub[EAD_COL].sum())
-        rows.append({
-            "region": region, "ead": ead, "pct_of_book": (ead / total * 100) if total else 0.0,
-            "channel": CLIMATE_CHANNEL_BY_REGION.get(region, "Extreme heat"),
-        })
-    rows.sort(key=lambda r: r["ead"], reverse=True)
-
-    re_sector = cur[cur["Sector"] == "Real Estate"]
-    re_ead = float(re_sector[EAD_COL].sum())
-    coastal_flood_ead = float(cur.loc[cur["Region"].isin(["UAE", "Qatar", "Bahrain"]), EAD_COL].sum())
-
-    return {
-        "total": total, "high_risk_ead": high_risk_ead, "high_risk_pct": (high_risk_ead / total * 100) if total else 0.0,
-        "coastal_flood_ead": coastal_flood_ead, "real_estate_ead": re_ead, "rows": rows,
-    }
-
-
 # ------------------------------------------------------------------------ stress
 
 STRESS_ELASTICITIES = {
@@ -1287,48 +1251,6 @@ def compute_sector_kpis(quarter: str, region: str = "All") -> list:
                      "borrower_count": sub["Customer ID"].nunique()})
     out.sort(key=lambda r: r["ead"], reverse=True)
     return out
-
-
-# ------------------------------------------------------------------------- ESG
-
-ESG_SECTOR_SCORE = {
-    # 0-100 illustrative environmental/transition-risk score (higher = better) -
-    # no ESG rating feed exists in the source data, so this is a sector-composition
-    # heuristic, not a calibrated ESG model.
-    "Healthcare": 82, "Telecom": 78, "Utilities": 58, "Trade": 65, "Retail Trade": 68,
-    "Manufacturing": 52, "Transport": 48, "Agriculture": 55, "Hospitality": 60,
-    "Real Estate": 50, "Contracting": 44, "Energy": 32, "Personal Finance": 70,
-}
-DEFAULT_ESG_SECTOR_SCORE = 55
-
-
-def compute_esg_score(quarter: str) -> dict:
-    cur = filtered_quarter(quarter)
-    total = float(cur[EAD_COL].sum())
-    sector_ead = cur.groupby("Sector")[EAD_COL].sum()
-    weighted = sum(ead * ESG_SECTOR_SCORE.get(sec, DEFAULT_ESG_SECTOR_SCORE) for sec, ead in sector_ead.items())
-    score = (weighted / total) if total else 0.0
-    if score >= 75:
-        grade = "A"
-    elif score >= 60:
-        grade = "B"
-    elif score >= 45:
-        grade = "C"
-    else:
-        grade = "D"
-    idx = QUARTER_SHEETS.index(quarter)
-    prev_score = None
-    if idx > 0:
-        pq = QUARTER_SHEETS[idx - 1]
-        psub = filtered_quarter(pq)
-        ptotal = float(psub[EAD_COL].sum())
-        psector_ead = psub.groupby("Sector")[EAD_COL].sum()
-        pweighted = sum(ead * ESG_SECTOR_SCORE.get(sec, DEFAULT_ESG_SECTOR_SCORE) for sec, ead in psector_ead.items())
-        prev_score = (pweighted / ptotal) if ptotal else None
-    delta = (score - prev_score) if prev_score is not None else None
-    by_sector = [{"sector": sec, "ead": float(ead), "score": ESG_SECTOR_SCORE.get(sec, DEFAULT_ESG_SECTOR_SCORE)}
-                 for sec, ead in sector_ead.sort_values(ascending=False).items()]
-    return {"score": score, "grade": grade, "delta": delta, "by_sector": by_sector}
 
 
 # -------------------------------------------------------------------- pricing
