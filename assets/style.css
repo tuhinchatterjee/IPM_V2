@@ -327,9 +327,24 @@ button.dash-dropdown.filter-dd[data-state="open"] {
    so the sticky chat panel on the right has somewhere to stay pinned while the
    left column scrolls past underneath it. */
 .dashboard-grid { display: grid; grid-template-columns: 1fr 372px; gap: 20px; align-items: start; }
-.main-col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+/* The cockpit Overview column. It used to be the 1fr side of a [1fr 372px] grid
+   with the AI chat panel in the rail; now that the chat lives in the global
+   drawer, the column would otherwise stretch the full page width and the six KPI
+   cards, three charts and borrower table all read as over-wide. The cap keeps
+   them at the proportions they were designed for and simply stops growing on
+   large screens. Used only by the Overview. */
+.main-col {
+  display: flex; flex-direction: column; gap: 20px;
+  min-width: 0; max-width: 1280px;
+}
 
 .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+
+/* Grid items default to min-width:auto, so a child wider than its track (a
+   Plotly chart that measured itself in a hidden container, most often) pushes
+   the track out and the whole grid overflows the page. Letting tracks shrink
+   below their content makes these rows structurally incapable of doing that. */
+.kpi-grid > *, .charts-grid > *, .split-grid > *, .b360-grid > * { min-width: 0; }
 
 .signals-dashboard { display: flex; flex-direction: column; gap: 0; }
 .signals-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }

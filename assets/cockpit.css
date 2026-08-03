@@ -1,0 +1,315 @@
+/* ==========================================================================
+   Cockpit — Health Index drill-down (three levels)
+
+     L1  health index      one composite score + the three cards behind it
+     L2  sector matrix     every portfolio on ten columns + peer benchmark
+     L3  obligor actions   the names inside the deteriorating portfolios
+
+   Dash serves every .css in assets/, so this sits beside style.css rather than
+   inside it — the drill-down is self-contained and easy to lift out. All colour
+   and radius tokens come from style.css :root.
+   ========================================================================== */
+
+.hidx-screen { display: flex; flex-direction: column; gap: 18px; }
+
+/* ---------------------------------------------------------------- L1 header */
+
+.hidx-top-grid {
+  display: grid;
+  grid-template-columns: minmax(250px, 1fr) minmax(310px, 1.25fr) minmax(270px, 1.15fr);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.hidx-card, .hidx-mid, .hidx-read { padding: 18px 22px; }
+.hidx-mid, .hidx-read { border-left: 1px solid var(--border); }
+
+.hidx-head { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+.hidx-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--teal-dark);
+}
+.hidx-formula-pill {
+  font-size: 10.5px; font-weight: 600; color: var(--teal-dark);
+  border: 1px solid var(--teal); border-radius: 999px; padding: 3px 11px;
+  cursor: help; white-space: nowrap;
+}
+.hidx-score-row { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; }
+.hidx-score { font-size: 62px; font-weight: 800; line-height: 1; letter-spacing: -0.03em; }
+.hidx-score.tone-green { color: var(--green); }
+.hidx-score.tone-amber { color: var(--amber); }
+.hidx-score.tone-red   { color: var(--red); }
+.hidx-outof { font-size: 20px; font-weight: 600; color: var(--text-faint); }
+
+.hidx-band-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+.hidx-band-pill {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 5px 12px;
+  border-radius: 999px; white-space: nowrap;
+}
+.hidx-band-pill.tone-green { background: var(--green-bg); color: var(--green-dark); }
+.hidx-band-pill.tone-amber { background: var(--amber-bg); color: var(--amber-dark); }
+.hidx-band-pill.tone-red   { background: var(--red-bg);   color: var(--red-dark); }
+.hidx-delta-row { display: flex; gap: 10px; }
+.hidx-delta { font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.hidx-delta.is-good { color: var(--green); }
+.hidx-delta.is-bad  { color: var(--red); }
+
+.hidx-sub-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;
+}
+
+/* Health band: a one-dimensional position, so a segmented meter, not a chart. */
+.band-marker-track { position: relative; height: 13px; }
+.band-marker {
+  position: absolute; transform: translateX(-50%); font-size: 11px;
+  color: var(--text-dark); line-height: 1;
+}
+.band-track { display: flex; gap: 2px; height: 18px; border-radius: 4px; overflow: hidden; }
+.band-seg { font-size: 0; }
+.band-seg.band-red   { background: var(--red); }
+.band-seg.band-amber { background: var(--amber); }
+.band-seg.band-green { background: var(--green); }
+.band-tick-row { display: flex; margin-top: 5px; }
+.band-tick {
+  flex: 1; font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em;
+  color: var(--text-faint); text-align: center;
+}
+.band-tick:first-child { text-align: left; }
+.band-tick:last-child  { text-align: right; }
+
+.hidx-spark { margin-top: 2px; }
+.hidx-read-text { font-size: 13px; line-height: 1.55; color: var(--text-mid); }
+
+/* ------------------------------------------------------------ L1 three cards */
+
+.hidx-card-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;
+}
+.ph-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.ph-card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 16px; color: #fff;
+}
+.ph-card-head.amber-head { background: var(--amber); }
+.ph-card-head.red-head   { background: var(--red); }
+.ph-card-head.green-head { background: var(--green); }
+.ph-card-title { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; }
+.ph-card-pill {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+  background: #fff; border-radius: 999px; padding: 3px 10px; white-space: nowrap;
+}
+.ph-card-pill.tone-green { color: var(--green-dark); }
+.ph-card-pill.tone-amber { color: var(--amber-dark); }
+.ph-card-pill.tone-red   { color: var(--red-dark); }
+
+.ph-card-body { padding: 14px 16px; flex: 1; }
+.ph-group-label {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--text-faint); margin: 2px 0 8px;
+}
+.ph-group-label.is-italic {
+  font-style: italic; text-transform: none; letter-spacing: 0.02em; font-size: 11px;
+}
+.ph-divider { height: 1px; background: var(--border); margin: 12px 0; }
+
+.ph-metric-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+.ph-metric-label {
+  flex: 1; font-size: 12.5px; color: var(--text-mid);
+  display: flex; align-items: center; gap: 4px;
+}
+.ph-metric-value {
+  font-size: 13px; font-weight: 700; color: var(--text-dark);
+  font-variant-numeric: tabular-nums;
+}
+.ph-metric-delta { font-size: 10.5px; width: 12px; text-align: center; }
+.ph-metric-delta.is-good, .ph-metric-delta.tone-green { color: var(--green); }
+.ph-metric-delta.is-bad,  .ph-metric-delta.tone-red   { color: var(--red); }
+.ph-metric-delta.tone-amber { color: var(--amber); }
+.ph-metric-sub {
+  font-size: 11.5px; color: var(--text-faint); font-variant-numeric: tabular-nums;
+  min-width: 58px; text-align: right;
+}
+.ph-card-foot {
+  padding: 9px 16px; border-top: 1px solid var(--border);
+  font-size: 10.5px; color: var(--text-faint); line-height: 1.4;
+}
+
+.appetite-row { padding: 6px 0; border-bottom: 1px solid #f4f6fa; }
+.appetite-row:last-child { border-bottom: none; }
+.appetite-row .ph-metric-row { padding: 0; }
+.appetite-sub { font-size: 10.5px; color: var(--text-faint); padding-left: 16px; margin-top: 1px; }
+.appetite-status { font-weight: 700; letter-spacing: 0.03em; }
+.appetite-status.tone-green { color: var(--green); }
+.appetite-status.tone-amber { color: var(--amber-dark); }
+.appetite-status.tone-red   { color: var(--red); }
+
+.macro-lede { font-size: 12px; color: var(--text-mid); line-height: 1.5; margin-bottom: 12px; }
+.macro-indicative { font-size: 9.5px; color: var(--text-faint); cursor: help; }
+
+.fwd-strip {
+  background: var(--navy-900); color: #cdd9e6; padding: 10px 16px;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+}
+.fwd-tag {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em;
+  color: var(--teal); white-space: nowrap;
+}
+.fwd-items { display: flex; gap: 16px; flex-wrap: wrap; }
+.fwd-item { font-size: 11px; white-space: nowrap; }
+.fwd-item b { color: #fff; font-weight: 700; }
+
+/* ------------------------------------------------------------ drill controls */
+
+.drill-next-row { display: flex; justify-content: flex-end; }
+.drill-next-btn, .drill-back-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: inherit; font-size: 12px; font-weight: 650;
+  padding: 9px 18px; border-radius: var(--radius-sm); cursor: pointer;
+  border: 1px solid transparent; transition: background 0.15s, box-shadow 0.15s;
+}
+.drill-next-btn { background: var(--navy-900); color: #fff; }
+.drill-next-btn:hover { background: var(--navy-700); box-shadow: var(--shadow-hover); }
+.drill-back-btn { background: var(--card); color: var(--text-mid); border-color: var(--border); }
+.drill-back-btn:hover { background: #f6f8fb; color: var(--text-dark); }
+.drill-back-btn.is-ghost { background: transparent; border-color: transparent; color: var(--text-faint); }
+.drill-back-btn.is-ghost:hover { color: var(--text-mid); }
+.drill-chev { font-size: 15px; line-height: 1; }
+.drill-crumb-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.drill-crumb-note { font-size: 11.5px; color: var(--text-faint); }
+
+/* ----------------------------------------------------------------- L2 matrix */
+
+.matrix-grid {
+  display: grid; grid-template-columns: minmax(0, 2.6fr) minmax(275px, 1fr);
+  gap: 16px; align-items: start;
+}
+.matrix-main { min-width: 0; display: flex; flex-direction: column; }
+.matrix-table-wrap {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0; overflow-x: auto;
+}
+.matrix-table { width: 100%; }
+.matrix-table thead th { background: var(--navy-900); color: #fff; white-space: nowrap; }
+.matrix-row.is-clickable { cursor: pointer; }
+.matrix-row.is-clickable:hover { background: var(--blue-bg); }
+.sector-cell { display: flex; align-items: center; gap: 9px; }
+.sector-tick { width: 3px; height: 20px; border-radius: 2px; flex: 0 0 3px; }
+.sector-tick.tone-green { background: var(--green); }
+.sector-tick.tone-amber { background: var(--amber); }
+.sector-tick.tone-red   { background: var(--red); }
+.sector-name { font-weight: 600; color: var(--text-dark); white-space: nowrap; }
+.ai-chip {
+  display: inline-block; min-width: 40px; padding: 3px 9px; border-radius: var(--radius-sm);
+  font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.ai-chip.tone-green { background: var(--green-bg); color: var(--green-dark); }
+.ai-chip.tone-amber { background: var(--amber-bg); color: var(--amber-dark); }
+.ai-chip.tone-red   { background: var(--red-bg);   color: var(--red-dark); }
+.trend-glyph { font-size: 12px; }
+.trend-glyph.is-down   { color: var(--red); }
+.trend-glyph.is-up     { color: var(--green); }
+.trend-glyph.is-watch  { color: var(--amber); }
+.trend-glyph.is-stable { color: var(--text-faint); }
+.matrix-insight {
+  background: var(--card); border: 1px solid var(--border); border-top: none;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  padding: 11px 16px; font-size: 11.5px; color: var(--red-dark); line-height: 1.5;
+}
+
+/* Peer benchmark — quartile position, so exactly one segment lights.
+   .dark-table-card is a LIGHT card (white surface, dark header text), so the ink
+   here is the standard text ramp, not the inverted one. */
+.bench-card { padding: 0 18px 14px; }
+.bench-lede { font-size: 11px; font-style: italic; color: var(--text-faint); margin: -4px 0 14px; }
+.bench-body { display: flex; flex-direction: column; gap: 14px; }
+.bench-row { display: flex; flex-direction: column; gap: 5px; }
+.bench-head { display: flex; align-items: baseline; gap: 7px; }
+.bench-label { flex: 1; font-size: 12px; color: var(--text-mid); }
+.bench-value {
+  font-size: 13px; font-weight: 700; color: var(--text-dark);
+  font-variant-numeric: tabular-nums;
+}
+.bench-info { font-size: 9.5px; color: var(--text-faint); cursor: help; }
+.bench-track { display: flex; gap: 3px; height: 7px; }
+.bench-seg { flex: 1; background: #eef1f6; border-radius: 2px; }
+.bench-seg.is-on.is-good { background: var(--green); }
+.bench-seg.is-on.is-bad  { background: var(--amber); }
+.bench-foot { font-size: 9.5px; letter-spacing: 0.04em; }
+.bench-quartile { font-weight: 700; }
+.bench-quartile.is-good { color: var(--green-dark); }
+.bench-quartile.is-bad  { color: var(--amber-dark); }
+.bench-median { color: var(--text-faint); }
+.bench-sources {
+  margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--border);
+  font-size: 9.5px; color: var(--text-faint); line-height: 1.45;
+}
+
+/* --------------------------------------------------------------- L3 obligors */
+
+.ob-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.ob-column {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.obcol-head {
+  background: var(--navy-900); color: #fff; padding: 13px 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.obcol-title { font-size: 14px; font-weight: 700; }
+.obcol-score {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em;
+  padding: 4px 11px; border-radius: 999px; white-space: nowrap;
+}
+.obcol-score.tone-green { background: var(--green-bg); color: var(--green-dark); }
+.obcol-score.tone-amber { background: var(--amber-bg); color: var(--amber-dark); }
+.obcol-score.tone-red   { background: var(--red-bg);   color: var(--red-dark); }
+.obcol-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.obcol-foot {
+  padding: 9px 16px; border-top: 1px solid var(--border);
+  font-size: 10.5px; color: var(--text-faint);
+}
+
+.ob-card { background: #f6f8fb; border-radius: var(--radius-md); padding: 11px 13px; }
+.ob-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ob-name { font-size: 13px; font-weight: 650; color: var(--text-dark); }
+.ob-ead {
+  font-size: 12.5px; font-weight: 700; color: var(--text-dark);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.ob-meta { display: flex; align-items: center; gap: 8px; margin: 6px 0 9px; flex-wrap: wrap; }
+.ob-rating {
+  font-size: 10.5px; font-weight: 700; color: var(--text-mid);
+  background: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px;
+}
+.ob-trigger { font-size: 11px; color: var(--text-muted); }
+.ob-foot-note { font-size: 11px; color: var(--text-faint); font-style: italic; }
+
+/* The action control is a real dropdown styled as the dark button in the design.
+   Dash 4 renders dcc.Dropdown as button.dash-dropdown with its own trigger/value
+   spans — not the legacy react-select markup — so these are the live selectors. */
+.ob-action-dd.dash-dropdown {
+  width: 100%; background: var(--navy-900); border: none;
+  border-radius: var(--radius-sm); padding: 8px 12px; cursor: pointer;
+  transition: background 0.15s;
+}
+.ob-action-dd.dash-dropdown:hover { background: var(--navy-700); }
+.ob-action-dd .dash-dropdown-value,
+.ob-action-dd .dash-dropdown-value-item,
+.ob-action-dd .dash-dropdown-value-item span {
+  color: #fff; font-size: 11.5px; font-weight: 600; text-align: left;
+}
+.ob-action-dd svg { color: #fff; fill: currentColor; opacity: 0.85; }
+
+@media (max-width: 1180px) {
+  .hidx-top-grid { grid-template-columns: 1fr; }
+  .hidx-mid, .hidx-read { border-left: none; border-top: 1px solid var(--border); }
+  .matrix-grid { grid-template-columns: 1fr; }
+}

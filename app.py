@@ -33,7 +33,7 @@ from backend.auth.login import init_auth, install_gate
 from backend.auth.routes import register_auth_routes
 from backend.climate import store as climate_store
 from backend.services import ai_usage, data_store, rate_limit
-from frontend import brf_view, data_hub, esg_view, macro_view, raroc2_view, raroc_view
+from frontend import brf_view, cockpit_view, data_hub, esg_view, macro_view, raroc2_view, raroc_view
 
 # --------------------------------------------------------------------------- app
 
@@ -157,7 +157,8 @@ def _server_error(e):
     return _error_page(500, "Something went wrong",
                        "An internal error occurred and has been logged. Please try again.")
 
-SUBNAV_TABS = ["Overview", "Signals", "Concentration", "Migration", "EAD", "IFRS 9"]
+SUBNAV_TABS = ["Health Index", "Overview", "Signals", "Concentration", "Migration", "EAD", "IFRS 9"]
+COCKPIT_LANDING_TAB = SUBNAV_TABS[0]
 MODULE_DESCRIPTIONS = {
     "Signals": "AI Risk Score, Severity (RED / AMBER / GREEN), Trigger, Reason Code, Recommended Action, Owner.",
     "Concentration": "Sector x Internal Grade heatmap, HHI, top-obligor and group exposure.",
@@ -313,7 +314,7 @@ def build_cockpit_breadcrumb_subnav():
             tab,
             id={"type": "subnav", "tab": tab},
             n_clicks=0,
-            className="subnav-item active" if tab == "Overview" else "subnav-item",
+            className="subnav-item active" if tab == COCKPIT_LANDING_TAB else "subnav-item",
         )
         for tab in SUBNAV_TABS
     ]
@@ -321,7 +322,7 @@ def build_cockpit_breadcrumb_subnav():
         [
             html.Div(
                 [icon_grid(), html.Span("Cockpit", className="crumb-icon"), html.Span("›", className="crumb-sep"),
-                 html.Span("Overview", className="crumb-current")],
+                 html.Span(COCKPIT_LANDING_TAB, className="crumb-current", id="cockpit-crumb-current")],
                 className="ipm-breadcrumb",
             ),
             html.Div(subnav_items, className="subnav"),
@@ -574,6 +575,8 @@ def build_chat_panel(page: str, history: list = None, current_model: str = DEFAU
                     className="signals-header-left",
                 ),
                 build_model_dropdown(page, active=current_model),
+                html.Button("×", id="ai-drawer-close", n_clicks=0, className="ai-drawer-close",
+                            title="Close (Esc)"),
             ],
             className="signals-header",
         ),
@@ -603,6 +606,12 @@ def build_chat_panel(page: str, history: list = None, current_model: str = DEFAU
 
 # ------------------------------------------------------------------------ charts
 
+# Height of the three Overview cards' charts. Responsive Plotly graphs size to
+# their DOM element rather than the figure, so this has to drive both the figure
+# layout and the dcc.Graph style — keeping it in one place stops them drifting.
+CHART_HEIGHT = 176
+
+
 def build_stage_chart(quarter, segment, sector, region, rating):
     stages = dl.compute_stage_breakdown(quarter, segment, sector, region, rating)
     fig = go.Figure(
@@ -623,7 +632,7 @@ def build_stage_chart(quarter, segment, sector, region, rating):
     fig.update_layout(
         showlegend=False,
         margin=dict(t=6, b=6, l=6, r=6),
-        height=176,
+        height=CHART_HEIGHT,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         annotations=[
@@ -652,7 +661,7 @@ def build_stage_chart(quarter, segment, sector, region, rating):
 
     return html.Div(
         [
-            dcc.Graph(figure=fig, config={"displayModeBar": False}, style={"width": "176px", "height": "176px"}),
+            dcc.Graph(figure=fig, config={"displayModeBar": False}, style={"width": f"{CHART_HEIGHT}px", "height": f"{CHART_HEIGHT}px"}),
             legend,
         ],
         className="donut-flex",
@@ -680,7 +689,7 @@ def build_ecl_chart(quarter, segment, sector, region, rating):
     pad = max((max(ys) - min(ys)) * 0.35, 5) if ys else 5
     fig.update_layout(
         margin=dict(t=10, b=24, l=38, r=10),
-        height=176,
+        height=CHART_HEIGHT,
         xaxis=dict(showgrid=False, tickfont=dict(size=10.5, color="#6c7a8c", family="Inter")),
         yaxis=dict(showgrid=True, gridcolor="#eef1f6", zeroline=False,
                    tickfont=dict(size=10.5, color="#6c7a8c", family="Inter"),
@@ -689,7 +698,14 @@ def build_ecl_chart(quarter, segment, sector, region, rating):
         plot_bgcolor="rgba(0,0,0,0)",
         hoverlabel=dict(bgcolor="#0b2436", font_color="#fff", font_size=12, font_family="Inter"),
     )
-    return dcc.Graph(figure=fig, config={"displayModeBar": False})
+    # responsive=True so Plotly re-measures when the chart becomes visible. The
+    # Cockpit mounts Overview hidden (it lands on Health Index), and a graph laid
+    # out in a zero-width container otherwise keeps Plotly's 700px default width
+    # forever, which blows the charts grid past the page width. Responsive graphs
+    # take their size from the element, so the height has to be pinned here too or
+    # they inherit dcc.Graph's 450px default instead of the figure's own height.
+    return dcc.Graph(figure=fig, config={"displayModeBar": False, "responsive": True},
+                     style={"width": "100%", "height": f"{CHART_HEIGHT}px"})
 
 
 def build_sector_chart(quarter, segment, sector, region, rating):
@@ -712,7 +728,7 @@ def build_sector_chart(quarter, segment, sector, region, rating):
     max_x = max([s["ead"] / 1000 for s in sectors], default=1)
     fig.update_layout(
         margin=dict(t=10, b=24, l=10, r=34),
-        height=176,
+        height=CHART_HEIGHT,
         xaxis=dict(showgrid=True, gridcolor="#eef1f6", zeroline=False, range=[0, max_x * 1.28],
                    tickfont=dict(size=10.5, color="#6c7a8c", family="Inter")),
         yaxis=dict(tickfont=dict(size=11.5, color="#3c4a5a", family="Inter")),
@@ -721,7 +737,8 @@ def build_sector_chart(quarter, segment, sector, region, rating):
         bargap=0.38,
         hoverlabel=dict(bgcolor="#0b2436", font_color="#fff", font_size=12, font_family="Inter"),
     )
-    return dcc.Graph(figure=fig, config={"displayModeBar": False})
+    return dcc.Graph(figure=fig, config={"displayModeBar": False, "responsive": True},
+                     style={"width": "100%", "height": f"{CHART_HEIGHT}px"})
 
 
 def build_charts_row(quarter, segment, sector, region, rating):
@@ -2444,34 +2461,34 @@ def build_modal_children(detail: dict) -> list:
 
 # ------------------------------------------------------------------- Cockpit page
 
-def build_overview_content(chat_history=None, chat_model=DEFAULT_MODEL):
+def build_overview_content():
+    """The Overview body. The AI panel used to sit in a right rail here; it now
+    lives in the global Ask AI drawer, so the content spans the full width."""
     q, seg, sec, reg, rat = dl.DEFAULT_QUARTER, "All", "All", "All", "All"
     return [
         build_filters_row(),
         html.Div(
             [
-                html.Div(
-                    [
-                        html.Div(build_kpi_cards(q, seg, sec, reg, rat), className="kpi-grid", id="kpi-grid"),
-                        html.Div(build_charts_row(q, seg, sec, reg, rat), className="charts-grid", id="charts-grid"),
-                        build_table_card(q, seg, sec, reg, rat, DEFAULT_SORT),
-                    ],
-                    className="main-col",
-                ),
-                html.Div(build_chat_panel("cockpit", chat_history, chat_model),
-                          className="signals-panel ai-chat-panel"),
+                html.Div(build_kpi_cards(q, seg, sec, reg, rat), className="kpi-grid", id="kpi-grid"),
+                html.Div(build_charts_row(q, seg, sec, reg, rat), className="charts-grid", id="charts-grid"),
+                build_table_card(q, seg, sec, reg, rat, DEFAULT_SORT),
             ],
-            className="dashboard-grid",
+            className="main-col",
         ),
     ]
 
 
-def build_cockpit_page(chat_history=None, chat_model=DEFAULT_MODEL):
+def build_cockpit_page():
+    """The cockpit lands on the Health Index drill-down. Overview is kept mounted
+    (hidden) rather than rebuilt on every tab switch, because it carries the
+    filter-driven grids that other callbacks target by id."""
     return [
         build_page_header("Executive Portfolio Risk Cockpit"),
         build_cockpit_breadcrumb_subnav(),
-        html.Div(build_overview_content(chat_history, chat_model), id="overview-wrapper"),
-        html.Div(id="placeholder-wrapper", style={"display": "none"}),
+        html.Div(build_overview_content(), id="overview-wrapper",
+                 style={"display": "none"}),
+        html.Div(cockpit_view.build_health_shell(), id="placeholder-wrapper",
+                 style={"display": "block"}),
     ]
 
 
@@ -2809,7 +2826,7 @@ def build_pd_ecl_chart(customer_id, quarter):
     )
 
 
-def build_b360_content(customer_id, quarter, chat_history=None, chat_model=DEFAULT_MODEL):
+def build_b360_content(customer_id, quarter):
     return [
         html.Div(
             [
@@ -2849,8 +2866,6 @@ def build_b360_content(customer_id, quarter, chat_history=None, chat_model=DEFAU
                     [
                         html.Div(build_rating_table(customer_id, quarter), id="b360-rating-table"),
                         html.Div(build_pd_ecl_chart(customer_id, quarter), id="b360-pd-ecl-chart"),
-                        html.Div(build_chat_panel("b360", chat_history, chat_model),
-                                  className="signals-panel ai-chat-panel"),
                     ],
                     className="b360-col",
                 ),
@@ -2860,7 +2875,7 @@ def build_b360_content(customer_id, quarter, chat_history=None, chat_model=DEFAU
     ]
 
 
-def build_borrowers_page(customer_id=None, chat_history=None, chat_model=DEFAULT_MODEL):
+def build_borrowers_page(customer_id=None):
     customer_id = customer_id if customer_id in dl.SUPP_DF.index else dl.DEFAULT_CUSTOMER
     quarter = dl.DEFAULT_QUARTER
     profile = dl.get_borrower_profile(customer_id, quarter)
@@ -2868,9 +2883,44 @@ def build_borrowers_page(customer_id=None, chat_history=None, chat_model=DEFAULT
     return [
         build_page_header("Borrower 360 Monitoring View"),
         build_b360_breadcrumb_subnav(borrower_name),
-        html.Div(build_b360_content(customer_id, quarter, chat_history, chat_model), id="b360-wrapper"),
+        html.Div(build_b360_content(customer_id, quarter), id="b360-wrapper"),
         html.Div(id="b360-placeholder-wrapper", style={"display": "none"}),
     ]
+
+
+# --------------------------------------------------------------- global AI drawer
+
+# One chat, reachable from every screen. The panel itself is unchanged — it is
+# simply mounted in a slide-in drawer instead of being embedded in two page
+# bodies. The conversation context still follows the route: Borrower 360 gets the
+# borrower-grounded prompt, everything else gets the portfolio one, which is why
+# the drawer body is rebuilt by the router rather than built once here.
+
+AI_DRAWER_PAGE_KEY = {"/borrowers": "b360"}
+AI_DRAWER_DEFAULT_KEY = "cockpit"
+
+
+def ai_drawer_page_key(pathname: str | None) -> str:
+    return AI_DRAWER_PAGE_KEY.get(pathname or "", AI_DRAWER_DEFAULT_KEY)
+
+
+def build_ai_launcher():
+    """The floating Ask AI button plus the drawer it opens. Lives outside
+    page-content so it is present on every route, including Data Hub."""
+    return html.Div(
+        [
+            html.Button(
+                [html.Span("✦", className="ai-fab-icon"), html.Span("Ask AI", className="ai-fab-label")],
+                id="ai-fab", n_clicks=0, className="ai-fab", title="Ask AI about this portfolio",
+            ),
+            html.Div(id="ai-drawer-scrim", n_clicks=0, className="ai-drawer-scrim"),
+            html.Div(
+                html.Div(id="ai-drawer-body", className="signals-panel ai-chat-panel ai-drawer-panel"),
+                id="ai-drawer", className="ai-drawer",
+            ),
+        ],
+        id="ai-launcher",
+    )
 
 
 # ------------------------------------------------------------------------ layout
@@ -2900,8 +2950,10 @@ def serve_layout():
             dcc.Store(id="b360-chat-customer-store", data=dl.DEFAULT_CUSTOMER),
             dcc.Store(id="stress-history", data=[]),
             dcc.Store(id="stress-params", data={"rate_shock_bps": 0, "cre_price_shock_pct": 0}),
+            dcc.Store(id="ai-drawer-open", data=False),
             build_navbar(),
             html.Div(id="page-content", className="page-body"),
+            build_ai_launcher(),
             dbc.Modal(
                 id="borrower-modal",
                 is_open=False,
@@ -3085,11 +3137,13 @@ def update_table(quarter, segment, sector, region, rating, sort_state):
     Output("overview-wrapper", "style"),
     Output("placeholder-wrapper", "style"),
     Output("placeholder-wrapper", "children"),
+    Output("cockpit-crumb-current", "children"),
     Input({"type": "subnav", "tab": ALL}, "n_clicks"),
     State({"type": "subnav", "tab": ALL}, "id"),
+    State("current-quarter-store", "data"),
     prevent_initial_call=True,
 )
-def switch_subnav(_n_clicks_list, ids):
+def switch_subnav(_n_clicks_list, ids, quarter):
     trig = ctx.triggered_id
     if not trig or not ctx.triggered[0]["value"]:
         raise PreventUpdate
@@ -3097,22 +3151,19 @@ def switch_subnav(_n_clicks_list, ids):
     classnames = ["subnav-item active" if d["tab"] == active_tab else "subnav-item" for d in ids]
 
     if active_tab == "Overview":
-        return classnames, {"display": "block"}, {"display": "none"}, []
+        return classnames, {"display": "block"}, {"display": "none"}, [], active_tab
 
-    if active_tab == "Signals":
-        return classnames, {"display": "none"}, {"display": "block"}, build_signals_dashboard()
-
-    if active_tab == "Concentration":
-        return classnames, {"display": "none"}, {"display": "block"}, build_concentration_dashboard()
-
-    if active_tab == "Migration":
-        return classnames, {"display": "none"}, {"display": "block"}, build_migration_dashboard()
-
-    if active_tab == "EAD":
-        return classnames, {"display": "none"}, {"display": "block"}, build_ead_dashboard()
-
-    if active_tab == "IFRS 9":
-        return classnames, {"display": "none"}, {"display": "block"}, build_ifrs9_dashboard()
+    builders = {
+        "Health Index": lambda: cockpit_view.build_health_shell(quarter),
+        "Signals": build_signals_dashboard,
+        "Concentration": build_concentration_dashboard,
+        "Migration": build_migration_dashboard,
+        "EAD": build_ead_dashboard,
+        "IFRS 9": build_ifrs9_dashboard,
+    }
+    builder = builders.get(active_tab)
+    if builder:
+        return classnames, {"display": "none"}, {"display": "block"}, builder(), active_tab
 
     placeholder = html.Div(
         [
@@ -3123,7 +3174,29 @@ def switch_subnav(_n_clicks_list, ids):
         ],
         className="placeholder-panel",
     )
-    return classnames, {"display": "none"}, {"display": "block"}, placeholder
+    return classnames, {"display": "none"}, {"display": "block"}, placeholder, active_tab
+
+
+# ------------------------------------------------- cockpit health drill-down
+
+@app.callback(
+    Output("cockpit-drill-body", "children"),
+    Input({"type": "cockpit-drill", "level": ALL, "sector": ALL}, "n_clicks"),
+    State("current-quarter-store", "data"),
+    prevent_initial_call=True,
+)
+def cockpit_drill(_clicks, quarter):
+    """One callback drives all three levels: forward links, sector rows and the
+    back links are the same component type, distinguished only by their id."""
+    trig = ctx.triggered_id
+    if not trig or not ctx.triggered[0]["value"]:
+        raise PreventUpdate
+    sector = trig.get("sector")
+    return cockpit_view.build_drill_body(
+        level=int(trig["level"]),
+        sector=None if sector == "__all__" else sector,
+        quarter=quarter or dl.DEFAULT_QUARTER,
+    )
 
 
 @app.callback(Output("current-quarter-store", "data"), Input("f-quarter", "value"))
@@ -3179,6 +3252,7 @@ def open_account_modal(account_id):
 
 @app.callback(
     Output("page-content", "children"),
+    Output("ai-drawer-body", "children"),
     Output({"type": "chat-history", "page": "b360"}, "data", allow_duplicate=True),
     Output({"type": "chat-pending", "page": "b360"}, "data", allow_duplicate=True),
     Output("b360-chat-customer-store", "data"),
@@ -3192,6 +3266,9 @@ def open_account_modal(account_id):
     prevent_initial_call="initial_duplicate",
 )
 def render_page(pathname, search, cockpit_history, cockpit_model, b360_history, b360_model, b360_chat_customer):
+    """Renders the routed page and re-points the global AI drawer at the chat
+    context that matches it, so Ask AI is grounded in whatever the user is
+    looking at."""
     if pathname == "/borrowers":
         params = parse_qs((search or "").lstrip("?"))
         customer_id = params.get("customer", [None])[0]
@@ -3201,16 +3278,43 @@ def render_page(pathname, search, cockpit_history, cockpit_model, b360_history, 
         # borrower's page should keep the conversation going.
         if customer_id != b360_chat_customer:
             b360_history = [{"role": "system", "content": ai_chat.system_prompt_borrower(customer_id)}]
-            page = build_borrowers_page(customer_id, b360_history, b360_model)
-            return page, b360_history, None, customer_id
-        page = build_borrowers_page(customer_id, b360_history, b360_model)
-        return page, no_update, no_update, no_update
+            return (build_borrowers_page(customer_id), build_chat_panel("b360", b360_history, b360_model),
+                    b360_history, None, customer_id)
+        return (build_borrowers_page(customer_id), build_chat_panel("b360", b360_history, b360_model),
+                no_update, no_update, no_update)
+
+    cockpit_panel = build_chat_panel("cockpit", cockpit_history, cockpit_model)
     if pathname == "/data":
-        return data_hub.build_data_hub_page(), no_update, no_update, no_update
+        return data_hub.build_data_hub_page(), cockpit_panel, no_update, no_update, no_update
     section_key = ROUTE_TO_SECTION.get((pathname or "").lstrip("/"))
     if section_key:
-        return build_section_page(section_key), no_update, no_update, no_update
-    return build_cockpit_page(cockpit_history, cockpit_model), no_update, no_update, no_update
+        return build_section_page(section_key), cockpit_panel, no_update, no_update, no_update
+    return build_cockpit_page(), cockpit_panel, no_update, no_update, no_update
+
+
+@app.callback(
+    Output("ai-drawer-open", "data"),
+    Output("ai-drawer", "className"),
+    Output("ai-drawer-scrim", "className"),
+    Output("ai-fab", "className"),
+    Input("ai-fab", "n_clicks"),
+    Input("ai-drawer-close", "n_clicks"),
+    Input("ai-drawer-scrim", "n_clicks"),
+    State("ai-drawer-open", "data"),
+    prevent_initial_call=True,
+)
+def toggle_ai_drawer(_fab, _close, _scrim, is_open):
+    """The Ask AI button toggles; the close button and the scrim always close."""
+    trig = ctx.triggered_id
+    if not trig or not ctx.triggered[0]["value"]:
+        raise PreventUpdate
+    open_now = (not is_open) if trig == "ai-fab" else False
+    return (
+        open_now,
+        "ai-drawer is-open" if open_now else "ai-drawer",
+        "ai-drawer-scrim is-open" if open_now else "ai-drawer-scrim",
+        "ai-fab is-hidden" if open_now else "ai-fab",
+    )
 
 
 @app.callback(

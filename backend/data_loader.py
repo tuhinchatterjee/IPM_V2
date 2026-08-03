@@ -1820,6 +1820,16 @@ def normalize_weights(base=None, up=None, down=None) -> dict:
     return {k: v / total for k, v in raw.items()}
 
 
+def health_index(npl: float, stage2: float) -> float:
+    """0-100 composite portfolio-health score from the two ratios that move it:
+    each 1pp of NPL costs 5 points, each 1pp of Stage 2 costs 1.5 points.
+
+    Deliberately simple and monotone, so a reader can reconstruct the score from
+    the two inputs without the model. Shared by the Portfolio Health projection
+    and the cockpit Health Index screen so the two can never disagree."""
+    return max(0.0, min(100.0, 100.0 - npl * 5.0 - stage2 * 1.5))
+
+
 def compute_portfolio_health(quarter: str, region: str = "All", weights: dict | None = None) -> dict:
     """Trailing 4 quarters of real NPL / Stage-2 / ECL-coverage ratios plus a
     4-quarter projection per scenario, optionally for one region's slice of the
@@ -1872,10 +1882,6 @@ def compute_portfolio_health(quarter: str, region: str = "All", weights: dict | 
         **{m: sum(weights[s] * projections[s][i][m] for s in MACRO_SCENARIOS)
            for m in ("npl", "stage2", "coverage")},
     } for i in range(4)]
-
-    def health_index(npl, stage2):
-        # 0-100 composite: each 1pp of NPL costs 5pts, each 1pp of Stage 2 costs 1.5pts.
-        return max(0.0, min(100.0, 100.0 - npl * 5.0 - stage2 * 1.5))
 
     hi_now = health_index(cur["npl"], cur["stage2"])
     hi_paths = {scen: [health_index(p["npl"], p["stage2"]) for p in path]
