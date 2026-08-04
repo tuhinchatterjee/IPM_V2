@@ -1,0 +1,80 @@
+/* ==========================================================================
+   Stress → Scenario Lab: named presets, active-shock strip, "ask again" chips
+   ========================================================================== */
+
+/* ------------------------------------------------------------ preset cards */
+/* One click loads a fully specified shock. Tone encodes severity, but the
+   detail line always states the actual parameters — colour never carries the
+   meaning on its own. */
+
+.preset-row {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px; margin-bottom: 12px;
+}
+.preset-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: 10px 12px; text-align: left; cursor: pointer; font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+.preset-card:hover { border-color: var(--teal); box-shadow: var(--shadow-card); }
+.preset-card:active { transform: translateY(1px); }
+.preset-label {
+  font-size: 12px; font-weight: 700; color: var(--text-dark); line-height: 1.25;
+}
+.preset-detail { font-size: 10.5px; color: var(--text-muted); margin-top: 3px; }
+
+/* A left rule carries severity; the border colour alone would be too subtle. */
+.preset-card.tone-amber  { border-left: 3px solid var(--amber); }
+.preset-card.tone-red    { border-left: 3px solid var(--red); }
+.preset-card.tone-neutral { border-left: 3px solid var(--text-faint); }
+
+.preset-card.is-active {
+  border-color: var(--teal); background: var(--teal-light);
+  box-shadow: inset 0 0 0 1px var(--teal);
+}
+.preset-card.is-active .preset-label { color: var(--teal-dark); }
+
+/* ------------------------------------------------------- active shock strip */
+
+.active-shock-strip {
+  margin: 0 20px 12px; padding: 7px 12px; border-radius: var(--radius-sm);
+  background: #f6f8fb; border: 1px solid var(--border);
+  font-size: 11.5px; font-weight: 600; color: var(--text-mid);
+}
+
+/* --------------------------------------------------- markdown in the console */
+/* The lab's replies name scenarios and quote figures in Markdown; this is the
+   light-surface counterpart of the drawer's .chat-md rules. */
+
+.scenario-md, .scenario-md p { margin: 0; font-size: 13px; line-height: 1.55; }
+.scenario-md p + p { margin-top: 7px; }
+.scenario-md strong { color: var(--text-dark); font-weight: 700; }
+.scenario-md ul { margin: 6px 0 0; padding-left: 17px; }
+.scenario-md li { margin: 2px 0; }
+.scenario-md li::marker { color: var(--teal-dark); }
+.scenario-md code {
+  background: #e8edf4; border-radius: 4px; padding: 1px 5px; font-size: 11.5px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+/* ------------------------------------------------------------ recall chips */
+/* Questions asked here before, offered back. Kept visually quieter than the
+   presets: this is a shortcut, not the primary action. */
+
+.recall-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
+}
+.recall-label {
+  font-size: 9px; font-weight: 800; letter-spacing: 0.09em; color: var(--text-faint);
+  text-transform: uppercase; margin-right: 2px;
+}
+.recall-chip {
+  background: #f1f4f8; border: 1px solid var(--border); border-radius: 12px;
+  color: var(--text-mid); font-size: 11px; font-weight: 600;
+  padding: 4px 11px; cursor: pointer; transition: all 0.15s ease;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.recall-chip:hover {
+  background: var(--teal-light); border-color: var(--teal); color: var(--teal-dark);
+}

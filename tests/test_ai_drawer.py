@@ -7,6 +7,7 @@ route with the chat context that matches the page.
 """
 
 import app as A
+import backend.ai_context as ai_context
 
 
 def _walk(node):
@@ -36,14 +37,17 @@ def _class_names(tree):
 # /data is excluded: the Data Hub page queries the dataset-version tables, and
 # this suite is deliberately DB-free (see conftest). Every other route renders
 # from the bundled workbook already in data_loader's module globals.
-ROUTES = ["/", "/esg", "/macro", "/raroc", "/brf", "/watchlist", "/limits", "/stress",
+ROUTES = ["/", "/esg", "/macro", "/raroc", "/brf", "/watchlist", "/stress",
           "/reports", "/borrowers"]
 
 
 def _render(pathname, search=""):
-    history = [{"role": "system", "content": "s"}]
-    return A.render_page(pathname, search, history, A.DEFAULT_MODEL, history,
-                         A.DEFAULT_MODEL, A.dl.DEFAULT_CUSTOMER)
+    """render_page reads every screen's chat store through a pattern-matching
+    ALL state, so the fixture has to supply one history and one id per screen."""
+    ids = [{"type": "chat-history", "page": screen} for screen in ai_context.SCREENS]
+    histories = [ai_context.seed_history(i["page"]) for i in ids]
+    models = [A.DEFAULT_MODEL] * len(ids)
+    return A.render_page(pathname, search, histories, ids, models, A.dl.DEFAULT_CUSTOMER)
 
 
 # ------------------------------------------------- the panel is not embedded
@@ -72,15 +76,28 @@ def test_launcher_is_in_the_app_shell():
 
 def test_every_route_fills_the_drawer():
     for route in ROUTES:
-        page, drawer = _render(route)[:2]
+        page, drawer, style = _render(route)[:3]
         assert page, f"{route}: no page content"
         assert drawer, f"{route}: drawer body empty"
+        assert style == A.VISIBLE, f"{route}: launcher should be visible"
         assert "ai-drawer-close" in _ids(A.html.Div(drawer)), f"{route}: no close button"
 
 
+def test_data_hub_hides_the_launcher_entirely(monkeypatch):
+    """The Data Hub is upload/administration — the assistant has nothing to be
+    grounded in there, so it is not offered rather than offered and unhelpful.
+
+    The page itself queries the dataset-version tables, so it is stubbed: what is
+    under test is the launcher decision, not the Data Hub's own rendering."""
+    monkeypatch.setattr(A.data_hub, "build_data_hub_page", lambda: A.html.Div("stub"))
+    style = _render("/data")[2]
+    assert style == A.HIDDEN
+
+
 def test_drawer_context_follows_the_route():
-    """Borrower 360 gets the borrower-grounded chat; everything else gets the
-    portfolio one. Losing this would silently un-ground the assistant."""
+    """Every screen gets its OWN chat context, so a question asked on Limits is
+    answered about Limits and does not land in the Watchlist thread. Losing this
+    would silently un-ground the assistant."""
     def page_keys(drawer):
         return {
             node_id["page"]
@@ -88,9 +105,9 @@ def test_drawer_context_follows_the_route():
             if isinstance(node_id, dict) and "page" in node_id
         }
 
-    assert page_keys(_render("/borrowers")[1]) == {"b360"}
-    assert page_keys(_render("/")[1]) == {"cockpit"}
-    assert page_keys(_render("/esg")[1]) == {"cockpit"}
+    for route, screen in [("/borrowers", "b360"), ("/", "cockpit"), ("/esg", "esg"),
+                          ("/watchlist", "watchlist"), ("/macro", "macro")]:
+        assert page_keys(_render(route)[1]) == {screen}, route
 
 
 # --------------------------------------------------------------- toggling

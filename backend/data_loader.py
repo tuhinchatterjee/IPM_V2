@@ -851,10 +851,10 @@ def compute_rating_migration(quarter: str, lookback_quarters: int = 4, segment="
 
 # ------------------------------------------------------------------------- limits
 
-def compute_limits_dashboard(quarter: str, segment="All") -> dict:
-    """Approved-limit-vs-utilisation across every configured appetite dimension:
-    sector caps, single-name, obligor group, geography, product-secured and
-    Stage-2 ceiling - each evaluated against real aggregated EAD."""
+def _limit_rows(quarter: str, segment="All") -> list:
+    """The appetite lines for one quarter. Split out from the dashboard so the
+    same construction can be re-run on the previous quarter for a like-for-like
+    quarter-on-quarter comparison."""
     cur = filtered_quarter(quarter, segment=segment)
     total = cur[EAD_COL].sum()
 
@@ -900,6 +900,37 @@ def compute_limits_dashboard(quarter: str, segment="All") -> dict:
                  "pct": (stage2_ead / cap_usd * 100) if cap_usd else 0.0})
 
     rows.sort(key=lambda r: r["pct"], reverse=True)
+    return rows
+
+
+def compute_limits_dashboard(quarter: str, segment="All") -> dict:
+    """Approved-limit-vs-utilisation across every configured appetite dimension:
+    sector caps, single-name, obligor group, geography, product-secured and
+    Stage-2 ceiling - each evaluated against real aggregated EAD.
+
+    Each line also carries its movement since the previous quarter. Utilisation is
+    a level, and a level alone doesn't say whether a limit is being approached or
+    released - 88% falling from 95% is a different conversation from 88% rising
+    from 70%. Lines are matched by label; the single-name and group lines track
+    the largest exposure, so if that changes hands between quarters there is no
+    comparable prior and the delta is left as None rather than comparing two
+    different borrowers.
+    """
+    cur = filtered_quarter(quarter, segment=segment)
+    rows = _limit_rows(quarter, segment)
+
+    pq = prev_quarter(quarter)
+    prev_by_label = {r["label"]: r for r in _limit_rows(pq, segment)} if pq else {}
+    for r in rows:
+        prior = prev_by_label.get(r["label"])
+        r["prev_pct"] = prior["pct"] if prior else None
+        r["prev_used"] = prior["used"] if prior else None
+        r["delta_pct"] = (r["pct"] - prior["pct"]) if prior else None
+        r["delta_used"] = (r["used"] - prior["used"]) if prior else None
+        # Crossing the 100% line this quarter is the event a committee acts on.
+        r["newly_breached"] = bool(prior and prior["pct"] < 100 <= r["pct"])
+        r["newly_cured"] = bool(prior and r["pct"] < 100 <= prior["pct"])
+
     active_breaches = sum(1 for r in rows if r["pct"] >= 100)
     near_limit = sum(1 for r in rows if 90 <= r["pct"] < 100)
     within_appetite = sum(1 for r in rows if r["pct"] < 90)
@@ -912,6 +943,11 @@ def compute_limits_dashboard(quarter: str, segment="All") -> dict:
         "near_limit": near_limit,
         "within_appetite": within_appetite,
         "real_breach_count": real_breach_count,
+        "prev_quarter": pq,
+        "newly_breached": sum(1 for r in rows if r["newly_breached"]),
+        "newly_cured": sum(1 for r in rows if r["newly_cured"]),
+        "rising": sum(1 for r in rows if (r["delta_pct"] or 0) > 0),
+        "has_comparison": bool(pq),
     }
 
 

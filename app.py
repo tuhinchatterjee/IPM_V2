@@ -27,7 +27,15 @@ from backend.logging_setup import init_logging
 init_logging()
 logger = logging.getLogger(__name__)
 
-from backend import ai_chat, claude_chat, qwen_ultra_chat, raroc2_data, raroc_data
+from backend import (
+    ai_chat,
+    ai_context,
+    claude_chat,
+    qwen_ultra_chat,
+    raroc2_data,
+    raroc_data,
+    stress_lab,
+)
 from backend import data_loader as dl
 from backend.auth.login import init_auth, install_gate
 from backend.auth.routes import register_auth_routes
@@ -166,16 +174,19 @@ MODULE_DESCRIPTIONS = {
     "EAD": "Funded / Undrawn / Guarantees / LCs build-up, CCF, Utilisation vs Prev. Utilisation.",
     "IFRS 9": "12m & lifetime PD, LGD, Model ECL, Macro Overlay, Total ECL, coverage by stage, SICR triggers.",
 }
-TOP_NAV_ITEMS = ["Watchlist", "Limits", "Stress", "Macro", "RAROC", "ESG", "BRF", "Reports"]
+# Limits is no longer a top-level section: its three views are opened from the
+# Borrower 360 page instead, where a limit line is actually actionable against a
+# name. See build_b360_limits_modal.
+TOP_NAV_ITEMS = ["Watchlist", "Stress", "Macro", "RAROC", "ESG", "BRF", "Reports"]
 SECTION_ROUTES = {
-    "Watchlist": "/watchlist", "Limits": "/limits", "Stress": "/stress",
+    "Watchlist": "/watchlist", "Stress": "/stress",
     "Macro": "/macro", "RAROC": "/raroc", "ESG": "/esg",
     "BRF": "/brf", "Reports": "/reports",
 }
+LIMITS_VIEWS = ["Appetite", "Utilisation", "Breaches"]
 ROUTE_TO_SECTION = {v.lstrip("/"): k.lower().replace(" ", "") for k, v in SECTION_ROUTES.items()}
 SECTION_TABS = {
     "watchlist": ["Board", "Actions"],
-    "limits": ["Appetite", "Utilisation", "Breaches"],
     "stress": ["Scenario Lab", "Results", "Reverse Stress"],
     "macro": ["Outlook", "Sector Risk", "Portfolio Health"],
     "raroc": ["Post-Deal RAROC", "Deal Explorer", "Deal Detail", "Earnings & EVA", "Methodology"],
@@ -186,7 +197,6 @@ SECTION_TABS = {
 }
 SECTION_TITLES = {
     "watchlist": "Watchlist, Distressed & Action Management",
-    "limits": "Limit, Risk Appetite & Breach Monitoring",
     "stress": "AI-Driven Stress Testing & Scenario Lab",
     "macro": "Macroeconomic Outlook & Forward Portfolio Health",
     "raroc": "RAROC — Post-Deal Risk-Adjusted Return on Capital",
@@ -194,7 +204,7 @@ SECTION_TITLES = {
     "brf": "CBUAE BRF Regulatory Returns",
     "reports": "Management Portfolio Review Pack Generator",
 }
-SECTION_BREADCRUMB = {"watchlist": "Watchlist", "limits": "Limits", "stress": "Stress",
+SECTION_BREADCRUMB = {"watchlist": "Watchlist", "stress": "Stress",
                        "macro": "Macro", "raroc": "RAROC", "esg": "ESG",
                        "brf": "BRF Returns", "reports": "Reports"}
 
@@ -436,23 +446,14 @@ def build_kpi_cards(quarter, segment, sector, region, rating):
 
 # --------------------------------------------------------------------- AI chat
 
-CHAT_SUGGESTIONS = {
-    "cockpit": [
-        "What's the total EAD?",
-        "Show me the top RED signals",
-        "Which sector has the most exposure?",
-        "Top 5 borrowers by EAD",
-    ],
-    "b360": [
-        "Summarize this borrower's risk",
-        "Is a covenant breach likely?",
-        "How has their rating changed?",
-        "What's the recommended action?",
-    ],
-}
-
-
 def render_chat_bubbles(history):
+    """User turns stay plain text; assistant turns render as Markdown.
+
+    The assistant is asked (in ai_context._OUTPUT_CONTRACT) to answer with a
+    headline, tables and bolded figures — none of which means anything if the
+    reply is dropped into a div as raw text, which is what made the answers read
+    as an undifferentiated wall.
+    """
     bubbles = []
     for m in history or []:
         role = m.get("role")
@@ -476,19 +477,59 @@ def render_chat_bubbles(history):
                 continue
         else:
             content = raw_content
+
         if role == "user":
-            cls = "user"
-        elif content == ai_chat.UNAVAILABLE_MSG:
-            cls = "assistant is-error"
-        else:
-            cls = "assistant"
-        bubbles.append(html.Div(content, className=f"chat-bubble {cls}"))
+            bubbles.append(html.Div(content, className="chat-bubble user"))
+            continue
+
+        cls = "assistant is-error" if content == ai_chat.UNAVAILABLE_MSG else "assistant"
+        bubbles.append(
+            html.Div(
+                dcc.Markdown(content, className="chat-md", link_target="_blank",
+                             dangerously_allow_html=False),
+                className=f"chat-bubble {cls}",
+            )
+        )
     if not bubbles:
-        bubbles = [html.Div(
-            "Ask me anything about the portfolio, AI risk signals, or a specific borrower.",
-            className="chat-empty-hint",
-        )]
+        # The brief above already says what is on screen, so this only has to
+        # prompt the first question rather than re-introduce the assistant.
+        bubbles = [html.Div("Ask a question about this screen, or pick a suggestion below.",
+                            className="chat-empty-hint")]
     return bubbles
+
+
+def build_chat_brief(screen: str, customer_id: str | None = None):
+    """The opening brief shown above the conversation: a portfolio snapshot plus
+    what is on the screen the user is standing on.
+
+    Computed from the dataset rather than asked of the model, so it is instant,
+    costs nothing, and states figures the assistant cannot get wrong."""
+    brief = ai_context.screen_brief(screen, customer_id)
+    chips = [
+        html.Div([
+            html.Div(label, className="brief-chip-label"),
+            html.Div(value, className=f"brief-chip-value tone-{tone}"),
+        ], className="brief-chip")
+        for label, value, tone in brief["portfolio"]
+    ]
+    return html.Div(
+        [
+            html.Div([
+                html.Span("PORTFOLIO", className="brief-section-label"),
+                html.Span(brief["as_of"], className="brief-asof"),
+            ], className="brief-head"),
+            html.Div(chips, className="brief-chip-row"),
+            html.Div([
+                html.Span("ON THIS SCREEN", className="brief-section-label"),
+                html.Span(brief["label"], className="brief-screen-name"),
+            ], className="brief-head brief-head-screen"),
+            html.Div(
+                [dcc.Markdown(line, className="brief-line") for line in brief["lines"]],
+                className="brief-lines",
+            ),
+        ],
+        className="chat-brief",
+    )
 
 
 # Labels/models sourced from the backend modules so the UI can't drift from the
@@ -553,16 +594,19 @@ def build_model_dropdown(page: str, active: str = DEFAULT_MODEL):
     )
 
 
-def build_chat_panel(page: str, history: list = None, current_model: str = DEFAULT_MODEL):
+def build_chat_panel(page: str, history: list = None, current_model: str = DEFAULT_MODEL,
+                     customer_id: str | None = None):
     # The chat-history/chat-model/chat-pending Stores themselves live in the
     # persistent app shell (serve_layout), not here - this panel is rebuilt
     # from scratch on every page navigation, but those Stores are not, so the
     # conversation survives switching pages. `history`/`current_model` are the
     # Stores' current values, threaded in so the freshly-built panel reflects
     # them immediately instead of flashing back to an empty/default state.
+    # `page` is also the screen key, so each screen keeps its own conversation
+    # and its own brief.
     chips = [
         html.Div(s, id={"type": "chat-chip", "page": page, "text": s}, n_clicks=0, className="chat-chip")
-        for s in CHAT_SUGGESTIONS.get(page, [])
+        for s in ai_context.suggestions(page)
     ]
     return [
         html.Div(
@@ -582,6 +626,7 @@ def build_chat_panel(page: str, history: list = None, current_model: str = DEFAU
         ),
         html.Div(MODEL_OPTIONS[current_model]["subtitle"], id={"type": "chat-subtitle", "page": page},
                   className="signals-subline"),
+        build_chat_brief(page, customer_id),
         dcc.Loading(
             html.Div(render_chat_bubbles(history), id={"type": "chat-messages", "page": page}, className="chat-messages"),
             color="#16b8a6",
@@ -1775,25 +1820,55 @@ def build_watchlist_tab_copilot(quarter=None):
 
 # ================================================================ LIMITS section
 
-def build_limits_rows_ui(rows):
+def build_qoq_delta_cell(r):
+    """Quarter-on-quarter movement in utilisation.
+
+    Rising toward a cap is bad and falling away from it is good, so the tone is
+    keyed to direction rather than sign-of-number. A line with no comparable
+    prior quarter (a new single-name leader, or the first quarter in the series)
+    shows a dash instead of a fabricated zero."""
+    delta = r.get("delta_pct")
+    if delta is None:
+        return html.Div("—", className="util-delta is-none", title="No comparable prior quarter")
+    if abs(delta) < 0.05:
+        return html.Div("flat", className="util-delta is-flat", title="Unchanged QoQ")
+    up = delta > 0
+    tone = "is-bad" if up else "is-good"
+    marker = "▲" if up else "▼"
+    prev = r.get("prev_pct")
+    tip = f"{prev:.0f}% → {r['pct']:.0f}% since last quarter" if prev is not None else ""
+    return html.Div(f"{marker} {abs(delta):.1f}pp", className=f"util-delta {tone}", title=tip)
+
+
+def build_limits_rows_ui(rows, show_delta=False, highlight_labels=None):
+    highlight_labels = set(highlight_labels or ())
     row_divs = []
     for r in rows:
         pct = r["pct"]
         cls = "breach" if pct >= 100 else ("warn" if pct >= 90 else "ok")
         val_cls = "is-red" if cls == "breach" else ("is-amber" if cls == "warn" else "")
-        row_divs.append(
-            html.Div(
-                [
-                    html.Div(r["label"], className="util-bar-label", style={"width": "230px"}),
-                    html.Div(html.Div(className=f"util-bar-fill {cls}", style={"width": f"{min(pct,100)}%"}),
-                              className="util-bar-track"),
-                    html.Div(f"{dl.fmt_bn(r['used'], 2)} / {dl.fmt_bn(r['cap'], 2)}",
-                              className="util-bar-value", style={"width": "150px"}),
-                    html.Div(f"{pct:.0f}%", className=f"util-bar-value {val_cls}"),
-                ],
-                className="util-bar-row",
-            )
-        )
+        label_children = [r["label"]]
+        if r.get("newly_breached"):
+            label_children.append(html.Span("NEW BREACH", className="util-flag is-bad"))
+        elif r.get("newly_cured"):
+            label_children.append(html.Span("CURED", className="util-flag is-good"))
+        if r["label"] in highlight_labels:
+            label_children.append(html.Span("THIS BORROWER", className="util-flag is-info"))
+
+        cells = [
+            html.Div(label_children, className="util-bar-label", style={"width": "230px"}),
+            html.Div(html.Div(className=f"util-bar-fill {cls}", style={"width": f"{min(pct,100)}%"}),
+                      className="util-bar-track"),
+            html.Div(f"{dl.fmt_bn(r['used'], 2)} / {dl.fmt_bn(r['cap'], 2)}",
+                      className="util-bar-value", style={"width": "150px"}),
+            html.Div(f"{pct:.0f}%", className=f"util-bar-value {val_cls}"),
+        ]
+        if show_delta:
+            cells.append(build_qoq_delta_cell(r))
+        row_divs.append(html.Div(
+            cells,
+            className="util-bar-row" + (" is-highlighted" if r["label"] in highlight_labels else ""),
+        ))
     return row_divs
 
 
@@ -1821,27 +1896,37 @@ def build_breach_workflow():
     )
 
 
-def build_limits_body(quarter=None, segment="All", view="Appetite"):
+def build_limits_body(quarter=None, segment="All", view="Appetite", highlight_labels=None):
     quarter = quarter or dl.DEFAULT_QUARTER
     data = dl.compute_limits_dashboard(quarter, segment)
     rows = list(data["rows"])
+    # Utilisation is the movement view: sorted by how close each line is to its
+    # cap, and the only view that carries the quarter-on-quarter change.
+    show_delta = view == "Utilisation"
     if view == "Utilisation":
         rows.sort(key=lambda r: -r["pct"])
     elif view == "Breaches":
         rows = [r for r in rows if r["pct"] >= 100]
 
+    header = [html.Span(className="kpi-dot amber"), "APPROVED LIMIT VS UTILISATION"]
+    if show_delta and data["has_comparison"]:
+        header.append(html.Span(f"vs {dl._quarter_label(data['prev_quarter'])}",
+                                className="util-header-note"))
+
     bars_card = html.Div(
-        [html.Div([html.Span(className="kpi-dot amber"), "APPROVED LIMIT VS UTILISATION"], className="table-title",
+        [html.Div(header, className="table-title",
                     style={"display": "flex", "gap": "8px", "alignItems": "center", "padding": "16px 20px 6px"}),
-         html.Div(build_limits_rows_ui(rows) if rows else
+         html.Div(build_limits_rows_ui(rows, show_delta=show_delta, highlight_labels=highlight_labels) if rows else
                    html.Div("No limits at this filter.", style={"padding": "20px", "color": "var(--text-muted)", "textAlign": "center"}),
                    style={"padding": "0 20px 18px"})],
         className="table-card",
     )
     kpi_side = [
-        kpi_card("Active Breaches", str(data["active_breaches"]), "red", html.Div()),
+        kpi_card("Active Breaches", str(data["active_breaches"]), "red",
+                 kpi_sub_qoq(data["newly_breached"], "new this quarter") if show_delta else html.Div()),
         kpi_card("Near Limit (>90%)", str(data["near_limit"]), "amber", html.Div()),
-        kpi_card("Within Appetite", str(data["within_appetite"]), "green", html.Div()),
+        kpi_card("Within Appetite", str(data["within_appetite"]), "green",
+                 kpi_sub_qoq(-data["newly_cured"], "cured this quarter") if show_delta else html.Div()),
     ]
 
     breach_lines = [r for r in data["rows"] if r["pct"] >= 100][:3]
@@ -1851,6 +1936,13 @@ def build_limits_body(quarter=None, segment="All", view="Appetite"):
         insight_text = (
             f"{data['active_breaches']} hard breaches are live: {names}. "
             f"Recommend reducing or re-pricing the tightest facilities to restore headroom before next quarter's appetite review."
+        )
+    if show_delta and data["has_comparison"]:
+        insight_text += (
+            f" Quarter on quarter, {data['rising']} of {len(data['rows'])} lines moved up against their cap"
+            + (f", {data['newly_breached']} crossing into breach" if data["newly_breached"] else "")
+            + (f" and {data['newly_cured']} falling back within appetite" if data["newly_cured"] else "")
+            + "."
         )
 
     return [
@@ -1863,13 +1955,25 @@ def build_limits_body(quarter=None, segment="All", view="Appetite"):
     ]
 
 
+def kpi_sub_qoq(count, label):
+    """Small QoQ note under a limits KPI card. Zero is worth stating explicitly —
+    'none new this quarter' is information, a blank space is not."""
+    if not count:
+        return html.Div(f"none {label}", className="kpi-sub neutral")
+    up = count > 0
+    return html.Div(f"{'▲' if up else '▼'} {abs(count)} {label}",
+                    className=f"kpi-sub {'up-bad' if up else 'up-good'}")
+
+
 # ================================================================ STRESS section
 
 BASELINE_CET1_PCT = 13.0
 
 
 def build_scenario_bubble(role, text, confidence=None):
-    children = [text]
+    # The lab's own replies name scenarios and quote figures, so they are written
+    # as Markdown and rendered as such — the user's echoed input stays plain text.
+    children = [text] if role == "user" else [dcc.Markdown(text, className="scenario-md")]
     if confidence is not None:
         children.append(html.Span(f"Confidence {confidence:.2f}", className="confidence-tag"))
     return html.Div(children, className=f"scenario-bubble {'is-user' if role == 'user' else 'is-ai'}")
@@ -1906,15 +2010,64 @@ def build_scenario_kpi_cards(result):
     ]
 
 
-def build_scenario_lab_body(quarter=None):
+def build_preset_cards(active_id=None):
+    """The named scenarios. One click loads a fully specified shock, so the lab
+    is usable without guessing which phrasings the free-text parser accepts."""
+    return html.Div(
+        [
+            html.Button(
+                [
+                    html.Div(p["label"], className="preset-label"),
+                    html.Div(p["detail"], className="preset-detail"),
+                ],
+                id={"type": "scenario-preset", "preset": p["id"]},
+                n_clicks=0,
+                title=p["rationale"],
+                className=f"preset-card tone-{p['tone']}" + (" is-active" if p["id"] == active_id else ""),
+            )
+            for p in stress_lab.PRESETS
+        ],
+        className="preset-row",
+    )
+
+
+def build_recall_chips(recent=None):
+    """Questions asked here before, offered back as one-click chips.
+
+    Recorded automatically on every send and kept in browser storage, so coming
+    back to the lab resumes the analyst's own line of enquiry rather than a blank
+    box. Seeded with starters so the row is never empty on a first visit."""
+    questions = stress_lab.recall_questions(recent)
+    return html.Div(
+        [html.Span("ASK AGAIN", className="recall-label")]
+        + [
+            html.Div(q, id={"type": "scenario-recall", "text": q}, n_clicks=0,
+                     className="recall-chip", title="Ask this again")
+            for q in questions
+        ],
+        className="recall-row",
+    )
+
+
+def build_scenario_lab_body(quarter=None, params=None, recent=None):
     quarter = quarter or dl.DEFAULT_QUARTER
+    params = params or {}
+    result = dl.compute_stress_scenario(quarter, params.get("rate_shock_bps", 0),
+                                        params.get("cre_price_shock_pct", 0))
     console_card = html.Div(
         [
             html.Div([html.Span(className="kpi-dot teal"), "AI SCENARIO LAB"], className="table-title",
                        style={"display": "flex", "gap": "8px", "alignItems": "center", "padding": "16px 20px 4px"}),
-            html.Div("Describe a shock in plain English — the AI propagates it",
-                       style={"padding": "0 20px 10px", "color": "var(--text-muted)", "fontSize": "12px"}),
+            html.Div("Pick a scenario below, or describe a shock in plain English — the AI propagates "
+                     "it through the MEV → IFRS 9 ECL engine.",
+                       style={"padding": "0 20px 12px", "color": "var(--text-muted)", "fontSize": "12px"}),
+            html.Div(build_preset_cards(params.get("preset_id")), id="scenario-presets",
+                     style={"padding": "0 20px 6px"}),
+            html.Div(stress_lab.describe_params(params), id="scenario-active-shock",
+                     className="active-shock-strip"),
             html.Div(id="scenario-console", className="scenario-console", style={"padding": "0 20px"}),
+            html.Div(build_recall_chips(recent), id="scenario-recall-row",
+                     style={"padding": "0 20px"}),
             html.Div(
                 [
                     dcc.Input(id="scenario-input", type="text", placeholder="Describe a shock or ask a follow-up...",
@@ -1926,7 +2079,7 @@ def build_scenario_lab_body(quarter=None):
         ],
         className="table-card",
     )
-    kpi_side = html.Div(id="scenario-kpi-side", children=build_scenario_kpi_cards(dl.compute_stress_scenario(quarter, 0, 0)))
+    kpi_side = html.Div(id="scenario-kpi-side", children=build_scenario_kpi_cards(result))
     return [
         html.Div(
             [html.Div([console_card], className="split-main"),
@@ -2285,18 +2438,16 @@ def build_section_subnav(section_key, active_tab):
     )
 
 
-def build_section_tab_body(section_key, tab, stress_params=None):
+def build_section_tab_body(section_key, tab, stress_params=None, recent_questions=None):
     quarter = dl.DEFAULT_QUARTER
     if section_key == "watchlist":
         if tab == "Board":
             return build_watchlist_tab_board(quarter)
         if tab == "Actions":
             return build_watchlist_tab_actions(quarter)
-    if section_key == "limits":
-        return build_limits_body(quarter, view=tab)
     if section_key == "stress":
         if tab == "Scenario Lab":
-            return build_scenario_lab_body(quarter)
+            return build_scenario_lab_body(quarter, stress_params, recent_questions)
         if tab == "Results":
             p = stress_params or {}
             result = dl.compute_stress_scenario(quarter, p.get("rate_shock_bps", 0), p.get("cre_price_shock_pct", 0))
@@ -2826,6 +2977,59 @@ def build_pd_ecl_chart(customer_id, quarter):
     )
 
 
+def borrower_limit_labels(customer_id, quarter=None):
+    """The appetite lines this borrower actually sits inside.
+
+    The limit book is portfolio-level, so opening it from a borrower page is only
+    useful if you can see which lines that borrower contributes to — their sector
+    cap, their geography, and the single-name line when they are the one holding
+    it."""
+    quarter = quarter or dl.DEFAULT_QUARTER
+    profile = dl.get_borrower_profile(customer_id, quarter)
+    if not profile:
+        return set()
+    labels = {f"{profile['sector']} (sector)", f"{profile['region']} (geography)"}
+    labels.add(f"Single-name ({profile['borrower']})")
+    return labels
+
+
+def build_b360_limits_modal_body(customer_id, quarter=None, view="Utilisation"):
+    quarter = quarter or dl.DEFAULT_QUARTER
+    profile = dl.get_borrower_profile(customer_id, quarter)
+    name = profile["borrower"] if profile else customer_id
+    tabs = html.Div(
+        [
+            html.Div(v, id={"type": "b360-limits-tab", "view": v}, n_clicks=0,
+                     className="subnav-item" + (" active" if v == view else ""))
+            for v in LIMITS_VIEWS
+        ],
+        className="subnav",
+    )
+    return [
+        html.Div(
+            [
+                html.Div(
+                    [
+                        html.H4("Limits, Risk Appetite & Breaches", className="modal-borrower-name"),
+                        html.Div(f"Portfolio appetite lines · highlighting those {name} sits in",
+                                 className="modal-borrower-meta"),
+                    ]
+                ),
+                html.Span("×", id="b360-limits-close", className="modal-close-x", n_clicks=0),
+            ],
+            className="modal-header-custom",
+        ),
+        html.Div(
+            [tabs, html.Div(
+                build_limits_body(quarter, view=view,
+                                  highlight_labels=borrower_limit_labels(customer_id, quarter)),
+                id="b360-limits-view", style={"marginTop": "16px"},
+            )],
+            className="modal-body-custom",
+        ),
+    ]
+
+
 def build_b360_content(customer_id, quarter):
     return [
         html.Div(
@@ -2845,6 +3049,13 @@ def build_b360_content(customer_id, quarter):
                     id="b360-account-select", options=dl.account_options_for_customer(customer_id, quarter),
                     value=None, placeholder="View facility...",
                     clearable=True, searchable=True, className="filter-dd narrow",
+                ),
+                # Limits used to be its own top-level section. It lives here now:
+                # an appetite line only becomes actionable next to a name.
+                html.Button(
+                    [html.Span("▤", className="b360-action-icon"), "Limits & Appetite"],
+                    id="b360-limits-btn", n_clicks=0, className="b360-action-btn",
+                    title="Approved limits, utilisation and breaches",
                 ),
             ],
             className="b360-selector",
@@ -2938,18 +3149,32 @@ def serve_layout():
             dcc.Download(id="esg-download"),
             # Chat Stores live here, outside page-content, so conversations survive
             # page navigation (page-content gets torn down and rebuilt on every
-            # route change, but this part of the tree never does).
-            dcc.Store(id={"type": "chat-history", "page": "cockpit"},
-                      data=[{"role": "system", "content": ai_chat.system_prompt_cockpit()}]),
-            dcc.Store(id={"type": "chat-model", "page": "cockpit"}, data=DEFAULT_MODEL),
-            dcc.Store(id={"type": "chat-pending", "page": "cockpit"}, data=None),
-            dcc.Store(id={"type": "chat-history", "page": "b360"},
-                      data=[{"role": "system", "content": ai_chat.system_prompt_borrower(dl.DEFAULT_CUSTOMER)}]),
-            dcc.Store(id={"type": "chat-model", "page": "b360"}, data=DEFAULT_MODEL),
-            dcc.Store(id={"type": "chat-pending", "page": "b360"}, data=None),
+            # route change, but this part of the tree never does). One set per
+            # screen: each screen holds its own conversation, seeded with that
+            # screen's system prompt, so questions asked on Limits are answered in
+            # the context of Limits and do not bleed into the Watchlist thread.
+            *[
+                store
+                for screen in ai_context.SCREENS
+                for store in (
+                    dcc.Store(
+                        id={"type": "chat-history", "page": screen},
+                        data=ai_context.seed_history(
+                            screen,
+                            dl.DEFAULT_CUSTOMER if screen == ai_context.B360 else None,
+                        ),
+                    ),
+                    dcc.Store(id={"type": "chat-model", "page": screen}, data=DEFAULT_MODEL),
+                    dcc.Store(id={"type": "chat-pending", "page": screen}, data=None),
+                )
+            ],
             dcc.Store(id="b360-chat-customer-store", data=dl.DEFAULT_CUSTOMER),
             dcc.Store(id="stress-history", data=[]),
             dcc.Store(id="stress-params", data={"rate_shock_bps": 0, "cre_price_shock_pct": 0}),
+            # Questions asked in the Scenario Lab, kept in browser storage so they
+            # survive a reload and are still there on the next visit — the point of
+            # the feature is that the analyst's own working set comes back.
+            dcc.Store(id="scenario-recent-q", storage_type="local", data=[]),
             dcc.Store(id="ai-drawer-open", data=False),
             build_navbar(),
             html.Div(id="page-content", className="page-body"),
@@ -2961,6 +3186,15 @@ def serve_layout():
                 centered=True,
                 contentClassName="modal-content",
                 children=html.Div(id="modal-children"),
+            ),
+            dbc.Modal(
+                id="b360-limits-modal",
+                is_open=False,
+                size="xl",
+                centered=True,
+                scrollable=True,
+                contentClassName="modal-content",
+                children=html.Div(id="b360-limits-modal-children"),
             ),
         ]
     )
@@ -3250,25 +3484,36 @@ def open_account_modal(account_id):
 
 # ------------------------------------------------------------------------ routing
 
+HIDDEN = {"display": "none"}
+VISIBLE = {"display": "block"}
+
+
 @app.callback(
     Output("page-content", "children"),
     Output("ai-drawer-body", "children"),
+    Output("ai-launcher", "style"),
     Output({"type": "chat-history", "page": "b360"}, "data", allow_duplicate=True),
     Output({"type": "chat-pending", "page": "b360"}, "data", allow_duplicate=True),
     Output("b360-chat-customer-store", "data"),
     Input("url", "pathname"),
     Input("url", "search"),
-    State({"type": "chat-history", "page": "cockpit"}, "data"),
-    State({"type": "chat-model", "page": "cockpit"}, "data"),
-    State({"type": "chat-history", "page": "b360"}, "data"),
-    State({"type": "chat-model", "page": "b360"}, "data"),
+    State({"type": "chat-history", "page": ALL}, "data"),
+    State({"type": "chat-history", "page": ALL}, "id"),
+    State({"type": "chat-model", "page": ALL}, "data"),
     State("b360-chat-customer-store", "data"),
     prevent_initial_call="initial_duplicate",
 )
-def render_page(pathname, search, cockpit_history, cockpit_model, b360_history, b360_model, b360_chat_customer):
+def render_page(pathname, search, histories, history_ids, models, b360_chat_customer):
     """Renders the routed page and re-points the global AI drawer at the chat
     context that matches it, so Ask AI is grounded in whatever the user is
-    looking at."""
+    looking at — and hidden entirely on the screens that have no assistant."""
+    by_screen = {i["page"]: h for i, h in zip(history_ids, histories, strict=False)}
+    model_by_screen = {i["page"]: m for i, m in zip(history_ids, models, strict=False)}
+
+    def panel(screen, history=None, customer_id=None):
+        return build_chat_panel(screen, history if history is not None else by_screen.get(screen),
+                                model_by_screen.get(screen, DEFAULT_MODEL), customer_id)
+
     if pathname == "/borrowers":
         params = parse_qs((search or "").lstrip("?"))
         customer_id = params.get("customer", [None])[0]
@@ -3277,19 +3522,27 @@ def render_page(pathname, search, cockpit_history, cockpit_model, b360_history, 
         # borrower than last time - plain navigation back to the same
         # borrower's page should keep the conversation going.
         if customer_id != b360_chat_customer:
-            b360_history = [{"role": "system", "content": ai_chat.system_prompt_borrower(customer_id)}]
-            return (build_borrowers_page(customer_id), build_chat_panel("b360", b360_history, b360_model),
-                    b360_history, None, customer_id)
-        return (build_borrowers_page(customer_id), build_chat_panel("b360", b360_history, b360_model),
+            fresh = ai_context.seed_history(ai_context.B360, customer_id)
+            return (build_borrowers_page(customer_id), panel(ai_context.B360, fresh, customer_id),
+                    VISIBLE, fresh, None, customer_id)
+        return (build_borrowers_page(customer_id), panel(ai_context.B360, customer_id=b360_chat_customer),
+                VISIBLE, no_update, no_update, no_update)
+
+    if pathname == "/data":
+        # The Data Hub is an upload/administration screen, not an analysis one —
+        # there is nothing here for the assistant to be grounded in, so it is not
+        # offered rather than offered and unhelpful.
+        return (data_hub.build_data_hub_page(), no_update, HIDDEN,
                 no_update, no_update, no_update)
 
-    cockpit_panel = build_chat_panel("cockpit", cockpit_history, cockpit_model)
-    if pathname == "/data":
-        return data_hub.build_data_hub_page(), cockpit_panel, no_update, no_update, no_update
     section_key = ROUTE_TO_SECTION.get((pathname or "").lstrip("/"))
     if section_key:
-        return build_section_page(section_key), cockpit_panel, no_update, no_update, no_update
-    return build_cockpit_page(), cockpit_panel, no_update, no_update, no_update
+        screen = section_key if section_key in ai_context.SCREENS else ai_context.COCKPIT
+        return (build_section_page(section_key), panel(screen), VISIBLE,
+                no_update, no_update, no_update)
+
+    return (build_cockpit_page(), panel(ai_context.COCKPIT), VISIBLE,
+            no_update, no_update, no_update)
 
 
 @app.callback(
@@ -3348,33 +3601,46 @@ def update_top_nav_active(pathname, ids):
     Input({"type": "sec-subnav", "section": MATCH, "tab": ALL}, "n_clicks"),
     State({"type": "sec-subnav", "section": MATCH, "tab": ALL}, "id"),
     State("stress-params", "data"),
+    State("scenario-recent-q", "data"),
     prevent_initial_call=True,
 )
-def switch_section_subnav(_n_clicks_list, ids, stress_params):
+def switch_section_subnav(_n_clicks_list, ids, stress_params, recent_questions):
     trig = ctx.triggered_id
     if not trig or not ctx.triggered[0]["value"]:
         raise PreventUpdate
     section_key = trig["section"]
     active_tab = trig["tab"]
     classnames = ["subnav-item active" if d["tab"] == active_tab else "subnav-item" for d in ids]
-    return classnames, build_section_tab_body(section_key, active_tab, stress_params)
+    return classnames, build_section_tab_body(section_key, active_tab, stress_params, recent_questions)
 
 
 @app.callback(
     Output("stress-history", "data"),
     Output("stress-params", "data"),
     Output("scenario-input", "value"),
+    Output("scenario-recent-q", "data"),
     Input("scenario-send", "n_clicks"),
     Input("scenario-input", "n_submit"),
+    Input({"type": "scenario-recall", "text": ALL}, "n_clicks"),
     State("scenario-input", "value"),
     State("stress-history", "data"),
     State("stress-params", "data"),
+    State("scenario-recent-q", "data"),
     prevent_initial_call=True,
 )
-def send_scenario_message(_n, _submit, text, history, params):
+def send_scenario_message(_n, _submit, _recall, text, history, params, recent):
+    """Handles both a typed question and an 'ask again' chip, and records the
+    question either way — the memory is only useful if it fills itself."""
+    trig = ctx.triggered_id
+    if not ctx.triggered or not ctx.triggered[0]["value"]:
+        raise PreventUpdate
+    if isinstance(trig, dict) and trig.get("type") == "scenario-recall":
+        text = trig.get("text", "")
+
     text = (text or "").strip()
     if not text:
         raise PreventUpdate
+
     history = list(history or [])
     history.append({"role": "user", "text": text})
     parsed = dl.parse_scenario_text(text)
@@ -3383,11 +3649,14 @@ def send_scenario_message(_n, _submit, text, history, params):
         params["rate_shock_bps"] = params.get("rate_shock_bps", 0) + parsed["rate_shock_bps"]
     if parsed["cre_price_shock_pct"]:
         params["cre_price_shock_pct"] = params.get("cre_price_shock_pct", 0) + parsed["cre_price_shock_pct"]
+    if parsed["rate_shock_bps"] or parsed["cre_price_shock_pct"]:
+        # A free-text shock is no longer one of the named scenarios.
+        params.pop("preset_id", None)
 
     result = dl.compute_stress_scenario(dl.DEFAULT_QUARTER, params.get("rate_shock_bps", 0), params.get("cre_price_shock_pct", 0))
     if not parsed["recognised"]:
         reply = ("I can model rate shocks (e.g. '+300bps') and price shocks (e.g. '25% fall in real estate'). "
-                  "Try describing a shock in those terms.")
+                  "Try describing a shock in those terms, or pick one of the scenarios above.")
         confidence = None
     else:
         reply = (
@@ -3399,7 +3668,56 @@ def send_scenario_message(_n, _submit, text, history, params):
         )
         confidence = 0.8
     history.append({"role": "ai", "text": reply, "confidence": confidence})
-    return history, params, ""
+    return history, params, "", stress_lab.record_question(recent, text)
+
+
+@app.callback(
+    Output("stress-history", "data", allow_duplicate=True),
+    Output("stress-params", "data", allow_duplicate=True),
+    Input({"type": "scenario-preset", "preset": ALL}, "n_clicks"),
+    State("stress-history", "data"),
+    prevent_initial_call=True,
+)
+def apply_scenario_preset(_clicks, history):
+    """A named scenario SETS the shock rather than adding to it — picking
+    'Severe adverse' must mean severe adverse, not severe adverse stacked on
+    whatever the previous turns accumulated."""
+    trig = ctx.triggered_id
+    if not trig or not ctx.triggered or not ctx.triggered[0]["value"]:
+        raise PreventUpdate
+    spec = stress_lab.preset(trig["preset"])
+    if spec is None:
+        raise PreventUpdate
+
+    params = stress_lab.apply_preset(spec["id"])
+    result = dl.compute_stress_scenario(dl.DEFAULT_QUARTER, params["rate_shock_bps"],
+                                        params["cre_price_shock_pct"])
+    history = list(history or [])
+    history.append({"role": "user", "text": f"Run scenario: {spec['label']}"})
+    if spec["id"] == "base":
+        history.append({"role": "ai", "text": "Reset to the reported position — no shock applied.",
+                        "confidence": None})
+    else:
+        history.append({"role": "ai", "text": stress_lab.preset_reply(spec, result), "confidence": 0.9})
+    return history, params
+
+
+@app.callback(
+    Output("scenario-presets", "children"),
+    Output("scenario-active-shock", "children"),
+    Input("stress-params", "data"),
+)
+def update_scenario_presets(params):
+    params = params or {}
+    return build_preset_cards(params.get("preset_id")), stress_lab.describe_params(params)
+
+
+@app.callback(
+    Output("scenario-recall-row", "children"),
+    Input("scenario-recent-q", "data"),
+)
+def update_scenario_recall(recent):
+    return build_recall_chips(recent)
 
 
 @app.callback(
@@ -3485,11 +3803,13 @@ def switch_b360_subnav(_n_clicks_list, ids):
     Output("b360-customerid-select", "value", allow_duplicate=True),
     Output("b360-account-select", "options"),
     Output("b360-account-select", "value"),
+    Output("ai-drawer-body", "children", allow_duplicate=True),
     Input("b360-customer-select", "value"),
     Input("b360-customerid-select", "value"),
+    State({"type": "chat-model", "page": "b360"}, "data"),
     prevent_initial_call=True,
 )
-def update_borrower360(name_value, id_value):
+def update_borrower360(name_value, id_value, b360_model):
     trig = ctx.triggered_id
     customer_id = id_value if trig == "b360-customerid-select" else name_value
     if not customer_id:
@@ -3497,7 +3817,9 @@ def update_borrower360(name_value, id_value):
     quarter = dl.DEFAULT_QUARTER
     profile = dl.get_borrower_profile(customer_id, quarter)
     borrower_name = profile["borrower"] if profile else customer_id
-    fresh_chat = [{"role": "system", "content": ai_chat.system_prompt_borrower(customer_id)}]
+    # Re-seed against the newly selected borrower so both the assistant's prompt
+    # and the drawer's brief describe the borrower actually on screen.
+    fresh_chat = ai_context.seed_history(ai_context.B360, customer_id)
     return (
         build_borrower_header(customer_id, quarter),
         build_b360_kpi_row(customer_id, quarter),
@@ -3514,6 +3836,7 @@ def update_borrower360(name_value, id_value):
         no_update if trig == "b360-customerid-select" else customer_id,
         dl.account_options_for_customer(customer_id, quarter),
         None,
+        build_chat_panel(ai_context.B360, fresh_chat, b360_model or DEFAULT_MODEL, customer_id),
     )
 
 
@@ -3589,6 +3912,61 @@ def respond_to_pending(pending, history, model_key):
     history = history + appended if appended else history + [{"role": "assistant", "content": reply}]
     history = ai_chat.trim_history(history)
     return render_chat_bubbles(history), history
+
+
+# --------------------------------------------------- borrower limits modal
+
+# Open and close are separate callbacks on purpose. The close button only exists
+# once the modal body has been rendered, and a callback whose Input is missing
+# from the layout never fires — so pairing them would mean the open button did
+# nothing until something else had already opened the modal.
+
+@app.callback(
+    Output("b360-limits-modal", "is_open"),
+    Output("b360-limits-modal-children", "children"),
+    Input("b360-limits-btn", "n_clicks"),
+    State("b360-chat-customer-store", "data"),
+    prevent_initial_call=True,
+)
+def open_b360_limits_modal(n_clicks, customer_id):
+    """Opens the limits views over the borrower page. Defaults to Utilisation —
+    the movement view — because that is the one that says whether a line is being
+    approached or released."""
+    if not n_clicks:
+        raise PreventUpdate
+    customer_id = customer_id or dl.DEFAULT_CUSTOMER
+    return True, build_b360_limits_modal_body(customer_id, dl.DEFAULT_QUARTER, view="Utilisation")
+
+
+@app.callback(
+    Output("b360-limits-modal", "is_open", allow_duplicate=True),
+    Input("b360-limits-close", "n_clicks"),
+    prevent_initial_call=True,
+)
+def close_b360_limits_modal(n_clicks):
+    if not n_clicks:
+        raise PreventUpdate
+    return False
+
+
+@app.callback(
+    Output({"type": "b360-limits-tab", "view": ALL}, "className"),
+    Output("b360-limits-view", "children"),
+    Input({"type": "b360-limits-tab", "view": ALL}, "n_clicks"),
+    State({"type": "b360-limits-tab", "view": ALL}, "id"),
+    State("b360-chat-customer-store", "data"),
+    prevent_initial_call=True,
+)
+def switch_b360_limits_view(_clicks, ids, customer_id):
+    trig = ctx.triggered_id
+    if not trig or not ctx.triggered[0]["value"]:
+        raise PreventUpdate
+    view = trig["view"]
+    classnames = ["subnav-item active" if d["view"] == view else "subnav-item" for d in ids]
+    customer_id = customer_id or dl.DEFAULT_CUSTOMER
+    body = build_limits_body(dl.DEFAULT_QUARTER, view=view,
+                             highlight_labels=borrower_limit_labels(customer_id))
+    return classnames, body
 
 
 # ------------------------------------------------------------- borrower list
