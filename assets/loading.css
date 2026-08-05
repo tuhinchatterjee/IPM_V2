@@ -1,0 +1,119 @@
+/* ------------------------------------------------------------------ Loading
+   Feedback for slow actions. Driven by assets/loading.js, which counts
+   in-flight Dash callbacks, plus the data-dash-is-loading attribute Dash sets
+   on the components it is about to replace.
+
+   Dash serves assets alphabetically, so this file loads BEFORE style.css.
+   Anything that has to beat a style.css rule is scoped with a second class.
+*/
+
+/* ------------------------------------------------------- top progress bar */
+
+.ipm-progress {
+  position: fixed; top: 0; left: 0; right: 0; height: 3px;
+  z-index: 10000; pointer-events: none;
+  opacity: 0; transition: opacity 0.2s ease;
+}
+.ipm-progress.is-active { opacity: 1; }
+.ipm-progress.is-done { opacity: 0; transition: opacity 0.26s ease 0.06s; }
+
+.ipm-progress-fill {
+  height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--teal-dark), var(--teal), #5ee0d0);
+  box-shadow: 0 0 8px rgba(22, 184, 166, 0.6);
+  transition: width 0.18s ease-out;
+}
+
+/* The cursor is the cheapest possible signal and costs no layout. */
+html.ipm-busy, html.ipm-busy body { cursor: progress; }
+
+/* ------------------------------------------------------------ busy button */
+
+/* Two classes so this beats the single-class button rules in style.css. */
+button.ipm-btn-busy,
+.rep-type-card.ipm-btn-busy,
+.rep-fmt-card.ipm-btn-busy,
+.subnav-item.ipm-btn-busy {
+  position: relative;
+  /* The label stays put; only its ink fades, so nothing reflows. */
+  color: transparent !important;
+}
+
+button.ipm-btn-busy::after,
+.rep-type-card.ipm-btn-busy::after,
+.rep-fmt-card.ipm-btn-busy::after,
+.subnav-item.ipm-btn-busy::after {
+  content: "";
+  position: absolute; top: 50%; left: 50%;
+  width: 15px; height: 15px; margin: -7.5px 0 0 -7.5px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  opacity: 0.85;
+  animation: ipm-spin 0.62s linear infinite;
+}
+
+/* The generate button is teal-on-dark; its spinner needs the dark ink. */
+.report-generate-btn.ipm-btn-busy::after { border-color: #052e2a; border-top-color: transparent; }
+.report-generate-btn.ipm-btn-busy { background: var(--teal-dark); }
+
+/* `disabled` means unavailable, NOT busy, and the two must not share a look.
+   The Data Hub's "Activate Uploaded Dataset" button borrows this class and ships
+   disabled until a workbook has been dropped — styling :disabled as busy left it
+   spinning forever on a screen where nothing was happening.
+
+   The busy signal is .ipm-btn-busy, which loading.js adds on click and removes
+   when the callback settles, so it cannot get stuck on a control that is merely
+   unavailable. */
+.report-generate-btn:disabled {
+  background: #cfd8e3; color: #7a8798; cursor: not-allowed; box-shadow: none;
+}
+
+/* The generate callback disables its own button while it runs (`running=` on
+   generate_report_pack) to block a double-submit. That one IS busy, so it keeps
+   the live colour underneath the spinner. */
+.report-generate-btn.ipm-btn-busy:disabled {
+  background: var(--teal-dark); cursor: progress;
+}
+
+/* Cards keep their text — hiding a whole card's copy would be jarring — so they
+   get a corner spinner instead of a centred one. */
+.rep-type-card.ipm-btn-busy,
+.rep-fmt-card.ipm-btn-busy { color: inherit !important; }
+.rep-type-card.ipm-btn-busy::after,
+.rep-fmt-card.ipm-btn-busy::after {
+  top: 12px; left: auto; right: 12px; margin: 0;
+  width: 13px; height: 13px; border-color: var(--teal-dark);
+  border-top-color: transparent;
+}
+
+@keyframes ipm-spin { to { transform: rotate(360deg); } }
+
+/* ------------------------------------------------ region being replaced */
+
+/* Dash sets this on the component whose children are being swapped. A slow pulse
+   reads as "working" where a static dim just reads as "disabled". */
+[data-dash-is-loading="true"] {
+  animation: ipm-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes ipm-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* The status line writes its own result; pulsing the old text while the new one
+   is computed is noise. */
+#rep-status[data-dash-is-loading="true"],
+#esg-rep-status[data-dash-is-loading="true"] { animation: none; opacity: 0.5; }
+
+/* ------------------------------------------------------- reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .ipm-progress-fill { transition: none; }
+  button.ipm-btn-busy::after,
+  .rep-type-card.ipm-btn-busy::after,
+  .rep-fmt-card.ipm-btn-busy::after,
+  .subnav-item.ipm-btn-busy::after { animation-duration: 1.4s; }
+  [data-dash-is-loading="true"] { animation: none; opacity: 0.6; }
+}

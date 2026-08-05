@@ -39,15 +39,31 @@ STATUS_PILL = {"PASS": "esg-pill ok", "FAIL": "esg-pill bad", "FLAG": "esg-pill 
                "ACTION": "esg-pill warn", "DISCLOSE": "esg-pill warn",
                "REJECTED": "esg-pill warn", "REVIEW": "esg-pill warn", "INFO": "esg-pill info"}
 
+# One block per workbook input tab, in the workbook's own order. The label names
+# the sheet it replaces so a reviewer holding the file can follow along.
 INPUT_BLOCKS = [
-    ("sectors", "Sectors & GVA"),
-    ("emissions", "Emissions allocation"),
-    ("scenarios", "NGFS scenarios"),
-    ("hazards", "Physical hazards"),
-    ("exposure", "Physical exposure weights"),
-    ("grades", "Rating grades"),
+    ("sectors", "Sectors & GVA · Sector_Master"),
+    ("emissions", "Emissions allocation · Emissions_Allocation"),
+    ("scenarios", "NGFS scenarios · NGFS_CarbonPrice + Scenario_Mapping"),
+    ("hazards", "Physical hazards · Physical_Hazard"),
+    ("exposure", "Physical exposure · Physical_Exposure"),
+    ("calibration", "k calibration · EU_k_Calibration + k_MultiAnchor"),
+    ("macro", "Macro leg · Regression_Data + Macro_Shift"),
+    ("grades", "Rating grades · RatingGrades"),
     ("settings", "Control settings"),
 ]
+
+# Blocks whose editable table is not the block key itself (a block may carry more
+# than one table; every table present on screen is folded back into the model).
+BLOCK_TABLES = {
+    "hazards": ["hazards", "events"],
+    "calibration": ["calibration", "anchors"],
+    "macro": ["macro", "macro_settings"],
+}
+
+
+def tables_for(block: str) -> list:
+    return BLOCK_TABLES.get(block, [block])
 
 TABLE_STYLE = dict(
     style_table={"overflowX": "auto"},
@@ -509,14 +525,80 @@ def build_inputs_tab():
         _controls(_version_control("esg-in-version")
                   + [html.Span("INPUT BLOCK", className="filters-label"),
                      _dd("esg-in-block", [{"label": lbl, "value": key} for key, lbl in INPUT_BLOCKS],
-                         "sectors", 230),
+                         "sectors", 330),
                      html.Button("Save to version", id="esg-in-save", className="report-generate-btn esg-inline-btn",
                                  n_clicks=0),
                      html.Button("Clone as draft", id="esg-in-clone", className="report-secondary-btn esg-inline-btn",
+                                 n_clicks=0),
+                     html.Button("Reset edits", id="esg-in-reset", className="report-secondary-btn esg-inline-btn",
                                  n_clicks=0)]),
         html.Div(id="esg-in-status"),
+        # The live strip recomputes the whole model from whatever is currently in
+        # the tables, before anything is saved. Editing is an estimation tool, not
+        # just a data-entry form.
+        html.Div(build_inputs_live(), id="esg-in-live"),
         html.Div(build_inputs_body(), id="esg-in-body"),
     ])
+
+
+def _delta_chip(label, live, baseline, fmt="{:.4f}", good_low=None):
+    """One live-vs-saved comparison. Shows the saved value alongside, so the user
+    can see what their edit moved rather than only where it landed."""
+    moved = baseline is not None and abs(live - baseline) > 1e-12
+    if not moved:
+        return html.Div([html.Div(label, className="esg-live-label"),
+                         html.Div(fmt.format(live), className="esg-live-value")],
+                        className="esg-live-chip")
+    up = live > baseline
+    tone = "" if good_low is None else ("is-bad" if up == good_low else "is-good")
+    return html.Div([
+        html.Div(label, className="esg-live-label"),
+        html.Div(fmt.format(live), className=f"esg-live-value {tone}"),
+        html.Div([html.Span("was ", className="esg-live-was"), fmt.format(baseline)],
+                 className="esg-live-prev"),
+    ], className="esg-live-chip is-moved")
+
+
+def build_inputs_live(model=None, result=None, check_rows=None, baseline=None):
+    """The what-if strip: k, the worst cell, the max cost ratio and the check count,
+    recomputed from the live table contents and compared against the saved version."""
+    if result is None:
+        _rec, model, result, check_rows = resolve()
+    summary = climate_checks.summarise(check_rows)
+    grade = result["reference_grade"]
+    rows = [r for r in result["grid"] if r["grade"] == grade]
+    worst = max(rows, key=lambda r: r["multiple"]) if rows else None
+
+    base_worst = None
+    if baseline is not None:
+        b_rows = [r for r in baseline["grid"] if r["grade"] == baseline["reference_grade"]]
+        base_worst = max(b_rows, key=lambda r: r["multiple"])["multiple"] if b_rows else None
+
+    chips = [
+        _delta_chip("Calibrated k", result["k"],
+                    baseline["k"] if baseline else None, "{:.6f}", good_low=True),
+        _delta_chip(f"Worst cell ({grade})", worst["multiple"] if worst else 0.0,
+                    base_worst, "{:.3f}x", good_low=True),
+        _delta_chip("Max cost ratio", result["max_cost_ratio"],
+                    baseline["max_cost_ratio"] if baseline else None, "{:.1%}", good_low=True),
+        _delta_chip("Checks passing", float(summary["passed"]),
+                    None, "{:.0f} of " + str(summary["total"])),
+    ]
+    dirty = baseline is not None and any(
+        abs(result[k] - baseline[k]) > 1e-12 for k in ("k", "max_cost_ratio"))
+    state = (html.Span("UNSAVED ESTIMATE", className="esg-pill warn") if dirty
+             else html.Span("MATCHES SAVED VERSION", className="esg-pill ok"))
+    failing = [c for c in check_rows if c["status"] == "FAIL"]
+    return html.Div([
+        html.Div([html.Span("LIVE ESTIMATE", className="esg-live-title"), state],
+                 className="esg-live-head"),
+        html.Div(chips, className="esg-live-row"),
+        html.Div(
+            f"{len(failing)} quality check(s) failing on these inputs: "
+            + ", ".join(f"#{c['id']} {c['name']}" for c in failing)
+            if failing else "All structural checks pass on these inputs.",
+            className=f"esg-live-verdict {'is-fail' if failing else 'is-ok'}"),
+    ], className="esg-live-strip")
 
 
 # Free-text columns wrap and left-align; everything else is a right-aligned figure.
@@ -524,9 +606,13 @@ WRAP_COLUMNS = {"name", "rationale", "definition", "mechanism", "isic", "status"
                 "grade", "id", "code", "label"}
 
 
-def _editable(table_id, columns, data, editable_cols=None, locked=False):
+def _editable(table_key, columns, data, editable_cols=None, locked=False, row_editable=False):
     """`locked` renders the block genuinely read-only rather than letting a user
-    type into a final version and only learn on save that it was rejected."""
+    type into a final version and only learn on save that it was rejected.
+
+    The id is pattern-matching on `table_key` so a single callback can pick up
+    whichever tables are currently on screen — a block may carry more than one
+    (hazards carries its parameters and the event record that derives them)."""
     cols = []
     for c in columns:
         col = {"name": c[1], "id": c[0]}
@@ -545,7 +631,8 @@ def _editable(table_id, columns, data, editable_cols=None, locked=False):
                 "maxWidth": "320px" if c["id"] in ("rationale", "definition", "mechanism") else "220px",
             })
     return dash_table.DataTable(
-        id=table_id, columns=cols, data=data, editable=not locked,
+        id={"type": "esg-tbl", "block": table_key}, columns=cols, data=data, editable=not locked,
+        row_deletable=row_editable and not locked,
         style_data_conditional=TABLE_STYLE["style_data_conditional"] + [
             {"if": {"column_editable": False}, "backgroundColor": "#f6f8fb", "color": "#6c7a8c"},
         ],
@@ -569,21 +656,38 @@ def _register_for(location_prefixes):
             if any(r["location"].startswith(p) for p in location_prefixes)]
 
 
-def build_inputs_body(version_id=None, block="sectors"):
-    rec, model, result, check_rows = resolve(version_id)
-    editable = rec is None or rec["status"] != store.STATUS_FINAL
+def build_inputs_body(version_id=None, block="sectors", live=None, derived_only=False):
+    """The editable block plus its derived panels.
+
+    `live` is an already-resolved (model, result, check_rows) triple from the
+    unsaved table contents; `derived_only` returns just the derived half. One
+    implementation serves both the first render and every live recalculation, so
+    the two can never disagree about what a derived figure is."""
+    if live is not None:
+        rec, (model, result, check_rows) = None, live
+        rec = store.get_version(version_id) if version_id else None
+    else:
+        rec, model, result, check_rows = resolve(version_id)
+    derived_blocks = []
+    # A final version is immutable, but exploring one is not the same as changing
+    # it: the tables stay editable so any version can be used as a what-if
+    # starting point, and only SAVING is refused. Locking the inputs of the
+    # approved model would make the estimator useless exactly where it matters.
+    is_final = rec is not None and rec["status"] == store.STATUS_FINAL
+    editable = True
     lock = None
-    if not editable:
+    if is_final:
         lock = html.Div(
-            "This version is FINAL and therefore immutable — the audit trail depends on it. "
-            "Use “Clone as draft” to create an editable copy.", className="upload-verdict is-warn")
+            "This version is FINAL. Edit freely to explore — every figure below recalculates live — "
+            "but saving is refused, because the audit trail depends on final versions never moving. "
+            "Use “Clone as draft” to keep an estimate.", className="upload-verdict is-warn")
 
     if block == "sectors":
         data = [{"id": s["id"], "name": s["name"], "isic": s.get("isic", ""),
                  "gva_omr": s["gva_omr"], "turnover_gva": s.get("turnover_gva", 1.0),
                  "pass_through": s["pass_through"], "macro_beta": s.get("macro_beta", 1.0),
                  "rationale": s.get("rationale", "")} for s in model["sectors"]]
-        table = _editable("esg-tbl-sectors",
+        table = _editable("sectors",
                           [("id", "ID"), ("name", "Sector"), ("isic", "ISIC"),
                            ("gva_omr", "GVA (local m)", "num"), ("turnover_gva", "Turnover/GVA", "num"),
                            ("pass_through", "Pass-through", "num"), ("macro_beta", "macro_beta", "num"),
@@ -601,8 +705,8 @@ def build_inputs_body(version_id=None, block="sectors"):
                         for s in result["sectors"]]),
         ], className="borrower-table signals-table")
         blocks = [ui.table_card("SECTOR MASTER — EDITABLE", table),
-                  ui.table_card("DERIVED", derived),
                   _source_badges(_register_for(["Sectors"]))]
+        derived_blocks = [ui.table_card("DERIVED — RECOMPUTED AS YOU EDIT", derived)]
         note = ("Every ISIC section sits in exactly one sector and every sector has a positive GVA. "
                 "Zero-GVA rows were the v3 defect: they silently received no stress at all.")
 
@@ -622,7 +726,7 @@ def build_inputs_body(version_id=None, block="sectors"):
                  ("allocated", "Resolved", "num")]
                 + [(sid, sid, "num") for sid in sector_ids] + [("HH", "HH", "num"),
                                                                ("sum", "Row sum", "num")])
-        table = _editable("esg-tbl-emissions", cols, data,
+        table = _editable("emissions", cols, data,
                           editable_cols=set(["mt"] + sector_ids + ["HH"]), locked=not editable)
         alloc = result["emissions"]
         derived = html.Table([
@@ -640,8 +744,9 @@ def build_inputs_body(version_id=None, block="sectors"):
                                            className="num")])]),
         ], className="borrower-table signals-table")
         blocks = [ui.table_card("EDGAR ALLOCATION — EACH ROW MUST SUM TO 1.00", table),
-                  ui.table_card("ALLOCATED EMISSIONS BY LENDING SECTOR", derived),
                   _source_badges(_register_for(["EDGAR", "Settings · national"]))]
+        derived_blocks = [ui.table_card("ALLOCATED EMISSIONS BY LENDING SECTOR — RECOMPUTED AS YOU EDIT",
+                                        derived)]
         note = ("EDGAR reports by IPCC SOURCE category; a bank lends to ISIC ACTIVITIES. The Households "
                 "column is carried but excluded from every corporate intensity — it removes roughly 18% "
                 "of national emissions that belong to private vehicles and residential energy, not to "
@@ -662,7 +767,7 @@ def build_inputs_body(version_id=None, block="sectors"):
                 + [(f"d{y}", f"GDP dev {y} %", "num") for y in defaults.HORIZON_YEARS]
                 + [("intensity_index", "Intensity index", "num"),
                    ("denominator_index", "Denominator index", "num")])
-        table = _editable("esg-tbl-scenarios", cols, data, locked=not editable)
+        table = _editable("scenarios", cols, data, locked=not editable)
         blocks = [ui.table_card("NGFS SCENARIOS — EDITABLE", table),
                   _source_badges(_register_for(["Scenarios", "Settings · us_gdp"]))]
         note = ("Carbon prices are US$2010 per tCO2e and are deflated to denominator-year dollars before "
@@ -678,7 +783,7 @@ def build_inputs_body(version_id=None, block="sectors"):
                  "pnl_share": h["pnl_share"], "lgd_share": round(1 - float(h["pnl_share"]), 4),
                  "status": h.get("status", ""), "mechanism": h.get("mechanism", "")}
                 for h in model["hazards"]]
-        table = _editable("esg-tbl-hazards",
+        table = _editable("hazards",
                           [("id", "ID"), ("name", "Hazard"), ("baseline_aal", "Baseline AAL (% GVA)"),
                            ("elasticity", "Warming elasticity", "num"),
                            ("insurance_recovery", "Insurance recovery", "num"),
@@ -687,15 +792,16 @@ def build_inputs_body(version_id=None, block="sectors"):
                            ("status", "Status"), ("mechanism", "Economic mechanism")], data,
                           editable_cols={"baseline_aal", "elasticity", "insurance_recovery",
                                          "pnl_share"}, locked=not editable)
-        events = html.Table([
-            html.Thead(html.Tr([html.Th("Event"), html.Th("Year", className="num"),
-                                html.Th("Direct damage (US$m)", className="num"), html.Th("Source")])),
-            html.Tbody([html.Tr([html.Td(e["event"], className="metric-name"),
-                                 html.Td(str(e["year"]), className="num"),
-                                 html.Td(f"{e['damage_usd_m']:,.0f}", className="num"),
-                                 html.Td(e["source"], className="esg-working")])
-                        for e in model["cyclone_events"]]),
-        ], className="borrower-table signals-table")
+        # The event record is an INPUT: H1's baseline AAL is total observed damage
+        # over the observation window, as a share of national value added. Editing
+        # a damage figure, adding an event or shortening the window all move it.
+        events = _editable(
+            "events",
+            [("event", "Event"), ("year", "Year", "num"),
+             ("damage_usd_m", "Direct damage (US$m)", "num"), ("source", "Source")],
+            [{"event": e["event"], "year": e["year"], "damage_usd_m": e["damage_usd_m"],
+              "source": e.get("source", "")} for e in model["cyclone_events"]],
+            locked=not editable, row_editable=True)
         phys = result["physical"]
         warming = html.Table([
             html.Thead(html.Tr([html.Th("Scenario"), html.Th("Warming 2100 °C", className="num"),
@@ -712,10 +818,17 @@ def build_inputs_body(version_id=None, block="sectors"):
                         for c in result["scenario_codes"]]),
         ], className="borrower-table signals-table")
         blocks = [ui.table_card("HAZARD BASELINES — EDITABLE", table),
-                  ui.table_card(f"CYCLONE EVENT RECORD — DERIVES H1 AAL OF "
-                                f"{phys['event_aal_share'] * 100:.3f}% OF GVA", events),
-                  ui.table_card("WARMING PATH AND SEVERITY MULTIPLIERS (DERIVED)", warming),
+                  ui.table_card("CYCLONE EVENT RECORD — EDITABLE, DERIVES H1's BASELINE AAL", events,
+                                hint="delete a row with the ✕; the observation window is on Settings"),
                   _source_badges(_register_for(["Hazards", "Cyclone", "Derived · warming"]))]
+        derived_blocks = [
+            html.Div([_badge(f"H1 baseline AAL derived from the event record: "
+                             f"{phys['event_aal_share'] * 100:.4f}% of national GVA "
+                             f"(US${phys['observed_damage_usd_m']:,.0f}m over "
+                             f"{phys['observation_years']:.0f} years)", "info")],
+                     className="esg-badge-row"),
+            ui.table_card("WARMING PATH AND SEVERITY MULTIPLIERS — RECOMPUTED AS YOU EDIT", warming),
+        ]
         note = ("The 60/40 P&L/capital split is the double-counting firewall: the PD channel takes only "
                 "business interruption and repair expense, and the 40% capital-replacement remainder "
                 "stays addressable for a future LGD module. Warming at the horizon is a straight-line "
@@ -734,23 +847,176 @@ def build_inputs_body(version_id=None, block="sectors"):
                 + [(h, f"{h} raw", "num") for h in hazard_ids]
                 + [(f"n_{h}", f"{h} normalised", "num") for h in hazard_ids]
                 + [("rationale", "Reasoning")])
-        table = _editable("esg-tbl-exposure", cols, data, editable_cols=set(hazard_ids),
+        table = _editable("exposure", cols, data, editable_cols=set(hazard_ids),
                           locked=not editable)
         means = result["physical"]["normalised_weighted_mean"]
         blocks = [ui.table_card("SECTOR EXPOSURE WEIGHTS — 30 JUDGEMENT CELLS", table),
-                  html.Div([_badge(f"GVA-weighted mean after normalisation, {h}: {v:.4f}",
-                                   "ok" if abs(v - 1) < 1e-4 else "bad")
-                            for h, v in means.items()], className="esg-badge-row"),
                   _source_badges(_register_for(["Exposure"]))]
+        derived_blocks = [html.Div([_badge(f"GVA-weighted mean after normalisation, {h}: {v:.4f}",
+                                           "ok" if abs(v - 1) < 1e-4 else "bad")
+                                    for h, v in means.items()], className="esg-badge-row")]
         note = ("Weights are RELATIVE, not absolute: normalising by the GVA-weighted mean guarantees the "
                 "national annual average loss is preserved exactly. An error here misallocates risk "
                 "between sectors but can never inflate or deflate system-wide risk. Scaling all 30 raw "
                 "weights by any constant leaves every result unchanged.")
 
+    elif block == "calibration":
+        cal, r1, r2 = model["calibration"], model["calibration"]["route1"], model["calibration"]["route2"]
+        rc = result["calibration"]
+        rows_spec = [
+            ("baseline_pd", "Median EU firm baseline PD", cal["baseline_pd"], "OP 281 Chart 31b"),
+            ("anchor_a_rel", "Anchor A — relative PD change (transition-only)", cal["anchor_a_rel"],
+             "OP 281 §5.3"),
+            ("anchor_b_rel", "Anchor B — relative PD change (disorderly 2050)", cal["anchor_b_rel"],
+             "OP 281 §5.3"),
+            ("eu_total_ghg_mt", "Route 1 · EU27 total GHG (MtCO2e)", r1["eu_total_ghg_mt"],
+             "EEA inventory — TO VERIFY"),
+            ("household_share", "Route 1 · household / own-account share excluded",
+             r1["household_share"], "Residential heat + private road"),
+            ("eu_gva_eur_bn", "Route 1 · EU27 gross value added (EUR bn)", r1["eu_gva_eur_bn"],
+             "Eurostat nama_10_a10 — TO VERIFY"),
+            ("median_to_average", "Route 1 · median-firm / economy-average ratio",
+             r1["median_to_average"], "Derived from OP 281 Chart 12"),
+            ("median_total_intensity", "Route 2 · median firm Scope 1+2+3 (t/EURm turnover)",
+             r2["median_total_intensity"], "OP 281 Chart 12 mid-point"),
+            ("scope1_share", "Route 2 · Scope 1 share of total", r2["scope1_share"],
+             "Not published — assumption"),
+            ("turnover_gva_ratio", "Route 2 · turnover / GVA ratio", r2["turnover_gva_ratio"],
+             "Eurostat SBS"),
+            ("anchor_price_usd", "Anchor carbon price (US$/tCO2)", cal["anchor_price_usd"],
+             "NGFS Phase I — assumption"),
+            ("usd_eur", "USD / EUR", cal["usd_eur"], "FX"),
+            ("eu_pass_through", "EU pass-through", cal["eu_pass_through"], "OP 281 §5.1 — zero"),
+            ("coal_plausible_intensity_multiple", "Plausible coal Scope 1 intensity multiple",
+             cal["coal_plausible_intensity_multiple"], "OP 281 §5.4"),
+        ]
+        table = _editable("calibration",
+                          [("label", "Calibration input"), ("value", "Value", "num"),
+                           ("source", "Basis"), ("key", "Key")],
+                          [{"key": k, "label": lbl, "value": v, "source": src}
+                           for k, lbl, v, src in rows_spec],
+                          editable_cols={"value"}, locked=not editable)
+        anchors_tbl = _editable(
+            "anchors",
+            [("id", "#"), ("group", "Group"), ("baseline_pd", "Baseline PD", "num"),
+             ("rel_change", "Relative change", "num"), ("use", "Use"), ("mechanism", "Mechanism")],
+            [{"id": a["id"], "group": a["group"], "baseline_pd": a["baseline_pd"],
+              "rel_change": a["rel_change"], "use": a["use"], "mechanism": a["mechanism"]}
+             for a in model["calibration"]["anchors"]],
+            editable_cols={"baseline_pd", "rel_change", "use"}, locked=not editable)
+        derived = html.Table([
+            html.Thead(html.Tr([html.Th("Derived quantity"), html.Th("Value", className="num")])),
+            html.Tbody([html.Tr([html.Td(lbl, className="metric-name"), html.Td(v, className="num")])
+                        for lbl, v in [
+                            ("Route 1 economy intensity (t/EURm)", f"{rc['route1_economy_intensity']:,.4f}"),
+                            ("Route 1 median intensity (t/EURm)", f"{rc['route1_intensity']:,.4f}"),
+                            ("Route 2 intensity (t/EURm)", f"{rc['route2_intensity']:,.4f}"),
+                            ("EU intensity SELECTED", f"{rc['eu_intensity']:,.4f}"),
+                            ("Anchor carbon price (EUR/tCO2)", f"{rc['anchor_price_eur']:,.4f}"),
+                            ("cost_ratio_EU", f"{rc['cost_ratio_eu']:.8f}"),
+                            ("push_EU", f"{rc['push_eu']:.8f}"),
+                            ("g(cost_ratio_EU, θ)", f"{rc['g_at_anchor']:.8f}"),
+                            ("k FITTED", f"{rc['k']:.9f}"),
+                            ("Implied top-decile intensity multiple",
+                             f"{rc['implied_intensity_multiple']:.4f}"
+                             if rc["implied_intensity_multiple"] else "unreachable"),
+                            ("Extrapolation multiple", f"{rc['extrapolation']['multiple']:,.1f}x"),
+                        ]]),
+        ], className="borrower-table signals-table")
+        # The workbook holds the anchor in two places — EU_k_Calibration's A/B
+        # selector and the k_MultiAnchor table — and they happen to agree. That
+        # redundancy is preserved rather than silently unified, but it is a trap
+        # unless the split is stated, so it is.
+        split_note = html.Div(
+            "The headline k is fitted from Anchor A/B above. The anchors table below drives the "
+            "curvature band, the implied top-decile multiple and the coal out-of-sample check. "
+            "The workbook carries the same figure in both places — if you edit one, edit the other "
+            "or the two will disagree.",
+            className="upload-verdict is-warn")
+        blocks = [ui.table_card("EU CALIBRATION INPUTS — EDITABLE, FITS k", table),
+                  split_note,
+                  ui.table_card("ECB ANCHORS — EDITABLE (FIT fits the curvature band, CHECK is "
+                                "out-of-sample)", anchors_tbl),
+                  _source_badges(_register_for(["Calibration"]))]
+        derived_blocks = [ui.table_card("DERIVED — k IS REFITTED ON EVERY EDIT", derived)]
+        note = ("k is the single most consequential number in the model and the least pinned down: it "
+                "moves by roughly a factor of eight across the plausible EU intensity range and a "
+                "further factor of five between the two anchors. Every input behind it is editable "
+                "here so the range can be explored rather than asserted. k is a function of θ and is "
+                "refitted whenever θ moves — it is never a stored constant.")
+
+    elif block == "macro":
+        macro, mr = model["macro"], result["macro"]
+        series = _editable(
+            "macro",
+            [("year", "Year", "num"), ("npl_ratio", "Gross NPL ratio", "num"),
+             ("gdp_growth", "Real GDP growth", "num")],
+            [{"year": o["year"], "npl_ratio": o["npl_ratio"], "gdp_growth": o["gdp_growth"]}
+             for o in macro["observations"]],
+            locked=not editable, row_editable=True)
+        settings_tbl = _editable(
+            "macro_settings",
+            [("label", "Macro setting"), ("value", "Value", "num"), ("key", "Key")],
+            [{"key": "correlation_in_use", "label": "Correlation IN USE (the exposed lever)",
+              "value": macro["correlation_in_use"]}],
+            editable_cols={"value"}, locked=not editable)
+        estimated = html.Table([
+            html.Thead(html.Tr([html.Th("Estimated live on the series"), html.Th("Value", className="num")])),
+            html.Tbody([html.Tr([html.Td(lbl, className="metric-name"), html.Td(v, className="num")])
+                        for lbl, v in [
+                            ("Paired observations", str(mr["n_paired"])),
+                            ("Correlation", f"{mr['correlation_estimated']:.8f}"),
+                            ("Slope (OLS)", f"{mr['beta_ols']:.8f}"),
+                            ("Intercept", f"{mr['intercept']:.8f}"),
+                            ("R²", f"{mr['r2']:.6f}"),
+                            ("sd of Δ probit NPL ratio", f"{mr['sd_d_probit']:.8f}"),
+                            ("sd of GDP growth", f"{mr['sd_gdp_growth']:.8f}"),
+                            ("beta IN USE = ρ × sd(Δ probit) / sd(g)", f"{mr['beta_in_use']:.8f}"),
+                        ]]),
+        ], className="borrower-table signals-table")
+        shifts = html.Table([
+            html.Thead(html.Tr([html.Th("Scenario"), html.Th("GDP level deviation %", className="num"),
+                                html.Th("macro_shift (probit)", className="num"),
+                                html.Th("In sd of GDP growth", className="num")])),
+            html.Tbody([html.Tr([html.Td(_scenario_label(result, c), className="metric-name"),
+                                 html.Td(f"{mr['by_scenario'][c]['deviation_pct']:.2f}", className="num"),
+                                 html.Td(f"{mr['by_scenario'][c]['shift']:.8f}", className="num"),
+                                 html.Td(f"{mr['by_scenario'][c]['sd_units']:.3f}", className="num")])
+                        for c in result["scenario_codes"]]),
+        ], className="borrower-table signals-table")
+        specs = html.Table([
+            html.Thead(html.Tr([html.Th("#"), html.Th("Specification"), html.Th("Form"),
+                                html.Th("R²", className="num"), html.Th("beta", className="num"),
+                                html.Th("p", className="num"), html.Th("DW", className="num"),
+                                html.Th("Assessment")])),
+            html.Tbody([html.Tr([html.Td(s["id"]), html.Td(s["specification"], className="metric-name"),
+                                 html.Td(s["form"]), html.Td(f"{s['r2']:.3f}", className="num"),
+                                 html.Td(f"{s['beta']:.3f}", className="num"),
+                                 html.Td(f"{s['p']:.3f}", className="num"),
+                                 html.Td(f"{s['dw']:.2f}", className="num"),
+                                 html.Td(s["assessment"], className="esg-working")],
+                                className="esg-row-selected" if s["id"] == mr["selected_specification"]
+                                else "")
+                        for s in macro.get("regression_tests", [])]),
+        ], className="borrower-table signals-table")
+        blocks = [ui.table_card("HISTORICAL SERIES — EDITABLE, beta IS ESTIMATED FROM IT", series,
+                                hint="delete a row with the ✕"),
+                  ui.table_card("CORRELATION IN USE — EDITABLE", settings_tbl),
+                  ui.table_card("SPECIFICATIONS TESTED — S8 SELECTED", specs),
+                  _source_badges(_register_for(["Macro"]))]
+        derived_blocks = [ui.table_card("ESTIMATED — RE-ESTIMATED AS YOU EDIT THE SERIES", estimated),
+                          ui.table_card("SCENARIO MACRO SHIFTS (DERIVED)", shifts)]
+        note = ("Only the GDP LEVEL deviation enters, never a growth rate — that units trap is what "
+                "broke the original regression. beta = correlation × sd(Δ probit NPL ratio) / "
+                "sd(GDP growth); the two standard deviations are estimated adequately on ten "
+                "observations but the correlation is not (p = 0.116), which is why it is exposed as "
+                "the lever rather than buried in the slope. Sign convention: beta is negative and a "
+                "GDP deviation is negative, so the product is positive and raises PD.")
+
     elif block == "grades":
         data = [{"grade": g["grade"], "baseline_pd": g["baseline_pd"],
                  "bps": round(g["baseline_pd"] * 10000, 1)} for g in model["rating_grades"]]
-        table = _editable("esg-tbl-grades",
+        table = _editable("grades",
                           [("grade", "Grade"), ("baseline_pd", "Baseline PD", "num"),
                            ("bps", "bps", "num")], data,
                           editable_cols={"grade", "baseline_pd"}, locked=not editable)
@@ -778,7 +1044,7 @@ def build_inputs_body(version_id=None, block="sectors"):
             ("denominator_base_year", "Denominator base year"),
         ]
         data = [{"key": k, "label": lbl, "value": s.get(k)} for k, lbl in editable_keys]
-        table = _editable("esg-tbl-settings",
+        table = _editable("settings",
                           [("label", "Setting"), ("value", "Value"), ("key", "Key")], data,
                           editable_cols={"value"}, locked=not editable)
         macro = result["macro"]
@@ -798,22 +1064,42 @@ def build_inputs_body(version_id=None, block="sectors"):
                         ]]),
         ], className="dark-mini-table")
         blocks = [ui.table_card("CONTROL SETTINGS — EDITABLE", table),
-                  ui.dark_table_card("MACRO LEG (ESTIMATED LIVE ON THE HISTORICAL SERIES)",
-                                     "blue", macro_tbl),
                   _source_badges(_register_for(["Settings", "Macro"]))]
+        derived_blocks = [ui.dark_table_card("MACRO LEG (ESTIMATED LIVE ON THE HISTORICAL SERIES)",
+                                             "blue", macro_tbl)]
         note = ("The five control cells the workbook exposed — horizon, curvature θ, cost-ratio cap, "
                 "correlation in use, denominator basis — plus the price-base and physical constants. "
                 "k is refitted whenever θ moves; it is a function of θ, never a stored constant.")
 
-    validation = [c for c in check_rows if c["status"] == "FAIL"]
-    verdict = (html.Div(f"{len(validation)} quality check(s) failing on the current inputs: "
-                        + ", ".join(f"#{c['id']} {c['name']}" for c in validation),
-                        className="upload-verdict is-fail")
-               if validation else
-               html.Div("All structural checks pass on the current inputs.",
-                        className="upload-verdict is-ok"))
+    if derived_only:
+        return derived_blocks
 
-    return ([lock] if lock else []) + [verdict] + blocks + [_module_note(note)]
+    # Derived panels live in their own container so the live-edit callback can
+    # refresh them without re-rendering the DataTables above — remounting a table
+    # mid-edit would reset the user's scroll position and risk a feedback loop
+    # between the table's own data prop and the callback that reads it.
+    return (([lock] if lock else []) + blocks
+            + [html.Div(derived_blocks, id="esg-in-derived")] + [_module_note(note)])
+
+
+def resolve_live(version_id, table_rows):
+    """Resolve the model with every on-screen table's edits folded in.
+
+    `table_rows` is [(block, rows), ...] for whatever DataTables are currently
+    mounted. Returns (saved_result, live_model, live_result, live_checks) so the
+    caller can show the estimate against the version it was derived from."""
+    rec = store.get_version(version_id) if version_id else None
+    if rec is None:
+        rec = store.get_version(store.default_version_id())
+    saved_model = copy.deepcopy(rec["model"]) if rec else defaults.default_model()
+    saved_result = engine.calculate(saved_model)
+
+    live_model = copy.deepcopy(saved_model)
+    for block, rows in table_rows:
+        if rows:
+            live_model = apply_edits(live_model, block, rows)
+    live_result = engine.calculate(live_model)
+    return saved_result, live_model, live_result, climate_checks.run_checks(live_result, live_model)
 
 
 def apply_edits(model: dict, block: str, rows: list) -> dict:
@@ -925,7 +1211,185 @@ def apply_edits(model: dict, block: str, rows: list) -> dict:
             else:
                 m["settings"][key] = f(value, m["settings"][key])
 
+    elif block == "events":
+        # The cyclone record derives H1's baseline AAL, so it is an input, not a
+        # footnote. Rows with no damage are dropped rather than counted as zeros,
+        # which would dilute the average over a window that never observed them.
+        events = []
+        for r in rows:
+            damage = f(r.get("damage_usd_m"), 0.0)
+            if damage <= 0:
+                continue
+            events.append({
+                "event": str(r.get("event") or "").strip() or "Unnamed event",
+                "year": int(f(r.get("year"), 0)),
+                "damage_usd_m": damage,
+                "source": str(r.get("source") or ""),
+            })
+        m["cyclone_events"] = events
+
+    elif block == "calibration":
+        cal = m["calibration"]
+        by_key = {r.get("key"): r.get("value") for r in rows}
+
+        def put(container, key, lo=None, hi=None):
+            if key not in by_key or by_key[key] is None:
+                return
+            value = f(by_key[key], container[key])
+            if lo is not None:
+                value = max(lo, value)
+            if hi is not None:
+                value = min(hi, value)
+            container[key] = value
+
+        for key in ("baseline_pd", "anchor_a_rel", "anchor_b_rel"):
+            put(cal, key, lo=0.0)
+        put(cal, "anchor_price_usd", lo=0.0)
+        put(cal, "usd_eur", lo=0.0)
+        put(cal, "eu_pass_through", lo=0.0, hi=1.0)
+        put(cal, "coal_plausible_intensity_multiple", lo=0.0)
+        for key in ("eu_total_ghg_mt", "eu_gva_eur_bn", "median_to_average"):
+            put(cal["route1"], key, lo=0.0)
+        put(cal["route1"], "household_share", lo=0.0, hi=1.0)
+        for key in ("median_total_intensity", "turnover_gva_ratio"):
+            put(cal["route2"], key, lo=0.0)
+        put(cal["route2"], "scope1_share", lo=0.0, hi=1.0)
+
+    elif block == "anchors":
+        by_id = {str(r.get("id")): r for r in rows}
+        for a in m["calibration"]["anchors"]:
+            r = by_id.get(str(a["id"]))
+            if not r:
+                continue
+            a["baseline_pd"] = min(0.999, max(1e-9, f(r.get("baseline_pd"), a["baseline_pd"])))
+            a["rel_change"] = f(r.get("rel_change"), a["rel_change"])
+            use = str(r.get("use") or "").strip().upper()
+            if use in {"FIT", "CHECK"}:
+                a["use"] = use
+
+    elif block == "macro":
+        # The historical series IS the macro leg: beta is estimated from it live,
+        # so editing a year re-estimates the correlation and the slope.
+        observations = []
+        for r in rows:
+            npl = f(r.get("npl_ratio"), 0.0)
+            if not (0.0 < npl < 1.0):
+                continue
+            observations.append({
+                "year": int(f(r.get("year"), 0)),
+                "npl_ratio": npl,
+                "gdp_growth": f(r.get("gdp_growth"), 0.0),
+            })
+        if len(observations) >= 3:
+            m["macro"]["observations"] = sorted(observations, key=lambda o: o["year"])
+
+    elif block == "macro_settings":
+        for r in rows:
+            if r.get("key") == "correlation_in_use" and r.get("value") is not None:
+                m["macro"]["correlation_in_use"] = min(1.0, max(-1.0, f(
+                    r.get("value"), m["macro"]["correlation_in_use"])))
+            elif r.get("key") == "selected_specification" and r.get("value"):
+                m["macro"]["selected_specification"] = str(r["value"]).strip()
+
     return m
+
+
+# ============================================================ 3b. audit tab
+
+AUDIT_VIEWS = [
+    ("verification", "Verification log · Verification"),
+    ("assumptions", "Assumption register · Assumption_Register"),
+    ("sources", "Source register · Source_Register"),
+    ("changes", "Change log · Change_Log"),
+]
+
+
+def build_audit_tab():
+    return html.Div([
+        _controls([html.Span("REGISTER", className="filters-label"),
+                   _dd("esg-audit-view", [{"label": lbl, "value": key} for key, lbl in AUDIT_VIEWS],
+                       "verification", 330)]),
+        html.Div(build_audit_body(), id="esg-audit-body"),
+    ])
+
+
+def build_audit_body(view="verification"):
+    """The workbook's provenance sheets. They feed no calculation; they are the
+    reason the calculation can be trusted, which is why they ship in the tool
+    rather than only in the export."""
+    if view == "assumptions":
+        rows = registers.ASSUMPTION_REGISTER_ROWS
+        table = html.Table([
+            html.Thead(html.Tr([html.Th("ID"), html.Th("Assumption"), html.Th("Where"),
+                                html.Th("Value / status"), html.Th("Rationale and limitation")])),
+            html.Tbody([html.Tr([html.Td(r["id"], className="metric-name"),
+                                 html.Td(r["assumption"]), html.Td(r["location"], className="esg-working"),
+                                 html.Td(r["value"]), html.Td(r["rationale"], className="esg-working")])
+                        for r in rows]),
+        ], className="borrower-table signals-table")
+        title = f"ASSUMPTION REGISTER — {len(rows)} ENTRIES"
+        note = ("Every assumption the model rests on, with the limitation it carries. The open items "
+                "are deliberately visible: no hydrocarbon export-revenue or fiscal channel, no chronic "
+                "physical risk, and a master scale treated as point-in-time.")
+
+    elif view == "sources":
+        rows = registers.SOURCE_REGISTER_ROWS
+        table = html.Table([
+            html.Thead(html.Tr([html.Th("#"), html.Th("Value"), html.Th("Where"), html.Th("Source"),
+                                html.Th("Note"), html.Th("Status")])),
+            html.Tbody([html.Tr([html.Td(r["id"], className="metric-name"), html.Td(r["value"]),
+                                 html.Td(r["location"], className="esg-working"),
+                                 html.Td(r["source"], className="esg-working"),
+                                 html.Td(r["note"], className="esg-working"),
+                                 html.Td(_badge(r["status"], registers.status_tone(r["status"])))])
+                        for r in rows]),
+        ], className="borrower-table signals-table")
+        title = f"SOURCE REGISTER — {len(rows)} ENTRIES"
+        note = ("Where every input number came from. VERIFIED means traced to the primary source named; "
+                "JUDGEMENT and ASSUMPTION mean it is analyst input and is exposed for sensitivity.")
+
+    elif view == "changes":
+        rows = registers.CHANGE_LOG_ROWS
+        table = html.Table([
+            html.Thead(html.Tr([html.Th("#"), html.Th("Area"), html.Th("Before"), html.Th("After")])),
+            html.Tbody([html.Tr([html.Td(r["id"], className="metric-name"),
+                                 html.Td(r["area"]), html.Td(r["before"], className="esg-working"),
+                                 html.Td(r["after"], className="esg-working")])
+                        for r in rows]),
+        ], className="borrower-table signals-table")
+        title = f"CHANGE LOG — {len(rows)} ENTRIES"
+        note = ("What changed between model generations and why. Several entries are defects the model "
+                "found in itself — a zero-GVA sector that silently received no stress, a coal-mining "
+                "anchor mislabelled as a median-firm anchor, and a missing price deflator that "
+                "understated every cost ratio by roughly a quarter.")
+
+    else:
+        rows = registers.VERIFICATION_LOG_ROWS
+        table = html.Table([
+            html.Thead(html.Tr([html.Th("#"), html.Th("Value"), html.Th("Now in model"),
+                                html.Th("Checked against"), html.Th("Finding"), html.Th("Status")])),
+            html.Tbody([html.Tr([html.Td(r["id"], className="metric-name"), html.Td(r["value"]),
+                                 html.Td(r["value_now"]),
+                                 html.Td(r["source"], className="esg-working"),
+                                 html.Td(r["finding"], className="esg-working"),
+                                 html.Td(_badge(r["status"], registers.status_tone(r["status"])))])
+                        for r in rows]),
+        ], className="borrower-table signals-table")
+        title = f"VERIFICATION LOG — {len(rows)} ENTRIES"
+        note = ("Every input number, what it was checked against, and what the check found. CORRECTED "
+                "means the source disagreed with the workbook and the value was changed; UNVERIFIABLE "
+                "means no public source could confirm it and it remains flagged.")
+
+    counts = {}
+    for r in rows:
+        key = r.get("status")
+        if key:
+            counts[key] = counts.get(key, 0) + 1
+    chips = html.Div([_badge(f"{v} × {k}", registers.status_tone(k))
+                      for k, v in sorted(counts.items(), key=lambda kv: -kv[1])],
+                     className="esg-badge-row") if counts else None
+
+    return [c for c in [chips, ui.table_card(title, table), _module_note(note)] if c is not None]
 
 
 # ========================================================= 4. calibration tab

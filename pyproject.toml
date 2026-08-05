@@ -12,6 +12,13 @@ dependencies = [
     "plotly==6.8.0",
     "pandas==3.0.3",
     "openpyxl==3.1.5",
+    # Committee report packs: reportlab writes the PDF, python-docx the Word
+    # file, and matplotlib renders the charts once as PNG so both formats show
+    # the same picture. Pillow is reportlab's image backend.
+    "reportlab==5.0.0",
+    "python-docx==1.2.0",
+    "matplotlib==3.11.0",
+    "pillow==12.2.0",
     "requests==2.34.2",
     "anthropic==0.112.0",
     "python-dotenv==1.2.2",

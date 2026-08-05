@@ -1,0 +1,56 @@
+/* ==========================================================================
+   ESG Inputs — the live what-if strip.
+
+   The Inputs tab is an estimator, not a form: edits recompute the whole model
+   in place and this strip reports the result against the saved version, so the
+   user can see what their change moved before deciding to keep it.
+   ========================================================================== */
+
+.esg-live-strip {
+  background: var(--card); border: 1px solid var(--border);
+  border-left: 3px solid var(--teal); border-radius: var(--radius-md);
+  padding: 12px 16px 13px; margin-bottom: 16px; box-shadow: var(--shadow-card);
+}
+.esg-live-head {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.esg-live-title {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--teal-dark);
+}
+
+.esg-live-row {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;
+}
+.esg-live-chip {
+  background: #f6f8fb; border: 1px solid transparent; border-radius: var(--radius-sm);
+  padding: 8px 11px; min-width: 0;
+}
+/* A moved value is the whole point of the strip — mark it, and keep the value
+   it moved from visible underneath rather than only showing where it landed. */
+.esg-live-chip.is-moved { background: var(--blue-bg); border-color: #cddffc; }
+.esg-live-label {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.esg-live-value {
+  font-size: 16px; font-weight: 800; color: var(--text-dark); margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.esg-live-value.is-bad  { color: var(--red); }
+.esg-live-value.is-good { color: var(--green); }
+.esg-live-prev {
+  font-size: 10.5px; color: var(--text-muted); margin-top: 1px;
+  font-variant-numeric: tabular-nums;
+}
+.esg-live-was { color: var(--text-faint); }
+
+.esg-live-verdict {
+  margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border);
+  font-size: 11.5px; font-weight: 600;
+}
+.esg-live-verdict.is-ok   { color: var(--green-dark); }
+.esg-live-verdict.is-fail { color: var(--red-dark); }
+
+/* The selected regression specification, highlighted in the reference table. */
+.esg-row-selected td { background: var(--teal-light); font-weight: 600; }

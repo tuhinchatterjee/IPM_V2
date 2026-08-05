@@ -139,23 +139,15 @@ def test_modal_offers_every_limits_view():
     assert views == set(A.LIMITS_VIEWS)
 
 
-def test_borrower_limit_labels_pick_the_lines_they_sit_in():
-    profile = dl.get_borrower_profile(dl.DEFAULT_CUSTOMER, Q)
-    labels = A.borrower_limit_labels(dl.DEFAULT_CUSTOMER, Q)
-    assert f"{profile['sector']} (sector)" in labels
-    assert f"{profile['region']} (geography)" in labels
-
-
-def test_borrower_lines_are_highlighted_in_the_modal():
+def test_modal_does_not_tag_individual_lines():
+    """The limit book is portfolio-level. Tagging rows as belonging to the open
+    borrower added noise without changing what the limit means."""
     body = A.build_b360_limits_modal_body(dl.DEFAULT_CUSTOMER, Q)
-    assert any("is-highlighted" in c for c in _classes(body))
-    assert "THIS BORROWER" in _text(body)
+    assert "THIS BORROWER" not in _text(body)
+    assert not any("is-highlighted" in c for c in _classes(body))
 
 
-def test_unknown_borrower_yields_no_highlight_rather_than_raising():
-    assert A.borrower_limit_labels("NOT_A_CUSTOMER", Q) == set()
-
-
-def test_limits_body_still_renders_without_highlights():
-    """The views are still portfolio-level and must work with no borrower context."""
-    assert A.build_limits_body(Q, view="Utilisation", highlight_labels=None)
+def test_limits_body_is_borrower_agnostic():
+    """The views are portfolio-level and take no borrower context at all."""
+    assert A.build_limits_body(Q, view="Utilisation")
+    assert not hasattr(A, "borrower_limit_labels")

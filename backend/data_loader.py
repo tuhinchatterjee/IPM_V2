@@ -55,6 +55,9 @@ def _load_all_quarters(xl: pd.ExcelFile, quarter_sheets: list) -> pd.DataFrame:
 # next page render without restarting the server.
 DF = None
 SUPP_DF = None
+# Bumped by apply_dataset_frames on every dataset swap; the cache key for
+# anything derived from the globals below.
+DATASET_GENERATION = 0
 QUARTER_SHEETS: list = []
 QUARTER_OPTIONS: list = []
 DEFAULT_QUARTER = None
@@ -139,6 +142,7 @@ def apply_dataset_frames(df: pd.DataFrame, supp: pd.DataFrame, quarter_sheets: l
     loader (activate_dataset) and the Postgres-backed cache layer, so the ~70
     aggregation functions never change regardless of where the data came from."""
     global DF, SUPP_DF, QUARTER_SHEETS, ACTIVE_SOURCE, ACTIVE_PATH, ACTIVE_LOADED_AT
+    global DATASET_GENERATION
     QUARTER_SHEETS = list(quarter_sheets)
     DF = df
     SUPP_DF = supp
@@ -146,6 +150,10 @@ def apply_dataset_frames(df: pd.DataFrame, supp: pd.DataFrame, quarter_sheets: l
     ACTIVE_SOURCE = source
     ACTIVE_PATH = Path(path) if path else None
     ACTIVE_LOADED_AT = loaded_at or datetime.now()
+    # Every swap of the globals bumps this, whatever the data came from. Callers
+    # that memoise derived results key on it, so a new dataset can never be
+    # served from a cache built against the previous one.
+    DATASET_GENERATION += 1
 
 
 def activate_dataset(path: Path, source: str) -> None:

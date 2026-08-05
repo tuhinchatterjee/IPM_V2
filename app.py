@@ -40,8 +40,18 @@ from backend import data_loader as dl
 from backend.auth.login import init_auth, install_gate
 from backend.auth.routes import register_auth_routes
 from backend.climate import store as climate_store
+from backend.reporting import store as report_store
 from backend.services import ai_usage, data_store, rate_limit
-from frontend import brf_view, cockpit_view, data_hub, esg_view, macro_view, raroc2_view, raroc_view
+from frontend import (
+    brf_view,
+    cockpit_view,
+    data_hub,
+    esg_view,
+    macro_view,
+    raroc2_view,
+    raroc_view,
+    reports_view,
+)
 
 # --------------------------------------------------------------------------- app
 
@@ -191,7 +201,7 @@ SECTION_TABS = {
     "macro": ["Outlook", "Sector Risk", "Portfolio Health"],
     "raroc": ["Post-Deal RAROC", "Deal Explorer", "Deal Detail", "Earnings & EVA", "Methodology"],
     "esg": ["Results", "Drill-down", "Inputs", "Calibration", "Sensitivity", "Quality Checks",
-            "Runs", "Report"],
+            "Audit trail", "Runs", "Report"],
     "brf": ["Overview", "Asset Quality", "Economic Activity", "Large Exposures", "Calendar"],
     "reports": ["Review Pack", "Schedules", "Archive"],
 }
@@ -302,6 +312,16 @@ def build_navbar():
 
 
 # --------------------------------------------------------------- filters & header
+
+def build_subsection_header(title):
+    """A heading for a body that is mounted INSIDE an already-headed page.
+
+    The page header carries the LIVE SYSTEM VIEW badge and the refresh clock, and
+    those belong to the page, once. Sub-tab bodies that called build_page_header
+    produced a second badge and a second, differently-timed clock directly under
+    the first."""
+    return html.Div(html.H2(title, className="subsection-title"), className="subsection-header")
+
 
 def build_page_header(title):
     return html.Div(
@@ -978,7 +998,7 @@ def build_signals_dashboard(quarter=None, segment="All", severity="All", owner="
     quarter = quarter or dl.DEFAULT_QUARTER
     return html.Div(
         [
-            build_page_header("AI Early-Warning Signal Dashboard"),
+            build_subsection_header("AI Early-Warning Signal Dashboard"),
             build_signals_filters_row(),
             html.Div(build_signals_kpi_row(quarter, segment, severity, owner),
                       className="signals-kpi-grid", id="signals-kpi-row"),
@@ -1161,7 +1181,7 @@ def build_concentration_body(quarter=None, segment="All"):
 def build_concentration_dashboard(quarter=None, segment="All"):
     return html.Div(
         [
-            build_page_header("Portfolio Heatmap & Concentration Risk"),
+            build_subsection_header("Portfolio Heatmap & Concentration Risk"),
             build_concentration_filters_row(),
             html.Div(build_concentration_body(quarter, segment), id="concentration-body"),
         ],
@@ -1289,7 +1309,7 @@ def build_migration_body(quarter=None, lookback=4, segment="All"):
 def build_migration_dashboard(quarter=None, lookback=4, segment="All"):
     return html.Div(
         [
-            build_page_header("Rating Migration Matrix"),
+            build_subsection_header("Rating Migration Matrix"),
             build_migration_filters_row(),
             html.Div(build_migration_body(quarter, lookback, segment), id="migration-body"),
         ],
@@ -1422,7 +1442,7 @@ def build_ead_body(quarter=None, segment="All"):
 def build_ead_dashboard(quarter=None, segment="All"):
     return html.Div(
         [
-            build_page_header("EAD, Utilisation & Off-Balance-Sheet Monitoring"),
+            build_subsection_header("EAD, Utilisation & Off-Balance-Sheet Monitoring"),
             build_ead_filters_row(),
             html.Div(build_ead_body(quarter, segment), id="ead-body"),
         ],
@@ -1547,7 +1567,7 @@ def build_ifrs9_body(quarter=None, segment="All"):
 def build_ifrs9_dashboard(quarter=None, segment="All"):
     return html.Div(
         [
-            build_page_header("IFRS 9 / ECL Portfolio Monitoring"),
+            build_subsection_header("IFRS 9 / ECL Portfolio Monitoring"),
             build_ifrs9_filters_row(),
             html.Div(build_ifrs9_body(quarter, segment), id="ifrs9-body"),
         ],
@@ -1665,7 +1685,7 @@ def build_covenants_body(quarter=None, min_headroom=20):
 def build_covenants_dashboard(quarter=None, min_headroom=20):
     return html.Div(
         [
-            build_page_header("Covenant & Collateral Monitoring"),
+            build_subsection_header("Covenant & Collateral Monitoring"),
             build_covenants_filters_row(),
             html.Div(build_covenants_body(quarter, min_headroom), id="covenants-body",
                       style={"display": "flex", "flexDirection": "column", "gap": "20px"}),
@@ -1714,62 +1734,6 @@ def build_watchlist_kanban(data):
     return html.Div(columns, className="kanban-board")
 
 
-def build_ai_copilot_panel(data, expanded=False):
-    candidates = []
-    for col in ["Restructuring", "Recovery", "Watchlist", "Under Review", "New"]:
-        for item in data["board"].get(col, []):
-            candidates.append((col, item))
-    candidates.sort(key=lambda ci: -ci[1]["ai_score"])
-    recs = candidates[: (6 if expanded else 3)]
-
-    rec_cards = [
-        html.Div(
-            [
-                html.Div(item["borrower"], className="copilot-rec-name"),
-                html.Div("New → Watchlist" if col == "New" else f"→ {col}", className="copilot-rec-move"),
-                html.Div(item["trigger"], className="copilot-rec-desc"),
-                html.Button("Apply", id={"type": "copilot-apply", "index": f"{item['customer_id']}-{i}"},
-                             n_clicks=0, className="copilot-apply-btn"),
-            ],
-            className="copilot-rec-card",
-        )
-        for i, (col, item) in enumerate(recs)
-    ]
-
-    trajectory_rows = [
-        html.Div(
-            [html.Span([html.Span(className="kpi-dot amber"), item["borrower"]], className="copilot-trajectory-name"),
-             html.Span(f"{int(item['ai_score'] * 100)}%", style={"fontWeight": "800"})],
-            className="copilot-trajectory-row",
-        )
-        for _, item in candidates[:4]
-    ]
-
-    children = [
-        html.Div(
-            [html.Div([html.Div("AI", className="ai-insight-icon", style={"width": "22px", "height": "22px", "fontSize": "10px"}),
-                        "AI Watch Copilot"], className="copilot-title"),
-             html.Span(f"{len(candidates)} INSIGHTS", className="copilot-badge")],
-            className="copilot-header",
-        ),
-        html.Div("RECOMMENDED MOVES", className="copilot-section-label"),
-        html.Div(rec_cards) if rec_cards else html.Div("No open recommendations.", style={"color": "#93a8bd", "fontSize": "12px"}),
-        html.Div("PREDICTED TRAJECTORY", className="copilot-section-label"),
-        html.Div(trajectory_rows) if trajectory_rows else html.Div("—", style={"color": "#93a8bd", "fontSize": "12px"}),
-    ]
-    if expanded:
-        draft_text = "No draft communication generated yet."
-        if candidates:
-            _, item = candidates[0]
-            draft_text = (
-                f"To {item['owner_initials']} (RM) — Re: {item['borrower']}. "
-                f"\"{item['trigger']} — please file an updated forecast and remediation plan within 10 business days.\""
-            )
-        children += [html.Div("AUTO-DRAFTED ACTION", className="copilot-section-label"),
-                     html.Div(draft_text, className="copilot-draft-box")]
-    return html.Div(children, className="copilot-panel")
-
-
 def build_watchlist_actions_table(data):
     rows = []
     for col in ["Restructuring", "Recovery", "Watchlist", "Under Review", "New"]:
@@ -1798,24 +1762,16 @@ def build_watchlist_actions_table(data):
 
 
 def build_watchlist_tab_board(quarter=None):
+    """The kanban spans the full width. The AI Watch Copilot rail that used to sit
+    beside it is gone — its recommendations duplicate the Actions tab, and the
+    global Ask AI drawer covers the same ground with real grounding."""
     data = dl.compute_watchlist_board(quarter or dl.DEFAULT_QUARTER)
-    return [
-        html.Div(
-            [html.Div([build_watchlist_kanban(data)], className="split-main"),
-             html.Div([build_ai_copilot_panel(data, expanded=False)], className="split-side")],
-            className="split-grid",
-        ),
-    ]
+    return [build_watchlist_kanban(data)]
 
 
 def build_watchlist_tab_actions(quarter=None):
     data = dl.compute_watchlist_board(quarter or dl.DEFAULT_QUARTER, top_n_per_col=20)
     return [build_watchlist_actions_table(data)]
-
-
-def build_watchlist_tab_copilot(quarter=None):
-    data = dl.compute_watchlist_board(quarter or dl.DEFAULT_QUARTER, top_n_per_col=20)
-    return [build_ai_copilot_panel(data, expanded=True)]
 
 
 # ================================================================ LIMITS section
@@ -1840,8 +1796,7 @@ def build_qoq_delta_cell(r):
     return html.Div(f"{marker} {abs(delta):.1f}pp", className=f"util-delta {tone}", title=tip)
 
 
-def build_limits_rows_ui(rows, show_delta=False, highlight_labels=None):
-    highlight_labels = set(highlight_labels or ())
+def build_limits_rows_ui(rows, show_delta=False):
     row_divs = []
     for r in rows:
         pct = r["pct"]
@@ -1852,8 +1807,6 @@ def build_limits_rows_ui(rows, show_delta=False, highlight_labels=None):
             label_children.append(html.Span("NEW BREACH", className="util-flag is-bad"))
         elif r.get("newly_cured"):
             label_children.append(html.Span("CURED", className="util-flag is-good"))
-        if r["label"] in highlight_labels:
-            label_children.append(html.Span("THIS BORROWER", className="util-flag is-info"))
 
         cells = [
             html.Div(label_children, className="util-bar-label", style={"width": "230px"}),
@@ -1865,10 +1818,7 @@ def build_limits_rows_ui(rows, show_delta=False, highlight_labels=None):
         ]
         if show_delta:
             cells.append(build_qoq_delta_cell(r))
-        row_divs.append(html.Div(
-            cells,
-            className="util-bar-row" + (" is-highlighted" if r["label"] in highlight_labels else ""),
-        ))
+        row_divs.append(html.Div(cells, className="util-bar-row"))
     return row_divs
 
 
@@ -1896,7 +1846,7 @@ def build_breach_workflow():
     )
 
 
-def build_limits_body(quarter=None, segment="All", view="Appetite", highlight_labels=None):
+def build_limits_body(quarter=None, segment="All", view="Appetite"):
     quarter = quarter or dl.DEFAULT_QUARTER
     data = dl.compute_limits_dashboard(quarter, segment)
     rows = list(data["rows"])
@@ -1916,7 +1866,7 @@ def build_limits_body(quarter=None, segment="All", view="Appetite", highlight_la
     bars_card = html.Div(
         [html.Div(header, className="table-title",
                     style={"display": "flex", "gap": "8px", "alignItems": "center", "padding": "16px 20px 6px"}),
-         html.Div(build_limits_rows_ui(rows, show_delta=show_delta, highlight_labels=highlight_labels) if rows else
+         html.Div(build_limits_rows_ui(rows, show_delta=show_delta) if rows else
                    html.Div("No limits at this filter.", style={"padding": "20px", "color": "var(--text-muted)", "textAlign": "center"}),
                    style={"padding": "0 20px 18px"})],
         className="table-card",
@@ -2273,149 +2223,9 @@ def build_pricing_body(quarter=None):
 
 # ================================================================ REPORTS section
 
-def build_report_checkbox(label):
-    return html.Div(
-        [dcc.Checklist(options=[{"label": " " + label, "value": "on"}], value=["on"], inline=True)],
-        className="report-checkbox-row",
-    )
-
-
-REPORT_SECTIONS = ["Executive summary", "Portfolio movement", "Limit breaches", "Concentration & heatmaps",
-                    "Watchlist & actions", "Stress results", "ECL / IFRS 9", "AI commentary"]
-
-
-def build_review_pack_body(quarter=None):
-    quarter = quarter or dl.DEFAULT_QUARTER
-    k = dl.compute_kpis(quarter)
-    m = dl.compute_rating_migration(quarter)
-    conc = dl.compute_concentration_heatmap(quarter)
-    stress = dl.compute_stress_scenario(quarter, 300, 25)
-    top_sector = conc["sector_caps"][0] if conc["sector_caps"] else None
-    top_downgrade_sector = m["downgrades_by_sector"][0] if m["downgrades_by_sector"] else None
-
-    config_panel = html.Div(
-        [
-            html.Div("GENERATE REVIEW PACK", className="table-title"),
-            html.Div("REPORTING PERIOD", className="report-config-label"),
-            dcc.Dropdown(options=dl.QUARTER_OPTIONS, value=quarter, clearable=False, searchable=False,
-                          className="filter-dd", style={"width": "100%"}),
-            html.Div("PORTFOLIO SCOPE", className="report-config-label"),
-            dcc.Dropdown(options=[{"label": "Wholesale — GCC", "value": "all"}], value="all", clearable=False,
-                          searchable=False, className="filter-dd", style={"width": "100%"}),
-            html.Div("AUDIENCE", className="report-config-label"),
-            dcc.Dropdown(options=[{"label": "Credit Committee", "value": "cc"}, {"label": "Board Risk Committee", "value": "board"}],
-                          value="cc", clearable=False, searchable=False, className="filter-dd", style={"width": "100%"}),
-            html.Div("SECTIONS INCLUDED", className="report-config-label"),
-            html.Div([build_report_checkbox(s) for s in REPORT_SECTIONS]),
-            html.Div(
-                [html.Button("Generate Pack", className="report-generate-btn"),
-                 html.Button("PDF", className="report-secondary-btn"), html.Button("PPTX", className="report-secondary-btn")],
-                className="report-btn-row",
-            ),
-        ],
-        className="report-config-panel",
-    )
-
-    doc = html.Div(
-        [
-            html.Div(
-                [html.Div([html.Div(f"{quarter} Portfolio Review — Credit Committee", className="report-doc-title"),
-                            html.Div("IPM · Confidential", className="report-doc-sub")]),
-                 html.Span("AUTO-DRAFTED", className="report-doc-badge")],
-                className="report-doc-header",
-            ),
-            html.Div(
-                [html.Div("1 · Executive Summary", className="report-section-title"),
-                 html.Div(f"EAD {dl.fmt_bn(k['total_ead'], 2)} "
-                          f"({'+' if (k['ead_qoq_pct'] or 0) >= 0 else ''}{(k['ead_qoq_pct'] or 0):.1f}% QoQ) · "
-                          f"NPL {k['npl_ratio']:.1f}% · {k['breaches']} appetite breaches.",
-                          className="report-section-body")],
-                className="report-section",
-            ),
-            html.Div(
-                [html.Div("2 · Portfolio Movement", className="report-section-title"),
-                 html.Div(f"Stage 2 exposure {dl.fmt_bn(k['stage_ead'][2], 2)} · {m['upgrades']} upgrades vs {m['downgrades']} downgrades "
-                          f"(net {'+' if m['net_migration'] >= 0 else ''}{m['net_migration']}) over the trailing period"
-                          + (f", led by {top_downgrade_sector['sector']}." if top_downgrade_sector else "."),
-                          className="report-section-body")],
-                className="report-section",
-            ),
-            html.Div(
-                [html.Div("3 · Concentration & Heatmap", className="report-section-title"),
-                 html.Div((f"Portfolio HHI {conc['hhi']:.3f} · top-10 obligors {conc['top10_pct']:.1f}% of EAD · "
-                           f"tightest sector cap: {top_sector['sector']} at {top_sector['utilisation']:.0f}% utilisation.")
-                          if top_sector else "No sector cap data.",
-                          className="report-section-body")],
-                className="report-section",
-            ),
-            html.Div(
-                [html.Div("4 · Stress & ECL", className="report-section-title"),
-                 html.Div(f"Adverse scenario (+300bps / -25% CRE) lifts ECL to {dl.fmt_mn(stress['stressed_ecl'])} "
-                          f"({'+' if stress['ecl_delta'] >= 0 else ''}{dl.fmt_mn(stress['ecl_delta'])}), "
-                          f"CET1 {stress['cet1_bps_impact']:.0f}bps, {stress['covenant_breach_count']} projected covenant breaches.",
-                          className="report-section-body")],
-                className="report-section",
-            ),
-            html.Div(
-                [html.Div("AI COMMENTARY", style={"fontSize": "11px", "fontWeight": "800", "color": "var(--teal)",
-                                                     "marginBottom": "8px", "letterSpacing": "0.5px"}),
-                 html.Div(
-                     (f"This quarter's risk picture is dominated by {top_sector['sector']} concentration and "
-                      if top_sector else "This quarter's risk picture is dominated by sector concentration and ")
-                     + (f"{top_downgrade_sector['sector']} rating migration; " if top_downgrade_sector else "rating migration; ")
-                     + f"management actions should track against the {k['breaches']} live appetite breaches.",
-                     style={"fontSize": "12.5px", "color": "#d4dee8", "lineHeight": "1.6"})],
-                style={"background": "var(--navy-900)", "borderRadius": "var(--radius-md)", "padding": "14px 16px"},
-            ),
-        ],
-        className="report-doc",
-    )
-    preview_panel = html.Div([html.Div("LIVE PREVIEW", className="report-preview-header"), doc], className="report-preview-panel")
-
-    return [
-        html.Div(
-            [html.Div(config_panel), html.Div(preview_panel)],
-            className="split-grid", style={"gridTemplateColumns": "340px 1fr"},
-        ),
-    ]
-
-
-SCHEDULED_REPORTS = [
-    {"name": "Weekly Risk Digest", "cadence": "Every Monday 07:00", "audience": "CRO + Sector Heads", "next_run": "Next Monday"},
-    {"name": "Monthly Board Pack", "cadence": "1st business day", "audience": "Board Risk Committee", "next_run": "1st of next month"},
-    {"name": "Quarterly Credit Committee Pack", "cadence": "Quarter-end + 5 business days", "audience": "Credit Committee", "next_run": "Next quarter-end + 5bd"},
-]
-
-
-def build_reports_schedules_body(quarter=None):
-    rows = [html.Tr([html.Td(r["name"], className="metric-name"), html.Td(r["cadence"]), html.Td(r["audience"]), html.Td(r["next_run"])])
-            for r in SCHEDULED_REPORTS]
-    table = html.Table([html.Thead(html.Tr([html.Th("Report"), html.Th("Cadence"), html.Th("Audience"), html.Th("Next Run")])),
-                          html.Tbody(rows)], className="borrower-table signals-table")
-    return [html.Div([html.Div([html.Span("SCHEDULED REPORTS", className="table-title")], className="table-card-header"), table],
-                       className="simple-table-card")]
-
-
-def build_reports_archive_body(quarter=None):
-    quarter = quarter or dl.DEFAULT_QUARTER
-    idx = dl.QUARTER_SHEETS.index(quarter)
-    past = dl.QUARTER_SHEETS[max(0, idx - 3): idx + 1][::-1]
-    rows = []
-    for q in past:
-        k = dl.compute_kpis(q)
-        rows.append(html.Tr([
-            html.Td(f"{q} Portfolio Review — Credit Committee", className="metric-name"),
-            html.Td(dl.fmt_bn(k["total_ead"], 2), className="num"), html.Td(f"{k['npl_ratio']:.1f}%", className="num"),
-            html.Td(str(k["breaches"]), className="num"), html.Td("Generated"),
-        ]))
-    table = html.Table(
-        [html.Thead(html.Tr([html.Th("Report"), html.Th("EAD", className="num"), html.Th("NPL", className="num"),
-                              html.Th("Breaches", className="num"), html.Th("Status")])),
-         html.Tbody(rows)],
-        className="borrower-table signals-table",
-    )
-    return [html.Div([html.Div([html.Span("REPORT ARCHIVE", className="table-title")], className="table-card-header"), table],
-                       className="simple-table-card")]
+# The section is built in frontend/reports_view.py on top of backend/reporting.
+# The three tab bodies are dispatched from build_section_tab_body and the
+# generate / download / archive interactivity lives in the callbacks below.
 
 
 # ============================================================ generic section shell
@@ -2430,7 +2240,11 @@ def build_section_subnav(section_key, active_tab):
     return html.Div(
         [
             html.Div([icon_grid(), html.Span(SECTION_BREADCRUMB[section_key], className="crumb-icon"),
-                       html.Span("›", className="crumb-sep"), html.Span(active_tab, className="crumb-current")],
+                       html.Span("›", className="crumb-sep"),
+                       # Carries an id so switching sub-tab moves the breadcrumb with
+                       # it — without this it kept naming the tab you arrived on.
+                       html.Span(active_tab, id={"type": "sec-crumb", "section": section_key},
+                                  className="crumb-current")],
                        className="ipm-breadcrumb"),
             html.Div(subnav_items, className="subnav"),
         ],
@@ -2438,7 +2252,8 @@ def build_section_subnav(section_key, active_tab):
     )
 
 
-def build_section_tab_body(section_key, tab, stress_params=None, recent_questions=None):
+def build_section_tab_body(section_key, tab, stress_params=None, recent_questions=None,
+                            reports_config=None):
     quarter = dl.DEFAULT_QUARTER
     if section_key == "watchlist":
         if tab == "Board":
@@ -2491,6 +2306,7 @@ def build_section_tab_body(section_key, tab, stress_params=None, recent_question
             "Calibration": esg_view.build_calibration_tab,
             "Sensitivity": esg_view.build_sensitivity_tab,
             "Quality Checks": esg_view.build_checks_tab,
+            "Audit trail": esg_view.build_audit_tab,
             "Runs": esg_view.build_runs_tab,
             "Report": esg_view.build_report_tab,
         }.get(tab)
@@ -2498,11 +2314,11 @@ def build_section_tab_body(section_key, tab, stress_params=None, recent_question
             return builder()
     if section_key == "reports":
         if tab == "Review Pack":
-            return build_review_pack_body(quarter)
+            return reports_view.build_review_pack_body(reports_config)
         if tab == "Schedules":
-            return build_reports_schedules_body(quarter)
+            return reports_view.build_schedules_body(quarter)
         if tab == "Archive":
-            return build_reports_archive_body(quarter)
+            return reports_view.build_archive_body(quarter)
     return [html.Div("Not implemented.", className="placeholder-panel")]
 
 
@@ -2708,7 +2524,7 @@ def build_borrower_list_body(quarter=None, search="", sector="All", segment="All
 def build_borrower_list_dashboard():
     return html.Div(
         [
-            build_page_header("Borrower List — Full Obligor Register"),
+            build_subsection_header("Borrower List — Full Obligor Register"),
             html.Div(
                 [
                     html.Span("SEARCH", className="filters-label"),
@@ -2977,26 +2793,8 @@ def build_pd_ecl_chart(customer_id, quarter):
     )
 
 
-def borrower_limit_labels(customer_id, quarter=None):
-    """The appetite lines this borrower actually sits inside.
-
-    The limit book is portfolio-level, so opening it from a borrower page is only
-    useful if you can see which lines that borrower contributes to — their sector
-    cap, their geography, and the single-name line when they are the one holding
-    it."""
-    quarter = quarter or dl.DEFAULT_QUARTER
-    profile = dl.get_borrower_profile(customer_id, quarter)
-    if not profile:
-        return set()
-    labels = {f"{profile['sector']} (sector)", f"{profile['region']} (geography)"}
-    labels.add(f"Single-name ({profile['borrower']})")
-    return labels
-
-
 def build_b360_limits_modal_body(customer_id, quarter=None, view="Utilisation"):
     quarter = quarter or dl.DEFAULT_QUARTER
-    profile = dl.get_borrower_profile(customer_id, quarter)
-    name = profile["borrower"] if profile else customer_id
     tabs = html.Div(
         [
             html.Div(v, id={"type": "b360-limits-tab", "view": v}, n_clicks=0,
@@ -3011,7 +2809,7 @@ def build_b360_limits_modal_body(customer_id, quarter=None, view="Utilisation"):
                 html.Div(
                     [
                         html.H4("Limits, Risk Appetite & Breaches", className="modal-borrower-name"),
-                        html.Div(f"Portfolio appetite lines · highlighting those {name} sits in",
+                        html.Div("Approved limits vs utilisation across every appetite dimension",
                                  className="modal-borrower-meta"),
                     ]
                 ),
@@ -3021,8 +2819,7 @@ def build_b360_limits_modal_body(customer_id, quarter=None, view="Utilisation"):
         ),
         html.Div(
             [tabs, html.Div(
-                build_limits_body(quarter, view=view,
-                                  highlight_labels=borrower_limit_labels(customer_id, quarter)),
+                build_limits_body(quarter, view=view),
                 id="b360-limits-view", style={"marginTop": "16px"},
             )],
             className="modal-body-custom",
@@ -3147,6 +2944,11 @@ def serve_layout():
             dcc.Download(id="brf-download"),
             dcc.Download(id="raroc-download"),
             dcc.Download(id="esg-download"),
+            dcc.Download(id="reports-download"),
+            # Which committee pack, in which format. Lives outside page-content so
+            # the choice survives a tab switch — picking BRC, wandering to Archive
+            # and coming back should not silently reset you to the SMC pack.
+            dcc.Store(id="reports-config", data=dict(reports_view.DEFAULT_CONFIG)),
             # Chat Stores live here, outside page-content, so conversations survive
             # page navigation (page-content gets torn down and rebuilt on every
             # route change, but this part of the tree never does). One set per
@@ -3598,20 +3400,24 @@ def update_top_nav_active(pathname, ids):
 @app.callback(
     Output({"type": "sec-subnav", "section": MATCH, "tab": ALL}, "className"),
     Output({"type": "sec-body", "section": MATCH}, "children"),
+    Output({"type": "sec-crumb", "section": MATCH}, "children"),
     Input({"type": "sec-subnav", "section": MATCH, "tab": ALL}, "n_clicks"),
     State({"type": "sec-subnav", "section": MATCH, "tab": ALL}, "id"),
     State("stress-params", "data"),
     State("scenario-recent-q", "data"),
+    State("reports-config", "data"),
     prevent_initial_call=True,
 )
-def switch_section_subnav(_n_clicks_list, ids, stress_params, recent_questions):
+def switch_section_subnav(_n_clicks_list, ids, stress_params, recent_questions, reports_config):
     trig = ctx.triggered_id
     if not trig or not ctx.triggered[0]["value"]:
         raise PreventUpdate
     section_key = trig["section"]
     active_tab = trig["tab"]
     classnames = ["subnav-item active" if d["tab"] == active_tab else "subnav-item" for d in ids]
-    return classnames, build_section_tab_body(section_key, active_tab, stress_params, recent_questions)
+    body = build_section_tab_body(section_key, active_tab, stress_params,
+                                  recent_questions, reports_config)
+    return classnames, body, active_tab
 
 
 @app.callback(
@@ -3736,18 +3542,6 @@ def update_scenario_kpis(params):
     params = params or {}
     result = dl.compute_stress_scenario(dl.DEFAULT_QUARTER, params.get("rate_shock_bps", 0), params.get("cre_price_shock_pct", 0))
     return build_scenario_kpi_cards(result)
-
-
-@app.callback(
-    Output({"type": "copilot-apply", "index": MATCH}, "children"),
-    Output({"type": "copilot-apply", "index": MATCH}, "className"),
-    Input({"type": "copilot-apply", "index": MATCH}, "n_clicks"),
-    prevent_initial_call=True,
-)
-def apply_copilot_action(n_clicks):
-    if not n_clicks:
-        raise PreventUpdate
-    return "Applied ✓", "copilot-apply-btn is-applied"
 
 
 @app.callback(
@@ -3954,19 +3748,15 @@ def close_b360_limits_modal(n_clicks):
     Output("b360-limits-view", "children"),
     Input({"type": "b360-limits-tab", "view": ALL}, "n_clicks"),
     State({"type": "b360-limits-tab", "view": ALL}, "id"),
-    State("b360-chat-customer-store", "data"),
     prevent_initial_call=True,
 )
-def switch_b360_limits_view(_clicks, ids, customer_id):
+def switch_b360_limits_view(_clicks, ids):
     trig = ctx.triggered_id
     if not trig or not ctx.triggered[0]["value"]:
         raise PreventUpdate
     view = trig["view"]
     classnames = ["subnav-item active" if d["view"] == view else "subnav-item" for d in ids]
-    customer_id = customer_id or dl.DEFAULT_CUSTOMER
-    body = build_limits_body(dl.DEFAULT_QUARTER, view=view,
-                             highlight_labels=borrower_limit_labels(customer_id))
-    return classnames, body
+    return classnames, build_limits_body(dl.DEFAULT_QUARTER, view=view)
 
 
 # ------------------------------------------------------------- borrower list
@@ -4350,56 +4140,100 @@ def update_esg_drilldown(version_id, horizon, sector_id, grade, scenario):
 
 @app.callback(
     Output("esg-in-body", "children"),
+    Output("esg-in-live", "children"),
     Input("esg-in-version", "value"),
     Input("esg-in-block", "value"),
+    Input("esg-in-reset", "n_clicks"),
     prevent_initial_call=True,
 )
-def update_esg_inputs(version_id, block):
-    return esg_view.build_inputs_body(version_id, block or "sectors")
+def update_esg_inputs(version_id, block, _reset_clicks):
+    """Re-render the block from the SAVED version. Also serves 'Reset edits',
+    which is just this render — the unsaved estimate only ever lived in the
+    browser's table state, so discarding it is a re-read, not an undo."""
+    block = block or "sectors"
+    return esg_view.build_inputs_body(version_id, block), esg_view.build_inputs_live()
 
 
-ESG_INPUT_TABLE_IDS = ["esg-tbl-sectors", "esg-tbl-emissions", "esg-tbl-scenarios",
-                       "esg-tbl-hazards", "esg-tbl-exposure", "esg-tbl-grades", "esg-tbl-settings"]
+@app.callback(
+    Output("esg-in-live", "children", allow_duplicate=True),
+    Output("esg-in-derived", "children"),
+    Input({"type": "esg-tbl", "block": ALL}, "data"),
+    State({"type": "esg-tbl", "block": ALL}, "id"),
+    State("esg-in-version", "value"),
+    State("esg-in-block", "value"),
+    prevent_initial_call=True,
+)
+def preview_esg_inputs(table_data, table_ids, version_id, block):
+    """Live what-if: recompute the whole model from the table contents as they
+    stand, without saving. This is what turns the Inputs tab from a data-entry
+    form into an estimator — change a GVA figure or a carbon price and every
+    derived quantity, k included, moves with it."""
+    if not table_data:
+        raise PreventUpdate
+    rows = [(i["block"], d) for i, d in zip(table_ids, table_data, strict=True)]
+    try:
+        saved, live_model, live_result, live_checks = esg_view.resolve_live(version_id, rows)
+    except Exception:
+        logger.exception("ESG live preview failed")
+        raise PreventUpdate from None
+    return (
+        esg_view.build_inputs_live(live_model, live_result, live_checks, baseline=saved),
+        esg_view.build_inputs_body(version_id, block or "sectors",
+                                   live=(live_model, live_result, live_checks), derived_only=True),
+    )
 
 
 @app.callback(
     Output("esg-in-status", "children"),
     Output("esg-in-body", "children", allow_duplicate=True),
+    Output("esg-in-live", "children", allow_duplicate=True),
     Input("esg-in-save", "n_clicks"),
+    State({"type": "esg-tbl", "block": ALL}, "data"),
+    State({"type": "esg-tbl", "block": ALL}, "id"),
     State("esg-in-version", "value"),
     State("esg-in-block", "value"),
-    *[State(tid, "data") for tid in ESG_INPUT_TABLE_IDS],
     prevent_initial_call=True,
 )
-def save_esg_inputs(n_clicks, version_id, block, *table_data):
-    """Fold the edited table back into the version. Rejected outright if the
+def save_esg_inputs(n_clicks, table_data, table_ids, version_id, block):
+    """Fold every on-screen table back into the version. Rejected outright if the
     version is final — that immutability is what the audit trail rests on."""
-    if not n_clicks:
+    if not n_clicks or not table_data:
         raise PreventUpdate
     block = block or "sectors"
-    rows = dict(zip(ESG_INPUT_TABLE_IDS, table_data, strict=True)).get(f"esg-tbl-{block}")
-    if not rows:
-        raise PreventUpdate
 
     rec = climate_store.get_version(version_id) if version_id else None
     if rec is None:
-        return html.Div("Select a model version first.", className="upload-verdict is-fail"), no_update
+        return (html.Div("Select a model version first.", className="upload-verdict is-fail"),
+                no_update, no_update)
     if rec["status"] == climate_store.STATUS_FINAL:
         return (html.Div("This version is FINAL and cannot be edited. Use “Clone as draft” first.",
-                         className="upload-verdict is-fail"), no_update)
+                         className="upload-verdict is-fail"), no_update, no_update)
 
     try:
-        updated = esg_view.apply_edits(rec["model"], block, rows)
+        updated = rec["model"]
+        for tid, rows in zip(table_ids, table_data, strict=True):
+            if rows:
+                updated = esg_view.apply_edits(updated, tid["block"], rows)
         climate_store.update_version(rec["id"], updated,
                                      note=f"{block} edited via the Inputs tab")
     except Exception as exc:
         logger.exception("ESG input save failed")
-        return html.Div(f"Save failed: {exc}", className="upload-verdict is-fail"), no_update
+        return html.Div(f"Save failed: {exc}", className="upload-verdict is-fail"), no_update, no_update
 
     logger.info("ESG: saved %s edits to model version %s", block, rec["id"])
     msg = html.Div(f"Saved to version #{rec['id']}. Every downstream figure has been recalculated.",
                    className="upload-verdict is-ok")
-    return msg, esg_view.build_inputs_body(rec["id"], block)
+    return (msg, esg_view.build_inputs_body(rec["id"], block),
+            esg_view.build_inputs_live())
+
+
+@app.callback(
+    Output("esg-audit-body", "children"),
+    Input("esg-audit-view", "value"),
+    prevent_initial_call=True,
+)
+def update_esg_audit(view):
+    return esg_view.build_audit_body(view or "verification")
 
 
 @app.callback(
@@ -4576,6 +4410,143 @@ def download_esg_grid_csv(n_clicks, version_id, horizon, theta, grade):
     rows = esg_view.build_grid_rows(version_id, horizon, theta, grade)
     df = pd.DataFrame(rows)
     return dcc.send_data_frame(df.to_csv, "Climate_StressedPD_Grid.csv", index=False)
+
+
+# ============================================================== REPORTS callbacks
+
+def _reports_status(text, ok=True):
+    return html.Div(text, className=f"upload-verdict {'is-ok' if ok else 'is-fail'}")
+
+
+@app.callback(
+    Output("reports-config", "data"),
+    Input({"type": "rep-type-card", "key": ALL}, "n_clicks"),
+    Input({"type": "rep-fmt-card", "key": ALL}, "n_clicks"),
+    Input("rep-quarter", "value"),
+    State("reports-config", "data"),
+    prevent_initial_call=True,
+)
+def update_reports_config(_type_clicks, _fmt_clicks, quarter, config):
+    """One store for the whole chooser. The card callbacks and the period dropdown
+    all land here, so the Review Pack body has a single thing to re-render from."""
+    cfg = reports_view.resolve_config(config)
+    trig = ctx.triggered_id
+    if trig == "rep-quarter":
+        cfg["quarter"] = quarter or cfg["quarter"]
+    elif isinstance(trig, dict) and ctx.triggered[0]["value"]:
+        if trig["type"] == "rep-type-card":
+            cfg["type"] = trig["key"]
+        elif trig["type"] == "rep-fmt-card":
+            cfg["format"] = trig["key"]
+    else:
+        raise PreventUpdate
+    return cfg
+
+
+@app.callback(
+    Output({"type": "sec-body", "section": "reports"}, "children", allow_duplicate=True),
+    Input("reports-config", "data"),
+    prevent_initial_call=True,
+)
+def rerender_review_pack(config):
+    """Re-render the Review Pack when the choice changes. The preview is rebuilt
+    from the same content model the writers use, so it cannot drift from the file
+    that gets generated."""
+    return reports_view.build_review_pack_body(config)
+
+
+@app.callback(
+    Output("reports-download", "data"),
+    Output("rep-status", "children"),
+    Input("rep-generate", "n_clicks"),
+    State("reports-config", "data"),
+    # Rendering seven charts and assembling a 15-page document takes the better
+    # part of ten seconds. Holding the button disabled for the duration stops a
+    # second click from archiving a duplicate pack; assets/loading.js paints the
+    # spinner over it.
+    running=[(Output("rep-generate", "disabled"), True, False)],
+    prevent_initial_call=True,
+)
+def generate_report_pack(n_clicks, config):
+    if not n_clicks:
+        raise PreventUpdate
+    cfg = reports_view.resolve_config(config)
+    try:
+        pack = report_store.generate(
+            cfg["type"], quarter=cfg["quarter"], fmt=cfg["format"],
+            prepared_by=getattr(current_user, "username", "") or "")
+    except Exception:
+        logger.exception("reports: pack generation failed for %s", cfg)
+        return no_update, _reports_status(
+            "The pack could not be generated. The error has been logged.", ok=False)
+
+    data, filename = pack["data"], pack["filename"]
+    h = pack["headline"]
+    msg = _reports_status(
+        f"Generated {filename} ({len(data) / 1024:,.0f} KB) — {h['section_count']} sections, "
+        f"{h['finding_count']} findings, {h['action_count']} recommended actions and "
+        f"{h['remediation_count']} remediation items. Archived as pack #{pack['id']}.")
+    return dcc.send_bytes(lambda buf: buf.write(data), filename), msg
+
+
+@app.callback(
+    Output("reports-download", "data", allow_duplicate=True),
+    Output({"type": "sec-body", "section": "reports"}, "children", allow_duplicate=True),
+    Input({"type": "rep-sched-run", "key": ALL}, "n_clicks"),
+    prevent_initial_call=True,
+)
+def run_scheduled_report(_clicks):
+    """"Generate now" on a schedule card: build that schedule's pack in its own
+    format and hand it straight to the browser."""
+    trig = ctx.triggered_id
+    if not isinstance(trig, dict) or not ctx.triggered[0]["value"]:
+        raise PreventUpdate
+    sched = next((s for s in reports_view.SCHEDULES if s["id"] == trig["key"]), None)
+    if sched is None:
+        raise PreventUpdate
+    quarter = dl.DEFAULT_QUARTER
+    try:
+        pack = report_store.generate(
+            sched["type"], quarter=quarter, fmt=sched["format"],
+            prepared_by=getattr(current_user, "username", "") or "")
+    except Exception:
+        logger.exception("reports: scheduled pack %s failed", trig["key"])
+        raise PreventUpdate from None
+    data, filename = pack["data"], pack["filename"]
+    return (dcc.send_bytes(lambda buf: buf.write(data), filename),
+            reports_view.build_schedules_body(quarter))
+
+
+@app.callback(
+    Output("reports-download", "data", allow_duplicate=True),
+    Input({"type": "rep-arch-dl", "id": ALL}, "n_clicks"),
+    prevent_initial_call=True,
+)
+def download_archived_pack(_clicks):
+    """Re-serve an archived pack byte for byte. A pack that has been tabled at a
+    committee must not change afterwards, so this reads the stored file rather
+    than re-rendering the report."""
+    trig = ctx.triggered_id
+    if not isinstance(trig, dict) or not ctx.triggered[0]["value"]:
+        raise PreventUpdate
+    got = report_store.load(trig["id"])
+    if got is None:
+        raise PreventUpdate
+    data, filename, _mime = got
+    return dcc.send_bytes(lambda buf: buf.write(data), filename)
+
+
+@app.callback(
+    Output({"type": "sec-body", "section": "reports"}, "children", allow_duplicate=True),
+    Input({"type": "rep-arch-del", "id": ALL}, "n_clicks"),
+    prevent_initial_call=True,
+)
+def delete_archived_pack(_clicks):
+    trig = ctx.triggered_id
+    if not isinstance(trig, dict) or not ctx.triggered[0]["value"]:
+        raise PreventUpdate
+    report_store.delete(trig["id"])
+    return reports_view.build_archive_body(dl.DEFAULT_QUARTER)
 
 
 if __name__ == "__main__":

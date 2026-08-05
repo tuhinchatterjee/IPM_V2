@@ -371,6 +371,81 @@ VERIFICATION_LOG_ROWS = [
 ]
 
 
+# ----------------------------------------------------------------- change log
+# What changed between model generations. Carried so a reviewer can see not just
+# what the model says but what it used to say and why that was wrong — several of
+# these are defects the workbook found in itself.
+
+CHANGE_LOG = [
+    (1, "Output", "Customer-level ECL, aggregation and portfolio summary tabs.",
+     "Removed entirely. The output is a sector × grade × scenario stressed PD grid, plus a "
+     "PD-multiple summary at the reference grade."),
+    (2, "Sector taxonomy",
+     "16 sectors, several built by splitting an SNA parent with a placeholder share, and two with "
+     "no GVA at all — which meant they silently received no stress.",
+     "10 sectors. Every ISIC Rev.4 section sits in exactly one sector; every sector has a sourced "
+     "GVA figure. No placeholder splits, no zero-GVA rows."),
+    (3, "ISIC B split", "93% / 7% placeholder between oil and gas and other mining.",
+     "Sourced. Separately reported non-oil Mining GVA is 205.8 OMR m for 2023, so oil and gas "
+     "extraction is 14,750.3 of an ISIC B total of 14,956.1."),
+    (4, "k anchor", "Two conflicting values, 2.0%→2.05% and 2.0%→4.0%, flagged but unresolved.",
+     "Both traced. 2.0%→4.0% is COAL MINING under disorderly transition, not the median firm. The "
+     "clean transition-only median-firm anchor is +0.5% relative and is now the default."),
+    (5, "EU intensity", "1,100 t/EURm revenue, described as a coal-mining figure.",
+     "Identified as the LARGE-FIRM average on a Scope 1+2+3 basis. Replaced by a symmetric "
+     "construction: EU national Scope 1 emissions over EU GVA, built exactly as the local intensity is."),
+    (6, "Revenue versus GVA", "Flagged as a defect, handled by an unsourced turnover-to-GVA ratio.",
+     "Route 1 removes the conversion entirely by constructing both sides from national aggregates. "
+     "Route 2 is retained for comparison, and a basis switch lets the whole model run on turnover."),
+    (7, "EU pass-through", "50%.",
+     "0%. OP 281 applies the carbon tax to operating costs with no cost relief; any demand response "
+     "runs separately through Scope 3 revenues."),
+    (8, "Price base", "NGFS carbon prices in US$2010 applied directly to GVA in 2023 US dollars.",
+     "US GDP deflator applied explicitly. Omitting it understated every cost ratio by roughly a quarter."),
+    (9, "Carbon price value", "Net Zero 2035 at 290.",
+     "Corrected to 294, per the NGFS Phase V statement that the price rises from $98/tCO2 in 2025 "
+     "to $294/tCO2 by 2035."),
+    (10, "Carbon price region", "Global, unremarked.",
+     "Global, with the direction of bias documented: prices tend to be LOWER in emerging economies, "
+     "so applying the global path overstates the transition cost."),
+    (11, "GVA vintage", "Undated.",
+     "Identified as 2023 current prices, against 2024 EDGAR emissions. The one-year mismatch is "
+     "disclosed and the 2024 replacement values are recorded in the verification log."),
+    (12, "Verification", "Source register listed origins but no checks.",
+     "A dedicated verification log records, for all input numbers, what each was checked against and "
+     "what the check found. Four values changed; three could not be verified and remain flagged."),
+    (13, "k calibration",
+     "Single anchor. k was a scale; the LN(1+x) shape was imposed with no support, and the model "
+     "extrapolated far beyond the calibration point with no way to bound the error.",
+     "All four PD anchors extracted onto a common basis, the functional form generalised to one "
+     "curvature parameter, and k fitted. A second usable anchor is confirmed and the form validated, "
+     "but curvature remains unidentifiable and the reason is now quantified."),
+    (14, "Push formula", "push = k × LN(1 + cost ratio).",
+     "push = k × ((1 + cost ratio)^θ − 1)/θ, which returns the previous formula exactly at θ = 0 and "
+     "spans linear through saturating as θ moves from +1 to −1."),
+    (15, "Cost ratio cap", "None.",
+     "Wired into the cost ratio, off by default, with a live count of the cells it would bind on."),
+    (16, "Physical risk in PD", "Not modelled. Physical risk sat only in an LGD module.",
+     "Sector-specific acute physical damage enters as a second cost ratio, added to the carbon cost "
+     "ratio inside the same push transform and using the same calibrated k."),
+    (17, "Physical baseline", "None.",
+     "Sourced from the country's own loss record: three cyclone events give a baseline annual average "
+     "loss of 0.275% of value added. Heat and water stress remain flagged inputs."),
+    (18, "Channel separation",
+     "Rule was 'transition to PD, physical to LGD', which prevented double counting by keeping "
+     "physical out of PD entirely.",
+     "Replaced with an economic split: 60% of retained damage is business interruption and repair "
+     "expense and goes to PD; 40% is capital replacement and goes to LGD. The shares sum to one."),
+    (19, "Ordering checks", "Transition ordering only.",
+     "Both orderings checked live. Transition must run NZ ≥ DT ≥ FW ≥ CP and physical must run "
+     "CP ≥ FW ≥ DT ≥ NZ. Both pass."),
+]
+
+CHANGE_LOG_ROWS = [
+    dict(id=r[0], area=r[1], before=r[2], after=r[3]) for r in CHANGE_LOG
+]
+
+
 def status_tone(status: str) -> str:
     """Map a register status onto the UI badge tone: ok / warn / bad / info."""
     s = (status or "").upper()
