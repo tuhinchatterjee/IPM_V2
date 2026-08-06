@@ -165,3 +165,107 @@ Seed the first admin once:
 python scripts/manage_users.py add admin --role admin
 ```
 
+## 11. Docker (alternative to the NSSM service)
+
+### 11.1 Everyday use — the two scripts
+
+This is the short version; the rest of the section explains what sits underneath.
+The app runs in a container against the PostgreSQL already installed on this PC,
+so it uses the same database, users and datasets as a local `python app.py`.
+
+```
+powershell -ExecutionPolicy Bypass -File scripts\app-start.ps1     # start  -> http://localhost:8050
+powershell -ExecutionPolicy Bypass -File scripts\app-stop.ps1      # stop
+docker logs -f IPM                                                 # watch the log
+```
+
+`app-start.ps1` reads `DATABASE_URL`, `SECRET_KEY` and `ANTHROPIC_API_KEY` from
+`.env`, rewrites the database host to `host.docker.internal` (inside a container
+`localhost` is the container, not this PC — the most common cause of a container
+that will not start), and starts with `--restart unless-stopped`, so the app
+comes back by itself after a reboot. Re-running it replaces the running
+container, so it is safe to repeat. Pass `-Port 8060` to publish elsewhere.
+
+Stopping removes the container but not your data: PostgreSQL holds the datasets
+and users, and logs/uploads live in the `ipm-logs` / `ipm-uploads` volumes.
+
+Rebuild the image after pulling code changes:
+
+```
+docker build -t ipm-tool:0.1.0 .
+powershell -ExecutionPolicy Bypass -File scripts\app-start.ps1
+```
+
+### 11.2 Self-contained stack (app + its own PostgreSQL)
+
+An alternative to sections 3–4 and 9: `docker-compose.yml` brings up the app and
+its Postgres together, with schema migration and first-time dataset seeding
+handled automatically. This is for a machine that has no PostgreSQL of its own —
+it starts from an **empty** database, separate from the one section 11.1 uses.
+Use this **or** the NSSM service, not both against the same database.
+
+**Image design** — multi-stage build on `python:3.14-slim`; dependencies are
+compiled in a builder stage so no toolchain ships in the final image. Runs as
+non-root uid 10001, with `/app` root-owned and read-only to the app user; only
+`/app/logs` and `/app/uploads` are writable. Waitress serves it via `serve.py`,
+so the single-process/multi-threaded rule from section 3 still applies — **never
+scale `app` past one replica**, or each replica would serve its own divergent
+in-process dataset cache. `HEALTHCHECK` polls `/healthz`.
+
+**Configuration.** Compose substitutes `${...}` from the project `.env`. Add two
+values it does not already have:
+
+```
+POSTGRES_PASSWORD=<choose-a-password>
+SECRET_KEY=<64-hex>                     # python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Both are required and fail the run with a message if missing. `SECRET_KEY`
+matters more here than under NSSM: without it every restart invalidates all
+sessions (section 10), and containers restart far more often.
+
+> `DATABASE_URL` in `.env` is **ignored** by compose — it points at
+> `localhost:5432`, which inside a container is the container itself. The
+> compose file targets the `db` service instead.
+
+**Run**
+
+```
+docker compose up -d --build      # build, migrate, seed, start
+docker compose logs -f app
+docker compose ps                 # app should reach (healthy)
+docker compose down               # stop; add -v to also delete the database volume
+```
+
+The app is then on `http://localhost:8050` (override with `PORT` in `.env`).
+Postgres is deliberately **not** published to the host; add `ports: ["5432:5432"]`
+to the `db` service temporarily if you need `psql` from outside.
+
+Startup order is enforced: `db` must report healthy, then the one-shot
+`bootstrap` service runs `alembic upgrade head` followed by
+`scripts/migrate_xlsx_to_pg.py` and must exit 0 before `app` starts — a failed
+migration blocks a bad rollout rather than starting on a stale schema. Both
+steps are safe to repeat: alembic no-ops at head, and the seed no-ops once an
+active dataset version exists, so an uploaded dataset is never reverted to the
+bundled workbook.
+
+**Operations**
+
+```
+docker compose exec app python scripts/manage_users.py add admin --role admin
+docker compose exec app python scripts/manage_users.py list
+docker compose exec db pg_dump -U ipm_app -Fc ipm > backups/ipm.dump
+docker compose up -d --build      # update: after git pull
+```
+
+Application logs and uploads live in the `logs` / `uploads` named volumes;
+`logs/ipm.log` rotates inside the container exactly as in section 8.
+
+**Ollama.** `localhost` inside the container is not the host, so
+`OLLAMA_BASE_URL` defaults to `http://host.docker.internal:11434` to reach an
+Ollama running on the host machine. The Anthropic model needs no such handling.
+
+**AI keys.** `ANTHROPIC_API_KEY` is passed through from `.env` at run time and is
+never baked into the image; `.dockerignore` excludes `.env` from the build
+context entirely. Rotation follows section 7, then `docker compose up -d`.
+
