@@ -7,6 +7,11 @@ testing, a macroeconomic outlook (IMF WEO), CBUAE BRF regulatory returns, an
 ESG & climate transition/physical stressed-PD model, and a Data Hub for uploading
 portfolio workbooks — with an AI chat assistant grounded in the real data.
 
+> **New here, or setting this up on a fresh Windows PC?** Follow
+> **[SETUP.md](SETUP.md)** instead — every step spelled out for Windows Terminal,
+> including which tools to install and what to do when something fails. The quick
+> start below assumes the prerequisites are already in place.
+
 ## Quick start (development)
 
 Prerequisites: Python 3.14, PostgreSQL 16+.
