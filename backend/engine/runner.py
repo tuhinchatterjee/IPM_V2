@@ -251,8 +251,14 @@ def _record_failure(graph: TraceGraph, parent: str, message: str) -> None:
 
 
 def persist_run(run: AnalysisRunResult, *, project_id: int | None = None,
-                chat_id: int | None = None, user_id: int | None = None) -> int | None:
+                chat_id: int | None = None, user_id: int | None = None,
+                question: str = "") -> int | None:
     """Store the run and its Trace, returning the analysis run id.
+
+    The stored shape is deliberately the same one an Ask IPM investigation uses —
+    a plan with one step, and that step's executed result. A single analysis run
+    is a one-step investigation, so storing it that way means the Trace viewer and
+    the modification path work on it without a second code path.
 
     Persistence is best-effort: a database problem must not lose an analysis the
     user is already looking at. The result is returned either way; only the
@@ -266,19 +272,59 @@ def persist_run(run: AnalysisRunResult, *, project_id: int | None = None,
         from backend.db.engine import get_session
         from backend.models.platform import AnalysisRun, TraceVersionRow
 
+        graph = run.graph.to_dict()
+        # The Trace viewer groups nodes by the plan step they belong to; a
+        # one-step run stamps every node with step 1.
+        for node in graph.get("nodes", []):
+            node.setdefault("config", {})
+            node["config"] = {**node["config"], "_step": 1, "_step_title": run.analysis_id}
+
+        contract_name = run.analysis_id
+        try:
+            contract_name = get_registry().contract(run.analysis_id).name
+        except Exception:  # pragma: no cover - registry is always loaded by here
+            pass
+
+        step = {
+            "index": 0,
+            "analysis_id": run.analysis_id,
+            "title": contract_name,
+            "rationale": "Run directly from the Analysis Library.",
+            "params": run.params,
+            "filters": run.context.get("filters") or {},
+            "period": run.context.get("period"),
+            "status": run.status,
+            "certification": run.certification,
+            "analysis_version": run.analysis_version,
+            "duration_ms": run.duration_ms,
+            "result": run.result.to_dict() if run.result else None,
+            "error": run.error,
+            "trace": graph,
+            "node_hashes": run.node_hashes,
+            "reused": False,
+        }
+        plan = {
+            "question": question,
+            "intent": f"Run {contract_name} directly.",
+            "steps": [{"analysis_id": run.analysis_id, "title": contract_name,
+                       "rationale": step["rationale"], "params": run.params,
+                       "filters": step["filters"], "period": step["period"]}],
+            "planner": "direct",
+            "follow_ups": [],
+        }
+
         with get_session() as session:
             record = AnalysisRun(
                 project_id=project_id,
                 chat_id=chat_id,
                 user_id=user_id,
-                question="",  # set by the LLM planner in Phase 3
+                question=question,
                 intent={"analysis_id": run.analysis_id, "source": "direct"},
-                plan={"steps": [{"fn": run.analysis_id, "version": run.analysis_version,
-                                 "params": run.params}]},
+                plan=plan,
                 context=run.context,
                 status="succeeded" if run.status == "succeeded" else "failed",
                 rejection_reason=run.error,
-                result=run.result.to_dict() if run.result else {},
+                result={"steps": [step]},
                 function_versions={run.analysis_id: run.analysis_version},
                 dataset_version=run.context.get("dataset_version"),
                 duration_ms=run.duration_ms,
@@ -290,9 +336,9 @@ def persist_run(run: AnalysisRunResult, *, project_id: int | None = None,
                 analysis_run_id=record.id,
                 version_number=1,
                 label="Original",
-                graph=run.graph.to_dict(),
+                graph=graph,
                 node_hashes=run.node_hashes,
-                result=run.result.to_dict() if run.result else {},
+                result={"steps": [step], "plan": plan, "narrative": {}},
                 created_by=user_id,
             ))
             return record.id

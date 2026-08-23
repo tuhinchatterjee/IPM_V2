@@ -12,6 +12,11 @@
  * them so the gallery can show a card without mounting the theme.
  */
 
+/**
+ * The identifiers are internal and stay fixed. Only the display names changed
+ * when the themes were renamed, so a choice remembered in a browser survives the
+ * rename and no stylesheet selector had to move.
+ */
 export type ThemeId =
   | "executive-light"
   | "midnight"
@@ -32,15 +37,15 @@ export interface ThemeDefinition {
 export const THEMES: ThemeDefinition[] = [
   {
     id: "executive-light",
-    name: "Executive Light",
+    name: "Executive Ivory",
     description:
       "Paper-like and high contrast. Reads as a printed board pack rather than a screen.",
     mode: "light",
-    swatch: ["#f6f7f9", "#ffffff", "#10527a"],
+    swatch: ["#f7f6f3", "#ffffff", "#10527a"],
   },
   {
     id: "midnight",
-    name: "Midnight",
+    name: "Midnight Boardroom",
     description:
       "Deep navy-black, for long analytical sessions and presentation rooms.",
     mode: "dark",
@@ -56,11 +61,11 @@ export const THEMES: ThemeDefinition[] = [
   },
   {
     id: "warm-institutional",
-    name: "Warm Institutional",
+    name: "Warm Sand",
     description:
       "Warm off-white and ink. Traditional and document-like, in the manner of a committee paper.",
     mode: "light",
-    swatch: ["#f4f1ea", "#fdfcf8", "#6b4423"],
+    swatch: ["#f2ede4", "#fdfcf8", "#6b4423"],
   },
 ];
 

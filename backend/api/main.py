@@ -22,6 +22,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from backend.api.routers import ask as ask_router
 from backend.api.routers import data_builder as data_builder_router
 from backend.api.routers import engine as engine_router
 from backend.api.routers import health as health_router
@@ -131,6 +132,8 @@ def create_app() -> FastAPI:
     app.include_router(data_builder_router.router, prefix=API_PREFIX)
     app.include_router(engine_router.engine_router, prefix=API_PREFIX)
     app.include_router(engine_router.trace_router, prefix=API_PREFIX)
+    app.include_router(ask_router.router, prefix=API_PREFIX)
+    app.include_router(ask_router.trace_edit_router, prefix=API_PREFIX)
 
     @app.get("/", include_in_schema=False)
     def root():

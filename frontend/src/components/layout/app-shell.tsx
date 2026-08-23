@@ -17,7 +17,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-0 flex-1">
         <Sidebar />
         <main className="min-w-0 flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-6xl px-6 py-8">
+          <div className="mx-auto max-w-7xl px-8 py-8">
             <ErrorBoundary area="This page">{children}</ErrorBoundary>
           </div>
         </main>

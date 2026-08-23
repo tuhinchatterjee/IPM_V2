@@ -893,9 +893,13 @@ def refresh_governed_catalog() -> None:
     the refresh would silently do nothing.
     """
     from backend.data_access import reload_catalog, reset_data_source
+    from backend.orchestration.vocabulary import reset_vocabulary
 
     reset_data_source()
     reload_catalog()
+    # The planner's vocabulary of real sectors, regions and periods is read from
+    # the governed layer, so publishing new data must invalidate it too.
+    reset_vocabulary()
 
 
 def dataset_catalog_entry(session: Session, dataset: DatasetDefinition) -> dict[str, Any]:

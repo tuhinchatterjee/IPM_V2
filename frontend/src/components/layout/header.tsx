@@ -7,14 +7,19 @@ import { Sparkles } from "lucide-react";
 
 import { BackendStatusIndicator } from "@/components/system/backend-status";
 import { RoleSwitcher } from "@/components/system/role-switcher";
+import { ThemeMenu } from "@/components/system/theme-menu";
 import { Button } from "@/components/ui/button";
 
 /**
  * Application header.
  *
- * Carries the product identity, the Ask IPM launcher (reachable from every
- * screen, as the product's primary way in), the acting role, and the live
- * backend status.
+ * Left: the product identity, set as a wordmark rather than a logo lockup.
+ * Right, in order of how often it is touched: Ask IPM, the theme switcher, the
+ * acting role, and the live backend status.
+ *
+ * The theme switcher lives here, one click from anywhere, because the room a
+ * credit committee sits in changes more often than any setting on the Settings
+ * page does.
  */
 export function Header() {
   const router = useRouter();
@@ -34,14 +39,16 @@ export function Header() {
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-surface px-5">
-      <Link href="/" className="flex items-baseline gap-2.5">
-        <span className="text-base font-semibold tracking-tight text-text-primary">IPM</span>
-        <span className="hidden text-xs text-text-muted lg:inline">
-          Credit Portfolio Intelligence &amp; Monitoring
+      <Link href="/" className="group flex items-baseline gap-3">
+        <span className="text-[15px] font-semibold tracking-[0.14em] text-text-primary">
+          IPM
+        </span>
+        <span className="hidden text-[11px] uppercase tracking-[0.16em] text-text-muted lg:inline">
+          Credit Portfolio Intelligence
         </span>
       </Link>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
         <Button variant="outline" size="sm" asChild>
           <Link href="/?focus=ask" title="Ask IPM a question (Ctrl+K)">
             <Sparkles aria-hidden />
@@ -51,6 +58,7 @@ export function Header() {
             </kbd>
           </Link>
         </Button>
+        <ThemeMenu />
         <RoleSwitcher />
         <BackendStatusIndicator />
       </div>

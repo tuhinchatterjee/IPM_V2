@@ -162,6 +162,32 @@ Go to **http://localhost:3000** in your browser.
 The top-right corner shows the live system status. If everything is working it
 says **All systems operational**.
 
+**What to try first**
+
+1. On the opening screen, click one of the suggested questions — for example
+   *"What deteriorated this period?"* — or type your own and press Enter.
+2. IPM shows what it is doing, then returns an executive summary, headline
+   metrics, key findings, the drivers behind them, and every chart and table
+   underneath.
+3. Press **Trace** on the answer. That opens the **Analytical Reasoning Map** —
+   every step from your question to the figures, with the boundary between
+   IPM's judgement and the deterministic engine drawn differently.
+4. On the map, type a change into **Ask / Modify Trace** — *"Exclude Real
+   Estate"*, *"Use borrower count instead of EAD"*, *"Add ECL Movement"*. IPM
+   shows you exactly what would change before anything runs. Press
+   **Apply & re-run** and it creates **Version 2**, leaving the original intact
+   and switchable at the top of the page.
+5. Change the look at any time with the **theme switcher in the top-right**:
+   Executive Ivory, Midnight Boardroom, Graphite and Warm Sand. It applies
+   instantly, is remembered, and never changes the layout.
+
+**Does IPM need an AI key?** No. If no `ANTHROPIC_API_KEY` is set in `.env`,
+IPM reads questions with its own built-in planner and says so under the question
+box. Either way the *answers* are identical in kind: every figure is produced by
+running real, certified IPM Engine analyses against the published data. Nothing
+is pre-written and no number is invented. Adding a key changes only how freely
+worded a question can be.
+
 ---
 
 ### Stopping IPM
@@ -185,7 +211,7 @@ Every failure message names the fix. The most common ones:
 
 | Message | What it means | What to do |
 |---|---|---|
-| `Docker is installed but not running` | Docker Desktop is closed | Open Docker Desktop, wait for **Running**, try again |
+| `Docker is not installed or not running` | Docker Desktop is closed | Open Docker Desktop, wait for **Running**, try again. (If you already run your own PostgreSQL, `dev.sh` will use it instead of Docker.) |
 | `No .env file found` | Step 2 was skipped | `cp .env.example .env` (Windows: `copy .env.example .env`) |
 | `The Python packages are not installed` | Step 1 did not finish | Re-run `./scripts/setup.sh` |
 | `PostgreSQL did not become ready` | The database failed to start | Run `docker compose logs db` to see why |
@@ -204,7 +230,7 @@ Two log files hold the detail: **`logs/api-dev.log`** and **`logs/web-dev.log`**
 | **Parquet** | A file format for large tables | Stores data column by column, so totalling one column of millions of rows reads only that column. This is where the monthly credit data lives — **not** in PostgreSQL. |
 | **DuckDB** | A query tool | Runs SQL directly against those Parquet files, with no server to install. Filtering and totalling happen inside DuckDB; only the summary comes back. |
 | **FastAPI** | The backend | Exposes every capability over the web so the interface never reaches into the analytics directly. That boundary is what lets either side be replaced independently. |
-| **Next.js / React** | The frontend | The user interface: an enterprise-grade application with four themes and, from Phase 4, the interactive Trace graph. |
+| **Next.js / React** | The frontend | The user interface: an enterprise-grade application with four themes, the AI Cockpit and the interactive Analytical Reasoning Map.  |
 
 ---
 
@@ -320,9 +346,26 @@ become the implementations behind registered engine functions in Phase 2.
 
 ## Current status
 
-**Phase 1 — Foundations, complete.** The spine is built and tested; the
-analytical capabilities and the screens that show them arrive in Phases 2–6. See
-[docs/DEMO_SCOPE.md](docs/DEMO_SCOPE.md) for the sequence.
+**Phase 4 — Ask IPM, the interactive Trace and the executive interface.**
+
+* **Ask IPM** plans an investigation from a plain-English question, runs the
+  registered analyses that answer it, and writes the findings from what they
+  returned. It never calculates a figure, writes a query, or names an analysis
+  that is not in the Engine Library — the validator refuses all three.
+* **The Analytical Reasoning Map** is a pannable, zoomable graph of how an answer
+  was produced. Every node can be opened; selecting one shows what feeds it and
+  what it feeds; an analysis can be collapsed to a single node or expanded to
+  every recorded step.
+* **Controlled Trace modification** takes a change in plain English, previews
+  exactly which steps it would re-run, and — only when you accept — branches to a
+  new version. Steps that did not change reuse their recorded results, and no
+  earlier version is ever overwritten.
+* **Four themes**, switchable in one click from the header.
+
+Phases 1–3 built what this rests on: the Data Access Layer and Parquet lake, the
+eleven registered analyses, Data Builder, Engine Builder and the Trace model.
+See [docs/DEMO_SCOPE.md](docs/DEMO_SCOPE.md) for the sequence and what remains
+(Documents and production authentication).
 
 Every screen in the application states its own honest status. IPM does not
 present unbuilt functionality as if it were finished, and never shows invented

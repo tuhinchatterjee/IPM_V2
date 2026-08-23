@@ -64,8 +64,8 @@ export const NAV_ITEMS: NavItem[] = [
     description:
       "Ask a question in plain language. IPM plans the investigation, runs approved analyses and explains the result.",
     icon: Sparkles,
-    status: "partial",
-    phase: "AI orchestration next",
+    status: "live",
+    phase: "",
     group: "Home",
   },
 
@@ -85,8 +85,8 @@ export const NAV_ITEMS: NavItem[] = [
     description:
       "Multi-step root-cause analysis, persisted as a named, shareable investigation.",
     icon: Search,
-    status: "partial",
-    phase: "Real analyses, AI narrative next",
+    status: "live",
+    phase: "",
     group: "Work",
   },
   {
@@ -156,10 +156,10 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/trace",
     label: "Trace & Lineage",
     description:
-      "How an analysis was created: every step from question to chart, inspectable.",
+      "How an analysis was created: every step from question to chart, inspectable and modifiable.",
     icon: GitBranch,
-    status: "partial",
-    phase: "Interactive graph next",
+    status: "live",
+    phase: "",
     group: "Govern",
   },
 

@@ -51,12 +51,21 @@ source .env
 set +a
 ok ".env loaded"
 
-command -v docker >/dev/null 2>&1 || die "Docker is not installed." \
-  "Install Docker Desktop from https://www.docker.com/products/docker-desktop/"
-
-docker info >/dev/null 2>&1 || die "Docker is installed but not running." \
-  "Start Docker Desktop and wait for it to say 'Running', then try again."
-ok "Docker is running"
+# PostgreSQL normally runs in Docker so nobody has to install it. But if a
+# PostgreSQL is already listening where .env points, that is a perfectly good
+# database and there is no reason to demand Docker as well.
+USE_DOCKER_DB=1
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  ok "Docker is running"
+elif command -v pg_isready >/dev/null 2>&1 && \
+     pg_isready -h "${POSTGRES_HOST:-127.0.0.1}" -p "${POSTGRES_PORT:-5432}" >/dev/null 2>&1; then
+  USE_DOCKER_DB=0
+  warn "Docker is not available, but PostgreSQL is already running on port ${POSTGRES_PORT:-5432} — using that"
+else
+  die "Docker is not installed or not running, and no PostgreSQL is listening on port ${POSTGRES_PORT:-5432}." \
+      "Install Docker Desktop from https://www.docker.com/products/docker-desktop/ and start it,
+     or start your own PostgreSQL and point DATABASE_URL in .env at it."
+fi
 
 command -v node >/dev/null 2>&1 || die "Node.js is not installed." \
   "Install Node.js 20 or newer from https://nodejs.org/"
@@ -87,22 +96,26 @@ ok "Frontend packages installed"
 # ------------------------------------------------------------- 1. database
 
 step "Starting PostgreSQL"
-docker compose up -d db >/dev/null
+if [ "$USE_DOCKER_DB" -eq 1 ]; then
+  docker compose up -d db >/dev/null
 
-printf "  waiting for the database"
-for _ in $(seq 1 60); do
-  if docker compose exec -T db pg_isready -U "${POSTGRES_USER:-ipm_app}" -d "${POSTGRES_DB:-ipm}" >/dev/null 2>&1; then
-    echo; ok "PostgreSQL is ready on port ${POSTGRES_PORT:-5432}"
-    break
-  fi
-  printf "."
-  sleep 1
-done
-docker compose exec -T db pg_isready -U "${POSTGRES_USER:-ipm_app}" -d "${POSTGRES_DB:-ipm}" >/dev/null 2>&1 || {
-  echo
-  die "PostgreSQL did not become ready in 60 seconds." \
-      "Check what it is saying with:  docker compose logs db"
-}
+  printf "  waiting for the database"
+  for _ in $(seq 1 60); do
+    if docker compose exec -T db pg_isready -U "${POSTGRES_USER:-ipm_app}" -d "${POSTGRES_DB:-ipm}" >/dev/null 2>&1; then
+      echo; ok "PostgreSQL is ready on port ${POSTGRES_PORT:-5432}"
+      break
+    fi
+    printf "."
+    sleep 1
+  done
+  docker compose exec -T db pg_isready -U "${POSTGRES_USER:-ipm_app}" -d "${POSTGRES_DB:-ipm}" >/dev/null 2>&1 || {
+    echo
+    die "PostgreSQL did not become ready in 60 seconds." \
+        "Check what it is saying with:  docker compose logs db"
+  }
+else
+  ok "Using the PostgreSQL already running on port ${POSTGRES_PORT:-5432}"
+fi
 
 # ----------------------------------------------------------- 2. migrations
 
@@ -135,7 +148,9 @@ cleanup() {
   kill "${WEB_PID:-}" 2>/dev/null || true
   wait 2>/dev/null || true
   ok "Backend and frontend stopped"
-  echo "  ${DIM}PostgreSQL is still running. Stop it with: docker compose down${RESET}"
+  if [ "$USE_DOCKER_DB" -eq 1 ]; then
+    echo "  ${DIM}PostgreSQL is still running. Stop it with: docker compose down${RESET}"
+  fi
   echo
 }
 trap cleanup EXIT INT TERM

@@ -149,6 +149,8 @@ export interface AnalysisDetail extends AnalysisSummary {
 
 export type Row = Record<string, string | number | boolean | null>;
 
+export type Direction = "up-is-bad" | "up-is-good" | "neutral";
+
 export interface EngineResult {
   rows: Row[];
   values: Record<string, unknown>;
@@ -395,6 +397,226 @@ export interface DataVersionRow {
   published_at: string | null;
 }
 
+
+// ---- Ask IPM --------------------------------------------------------------
+
+export interface PlanStepDef {
+  analysis_id: string;
+  title: string;
+  rationale: string;
+  params: Record<string, unknown>;
+  filters: Record<string, unknown>;
+  period: string | null;
+}
+
+export interface PlanDef {
+  question: string;
+  intent: string;
+  steps: PlanStepDef[];
+  planner: string;
+  model_name: string | null;
+  follow_ups: string[];
+  unmatched: boolean;
+  notes: string[];
+}
+
+export interface ExecutedStep {
+  index: number;
+  analysis_id: string;
+  title: string;
+  rationale: string;
+  params: Record<string, unknown>;
+  filters: Record<string, unknown>;
+  period: string | null;
+  status: string;
+  certification: string;
+  analysis_version: string;
+  duration_ms: number;
+  result: EngineResult | null;
+  error: string | null;
+  analysis_run_id: number | null;
+  trace: TraceGraph | null;
+  node_hashes: Record<string, string>;
+  reused: boolean;
+}
+
+export interface NarrativeMetric {
+  label: string;
+  value: number | string | null;
+  unit: string;
+  change: number | null;
+  change_unit: string;
+  direction: Direction;
+  hint: string;
+  step: number;
+}
+
+export interface NarrativeFinding {
+  text: string;
+  tone: "negative" | "warning" | "positive" | "neutral";
+  evidence: { label: string; value: number | string | null; unit: string }[];
+  step: number;
+}
+
+export interface NarrativeDriver {
+  name: string;
+  value: number | null;
+  unit: string;
+  measure: string;
+  detail?: string;
+  step: number;
+}
+
+export interface Narrative {
+  summary: string;
+  findings: NarrativeFinding[];
+  metrics: NarrativeMetric[];
+  drivers: NarrativeDriver[];
+  caveats: string[];
+}
+
+export interface Stage {
+  id: string;
+  label: string;
+}
+
+export interface PlannerMode {
+  mode: "demo" | "model";
+  planner: string;
+  model_name: string | null;
+  description: string;
+  stages: Stage[];
+  analysis_count: number;
+  periods: string[];
+  latest_period: string | null;
+  dimensions: Record<string, number>;
+  supported_modifications: { kind: string; label: string; example: string }[];
+}
+
+export interface InvestigationResponse {
+  question: string;
+  plan: PlanDef;
+  intent: string;
+  steps: ExecutedStep[];
+  narrative: Narrative;
+  follow_ups: string[];
+  notes: string[];
+  unmatched: boolean;
+  trace: TraceGraph;
+  node_hashes: Record<string, string>;
+  duration_ms: number;
+  status: string;
+  analysis_run_id: number | null;
+  version: number;
+  version_label: string;
+  rejected: string[];
+  mode: { mode: string; planner: string; model_name: string | null; description: string };
+  stages: Stage[];
+}
+
+export interface Briefing {
+  period: string | null;
+  summary: AnalysisRunResponse | null;
+  attention: AnalysisRunResponse | null;
+  trend: AnalysisRunResponse | null;
+  errors: string[];
+}
+
+export interface RecentInvestigation {
+  analysis_run_id: number;
+  question: string;
+  intent: string;
+  status: string;
+  summary: string;
+  step_count: number;
+  created_at: string | null;
+  duration_ms: number | null;
+}
+
+export interface StoredInvestigation {
+  analysis_run_id: number;
+  question: string;
+  intent: string;
+  status: string;
+  created_at: string | null;
+  duration_ms: number | null;
+  context: Record<string, unknown>;
+  version: number;
+  version_id: number;
+  label: string;
+  graph: TraceGraph;
+  node_hashes: Record<string, string>;
+  plan: PlanDef;
+  steps: ExecutedStep[];
+  narrative: Narrative | Record<string, never>;
+  follow_ups: string[];
+  available_versions: { version: number; label: string; created_at: string | null }[];
+  model_provider: string | null;
+  model_name: string | null;
+  stages: Stage[];
+  mode: { mode: string; planner: string; model_name: string | null; description: string };
+}
+
+export interface SupportedModification {
+  kind: string;
+  label: string;
+  example: string;
+}
+
+export interface StepChange {
+  index: number;
+  analysis_id: string;
+  title: string;
+  params: Record<string, unknown>;
+  filters: Record<string, unknown>;
+  was?: StepChange;
+}
+
+export interface ProposedChange {
+  analysis_run_id: number;
+  from_version: number;
+  request: string;
+  understood: boolean;
+  applicable: boolean;
+  operation: { kind: string; payload: Record<string, unknown>; description: string } | null;
+  description: string;
+  current_plan: PlanDef;
+  proposed_plan: PlanDef;
+  changed_steps: StepChange[];
+  added_steps: StepChange[];
+  removed_steps: StepChange[];
+  unchanged_steps: StepChange[];
+  affected_nodes: string[];
+  downstream_nodes: string[];
+  unaffected_nodes: string[];
+  rejected: string[];
+  supported: SupportedModification[];
+}
+
+export interface AppliedModification extends InvestigationResponse {
+  from_version: number;
+  request: string;
+  change: ProposedChange;
+  hash_diff: { added: string[]; removed: string[]; changed: string[]; unchanged: string[] };
+  available_versions: { version: number; label: string; created_at: string | null }[];
+}
+
+export interface VersionsResponse {
+  analysis_run_id: number;
+  question: string;
+  versions: { version: number; label: string; created_at: string | null }[];
+  current: number;
+  modifications: {
+    id: number;
+    request: string;
+    interpretation: Record<string, unknown>;
+    affected_nodes: string[];
+    status: string;
+    created_at: string | null;
+  }[];
+  supported: SupportedModification[];
+}
+
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
@@ -544,6 +766,44 @@ export const api = {
   // ---- trace ----
   trace: (runId: number, version?: number) =>
     request<StoredTrace>(`/trace/${runId}${version ? `?version=${version}` : ""}`),
+
+  // ---- ask IPM ----
+  askMode: () => request<PlannerMode>("/ask/mode"),
+  askSuggestions: () =>
+    request<{ questions: { question: string; note: string }[] }>("/ask/suggestions"),
+  briefing: () => request<Briefing>("/ask/briefing", { timeoutMs: 60_000 }),
+  recentInvestigations: (limit = 8) =>
+    request<{ investigations: RecentInvestigation[] }>(`/ask/recent?limit=${limit}`),
+  ask: (question: string, options: { projectId?: number; chatId?: number } = {}) =>
+    request<InvestigationResponse>("/ask", {
+      method: "POST",
+      body: JSON.stringify({
+        question,
+        project_id: options.projectId ?? null,
+        chat_id: options.chatId ?? null,
+        persist: true,
+      }),
+      // An investigation can run up to five analyses over two periods each.
+      timeoutMs: 120_000,
+    }),
+
+  // ---- trace versions and modification ----
+  investigation: (runId: number, version?: number) =>
+    request<StoredInvestigation>(
+      `/trace/${runId}/investigation${version ? `?version=${version}` : ""}`,
+    ),
+  traceVersions: (runId: number) => request<VersionsResponse>(`/trace/${runId}/versions`),
+  previewModification: (runId: number, text: string, version?: number) =>
+    request<ProposedChange>(`/trace/${runId}/modify/preview`, {
+      method: "POST",
+      body: JSON.stringify({ request: text, version: version ?? null }),
+    }),
+  applyModification: (runId: number, text: string, version?: number) =>
+    request<AppliedModification>(`/trace/${runId}/modify/apply`, {
+      method: "POST",
+      body: JSON.stringify({ request: text, version: version ?? null }),
+      timeoutMs: 120_000,
+    }),
 
   // ---- data builder ----
   domains: () => request<{ domains: DomainSummary[] }>("/data-builder/domains"),

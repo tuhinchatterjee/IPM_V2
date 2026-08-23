@@ -1,18 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, useRouter } from "next/navigation";
 import * as React from "react";
 import { ArrowLeft, ArrowRight, Sparkles, Target } from "lucide-react";
 
 import { AnalyticalCard } from "@/components/analytics/analytical-card";
 import { ResultView } from "@/components/analytics/result-view";
+import { InvestigationView } from "@/components/ask/investigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  api,
+  type InvestigationResponse,
+  type Narrative,
+  type StoredInvestigation,
+} from "@/lib/api";
 import { findInvestigation, type InvestigationStep } from "@/lib/demo";
-import { useAnalysis } from "@/lib/hooks";
+import { useAnalysis, useAsync } from "@/lib/hooks";
 
 /**
  * Investigation workspace.
@@ -24,6 +32,73 @@ import { useAnalysis } from "@/lib/hooks";
  */
 export default function InvestigationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = React.use(params);
+  // A numeric id is a real investigation stored in the database; anything else
+  // is one of the seeded review templates.
+  if (/^\d+$/.test(id)) return <StoredInvestigationPage runId={Number(id)} />;
+  return <TemplateInvestigation id={id} />;
+}
+
+/** One question actually asked of IPM, read back with its findings and Trace. */
+function StoredInvestigationPage({ runId }: { runId: number }) {
+  const router = useRouter();
+  const stored = useAsync(() => api.investigation(runId), [runId]);
+
+  return (
+    <div className="space-y-6">
+      <Button variant="ghost" size="sm" asChild className="-ml-2">
+        <Link href="/investigations">
+          <ArrowLeft aria-hidden />
+          Investigations
+        </Link>
+      </Button>
+
+      {stored.loading && <Skeleton className="h-96 w-full" />}
+      {stored.error && (
+        <Card className="border-negative/40 p-4 text-sm text-negative">{stored.error}</Card>
+      )}
+      {stored.data && (
+        <InvestigationView
+          investigation={storedToInvestigation(stored.data)}
+          onAsk={(q) => router.push(`/?focus=ask&q=${encodeURIComponent(q)}`)}
+          onReset={() => router.push("/?focus=ask")}
+        />
+      )}
+    </div>
+  );
+}
+
+/** The stored shape, in the shape the investigation view renders. */
+function storedToInvestigation(stored: StoredInvestigation): InvestigationResponse {
+  const narrative = stored.narrative as Partial<Narrative>;
+  return {
+    question: stored.question,
+    plan: stored.plan,
+    intent: stored.intent || stored.plan?.intent || "",
+    steps: stored.steps,
+    narrative: {
+      summary: narrative.summary ?? "",
+      findings: narrative.findings ?? [],
+      metrics: narrative.metrics ?? [],
+      drivers: narrative.drivers ?? [],
+      caveats: narrative.caveats ?? [],
+    },
+    follow_ups: stored.follow_ups ?? [],
+    notes: stored.plan?.notes ?? [],
+    unmatched: stored.plan?.unmatched ?? false,
+    trace: stored.graph,
+    node_hashes: stored.node_hashes,
+    duration_ms: stored.duration_ms ?? 0,
+    status: stored.status,
+    analysis_run_id: stored.analysis_run_id,
+    version: stored.version,
+    version_label: stored.label,
+    rejected: [],
+    mode: stored.mode,
+    stages: stored.stages,
+  };
+}
+
+function TemplateInvestigation({ id }: { id: string }) {
   const investigation = findInvestigation(id);
   if (!investigation) notFound();
 
@@ -40,7 +115,7 @@ export default function InvestigationPage({ params }: { params: Promise<{ id: st
         title={investigation.title}
         description={investigation.objective}
         status="partial"
-        phase="Real analyses · AI narrative next"
+        phase="Seeded template · real analyses"
         actions={
           <div className="flex items-center gap-2">
             <Badge variant="accent">{investigation.status.replace("_", " ")}</Badge>
@@ -73,14 +148,16 @@ export default function InvestigationPage({ params }: { params: Promise<{ id: st
         </Card>
       </div>
 
-      {/* -------------------------------------------------- AI interpretation */}
-      <Card className="flex items-start gap-2.5 border-warning/30 bg-warning-muted p-4 text-sm text-warning">
+      {/* ------------------------------------------------------- how to ask it */}
+      <Card className="flex items-start gap-2.5 border-info/30 bg-info-muted p-4 text-sm text-info">
         <Sparkles className="mt-0.5 size-4 shrink-0" aria-hidden />
         <span>
-          <strong>AI orchestration coming next.</strong> The analytical steps below are real and
-          run governed engine code. The interpretation, the narrative that links the steps, and
-          the automatically generated key findings are not built yet and are deliberately absent
-          rather than simulated.
+          This is a hand-written review template. Ask the same question in the Cockpit and IPM
+          will plan it itself, write the findings and keep the whole reasoning map —{" "}
+          <Link href={`/?focus=ask`} className="font-medium underline">
+            open the Cockpit
+          </Link>
+          .
         </span>
       </Card>
 

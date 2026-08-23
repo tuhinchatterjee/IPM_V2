@@ -2,359 +2,202 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { ArrowLeft, ChevronRight, Cpu, Sparkles } from "lucide-react";
+import { ArrowLeft, Clock, GitBranch, Layers, Sparkles } from "lucide-react";
 
-import { PageHeader } from "@/components/layout/page-header";
-import { ResultTable } from "@/components/analytics/primitives";
+import { NodeInspector } from "@/components/trace/node-inspector";
+import { ModifyPanel, VersionSwitcher } from "@/components/trace/modify-panel";
+import { ReasoningMap, type MapHighlight } from "@/components/trace/reasoning-map";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type TraceNode } from "@/lib/api";
+import { api, type Narrative, type ProposedChange } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
-import { cn } from "@/lib/utils";
 
 /**
- * Trace detail.
+ * Trace detail — the Analytical Reasoning Map for one investigation.
  *
- * Loads the real stored graph — nodes, edges, layers, content hashes — and shows
- * it as a structured, inspectable preview. Every value on this page came from
- * the executor stamping it as the analysis ran.
+ * The page answers three questions, in this order:
  *
- * The interactive canvas is the next phase. This view is deliberately complete
- * rather than decorative: each node can be opened and shows exactly what it did.
+ *   How was this produced?      the map, with every step inspectable
+ *   What does that step say?    the inspector, showing what execution stamped
+ *   What if I change it?        Ask / Modify Trace, previewed then branched
+ *
+ * Every version ever produced stays reachable from the switcher at the top. A
+ * modification never overwrites what a colleague already read.
  */
-
-const NODE_LABEL: Record<string, string> = {
-  PLAN: "Analysis request",
-  DATASET: "Dataset",
-  VARIABLE: "Variables",
-  FILTER: "Filters and period",
-  TRANSFORMATION: "Transformation",
-  AGGREGATION: "Aggregation",
-  CALCULATION: "Calculation",
-  ENGINE_FUNCTION: "Engine function",
-  RESULT: "Result",
-  USER_PROMPT: "User prompt",
-  LLM_INTENT: "LLM interpretation",
-  LLM_EXPLANATION: "LLM explanation",
-  VISUALIZATION: "Visualisation",
-};
-
 export default function TraceDetailPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = React.use(params);
   const id = Number(runId);
+
+  const [version, setVersion] = React.useState<number | undefined>(undefined);
   const [selected, setSelected] = React.useState<string | null>(null);
+  const [proposed, setProposed] = React.useState<ProposedChange | null>(null);
 
-  const trace = useAsync(() => api.trace(id), [id]);
-  const graph = trace.data?.graph;
-  const byId = React.useMemo(() => {
-    const map = new Map<string, TraceNode>();
-    for (const n of graph?.nodes ?? []) map.set(n.id, n);
-    return map;
-  }, [graph]);
+  const investigation = useAsync(() => api.investigation(id, version), [id, version]);
+  // The list of changes IPM can make is served by the backend rather than
+  // hard-coded here, so the two can never drift apart.
+  const mode = useAsync(() => api.askMode(), []);
+  const data = investigation.data;
+  const graph = data?.graph;
 
-  const node = selected ? byId.get(selected) : null;
+  const node = React.useMemo(
+    () => (selected ? (graph?.nodes.find((n) => n.id === selected) ?? null) : null),
+    [graph, selected],
+  );
+
+  const highlight: MapHighlight | undefined = React.useMemo(() => {
+    if (!proposed?.understood) return undefined;
+    return {
+      changed: proposed.affected_nodes,
+      downstream: proposed.downstream_nodes,
+    };
+  }, [proposed]);
+
+  const narrative = (data?.narrative ?? {}) as Partial<Narrative>;
+  const stepCount = data?.steps.length ?? 0;
 
   return (
     <div className="space-y-6">
       <Button variant="ghost" size="sm" asChild className="-ml-2">
         <Link href="/trace">
           <ArrowLeft aria-hidden />
-          Trace
+          Trace &amp; Lineage
         </Link>
       </Button>
 
-      {trace.loading && <Skeleton className="h-96 w-full" />}
-      {trace.error && (
-        <Card className="border-negative/40 p-4 text-sm text-negative">{trace.error}</Card>
+      {investigation.loading && <Skeleton className="h-[32rem] w-full" />}
+      {investigation.error && (
+        <Card className="border-negative/40 p-4 text-sm text-negative">
+          {investigation.error}
+        </Card>
       )}
 
-      {trace.data && graph && (
+      {data && graph && (
         <>
-          <PageHeader
-            title={`Trace · ${trace.data.analysis_id ?? "analysis"}`}
-            description={`Analysis run ${trace.data.analysis_run_id} · ${trace.data.status} · ${trace.data.duration_ms ?? "—"}ms · recorded ${trace.data.created_at?.slice(0, 19).replace("T", " ") ?? "—"}`}
-            status="partial"
-            phase="Interactive graph next"
-            actions={
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">
-                  {trace.data.label} · v{trace.data.version}
-                </Badge>
-                <Badge variant="accent">{graph.stats.node_count} nodes</Badge>
+          {/* --------------------------------------------------------- header */}
+          <header className="border-b border-border pb-5">
+            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-text-muted">
+              Analytical Reasoning Map
+            </p>
+            <h1 className="mt-2 max-w-3xl text-2xl font-semibold leading-tight tracking-tight text-text-primary">
+              {data.question || data.intent || `Analysis run ${id}`}
+            </h1>
+            {data.intent && data.question && (
+              <p className="mt-1.5 max-w-3xl text-sm text-text-secondary">{data.intent}</p>
+            )}
+
+            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-text-muted">
+              <span className="flex items-center gap-1.5">
+                <Layers className="size-3.5" aria-hidden />
+                {graph.stats.node_count} steps · {graph.stats.governed_nodes} governed ·{" "}
+                {graph.stats.interpretive_nodes} interpretive
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Clock className="size-3.5" aria-hidden />
+                {data.duration_ms ?? "—"}ms
+                {data.created_at ? ` · ${data.created_at.slice(0, 16).replace("T", " ")}` : ""}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="size-3.5" aria-hidden />
+                Planned by {data.mode?.planner === "demo" ? "IPM (deterministic)" : data.mode?.planner}
+              </span>
+              <Badge variant="outline">{data.label}</Badge>
+            </div>
+
+            {data.available_versions.length > 1 && (
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.11em] text-text-muted">
+                  <GitBranch className="size-3.5" aria-hidden />
+                  Versions
+                </span>
+                <VersionSwitcher
+                  versions={data.available_versions}
+                  current={data.version}
+                  onSelect={(v) => {
+                    setVersion(v);
+                    setSelected(null);
+                    setProposed(null);
+                  }}
+                />
               </div>
+            )}
+          </header>
+
+          {/* ------------------------------------------------ map + inspector */}
+          {/* The map gets the full width. The inspector slides over it rather
+              than sitting beside it: a permanent side panel would take a third
+              of the canvas from a diagram that needs every pixel it can get. */}
+          <div className="relative">
+            <ReasoningMap
+              graph={graph}
+              selected={selected}
+              onSelect={setSelected}
+              highlight={highlight}
+              height={520}
+            />
+            {node && (
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex w-full max-w-[26rem] p-3">
+                <Card className="pointer-events-auto flex max-h-full w-full flex-col overflow-hidden p-0 shadow-xl">
+                  <NodeInspector
+                    node={node}
+                    graph={graph}
+                    onClose={() => setSelected(null)}
+                    onSelect={setSelected}
+                  />
+                </Card>
+              </div>
+            )}
+          </div>
+
+          {/* --------------------------------------------------------- modify */}
+          <ModifyPanel
+            runId={id}
+            version={data.version}
+            supported={mode.data?.supported_modifications ?? []}
+            onPreview={setProposed}
+            onApplied={(newVersion) => {
+              setVersion(newVersion);
+              setSelected(null);
+            }}
+            disabled={stepCount === 0}
+            disabledReason={
+              "This trace was recorded before IPM stored the plan behind it, so it cannot be " +
+              "modified. Re-run the analysis to get a modifiable version."
             }
           />
 
-          <div className="grid gap-3 sm:grid-cols-4">
-            <Tile label="Nodes" value={graph.stats.node_count} />
-            <Tile label="Edges" value={graph.stats.edge_count} />
-            <Tile
-              label="Governed"
-              value={graph.stats.governed_nodes}
-              hint="Carry numbers the bank must defend"
-              tone="governed"
-            />
-            <Tile
-              label="Interpretive"
-              value={graph.stats.interpretive_nodes}
-              hint="Produced by judgement, not arithmetic"
-              tone="interpretive"
-            />
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
-            {/* ------------------------------------------------ layered graph */}
+          {/* ------------------------------------------------------- findings */}
+          {narrative.summary && (
             <Card className="p-5">
-              <h3 className="mb-1 text-sm font-semibold text-text-primary">Execution graph</h3>
-              <p className="mb-4 text-xs text-text-muted">
-                Laid out in dependency layers. Each node was stamped as the analysis ran. Select
-                one to inspect it.
-              </p>
-              <div className="space-y-2">
-                {graph.layers.map((layer, depth) => (
-                  <div key={depth} className="flex items-start gap-3">
-                    <span className="mt-2 w-6 shrink-0 text-right text-[10px] font-medium text-text-muted tabular">
-                      L{depth}
-                    </span>
-                    <div className="flex flex-1 flex-wrap gap-2">
-                      {layer.map((nodeId) => {
-                        const n = byId.get(nodeId);
-                        if (!n) return null;
-                        const active = selected === nodeId;
-                        return (
-                          <button
-                            key={nodeId}
-                            type="button"
-                            onClick={() => setSelected(nodeId)}
-                            className={cn(
-                              "flex min-w-40 max-w-64 flex-col items-start gap-0.5 rounded-md border-l-2 px-3 py-2 text-left transition-colors",
-                              active
-                                ? "border-l-accent bg-accent-muted"
-                                : "bg-surface-sunken hover:bg-surface-hover",
-                              !active &&
-                                (n.is_governed
-                                  ? "border-l-[var(--ipm-trace-governed)]"
-                                  : "border-l-[var(--ipm-trace-interpretive)]"),
-                            )}
-                          >
-                            <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-muted">
-                              {n.is_governed ? (
-                                <Cpu className="size-2.5" aria-hidden />
-                              ) : (
-                                <Sparkles className="size-2.5" aria-hidden />
-                              )}
-                              {NODE_LABEL[n.type] ?? n.type}
-                            </span>
-                            <span className="line-clamp-2 text-xs text-text-primary">
-                              {n.label}
-                            </span>
-                            {n.rows_out !== null && (
-                              <span className="text-[10px] text-text-muted tabular">
-                                {n.rows_out.toLocaleString()} rows
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-5 flex flex-wrap items-center gap-4 border-t border-border pt-3 text-[11px] text-text-muted">
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className="h-3 w-0.5 rounded-full"
-                    style={{ backgroundColor: "var(--ipm-trace-governed)" }}
-                    aria-hidden
-                  />
-                  Governed — deterministic engine
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className="h-3 w-0.5 rounded-full"
-                    style={{ backgroundColor: "var(--ipm-trace-interpretive)" }}
-                    aria-hidden
-                  />
-                  Interpretive — judgement, never arithmetic
-                </span>
-              </div>
-            </Card>
-
-            {/* ------------------------------------------------ node inspector */}
-            <Card className="p-5">
-              <h3 className="mb-4 text-sm font-semibold text-text-primary">
-                {node ? "Node detail" : "Select a node"}
+              <h3 className="text-[10px] font-semibold uppercase tracking-[0.11em] text-text-muted">
+                Findings on this version
               </h3>
-              {!node ? (
-                <p className="text-sm text-text-muted">
-                  Choose a step in the graph to see the dataset, variables, filters, parameters,
-                  function version, row counts and output it recorded.
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <Badge variant={node.is_governed ? "accent" : "warning"}>
-                      {NODE_LABEL[node.type] ?? node.type}
-                    </Badge>
-                    <p className="mt-2 text-sm text-text-primary">{node.label}</p>
-                  </div>
-
-                  <dl className="divide-y divide-border text-sm">
-                    <Row label="Status" value={node.status} />
-                    {node.dataset && <Row label="Dataset" value={node.dataset} mono />}
-                    {node.function_id && (
-                      <Row
-                        label="Function"
-                        value={`${node.function_id} v${node.function_version}`}
-                        mono
-                      />
-                    )}
-                    {node.rows_in !== null && (
-                      <Row label="Rows in" value={node.rows_in.toLocaleString()} />
-                    )}
-                    {node.rows_out !== null && (
-                      <Row label="Rows out" value={node.rows_out.toLocaleString()} />
-                    )}
-                    {node.duration_ms !== null && (
-                      <Row label="Duration" value={`${node.duration_ms}ms`} />
-                    )}
-                    {node.content_hash && <Row label="Content hash" value={node.content_hash} mono />}
-                  </dl>
-
-                  {node.fields_used.length > 0 && (
-                    <div>
-                      <p className="mb-1.5 text-xs font-medium text-text-secondary">
-                        Variables read ({node.fields_used.length})
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        {node.fields_used.map((f) => (
-                          <code
-                            key={f}
-                            className="rounded bg-surface-sunken px-1.5 py-0.5 font-mono text-[10px] text-text-secondary"
-                          >
-                            {f}
-                          </code>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {Object.keys(node.config).length > 0 && (
-                    <div>
-                      <p className="mb-1.5 text-xs font-medium text-text-secondary">Configuration</p>
-                      <pre className="max-h-56 overflow-auto rounded-md border border-border bg-surface-sunken p-3 font-mono text-[10px] leading-relaxed text-text-secondary">
-                        {JSON.stringify(node.config, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-
-                  {node.output_preview && node.output_preview.length > 0 && (
-                    <div>
-                      <p className="mb-1.5 text-xs font-medium text-text-secondary">
-                        Output preview
-                      </p>
-                      <div className="overflow-hidden rounded-md border border-border">
-                        <ResultTable rows={node.output_preview} maxRows={5} />
-                      </div>
-                    </div>
-                  )}
-
-                  {node.warnings.length > 0 && (
-                    <div className="rounded-md border border-warning/30 bg-warning-muted p-3">
-                      {node.warnings.map((w) => (
-                        <p key={w} className="text-xs text-warning">
-                          {w}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-
-                  {node.error && (
-                    <div className="rounded-md border border-negative/30 bg-negative-muted p-3 text-xs text-negative">
-                      {node.error}
-                    </div>
-                  )}
-                </div>
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-text-primary">
+                {narrative.summary}
+              </p>
+              {narrative.findings && narrative.findings.length > 0 && (
+                <ul className="mt-3 space-y-1.5">
+                  {narrative.findings.slice(0, 6).map((finding, i) => (
+                    <li key={i} className="flex gap-2 text-xs leading-relaxed text-text-secondary">
+                      <span aria-hidden className="text-text-muted">
+                        ·
+                      </span>
+                      <span>{finding.text}</span>
+                    </li>
+                  ))}
+                </ul>
               )}
             </Card>
-          </div>
+          )}
 
-          {/* ---------------------------------------------------------- edges */}
-          <Card className="p-5">
-            <h3 className="mb-3 text-sm font-semibold text-text-primary">
-              Dependencies
-              <span className="ml-2 text-xs font-normal text-text-muted">
-                {graph.edges.length} edges
-              </span>
-            </h3>
-            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-              {graph.edges.map((e, i) => (
-                <span
-                  key={i}
-                  className="flex items-center gap-1 font-mono text-[11px] text-text-muted"
-                >
-                  {byId.get(e.source)?.label.slice(0, 28) ?? e.source}
-                  <ChevronRight className="size-3" aria-hidden />
-                  {byId.get(e.target)?.label.slice(0, 28) ?? e.target}
-                </span>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="border-info/30 bg-info-muted p-4 text-sm text-info">
-            The interactive canvas — pan, zoom, and an “Ask / Modify Trace” prompt that branches to
-            a new version and re-runs only the affected steps — is the next phase. The graph model,
-            content hashing and version storage it needs are already in place and are what this
-            page reads.
-          </Card>
+          <p className="border-t border-border pt-4 text-xs leading-relaxed text-text-muted">
+            Trace is emitted <strong>by</strong> execution. Every row count, duration, function
+            version and content hash on this map was stamped as the analysis ran — not written
+            afterwards, and never written by a language model.
+          </p>
         </>
       )}
-    </div>
-  );
-}
-
-function Tile({
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  label: string;
-  value: number;
-  hint?: string;
-  tone?: "governed" | "interpretive";
-}) {
-  return (
-    <Card className="p-4">
-      <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-text-muted">
-        {tone && (
-          <span
-            className="size-2 rounded-full"
-            style={{
-              backgroundColor:
-                tone === "governed"
-                  ? "var(--ipm-trace-governed)"
-                  : "var(--ipm-trace-interpretive)",
-            }}
-            aria-hidden
-          />
-        )}
-        {label}
-      </p>
-      <p className="mt-1.5 text-2xl font-semibold text-text-primary tabular">{value}</p>
-      {hint && <p className="mt-0.5 text-[11px] text-text-muted">{hint}</p>}
-    </Card>
-  );
-}
-
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="flex items-start justify-between gap-3 py-1.5">
-      <dt className="shrink-0 text-xs text-text-muted">{label}</dt>
-      <dd className={cn("text-right text-xs text-text-secondary", mono && "font-mono")}>{value}</dd>
     </div>
   );
 }

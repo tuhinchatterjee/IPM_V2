@@ -70,7 +70,8 @@ export function byUnit(value: unknown, unit?: string | null): string {
     case "pp":
       return `${value.toFixed(2)}pp`;
     case "USD mn":
-      return money(value, 1);
+      // Thousands of millions do not need a decimal; a single facility does.
+      return money(value, Math.abs(value) >= 1000 ? 0 : 1);
     case "days":
     case "facilities":
     case "count":
@@ -121,6 +122,19 @@ export function humanise(key: string): string {
     .replace(/\bEad\b/, "EAD")
     .replace(/\bPd\b/, "PD")
     .replace(/\bLgd\b/, "LGD");
+}
+
+/**
+ * The unit as it should appear beside a figure, not inside it.
+ *
+ * A KPI tile shows "48,600" in the display size and "USD mn" small beside it —
+ * repeating the unit at full size on four tiles in a row is noise, and dropping
+ * it altogether leaves the reader guessing between millions and billions.
+ */
+export function unitSuffix(unit?: string | null): string {
+  if (!unit) return "";
+  if (unit === "%" || unit === "pp" || unit === "x") return "";
+  return unit;
 }
 
 export function titleCase(value: string): string {

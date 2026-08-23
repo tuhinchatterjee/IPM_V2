@@ -90,13 +90,13 @@
 }
 
 /* -----------------------------------------------------------------------------
-   THEME 1 — EXECUTIVE LIGHT  (default)
+   THEME 1 — EXECUTIVE IVORY  (default)
    Paper-like and high contrast. Reads as a printed board pack rather than a
    screen. This is the theme a document is written in.
    -------------------------------------------------------------------------- */
 :root,
 [data-theme="executive-light"] {
-  --ipm-canvas: #f6f7f9;
+  --ipm-canvas: #f7f6f3;
   --ipm-surface: #ffffff;
   --ipm-surface-raised: #ffffff;
   --ipm-surface-sunken: #f0f2f5;
@@ -141,7 +141,7 @@
 }
 
 /* -----------------------------------------------------------------------------
-   THEME 2 — MIDNIGHT
+   THEME 2 — MIDNIGHT BOARDROOM
    Deep navy-black. For long analytical sessions and for a presentation room
    where a bright screen dominates.
    -------------------------------------------------------------------------- */
@@ -241,12 +241,12 @@
 }
 
 /* -----------------------------------------------------------------------------
-   THEME 4 — WARM INSTITUTIONAL
+   THEME 4 — WARM SAND
    Warm off-white and ink. Traditional and document-like — the feel of a printed
    committee paper rather than an application.
    -------------------------------------------------------------------------- */
 [data-theme="warm-institutional"] {
-  --ipm-canvas: #f4f1ea;
+  --ipm-canvas: #f2ede4;
   --ipm-surface: #fdfcf8;
   --ipm-surface-raised: #ffffff;
   --ipm-surface-sunken: #ebe7dd;

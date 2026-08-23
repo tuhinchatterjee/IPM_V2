@@ -1,43 +1,57 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import * as React from "react";
 import {
   ArrowRight,
   ArrowUpRight,
-  Boxes,
-  ClipboardCheck,
-  CornerDownLeft,
+  Clock,
+  GitBranch,
   Search,
-  Sparkles,
   TrendingUp,
   TriangleAlert,
 } from "lucide-react";
 
-import { AnalyticalCard, TraceButton } from "@/components/analytics/analytical-card";
+import { Composer, useGreeting } from "@/components/ask/composer";
+import { InvestigationProgress, InvestigationView } from "@/components/ask/investigation";
 import { TrendChart } from "@/components/analytics/charts";
-import { KpiTile, ResultTable } from "@/components/analytics/primitives";
+import { KpiTile } from "@/components/analytics/primitives";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BLUEPRINTS, INVESTIGATIONS, PROJECTS, SUGGESTED_QUESTIONS } from "@/lib/demo";
-import { moneyCompact, percent } from "@/lib/format";
-import { useAnalysis } from "@/lib/hooks";
-import type { Row } from "@/lib/api";
+import {
+  ApiError,
+  api,
+  type InvestigationResponse,
+  type Row,
+  type Stage,
+} from "@/lib/api";
+import { byUnit, delta, money, percent } from "@/lib/format";
+import { useAsync } from "@/lib/hooks";
 
 /**
- * The AI Cockpit.
+ * The AI Cockpit — IPM's hero screen.
  *
- * The conversational workspace is the centre of the screen, not a widget bolted
- * to the side of a dashboard — that ordering is the product's whole claim.
- * Below it sit the things a credit officer needs before they know what to ask:
- * where the book stands, what moved, and what they were working on.
+ * The order of the page is the order of a credit officer's morning: what would
+ * you like to investigate, then where the book stands, then what is already
+ * demanding attention, then what you were working on. The composer comes first
+ * because asking is the product; the briefing beneath it exists so you know what
+ * to ask.
  *
- * Every figure here is produced by a registered engine analysis. Nothing on this
- * page is a hard-coded portfolio number.
+ * Nothing on this page is a hard-coded portfolio figure. The briefing is three
+ * registered analyses executed on request, and the answer below the composer is
+ * a full investigation with its own Trace.
  */
+
+const FALLBACK_STAGES: Stage[] = [
+  { id: "understanding", label: "Understanding the question" },
+  { id: "planning", label: "Selecting IPM analyses" },
+  { id: "retrieving", label: "Retrieving governed data" },
+  { id: "running", label: "Running the IPM Engine" },
+  { id: "synthesising", label: "Synthesising findings" },
+];
 
 function numberOf(values: Record<string, unknown> | undefined, key: string): number | null {
   const v = values?.[key];
@@ -45,53 +59,83 @@ function numberOf(values: Record<string, unknown> | undefined, key: string): num
 }
 
 export default function CockpitPage() {
-  const router = useRouter();
-  const [question, setQuestion] = React.useState("");
-  const composerRef = React.useRef<HTMLTextAreaElement>(null);
+  return (
+    <React.Suspense fallback={<Skeleton className="h-96 w-full" />}>
+      <Cockpit />
+    </React.Suspense>
+  );
+}
 
-  // Headline position and the movement against the prior period.
-  const summary = useAnalysis("portfolio_summary", { params: { period: "latest" } });
-  // What the book has done over every available period.
-  const trend = useAnalysis("portfolio_trend", {});
-  // Who got worse — the proactive signal, not a static watchlist.
-  const deteriorating = useAnalysis("top_deteriorating_borrowers", {
-    params: { from_period: "previous", to_period: "latest", top_n: 6 },
-  });
+function Cockpit() {
+  const searchParams = useSearchParams();
+  const focusAsk = searchParams.get("focus") === "ask";
+  // A question can arrive in the URL — from a follow-up on a stored
+  // investigation, or from a link in a lens. It is offered in the composer
+  // rather than run automatically: the user still presses Ask.
+  const prefilled = searchParams.get("q") ?? "";
 
-  const values = summary.data?.result?.values;
-  const movement = (values?.movement ?? {}) as Record<string, number>;
-  const period = (values?.period as string) ?? "";
+  const [question, setQuestion] = React.useState(prefilled);
+  const [asking, setAsking] = React.useState<string | null>(null);
+  const [answer, setAnswer] = React.useState<InvestigationResponse | null>(null);
+  const [askError, setAskError] = React.useState<string | null>(null);
 
-  function ask(text: string) {
-    // Until the planner exists, a question resolves to the registered analysis
-    // that answers it. The route is the same one the planner will use.
-    const match = SUGGESTED_QUESTIONS.find(
-      (s) => s.question.toLowerCase() === text.trim().toLowerCase(),
-    );
-    if (match) {
-      const params = new URLSearchParams({ params: JSON.stringify(match.params ?? {}) });
-      if (match.filters) params.set("filters", JSON.stringify(match.filters));
-      params.set("q", match.question);
-      router.push(`/analysis/${match.analysisId}?${params}`);
-      return;
+  const greeting = useGreeting();
+  const mode = useAsync(() => api.askMode(), []);
+  const suggestions = useAsync(() => api.askSuggestions(), []);
+  const briefing = useAsync(() => api.briefing(), []);
+  const recent = useAsync(() => api.recentInvestigations(5), [answer?.analysis_run_id]);
+
+  const stages = mode.data?.stages ?? FALLBACK_STAGES;
+
+  const ask = React.useCallback(async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setAsking(trimmed);
+    setAnswer(null);
+    setAskError(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    try {
+      setAnswer(await api.ask(trimmed));
+    } catch (e) {
+      setAskError(
+        e instanceof ApiError ? e.message : "IPM could not complete that investigation.",
+      );
+    } finally {
+      setAsking(null);
     }
-    router.push(`/analysis/portfolio_summary?q=${encodeURIComponent(text)}&unmatched=1`);
+  }, []);
+
+  if (asking) {
+    return <InvestigationProgress stages={stages} question={asking} />;
   }
 
+  if (answer) {
+    return (
+      <InvestigationView
+        investigation={answer}
+        onAsk={(q) => void ask(q)}
+        onReset={() => {
+          setAnswer(null);
+          setQuestion("");
+        }}
+      />
+    );
+  }
+
+  const values = briefing.data?.summary?.result?.values;
+  const movement = (values?.movement ?? {}) as Record<string, number>;
+  const period = briefing.data?.period ?? "";
+  const attention = briefing.data?.attention;
+  const trend = briefing.data?.trend;
+
   return (
-    <div className="space-y-8">
-      {/* ---------------------------------------------------------- composer */}
+    <div className="space-y-10">
+      {/* ------------------------------------------------------------- hero */}
       <section>
-        <div className="mb-4 flex items-end justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight text-text-primary">
-              Ask IPM
-            </h1>
-            <p className="mt-1 text-sm text-text-secondary">
-              Ask a question about the portfolio. IPM answers with governed analytics —
-              every figure produced by a tested engine, every result traceable.
-            </p>
-          </div>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-muted">
+            Credit Portfolio Intelligence
+          </p>
           {period && (
             <Badge variant="outline" className="shrink-0">
               Reporting period {period}
@@ -99,79 +143,55 @@ export default function CockpitPage() {
           )}
         </div>
 
-        <Card className="overflow-hidden border-border-strong">
-          <div className="relative">
-            <textarea
-              ref={composerRef}
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  if (question.trim()) ask(question);
-                }
-              }}
-              rows={3}
-              placeholder="What deteriorated this period?"
-              aria-label="Ask IPM a question"
-              className="w-full resize-none bg-transparent px-5 py-4 pr-32 text-base text-text-primary placeholder:text-text-muted focus:outline-none"
-            />
-            <div className="absolute bottom-3 right-4 flex items-center gap-2">
-              <span className="hidden text-[11px] text-text-muted sm:inline">
-                Enter to ask
-              </span>
-              <Button size="sm" disabled={!question.trim()} onClick={() => ask(question)}>
-                <CornerDownLeft aria-hidden />
-                Ask
-              </Button>
-            </div>
-          </div>
+        <h1 className="mt-3 max-w-3xl text-[28px] font-semibold leading-[1.15] tracking-tight text-text-primary sm:text-[34px]">
+          {greeting}. What would you like to investigate?
+        </h1>
 
-          <div className="flex flex-wrap items-center gap-1.5 border-t border-border bg-surface-sunken px-4 py-3">
-            <span className="mr-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
-              Try
-            </span>
-            {SUGGESTED_QUESTIONS.map((s) => (
-              <button
-                key={s.question}
-                type="button"
-                onClick={() => ask(s.question)}
-                title={s.note}
-                className="rounded-full border border-border bg-surface px-3 py-1 text-xs text-text-secondary transition-colors hover:border-accent hover:text-accent"
-              >
-                {s.question}
-              </button>
-            ))}
-          </div>
-        </Card>
-
-        <p className="mt-2 flex items-center gap-1.5 text-xs text-text-muted">
-          <Sparkles className="size-3" aria-hidden />
-          Suggested questions run the registered analysis that answers them. Free-text
-          planning arrives with AI orchestration — the engine, contracts and Trace it will
-          use are already in place.
-        </p>
-      </section>
-
-      {/* ------------------------------------------------------ headline KPIs */}
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold tracking-tight text-text-primary">
-            Portfolio position
-          </h2>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/lenses/cro">
-                CRO Lens
-                <ArrowRight aria-hidden />
-              </Link>
-            </Button>
-            <TraceButton runId={summary.data?.analysis_run_id} />
-          </div>
+        <div className="mt-6">
+          <Composer
+            value={question}
+            onChange={setQuestion}
+            onSubmit={(q) => void ask(q)}
+            suggestions={suggestions.data?.questions ?? []}
+            autoFocus={focusAsk}
+            modeNote={mode.data?.mode === "demo"
+              ? "No model key is configured, so questions are read by IPM's built-in planner."
+              : undefined}
+          />
         </div>
 
-        {summary.error ? (
-          <Card className="border-negative/40 p-4 text-sm text-negative">{summary.error}</Card>
+        {askError && (
+          <Card className="mt-4 border-negative/40 p-4 text-sm text-negative">{askError}</Card>
+        )}
+      </section>
+
+      {/* -------------------------------------------------- portfolio briefing */}
+      <section>
+        <SectionHeading
+          title="Portfolio briefing"
+          hint={period ? `As at ${period}, against the prior period` : undefined}
+          action={
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/lenses/cro">
+                  CRO Lens
+                  <ArrowRight aria-hidden />
+                </Link>
+              </Button>
+              {briefing.data?.summary?.analysis_run_id && (
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href={`/trace/${briefing.data.summary.analysis_run_id}`}>
+                    <GitBranch aria-hidden />
+                    Trace
+                  </Link>
+                </Button>
+              )}
+            </div>
+          }
+        />
+
+        {briefing.error ? (
+          <Card className="border-negative/40 p-4 text-sm text-negative">{briefing.error}</Card>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <KpiTile
@@ -182,27 +202,7 @@ export default function CockpitPage() {
               changeUnit="USD mn"
               direction="neutral"
               hint="vs prior period"
-              loading={summary.loading}
-              emphasis
-            />
-            <KpiTile
-              label="Total ECL"
-              value={numberOf(values, "total_ecl")}
-              unit="USD mn"
-              change={movement.total_ecl ?? null}
-              changeUnit="USD mn"
-              hint="vs prior period"
-              loading={summary.loading}
-              emphasis
-            />
-            <KpiTile
-              label="ECL coverage"
-              value={numberOf(values, "ecl_coverage_pct")}
-              unit="%"
-              change={movement.ecl_coverage_pct ?? null}
-              changeUnit="pp"
-              hint="vs prior period"
-              loading={summary.loading}
+              loading={briefing.loading}
               emphasis
             />
             <KpiTile
@@ -212,222 +212,267 @@ export default function CockpitPage() {
               change={movement.npl_ratio_pct ?? null}
               changeUnit="pp"
               hint="vs prior period"
-              loading={summary.loading}
+              loading={briefing.loading}
+              emphasis
+            />
+            <KpiTile
+              label="Stage 2 share"
+              value={numberOf(values, "stage2_pct")}
+              unit="%"
+              change={movement.stage2_pct ?? null}
+              changeUnit="pp"
+              hint="vs prior period"
+              loading={briefing.loading}
+              emphasis
+            />
+            <KpiTile
+              label="Total ECL"
+              value={numberOf(values, "total_ecl")}
+              unit="USD mn"
+              change={movement.total_ecl ?? null}
+              changeUnit="USD mn"
+              hint="vs prior period"
+              loading={briefing.loading}
               emphasis
             />
           </div>
         )}
       </section>
 
-      {/* ------------------------------------------- signals + trend, side by side */}
-      <section className="grid gap-4 xl:grid-cols-[1.15fr_1fr]">
-        <AnalyticalCard
-          title="Deterioration signals"
-          description="Borrowers whose position worsened against the prior period"
-          analysisId="top_deteriorating_borrowers"
-          run={deteriorating.data}
-          loading={deteriorating.loading}
-          error={deteriorating.error}
-          onRetry={deteriorating.reload}
-          minHeight={280}
-          footer={
-            <Link
-              href="/investigations/stage-2-deterioration"
-              className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"
-            >
-              Open the Stage 2 Deterioration Review
-              <ArrowUpRight className="size-3" aria-hidden />
-            </Link>
-          }
-        >
-          {deteriorating.data?.result && (
-            <>
-              <p className="mb-3 flex items-center gap-1.5 text-xs text-text-muted">
-                <TriangleAlert className="size-3.5 text-warning" aria-hidden />
-                {String(deteriorating.data.result.values.deteriorated_count ?? "—")} of{" "}
-                {String(deteriorating.data.result.values.borrowers_compared ?? "—")} borrowers
-                deteriorated
-              </p>
-              <ResultTable
-                rows={deteriorating.data.result.rows as Row[]}
-                units={{ ead: "USD mn", ecl_change: "USD mn" }}
-                columns={["borrower_name", "sector", "ead", "ecl_change", "reasons"]}
-                maxRows={6}
-                renderCell={(column, value) =>
-                  column === "reasons" ? (
-                    <span className="block max-w-[22rem] truncate text-xs text-text-muted">
-                      {String(value)}
-                    </span>
-                  ) : undefined
-                }
-              />
-            </>
-          )}
-        </AnalyticalCard>
-
-        <AnalyticalCard
-          title="Coverage and staging trend"
-          description="Every available reporting period"
-          analysisId="portfolio_trend"
-          run={trend.data}
-          loading={trend.loading}
-          error={trend.error}
-          onRetry={trend.reload}
-          minHeight={280}
-        >
-          {trend.data?.result && (
-            <TrendChart
-              data={trend.data.result.rows as Record<string, string | number | null>[]}
-              xKey="period"
-              series={[
-                { key: "ecl_coverage_pct", label: "ECL coverage", slot: 0 },
-                { key: "stage2_pct", label: "Stage 2 share", slot: 1 },
-                { key: "stage3_pct", label: "Stage 3 share", slot: 2 },
-              ]}
-              units={{
-                ecl_coverage_pct: "%",
-                stage2_pct: "%",
-                stage3_pct: "%",
-              }}
-              height={230}
-            />
-          )}
-        </AnalyticalCard>
-      </section>
-
-      {/* -------------------------------------------------------- your work */}
-      <section className="grid gap-4 lg:grid-cols-3">
-        <WorkCard
-          icon={Search}
-          title="Recent investigations"
-          href="/investigations"
-          items={INVESTIGATIONS.slice(0, 3).map((i) => ({
-            href: `/investigations/${i.id}`,
-            title: i.title,
-            meta: `${i.steps.length} analyses · ${i.owner}`,
-          }))}
-        />
-        <WorkCard
-          icon={Boxes}
-          title="Recent projects"
-          href="/projects"
-          items={PROJECTS.slice(0, 3).map((p) => ({
-            href: `/projects/${p.id}`,
-            title: p.name,
-            meta: `${p.counts.investigations} investigations · ${p.team}`,
-          }))}
-        />
-        <WorkCard
-          icon={ClipboardCheck}
-          title="Blueprints"
-          href="/blueprints"
-          items={BLUEPRINTS.slice(0, 3).map((b) => ({
-            href: `/blueprints/${b.id}`,
-            title: b.name,
-            meta: `${b.steps.length} steps · ${b.cadence}`,
-          }))}
-        />
-      </section>
-
-      {/* ------------------------------------------------------- follow-ups */}
-      <section>
-        <h2 className="mb-3 text-sm font-semibold tracking-tight text-text-primary">
-          Where to look next
-        </h2>
-        <div className="grid gap-3 md:grid-cols-3">
-          <FollowUp
-            title="Concentration"
-            body={
-              summary.data
-                ? "Measure where the book is concentrated and what sits inside each sector."
-                : "…"
+      {/* ---------------------------------------------------- requires attention */}
+      <section className="grid gap-5 xl:grid-cols-[1.15fr_1fr]">
+        <div>
+          <SectionHeading
+            title="Requires attention"
+            hint="Borrowers whose position worsened against the prior period"
+            action={
+              attention?.analysis_run_id ? (
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href={`/trace/${attention.analysis_run_id}`}>
+                    <GitBranch aria-hidden />
+                    Trace
+                  </Link>
+                </Button>
+              ) : undefined
             }
-            href="/analysis/sector_concentration"
           />
-          <FollowUp
+          <Card className="overflow-hidden">
+            {briefing.loading && <Skeleton className="h-56 w-full" />}
+            {!briefing.loading && attention?.result && (
+              <>
+                <ul className="divide-y divide-border">
+                  {(attention.result.rows as Row[]).slice(0, 5).map((row, i) => (
+                    <li key={i}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void ask(
+                            `Show me the top ten deteriorating borrowers.`,
+                          )
+                        }
+                        className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-hover"
+                      >
+                        <TriangleAlert
+                          className="mt-0.5 size-3.5 shrink-0 text-warning"
+                          aria-hidden
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-baseline justify-between gap-3">
+                            <span className="truncate text-sm font-medium text-text-primary">
+                              {String(row.borrower_name ?? "—")}
+                            </span>
+                            <span className="shrink-0 text-sm font-medium text-negative tabular">
+                              {delta(Number(row.ecl_change), 1, " USD mn")}
+                            </span>
+                          </span>
+                          <span className="mt-0.5 block truncate text-xs text-text-muted">
+                            {String(row.sector ?? "")} · {money(Number(row.ead ?? 0), 0)}mn
+                            exposure · {String(row.reasons ?? "")}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <p className="border-t border-border bg-surface-sunken px-4 py-2.5 text-xs text-text-muted">
+                  {String(attention.result.values.deteriorated_count ?? "—")} of{" "}
+                  {String(attention.result.values.borrowers_compared ?? "—")} borrowers
+                  deteriorated, adding{" "}
+                  {byUnit(attention.result.values.total_ecl_increase as number, "USD mn")} of
+                  expected credit loss.
+                </p>
+              </>
+            )}
+          </Card>
+        </div>
+
+        <div>
+          <SectionHeading
+            title="Portfolio intelligence"
+            hint="Coverage and staging across every reporting period"
+            action={
+              trend?.analysis_run_id ? (
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href={`/trace/${trend.analysis_run_id}`}>
+                    <GitBranch aria-hidden />
+                    Trace
+                  </Link>
+                </Button>
+              ) : undefined
+            }
+          />
+          <Card className="p-5">
+            {briefing.loading && <Skeleton className="h-56 w-full" />}
+            {!briefing.loading && trend?.result && (
+              <>
+                <TrendChart
+                  data={trend.result.rows as Record<string, string | number | null>[]}
+                  xKey="period"
+                  series={[
+                    { key: "ecl_coverage_pct", label: "ECL coverage", slot: 0 },
+                    { key: "stage2_pct", label: "Stage 2 share", slot: 1 },
+                    { key: "stage3_pct", label: "Stage 3 share", slot: 2 },
+                  ]}
+                  units={{ ecl_coverage_pct: "%", stage2_pct: "%", stage3_pct: "%" }}
+                  height={210}
+                />
+                <p className="mt-3 flex items-start gap-1.5 border-t border-border pt-3 text-xs text-text-muted">
+                  <TrendingUp className="mt-0.5 size-3 shrink-0" aria-hidden />
+                  {trend.result.rows.length} periods · coverage{" "}
+                  {percent(
+                    (trend.result.values.change as Record<string, number>)?.ecl_coverage_pct,
+                  )}{" "}
+                  and Stage 2 share{" "}
+                  {percent((trend.result.values.change as Record<string, number>)?.stage2_pct)}{" "}
+                  since {String(trend.result.values.first_period ?? "")}
+                </p>
+              </>
+            )}
+          </Card>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------- recent investigations */}
+      <section>
+        <SectionHeading
+          title="Recent investigations"
+          hint="Every one keeps its Trace"
+          action={
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/investigations">
+                All
+                <ArrowRight aria-hidden />
+              </Link>
+            </Button>
+          }
+        />
+        {recent.data && recent.data.investigations.length > 0 ? (
+          <Card className="divide-y divide-border">
+            {recent.data.investigations.map((item) => (
+              <div key={item.analysis_run_id} className="flex items-start gap-3 px-4 py-3">
+                <Search className="mt-0.5 size-3.5 shrink-0 text-text-muted" aria-hidden />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm text-text-primary">{item.question}</p>
+                  <p className="mt-0.5 line-clamp-1 text-xs text-text-muted">
+                    {item.summary || item.intent}
+                  </p>
+                </div>
+                <span className="hidden shrink-0 items-center gap-1 text-[11px] text-text-muted sm:flex">
+                  <Clock className="size-3" aria-hidden />
+                  {item.duration_ms ?? "—"}ms
+                </span>
+                <Link
+                  href={`/trace/${item.analysis_run_id}`}
+                  className="shrink-0 text-xs font-medium text-accent hover:underline"
+                >
+                  Trace
+                </Link>
+              </div>
+            ))}
+          </Card>
+        ) : (
+          <Card className="px-5 py-8 text-center">
+            <p className="text-sm text-text-secondary">No investigations yet.</p>
+            <p className="mt-1 text-xs text-text-muted">
+              Ask a question above and it will appear here, with its Trace, ready to reopen.
+            </p>
+          </Card>
+        )}
+      </section>
+
+      {/* ------------------------------------------------------------- footer */}
+      <section>
+        <SectionHeading title="Where to look next" />
+        <div className="grid gap-3 md:grid-cols-3">
+          <NextStep
+            title="Concentration"
+            body="Where the book is concentrated, and the quality of what sits inside each group."
+            onClick={() => void ask("Where is the book most concentrated?")}
+          />
+          <NextStep
             title="Rating migration"
-            body="Empirical transition probabilities over the full history."
-            href="/analysis/rating_transition_matrix?params=%7B%22from_period%22%3A%22earliest%22%2C%22to_period%22%3A%22latest%22%7D"
+            body="Empirical transition probabilities between the two reporting periods."
+            onClick={() => void ask("Show me the rating transition matrix.")}
           />
-          <FollowUp
+          <NextStep
             title="Downturn sensitivity"
             body="Size the incremental impairment under a management scenario."
-            href="/stress"
+            onClick={() => void ask("Stress the portfolio under a severe scenario.")}
           />
         </div>
       </section>
 
-      {/* ------------------------------------------------------------ footer */}
-      {trend.data?.result && (
-        <p className="flex items-center gap-1.5 border-t border-border pt-4 text-xs text-text-muted">
-          <TrendingUp className="size-3.5" aria-hidden />
-          {trend.data.result.rows.length} reporting periods ·{" "}
-          {moneyCompact(numberOf(values, "total_ead"))} exposure ·{" "}
-          {percent(numberOf(values, "ecl_coverage_pct"))} coverage · figures are synthetic
-          demonstration data
-        </p>
-      )}
+      <p className="border-t border-border pt-4 text-xs leading-relaxed text-text-muted">
+        Figures are synthetic demonstration data. Every number on this page was produced by a
+        registered IPM Engine analysis and carries a Trace.
+      </p>
     </div>
   );
 }
 
-function WorkCard({
-  icon: Icon,
+function SectionHeading({
   title,
-  href,
-  items,
+  hint,
+  action,
 }: {
-  icon: typeof Search;
   title: string;
-  href: string;
-  items: { href: string; title: string; meta: string }[];
+  hint?: string;
+  action?: React.ReactNode;
 }) {
   return (
-    <Card className="flex flex-col">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
-          <Icon className="size-4 text-text-muted" aria-hidden />
-          {title}
-        </h3>
-        <Link href={href} className="text-xs font-medium text-accent hover:underline">
-          All
-        </Link>
+    <div className="mb-3 flex items-end justify-between gap-4">
+      <div>
+        <h2 className="text-sm font-semibold tracking-tight text-text-primary">{title}</h2>
+        {hint && <p className="mt-0.5 text-xs text-text-muted">{hint}</p>}
       </div>
-      <ul className="flex-1 divide-y divide-border">
-        {items.map((item) => (
-          <li key={item.href}>
-            <Link
-              href={item.href}
-              className="block px-4 py-2.5 transition-colors hover:bg-surface-hover"
-            >
-              <p className="truncate text-sm text-text-primary">{item.title}</p>
-              <p className="mt-0.5 truncate text-xs text-text-muted">{item.meta}</p>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </Card>
+      {action}
+    </div>
   );
 }
 
-function FollowUp({ title, body, href }: { title: string; body: string; href: string }) {
+function NextStep({
+  title,
+  body,
+  onClick,
+}: {
+  title: string;
+  body: string;
+  onClick: () => void;
+}) {
   return (
-    <Link
-      href={href}
-      className="group flex items-start gap-3 rounded-lg border border-border bg-surface p-4 transition-colors hover:bg-surface-hover"
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex items-start gap-3 rounded-lg border border-border bg-surface p-4 text-left transition-colors hover:border-accent hover:bg-surface-hover"
     >
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-text-primary">{title}</p>
-        <p className="mt-1 text-xs leading-relaxed text-text-muted">{body}</p>
-      </div>
-      <ArrowRight
-        className="mt-0.5 size-4 shrink-0 text-text-muted opacity-0 transition-opacity group-hover:opacity-100"
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium text-text-primary">{title}</span>
+        <span className="mt-1 block text-xs leading-relaxed text-text-muted">{body}</span>
+      </span>
+      <ArrowUpRight
+        className="mt-0.5 size-3.5 shrink-0 text-text-muted opacity-0 transition-opacity group-hover:opacity-100"
         aria-hidden
       />
-    </Link>
+    </button>
   );
-}
-
-export function CockpitSkeleton() {
-  return <Skeleton className="h-64 w-full" />;
 }

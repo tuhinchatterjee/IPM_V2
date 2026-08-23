@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { byUnit, humanise, type Direction, toneFor } from "@/lib/format";
+import { byUnit, humanise, unitSuffix, type Direction, toneFor } from "@/lib/format";
 import type { Row } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -70,11 +70,14 @@ export function KpiTile({
       <p className="text-[11px] font-medium uppercase tracking-wider text-text-muted">{label}</p>
       <p
         className={cn(
-          "mt-2 font-semibold tracking-tight text-text-primary tabular",
+          "mt-2 flex items-baseline gap-1.5 font-semibold tracking-tight text-text-primary tabular",
           emphasis ? "text-3xl" : "text-2xl",
         )}
       >
-        {typeof value === "number" ? byUnit(value, unit) : (value ?? "—")}
+        <span>{typeof value === "number" ? byUnit(value, unit) : (value ?? "—")}</span>
+        {unitSuffix(unit) && (
+          <span className="text-xs font-normal text-text-muted">{unitSuffix(unit)}</span>
+        )}
       </p>
       <div className="mt-1.5 flex items-center gap-1.5 text-xs">
         {change !== null && change !== undefined ? (
