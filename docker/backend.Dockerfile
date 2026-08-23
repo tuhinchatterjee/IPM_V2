@@ -49,7 +49,18 @@ COPY data/raw/ ./data/raw/
 
 COPY docker/backend-entrypoint.sh /usr/local/bin/ipm-entrypoint
 COPY docker/healthcheck.py /usr/local/bin/ipm-healthcheck.py
-RUN chmod +x /usr/local/bin/ipm-entrypoint
+
+# Strip carriage returns and set the executable bit, rather than trusting how
+# the repository happened to be checked out.
+#
+# .gitattributes pins these files to LF, but a clone made before that existed —
+# or copied onto the machine some other way — can still carry Windows CRLF line
+# endings. A shell script with CRLF fails immediately inside a Linux container:
+# the kernel reads the shebang as `#!/usr/bin/env bash\r` and reports
+# `env: 'bash\r': No such file or directory`. Two lines here make the image
+# build correctly from any checkout on any operating system.
+RUN sed -i 's/\r$//' /usr/local/bin/ipm-entrypoint /usr/local/bin/ipm-healthcheck.py \
+ && chmod 0755 /usr/local/bin/ipm-entrypoint
 
 # Inside the container the API must listen on every interface, not just
 # loopback: 127.0.0.1 inside a container is the container itself, and Docker

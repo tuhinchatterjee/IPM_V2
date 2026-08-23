@@ -146,6 +146,7 @@ docker compose up
 | `port is already allocated` | Something else is using port 3000 or 8000 | Close it, or set `WEB_PORT=3001` / `API_PORT=8001` in `.env` |
 | The page loads but says **Cannot reach the IPM backend** | The backend is still starting | Wait a minute. If it persists: `docker compose logs backend` |
 | `Could not connect to PostgreSQL after 60 seconds` | The database did not start | `docker compose logs db` |
+| `env: 'bash\r': No such file or directory` and the backend exits with 127 | The repository was checked out with Windows line endings before `.gitattributes` pinned them | `git pull`, then `docker compose build --no-cache backend`. To tidy the working tree as well: `git add --renormalize .` then `git checkout -- .` |
 | The build fails downloading packages | A corporate proxy is inspecting HTTPS traffic | Ask IT for your proxy's certificate authority file, then see the note at the top of `docker/backend.Dockerfile` about the `PYTHON_IMAGE` and `NODE_IMAGE` build arguments |
 
 To see what every part is doing:

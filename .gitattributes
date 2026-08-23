@@ -1,2 +1,67 @@
-# Auto detect text files and perform LF normalization
+# =============================================================================
+# Line endings
+# =============================================================================
+#
+# Why this file matters more than it looks.
+#
+# `* text=auto` alone stores LF in the repository but converts to the platform's
+# NATIVE line ending on checkout — which on Windows is CRLF. That is harmless
+# for most files and fatal for a shell script that gets copied into a Linux
+# container: the kernel reads the shebang as `#!/usr/bin/env bash\r`, looks for
+# a program literally called "bash\r", and the container dies with
+#
+#     env: 'bash\r': No such file or directory        (exit code 127)
+#
+# So every file that is executed or interpreted inside a Linux container is
+# pinned to `eol=lf` below, whatever machine it was checked out on. Files that
+# are only ever run by Windows are pinned to CRLF for the same reason in
+# reverse.
+#
+# After changing this file, an existing Windows checkout is NOT re-converted
+# automatically. To fix one in place:
+#
+#     git add --renormalize .
+#     git checkout -- .
+
+# Default: normalise to LF in the repository, and let Git decide on checkout.
 * text=auto
+
+# -----------------------------------------------------------------------------
+# Must be LF — these run inside Linux containers
+# -----------------------------------------------------------------------------
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+Dockerfile.*    text eol=lf
+*.Dockerfile    text eol=lf
+*-entrypoint*   text eol=lf
+entrypoint*     text eol=lf
+docker-compose*.yml text eol=lf
+
+# The backend image copies these in and runs them.
+*.py            text eol=lf
+*.ini           text eol=lf
+requirements*.txt text eol=lf
+
+# -----------------------------------------------------------------------------
+# Must be CRLF — these only ever run on Windows
+# -----------------------------------------------------------------------------
+*.ps1           text eol=crlf
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+
+# -----------------------------------------------------------------------------
+# Binary — never touch the bytes
+# -----------------------------------------------------------------------------
+*.xlsx          binary
+*.xlsm          binary
+*.parquet       binary
+*.pdf           binary
+*.docx          binary
+*.pptx          binary
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.woff          binary
+*.woff2         binary
