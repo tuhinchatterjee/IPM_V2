@@ -1,6 +1,10 @@
+"use client";
+
 import { PageHeader } from "@/components/layout/page-header";
 import { BackendStatusPanel } from "@/components/system/backend-status";
+import { ROLES, RoleSwitcher, useRole } from "@/components/system/role-switcher";
 import { ThemeSwitcher } from "@/components/system/theme-switcher";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { API_BASE_URL } from "@/lib/api";
 
@@ -12,6 +16,8 @@ import { API_BASE_URL } from "@/lib/api";
  * arrive in Phase 6 and say so rather than showing dead controls.
  */
 export default function SettingsPage() {
+  const { role } = useRole();
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -22,6 +28,33 @@ export default function SettingsPage() {
       />
 
       <ThemeSwitcher />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Acting role</CardTitle>
+          <CardDescription>
+            IPM has no login yet, so the role is chosen here and sent to the API on every request.
+            The backend genuinely enforces it — a Viewer cannot publish a dataset. This
+            demonstrates the permission model; it is not authentication.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-3">
+            <RoleSwitcher />
+            <Badge variant="accent">{role}</Badge>
+          </div>
+          <ul className="space-y-1.5">
+            {ROLES.map((r) => (
+              <li key={r.id} className="flex items-start gap-2 text-xs">
+                <code className="shrink-0 rounded bg-surface-sunken px-1.5 py-0.5 font-mono text-[11px] text-text-secondary">
+                  {r.id}
+                </code>
+                <span className="text-text-muted">{r.note}</span>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
 
       <BackendStatusPanel />
 
@@ -51,6 +84,7 @@ export default function SettingsPage() {
             {[
               "Model provider configuration — and the model actually in use, displayed accurately",
               "Reporting calendar and default analytical period",
+              "Real authentication, replacing the acting-role selector above",
               "Usage and cost reporting",
               "Retention policy and the system-wide audit view",
             ].map((line) => (

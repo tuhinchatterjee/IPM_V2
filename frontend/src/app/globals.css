@@ -54,8 +54,13 @@
   --color-info: var(--ipm-info);
   --color-info-muted: var(--ipm-info-muted);
 
-  /* Categorical chart palette. Ordered so the first few are the most
-     distinguishable — most charts use three or four series. */
+  /* Categorical chart palette.
+     Assigned in FIXED ORDER and never cycled: a series keeps its colour when a
+     filter changes how many series are on screen.
+     These exact values are validated — lightness band, chroma floor,
+     colour-vision separation between adjacent slots, and contrast against each
+     theme's own surface. The dark themes get their own selected steps rather
+     than a lightened flip of the light ones. Do not adjust by eye. */
   --color-chart-1: var(--ipm-chart-1);
   --color-chart-2: var(--ipm-chart-2);
   --color-chart-3: var(--ipm-chart-3);
@@ -119,14 +124,14 @@
   --ipm-info: #10527a;
   --ipm-info-muted: #e6eef4;
 
-  --ipm-chart-1: #10527a;
-  --ipm-chart-2: #3f8fa8;
-  --ipm-chart-3: #86a873;
-  --ipm-chart-4: #c99a3f;
-  --ipm-chart-5: #a4633e;
-  --ipm-chart-6: #7d5a80;
-  --ipm-chart-7: #5b7594;
-  --ipm-chart-8: #9aa5ae;
+  --ipm-chart-1: #2563A8;
+  --ipm-chart-2: #C2410C;
+  --ipm-chart-3: #0E8A6A;
+  --ipm-chart-4: #7C3AED;
+  --ipm-chart-5: #A16207;
+  --ipm-chart-6: #0891B2;
+  --ipm-chart-7: #BE185D;
+  --ipm-chart-8: #3F6212;
 
   --ipm-trace-governed: #10527a;
   --ipm-trace-interpretive: #7d5a80;
@@ -169,14 +174,14 @@
   --ipm-info: #4d9fd4;
   --ipm-info-muted: #16293a;
 
-  --ipm-chart-1: #4d9fd4;
-  --ipm-chart-2: #58c0c0;
-  --ipm-chart-3: #8cc07e;
-  --ipm-chart-4: #dda43f;
-  --ipm-chart-5: #d9836a;
-  --ipm-chart-6: #a98cc4;
-  --ipm-chart-7: #7f9bc0;
-  --ipm-chart-8: #8a99a8;
+  --ipm-chart-1: #3B82C4;
+  --ipm-chart-2: #D97036;
+  --ipm-chart-3: #2FA37B;
+  --ipm-chart-4: #8B6FE0;
+  --ipm-chart-5: #B37F22;
+  --ipm-chart-6: #2196C4;
+  --ipm-chart-7: #D4629A;
+  --ipm-chart-8: #749B34;
 
   --ipm-trace-governed: #4d9fd4;
   --ipm-trace-interpretive: #a98cc4;
@@ -219,14 +224,14 @@
   --ipm-info: #7fa8c4;
   --ipm-info-muted: #1a2228;
 
-  --ipm-chart-1: #8fb3c9;
-  --ipm-chart-2: #6ab894;
-  --ipm-chart-3: #cba75f;
-  --ipm-chart-4: #d4837c;
-  --ipm-chart-5: #a596c2;
-  --ipm-chart-6: #7fbfb5;
-  --ipm-chart-7: #c0a48b;
-  --ipm-chart-8: #9ca1a5;
+  --ipm-chart-1: #3B82C4;
+  --ipm-chart-2: #D97036;
+  --ipm-chart-3: #2FA37B;
+  --ipm-chart-4: #8B6FE0;
+  --ipm-chart-5: #B37F22;
+  --ipm-chart-6: #2196C4;
+  --ipm-chart-7: #D4629A;
+  --ipm-chart-8: #749B34;
 
   --ipm-trace-governed: #8fb3c9;
   --ipm-trace-interpretive: #a596c2;
@@ -269,14 +274,14 @@
   --ipm-info: #3d5a70;
   --ipm-info-muted: #e6ecf1;
 
-  --ipm-chart-1: #6b4423;
-  --ipm-chart-2: #3d5a70;
-  --ipm-chart-3: #3f6b46;
-  --ipm-chart-4: #a8802c;
-  --ipm-chart-5: #9c342b;
-  --ipm-chart-6: #6a5578;
-  --ipm-chart-7: #86745b;
-  --ipm-chart-8: #a49a89;
+  --ipm-chart-1: #2563A8;
+  --ipm-chart-2: #C2410C;
+  --ipm-chart-3: #0E8A6A;
+  --ipm-chart-4: #7C3AED;
+  --ipm-chart-5: #A16207;
+  --ipm-chart-6: #0891B2;
+  --ipm-chart-7: #BE185D;
+  --ipm-chart-8: #3F6212;
 
   --ipm-trace-governed: #6b4423;
   --ipm-trace-interpretive: #6a5578;

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { AppShell } from "@/components/layout/app-shell";
+import { RoleProvider } from "@/components/system/role-switcher";
 import { ThemeProvider, ThemeScript } from "@/components/system/theme-provider";
 
 import "./globals.css";
@@ -28,7 +29,9 @@ export default function RootLayout({
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider>
-          <AppShell>{children}</AppShell>
+          <RoleProvider>
+            <AppShell>{children}</AppShell>
+          </RoleProvider>
         </ThemeProvider>
       </body>
     </html>

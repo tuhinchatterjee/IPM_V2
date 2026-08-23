@@ -36,8 +36,43 @@ def client():
 
 @pytest.fixture()
 def dataset_name():
-    """A unique name per test, so tests never collide on leftover state."""
-    return f"t_{uuid.uuid4().hex[:10]}"
+    """A unique dataset per test, removed afterwards.
+
+    Cleanup matters beyond tidiness: publishing writes Parquet AND a catalogue
+    row, so a dataset left behind makes the governed catalogue advertise data
+    that is no longer on disk. tests/data_access asserts exactly that invariant,
+    so leaking a dataset here would fail an unrelated suite.
+    """
+    name = f"t_{uuid.uuid4().hex[:10]}"
+    yield name
+    _remove_dataset(name)
+
+
+def _remove_dataset(name: str) -> None:
+    """Delete the dataset row (cascading to uploads, mappings and versions) and
+    the Parquet it published."""
+    import shutil
+
+    from sqlalchemy import delete
+
+    from backend.config import settings
+    from backend.data_access import reload_catalog, reset_data_source
+    from backend.db.engine import get_session
+    from backend.models.platform import DatasetDefinition
+
+    try:
+        with get_session() as session:
+            session.execute(delete(DatasetDefinition).where(DatasetDefinition.name == name))
+    except Exception:
+        pass
+    for path in (
+        settings.analytics_dir / name,
+        settings.raw_dir / "uploads" / name,
+    ):
+        shutil.rmtree(path, ignore_errors=True)
+    (settings.curated_dir / f"{name}.parquet").unlink(missing_ok=True)
+    reset_data_source()
+    reload_catalog()
 
 
 def make_csv(rows: int = 25, *, duplicate_key: bool = False, bad_stage: bool = False,
