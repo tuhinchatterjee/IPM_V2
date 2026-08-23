@@ -1,91 +1,70 @@
-# IPM Tool — app + Postgres, one command.
+# IPM — local development services.
 #
-#   docker compose up -d --build
+#   docker compose up -d
 #
-# Reads values from the project .env (Compose substitutes ${...} from it). It
-# needs POSTGRES_PASSWORD and SECRET_KEY there; both fail the run with a message
-# rather than starting something half-configured. See docs/deploy.md §11.
+# This starts the PostgreSQL database IPM needs, so you do not have to install
+# and configure PostgreSQL on your own machine. The application itself (the
+# FastAPI backend and the Next.js frontend) runs directly on your machine with
+# `scripts/dev.sh`, because that gives you instant reload when code changes.
 #
-# NOTE: DATABASE_URL from .env is deliberately IGNORED — it points at
-# localhost:5432, which inside a container means the container itself. The value
-# below targets the `db` service on the compose network instead.
+# What each service is:
+#
+#   db      PostgreSQL — the application, governance and metadata database.
+#           Holds users, projects, chats, analysis runs, traces, and the
+#           Engine Builder / Data Builder definitions. It does NOT hold the
+#           large monthly credit data; that lives in Parquet files under data/.
+#
+#   pgadmin A web page for browsing the database, if you ever want to look
+#           inside it. Entirely optional — start it with:
+#               docker compose --profile tools up -d
+#           then open http://localhost:5050
+#
+# To stop everything:            docker compose down
+# To stop AND erase the data:    docker compose down -v
 
 name: ipm
-
-# Shared by the app and bootstrap services so they can never drift apart.
-x-app-env: &app-env
-  ENV: prod
-  HOST: 0.0.0.0
-  PORT: 8050
-  DATABASE_URL: postgresql+psycopg://ipm_app:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/ipm
-  # Unset ⇒ ephemeral key ⇒ every user is logged out on each restart, and
-  # containers restart far more often than the NSSM service does.
-  SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env — python -c "import secrets; print(secrets.token_hex(32))"}
-  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-  # localhost inside the container is not your machine; host-gateway reaches an
-  # Ollama running on the host. Irrelevant if you only use the Anthropic model.
-  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-  MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
 
 services:
   db:
     image: postgres:16-alpine
+    container_name: ipm-postgres
     environment:
-      POSTGRES_USER: ipm_app
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: ipm
+      POSTGRES_USER: ${POSTGRES_USER:-ipm_app}
+      # No default: an unset password should fail loudly here rather than
+      # silently create a database you cannot connect to. Set it in .env.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env — copy .env.example to .env}
+      POSTGRES_DB: ${POSTGRES_DB:-ipm}
+      # Deterministic collation, so ORDER BY behaves identically on every machine.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      # Published so the backend running on your machine can reach it.
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-    # No published port: the database is reachable only on the compose network.
-    # Add `ports: ["5432:5432"]` temporarily if you need psql from the host.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ipm_app -d ipm"]
-      interval: 10s
+      # Compose waits for this before reporting the database as ready, so
+      # scripts/dev.sh never tries to migrate a database that is still starting.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ipm_app} -d ${POSTGRES_DB:-ipm}"]
+      interval: 5s
       timeout: 5s
-      retries: 10
-      start_period: 30s
+      retries: 20
+      start_period: 10s
     restart: unless-stopped
 
-  # One-shot: schema, then seed. Both are safe to repeat — alembic no-ops when
-  # already at head, and migrate_xlsx_to_pg.py no-ops once an active dataset
-  # version exists, so an uploaded dataset is never reverted to the bundled one.
-  # The app waits for this to exit 0, so a failed migration blocks a bad start.
-  bootstrap:
-    image: ipm-tool:0.1.0
-    build: .
-    command: sh -c "python -m alembic upgrade head && python scripts/migrate_xlsx_to_pg.py"
-    environment: *app-env
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: "no"
-
-  app:
-    image: ipm-tool:0.1.0
-    build: .
-    # Waitress, single process / 8 threads. The dataset lives in in-process
-    # globals, so this service must never be scaled past one replica — two would
-    # serve independently-cached, divergent views of the portfolio.
-    init: true
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: ipm-pgadmin
+    profiles: ["tools"]  # only starts with: docker compose --profile tools up -d
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@ipm.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
     ports:
-      - "${PORT:-8050}:8050"
-    environment: *app-env
-    volumes:
-      - logs:/app/logs
-      - uploads:/app/uploads
-    extra_hosts:
-      # host.docker.internal is built in on Docker Desktop; this adds it on Linux.
-      - "host.docker.internal:host-gateway"
+      - "${PGADMIN_PORT:-5050}:80"
     depends_on:
       db:
         condition: service_healthy
-      bootstrap:
-        condition: service_completed_successfully
-    # Healthcheck is inherited from the image (GET /healthz).
-    stop_grace_period: 30s
     restart: unless-stopped
 
 volumes:
   pgdata:
-  logs:
-  uploads:

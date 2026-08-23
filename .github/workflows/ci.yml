@@ -5,7 +5,8 @@ on:
   pull_request:
 
 jobs:
-  check:
+  backend:
+    name: Backend (lint + tests)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +22,40 @@ jobs:
       - name: Lint (ruff)
         run: uv run ruff check .
 
+      - name: Build the analytical data lake
+        # The Data Access Layer tests skip themselves when the lake is missing,
+        # which would quietly reduce coverage rather than fail. Building it here
+        # means those tests actually run against real Parquet on every push.
+        run: uv run python scripts/build_data_lake.py
+
       - name: Tests (pytest)
         # The suite is DB-free by design (conftest sets a dummy DATABASE_URL and
         # never connects), so no Postgres service is needed here.
         run: uv run pytest -q
+
+  frontend:
+    name: Frontend (typecheck + lint + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck (tsc)
+        run: npm run typecheck
+
+      - name: Lint (eslint)
+        run: npm run lint
+
+      - name: Production build (next build)
+        run: npm run build

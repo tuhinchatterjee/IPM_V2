@@ -31,3 +31,15 @@ dataset_*IMF*.xlsx
 .idea/
 Thumbs.db
 .DS_Store
+
+# --- Phase 1 additions ---
+.venv/
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+# Generated analytical layers — rebuilt from data/raw with scripts/build_data_lake.py.
+# data/raw IS committed (it is the source of truth for the demo).
+data/curated/*.parquet
+data/analytics/
+metadata/catalog.json

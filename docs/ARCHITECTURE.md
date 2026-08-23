@@ -45,7 +45,7 @@ and where it conflicts with the target.
 | Tool-calling AI grounded in `data_loader` (not raw data) | **The right architectural instinct** — the model already calls functions rather than seeing records. It is simply too small: 7 hardcoded tools, no planner, no trace. |
 | `tests/` — 12 suites incl. a golden master | Real test discipline. Keep and extend. |
 | CI (ruff + pytest on every push) | Keep. |
-| `Portfolio_Monitoring_Dataset.xlsx` — 11 quarterly snapshots (Q4 2023 → Q1 2026), ~652 facilities/quarter, 53 columns | **Excellent demo data.** Rich enough for genuine stage migration, rating transitions, DPD migration, ECL attribution and deterioration ranking. |
+| `Portfolio_Monitoring_Dataset.xlsx` — 10 quarterly snapshots (Q4 2023 → Q1 2026), 6,599 facility rows, 53 columns | **Excellent demo data.** Rich enough for genuine stage migration, rating transitions, DPD migration, ECL attribution and deterioration ranking. |
 
 ### 2.2 Conflicts with the target architecture
 

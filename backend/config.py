@@ -63,6 +63,20 @@ class Settings:
     database_url: str
     secret_key: str
 
+    # ---- API (FastAPI) ----
+    api_host: str
+    api_port: int
+    cors_origins: tuple[str, ...]
+
+    # ---- analytical data layers (see docs/ARCHITECTURE.md §4.2) ----
+    # raw:       source files exactly as received — never modified
+    # curated:   mapped to governed field names, typed, validated
+    # analytics: business-ready Parquet the engine reads through the DAL
+    raw_dir: Path
+    curated_dir: Path
+    analytics_dir: Path
+    metadata_dir: Path
+
     @property
     def is_prod(self) -> bool:
         return self.env.lower() == "prod"
@@ -74,6 +88,14 @@ class Settings:
     @property
     def max_upload_bytes(self) -> int:
         return self.max_upload_mb * 1024 * 1024
+
+    @property
+    def has_database(self) -> bool:
+        """False in environments where Postgres has not been configured yet. The
+        API degrades to a clearly-reported 'not configured' state rather than
+        failing to start, so a non-developer can boot the app before setting the
+        database up."""
+        return bool(self.database_url)
 
 
 def _load() -> Settings:
@@ -88,6 +110,15 @@ def _load() -> Settings:
         anthropic_api_key=_get("ANTHROPIC_API_KEY", ""),
         database_url=_get("DATABASE_URL", ""),
         secret_key=_get("SECRET_KEY", ""),
+        api_host=_get("API_HOST", "127.0.0.1"),
+        api_port=_int("API_PORT", 8000),
+        cors_origins=tuple(
+            o.strip() for o in _get("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()
+        ),
+        raw_dir=_resolve_dir(_get("DATA_RAW_DIR", "data/raw")),
+        curated_dir=_resolve_dir(_get("DATA_CURATED_DIR", "data/curated")),
+        analytics_dir=_resolve_dir(_get("DATA_ANALYTICS_DIR", "data/analytics")),
+        metadata_dir=_resolve_dir(_get("METADATA_DIR", "metadata")),
     )
 
 

@@ -50,12 +50,12 @@ weakness.
 | Styling | 2,279 lines of hand-written CSS; one light theme; literal-colour tokens |
 | Tests | 12 suites, including a 1e-11 golden master for the climate engine |
 | CI | GitHub Actions — ruff + pytest on every push |
-| Demo data | `Portfolio_Monitoring_Dataset.xlsx` — 11 quarterly snapshots (Q4 2023 → Q1 2026), ~652 facilities per quarter, **53 columns**, plus 390-row borrower supplementary and a 69-row field dictionary |
+| Demo data | `Portfolio_Monitoring_Dataset.xlsx` — 10 quarterly snapshots (Q4 2023 → Q1 2026), 6,599 facility rows in total, **53 columns**, plus 389 borrower supplementary rows and a field dictionary |
 | Absent | DuckDB, Trace, plans, Engine Builder, Data Builder, projects, blueprints, lenses, workflow, teams, documents, multi-theme |
 
 ### The demo data is good
 
-53 columns per facility across 11 quarters is genuinely rich. It carries snapshot date,
+53 columns per facility across 10 quarterly periods is genuinely rich. It carries snapshot date,
 customer and account IDs, obligor group, segment, sector, region, product, limit,
 exposure, undrawn, CCF, CCF-adjusted EAD, utilisation and prior utilisation,
 collateral, internal grade, risk rating **and prior risk rating**, rating bucket,
@@ -190,7 +190,7 @@ governed surface around it to prove the platform is real.
 | Capability | Tier | What it does on the day |
 |---|---|---|
 | **AI Cockpit / Ask IPM** | **A** | Ask a question, see interpretation → plan → progress → real result + narrative + follow-ups |
-| **Engine (10 functions)** | **A** | Real credit-risk maths on the real 11-quarter dataset, tested |
+| **Engine (10 functions)** | **A** | Real credit-risk maths on the real 10-period dataset, tested |
 | **Data layer: Parquet + DuckDB + DAL** | **A** | Real lake, real pushdown, storage genuinely swappable |
 | **Trace (view)** | **A** | Full interactive DAG, every node inspectable, on every result |
 | **Trace (modify)** | **B** | Four supported modification types, with preview, branch and selective re-run |

@@ -34,3 +34,16 @@ alembic==1.18.5
 psycopg[binary]==3.3.4
 flask-login==0.6.3
 argon2-cffi==25.1.0
+
+# ---- Phase 1: the API and the analytical store ----
+# FastAPI serves every capability to the Next.js frontend; Pydantic defines the
+# response contracts the TypeScript client mirrors.
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pydantic==2.13.4
+pydantic-settings==2.15.0
+# DuckDB queries the Parquet analytics layer. Imported ONLY by
+# backend/data_access/duckdb_source.py, so the engine stays storage-agnostic.
+duckdb==1.5.5
+# FastAPI's TestClient needs httpx at runtime of the test suite.
+httpx==0.28.1
