@@ -29,6 +29,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -40,6 +41,12 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+# Importing the core models registers `users`, `dataset_versions` and
+# `ai_usage_log` on the shared metadata. Several tables here carry a foreign key
+# to users.id, and SQLAlchemy can only resolve it if that Table object exists —
+# without this import, any flush touching those tables fails with
+# NoReferencedTableError depending purely on import order.
+from backend.db import models as _core_models  # noqa: F401
 from backend.db.base import Base
 
 # --------------------------------------------------------------------------
@@ -53,6 +60,21 @@ RUN_RUNNING = "running"
 RUN_SUCCEEDED = "succeeded"
 RUN_FAILED = "failed"
 RUN_REJECTED = "rejected"  # the plan failed validation and was never executed
+
+# Data Builder dataset lifecycle. A dataset becomes readable by the analytical
+# engine only at PUBLISHED — see backend/services/data_builder.py.
+DS_DRAFT = "draft"
+DS_MAPPED = "mapped"
+DS_VALIDATED = "validated"
+DS_PUBLISHED = "published"
+DS_ARCHIVED = "archived"
+DATASET_LIFECYCLE = [DS_DRAFT, DS_MAPPED, DS_VALIDATED, DS_PUBLISHED]
+
+# Field mapping outcomes.
+MAP_MAPPED = "mapped"
+MAP_UNMAPPED = "unmapped"
+MAP_IGNORED = "ignored"
+MAP_PROPOSED = "proposed"  # a new governed field the steward wants created
 
 CERT_CERTIFIED = "certified"
 CERT_USER_DEFINED = "user_defined"
@@ -396,7 +418,26 @@ class DatasetDefinition(Base):
     storage_location: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    # ---- Data Builder lifecycle (Phase 2) ----
+    # draft -> mapped -> validated -> published. Only `published` datasets are
+    # visible to the analytical engine.
+    lifecycle: Mapped[str] = mapped_column(String(24), nullable=False, default=DS_DRAFT)
+    # upload | bundled — `bundled` marks the datasets produced by the original
+    # scripts/build_data_lake.py path, which keeps working untouched.
+    source_type: Mapped[str] = mapped_column(String(24), nullable=False, default="upload")
+    published_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     fields: Mapped[list[FieldDefinition]] = relationship(
+        back_populates="dataset", cascade="all, delete-orphan"
+    )
+    uploads: Mapped[list[DatasetUpload]] = relationship(
+        back_populates="dataset", cascade="all, delete-orphan"
+    )
+    mappings: Mapped[list[FieldMapping]] = relationship(
+        back_populates="dataset", cascade="all, delete-orphan"
+    )
+    versions: Mapped[list[DataVersion]] = relationship(
         back_populates="dataset", cascade="all, delete-orphan"
     )
 
@@ -448,6 +489,122 @@ class DataQualityRule(Base):
     last_detail: Mapped[str] = mapped_column(Text, nullable=False, default="")
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+
+class DatasetUpload(Base):
+    """One uploaded source file, and what inspecting it found.
+
+    The uploaded bytes are written to the RAW layer and never modified. This row
+    records where they went, their checksum, and the automatic profile (columns,
+    inferred types, null rates, ranges) so the mapping screen has something to
+    show without re-reading the file.
+    """
+
+    __tablename__ = "dataset_uploads"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dataset_id: Mapped[int] = mapped_column(
+        ForeignKey("dataset_definitions.id", ondelete="CASCADE"), nullable=False
+    )
+    filename: Mapped[str] = mapped_column(Text, nullable=False)
+    file_format: Mapped[str] = mapped_column(String(16), nullable=False)  # csv | xlsx | parquet
+    sheet_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    raw_path: Mapped[str] = mapped_column(Text, nullable=False)
+    file_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    column_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    profile: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    uploaded_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    dataset: Mapped[DatasetDefinition] = relationship(back_populates="uploads")
+
+
+class FieldMapping(Base):
+    """One source column, and what it becomes in the governed model.
+
+    Mapping is kept separate from FieldDefinition on purpose: the dictionary
+    describes the *governed* field (what "EAD" means to the bank), while the
+    mapping records which of this file's columns supplies it. The same governed
+    field is fed by differently-named columns in different source systems.
+    """
+
+    __tablename__ = "field_mappings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dataset_id: Mapped[int] = mapped_column(
+        ForeignKey("dataset_definitions.id", ondelete="CASCADE"), nullable=False
+    )
+    source_column: Mapped[str] = mapped_column(String(300), nullable=False)
+    governed_field: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default=MAP_UNMAPPED)
+    # How confident the automatic suggestion was, 0-1. Null when set by hand.
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    dataset: Mapped[DatasetDefinition] = relationship(back_populates="mappings")
+
+    __table_args__ = (
+        UniqueConstraint("dataset_id", "source_column", name="uq_mapping_per_source_column"),
+    )
+
+
+class DatasetRelationship(Base):
+    """A governed join between two datasets, e.g. Portfolio.facility_id -> ECL.facility_id."""
+
+    __tablename__ = "dataset_relationships"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    from_dataset: Mapped[str] = mapped_column(String(160), nullable=False)
+    from_field: Mapped[str] = mapped_column(String(160), nullable=False)
+    to_dataset: Mapped[str] = mapped_column(String(160), nullable=False)
+    to_field: Mapped[str] = mapped_column(String(160), nullable=False)
+    cardinality: Mapped[str] = mapped_column(String(24), nullable=False, default="many_to_one")
+    # key | reporting_period — a reporting-period link is checked differently
+    # (the periods must align) from an identifier link (the values must exist).
+    kind: Mapped[str] = mapped_column(String(24), nullable=False, default="key")
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint(
+            "from_dataset", "from_field", "to_dataset", "to_field", name="uq_relationship"
+        ),
+    )
+
+
+class DataVersion(Base):
+    """An immutable published release of a dataset.
+
+    Publishing writes the curated Parquet and records this row. The raw upload is
+    never touched, so any published figure can always be re-derived from exactly
+    the bytes the source system sent.
+    """
+
+    __tablename__ = "data_versions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dataset_id: Mapped[int] = mapped_column(
+        ForeignKey("dataset_definitions.id", ondelete="CASCADE"), nullable=False
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    upload_id: Mapped[int | None] = mapped_column(
+        ForeignKey("dataset_uploads.id", ondelete="SET NULL"), nullable=True
+    )
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    field_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    periods: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    analytics_path: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    curated_path: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    catalog_snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    quality_report: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    published_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    dataset: Mapped[DatasetDefinition] = relationship(back_populates="versions")
+
+    __table_args__ = (UniqueConstraint("dataset_id", "version", name="uq_data_version"),)
 
 # ================================================================== stress
 

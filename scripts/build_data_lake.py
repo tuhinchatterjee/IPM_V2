@@ -141,6 +141,24 @@ EXTRA_DEFINITIONS = {
     ),
 }
 
+# Source columns whose header says "(%)" but whose values are stored as
+# FRACTIONS (0-1) rather than true percentages. Audited against the actual value
+# ranges in the workbook: ccf, utilisation and LGD top out at 1.0, while PD,
+# EIR and RAROC genuinely run to 100.
+#
+# These are multiplied by 100 at the CURATED boundary so a governed field always
+# means exactly what the catalogue says its unit is. Doing it here, once, is the
+# whole reason the curated layer exists: otherwise every calculation would have
+# to remember which "percentage" is really a fraction, and one that forgot would
+# report an LGD of 0.39% instead of 39%.
+FRACTION_TO_PERCENT = {
+    "CCF (%)",
+    "Utilisation (%)",
+    "Prev. Utilisation (%)",
+    "LGD (%)",
+    "ECL Coverage (%)",
+}
+
 # Fields carrying borrower-identifying information. Classified so the DAL and the
 # permission layer can restrict them independently of the numbers.
 CONFIDENTIAL_FIELDS = {"borrower_name", "customer_id", "account_id", "obligor_group", "owner_analyst"}
@@ -224,6 +242,27 @@ def build_field_defs(
 
 
 # ---------------------------------------------------------------- conversion
+
+
+def normalise_scales(df: pd.DataFrame, fields: list[dict]) -> tuple[pd.DataFrame, list[str]]:
+    """Convert fraction-valued percentage columns to true percentages.
+
+    Verified rather than assumed: a column is only rescaled if it is on the list
+    AND its observed maximum is at most 1.5. If a future extract already supplies
+    true percentages, this silently does nothing rather than dividing the book by
+    a hundred.
+    """
+    rescaled = []
+    by_governed = {f["name"]: f for f in fields}
+    for source_col in FRACTION_TO_PERCENT:
+        governed = FACILITY_FIELDS.get(source_col)
+        if governed is None or governed not in df.columns or governed not in by_governed:
+            continue
+        values = pd.to_numeric(df[governed], errors="coerce")
+        if values.notna().any() and float(values.max()) <= 1.5:
+            df[governed] = values * 100.0
+            rescaled.append(f"{governed} (from {source_col})")
+    return df, rescaled
 
 
 def coerce_types(df: pd.DataFrame, fields: list[dict]) -> pd.DataFrame:
@@ -349,6 +388,12 @@ def main() -> int:
 
     facility = coerce_types(facility, facility_fields)
     borrower = coerce_types(borrower, borrower_fields)
+
+    facility, rescaled = normalise_scales(facility, facility_fields)
+    if rescaled:
+        log(f"Rescaled {len(rescaled)} fraction-valued percentage field(s) to true percentages:")
+        for name in sorted(rescaled):
+            log(f"    {name}")
     log(f"{FACILITY_DATASET}: {len(facility):,} rows x {len(facility.columns)} governed fields")
     log(f"{BORROWER_DATASET}: {len(borrower):,} rows x {len(borrower.columns)} governed fields")
 
@@ -416,7 +461,9 @@ def main() -> int:
         "quality_findings": findings,
         "lineage": [
             {"step": "raw", "detail": f"data/raw/{SOURCE_WORKBOOK} — original file as received, never modified"},
-            {"step": "curated", "detail": "Source columns mapped to governed names; declared types enforced; quality rules run"},
+            {"step": "curated", "detail": "Source columns mapped to governed names; declared types enforced; "
+                                          "fraction-valued percentage columns (CCF, utilisation, LGD, ECL coverage) "
+                                          "rescaled to true percentages; quality rules run"},
             {"step": "analytics", "detail": "Parquet partitioned by reporting period; read by DuckDB through the Data Access Layer"},
         ],
     }

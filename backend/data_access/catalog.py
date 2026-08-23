@@ -17,6 +17,7 @@ the catalogue has to change when it does.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -24,6 +25,8 @@ from typing import Any
 
 from backend.config import settings
 from backend.data_access.protocol import UnknownDatasetError, UnknownFieldError
+
+logger = logging.getLogger(__name__)
 
 CATALOG_FILENAME = "catalog.json"
 
@@ -171,12 +174,52 @@ class Catalog:
 
     @classmethod
     def load(cls, path: Path | None = None) -> Catalog:
+        """The governed catalogue: bundled datasets plus every PUBLISHED one.
+
+        Two sources, one shape:
+
+          * `metadata/catalog.json` — written by scripts/build_data_lake.py. These
+            are the bundled datasets; that development path keeps working.
+          * PostgreSQL — datasets a steward onboarded through Data Builder and
+            published. **Only `published` ones appear here**, which is what stops
+            a draft or half-mapped dataset from ever reaching an analysis.
+
+        Database entries win on a name clash, because a steward republishing a
+        dataset is a deliberate act and should take effect.
+        """
+        datasets: dict[str, DatasetDef] = {}
+
         p = path or (settings.metadata_dir / CATALOG_FILENAME)
-        if not p.exists():
-            # An empty catalogue is a valid state before the lake is built. The
-            # /health endpoint reports it; nothing crashes.
-            return cls({})
-        return cls.from_dict(json.loads(p.read_text()))
+        if p.exists():
+            datasets.update(cls.from_dict(json.loads(p.read_text()))._datasets)
+
+        for entry in _published_entries_from_db():
+            datasets.update(cls.from_dict({"datasets": [entry]})._datasets)
+
+        # An empty catalogue is a valid state before anything is built. The
+        # /health endpoint reports it; nothing crashes.
+        return cls(datasets)
+
+
+def _published_entries_from_db() -> list[dict[str, Any]]:
+    """Catalogue entries for datasets published through Data Builder.
+
+    Deliberately defensive: the Data Access Layer must keep working with no
+    database configured at all (the test suite runs that way, and so does a first
+    boot before `docker compose up`). A database problem degrades the catalogue to
+    the bundled datasets rather than breaking every analysis.
+    """
+    if not settings.has_database:
+        return []
+    try:
+        from backend.db.engine import get_session
+        from backend.services.data_builder import dataset_catalog_entry, published_datasets
+
+        with get_session() as session:
+            return [dataset_catalog_entry(session, d) for d in published_datasets(session)]
+    except Exception as e:
+        logger.warning("Could not read published datasets from PostgreSQL: %s", e)
+        return []
 
 
 @lru_cache(maxsize=1)

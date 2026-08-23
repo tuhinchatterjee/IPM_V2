@@ -25,7 +25,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from backend.data_access.context import AnalysisContext
 from backend.engine.contracts import AnalysisContract, Category, Certification, ContractError
 
 logger = logging.getLogger(__name__)
@@ -65,9 +64,13 @@ class AnalysisResult:
         }
 
 
-# An engine function takes an explicit context and validated parameters, and
-# returns a structured result. No globals, no side effects, no LLM.
-EngineFunction = Callable[[AnalysisContext, dict[str, Any]], AnalysisResult]
+# An engine function takes one ExecutionContext — which carries the explicit
+# analysis context, the validated parameters, the governed reader and the trace
+# being written — and returns a structured result. No globals, no LLM.
+#
+# Typed loosely to avoid a circular import: execution.py imports the trace model,
+# which the registry does not need to know about.
+EngineFunction = Callable[[Any], AnalysisResult]
 
 
 class RegistryError(RuntimeError):

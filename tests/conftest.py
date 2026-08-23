@@ -6,15 +6,43 @@ but nothing here opens a database connection.)
 """
 
 import os
+from pathlib import Path
 
 import pytest
+from dotenv import load_dotenv
 
-# config.Settings requires these to import cleanly even though the tests never
-# connect to a database or an AI backend.
+# Prefer a real DATABASE_URL from .env when the developer has one, so the Data
+# Builder and Trace suites exercise a real PostgreSQL rather than skipping. On a
+# machine (or CI job) with no database, the dummy value below keeps config
+# importable and those suites skip themselves — see `database_available()`.
+load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://unused:unused@localhost:5432/unused")
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-key-not-used")
 
 from backend import data_loader as dl  # noqa: E402
+
+
+def database_available() -> bool:
+    """Whether PostgreSQL is actually reachable, not merely configured.
+
+    Configuration alone is not enough: the fallback URL above is syntactically
+    valid and points at a role that does not exist, so a suite gated on
+    `settings.has_database` would try to connect and fail instead of skipping.
+    """
+    from backend.config import settings
+
+    if not settings.has_database:
+        return False
+    try:
+        from sqlalchemy import text
+
+        from backend.db.engine import engine
+
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True
+    except Exception:
+        return False
 
 
 @pytest.fixture(scope="session")

@@ -55,10 +55,18 @@ def test_source_satisfies_the_protocol(source):
     assert isinstance(source, DataSource)
 
 
-def test_catalog_defines_the_datasets_on_disk(source):
-    catalog = get_catalog()
-    for name in source.datasets():
-        assert name in catalog.names(), f"{name} exists on disk but is not in the catalogue"
+def test_every_catalogued_dataset_has_data_on_disk(source):
+    """The invariant that matters to the engine: anything the catalogue offers must
+    actually be readable.
+
+    The reverse is deliberately not asserted. Files can be left on disk by a
+    dataset that was later unpublished or by a test run, and an orphaned
+    directory is untidy rather than dangerous — the catalogue is the gate, so an
+    uncatalogued directory is already invisible to every analysis.
+    """
+    on_disk = set(source.datasets())
+    for dataset in get_catalog().all():
+        assert dataset.name in on_disk, f"{dataset.name} is catalogued but has no data on disk"
 
 
 def test_every_catalogue_field_has_a_definition_and_type():

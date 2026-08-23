@@ -1,16 +1,20 @@
 """
-Registered analytical capabilities — one module per analysis.
+Registered analytical capabilities.
 
-Importing this package is what runs the @register decorators and populates the
-Engine Registry, so every new function module must be imported here.
+Importing this package runs the @register decorators and populates the Engine
+Registry, so every function module must be imported here.
 
-Phase 2 adds the ten certified analyses:
+Ten IPM Certified analyses, plus one deliberately USER_DEFINED example that
+demonstrates a user-built analysis running without a verification tick:
 
-    portfolio_summary        stage_distribution      stage_migration
-    dpd_migration            rating_transition       sector_concentration
-    ecl_movement             top_deteriorating       portfolio_trend
-    stress_basic
-
-Each will arrive with a declared AnalysisContract, an implementation built on the
-proven maths in backend/data_loader.py, and its own golden-value test suite.
+  portfolio.py   Portfolio Summary, Stage Distribution, Sector Concentration,
+                 Portfolio Trend
+  migration.py   Stage Migration, DPD Migration, Rating Transition Matrix,
+                 ECL Movement, Top Deteriorating Borrowers
+  stress.py      Basic Management Stress Scenario
+                 + High Utilisation Watchlist (USER_DEFINED)
 """
+
+from backend.engine.functions import migration, portfolio, stress  # noqa: F401
+
+__all__ = ["migration", "portfolio", "stress"]

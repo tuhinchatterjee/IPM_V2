@@ -72,6 +72,21 @@ select = ["E", "F", "I", "UP", "B"]
 # f-string literals are legitimately long. Every other E/F/I/UP/B check stays on.
 ignore = ["E501"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency-injection API is *designed* around calls in argument
+# defaults — Depends(), Query(), File() and Form() are how a route declares what
+# it needs. Ruff supports declaring them as immutable so B008 stops flagging the
+# framework's own idiom, which is better than suppressing the rule wholesale.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.File",
+    "fastapi.Form",
+]
+
 [tool.ruff.lint.isort]
 # `app` and `frontend` are the preserved Dash application's modules
 # (legacy/dash_app/), which its test suites import directly.
