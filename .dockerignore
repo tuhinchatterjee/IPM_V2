@@ -1,0 +1,50 @@
+# What Docker should NOT send to the build daemon.
+#
+# Keeping the build context small is the difference between a build that starts
+# instantly and one that spends a minute uploading a virtual environment.
+
+# ---- version control ----
+.git
+.gitignore
+
+# ---- secrets ----
+.env
+*.pem
+*.key
+
+# ---- python ----
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.ruff_cache
+*.egg-info
+
+# ---- node (the frontend is built from its own context) ----
+frontend
+node_modules
+
+# ---- generated analytical layers ----
+# data/raw IS sent: it is the source the container builds the lake from.
+# These two are rebuilt from it on first start, and are mounted from the host
+# at run time anyway.
+data/analytics
+data/curated
+metadata/catalog.json
+
+# ---- runtime output ----
+logs
+uploads
+backups
+
+# ---- not needed inside the image ----
+tests
+docs
+legacy
+.claude
+.vscode
+.idea
+.DS_Store
+Thumbs.db

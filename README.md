@@ -41,10 +41,151 @@ contract. Anything else is **rejected before execution**.
 
 ---
 
+## Run IPM on Windows with Docker — no Node.js or Python required
+
+**This is the easiest way to run IPM, and the one to use if your company blocks
+software installation.** Everything IPM needs — the interface, the analytics and
+the database — runs inside Docker. The only thing on your own machine is Docker
+Desktop.
+
+### Before you start
+
+Install **Docker Desktop** once, from
+https://www.docker.com/products/docker-desktop/, and open it. Wait until it says
+**Running** in the bottom-left corner. That is the only installation required.
+
+### Start IPM
+
+Open **PowerShell** (press Start, type `PowerShell`, press Enter), then:
+
+```powershell
+cd C:\Users\T.Chatterjee\IPM_V2
+docker compose up --build
+```
+
+Or use the helper script, which checks Docker first and tells you when IPM is
+actually ready rather than only started:
+
+```powershell
+cd C:\Users\T.Chatterjee\IPM_V2
+.\scripts\start-docker.ps1
+```
+
+### What to wait for
+
+The **first** run downloads the base images, installs everything and compiles the
+interface. **Expect 5 to 10 minutes.** Every run after that takes about 15
+seconds, because Docker reuses what it already built.
+
+You will see a lot of scrolling text. These are the lines that matter:
+
+```
+ipm-backend  | [ipm] PostgreSQL is ready.
+ipm-backend  | [ipm] Applying database migrations...
+ipm-backend  | [ipm] Database schema is up to date.
+ipm-backend  | [ipm] Building the analytical layer from data/raw (first run only, ~20 seconds)...
+ipm-backend  | [ipm] Analytical layer built.
+ipm-backend  | [ipm] Starting the IPM API on 0.0.0.0:8000
+ipm-frontend | ✓ Ready
+```
+
+When you see `Ready`, IPM is up.
+
+### Open it
+
+> ### http://localhost:3000
+
+Also available:
+
+| | |
+|---|---|
+| The application | http://localhost:3000 |
+| API health check | http://localhost:8000/api/v1/health |
+| API documentation | http://localhost:8000/docs |
+
+Everything works with no AI key: Ask IPM reads your questions with its own
+built-in planner and still runs the real analytical engine.
+
+### Stop it
+
+Press **Ctrl + C** in the PowerShell window, then:
+
+```powershell
+docker compose down
+```
+
+Or:
+
+```powershell
+.\scripts\stop-docker.ps1
+```
+
+Your database is kept, so your saved investigations are still there next time.
+To erase it and start completely fresh, use `.\scripts\stop-docker.ps1 -EraseData`
+(or `docker compose down -v`).
+
+### Rebuild after pulling new code
+
+```powershell
+git pull
+docker compose up --build
+```
+
+If something seems stale, force a clean rebuild:
+
+```powershell
+docker compose build --no-cache
+docker compose up
+```
+
+### If something goes wrong
+
+| What you see | What it means | What to do |
+|---|---|---|
+| `Cannot connect to the Docker daemon` | Docker Desktop is not running | Open Docker Desktop, wait for **Running**, try again |
+| `port is already allocated` | Something else is using port 3000 or 8000 | Close it, or set `WEB_PORT=3001` / `API_PORT=8001` in `.env` |
+| The page loads but says **Cannot reach the IPM backend** | The backend is still starting | Wait a minute. If it persists: `docker compose logs backend` |
+| `Could not connect to PostgreSQL after 60 seconds` | The database did not start | `docker compose logs db` |
+| The build fails downloading packages | A corporate proxy is inspecting HTTPS traffic | Ask IT for your proxy's certificate authority file, then see the note at the top of `docker/backend.Dockerfile` about the `PYTHON_IMAGE` and `NODE_IMAGE` build arguments |
+
+To see what every part is doing:
+
+```powershell
+docker compose logs -f
+```
+
+### How it fits together
+
+```
+your browser  ──►  frontend container (Next.js, port 3000)
+                        │  forwards /api/... over Docker's internal network
+                        ▼
+                   backend container (FastAPI, port 8000)
+                        │                       │
+                        ▼                       ▼
+                   db container            data\ on your machine
+                   (PostgreSQL)            (Parquet, read by DuckDB)
+```
+
+The browser only ever talks to **one** address, `localhost:3000`. The frontend
+passes API calls through to the backend inside Docker, so there is no second
+address to configure and nothing to get wrong. The analytical data stays in the
+`data\` folder in your repository rather than being copied into a container, so
+it is never duplicated and the Parquet layer IPM builds on first start is still
+there next time.
+
+---
+
 ## How to run IPM locally — for a non-developer
 
-Written for someone who does not write software. Every step is spelled out. If a
-step fails, the error message tells you exactly what to do.
+The alternative to Docker: IPM running directly on your machine, which gives
+instant reload when code changes. Written for someone who does not write
+software. Every step is spelled out. If a step fails, the error message tells
+you exactly what to do.
+
+> If you only want to *use* IPM rather than change it, use
+> [Run IPM on Windows with Docker](#run-ipm-on-windows-with-docker--no-nodejs-or-python-required)
+> above instead — it needs nothing installed but Docker Desktop.
 
 ### What you need to install first
 
@@ -249,6 +390,19 @@ Two log files hold the detail: **`logs/api-dev.log`** and **`logs/web-dev.log`**
 
 ---
 
+**With Docker (nothing installed but Docker Desktop):**
+
+| What you want | Command |
+|---|---|
+| Start everything | `docker compose up --build` |
+| Start in the background | `docker compose up --build -d` |
+| Watch what it is doing | `docker compose logs -f` |
+| Stop it | `docker compose down` |
+| Stop and erase the database | `docker compose down -v` |
+| Rebuild from scratch | `docker compose build --no-cache` |
+| Open a shell in the backend | `docker compose exec backend bash` |
+| Browse the database | `docker compose --profile tools up -d` then http://localhost:5050 |
+
 ## Repository structure
 
 ```
@@ -280,7 +434,9 @@ alembic/            database migrations
 tests/              engine, trace, data_access, api, and the legacy Dash suites
 legacy/dash_app/    the original Dash application, preserved and still tested
 docs/               product spec, architecture, demo scope
-scripts/            setup.sh, dev.sh, dev.ps1, check.sh, build_data_lake.py
+docker/             the Dockerfiles and the backend start-up script
+scripts/            setup.sh, dev.sh, dev.ps1, check.sh, build_data_lake.py,
+                    start-docker.ps1, stop-docker.ps1
 ```
 
 ### The import rule

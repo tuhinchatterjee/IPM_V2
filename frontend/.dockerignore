@@ -1,0 +1,16 @@
+# The frontend image installs its own packages and compiles from source, so the
+# host's node_modules and previous build output must not be copied in — they
+# would be the wrong platform's binaries and would mask a clean build.
+node_modules
+.next
+out
+
+.git
+.env
+.env.local
+
+npm-debug.log*
+tsconfig.tsbuildinfo
+
+.DS_Store
+Thumbs.db

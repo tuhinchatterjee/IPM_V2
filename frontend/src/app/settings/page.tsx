@@ -6,7 +6,7 @@ import { ROLES, RoleSwitcher, useRole } from "@/components/system/role-switcher"
 import { ThemeSwitcher } from "@/components/system/theme-switcher";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { API_BASE_URL } from "@/lib/api";
+import { API_DISPLAY_URL } from "@/lib/api";
 
 /**
  * Settings / Administration.
@@ -69,7 +69,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent>
           <code className="block rounded-md border border-border bg-surface-sunken px-4 py-3 font-mono text-xs text-text-primary">
-            {API_BASE_URL}
+            {API_DISPLAY_URL}
           </code>
         </CardContent>
       </Card>

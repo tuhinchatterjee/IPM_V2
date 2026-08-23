@@ -13,6 +13,17 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
+/**
+ * The same address, written for a person to read.
+ *
+ * When IPM runs in Docker the base URL is deliberately empty: the browser calls
+ * this page's own origin and the Next.js server forwards it to the backend
+ * container. An empty string is correct for `fetch` and useless in a sentence,
+ * so anything shown to a user goes through this instead.
+ */
+export const API_DISPLAY_URL =
+  API_BASE_URL || "this page's own address, forwarded to the IPM backend";
+
 const API_PREFIX = "/api/v1";
 const DEFAULT_TIMEOUT_MS = 20_000;
 
@@ -689,7 +700,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     throw new ApiError(
       aborted
         ? `The backend did not respond within ${timeoutMs / 1000} seconds.`
-        : `Cannot reach the IPM backend at ${API_BASE_URL}. Is it running?`,
+        : `Cannot reach the IPM backend at ${API_DISPLAY_URL}. Is it running?`,
       0,
       aborted ? "timeout" : "network_error",
     );

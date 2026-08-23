@@ -1,56 +1,154 @@
-# IPM — local development services.
+# =============================================================================
+# IPM — the complete application, in Docker.
+# =============================================================================
 #
-#   docker compose up -d
+#     docker compose up --build          start everything
+#     open http://localhost:3000
 #
-# This starts the PostgreSQL database IPM needs, so you do not have to install
-# and configure PostgreSQL on your own machine. The application itself (the
-# FastAPI backend and the Next.js frontend) runs directly on your machine with
-# `scripts/dev.sh`, because that gives you instant reload when code changes.
+# Nothing needs to be installed on your machine except Docker Desktop. Node.js,
+# Python and PostgreSQL all live inside the containers.
 #
 # What each service is:
 #
-#   db      PostgreSQL — the application, governance and metadata database.
-#           Holds users, projects, chats, analysis runs, traces, and the
-#           Engine Builder / Data Builder definitions. It does NOT hold the
-#           large monthly credit data; that lives in Parquet files under data/.
+#   db        PostgreSQL — users, projects, analysis runs, traces, and the
+#             Engine Builder / Data Builder definitions. It does NOT hold the
+#             large monthly credit data; that lives in Parquet files under data/.
 #
-#   pgadmin A web page for browsing the database, if you ever want to look
-#           inside it. Entirely optional — start it with:
-#               docker compose --profile tools up -d
-#           then open http://localhost:5050
+#   backend   The FastAPI API, the analytical engine, and DuckDB reading the
+#             Parquet layer. On first start it applies the database migrations
+#             and builds the Parquet layer from data/raw.
 #
-# To stop everything:            docker compose down
+#   frontend  The Next.js interface. It also forwards the browser's /api calls
+#             to the backend over the internal Docker network, so the browser
+#             only ever talks to one address.
+#
+#   pgadmin   Optional web page for browsing the database:
+#                 docker compose --profile tools up -d
+#             then open http://localhost:5050
+#
+# To stop:                       docker compose down
 # To stop AND erase the data:    docker compose down -v
 
 name: ipm
 
 services:
+  # ---------------------------------------------------------------- database
   db:
     image: postgres:16-alpine
     container_name: ipm-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ipm_app}
-      # No default: an unset password should fail loudly here rather than
-      # silently create a database you cannot connect to. Set it in .env.
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env — copy .env.example to .env}
+      # A local development default so `docker compose up` works on a fresh
+      # clone with no setup. This database is reachable only from inside Docker
+      # and from this machine — see the port binding below. Override it in .env
+      # if you would rather choose your own.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ipm_local_dev}
       POSTGRES_DB: ${POSTGRES_DB:-ipm}
       # Deterministic collation, so ORDER BY behaves identically on every machine.
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     ports:
-      # Published so the backend running on your machine can reach it.
-      - "${POSTGRES_PORT:-5432}:5432"
+      # Bound to 127.0.0.1, so the database is reachable from this machine (for
+      # scripts/dev.sh and pgAdmin) but never from the network around it.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      # Compose waits for this before reporting the database as ready, so
-      # scripts/dev.sh never tries to migrate a database that is still starting.
+      # The backend waits for this before it tries to migrate, so it never runs
+      # against a database that is still starting up.
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ipm_app} -d ${POSTGRES_DB:-ipm}"]
       interval: 5s
       timeout: 5s
       retries: 20
       start_period: 10s
+    networks: [ipm]
     restart: unless-stopped
 
+  # ----------------------------------------------------------------- backend
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    image: ipm-backend
+    container_name: ipm-backend
+    environment:
+      # Built from the parts rather than taken from .env: inside Docker the
+      # database is reached at the service name `db`, and a DATABASE_URL in .env
+      # will say `localhost`, which inside a container means the container
+      # itself. Setting it here explicitly is what stops that mistake.
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ipm_app}:${POSTGRES_PASSWORD:-ipm_local_dev}@db:5432/${POSTGRES_DB:-ipm}
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-ipm_app}
+
+      # Listen on every interface inside the container, or Docker cannot forward
+      # port 8000 to it.
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      ENV: ${ENV:-dev}
+
+      # The browser reaches the API through the frontend's proxy, so no
+      # cross-origin request is made. These are here for anyone who opens
+      # http://localhost:8000/docs directly.
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+
+      # Optional. With no key, Ask IPM plans questions with its own
+      # deterministic planner (DEMO_MODE) and still runs the real engine.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SECRET_KEY: ${SECRET_KEY:-local-dev-not-a-real-secret}
+    volumes:
+      # The analytical data, mounted rather than copied: no duplication of large
+      # files, and the Parquet layer the container builds on first start stays
+      # on your machine for next time.
+      - ./data:/app/data
+      - ./metadata:/app/metadata
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # Defined in the image (docker/healthcheck.py) and repeated here so the
+      # timings are visible where the stack is described. Generous, because the
+      # first start also runs the migrations and builds the Parquet layer
+      # before the API answers.
+      test: ["CMD", "python", "/usr/local/bin/ipm-healthcheck.py"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+    networks: [ipm]
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../docker/frontend.Dockerfile
+      args:
+        # Empty on purpose — the browser calls this application's own origin and
+        # Next.js forwards it. See the rewrite in frontend/next.config.ts.
+        NEXT_PUBLIC_API_URL: ""
+        # Where that forwarding goes. Next.js fixes rewrite destinations during
+        # the build, so this has to be supplied here and not only at run time.
+        BACKEND_INTERNAL_URL: http://backend:8000
+    image: ipm-frontend
+    container_name: ipm-frontend
+    environment:
+      # Where the Next.js server forwards /api calls. A Docker service name,
+      # resolved on the internal network — never visible to the browser.
+      BACKEND_INTERNAL_URL: http://backend:8000
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [ipm]
+    restart: unless-stopped
+
+  # ------------------------------------------------- optional database browser
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: ipm-pgadmin
@@ -60,11 +158,16 @@ services:
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
       PGADMIN_CONFIG_SERVER_MODE: "False"
     ports:
-      - "${PGADMIN_PORT:-5050}:80"
+      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
     depends_on:
       db:
         condition: service_healthy
+    networks: [ipm]
     restart: unless-stopped
+
+networks:
+  ipm:
+    driver: bridge
 
 volumes:
   pgdata:
