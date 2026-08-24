@@ -418,17 +418,57 @@ export interface PlanStepDef {
   params: Record<string, unknown>;
   filters: Record<string, unknown>;
   period: string | null;
+  /** Exactly one step answers the question; the rest only help explain it. */
+  role?: "primary" | "supporting";
+}
+
+/** How IPM read the question. Recorded so a misreading is visible. */
+export interface PlanScope {
+  focus: string;
+  dimension: string | null;
+  output: string;
+  period_requirement: string;
+  period_specified: boolean;
+  from_period: string | null;
+  to_period: string | null;
+  period_source: string;
+  filters: Record<string, unknown>;
 }
 
 export interface PlanDef {
   question: string;
   intent: string;
+  scope?: PlanScope;
   steps: PlanStepDef[];
   planner: string;
   model_name: string | null;
   follow_ups: string[];
   unmatched: boolean;
   notes: string[];
+}
+
+/** One option on a clarification, already resolved to real reporting periods. */
+export interface PeriodOption {
+  id: string;
+  label: string;
+  from_period: string;
+  to_period: string;
+  detail: string;
+}
+
+/**
+ * A question IPM asks back instead of guessing.
+ *
+ * Returned in place of an answer when the analysis spans time and the question
+ * did not say which periods to compare.
+ */
+export interface Clarification {
+  kind: string;
+  question: string;
+  detail: string;
+  options: PeriodOption[];
+  because: string;
+  allow_custom: boolean;
 }
 
 export interface ExecutedStep {
@@ -449,6 +489,7 @@ export interface ExecutedStep {
   trace: TraceGraph | null;
   node_hashes: Record<string, string>;
   reused: boolean;
+  role?: "primary" | "supporting";
 }
 
 export interface NarrativeMetric {
@@ -479,8 +520,15 @@ export interface NarrativeDriver {
 }
 
 export interface Narrative {
+  /** One sentence answering the question. Every figure came from the engine. */
+  direct_answer?: string;
+  /** Equals direct_answer; kept for callers written before the split. */
   summary: string;
   findings: NarrativeFinding[];
+  /** IPM's reading of the figures, as a paragraph. Never a calculation. */
+  interpretation?: string;
+  /** The same reading as discrete points. */
+  interpretation_points?: string[];
   metrics: NarrativeMetric[];
   drivers: NarrativeDriver[];
   caveats: string[];
@@ -510,6 +558,8 @@ export interface InvestigationResponse {
   intent: string;
   steps: ExecutedStep[];
   narrative: Narrative;
+  /** Set when IPM stopped to ask rather than answering. */
+  clarification: Clarification | null;
   follow_ups: string[];
   notes: string[];
   unmatched: boolean;
@@ -739,6 +789,196 @@ export interface ExecuteOptions {
   persist?: boolean;
 }
 
+
+// ======================================================== workspace and review
+
+/** A saved investigation: a question with a name, an owner and versions. */
+export interface SavedInvestigationSummary {
+  id: number;
+  title: string;
+  question: string;
+  status: string;
+  project_id: number | null;
+  owner_id: number | null;
+  version: number;
+  answer: string;
+  change_narrative: string;
+  from_period: string | null;
+  to_period: string | null;
+  analysis_run_id: number | null;
+  updated_at: string | null;
+}
+
+export interface InvestigationVersionRow {
+  version: number;
+  analysis_run_id: number | null;
+  from_period: string | null;
+  to_period: string | null;
+  change_narrative: string;
+  created_at: string | null;
+}
+
+/** One headline figure, before and after a refresh. */
+export interface MetricChangeRow {
+  label: string;
+  unit: string;
+  before: number | null;
+  after: number | null;
+  change: number | null;
+  direction: Direction;
+  moved: boolean;
+}
+
+export interface SavedInvestigation extends SavedInvestigationSummary {
+  scope: PlanScope | Record<string, never>;
+  versions: InvestigationVersionRow[];
+  narrative: Narrative | Record<string, never>;
+  changes: MetricChangeRow[];
+  created_at: string | null;
+}
+
+export interface WorkflowEventRow {
+  from_state: string | null;
+  to_state: string;
+  to_state_label: string;
+  actor_id: number | null;
+  comment: string;
+  created_at: string | null;
+}
+
+export interface WorkflowItemRow {
+  id: number;
+  object_type: string;
+  object_type_label?: string;
+  object_id: string;
+  title: string;
+  state: string;
+  state_label: string;
+  requested_by: number | null;
+  assigned_to: number | null;
+  due_at: string | null;
+  updated_at: string | null;
+}
+
+export interface WorkflowDetail extends WorkflowItemRow {
+  created_at: string | null;
+  events: WorkflowEventRow[];
+  next_states: string[];
+  next_state_labels: Record<string, string>;
+}
+
+export interface WorkflowInbox {
+  my_work: WorkflowItemRow[];
+  sent_by_me: WorkflowItemRow[];
+  completed: WorkflowItemRow[];
+  states: Record<string, string>;
+  reviewable: Record<string, string>;
+}
+
+export interface CommentRow {
+  id: number;
+  object_type: string;
+  object_id: string;
+  parent_id: number | null;
+  body: string;
+  resolved: boolean;
+  author_id: number | null;
+  created_at: string | null;
+}
+
+export interface NotificationRow {
+  id: number;
+  kind: string;
+  title: string;
+  body: string;
+  object_type: string;
+  object_id: string;
+  actor_id: number | null;
+  read: boolean;
+  created_at: string | null;
+}
+
+// ========================================================== the control plane
+
+/** One governed purpose, and the dataset currently answering it. */
+export interface PurposeResolution {
+  purpose: string;
+  description: string;
+  resolved: boolean;
+  dataset: string | null;
+  origin: string | null;
+  is_demo: boolean;
+  family: string;
+  alternatives: string[];
+  message: string | null;
+}
+
+export interface ControlPlane {
+  purposes: PurposeResolution[];
+  using_demo_data: boolean;
+  unresolved: string[];
+}
+
+export interface DatasetFamily {
+  family: string;
+  datasets: {
+    name: string;
+    business_name: string;
+    origin: string;
+    lifecycle: string;
+    authoritative_for: string[];
+  }[];
+  has_client_data: boolean;
+}
+
+export interface DependantRow {
+  kind: string;
+  name: string;
+  detail: string;
+}
+
+export interface UsedBy {
+  dataset: string;
+  dependants: DependantRow[];
+  blocking: DependantRow[];
+  safe_to_archive: boolean;
+}
+
+/** One column, and the governed field IPM thinks it supplies. */
+export interface HarmonisationProposal {
+  source_column: string;
+  source_type: string;
+  governed_field: string | null;
+  confidence: number;
+  confident: boolean;
+  reasons: string[];
+  concerns: string[];
+  alternatives: string[];
+  basis: string;
+}
+
+export interface Harmonisation {
+  dataset: string;
+  proposals: HarmonisationProposal[];
+  counts?: {
+    columns: number;
+    confident: number;
+    needs_a_decision: number;
+    unmatched: number;
+  };
+  message: string;
+  rule?: string;
+}
+
+/** An answer from a metadata assistant. Never a portfolio figure. */
+export interface AssistantAnswer {
+  text: string;
+  references: { kind: string; name: string; dataset?: string }[];
+  source: "lookup" | "model";
+  unanswered_reason: string;
+  rule: string;
+}
+
 export const api = {
   // ---- system ----
   health: (timeoutMs?: number) =>
@@ -785,7 +1025,16 @@ export const api = {
   briefing: () => request<Briefing>("/ask/briefing", { timeoutMs: 60_000 }),
   recentInvestigations: (limit = 8) =>
     request<{ investigations: RecentInvestigation[] }>(`/ask/recent?limit=${limit}`),
-  ask: (question: string, options: { projectId?: number; chatId?: number } = {}) =>
+  ask: (
+    question: string,
+    options: {
+      projectId?: number;
+      chatId?: number;
+      /** Set after the user answers a period clarification. */
+      fromPeriod?: string;
+      toPeriod?: string;
+    } = {},
+  ) =>
     request<InvestigationResponse>("/ask", {
       method: "POST",
       body: JSON.stringify({
@@ -793,6 +1042,8 @@ export const api = {
         project_id: options.projectId ?? null,
         chat_id: options.chatId ?? null,
         persist: true,
+        from_period: options.fromPeriod ?? null,
+        to_period: options.toPeriod ?? null,
       }),
       // An investigation can run up to five analyses over two periods each.
       timeoutMs: 120_000,
@@ -897,4 +1148,129 @@ export const api = {
     request<{ dataset: string; count: number; versions: DataVersionRow[] }>(
       `/data-builder/datasets/${name}/versions`,
     ),
+
+  // ---- workspace: saved investigations ----
+  savedInvestigations: (params: { projectId?: number; ownerId?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (params.projectId !== undefined) query.set("project_id", String(params.projectId));
+    if (params.ownerId !== undefined) query.set("owner_id", String(params.ownerId));
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<{ investigations: SavedInvestigationSummary[] }>(
+      `/workspace/investigations${suffix}`,
+    );
+  },
+  saveInvestigation: (payload: {
+    question: string;
+    title?: string;
+    projectId?: number;
+    fromPeriod?: string;
+    toPeriod?: string;
+  }) =>
+    request<SavedInvestigation>("/workspace/investigations", {
+      method: "POST",
+      body: JSON.stringify({
+        question: payload.question,
+        title: payload.title ?? "",
+        project_id: payload.projectId ?? null,
+        from_period: payload.fromPeriod ?? null,
+        to_period: payload.toPeriod ?? null,
+      }),
+      timeoutMs: 120_000,
+    }),
+  savedInvestigation: (id: number, version?: number) =>
+    request<SavedInvestigation>(
+      `/workspace/investigations/${id}${version ? `?version=${version}` : ""}`,
+    ),
+  refreshInvestigation: (id: number, period?: { from: string; to: string }) =>
+    request<SavedInvestigation>(`/workspace/investigations/${id}/refresh`, {
+      method: "POST",
+      body: JSON.stringify({
+        from_period: period?.from ?? null,
+        to_period: period?.to ?? null,
+      }),
+      timeoutMs: 120_000,
+    }),
+
+  // ---- workspace: review, comments, notifications ----
+  workflowInbox: () => request<WorkflowInbox>("/workspace/workflow/inbox"),
+  submitForReview: (payload: {
+    objectType: string;
+    objectId: string;
+    title: string;
+    assignedTo?: number;
+    note?: string;
+  }) =>
+    request<WorkflowDetail>("/workspace/workflow", {
+      method: "POST",
+      body: JSON.stringify({
+        object_type: payload.objectType,
+        object_id: payload.objectId,
+        title: payload.title,
+        assigned_to: payload.assignedTo ?? null,
+        note: payload.note ?? "",
+      }),
+    }),
+  workflowItem: (id: number) => request<WorkflowDetail>(`/workspace/workflow/${id}`),
+  moveWorkflow: (id: number, toState: string, comment = "") =>
+    request<WorkflowDetail>(`/workspace/workflow/${id}/transition`, {
+      method: "POST",
+      body: JSON.stringify({ to_state: toState, comment }),
+    }),
+  comments: (objectType: string, objectId: string) =>
+    request<{ comments: CommentRow[] }>(`/workspace/comments/${objectType}/${objectId}`),
+  addComment: (objectType: string, objectId: string, body: string, notifyUserId?: number) =>
+    request<CommentRow>(`/workspace/comments/${objectType}/${objectId}`, {
+      method: "POST",
+      body: JSON.stringify({ body, notify_user_id: notifyUserId ?? null }),
+    }),
+  notifications: (unreadOnly = false) =>
+    request<{ notifications: NotificationRow[]; unread: number }>(
+      `/workspace/notifications${unreadOnly ? "?unread_only=true" : ""}`,
+    ),
+  markNotificationsRead: (id?: number) =>
+    request<{ marked: number; unread: number }>(
+      `/workspace/notifications/read${id ? `?notification_id=${id}` : ""}`,
+      { method: "POST" },
+    ),
+
+  // ---- the data control plane ----
+  controlPlane: () => request<ControlPlane>("/data-builder/control-plane"),
+  datasetFamilies: () => request<{ families: DatasetFamily[] }>("/data-builder/families"),
+  datasetUsedBy: (name: string) => request<UsedBy>(`/data-builder/datasets/${name}/used-by`),
+  syncBundled: () =>
+    request<{ synced: string[]; skipped: string[]; message: string }>(
+      "/data-builder/sync-bundled",
+      { method: "POST" },
+    ),
+  setDatasetOrigin: (name: string, origin: string) =>
+    request<{ dataset: string; origin: string }>(`/data-builder/datasets/${name}/origin`, {
+      method: "POST",
+      body: JSON.stringify({ origin }),
+    }),
+  setAuthoritative: (name: string, purposes: string[]) =>
+    request<{ dataset: string; authoritative_for: string[]; displaced_demo_datasets: string[] }>(
+      `/data-builder/datasets/${name}/authoritative`,
+      { method: "POST", body: JSON.stringify({ purposes }) },
+    ),
+  harmonise: (name: string) =>
+    request<Harmonisation>(`/data-builder/datasets/${name}/harmonise`),
+  acceptHarmonisation: (name: string, accepted: Record<string, string>) =>
+    request<{ dataset: string; accepted: number; still_unmapped: number }>(
+      `/data-builder/datasets/${name}/harmonise/accept`,
+      { method: "POST", body: JSON.stringify({ accepted }) },
+    ),
+
+  // ---- the metadata assistants ----
+  askDataBuilder: (question: string) =>
+    request<AssistantAnswer>("/data-builder/assistant", {
+      method: "POST",
+      body: JSON.stringify({ question }),
+      timeoutMs: 60_000,
+    }),
+  askEngineBuilder: (question: string) =>
+    request<AssistantAnswer>("/engine/assistant", {
+      method: "POST",
+      body: JSON.stringify({ question }),
+      timeoutMs: 60_000,
+    }),
 };
