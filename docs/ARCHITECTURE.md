@@ -192,6 +192,39 @@ quality rules, which transform. Data Builder's Lineage view reads that record.
 way to answer is to re-derive it from exactly what the source system sent. An
 overwritten raw file makes that impossible.
 
+### 4.2b Governed purposes, and how demo data is replaced
+
+An engine function does not name a file, and it does not really name a dataset. It
+names a **governed purpose** — `credit_facility_position`, `borrower_financials` — and
+`backend/data_access/authority.py` resolves that purpose to whichever published dataset
+is marked **authoritative** for it.
+
+Resolution has exactly three outcomes, and there is no fourth branch where something
+plausible is substituted:
+
+| Situation | Outcome |
+|---|---|
+| A client dataset is authoritative | Use it |
+| Only IPM's bundled demonstration data is authoritative | Use it, and **say** it is demo data |
+| Neither | **Refuse**, and say what is missing |
+
+Client data always outranks demonstration data for the same purpose. When a steward
+marks a client dataset authoritative in Data Builder, every certified analysis follows
+immediately — no analysis code changes — and the redirect is recorded on the Trace's
+DATASET node with its reason. That is why "IPM is quietly still reading the demo book"
+is not a state the product can be in without saying so.
+
+Each dataset also carries an **origin** (`demo` / `client` / `supplementary`) and a
+**family**. The family is what makes replacing one dataset with another a governed act
+rather than an unrelated table appearing: `backend/services/governance.py` compares the
+two schemas field by field and refuses a replacement that drops a field the outgoing
+dataset supplies, unless the caller acknowledges exactly what is lost.
+
+**Dependency checks.** Before a dataset is archived, IPM lists what reads it — the
+purposes it is the only authoritative source for, the certified analyses that would
+stop being answerable, the relationships joining to it, and the saved investigations
+produced from it. An archive with blocking dependants is refused until acknowledged.
+
 ### 4.3 Dataset versioning
 
 Today's model — one `DatasetVersion` per uploaded workbook, exactly one `active` at a
@@ -474,4 +507,12 @@ theme work starts rather than alongside it.
 | Trace modification | For each supported modification: correct nodes marked affected, correct nodes re-executed, unaffected results reused, original version unchanged. |
 | DAL | The same query against DuckDB and against in-memory pandas returns identical results — this is what proves the abstraction holds. |
 | Climate engine | The existing golden master stays, unchanged, at 1e-11. |
+| Question scoping | One PRIMARY step per plan, and it is the one that answers the question. A narrow question returns one analysis, not a briefing. |
+| Period clarification | A two-period analysis with no governed default and no period in the question RETURNS A QUESTION rather than an answer; a point-in-time question is never interrogated; every option offered resolves to two real published periods. |
+| Fact vs interpretation | Every answer carries a `direct_answer` whose figures came from an engine result, and interpretation stated separately. The interpretation may not assert causation. |
+| Saved investigations | A refresh re-executes rather than reloading; identical figures are reported as recalculated, not copied; a metric present on only one side is not reported as a movement. |
+| Workflow | Every permitted transition is taken and every forbidden one is refused with the list of what is allowed; the event history is append-only; the reviewer and the requester are each notified at the right moment. |
+| Data control plane | Archiving the only authoritative source for a purpose is refused and names the analyses that would break; an incompatible replacement is refused; a steward's client-data marking survives a re-sync of the bundled catalogue. |
+| Metadata assistants | They answer from governed metadata, refuse a portfolio question and send it to Ask IPM, and report an undefined field as undefined rather than guessing. |
 | UI | Route registry completeness; every theme defines every token; no literal colours in component CSS. |
+| Themes | Per theme, on that theme's own surfaces: body text ≥ 7:1, secondary ≥ 4.5:1, every status colour legible on the surface AND on its own tint, every chart slot ≥ 2.6:1 on the surface, and adjacent chart slots ≥ 18 ΔE apart in CIELAB. |
