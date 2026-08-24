@@ -213,30 +213,46 @@ Every analytical result in IPM has a **Trace** button in its top-right corner.
 ### 4.2 The conceptual chain
 
 ```
-USER PROMPT
+USER QUESTION
      ↓
-LLM INTERPRETATION
+INTERPRETATION OF THE QUESTION      ← what IPM understood was being asked
      ↓
 INVESTIGATION PLAN
      ↓
-DATASETS
+DATA DOMAIN                         ← the governed purpose, and how it resolved
      ↓
-VARIABLES
+DATASET  (family · version · period · origin)
      ↓
-FILTERS
+VARIABLES  (governed field, business name, unit, definition)
      ↓
-INTERMEDIATE AGGREGATIONS
+FILTERS  (rows before → rows after)
      ↓
-IPM ENGINE FUNCTIONS
+TRANSFORMATIONS
      ↓
-FINAL CALCULATIONS
+AGGREGATIONS
      ↓
-RESULT DATA
+CERTIFIED ENGINE FUNCTION  (id · version · certification)
      ↓
-LLM INTERPRETATION
+RESULT
      ↓
-CHARTS / TABLES / NARRATIVE
+INTERPRETATION OF THE RESULT        ← the answer, and IPM's reading of it
+     ↓
+VISUAL
 ```
+
+**The two interpretations are different things and the map names them separately.**
+The first happens BEFORE anything is computed and is answerable to the question: did
+IPM understand what was asked, and did it choose the right periods and filters? The
+second happens AFTER the engine has run and is answerable to the result: does the
+reading follow from the figures?
+
+The result node itself carries both a **direct answer**, whose every figure was quoted
+unchanged from an engine result, and IPM's **reading** of those figures, marked as
+interpretation. The reading may describe where a movement sits; it may not claim what
+caused it, because a decomposition is not an attribution of cause.
+
+Neither interpretive node contains chain-of-thought. There is none to show: the planner
+selects from a fixed library and the figures come from tested code.
 
 The chain is a simplification. A real analysis **branches and re-joins**:
 
@@ -418,14 +434,18 @@ A **design-token** system: the interface is written against semantic role names
 (`--surface`, `--text-primary`, `--accent`, `--negative`, `--chart-1`), never literal
 colours. A theme is one set of values for those roles.
 
-Four premium themes:
+Eight premium themes — four light, four dark:
 
-| Theme | Character |
-|---|---|
-| **Executive Light** | Default. Paper-like, high contrast, print-credible. |
-| **Midnight** | Deep navy-black. For long analytical sessions and presentation rooms. |
-| **Graphite** | Neutral dark grey. Sober, engineering-toned, low chroma. |
-| **Warm Institutional** | Warm off-white and ink. Traditional, document-like, boardroom-paper feel. |
+| Theme | Mode | Character |
+|---|---|---|
+| **Executive Ivory** | Light | Default. Paper-like, high contrast, print-credible. |
+| **Warm Sand** | Light | Warm off-white and ink. Traditional, document-like. |
+| **Alpine** | Light | Cool glacial light with a deep teal accent. The crispest. |
+| **Porcelain** | Light | Near-white, almost chroma-free. Only the data is saturated. |
+| **Midnight Boardroom** | Dark | Deep navy-black. Long sessions and presentation rooms. |
+| **Graphite** | Dark | Neutral dark grey. Sober, engineering-toned, low chroma. |
+| **Oxblood** | Dark | Deep wine and brass. Warm and closed; the panelled room. |
+| **Forest** | Dark | Deep pine with a eucalyptus accent. The calmest at low light. |
 
 Themes may change: background, surface, elevated surface, border, text, muted text,
 accent, positive, warning, negative, and the chart palette.
@@ -433,8 +453,24 @@ accent, positive, warning, negative, and the chart palette.
 Themes must **not** change: layout, typography system, spacing scale, hierarchy, or
 interaction model. Switching theme changes how the product looks, never how it works.
 
+Every palette is **asserted, not judged by eye**. `tests/frontend/test_theme_contrast.py`
+reads `globals.css` and checks, per theme: body text at 7:1 and secondary at 4.5:1 on
+that theme's own surfaces; every status colour legible both on the surface and on its
+own tint; every chart slot separated from the surface it is drawn on; and adjacent chart
+slots separated perceptually in CIELAB rather than by contrast ratio — a good categorical
+palette is deliberately close in lightness, so a luminance test would fail exactly the
+palettes that are correct.
+
 A **Theme Gallery** under Settings lets a user preview and select their theme; the
-choice is stored per user.
+choice is stored per user. The header carries a one-click switcher grouped by light and
+dark.
+
+### Explanation without furniture
+
+A screen opens on its title and its content. The paragraph explaining what the screen is
+for lives behind a small **"i"** next to the title, not underneath it. Fourteen screens
+of standfirst is fourteen paragraphs between a reader and the figures, read once and
+skipped for ever after.
 
 ---
 
