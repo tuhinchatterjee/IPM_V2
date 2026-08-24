@@ -76,6 +76,20 @@ MAP_UNMAPPED = "unmapped"
 MAP_IGNORED = "ignored"
 MAP_PROPOSED = "proposed"  # a new governed field the steward wants created
 
+# A saved investigation's lifecycle. LIVE means it is expected to be kept
+# current; ARCHIVED means it is kept for the record and no longer refreshed.
+INV_LIVE = "live"
+INV_ARCHIVED = "archived"
+
+# Workflow states, as one vocabulary rather than three copies of the strings.
+WF_DRAFT = "draft"
+WF_SUBMITTED = "submitted"
+WF_IN_REVIEW = "in_review"
+WF_APPROVED = "approved"
+WF_REJECTED = "rejected"
+WF_WITHDRAWN = "withdrawn"
+WF_OPEN_STATES = (WF_SUBMITTED, WF_IN_REVIEW)
+
 CERT_CERTIFIED = "certified"
 CERT_USER_DEFINED = "user_defined"
 CERT_DRAFT = "draft"
@@ -428,6 +442,20 @@ class DatasetDefinition(Base):
     published_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # ---- the data control plane ----
+    # demo | client | supplementary. `demo` is IPM's bundled synthetic book. The
+    # distinction is not cosmetic: an analysis that reads demo data must say so,
+    # and client data always wins over demo data for the same purpose.
+    origin: Mapped[str] = mapped_column(String(24), nullable=False, default="demo")
+    # Datasets that describe the same thing at different times or from different
+    # source systems belong to one family, so replacing one is a governed act
+    # rather than a new unrelated table appearing.
+    dataset_family: Mapped[str] = mapped_column(String(160), nullable=False, default="")
+    # The governed purposes this dataset is the authoritative source for, e.g.
+    # ["credit_facility_position"]. Empty means it answers no governed purpose
+    # and no certified analysis will read it by purpose.
+    authoritative_for: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
     fields: Mapped[list[FieldDefinition]] = relationship(
         back_populates="dataset", cascade="all, delete-orphan"
     )
@@ -693,6 +721,133 @@ class Comment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (Index("ix_comments_object", "object_type", "object_id"),)
+
+
+# ========================================================== investigations
+
+
+class Investigation(Base):
+    """A saved analytical object: a question, and the answer it currently has.
+
+    Distinct from an AnalysisRun, which is one execution and never changes. An
+    investigation is the thing a person keeps — it has a name, an owner, it can
+    sit in a project, and it can be REFRESHED against newly published data. Each
+    refresh runs the same plan again and stores a new version, so "what has
+    changed since I last looked?" is answerable from stored results rather than
+    from memory.
+
+    The figures are never carried forward. A refresh re-executes the registered
+    analyses; if the data has not changed, the numbers are the same because the
+    calculation produced them again, not because they were copied.
+    """
+
+    __tablename__ = "investigations"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+    )
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    # How the question was read, and what period it was answered for. Stored so a
+    # refresh re-asks the same question in the same terms.
+    scope: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    plan: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default=INV_LIVE)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+    #: The version currently shown. Points into investigation_versions.
+    current_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    versions: Mapped[list[InvestigationVersion]] = relationship(
+        back_populates="investigation", cascade="all, delete-orphan",
+        order_by="InvestigationVersion.version_number",
+    )
+
+    __table_args__ = (
+        Index("ix_investigations_project", "project_id", "updated_at"),
+        Index("ix_investigations_owner", "owner_id", "updated_at"),
+    )
+
+
+class InvestigationVersion(Base):
+    """One answer this investigation has had, and what changed to produce it.
+
+    `change_narrative` is IPM's account of the difference from the previous
+    version, written from the two stored results. It is interpretation and is
+    labelled as such wherever it is shown; the figures it quotes are the ones
+    the engine returned on each run.
+    """
+
+    __tablename__ = "investigation_versions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    investigation_id: Mapped[int] = mapped_column(
+        ForeignKey("investigations.id", ondelete="CASCADE"), nullable=False
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    #: The execution that produced this version. Its Trace is the evidence.
+    analysis_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("analysis_runs.id", ondelete="SET NULL"), nullable=True
+    )
+
+    #: The periods this version was answered for, so a refresh can move them on.
+    from_period: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    to_period: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    narrative: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: Headline figures, kept so two versions can be compared without re-running.
+    metrics: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: What changed since the previous version. Empty on version 1.
+    change_narrative: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    changes: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    investigation: Mapped[Investigation] = relationship(back_populates="versions")
+
+    __table_args__ = (
+        UniqueConstraint("investigation_id", "version_number", name="uq_investigation_version"),
+    )
+
+
+# =============================================================== notifications
+
+
+class Notification(Base):
+    """Something a person needs to know about, in the application.
+
+    Deliberately in-app only. Email and push are a deployment concern with their
+    own approvals; the product's promise is that work assigned to you is visible
+    when you open IPM.
+    """
+
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    # assigned | mentioned | approved | rejected | commented | shared | refreshed
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: What it is about, so the notification can link straight to it.
+    object_type: Mapped[str] = mapped_column(String(48), nullable=False, default="")
+    object_id: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (Index("ix_notifications_user", "user_id", "read_at", "created_at"),)
 
 
 # ============================================================== app config
