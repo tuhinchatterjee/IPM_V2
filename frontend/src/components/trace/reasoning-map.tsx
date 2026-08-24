@@ -63,7 +63,19 @@ import "@xyflow/react/dist/base.css";
  */
 
 /** Above this many recorded steps, the map opens collapsed. */
-const COLLAPSE_THRESHOLD = 20;
+/**
+ * When a map opens collapsed.
+ *
+ * The measure that matters is not how many nodes there are but how WIDE the
+ * layout is: the canvas has to fit the deepest chain, and a chain of fourteen
+ * columns lands at a zoom where the labels are decoration. A single-analysis
+ * investigation now records the full lineage — domain, dataset, variables,
+ * filters, transformations, aggregations, function, result — so depth, not
+ * count, is what makes a map unreadable.
+ *
+ * Nine columns is about the widest that stays legible in the standard canvas.
+ */
+const COLLAPSE_COLUMNS = 9;
 
 export interface MapHighlight {
   /** Nodes a proposed or applied change affects — drawn as changed. */
@@ -210,12 +222,15 @@ interface ReasoningMapProps {
 function MapCanvas({ graph, selected, onSelect, highlight, height = 520 }: ReasoningMapProps) {
   const steps = React.useMemo(() => stepsIn(graph), [graph]);
 
-  // A four-step investigation records around fifty steps. Drawn in full, they
-  // fit on screen only at a zoom where nothing can be read — so a large map
-  // opens collapsed to one node per analysis, which is the level a reader
-  // actually starts at, and expands from there.
+  // A map wider than the canvas can show legibly opens collapsed to one node
+  // per analysis, which is the level a reader actually starts at, and expands
+  // from there. The width is measured from the graph's own layers rather than
+  // guessed from the node count.
   const [collapsed, setCollapsed] = React.useState<Set<number>>(
-    () => new Set(graph.nodes.length > COLLAPSE_THRESHOLD ? steps.map((s) => s.step) : []),
+    () =>
+      new Set(
+        (graph.layers?.length ?? 0) > COLLAPSE_COLUMNS ? steps.map((s) => s.step) : [],
+      ),
   );
 
   const toggleStep = React.useCallback((step: number) => {
