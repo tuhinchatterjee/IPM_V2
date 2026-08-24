@@ -479,7 +479,7 @@ interface labels it wherever its figures appear.
 | Gate | Covers |
 |---|---|
 | `ruff` | Python linting |
-| `pytest` | Data Access Layer, engine contracts, Trace graph, API, and the preserved Dash suites including the climate golden master |
+| `pytest` | Data Access Layer, engine contracts, Trace graph, question scoping and period clarification, saved investigations and refresh, workflow and notifications, the data control plane, the metadata assistants, theme contrast, the API, and the preserved Dash suites including the climate golden master |
 | `tsc --noEmit` | TypeScript type checking |
 | `eslint` | Frontend linting |
 | `next build` | Frontend production build |
@@ -503,26 +503,56 @@ become the implementations behind registered engine functions in Phase 2.
 
 ## Current status
 
-**Phase 4 — Ask IPM, the interactive Trace and the executive interface.**
+**Phase 5 — product quality: the answer, the workspace and the control plane.**
 
-* **Ask IPM** plans an investigation from a plain-English question, runs the
-  registered analyses that answer it, and writes the findings from what they
-  returned. It never calculates a figure, writes a query, or names an analysis
-  that is not in the Engine Library — the validator refuses all three.
-* **The Analytical Reasoning Map** is a pannable, zoomable graph of how an answer
-  was produced. Every node can be opened; selecting one shows what feeds it and
-  what it feeds; an analysis can be collapsed to a single node or expanded to
-  every recorded step.
-* **Controlled Trace modification** takes a change in plain English, previews
-  exactly which steps it would re-run, and — only when you accept — branches to a
-  new version. Steps that did not change reuse their recorded results, and no
-  earlier version is ever overwritten.
-* **Four themes**, switchable in one click from the header.
+* **Ask IPM answers the question that was asked.** Each recognised intent names
+  one primary analysis and at most a couple of supporting ones. "Which sectors
+  deteriorated the most?" returns the sector attribution and nothing else — it
+  no longer returns total exposure, the NPL ratio and the stage distribution
+  alongside it.
+* **IPM asks before it guesses.** An analysis that measures change between two
+  periods will not run until the periods are settled. When the question does not
+  say, IPM asks, with options built from the real published periods — a
+  quarterly book is never offered "last 3 months". A point-in-time question
+  ("what is our NPL ratio?") is answered, never interrogated.
+* **Fact and interpretation are kept apart.** Every answer opens with one
+  sentence whose figures were quoted unchanged from an engine result, and states
+  IPM's reading of them separately, labelled as a reading. The reading describes
+  where a movement sits; it does not claim what caused it.
+* **The Analytical Reasoning Map** now records the whole chain: the question, how
+  IPM read it, the plan, the governed data domain, the dataset with its family,
+  version, period and origin, the variables with their definitions, the filters
+  with row counts, the transformations, the aggregations, the certified function
+  and its version, the result, IPM's reading of it, and the visual. The two
+  interpretive moments — reading the question, reading the result — are named
+  separately, because they answer to different things.
+* **Investigations you keep.** A saved investigation has a name, an owner and
+  versions, and can be refreshed: the same plan runs again against whatever is
+  published now. No figure is carried forward — a refresh that produces
+  identical numbers says so, because "identical" and "copied" mean very
+  different things to a reviewer.
+* **Review, comments and notifications.** Send an investigation to a colleague;
+  the decision and its comment become an append-only history. The Workflow Inbox
+  separates what you have to do from what you are waiting on.
+* **Data Builder is a control plane.** It states, purpose by purpose, which
+  dataset is answering IPM right now and whether that dataset is your data or the
+  bundled demonstration book. Archiving the only authoritative source for a
+  purpose is refused and names the analyses that would stop working. Replacing
+  demonstration data with your own is a governed act: the schemas are compared
+  field by field first, and on handover every certified analysis follows with no
+  code change.
+* **Two assistants that only read metadata.** One answers questions about the
+  data dictionary, one about the analysis library. Neither can see portfolio
+  data, state a figure, or change anything; a portfolio question is refused and
+  sent to Ask IPM, where it produces a Trace.
+* **Eight themes** — four light, four dark — switchable in one click. Every
+  palette's contrast is asserted by a test, not judged by eye.
 
-Phases 1–3 built what this rests on: the Data Access Layer and Parquet lake, the
-eleven registered analyses, Data Builder, Engine Builder and the Trace model.
-See [docs/DEMO_SCOPE.md](docs/DEMO_SCOPE.md) for the sequence and what remains
-(Documents and production authentication).
+Phases 1–4 built what this rests on: the Data Access Layer and Parquet lake, the
+eleven registered analyses, Data Builder, Engine Builder, the Trace model, the
+interactive map and controlled Trace modification. See
+[docs/DEMO_SCOPE.md](docs/DEMO_SCOPE.md) for the sequence and what remains
+(Documents authoring and production authentication).
 
 Every screen in the application states its own honest status. IPM does not
 present unbuilt functionality as if it were finished, and never shows invented
