@@ -31,7 +31,14 @@ from dataclasses import dataclass
 from typing import Any
 
 from backend.config import settings
-from backend.orchestration.schema import MAX_PLAN_STEPS, AnalysisPlan, PlanStep
+from backend.orchestration.periods import PeriodIntent, read_period_intent
+from backend.orchestration.schema import (
+    MAX_PLAN_STEPS,
+    AnalysisPlan,
+    PlanStep,
+    Scope,
+    StepRole,
+)
 from backend.orchestration.vocabulary import Vocabulary, get_vocabulary
 
 logger = logging.getLogger(__name__)
@@ -58,11 +65,18 @@ class Intent:
     intent_text: str
     build: str  # name of the builder method on DemoPlanner
     follow_ups: list[str]
+    #: A short noun phrase naming what the question is about, recorded on the
+    #: scope and shown on the Trace.
+    focus: str = ""
+    #: The dimension the answer should be broken down by, where the question
+    #: implies one.
+    dimension: str | None = None
 
 
 INTENTS: list[Intent] = [
     Intent(
         id="stage2_increase",
+        focus="Stage 2 movement",
         patterns=[
             (r"stage\s*(2|two)", 5),
             (r"increas|ris(e|en|ing)|grow|up\b|higher|worse", 3),
@@ -78,6 +92,8 @@ INTENTS: list[Intent] = [
     ),
     Intent(
         id="sector_deterioration",
+        focus="sector deterioration",
+        dimension='sector',
         patterns=[
             (r"which sector|what sector|sectors?\b", 4),
             (r"deteriorat|worst|worsen|most|weakest|declin", 3),
@@ -92,6 +108,8 @@ INTENTS: list[Intent] = [
     ),
     Intent(
         id="rating_transition",
+        focus="rating transitions",
+        dimension='risk_rating',
         patterns=[
             (r"transition matrix|rating transition|migration matrix", 8),
             (r"\brating\b", 3),
@@ -107,6 +125,8 @@ INTENTS: list[Intent] = [
     ),
     Intent(
         id="top_deteriorating",
+        focus="deteriorating borrowers",
+        dimension='borrower',
         patterns=[
             (r"top\s*(ten|10|\d+)", 4),
             (r"deteriorat", 4),
@@ -123,6 +143,7 @@ INTENTS: list[Intent] = [
     ),
     Intent(
         id="stress",
+        focus="scenario impact",
         patterns=[
             (r"stress|shock|downturn|scenario|what if|adverse", 6),
             (r"sensitiv", 3),
@@ -137,6 +158,8 @@ INTENTS: list[Intent] = [
     ),
     Intent(
         id="ecl_change",
+        focus="impairment movement",
+        dimension='sector',
         patterns=[
             (r"\becl\b|impairment|provision|allowance", 5),
             (r"chang|mov|increas|decreas|how has|why", 3),
@@ -151,6 +174,8 @@ INTENTS: list[Intent] = [
     ),
     Intent(
         id="concentration",
+        focus="exposure concentration",
+        dimension='sector',
         patterns=[
             (r"concentrat|largest|biggest|exposure by|where is.*risk", 5),
             (r"herfindahl|hhi", 4),
@@ -165,6 +190,7 @@ INTENTS: list[Intent] = [
     ),
     Intent(
         id="arrears",
+        focus="arrears movement",
         patterns=[(r"\bdpd\b|past due|arrears|days? past|delinquen", 6)],
         intent_text="Show the movement between days-past-due buckets.",
         build="_arrears",
@@ -176,6 +202,7 @@ INTENTS: list[Intent] = [
     ),
     Intent(
         id="utilisation",
+        focus="facility utilisation",
         patterns=[(r"utilis|utiliz|drawn|undrawn|limit|revolv", 6)],
         intent_text="Identify facilities drawing unusually heavily on their committed limits.",
         build="_utilisation",
@@ -187,6 +214,7 @@ INTENTS: list[Intent] = [
     ),
     Intent(
         id="trend",
+        focus="portfolio trend",
         patterns=[(r"trend|over time|history|historic|last (few|several|three|3)|quarters", 5)],
         intent_text="Show how the portfolio has moved across every available reporting period.",
         build="_trend",
@@ -198,6 +226,7 @@ INTENTS: list[Intent] = [
     ),
     Intent(
         id="staging",
+        focus="IFRS 9 staging",
         patterns=[(r"stag(e|ing)\s*(distribution|split|mix|breakdown)|ifrs\s*9", 5), (r"\bstage\b", 2)],
         intent_text="Show how exposure is distributed across IFRS 9 stages.",
         build="_staging",
@@ -209,6 +238,7 @@ INTENTS: list[Intent] = [
     ),
     Intent(
         id="deterioration_overview",
+        focus="what deteriorated",
         patterns=[
             (r"deteriorat|what changed|what has changed|got worse|worsen", 5),
             (r"this (period|quarter)|since last", 3),
@@ -222,7 +252,25 @@ INTENTS: list[Intent] = [
         ],
     ),
     Intent(
+        id="headline_metric",
+        focus="a headline figure",
+        patterns=[
+            (r"what is (our|the|my)?\s*(current|latest)?\s*"
+             r"(npl|ecl|coverage|exposure|ead|stage 2|stage 3|pd|lgd|utilisation)", 7),
+            (r"how (much|many) (exposure|ead|ecl|provision|facilities|borrowers)", 6),
+            (r"\b(npl ratio|ecl coverage|total exposure|total ecl)\b", 5),
+        ],
+        intent_text="Report the current headline position of the book.",
+        build="_headline_metric",
+        follow_ups=[
+            "How has ECL changed?",
+            "Which sectors deteriorated the most?",
+            "Where is the book most concentrated?",
+        ],
+    ),
+    Intent(
         id="overview",
+        focus="portfolio position",
         patterns=[(r"overview|summary|how is|health|position|state of|where do we stand", 5)],
         intent_text="Summarise the current portfolio position and how it has moved.",
         build="_overview",
@@ -262,17 +310,41 @@ class DemoPlanner:
     run and *with what parameters*; the answer is then computed by executing
     them against live data. Ask the same question after publishing a new period
     and the numbers change, because they were never stored here.
+
+    Question-scoped by construction
+    -------------------------------
+    Each intent names ONE primary analysis — the one that answers the question —
+    and at most a couple of supporting analyses that materially help explain it.
+    "Which sectors deteriorated the most?" returns the sector attribution and
+    nothing else. It does not return total exposure, the NPL ratio, or the stage
+    distribution, because none of those were asked for and none of them are
+    needed to rank sectors.
     """
 
     name = "demo"
     model_name = None
 
-    def plan(self, question: str, vocab: Vocabulary | None = None) -> AnalysisPlan:
+    def plan(self, question: str, vocab: Vocabulary | None = None,
+             period: tuple[str, str] | None = None) -> AnalysisPlan:
+        """Read the question into a scoped plan.
+
+        `period` is a comparison the user has already chosen — from answering a
+        clarification, or from the Investigation being refreshed. When present it
+        overrides whatever the question's wording implied.
+        """
         vocab = vocab or get_vocabulary()
         text = question.strip()
         lowered = text.lower()
 
         intent, score = self._best_intent(lowered)
+        unmatched = score == 0
+
+        # --- what the question said about time -------------------------------
+        read = read_period_intent(text, vocab.periods)
+        if period:
+            read = PeriodIntent(True, period[0], period[1], "chosen by the user")
+
+        # --- what the question said about the book ---------------------------
         dimension_hit = vocab.resolve_dimension_value(text)
         filters: dict[str, Any] = {}
         notes: list[str] = []
@@ -282,10 +354,14 @@ class DemoPlanner:
             notes.append(f"Restricted to {dimension.replace('_', ' ')} = {value}.")
 
         builder = getattr(self, intent.build)
-        steps: list[PlanStep] = builder(lowered, vocab, filters)
-        steps = steps[:MAX_PLAN_STEPS]
+        steps: list[PlanStep] = builder(lowered, vocab, filters)[:MAX_PLAN_STEPS]
+        steps = [
+            step.with_params() if index == 0 else step
+            for index, step in enumerate(steps)
+        ]
+        steps = [_with_role(step, index) for index, step in enumerate(steps)]
+        steps = [_with_periods(step, read) for step in steps]
 
-        unmatched = score == 0
         if unmatched:
             notes.insert(
                 0,
@@ -294,6 +370,20 @@ class DemoPlanner:
                 "or name a sector, a stage, a rating or a scenario.",
             )
 
+        primary = steps[0] if steps else None
+        requirement = _period_requirement(primary)
+        scope = Scope(
+            focus=intent.focus,
+            dimension=intent.dimension,
+            output=_answer_shape(primary),
+            period_requirement=requirement,
+            period_specified=read.specified,
+            from_period=read.from_period,
+            to_period=read.to_period,
+            period_source=read.source,
+            filters=filters,
+        )
+
         intent_text = intent.intent_text
         if dimension_hit and not unmatched:
             intent_text = f"{intent_text.rstrip('.')}, restricted to {dimension_hit[1]}."
@@ -301,6 +391,7 @@ class DemoPlanner:
         return AnalysisPlan(
             question=text,
             intent=intent_text,
+            scope=scope,
             steps=steps,
             planner=self.name,
             model_name=self.model_name,
@@ -337,108 +428,99 @@ class DemoPlanner:
                 return scenario
         return "moderate"
 
-    # ------------------------------------------------------------- builders
-    # Each returns the ordered list of registered analyses that answers the
-    # question. Parameters are named exactly as the contracts declare them; the
-    # validator checks that claim rather than trusting it.
+    def _group_dimension(self, lowered: str, default: str = "sector") -> str:
+        for candidate in ("region", "segment", "product_type", "rating_bucket", "country"):
+            if re.search(candidate.replace("_", "[ _]?"), lowered):
+                return candidate
+        return default
+
+    # ------------------------------------------------------------------ builders
+    #
+    # The FIRST step returned is the primary one: the analysis that answers the
+    # question. Anything after it must earn its place by explaining the primary
+    # result. Most questions return exactly one step, and that is the point.
+
+    def _headline_metric(self, lowered: str, vocab: Vocabulary,
+                         filters: dict) -> list[PlanStep]:
+        # A point-in-time figure. One analysis, no history, no clarification —
+        # asking "what period would you like to compare?" here would be an
+        # irritation, not a governance control.
+        return [
+            PlanStep("portfolio_summary", "Portfolio position",
+                     "The headline figures for the latest published period.",
+                     params={}, filters=filters),
+        ]
 
     def _overview(self, lowered: str, vocab: Vocabulary, filters: dict) -> list[PlanStep]:
         return [
             PlanStep("portfolio_summary", "Portfolio position",
-                     "Establishes the current size, staging and coverage of the book, "
-                     "and how each has moved against the prior period.",
-                     params={"period": "latest", "compare_period": "previous"}, filters=filters),
-            PlanStep("stage_distribution", "IFRS 9 staging",
-                     "Shows how exposure and impairment are distributed across stages.",
-                     params={"period": "latest", "group_by": "none"}, filters=filters),
-            PlanStep("portfolio_trend", "Direction of travel",
-                     "Places the current position in the context of every prior period.",
+                     "Where the book stands, and how it has moved.",
                      params={}, filters=filters),
+            PlanStep("stage_distribution", "IFRS 9 staging",
+                     "How that exposure is distributed across stages.",
+                     params={"group_by": "none"}, filters=filters),
         ]
 
     def _deterioration_overview(self, lowered: str, vocab: Vocabulary,
                                 filters: dict) -> list[PlanStep]:
+        # A deliberately broad question, so a broader plan is the right answer —
+        # but still not a general briefing. What moved, where it sits, who.
         return [
-            PlanStep("portfolio_summary", "What moved",
-                     "Quantifies the change in exposure, staging and coverage since the "
-                     "prior reporting period.",
-                     params={"period": "latest", "compare_period": "previous"}, filters=filters),
-            PlanStep("stage_migration", "Stage migration",
-                     "Shows the exposure that moved between IFRS 9 stages, which is where "
+            PlanStep("stage_migration", "What moved",
+                     "The exposure that migrated to a worse stage, which is where "
                      "deterioration first becomes visible.",
-                     params={"from_period": "previous", "to_period": "latest", "basis": "ead"},
-                     filters=filters),
-            PlanStep("ecl_movement", "Where the impairment moved",
-                     "Attributes the change in expected credit loss by sector.",
-                     params={"from_period": "previous", "to_period": "latest",
-                             "group_by": "sector"}, filters=filters),
-            PlanStep("top_deteriorating_borrowers", "Names behind the movement",
-                     "Identifies the individual borrowers driving the deterioration.",
-                     params={"from_period": "previous", "to_period": "latest", "top_n": 10},
-                     filters=filters),
+                     params={"basis": "ead"}, filters=filters),
+            PlanStep("ecl_movement", "Where the impairment sits",
+                     "The change in expected credit loss, attributed by sector.",
+                     params={"group_by": "sector"}, filters=filters),
+            PlanStep("top_deteriorating_borrowers", "The names behind it",
+                     "The individual borrowers whose position worsened most.",
+                     params={"top_n": 10}, filters=filters),
         ]
 
     def _stage2(self, lowered: str, vocab: Vocabulary, filters: dict) -> list[PlanStep]:
+        # "Why has Stage 2 increased?" is a why-question. The migration is the
+        # answer; the names are the explanation. Nothing else is needed.
         return [
-            PlanStep("stage_distribution", "Current staging",
-                     "Establishes how much exposure now sits in Stage 2, by sector.",
-                     params={"period": "latest", "group_by": "sector"}, filters=filters),
-            PlanStep("stage_migration", "What moved into Stage 2",
-                     "Isolates the exposure that migrated between stages, rather than the "
-                     "net change, so the gross movement is visible.",
-                     params={"from_period": "previous", "to_period": "latest", "basis": "ead"},
-                     filters=filters),
+            PlanStep("stage_migration", "Movement into Stage 2",
+                     "The gross exposure that migrated between stages, rather than the "
+                     "net change — the net figure hides offsetting movements.",
+                     params={"basis": "ead"}, filters=filters),
             PlanStep("top_deteriorating_borrowers", "Borrowers behind the migration",
-                     "Names the obligors whose position worsened, with the reason recorded "
-                     "for each.",
-                     params={"from_period": "previous", "to_period": "latest", "top_n": 10},
-                     filters=filters),
-            PlanStep("ecl_movement", "Impairment consequence",
-                     "Shows what the migration did to expected credit loss.",
-                     params={"from_period": "previous", "to_period": "latest",
-                             "group_by": "sector"}, filters=filters),
+                     "The obligors that moved, with the reason recorded for each.",
+                     params={"top_n": 10}, filters=filters),
         ]
 
     def _sector_deterioration(self, lowered: str, vocab: Vocabulary,
                               filters: dict) -> list[PlanStep]:
+        # The attribution IS the answer. Adding concentration or staging here
+        # would be answering a question nobody asked.
         return [
             PlanStep("ecl_movement", "Deterioration by sector",
-                     "Attributes the change in expected credit loss to the sectors that "
-                     "caused it.",
-                     params={"from_period": "previous", "to_period": "latest",
-                             "group_by": "sector"}, filters=filters),
-            PlanStep("stage_distribution", "Staging by sector",
-                     "Shows which sectors carry the highest share of Stage 2 and Stage 3 "
-                     "exposure.",
-                     params={"period": "latest", "group_by": "sector"}, filters=filters),
-            PlanStep("sector_concentration", "Exposure at risk",
-                     "Sizes the exposure sitting in each sector, so a large percentage "
-                     "movement on a small book is not mistaken for a material one.",
-                     params={"period": "latest", "dimension": "sector", "top_n": 15},
-                     filters=filters),
+                     "The change in expected credit loss, attributed to the sectors "
+                     "it sits in.",
+                     params={"group_by": self._group_dimension(lowered)}, filters=filters),
         ]
 
     def _rating_transition(self, lowered: str, vocab: Vocabulary, filters: dict) -> list[PlanStep]:
         basis = "count" if re.search(r"count|number of|borrower count", lowered) else "ead"
         return [
             PlanStep("rating_transition_matrix", "Rating transition matrix",
-                     "Empirical transition probabilities between the two reporting periods, "
-                     f"measured on {'borrower count' if basis == 'count' else 'exposure'}.",
-                     params={"from_period": "previous", "to_period": "latest", "basis": basis},
-                     filters=filters),
+                     "Empirical transition probabilities, measured on "
+                     f"{'borrower count' if basis == 'count' else 'exposure'}.",
+                     params={"basis": basis}, filters=filters),
         ]
 
     def _top_deteriorating(self, lowered: str, vocab: Vocabulary, filters: dict) -> list[PlanStep]:
         return [
             PlanStep("top_deteriorating_borrowers", "Deteriorating borrowers",
-                     "Ranks borrowers by the severity of their deterioration against the "
-                     "prior period, with the reasons recorded for each.",
-                     params={"from_period": "previous", "to_period": "latest",
-                             "top_n": self._top_n(lowered, 10)}, filters=filters),
+                     "Borrowers ranked by the severity of their deterioration, with the "
+                     "reasons recorded for each.",
+                     params={"top_n": self._top_n(lowered, 10)}, filters=filters),
         ]
 
     def _stress(self, lowered: str, vocab: Vocabulary, filters: dict) -> list[PlanStep]:
-        params: dict[str, Any] = {"period": "latest", "scenario": self._scenario(lowered)}
+        params: dict[str, Any] = {"scenario": self._scenario(lowered)}
         # stress_scenario_basic takes the sector as a declared parameter, so a
         # sector mentioned in the question belongs there rather than in filters.
         sector = filters.get("sector")
@@ -447,92 +529,109 @@ class DemoPlanner:
             params["sector"] = sector
         return [
             PlanStep("stress_scenario_basic", "Scenario impact",
-                     "Applies the scenario's shocks to the reported position and sizes the "
-                     "incremental impairment.",
+                     "The scenario's shocks applied to the reported position.",
                      params=params, filters=remaining),
-            PlanStep("sector_concentration", "Exposure under stress",
-                     "Shows how much exposure the scenario is being applied to.",
-                     params={"period": "latest", "dimension": "sector", "top_n": 15},
-                     filters=remaining),
         ]
 
     def _ecl_change(self, lowered: str, vocab: Vocabulary, filters: dict) -> list[PlanStep]:
         return [
             PlanStep("ecl_movement", "ECL movement",
-                     "Attributes the change in expected credit loss between the two "
-                     "reporting periods.",
-                     params={"from_period": "previous", "to_period": "latest",
-                             "group_by": "sector"}, filters=filters),
-            PlanStep("portfolio_summary", "Coverage context",
-                     "Places the movement against the size of the book, so a change in "
-                     "coverage is separated from a change in exposure.",
-                     params={"period": "latest", "compare_period": "previous"}, filters=filters),
-            PlanStep("stage_migration", "Staging driver",
-                     "Shows the stage migration that the impairment movement follows from.",
-                     params={"from_period": "previous", "to_period": "latest", "basis": "ead"},
-                     filters=filters),
+                     "The change in expected credit loss, reconciled from opening to "
+                     "closing and attributed by sector.",
+                     params={"group_by": "sector"}, filters=filters),
         ]
 
     def _concentration(self, lowered: str, vocab: Vocabulary, filters: dict) -> list[PlanStep]:
-        dimension = "sector"
-        for candidate in ("region", "segment", "product_type", "rating_bucket", "country"):
-            if re.search(candidate.replace("_", "[ _]?"), lowered):
-                dimension = candidate
-                break
+        dimension = self._group_dimension(lowered)
         return [
             PlanStep("sector_concentration", "Concentration",
-                     f"Measures how exposure is distributed across {dimension.replace('_', ' ')} "
+                     f"How exposure is distributed across {dimension.replace('_', ' ')}, "
                      "and how much sits in the largest groups.",
-                     params={"period": "latest", "dimension": dimension,
-                             "top_n": self._top_n(lowered, 15)}, filters=filters),
-            PlanStep("stage_distribution", "Quality of the concentrations",
-                     "Shows the staging inside each group, so a large exposure and a poor "
-                     "one can be told apart.",
-                     params={"period": "latest", "group_by": dimension}, filters=filters),
+                     params={"dimension": dimension, "top_n": self._top_n(lowered, 15)},
+                     filters=filters),
         ]
 
     def _arrears(self, lowered: str, vocab: Vocabulary, filters: dict) -> list[PlanStep]:
         return [
             PlanStep("dpd_migration", "Arrears movement",
-                     "Shows the exposure moving between days-past-due buckets.",
-                     params={"from_period": "previous", "to_period": "latest", "basis": "ead"},
-                     filters=filters),
-            PlanStep("top_deteriorating_borrowers", "Borrowers in arrears",
-                     "Names the borrowers whose position worsened.",
-                     params={"from_period": "previous", "to_period": "latest", "top_n": 10},
-                     filters=filters),
+                     "The exposure moving between days-past-due buckets, and what cured.",
+                     params={"basis": "ead"}, filters=filters),
         ]
 
     def _utilisation(self, lowered: str, vocab: Vocabulary, filters: dict) -> list[PlanStep]:
         return [
             PlanStep("high_utilisation_watchlist", "High utilisation",
-                     "Lists facilities drawing unusually heavily on their committed limits, "
-                     "which often precedes a stage migration.",
-                     params={"period": "latest", "threshold_pct": 90.0,
-                             "top_n": self._top_n(lowered, 20)}, filters=filters),
+                     "Facilities drawing unusually heavily on their committed limits.",
+                     params={"threshold_pct": 90.0, "top_n": self._top_n(lowered, 20)},
+                     filters=filters),
         ]
 
     def _trend(self, lowered: str, vocab: Vocabulary, filters: dict) -> list[PlanStep]:
         return [
             PlanStep("portfolio_trend", "Portfolio trend",
-                     "Tracks exposure, staging and coverage across every available "
-                     "reporting period.",
+                     "Exposure, staging and coverage across every available period.",
                      params={}, filters=filters),
-            PlanStep("portfolio_summary", "Latest position",
-                     "The current position the trend ends at.",
-                     params={"period": "latest", "compare_period": "previous"}, filters=filters),
         ]
 
     def _staging(self, lowered: str, vocab: Vocabulary, filters: dict) -> list[PlanStep]:
         return [
             PlanStep("stage_distribution", "IFRS 9 staging",
                      "Exposure, impairment and coverage by stage.",
-                     params={"period": "latest", "group_by": "sector"}, filters=filters),
-            PlanStep("stage_migration", "Stage migration",
-                     "The exposure that moved between stages since the prior period.",
-                     params={"from_period": "previous", "to_period": "latest", "basis": "ead"},
-                     filters=filters),
+                     params={"group_by": self._group_dimension(lowered)}, filters=filters),
         ]
+
+
+# --------------------------------------------------------------- plan shaping
+
+
+def _contract(analysis_id: str):
+    from backend.engine.registry import get_registry
+
+    try:
+        return get_registry().contract(analysis_id)
+    except Exception:  # pragma: no cover - the validator reports it properly
+        return None
+
+
+def _period_requirement(step: PlanStep | None) -> str:
+    contract = _contract(step.analysis_id) if step else None
+    return contract.period_requirement.value if contract else "point_in_time"
+
+
+def _answer_shape(step: PlanStep | None) -> str:
+    contract = _contract(step.analysis_id) if step else None
+    return contract.answer_shape.value if contract else "level"
+
+
+def _with_role(step: PlanStep, index: int) -> PlanStep:
+    return PlanStep(
+        analysis_id=step.analysis_id, title=step.title, rationale=step.rationale,
+        params=dict(step.params), filters=dict(step.filters), period=step.period,
+        role=StepRole.PRIMARY if index == 0 else StepRole.SUPPORTING,
+    )
+
+
+def _with_periods(step: PlanStep, read: PeriodIntent) -> PlanStep:
+    """Write the settled comparison into whichever parameters the analysis has.
+
+    The concrete period labels are written in, not the aliases. An answer that
+    says "Q4 2025 to Q1 2026" can be checked; one that says "previous to latest"
+    changes meaning every time a period is published.
+    """
+    contract = _contract(step.analysis_id)
+    if contract is None or not read.specified:
+        return step
+    accepted = {p.name for p in contract.parameters}
+    changes: dict[str, Any] = {}
+    if "from_period" in accepted and read.from_period:
+        changes["from_period"] = read.from_period
+    if "to_period" in accepted and read.to_period:
+        changes["to_period"] = read.to_period
+    if "period" in accepted and read.to_period:
+        changes["period"] = read.to_period
+    if "compare_period" in accepted and read.from_period:
+        changes["compare_period"] = read.from_period
+    return step.with_params(**changes) if changes else step
 
 
 # ---------------------------------------------------------------------------
@@ -584,18 +683,19 @@ class AnthropicPlanner:
         self._api_key = api_key
         self.model_name = model_name
 
-    def plan(self, question: str, vocab: Vocabulary | None = None) -> AnalysisPlan:
+    def plan(self, question: str, vocab: Vocabulary | None = None,
+             period: tuple[str, str] | None = None) -> AnalysisPlan:
         vocab = vocab or get_vocabulary()
         fallback = DemoPlanner()
         try:
-            payload = self._ask(question, vocab)
+            payload = self._ask(question, vocab, period)
         except Exception as e:
             # A model outage must not take the product down. The deterministic
             # planner answers instead, and the response says so.
             logger.warning("Model planning failed (%s); falling back to the demo planner.", e)
-            plan = fallback.plan(question, vocab)
+            plan = fallback.plan(question, vocab, period)
             return AnalysisPlan(
-                question=plan.question, intent=plan.intent, steps=plan.steps,
+                question=plan.question, intent=plan.intent, scope=plan.scope, steps=plan.steps,
                 planner="demo-fallback", model_name=self.model_name,
                 follow_ups=plan.follow_ups, unmatched=plan.unmatched,
                 notes=[*plan.notes, "The configured model was unavailable, so IPM planned "
@@ -604,24 +704,59 @@ class AnthropicPlanner:
 
         steps = [PlanStep.from_dict(s) for s in payload.get("steps") or []]
         if not steps:
-            return fallback.plan(question, vocab)
+            return fallback.plan(question, vocab, period)
+        steps = steps[:MAX_PLAN_STEPS]
+        # The model may or may not have marked a primary step. Whether it did or
+        # not, exactly one step must be primary, so the roles are normalised
+        # here rather than trusted.
+        if sum(1 for s in steps if s.is_primary) != 1:
+            steps = [_with_role(step, index) for index, step in enumerate(steps)]
+
+        # Time is not left to the model. The period is read from the question by
+        # the same code the deterministic planner uses, so a two-period analysis
+        # the model selected without saying *when* still triggers the
+        # clarification instead of quietly comparing something.
+        read = read_period_intent(question, vocab.periods)
+        if period:
+            read = PeriodIntent(True, period[0], period[1], "chosen by the user")
+        steps = [_with_periods(step, read) for step in steps]
+
+        primary = next((s for s in steps if s.is_primary), steps[0])
+        scope = Scope(
+            focus=str(payload.get("focus") or "").strip(),
+            dimension=payload.get("dimension"),
+            output=_answer_shape(primary),
+            period_requirement=_period_requirement(primary),
+            period_specified=read.specified,
+            from_period=read.from_period,
+            to_period=read.to_period,
+            period_source=read.source,
+            filters=dict(primary.filters),
+        )
+
         return AnalysisPlan(
             question=question.strip(),
             intent=str(payload.get("intent") or "").strip() or "Investigate the question.",
-            steps=steps[:MAX_PLAN_STEPS],
+            scope=scope,
+            steps=steps,
             planner=self.name,
             model_name=self.model_name,
             follow_ups=[str(f) for f in (payload.get("follow_ups") or [])][:4],
             unmatched=bool(payload.get("unmatched")),
         )
 
-    def _ask(self, question: str, vocab: Vocabulary) -> dict[str, Any]:
+    def _ask(self, question: str, vocab: Vocabulary,
+             period: tuple[str, str] | None = None) -> dict[str, Any]:
         import anthropic
 
         client = anthropic.Anthropic(api_key=self._api_key)
         library = json.dumps(list(vocab.analyses.values()), indent=None)
         dimensions = json.dumps(vocab.dimensions)
         periods = json.dumps(vocab.periods)
+        chosen = (
+            f"THE USER HAS ALREADY CHOSEN THE COMPARISON PERIOD: "
+            f"from {period[0]} to {period[1]}. Use it.\n\n" if period else ""
+        )
 
         message = client.messages.create(
             model=self.model_name,
@@ -635,6 +770,7 @@ class AnthropicPlanner:
                         f"REPORTING PERIODS (you may also use 'latest', 'previous', "
                         f"'earliest'):\n{periods}\n\n"
                         f"FILTER DIMENSIONS AND THEIR PERMITTED VALUES:\n{dimensions}\n\n"
+                        f"{chosen}"
                         f"QUESTION: {question}"
                     ),
                 }
