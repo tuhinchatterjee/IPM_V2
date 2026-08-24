@@ -15,7 +15,16 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -595,6 +604,50 @@ def accept_harmonisation(name: str, payload: AcceptIn, session: Session = Depend
         return harmonisation.accept(session, name, payload.accepted)
     except DataBuilderError as e:
         raise _fail(e) from e
+
+
+# ================================================================= the viewer
+
+
+@router.get("/tree", summary="Every dataset, by domain, family and period")
+def dataset_tree() -> dict:
+    """The shape a person navigates in, rather than the flat list the engine reads."""
+    return db_service.dataset_tree()
+
+
+@router.get("/datasets/{name}/rows", summary="Read a page of a dataset")
+def dataset_rows(
+    name: str,
+    period: str | None = None,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=500),
+    sort: str | None = None,
+    descending: bool = False,
+    fields: str | None = Query(default=None,
+                               description="Comma-separated governed field names."),
+    principal: Principal = RequireDataSteward,
+) -> dict:
+    """One page of governed rows, with the schema that explains them.
+
+    Every field named here is checked against the governed dictionary before it
+    is read, and the sort column must be one of them — a column name can never
+    become a query.
+    """
+    try:
+        return db_service.browse_dataset(
+            name,
+            period=period,
+            offset=offset,
+            limit=limit,
+            sort=sort,
+            descending=descending,
+            fields=[f.strip() for f in fields.split(",")] if fields else None,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error": "invalid_request", "message": str(e)},
+        ) from e
 
 
 @router.post("/assistant", summary="Ask about the data model")

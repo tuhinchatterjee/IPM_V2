@@ -1417,6 +1417,55 @@ export interface PlaybookLibrary {
   statuses: string[];
 }
 
+// =================================================== the dataset viewer
+
+export interface DatasetTree {
+  domains: {
+    domain: string;
+    families: {
+      family: string;
+      datasets: {
+        name: string;
+        business_name: string;
+        purpose: string;
+        grain: string;
+        origin: string;
+        is_synthetic: boolean;
+        authoritative_for: string[];
+        field_count: number;
+        periods: string[];
+        period_count: number;
+        readable: boolean;
+      }[];
+    }[];
+  }[];
+}
+
+export interface DatasetPage {
+  dataset: string;
+  business_name: string;
+  domain: string;
+  family: string;
+  origin: string;
+  is_synthetic: boolean;
+  grain: string;
+  period: string | null;
+  periods: string[];
+  total_rows: number;
+  offset: number;
+  limit: number;
+  returned: number;
+  fields: {
+    name: string;
+    business_name: string;
+    definition: string;
+    data_type: string;
+    unit: string | null;
+    sensitivity: string;
+  }[];
+  rows: Record<string, string | number | boolean | null>[];
+}
+
 export const api = {
   // ---- system ----
   health: (timeoutMs?: number) =>
@@ -1586,6 +1635,33 @@ export const api = {
     request<{ dataset: string; count: number; versions: DataVersionRow[] }>(
       `/data-builder/datasets/${name}/versions`,
     ),
+
+  // ---- the dataset viewer ----
+  datasetTree: () => request<DatasetTree>("/data-builder/tree"),
+  datasetRows: (
+    name: string,
+    opts: {
+      period?: string;
+      offset?: number;
+      limit?: number;
+      sort?: string;
+      descending?: boolean;
+      fields?: string[];
+    } = {},
+  ) => {
+    const query = new URLSearchParams();
+    if (opts.period) query.set("period", opts.period);
+    if (opts.offset) query.set("offset", String(opts.offset));
+    if (opts.limit) query.set("limit", String(opts.limit));
+    if (opts.sort) query.set("sort", opts.sort);
+    if (opts.descending) query.set("descending", "true");
+    if (opts.fields?.length) query.set("fields", opts.fields.join(","));
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<DatasetPage>(
+      `/data-builder/datasets/${encodeURIComponent(name)}/rows${suffix}`,
+      { timeoutMs: 60_000 },
+    );
+  },
 
   // ---- playbooks ----
   playbooks: (status?: string) =>

@@ -962,3 +962,150 @@ def list_versions(session: Session, dataset_name: str) -> list[DataVersion]:
         .where(DataVersion.dataset_id == dataset.id)
         .order_by(DataVersion.version.desc())
     ).scalars())
+
+
+# ================================================================ the viewer
+
+
+def browse_dataset(name: str, *, period: str | None = None, offset: int = 0,
+                   limit: int = 50, fields: list[str] | None = None,
+                   sort: str | None = None, descending: bool = False,
+                   filters: dict[str, str] | None = None) -> dict[str, Any]:
+    """One page of a governed dataset, for a person to look at.
+
+    Why this is not "just a SELECT"
+    -------------------------------
+    Everything goes through the Data Access Layer: the dataset name is resolved
+    against the catalogue, every requested field is checked against the governed
+    dictionary, and the sort column must be one of them. A viewer that accepted
+    a column name and interpolated it would be an unrestricted query surface
+    wearing a table's clothes — which is exactly what this product promises
+    nobody has.
+
+    The schema travels with the page, so the interface can show what a column
+    means and how it is classified rather than only its name.
+    """
+    from backend.data_access.catalog import get_catalog
+    from backend.data_access.context import AnalysisContext
+    from backend.data_access.duckdb_source import DuckDBSource
+
+    source = DuckDBSource()
+    spec = get_catalog().dataset(name)  # raises with a helpful message if unknown
+
+    periods = source.periods(name)
+    effective = period or (periods[-1] if periods else None)
+
+    known = set(spec.fields)
+    chosen = [f for f in (fields or []) if f in known] or sorted(known)
+    if sort and sort not in known:
+        raise ValueError(
+            f"'{sort}' is not a field of {name}. Sorting is offered only on the "
+            "governed fields, so a column name cannot become a query."
+        )
+
+    context = AnalysisContext(
+        period=effective or "",
+        filters={k: v for k, v in (filters or {}).items() if k in known and v},
+    )
+    frame = source.fetch(name, context=context, fields=chosen, period=effective)
+
+    total = len(frame)
+    if sort:
+        frame = frame.sort_values(sort, ascending=not descending, kind="mergesort")
+    page = frame.iloc[offset:offset + limit]
+
+    return {
+        "dataset": name,
+        "business_name": spec.business_name,
+        "domain": spec.domain,
+        "family": spec.family,
+        "origin": spec.origin,
+        "is_synthetic": spec.is_synthetic,
+        "grain": spec.grain,
+        "period": effective,
+        "periods": periods,
+        "total_rows": total,
+        "offset": offset,
+        "limit": limit,
+        "returned": int(len(page)),
+        "fields": [
+            {
+                "name": name,
+                "business_name": definition.business_name,
+                "definition": definition.definition,
+                "data_type": definition.data_type,
+                "unit": definition.unit,
+                "sensitivity": definition.sensitivity,
+            }
+            for name, definition in sorted(spec.fields.items())
+            if name in chosen
+        ],
+        "rows": [
+            {k: (None if _is_null(v) else v) for k, v in record.items()}
+            for record in page.to_dict(orient="records")
+        ],
+    }
+
+
+def _is_null(value: Any) -> bool:
+    """NaN is not JSON. A missing value should reach the browser as null."""
+    try:
+        return bool(pd.isna(value))
+    except (TypeError, ValueError):  # pragma: no cover - arrays and the like
+        return False
+
+
+def dataset_tree() -> dict[str, Any]:
+    """Every governed dataset, arranged domain to family to dataset to period.
+
+    The shape a person navigates in, rather than the flat list the engine reads.
+    Someone looking for "the IFRS 9 numbers for Q1" thinks in that order, and
+    making them scan an alphabetical list of table names is making them do the
+    grouping in their head.
+    """
+    from backend.data_access.catalog import get_catalog
+    from backend.data_access.duckdb_source import DuckDBSource
+
+    catalog = get_catalog()
+    source = DuckDBSource()
+    available = set(source.datasets())
+
+    domains: dict[str, dict[str, Any]] = {}
+    for spec in catalog.all():
+        domain = domains.setdefault(
+            spec.domain or "Ungrouped",
+            {"domain": spec.domain or "Ungrouped", "families": {}},
+        )
+        family = domain["families"].setdefault(
+            spec.family, {"family": spec.family, "datasets": []}
+        )
+        periods = source.periods(spec.name) if spec.name in available else []
+        family["datasets"].append({
+            "name": spec.name,
+            "business_name": spec.business_name,
+            "purpose": spec.purpose,
+            "grain": spec.grain,
+            "origin": spec.origin,
+            "is_synthetic": spec.is_synthetic,
+            "authoritative_for": list(spec.authoritative_for),
+            "field_count": len(spec.fields),
+            "periods": periods,
+            "period_count": len(periods),
+            "readable": spec.name in available,
+        })
+
+    return {
+        "domains": [
+            {
+                "domain": d["domain"],
+                "families": sorted(
+                    (
+                        {**f, "datasets": sorted(f["datasets"], key=lambda x: x["name"])}
+                        for f in d["families"].values()
+                    ),
+                    key=lambda f: f["family"],
+                ),
+            }
+            for d in sorted(domains.values(), key=lambda d: d["domain"])
+        ],
+    }

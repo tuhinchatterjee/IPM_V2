@@ -9,6 +9,7 @@ import {
   Database,
   Plus,
   ShieldCheck,
+  Table2,
 } from "lucide-react";
 
 import {
@@ -145,14 +146,22 @@ export default function DataBuilderPage() {
         description="Define what data exists and what it means. A steward brings a file in, maps it to governed fields, documents it, validates it and publishes it — at which point, and not before, the analytical engine can read it."
         status="live"
         actions={
-          canEdit ? (
-            <Button asChild>
-              <Link href="/data-builder/new">
-                <Plus aria-hidden />
-                Add Dataset
+          <>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/data-builder/browse">
+                <Table2 aria-hidden />
+                Browse the data
               </Link>
             </Button>
-          ) : undefined
+            {canEdit && (
+              <Button size="sm" asChild>
+                <Link href="/data-builder/new">
+                  <Plus aria-hidden />
+                  Add dataset
+                </Link>
+              </Button>
+            )}
+          </>
         }
       />
 
