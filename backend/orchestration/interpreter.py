@@ -67,16 +67,37 @@ class Finding:
 
 @dataclass
 class Narrative:
+    """One answer, with the boundary between fact and reading kept visible.
+
+    `direct_answer` and `findings` are CALCULATED: every figure in them was
+    returned by an engine analysis and is quoted unchanged.
+
+    `interpretation` is IPM's READING of those figures. It describes, compares
+    and points somewhere next. It never introduces a number the engine did not
+    produce, and it never asserts causation the engine did not establish.
+    """
+
+    #: One sentence answering the question that was asked. Calculated.
+    direct_answer: str = ""
+    #: Kept for callers that predate the split; equals the direct answer.
     summary: str = ""
+    #: The evidence, in the engine's own figures.
     findings: list[Finding] = field(default_factory=list)
+    #: IPM's reading of that evidence, as a short paragraph.
+    interpretation: str = ""
+    #: The same reading as discrete points, for a scannable panel.
+    interpretation_points: list[str] = field(default_factory=list)
     metrics: list[Metric] = field(default_factory=list)
     drivers: list[dict[str, Any]] = field(default_factory=list)
     caveats: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "direct_answer": self.direct_answer,
             "summary": self.summary,
             "findings": [f.to_dict() for f in self.findings],
+            "interpretation": self.interpretation,
+            "interpretation_points": list(self.interpretation_points),
             "metrics": [m.to_dict() for m in self.metrics],
             "drivers": self.drivers,
             "caveats": self.caveats,
@@ -455,6 +476,404 @@ def _watchlist(values: dict, rows: list[dict], index: int) -> tuple[list[Metric]
     return metrics, findings
 
 
+# ---------------------------------------------------------- the direct answer
+#
+# One sentence that answers the question that was asked, in the engine's own
+# figures. This is the first thing a reader sees, and it is CALCULATED: every
+# number in it was returned by the analysis named in the key.
+
+
+def _ranked(entries: list[dict], key: str, label_key: str, top: int = 2,
+            positive_only: bool = True) -> list[dict]:
+    """The largest contributors, as the engine already ordered them."""
+    rows = [e for e in entries if isinstance(e, dict)]
+    if positive_only:
+        rows = [e for e in rows if (_n(e.get(key)) or 0) > 0]
+    return rows[:top]
+
+
+def _and_list(names: list[str]) -> str:
+    if not names:
+        return ""
+    if len(names) == 1:
+        return names[0]
+    return f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def _answer_ecl_movement(values: dict, rows: list[dict]) -> str:
+    group = values.get("group_by", "sector")
+    breakdown = [b for b in (values.get("breakdown") or []) if isinstance(b, dict)]
+    top = _ranked(breakdown, "ecl_change", group)
+    frm, to = values.get("from_period"), values.get("to_period")
+    if top:
+        names = _and_list([str(t.get(group, "—")) for t in top])
+        amounts = _and_list([signed_money(t.get("ecl_change")) for t in top])
+        plural = "s" if len(top) > 1 else ""
+        return (
+            f"{names} show the largest increase{plural} in expected credit loss "
+            f"between {frm} and {to}, at {amounts} against a net portfolio movement "
+            f"of {signed_money(values.get('net_change'))}."
+        )
+    return (
+        f"Expected credit loss moved {signed_money(values.get('net_change'))} between "
+        f"{frm} and {to}, from {money(values.get('opening_ecl'))} to "
+        f"{money(values.get('closing_ecl'))}."
+    )
+
+
+def _answer_migration(values: dict, rows: list[dict]) -> str:
+    move = values.get("movement") or {}
+    basis = "exposure" if values.get("basis") == "ead" else "borrowers"
+    unit = "USD mn" if values.get("basis") == "ead" else ""
+    amount = money(move.get("deteriorated"), unit) if unit else str(move.get("deteriorated"))
+    return (
+        f"{amount} of {basis} — {pct(move.get('deteriorated_pct'), 1)} — moved to a worse "
+        f"position between {values.get('from_period')} and {values.get('to_period')}, "
+        f"against {pct(move.get('improved_pct'), 1)} that improved."
+    )
+
+
+def _answer_rating_transition(values: dict, rows: list[dict]) -> str:
+    move = values.get("movement") or {}
+    basis = "opening exposure" if values.get("basis") == "ead" else "borrowers"
+    return (
+        f"{pct(move.get('downgraded_pct'), 1)} of {basis} was downgraded between "
+        f"{values.get('from_period')} and {values.get('to_period')}, and "
+        f"{pct(move.get('upgraded_pct'), 1)} upgraded; "
+        f"{pct(move.get('stable_pct'), 1)} held its grade."
+    )
+
+
+def _answer_top_deteriorating(values: dict, rows: list[dict]) -> str:
+    lead = rows[0] if rows else None
+    base = (
+        f"{values.get('deteriorated_count', '—')} of "
+        f"{values.get('borrowers_compared', '—')} borrowers deteriorated between "
+        f"{values.get('from_period')} and {values.get('to_period')}, adding "
+        f"{money(values.get('total_ecl_increase'))} of expected credit loss."
+    )
+    if lead:
+        base += (
+            f" {lead.get('borrower_name', 'The most affected borrower')} is the most "
+            f"affected, with ECL {signed_money(lead.get('ecl_change'))} on "
+            f"{money(lead.get('ead'))} of exposure."
+        )
+    return base
+
+
+def _answer_portfolio_summary(values: dict, rows: list[dict]) -> str:
+    return (
+        f"The book stands at {money(values.get('total_ead'))} of exposure as at "
+        f"{values.get('period')}, carried at {pct(values.get('ecl_coverage_pct'))} ECL "
+        f"coverage with {pct(values.get('npl_ratio_pct'))} non-performing and "
+        f"{pct(values.get('stage2_pct'))} in Stage 2."
+    )
+
+
+def _answer_sector_concentration(values: dict, rows: list[dict]) -> str:
+    dimension = str(values.get("dimension", "sector"))
+    if not rows:
+        return "No exposure was returned for this concentration view."
+    top = rows[0]
+    return (
+        f"{top.get(dimension, 'The largest group')} is the largest concentration at "
+        f"{money(top.get('ead'))}, {pct(top.get('ead_pct'), 1)} of the book; the five "
+        f"largest hold {pct(values.get('top_5_pct'), 1)} between them."
+    )
+
+
+def _answer_stage_distribution(values: dict, rows: list[dict]) -> str:
+    by_stage = {int(r.get("ifrs9_stage", 0)): r for r in rows if r.get("ifrs9_stage") is not None}
+    s2, s3 = by_stage.get(2), by_stage.get(3)
+    if not s2 and not s3:
+        return f"Exposure of {money(values.get('total_ead'))} as at {values.get('period')}."
+    parts = []
+    if s2:
+        parts.append(f"Stage 2 holds {money(s2.get('ead'))} ({pct(s2.get('ead_pct'), 1)})")
+    if s3:
+        parts.append(f"Stage 3 {money(s3.get('ead'))} ({pct(s3.get('ead_pct'), 1)})")
+    return f"{' and '.join(parts)} of {money(values.get('total_ead'))} total exposure as at {values.get('period')}."
+
+
+def _answer_portfolio_trend(values: dict, rows: list[dict]) -> str:
+    change = values.get("change") or {}
+    return (
+        f"Across {len(rows)} reporting periods from {values.get('first_period')} to "
+        f"{values.get('last_period')}, ECL coverage has "
+        f"{direction_word(change.get('ecl_coverage_pct'))} by "
+        f"{pp(change.get('ecl_coverage_pct'))} and the Stage 2 share by "
+        f"{pp(change.get('stage2_pct'))}."
+    )
+
+
+def _answer_stress(values: dict, rows: list[dict]) -> str:
+    scope = values.get("sector") or "the whole portfolio"
+    return (
+        f"Under the {str(values.get('scenario_label', 'scenario')).lower()} applied to "
+        f"{scope}, expected credit loss rises from {money(values.get('base_ecl'))} to "
+        f"{money(values.get('stressed_ecl'))} — {signed_money(values.get('ecl_increase'))}, "
+        f"{pct(values.get('ecl_increase_pct'), 1)} above the reported position."
+    )
+
+
+def _answer_watchlist(values: dict, rows: list[dict]) -> str:
+    return (
+        f"{values.get('matched', '—')} facilities are drawn above "
+        f"{pct(values.get('threshold_pct'), 0)} of their committed limit as at "
+        f"{values.get('period')}, involving {money(values.get('total_ead'))} of exposure."
+    )
+
+
+ANSWERS = {
+    "ecl_movement": _answer_ecl_movement,
+    "stage_migration": _answer_migration,
+    "dpd_migration": _answer_migration,
+    "rating_transition_matrix": _answer_rating_transition,
+    "top_deteriorating_borrowers": _answer_top_deteriorating,
+    "portfolio_summary": _answer_portfolio_summary,
+    "sector_concentration": _answer_sector_concentration,
+    "stage_distribution": _answer_stage_distribution,
+    "portfolio_trend": _answer_portfolio_trend,
+    "stress_scenario_basic": _answer_stress,
+    "high_utilisation_watchlist": _answer_watchlist,
+}
+
+
+# ------------------------------------------------------- IPM's interpretation
+#
+# The reading of the evidence. Three rules hold throughout:
+#
+#   1. No figure appears here that the engine did not return.
+#   2. Where the engine established only that a change SITS somewhere, the
+#      language says so — "concentrated in", "sits in", "coincides with". It
+#      never says "caused by", because a decomposition is not an attribution
+#      of cause.
+#   3. It ends by pointing at what would actually settle the question.
+
+
+def _interpret_ecl_movement(values: dict, rows: list[dict]) -> list[str]:
+    group = values.get("group_by", "sector")
+    breakdown = [b for b in (values.get("breakdown") or []) if isinstance(b, dict)]
+    rising = [b for b in breakdown if (_n(b.get("ecl_change")) or 0) > 0]
+    falling = [b for b in breakdown if (_n(b.get("ecl_change")) or 0) < 0]
+    net = _n(values.get("net_change")) or 0
+    points = []
+    if rising:
+        share = _and_list([str(b.get(group, "—")) for b in rising[:3]])
+        points.append(
+            f"The increase is concentrated in {share}. This is where the movement sits; "
+            "the decomposition does not establish that these groups caused it."
+        )
+    if falling:
+        points.append(
+            f"{_and_list([str(b.get(group, '—')) for b in falling[:2]])} moved the other "
+            "way, partly offsetting the increase — so the net figure understates the "
+            "gross deterioration."
+        )
+    points.append(
+        "Worth checking next: whether the movement reflects a small number of large "
+        "names or a broad shift, which the borrower-level ranking would settle."
+        if net > 0 else
+        "The net movement is not adverse, but the gross picture may still contain "
+        "deterioration offset by releases elsewhere."
+    )
+    return points
+
+
+def _interpret_migration(values: dict, rows: list[dict]) -> list[str]:
+    move = values.get("movement") or {}
+    cover = values.get("coverage") or {}
+    deteriorated = _n(move.get("deteriorated_pct")) or 0
+    improved = _n(move.get("improved_pct")) or 0
+    points = [
+        f"Gross deterioration of {pct(deteriorated, 1)} against {pct(improved, 1)} improvement "
+        "means the net change understates how much actually moved."
+    ]
+    if deteriorated > improved * 2:
+        points.append(
+            "Movement is materially one-directional, which is more consistent with a "
+            "broad shift in credit quality than with normal period-to-period noise."
+        )
+    exits, entries = _n(cover.get("exits")) or 0, _n(cover.get("entries")) or 0
+    if exits or entries:
+        points.append(
+            f"{int(exits)} facilities left the book and {int(entries)} were new. They are "
+            "excluded from the migration, so this measures the same facilities twice, not "
+            "the change in the book as a whole."
+        )
+    points.append(
+        "The names behind the movement would show whether this is concentrated or broad."
+    )
+    return points
+
+
+def _interpret_rating_transition(values: dict, rows: list[dict]) -> list[str]:
+    move = values.get("movement") or {}
+    down = _n(move.get("downgraded_pct")) or 0
+    up = _n(move.get("upgraded_pct")) or 0
+    points = [
+        f"Downgrades exceed upgrades by {pp(down - up, 1).lstrip('+')} of opening exposure."
+        if down > up else
+        "Upgrades exceed downgrades over this interval."
+    ]
+    points.append(
+        "This is an empirical matrix over one interval, not a through-the-cycle estimate. "
+        "Cells with little exposure behind them will be unstable."
+    )
+    points.append(
+        "Whether the downgrades cluster in particular grades or sectors is the question "
+        "this matrix raises rather than answers."
+    )
+    return points
+
+
+def _interpret_top_deteriorating(values: dict, rows: list[dict]) -> list[str]:
+    total = _n(values.get("total_ecl_increase")) or 0
+    lead_share = 0.0
+    if rows and total:
+        lead_share = ((_n(rows[0].get("ecl_change")) or 0) / total) * 100
+    points = []
+    if lead_share >= 20:
+        points.append(
+            f"A single borrower accounts for roughly {lead_share:.0f}% of the aggregate ECL "
+            "increase across these names, so the movement is concentrated rather than broad."
+        )
+    else:
+        points.append(
+            "No single name dominates the aggregate increase, which points to a broad "
+            "movement rather than an isolated credit event."
+        )
+    sectors = [str(r.get("sector")) for r in rows[:10] if r.get("sector")]
+    if sectors:
+        common = max(set(sectors), key=sectors.count)
+        if sectors.count(common) >= 3:
+            points.append(
+                f"{sectors.count(common)} of the listed names sit in {common}. That is an "
+                "association worth testing, not evidence of a sector-wide cause."
+            )
+    points.append(
+        "The recorded reasons on each row give the specific trigger — stage change, "
+        "downgrade, arrears or ECL — for each name."
+    )
+    return points
+
+
+def _interpret_portfolio_summary(values: dict, rows: list[dict]) -> list[str]:
+    move = values.get("movement") or {}
+    points = []
+    cov = _n(move.get("ecl_coverage_pct"))
+    if cov is not None and abs(cov) >= 0.01:
+        points.append(
+            f"Coverage has {direction_word(cov)} {pp(abs(cov))} against "
+            f"{values.get('compare_period')}. Coverage can move because impairment "
+            "changed, because the book grew, or both — the two are separated by the "
+            "impairment movement analysis."
+        )
+    breaches = _n(values.get("appetite_breach_count"))
+    if breaches:
+        points.append(
+            f"{int(breaches)} exposures breach declared appetite, which is a limit "
+            "question rather than a measurement one."
+        )
+    points.append("This is the position. What moved and why sits behind the other analyses.")
+    return points
+
+
+def _interpret_sector_concentration(values: dict, rows: list[dict]) -> list[str]:
+    dimension = str(values.get("dimension", "sector"))
+    top5 = _n(values.get("top_5_pct")) or 0
+    points = []
+    if top5 >= 60:
+        points.append(
+            f"With {pct(top5, 1)} of exposure in five groups, the book is materially "
+            "concentrated. Concentration is not itself a problem; concentration in a "
+            "deteriorating group is."
+        )
+    worst = max(rows, key=lambda r: _n(r.get("coverage_pct")) or 0, default=None)
+    if worst:
+        points.append(
+            f"{worst.get(dimension)} carries the highest coverage at "
+            f"{pct(worst.get('coverage_pct'))}, which is where size and quality overlap."
+        )
+    points.append(
+        "This is a point-in-time view. Whether any of these concentrations is worsening "
+        "needs a comparison across periods."
+    )
+    return points
+
+
+def _interpret_stage_distribution(values: dict, rows: list[dict]) -> list[str]:
+    by_stage = {int(r.get("ifrs9_stage", 0)): r for r in rows if r.get("ifrs9_stage") is not None}
+    points = []
+    s2 = by_stage.get(2)
+    if s2 and (_n(s2.get("ead_pct")) or 0) > 10:
+        points.append(
+            f"A Stage 2 share above 10% is significant: {pct(s2.get('ead_pct'), 1)} of the "
+            "book is carrying lifetime expected loss without being credit-impaired."
+        )
+    points.append(
+        "A distribution shows where exposure sits, not what moved there. The stage "
+        "migration analysis separates the two."
+    )
+    return points
+
+
+def _interpret_portfolio_trend(values: dict, rows: list[dict]) -> list[str]:
+    change = values.get("change") or {}
+    cov = _n(change.get("ecl_coverage_pct")) or 0
+    points = [
+        "The direction is consistent across the series rather than a single-period step."
+        if abs(cov) > 0 else "Coverage has been broadly flat across the series."
+    ]
+    points.append(
+        "Each point is a portfolio total, so this shows the path without attributing it "
+        "to any sector or name."
+    )
+    return points
+
+
+def _interpret_stress(values: dict, rows: list[dict]) -> list[str]:
+    by_sector = [b for b in (values.get("by_sector") or []) if isinstance(b, dict)]
+    points = []
+    if by_sector:
+        worst = by_sector[0]
+        points.append(
+            f"{worst.get('sector')} absorbs the largest share of the increase, "
+            f"{signed_money(worst.get('ecl_increase'))} — a function of both its exposure "
+            "and its starting coverage."
+        )
+    points.append(
+        "This is a management scenario: each facility's reported ECL is scaled by the "
+        "shock. There is no forward-looking macro path and no lifetime PD term structure, "
+        "so it sizes sensitivity rather than forecasting loss."
+    )
+    return points
+
+
+def _interpret_watchlist(values: dict, rows: list[dict]) -> list[str]:
+    return [
+        "High utilisation often precedes a stage migration, because a borrower drawing "
+        "its committed lines is a borrower short of liquidity. It is a signal, not a "
+        "default indicator.",
+        "This analysis is user-defined and has not been validated by the bank.",
+    ]
+
+
+INTERPRETERS = {
+    "ecl_movement": _interpret_ecl_movement,
+    "stage_migration": _interpret_migration,
+    "dpd_migration": _interpret_migration,
+    "rating_transition_matrix": _interpret_rating_transition,
+    "top_deteriorating_borrowers": _interpret_top_deteriorating,
+    "portfolio_summary": _interpret_portfolio_summary,
+    "sector_concentration": _interpret_sector_concentration,
+    "stage_distribution": _interpret_stage_distribution,
+    "portfolio_trend": _interpret_portfolio_trend,
+    "stress_scenario_basic": _interpret_stress,
+    "high_utilisation_watchlist": _interpret_watchlist,
+}
+
+
 READERS = {
     "portfolio_summary": _portfolio_summary,
     "stage_distribution": _stage_distribution,
@@ -565,10 +984,45 @@ def _subject(text: str) -> str:
     return str(text).lower().split()[0] if text.split() else ""
 
 
-def build_narrative(question: str, intent: str, steps: list[dict[str, Any]]) -> Narrative:
-    """Assemble the narrative for an executed investigation.
+def _primary_index(steps: list[dict[str, Any]], plan: Any) -> int:
+    """Which executed step answers the question.
+
+    The planner marks exactly one step PRIMARY. That marking is the whole point
+    of question-scoped planning, so it is honoured here rather than re-derived:
+    a supporting step can easily produce the louder number, and opening the
+    answer with it would answer a question nobody asked.
+    """
+    succeeded = [i for i, s in enumerate(steps) if s.get("status") == "succeeded"]
+    if not succeeded:
+        return -1
+
+    primary = getattr(plan, "primary", None) if plan is not None else None
+    wanted = getattr(primary, "analysis_id", None)
+    if wanted:
+        for i in succeeded:
+            if steps[i].get("analysis_id") == wanted:
+                return i
+        # The primary step failed. Its answer is unavailable, and the caveat
+        # already says so; the first surviving step leads instead.
+    return succeeded[0]
+
+
+def build_narrative(question: str, intent: str, steps: list[dict[str, Any]],
+                    plan: Any = None) -> Narrative:
+    """Assemble the answer for an executed investigation.
 
     `steps` are executed steps: {"analysis_id", "result": {"values","rows","warnings"}}.
+    `plan` is the AnalysisPlan that produced them, used only to identify which
+    step was PRIMARY. It is optional so that callers predating question-scoped
+    planning keep working.
+
+    The output keeps two things apart on purpose:
+
+        direct_answer + findings + metrics   calculated, quoted from the engine
+        interpretation + interpretation_points   IPM's reading of them
+
+    Nothing crosses that line. The interpretation composers may not introduce a
+    figure, and the readers may not offer an opinion.
     """
     metrics: list[Metric] = []
     findings: list[Finding] = []
@@ -597,8 +1051,58 @@ def build_narrative(question: str, intent: str, steps: list[dict[str, Any]]) -> 
         for warning in result.get("warnings") or []:
             caveats.append(str(warning))
 
+    # ------------------------------------------------ the answer to the question
+    primary_index = _primary_index(steps, plan)
+    direct_answer = ""
+    interpretation_points: list[str] = []
+
+    if primary_index >= 0:
+        primary_step = steps[primary_index]
+        analysis_id = str(primary_step.get("analysis_id"))
+        result = primary_step.get("result") or {}
+        values = result.get("values") or {}
+        rows = result.get("rows") or []
+
+        composer = ANSWERS.get(analysis_id)
+        if composer is not None:
+            try:
+                direct_answer = composer(values, rows)
+            except Exception as e:  # pragma: no cover - never break a result
+                logger.warning("Answer composer failed on %s: %s", analysis_id, e)
+
+        interpreter = INTERPRETERS.get(analysis_id)
+        if interpreter is not None:
+            try:
+                interpretation_points = [p for p in interpreter(values, rows) if p]
+            except Exception as e:  # pragma: no cover - never break a result
+                logger.warning("Interpretation failed on %s: %s", analysis_id, e)
+
+    if not direct_answer:
+        # No composer for this analysis, or it failed. The findings are still
+        # calculated facts, so the older summary is a safe fallback.
+        direct_answer = _summary_sentence(question, intent, findings)
+
+    # A supporting step earns one line of reading, never a second briefing. This
+    # is what keeps "why has Stage 2 increased?" to an answer rather than a tour.
+    for index, step in enumerate(steps):
+        if index == primary_index or step.get("status") != "succeeded":
+            continue
+        interpreter = INTERPRETERS.get(str(step.get("analysis_id")))
+        if interpreter is None:
+            continue
+        result = step.get("result") or {}
+        try:
+            extra = [p for p in interpreter(result.get("values") or {},
+                                            result.get("rows") or []) if p]
+        except Exception:  # pragma: no cover - never break a result
+            continue
+        if extra:
+            interpretation_points.append(extra[0])
+
+    interpretation_points = list(dict.fromkeys(interpretation_points))[:4]
+
     # Keep the first occurrence of each headline label: several analyses report
-    # total exposure, and a briefing that says it three times reads as noise.
+    # total exposure, and an answer that says it three times reads as noise.
     seen: set[str] = set()
     unique_metrics = []
     for metric in metrics:
@@ -607,10 +1111,17 @@ def build_narrative(question: str, intent: str, steps: list[dict[str, Any]]) -> 
         seen.add(metric.label)
         unique_metrics.append(metric)
 
+    # The primary step's own metrics lead, because they are the ones the answer
+    # quotes. Four is the most a reader takes in above a chart.
+    unique_metrics.sort(key=lambda m: 0 if m.step == primary_index else 1)
+
     return Narrative(
-        summary=_summary_sentence(question, intent, findings),
+        direct_answer=direct_answer,
+        summary=direct_answer,
         findings=findings,
-        metrics=unique_metrics[:6],
+        interpretation=" ".join(interpretation_points),
+        interpretation_points=interpretation_points,
+        metrics=unique_metrics[:4],
         drivers=_drivers(steps),
         caveats=list(dict.fromkeys(caveats))[:6],
     )
