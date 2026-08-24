@@ -1,7 +1,7 @@
 """
 Every theme's palette, checked rather than judged by eye.
 
-IPM ships eight themes. A theme is only a set of values for the semantic tokens
+CreditProbe ships eight themes. A theme is only a set of values for the semantic tokens
 in globals.css — but a set of values can be quietly illegible, and "it looked
 fine on my monitor" is not a standard. So the palettes are read straight out of
 the stylesheet and asserted:

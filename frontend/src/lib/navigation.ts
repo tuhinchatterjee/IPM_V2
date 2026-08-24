@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  BarChart3,
   Boxes,
   ClipboardCheck,
   Database,
@@ -7,6 +8,7 @@ import {
   FlaskConical,
   GitBranch,
   LayoutGrid,
+  Radar,
   Search,
   Settings,
   Sparkles,
@@ -15,11 +17,21 @@ import {
 } from "lucide-react";
 
 /**
- * The IPM capability map.
+ * The CreditProbe AI capability map.
  *
  * One definition of what the product contains — the sidebar, the landing page
  * and every page header read it, so a capability can never appear in one place
  * and not another.
+ *
+ * The WORK group follows the product hierarchy exactly:
+ *
+ *     Project        the master workspace
+ *       Investigation  a conversational thread
+ *         Analysis       one deterministic engine result
+ *
+ * so Work lists Projects, Investigations, Analyses and Documents in that order.
+ * Engine Builder stays under BUILD because it defines analytical *capabilities*
+ * rather than holding executed results.
  *
  * `status` is part of the model rather than a comment. The product rule is that
  * the UI must never present a placeholder as production functionality, and the
@@ -60,31 +72,42 @@ export const NAV_GROUPS: NavGroup[] = [
 export const NAV_ITEMS: NavItem[] = [
   {
     href: "/",
-    label: "AI Cockpit",
+    label: "Cockpit",
     description:
-      "Ask a question in plain language. IPM plans the investigation, runs approved analyses and explains the result.",
+      "Ask a question in plain language. CreditProbe AI plans the investigation, runs certified analyses and explains the result.",
     icon: Sparkles,
     status: "live",
     phase: "",
     group: "Home",
   },
 
+  // ---- WORK: the product hierarchy, largest container first ----
   {
     href: "/projects",
     label: "Projects",
     description:
-      "Containers for a body of work — chats, investigations, analyses, traces and scenarios.",
+      "The master workspace. A Project holds investigations, saved analyses, documents, people and context.",
     icon: Boxes,
-    status: "preview",
-    phase: "Demo records",
+    status: "live",
+    phase: "",
     group: "Work",
   },
   {
     href: "/investigations",
     label: "Investigations",
     description:
-      "Multi-step root-cause analysis, persisted as a named, shareable investigation.",
+      "Conversational threads. An Investigation holds every question, answer, analysis and interpretation in one continuing thread.",
     icon: Search,
+    status: "live",
+    phase: "",
+    group: "Work",
+  },
+  {
+    href: "/analyses",
+    label: "Analyses",
+    description:
+      "Executed and saved analytical results, each with the data version, parameters and Trace that produced it.",
+    icon: BarChart3,
     status: "live",
     phase: "",
     group: "Work",
@@ -93,21 +116,42 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/documents",
     label: "Documents",
     description:
-      "Board and committee papers authored with live analytical content. Placeholder for this demo.",
+      "Board and committee papers authored with live analytical content. Placeholder for this release.",
     icon: FileText,
     status: "preview",
     phase: "Placeholder by design",
     group: "Work",
   },
 
+  // ---- INTELLIGENCE: standing capability rather than one-off work ----
   {
     href: "/lenses",
     label: "Lenses",
     description:
-      "Saved executive views — composed tiles with fixed filters, each with its own Trace.",
+      "Live dashboards you build by describing them. Each tile is a certified analysis with its own Trace.",
     icon: LayoutGrid,
     status: "live",
     phase: "",
+    group: "Intelligence",
+  },
+  {
+    href: "/early-warning",
+    label: "Early Warning",
+    description:
+      "Forward Risk Signal: a transparent, factor-based score for three credit transitions. Prototype methodology, not a validated model.",
+    icon: Radar,
+    status: "partial",
+    phase: "Prototype methodology",
+    group: "Intelligence",
+  },
+  {
+    href: "/playbooks",
+    label: "Playbooks",
+    description:
+      "Reusable monitoring recipes: a trigger, a scope, the analyses to run, the conditions that constitute an alert and what happens next.",
+    icon: ClipboardCheck,
+    status: "partial",
+    phase: "Definitions run on request",
     group: "Intelligence",
   },
   {
@@ -120,22 +164,13 @@ export const NAV_ITEMS: NavItem[] = [
     phase: "",
     group: "Intelligence",
   },
-  {
-    href: "/blueprints",
-    label: "Blueprints",
-    description:
-      "Reusable analytical workflows that turn one analyst's proven work into institutional capability.",
-    icon: ClipboardCheck,
-    status: "preview",
-    phase: "Execution next",
-    group: "Intelligence",
-  },
 
+  // ---- BUILD: what the product is capable of, and what it may read ----
   {
     href: "/engine-builder",
     label: "Engine Builder",
     description:
-      "Define, test, version and certify analytical capability. IPM Certified analyses carry a verification tick.",
+      "Define, test, version and certify analytical capability. A CreditProbe Certified Analysis carries the double check.",
     icon: Wrench,
     status: "live",
     phase: "",
@@ -145,13 +180,14 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/data-builder",
     label: "Data Builder",
     description:
-      "Domains, datasets, the data dictionary, relationships, quality and publication.",
+      "Domains, dataset families, the data dictionary, relationships, quality and publication.",
     icon: Database,
     status: "live",
     phase: "",
     group: "Build",
   },
 
+  // ---- GOVERN ----
   {
     href: "/trace",
     label: "Trace & Lineage",
@@ -162,22 +198,23 @@ export const NAV_ITEMS: NavItem[] = [
     phase: "",
     group: "Govern",
   },
+  {
+    href: "/workflow",
+    label: "Workflow",
+    description:
+      "Share, review and approve the things that carry institutional weight, with an append-only decision history.",
+    icon: ClipboardCheck,
+    status: "live",
+    phase: "",
+    group: "Govern",
+  },
 
+  // ---- ADMIN ----
   {
     href: "/users",
     label: "Users & Teams",
     description: "Users, teams, roles and permissions at capability, object and data level.",
     icon: Users,
-    status: "preview",
-    phase: "Demo records",
-    group: "Admin",
-  },
-  {
-    href: "/workflow",
-    label: "Workflow",
-    description:
-      "Review and approval of certifications, dataset publication and document sign-off.",
-    icon: ClipboardCheck,
     status: "preview",
     phase: "Demo records",
     group: "Admin",

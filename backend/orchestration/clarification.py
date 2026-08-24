@@ -1,5 +1,5 @@
 """
-When IPM should ask instead of answering.
+When CreditProbe should ask instead of answering.
 
 The rule, from docs/PRODUCT_SPEC.md:
 
@@ -47,7 +47,7 @@ def _contract(analysis_id: str) -> AnalysisContract | None:
 
 def needed_clarification(plan: AnalysisPlan,
                          vocab: Vocabulary | None = None) -> Clarification | None:
-    """The one question IPM must ask before it can run this plan, or None."""
+    """The one question CreditProbe must ask before it can run this plan, or None."""
     vocab = vocab or get_vocabulary()
 
     primary = plan.primary
@@ -78,7 +78,7 @@ def needed_clarification(plan: AnalysisPlan,
 
     return Clarification(
         kind="period",
-        question="Which periods should IPM compare?",
+        question="Which periods should CreditProbe compare?",
         detail=(
             f"The book is reported in {unit}. "
             f"{len(vocab.periods)} periods are published, "
@@ -87,7 +87,7 @@ def needed_clarification(plan: AnalysisPlan,
         options=[c.to_dict() for c in choices],
         because=(
             f"{contract.name} measures change between two reporting periods, and the "
-            "question did not say which. IPM will not choose one for you."
+            "question did not say which. CreditProbe will not choose one for you."
         ),
         allow_custom=True,
     )

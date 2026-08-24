@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# One-time setup. Run this once after downloading IPM:
+# One-time setup. Run this once after downloading CreditProbe:
 #
 #     ./scripts/setup.sh
 #
-# It installs everything IPM needs. After it finishes, start IPM with:
+# It installs everything CreditProbe needs. After it finishes, start CreditProbe with:
 #
 #     ./scripts/dev.sh
 #
@@ -18,7 +18,7 @@ ok()   { echo "  ${GREEN}✓${RESET} $*"; }
 warn() { echo "  ${YELLOW}!${RESET} $*"; }
 die()  { echo; echo "  ${RED}✗${RESET} $1" >&2; [ $# -gt 1 ] && echo "    $2"; echo; exit 1; }
 
-echo "${BOLD}IPM — first-time setup${RESET}"
+echo "${BOLD}CreditProbe — first-time setup${RESET}"
 
 # ------------------------------------------------------------------- python
 
@@ -28,12 +28,12 @@ PY="$(command -v python3 || command -v python || true)"
 
 VERSION="$("$PY" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
 "$PY" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' \
-  || die "Python $VERSION is too old. IPM needs 3.11 or newer." "Install a newer Python from https://www.python.org/downloads/"
+  || die "Python $VERSION is too old. CreditProbe needs 3.11 or newer." "Install a newer Python from https://www.python.org/downloads/"
 ok "Python $VERSION"
 
 if [ ! -d .venv ]; then
-  # A virtual environment keeps IPM's packages separate from everything else on
-  # the machine, so installing IPM can never break another Python project.
+  # A virtual environment keeps CreditProbe's packages separate from everything else on
+  # the machine, so installing CreditProbe can never break another Python project.
   "$PY" -m venv .venv
   ok "Created the .venv folder"
 else
@@ -97,7 +97,7 @@ ${GREEN}${BOLD}  Setup complete.${RESET}
     ${BOLD}1.${RESET} Open ${BOLD}.env${RESET} and set ${BOLD}POSTGRES_PASSWORD${RESET} to a password of your choice.
        Change the password inside ${BOLD}DATABASE_URL${RESET} on the next line to match.
 
-    ${BOLD}2.${RESET} Start IPM:   ${BOLD}./scripts/dev.sh${RESET}
+    ${BOLD}2.${RESET} Start CreditProbe:   ${BOLD}./scripts/dev.sh${RESET}
 
     ${BOLD}3.${RESET} Open:        ${BOLD}http://localhost:3000${RESET}
 

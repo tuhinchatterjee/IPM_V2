@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Is the IPM API answering?
+Is the CreditProbe API answering?
 
 Used as the container's health check. Written in Python rather than with curl so
 the image needs no operating-system packages installed at build time — one less

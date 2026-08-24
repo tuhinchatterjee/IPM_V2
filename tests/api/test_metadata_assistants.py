@@ -1,7 +1,7 @@
 """
 The Data Builder and Engine Builder assistants: what they will and will not say.
 
-These assistants exist so a person can ask about IPM's model in English. The
+These assistants exist so a person can ask about CreditProbe's model in English. The
 tests are about the boundary, because that is what makes them safe to ship:
 
   * they answer from governed metadata, quoting the governed name
@@ -72,7 +72,7 @@ def test_it_describes_an_analysis_and_the_period_it_needs(client):
     assert "Stage Migration" in body["text"]
     assert "two reporting periods" in body["text"]
     assert "ask which periods" in body["text"], (
-        "an analysis with no governed default must say IPM will ask"
+        "an analysis with no governed default must say CreditProbe will ask"
     )
 
 

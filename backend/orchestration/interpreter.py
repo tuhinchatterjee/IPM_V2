@@ -72,7 +72,7 @@ class Narrative:
     `direct_answer` and `findings` are CALCULATED: every figure in them was
     returned by an engine analysis and is quoted unchanged.
 
-    `interpretation` is IPM's READING of those figures. It describes, compares
+    `interpretation` is CreditProbe's READING of those figures. It describes, compares
     and points somewhere next. It never introduces a number the engine did not
     produce, and it never asserts causation the engine did not establish.
     """
@@ -83,7 +83,7 @@ class Narrative:
     summary: str = ""
     #: The evidence, in the engine's own figures.
     findings: list[Finding] = field(default_factory=list)
-    #: IPM's reading of that evidence, as a short paragraph.
+    #: CreditProbe's reading of that evidence, as a short paragraph.
     interpretation: str = ""
     #: The same reading as discrete points, for a scannable panel.
     interpretation_points: list[str] = field(default_factory=list)
@@ -639,7 +639,7 @@ ANSWERS = {
 }
 
 
-# ------------------------------------------------------- IPM's interpretation
+# ------------------------------------------------------- CreditProbe's interpretation
 #
 # The reading of the evidence. Three rules hold throughout:
 #
@@ -1019,7 +1019,7 @@ def build_narrative(question: str, intent: str, steps: list[dict[str, Any]],
     The output keeps two things apart on purpose:
 
         direct_answer + findings + metrics   calculated, quoted from the engine
-        interpretation + interpretation_points   IPM's reading of them
+        interpretation + interpretation_points   CreditProbe's reading of them
 
     Nothing crosses that line. The interpretation composers may not introduce a
     figure, and the readers may not offer an opinion.

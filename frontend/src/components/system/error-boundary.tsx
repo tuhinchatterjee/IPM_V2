@@ -33,7 +33,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error("[IPM] Render error", error, info.componentStack);
+    console.error("[CreditProbe] Render error", error, info.componentStack);
   }
 
   reset = () => this.setState({ error: null });

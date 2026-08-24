@@ -45,7 +45,7 @@ import { cn } from "@/lib/utils";
  *
  * It does not present a briefing. One analysis answers the question and leads
  * the page; anything else that ran is supporting evidence, folded away until it
- * is wanted. A reader gets the answer, the chart that fits it, IPM's reading of
+ * is wanted. A reader gets the answer, the chart that fits it, CreditProbe's reading of
  * it, and a route to the Trace — in that order.
  */
 
@@ -117,7 +117,7 @@ export function InvestigationProgress({
         })}
       </ol>
       <p className="mt-5 border-t border-border pt-3 text-xs text-text-muted">
-        Every figure in the answer is produced by a registered IPM Engine
+        Every figure in the answer is produced by a registered CreditProbe Engine
         analysis running against the published data.
       </p>
     </Card>
@@ -264,7 +264,7 @@ export function InvestigationView({
       {investigation.rejected.length > 0 && (
         <Card className="border-negative/40 p-5">
           <p className="text-sm font-medium text-negative">
-            IPM refused to run this plan
+            CreditProbe refused to run this plan
           </p>
           <ul className="mt-2 space-y-1">
             {investigation.rejected.map((reason) => (
@@ -316,10 +316,10 @@ export function InvestigationView({
       {/* ------------------------------------------------------ primary visual */}
       {primary && <StepResult step={primary} runId={runId} />}
 
-      {/* --------------------------------------------------- IPM's reading */}
+      {/* --------------------------------------------------- CreditProbe's reading */}
       {reading.length > 0 && (
         <section className="max-w-3xl border-l-2 border-accent/40 pl-4">
-          <SectionLabel>IPM&rsquo;s reading</SectionLabel>
+          <SectionLabel>CreditProbe&rsquo;s reading</SectionLabel>
           <ul className="space-y-2">
             {reading.map((point) => (
               <li

@@ -1,7 +1,7 @@
 """
-Ask IPM and Trace-modification API tests.
+Ask CreditProbe and Trace-modification API tests.
 
-This is the surface a question reaches IPM through, so the tests are mostly
+This is the surface a question reaches CreditProbe through, so the tests are mostly
 about what it refuses: text that is not a supported change, a modification of a
 trace that has no stored plan, and a request for a run that does not exist.
 """
@@ -133,7 +133,7 @@ def test_an_answer_separates_calculated_facts_from_ipm_interpretation(client, de
                                             "to_period": "Q1 2026"}).json()
     narrative = body["narrative"]
     assert narrative["direct_answer"], "the question must be answered in one sentence"
-    assert narrative["interpretation_points"], "IPM's reading must be stated separately"
+    assert narrative["interpretation_points"], "CreditProbe's reading must be stated separately"
     # The reading may not claim causation the decomposition did not establish.
     reading = " ".join(narrative["interpretation_points"]).lower()
     assert "caused by" not in reading
@@ -155,7 +155,7 @@ def test_an_unrecognised_question_is_answered_honestly(client, demo_mode):
                                             "persist": False}).json()
     assert body["unmatched"] is True
     assert body["notes"]
-    assert body["steps"], "IPM still shows the standard review rather than nothing"
+    assert body["steps"], "CreditProbe still shows the standard review rather than nothing"
 
 
 def test_an_empty_question_is_rejected_by_the_schema(client):

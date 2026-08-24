@@ -78,7 +78,7 @@ export default function EngineBuilderPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         <Tile label="Registered analyses" value={library.data?.total} loading={library.loading} />
         <Tile
-          label="IPM Certified"
+          label="CreditProbe Certified"
           value={library.data?.certified}
           loading={library.loading}
           icon={<BadgeCheck className="size-4 text-info" aria-hidden />}

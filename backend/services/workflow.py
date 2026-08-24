@@ -21,7 +21,7 @@ reach by clicking carefully; it is a state the code will not enter.
 
 Notifications are in-app only, on purpose. Email and push are a deployment
 decision with their own approvals; what the product owes a user is that work
-assigned to them is visible the moment they open IPM.
+assigned to them is visible the moment they open CreditProbe.
 """
 
 from __future__ import annotations

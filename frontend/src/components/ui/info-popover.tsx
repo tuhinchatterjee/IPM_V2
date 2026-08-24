@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 /**
  * The small "i" next to a screen title.
  *
- * IPM used to open every screen with a line of standfirst explaining what the
+ * CreditProbe used to open every screen with a line of standfirst explaining what the
  * screen was for. Fourteen screens of that is fourteen paragraphs a CRO has read
  * once and then reads past forever — it makes a serious product look like it is
  * still introducing itself.

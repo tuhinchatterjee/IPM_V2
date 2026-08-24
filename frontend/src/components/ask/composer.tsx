@@ -10,13 +10,13 @@ import { cn } from "@/lib/utils";
 /**
  * The prompt composer.
  *
- * It is the largest single element on the Cockpit on purpose. IPM's claim is
+ * It is the largest single element on the Cockpit on purpose. CreditProbe's claim is
  * that the conversation is the product and the dashboard is what you see while
  * you decide what to ask — a composer tucked into a sidebar would contradict
  * that on first sight.
  *
  * Restraint is the design here. A handful of suggestions, not a menu; and the
- * statement of what IPM will and will not do sits behind an "i" rather than
+ * statement of what CreditProbe will and will not do sits behind an "i" rather than
  * under the box, because it is a thing you read once.
  */
 export function Composer({
@@ -69,7 +69,7 @@ export function Composer({
             rows={3}
             disabled={busy}
             placeholder={readOnlyNote ?? placeholder}
-            aria-label="Ask IPM a question about the portfolio"
+            aria-label="Ask CreditProbe a question about the portfolio"
             className="w-full resize-none bg-transparent px-5 py-4 pr-32 text-base leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none disabled:opacity-60"
           />
           <div className="absolute bottom-3.5 right-4 flex items-center gap-2">
@@ -107,9 +107,9 @@ export function Composer({
       </div>
 
       <div className="mt-2.5 flex items-center gap-2">
-        <InfoPopover title="How IPM answers">
+        <InfoPopover title="How CreditProbe answers">
           <p>
-            IPM chooses which certified analyses to run and writes the findings. It never
+            CreditProbe chooses which certified analyses to run and writes the findings. It never
             calculates a figure itself, never writes a query, and never invents a number.
           </p>
           <p>

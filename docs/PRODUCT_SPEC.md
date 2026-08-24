@@ -1,6 +1,6 @@
-# IPM — Product Specification
+# CreditProbe — Product Specification
 
-**IPM** = **Credit Portfolio Intelligence & Monitoring** — an AI-native credit-risk
+**CreditProbe** = **Credit Portfolio Intelligence & Monitoring** — an AI-native credit-risk
 analytical platform for banks.
 
 Status: **specification / architecture baseline.** This document defines what the
@@ -9,10 +9,10 @@ product is. It does not describe what is currently built (see
 
 ---
 
-## 1. What IPM is, and what it is not
+## 1. What CreditProbe is, and what it is not
 
-IPM is **not** a dashboard with a chatbot bolted onto the side. A dashboard answers
-questions someone anticipated when they built the screen. IPM answers questions
+CreditProbe is **not** a dashboard with a chatbot bolted onto the side. A dashboard answers
+questions someone anticipated when they built the screen. CreditProbe answers questions
 nobody anticipated, by planning and running a real analysis on governed data.
 
 A credit officer should be able to type:
@@ -42,13 +42,13 @@ This is the single most important rule in the product. Everything else follows f
 | Understanding the question | Parse natural language into a structured intent |
 | Interpreting intent | Resolve "this month", "deteriorated", "Real Estate" against the governed catalogue |
 | Creating an investigation plan | Decide *which* approved analyses to run, in what order |
-| Choosing approved IPM functions | Select from the **registry only** — it cannot invent a calculation |
+| Choosing approved CreditProbe functions | Select from the **registry only** — it cannot invent a calculation |
 | Selecting parameters | Reporting dates, filters, groupings, thresholds |
 | Orchestrating multiple steps | Chain analyses; feed one result into the next |
 | Interpreting returned results | Turn numbers into a narrative a human can read |
 | Recommending follow-ups | Propose the next question worth asking |
 
-### The deterministic IPM Engine is responsible for
+### The deterministic CreditProbe Engine is responsible for
 
 | Responsibility | Meaning |
 |---|---|
@@ -65,7 +65,7 @@ This is the single most important rule in the product. Everything else follows f
 
 ### The hard boundary
 
-> **Every material number displayed in IPM must be produced by deterministic,
+> **Every material number displayed in CreditProbe must be produced by deterministic,
 > testable, version-controlled engine code. The LLM never performs arithmetic
 > and is never the source of truth for a figure.**
 
@@ -85,9 +85,9 @@ Plain English: *the AI can only order from the menu. It cannot cook.*
 
 ## 3. Core capabilities
 
-### 1. AI Cockpit / Ask IPM
+### 1. AI Cockpit / Ask CreditProbe
 The primary entry point. A conversational surface where a user asks a question in
-plain language. IPM shows its interpretation, its plan, its progress through the plan,
+plain language. CreditProbe shows its interpretation, its plan, its progress through the plan,
 then the result: charts, tables and a narrative. Every result carries a **Trace**
 button and suggested follow-up questions.
 
@@ -157,7 +157,7 @@ Where authorised users define and govern analytical capability. Four areas:
 4. **Version & Governance** — versioning, ownership, review, approval, certification.
 
 **Certification marking:**
-- Pre-built, validated capability → **IPM Certified**, shown with a blue verification tick.
+- Pre-built, validated capability → **CreditProbe Certified**, shown with a blue verification tick.
 - User-created capability → **User Defined / Custom**, **no** tick until it passes certification.
 
 The tick is a control, not decoration. It tells a reader whether a number came from
@@ -182,7 +182,7 @@ Initial domains:
 | Retail / SME Scorecards | Scorecard outputs and behavioural indicators |
 | Documents | Document metadata and links |
 | Policies / Knowledge | Policy text, limits framework, methodology notes |
-| IPM Operational Metadata | Runs, traces, versions, usage, audit |
+| CreditProbe Operational Metadata | Runs, traces, versions, usage, audit |
 
 ### 14. User Management
 Users, teams, roles, permissions. Access is enforced at three levels: **capability**
@@ -208,14 +208,14 @@ Trace is **not** primarily an audit log. An audit log tells you *that* something
 happened. Trace shows **how a particular analysis was created**, as a visual graph you
 can inspect, question, and change.
 
-Every analytical result in IPM has a **Trace** button in its top-right corner.
+Every analytical result in CreditProbe has a **Trace** button in its top-right corner.
 
 ### 4.2 The conceptual chain
 
 ```
 USER QUESTION
      ↓
-INTERPRETATION OF THE QUESTION      ← what IPM understood was being asked
+INTERPRETATION OF THE QUESTION      ← what CreditProbe understood was being asked
      ↓
 INVESTIGATION PLAN
      ↓
@@ -235,19 +235,19 @@ CERTIFIED ENGINE FUNCTION  (id · version · certification)
      ↓
 RESULT
      ↓
-INTERPRETATION OF THE RESULT        ← the answer, and IPM's reading of it
+INTERPRETATION OF THE RESULT        ← the answer, and CreditProbe's reading of it
      ↓
 VISUAL
 ```
 
 **The two interpretations are different things and the map names them separately.**
 The first happens BEFORE anything is computed and is answerable to the question: did
-IPM understand what was asked, and did it choose the right periods and filters? The
+CreditProbe understand what was asked, and did it choose the right periods and filters? The
 second happens AFTER the engine has run and is answerable to the result: does the
 reading follow from the figures?
 
 The result node itself carries both a **direct answer**, whose every figure was quoted
-unchanged from an engine result, and IPM's **reading** of those figures, marked as
+unchanged from an engine result, and CreditProbe's **reading** of those figures, marked as
 interpretation. The reading may describe where a movement sits; it may not claim what
 caused it, because a decomposition is not an attribution of cause.
 
@@ -286,7 +286,7 @@ The chain is a simplification. A real analysis **branches and re-joins**:
 > written by the LLM.**
 
 If the model describes what it did, that is a story. If the executor records what it
-did as it did it, that is evidence. IPM does the second: the executor walks the plan
+did as it did it, that is evidence. CreditProbe does the second: the executor walks the plan
 and every step registers its own node — its inputs, parameters, function identity and
 version, row counts, timings, and outputs. **The graph is the execution record.**
 
@@ -395,7 +395,7 @@ Every registered analytical function declares:
 | 9 | Portfolio Trend | "How have key metrics moved over time?" |
 | 10 | Basic Stress Scenario | "What happens under this shock?" |
 
-All ten are **IPM Certified** for the demo: each has declared metadata, a versioned
+All ten are **CreditProbe Certified** for the demo: each has declared metadata, a versioned
 implementation, and passing tests.
 
 ---

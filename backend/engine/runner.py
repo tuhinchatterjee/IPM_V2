@@ -255,7 +255,7 @@ def persist_run(run: AnalysisRunResult, *, project_id: int | None = None,
                 question: str = "") -> int | None:
     """Store the run and its Trace, returning the analysis run id.
 
-    The stored shape is deliberately the same one an Ask IPM investigation uses —
+    The stored shape is deliberately the same one an Ask CreditProbe investigation uses —
     a plan with one step, and that step's executed result. A single analysis run
     is a one-step investigation, so storing it that way means the Trace viewer and
     the modification path work on it without a second code path.

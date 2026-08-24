@@ -1,4 +1,4 @@
-# IPM Tool — Deployment & Operations
+# CreditProbe Tool — Deployment & Operations
 
 Target host: a Windows PC on the office LAN. The app is served by **Waitress**
 (production WSGI server) as a **single process, multi-threaded** — this is required
@@ -54,11 +54,11 @@ Chosen over Task Scheduler for the crash-restart and stdout/stderr capture.
 Install NSSM: `choco install nssm` (or download from nssm.cc and put `nssm.exe` on PATH).
 
 ```
-nssm install IPMTool "C:\QA\IPM Tool\.venv\Scripts\python.exe" "C:\QA\IPM Tool\serve.py"
-nssm set IPMTool AppDirectory "C:\QA\IPM Tool"
+nssm install IPMTool "C:\QA\CreditProbe Tool\.venv\Scripts\python.exe" "C:\QA\CreditProbe Tool\serve.py"
+nssm set IPMTool AppDirectory "C:\QA\CreditProbe Tool"
 nssm set IPMTool AppEnvironmentExtra ENV=prod HOST=0.0.0.0 PORT=8050 ANTHROPIC_API_KEY=<new-key> OLLAMA_BASE_URL=http://localhost:11434
-nssm set IPMTool AppStdout "C:\QA\IPM Tool\logs\service-out.log"
-nssm set IPMTool AppStderr "C:\QA\IPM Tool\logs\service-err.log"
+nssm set IPMTool AppStdout "C:\QA\CreditProbe Tool\logs\service-out.log"
+nssm set IPMTool AppStderr "C:\QA\CreditProbe Tool\logs\service-err.log"
 nssm set IPMTool AppExit Default Restart
 nssm start IPMTool
 ```
@@ -73,7 +73,7 @@ Service control: `nssm restart IPMTool`, `nssm stop IPMTool`, `nssm status IPMTo
 Allow inbound TCP on the app port for the private/domain network profiles only:
 
 ```
-netsh advfirewall firewall add rule name="IPM Tool 8050" dir=in action=allow protocol=TCP localport=8050 profile=domain,private
+netsh advfirewall firewall add rule name="CreditProbe Tool 8050" dir=in action=allow protocol=TCP localport=8050 profile=domain,private
 ```
 
 Colleagues then reach the app at `http://<this-pc-ip>:8050`.
@@ -81,7 +81,7 @@ Colleagues then reach the app at `http://<this-pc-ip>:8050`.
 ## 6. Update procedure
 
 ```
-cd "C:\QA\IPM Tool"
+cd "C:\QA\CreditProbe Tool"
 git pull
 python -m pip install -r requirements.txt   # or: uv sync
 nssm restart IPMTool
@@ -135,7 +135,7 @@ python -m alembic upgrade head
 **Backups** — daily compressed `pg_dump`, keeping the newest 14. Register the
 scheduled task (adjust the `pg_dump` path/version inside the script if needed):
 ```
-schtasks /create /tn "IPM PG Backup" /tr "powershell -ExecutionPolicy Bypass -File C:\QA\IPM Tool\scripts\backup_db.ps1" /sc daily /st 02:00 /ru SYSTEM
+schtasks /create /tn "CreditProbe PG Backup" /tr "powershell -ExecutionPolicy Bypass -File C:\QA\CreditProbe Tool\scripts\backup_db.ps1" /sc daily /st 02:00 /ru SYSTEM
 ```
 Restore a dump:
 ```
@@ -176,7 +176,7 @@ so it uses the same database, users and datasets as a local `python app.py`.
 ```
 powershell -ExecutionPolicy Bypass -File scripts\app-start.ps1     # start  -> http://localhost:8050
 powershell -ExecutionPolicy Bypass -File scripts\app-stop.ps1      # stop
-docker logs -f IPM                                                 # watch the log
+docker logs -f CreditProbe                                                 # watch the log
 ```
 
 `app-start.ps1` reads `DATABASE_URL`, `SECRET_KEY` and `ANTHROPIC_API_KEY` from

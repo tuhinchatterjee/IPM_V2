@@ -1,5 +1,5 @@
 # =============================================================================
-# IPM — the complete application, in Docker.
+# CreditProbe — the complete application, in Docker.
 # =============================================================================
 #
 #     docker compose up --build          start everything
@@ -90,7 +90,7 @@ services:
       # http://localhost:8000/docs directly.
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
 
-      # Optional. With no key, Ask IPM plans questions with its own
+      # Optional. With no key, Ask CreditProbe plans questions with its own
       # deterministic planner (DEMO_MODE) and still runs the real engine.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       SECRET_KEY: ${SECRET_KEY:-local-dev-not-a-real-secret}

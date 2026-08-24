@@ -11,7 +11,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "IPM — Credit Portfolio Intelligence & Monitoring",
+  title: "CreditProbe AI — Credit Portfolio Intelligence",
   description:
     "An AI-native credit-risk analytical platform. Every figure is produced by a deterministic, tested engine and is fully traceable.",
 };

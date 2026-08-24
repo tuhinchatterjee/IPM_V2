@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# Start IPM for local development — one command.
+# Start CreditProbe for local development — one command.
 #
 #     ./scripts/dev.sh
 #
-# It starts everything IPM needs, in the right order, and waits for each part to
+# It starts everything CreditProbe needs, in the right order, and waits for each part to
 # be genuinely ready before starting the next:
 #
 #   1. PostgreSQL           (in Docker, so you do not have to install it)
@@ -187,7 +187,7 @@ done
 
 cat <<BANNER
 
-${GREEN}${BOLD}  IPM is running.${RESET}
+${GREEN}${BOLD}  CreditProbe is running.${RESET}
 
     ${BOLD}Open this in your browser:${RESET}   http://localhost:3000
 

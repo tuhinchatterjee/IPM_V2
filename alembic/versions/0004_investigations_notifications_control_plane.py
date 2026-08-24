@@ -8,10 +8,10 @@ someone keeps, and the people who need to see it.
                           analysis_run, which is one execution and never changes.
   investigation_versions  one answer the investigation has had. A refresh
                           re-executes the plan against the published data and
-                          writes a new version with IPM's account of what moved.
+                          writes a new version with CreditProbe's account of what moved.
                           Figures are never carried forward.
   notifications           in-app only. Work assigned to you is visible when you
-                          open IPM; email and push are a deployment concern.
+                          open CreditProbe; email and push are a deployment concern.
 
 dataset_definitions also gains the three columns that make Data Builder a
 control plane rather than an inventory: where a dataset came from (demo or

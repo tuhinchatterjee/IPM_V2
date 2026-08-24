@@ -3,7 +3,7 @@ Which dataset actually answers a governed purpose — and the refusal to guess.
 
 The problem this solves
 -----------------------
-IPM ships with a synthetic book so the product can be seen working. A bank then
+CreditProbe ships with a synthetic book so the product can be seen working. A bank then
 onboards its own data through Data Builder. The moment a client dataset is
 published and marked AUTHORITATIVE for a purpose, every certified analysis must
 read it — and must never quietly go on reading the demo book for that purpose.
@@ -125,7 +125,7 @@ def resolve_purpose(purpose: str, catalog: Catalog | None = None) -> Resolution:
 
     if chosen.is_demo:
         reason = (
-            "The only dataset marked authoritative for this purpose is IPM's "
+            "The only dataset marked authoritative for this purpose is CreditProbe's "
             "bundled demonstration data. Onboard client data in Data Builder to "
             "replace it."
         )
@@ -186,7 +186,7 @@ def resolve_dataset(name_or_purpose: str, catalog: Catalog | None = None) -> Res
                 is_demo=resolution.is_demo,
                 authoritative=True,
                 reason=(
-                    f"'{named.name}' is IPM's demonstration data for this purpose. "
+                    f"'{named.name}' is CreditProbe's demonstration data for this purpose. "
                     f"'{resolution.dataset}' is published and marked authoritative, "
                     "so it was used instead."
                 ),
@@ -209,7 +209,7 @@ def resolve_dataset(name_or_purpose: str, catalog: Catalog | None = None) -> Res
 
 
 def governance_summary(catalog: Catalog | None = None) -> dict[str, Any]:
-    """What Data Builder shows an administrator: what powers IPM right now."""
+    """What Data Builder shows an administrator: what powers CreditProbe right now."""
     catalog = catalog or get_catalog()
     out: list[dict[str, Any]] = []
     for purpose, description in sorted(GOVERNED_PURPOSES.items()):

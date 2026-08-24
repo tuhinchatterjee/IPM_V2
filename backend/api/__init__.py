@@ -1,5 +1,5 @@
 """
-The HTTP surface of IPM.
+The HTTP surface of CreditProbe.
 
 Every capability is exposed here rather than being called directly by a screen.
 That boundary is what lets the front end be replaced without touching the engine,

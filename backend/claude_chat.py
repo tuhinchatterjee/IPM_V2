@@ -1,5 +1,5 @@
 """
-Third chat backend for the IPM dashboard, branded in the UI as "GLM-5.2"
+Third chat backend for the CreditProbe dashboard, branded in the UI as "GLM-5.2"
 (actually Claude Haiku via the Anthropic API). Reuses the exact same tool
 definitions and implementations as ai_chat.py (data_loader-backed, so answers
 are grounded the same way) - only the wire format to the model provider

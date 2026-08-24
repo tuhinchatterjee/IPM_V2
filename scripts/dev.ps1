@@ -1,11 +1,11 @@
-# Start IPM for local development — one command, on Windows.
+# Start CreditProbe for local development — one command, on Windows.
 #
 #     .\scripts\dev.ps1
 #
 # If Windows refuses to run it, allow local scripts once with:
 #     Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 #
-# It starts everything IPM needs, in order, waiting for each part to be ready:
+# It starts everything CreditProbe needs, in order, waiting for each part to be ready:
 #
 #   1. PostgreSQL           (in Docker, so you do not have to install it)
 #   2. Database migrations  (creates or updates the tables)
@@ -167,7 +167,7 @@ Write-Host ""
 Ok "Frontend ready"
 
 Write-Host ""
-Write-Host "  IPM is running." -ForegroundColor Green
+Write-Host "  CreditProbe is running." -ForegroundColor Green
 Write-Host ""
 Write-Host "    Open this in your browser:   http://localhost:3000"
 Write-Host ""

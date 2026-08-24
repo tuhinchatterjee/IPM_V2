@@ -2,7 +2,7 @@
 The plan contract — the only thing a language model is allowed to produce.
 
 A plan is not code and it is not a query. It is a short, declarative list of
-registered IPM analyses to run, each with parameters the analysis's own contract
+registered CreditProbe analyses to run, each with parameters the analysis's own contract
 already permits. That is the whole vocabulary available to the planner:
 
     {"analysis_id": "stage_migration",
@@ -105,7 +105,7 @@ class Scope:
 
     Recorded rather than inferred at render time, because the whole point of
     question-scoped answering is that the reading of the question is a decision
-    IPM made, is displayed, and appears on the Trace.
+    CreditProbe made, is displayed, and appears on the Trace.
     """
 
     #: One phrase naming the subject, e.g. "sector deterioration".
@@ -155,7 +155,7 @@ class Scope:
 
 @dataclass(frozen=True)
 class Clarification:
-    """A question IPM asks back, instead of guessing.
+    """A question CreditProbe asks back, instead of guessing.
 
     Returned in place of an answer. It carries options resolved to real
     reporting periods, so answering is a click and the executor receives values
@@ -186,7 +186,7 @@ class AnalysisPlan:
     """A complete investigation: how the question was read, and what to run."""
 
     question: str
-    # A restatement of the question in IPM's own terms — what the user is
+    # A restatement of the question in CreditProbe's own terms — what the user is
     # understood to be asking. Displayed, so the user can see a misreading.
     intent: str
     steps: list[PlanStep]
@@ -196,7 +196,7 @@ class AnalysisPlan:
     planner: str = "demo"
     model_name: str | None = None
     # Questions worth asking next. Selected from the registered library, so every
-    # suggestion is something IPM can actually answer.
+    # suggestion is something CreditProbe can actually answer.
     follow_ups: list[str] = field(default_factory=list)
     # Set when the question could not be matched to any registered analysis.
     unmatched: bool = False

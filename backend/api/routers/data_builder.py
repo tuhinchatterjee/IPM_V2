@@ -465,7 +465,7 @@ class ReplaceIn(BaseModel):
     )
 
 
-@router.post("/sync-bundled", summary="Register IPM's bundled datasets for governance")
+@router.post("/sync-bundled", summary="Register CreditProbe's bundled datasets for governance")
 def sync_bundled(session: Session = Depends(get_db),
                  principal: Principal = RequireDataSteward) -> dict:
     """Bring the demonstration book into Data Builder so it can be governed.
@@ -475,7 +475,7 @@ def sync_bundled(session: Session = Depends(get_db),
     return governance.sync_bundled_catalog(session)
 
 
-@router.get("/control-plane", summary="What is powering IPM right now")
+@router.get("/control-plane", summary="What is powering CreditProbe right now")
 def control_plane(session: Session = Depends(get_db)) -> dict:
     """Purpose by purpose: which dataset answers it, and is it demo data?"""
     return governance.control_plane(session)
@@ -599,7 +599,7 @@ def accept_harmonisation(name: str, payload: AcceptIn, session: Session = Depend
 
 @router.post("/assistant", summary="Ask about the data model")
 def data_assistant(payload: AskIn) -> dict:
-    """Answer a question about IPM's governed metadata.
+    """Answer a question about CreditProbe's governed metadata.
 
     Reads domain, dataset, field and analysis definitions. It has no access to
     portfolio data, states no credit figures, and changes nothing.

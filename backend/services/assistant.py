@@ -5,7 +5,7 @@ What these assistants are for
 -----------------------------
 "What does EAD mean here?" "Which datasets have a customer identifier?" "Which
 analysis answers a question about staging, and what period does it need?" These
-are questions about IPM's governed metadata, and a person should be able to ask
+are questions about CreditProbe's governed metadata, and a person should be able to ask
 them in English instead of clicking through a dictionary.
 
 What they may see
@@ -45,13 +45,13 @@ logger = logging.getLogger(__name__)
 
 MAX_QUESTION_CHARS = 400
 
-SYSTEM_PROMPT = """You are IPM's metadata assistant. You answer questions about a \
+SYSTEM_PROMPT = """You are CreditProbe's metadata assistant. You answer questions about a \
 credit-risk platform's GOVERNED METADATA: its data domains, datasets, fields and \
 their definitions, and its registered analyses.
 
 Absolute rules:
 - You have no access to portfolio data and you never state a credit figure. If \
-asked for one, say the question belongs in Ask IPM, which runs a certified \
+asked for one, say the question belongs in Ask CreditProbe, which runs a certified \
 analysis and produces a Trace.
 - You answer only from the metadata supplied below. If it does not contain the \
 answer, say so and name what would have to be defined for the answer to exist.
@@ -72,7 +72,7 @@ class Answer:
     references: list[dict[str, str]] = field(default_factory=list)
     #: "lookup" when answered deterministically, "model" when a model wrote it.
     source: str = "lookup"
-    #: Set when IPM could not answer, so the UI can say why rather than nothing.
+    #: Set when CreditProbe could not answer, so the UI can say why rather than nothing.
     unanswered_reason: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -82,7 +82,7 @@ class Answer:
             "source": self.source,
             "unanswered_reason": self.unanswered_reason,
             "rule": (
-                "This assistant reads IPM's governed metadata only. It has no access "
+                "This assistant reads CreditProbe's governed metadata only. It has no access "
                 "to portfolio data, states no credit figures, and changes nothing."
             ),
         }
@@ -208,7 +208,7 @@ def _lookup_field(question: str, context: dict[str, Any]) -> Answer | None:
                 text=(
                     f"'{first['name']}' ({first.get('business_name')}) exists in "
                     f"{where}, but it has no definition in the data dictionary. "
-                    "Until someone writes one, IPM cannot tell you what it means — "
+                    "Until someone writes one, CreditProbe cannot tell you what it means — "
                     "and neither can anyone reading a report built on it."
                 ),
                 references=[{"kind": "field", "name": first["name"], "dataset": where}],
@@ -232,7 +232,7 @@ def _lookup_dataset(question: str, context: dict[str, Any]) -> Answer | None:
             needle = _norm(candidate)
             if len(needle) < 4 or needle not in asked:
                 continue
-            demo = " It is IPM's demonstration data." if dataset["origin"] == "demo" else ""
+            demo = " It is CreditProbe's demonstration data." if dataset["origin"] == "demo" else ""
             authoritative = (
                 f" It is the authoritative source for "
                 f"{', '.join(dataset['authoritative_for'])}."
@@ -268,7 +268,7 @@ def _lookup_analysis(question: str, context: dict[str, Any]) -> Answer | None:
             if analysis["period_requirement"] != "point_in_time" and not analysis[
                 "governed_default_period"
             ]:
-                period += " IPM will ask which periods to compare before running it."
+                period += " CreditProbe will ask which periods to compare before running it."
             return Answer(
                 text=(
                     f"{analysis['name']} (`{analysis['id']}`, v{analysis['version']}, "
@@ -308,11 +308,11 @@ def _cannot_answer(scope: str) -> Answer:
     where = "Data Builder" if scope == "data" else "Engine Builder"
     return Answer(
         text=(
-            f"I could not find that in IPM's governed metadata. I can only answer "
+            f"I could not find that in CreditProbe's governed metadata. I can only answer "
             f"from what is defined in {where} — domain, dataset, field and analysis "
             "definitions. If this should have an answer, the definition is missing, "
             "which is worth fixing whether or not you asked me. For a portfolio "
-            "figure, ask IPM on the Cockpit: that runs a certified analysis and "
+            "figure, ask CreditProbe on the Cockpit: that runs a certified analysis and "
             "produces a Trace."
         ),
         unanswered_reason="not_in_metadata",
@@ -338,7 +338,7 @@ def ask(question: str, *, scope: str = "data") -> Answer:
         return Answer(
             text=(
                 "That is a portfolio question, not a metadata one. Ask it on the "
-                "Cockpit: IPM will run a certified analysis against the published "
+                "Cockpit: CreditProbe will run a certified analysis against the published "
                 "data and the answer will carry a Trace. I only describe the model."
             ),
             unanswered_reason="belongs_in_ask",

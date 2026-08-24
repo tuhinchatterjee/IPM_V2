@@ -21,7 +21,7 @@ import { DEMO_NOTICE, INVESTIGATIONS } from "@/lib/demo";
  * SAVED are analytical objects somebody keeps: named, owned, versioned, and
  * refreshable against newly published data.
  *
- * ASKED is every question put to IPM, with its Trace intact. Real work, but
+ * ASKED is every question put to CreditProbe, with its Trace intact. Real work, but
  * nobody has decided to keep it yet.
  *
  * TEMPLATES are seeded review outlines. They name real registered analyses but
@@ -37,7 +37,7 @@ export default function InvestigationsPage() {
     <div className="space-y-8">
       <PageHeader
         title="Investigations"
-        description="Every question asked of IPM, kept with the plan it produced, the analyses it ran and the Trace behind each figure. Reopen one to read it, or branch it into a new version."
+        description="Every question asked of CreditProbe, kept with the plan it produced, the analyses it ran and the Trace behind each figure. Reopen one to read it, or branch it into a new version."
         status="live"
         actions={
           <Button size="sm" asChild>
@@ -87,7 +87,7 @@ export default function InvestigationsPage() {
 
       <section>
         <h2 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
-          Asked of IPM
+          Asked of CreditProbe
         </h2>
         {recent.loading && <Skeleton className="h-40 w-full" />}
         {recent.error && (

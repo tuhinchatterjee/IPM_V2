@@ -3,7 +3,7 @@ The planner and the wall in front of it.
 
 These tests exist for one reason: the planner is the only component that reads
 free text, and the validator is the only thing standing between what it produced
-and the engine. If either drifts, IPM can answer a question it did not
+and the engine. If either drifts, CreditProbe can answer a question it did not
 understand, or run something nobody registered.
 """
 
@@ -121,7 +121,7 @@ def _plan(step: PlanStep) -> AnalysisPlan:
 def test_an_unregistered_analysis_is_refused(vocab):
     with pytest.raises(PlanRejected) as excinfo:
         validate_plan(_plan(PlanStep("calculate_ecl_directly")), vocab)
-    assert "not a registered IPM analysis" in str(excinfo.value)
+    assert "not a registered CreditProbe analysis" in str(excinfo.value)
 
 
 def test_an_unknown_parameter_is_refused(vocab):
@@ -151,7 +151,7 @@ def test_an_ungoverned_filter_dimension_is_refused(vocab):
     problems = validate_step(
         PlanStep("portfolio_summary", filters={"account_id": "ACC000001"}), vocab
     )
-    assert problems and "not a dimension IPM allows filtering on" in problems[0]
+    assert problems and "not a dimension CreditProbe allows filtering on" in problems[0]
 
 
 def test_a_filter_value_absent_from_the_data_is_refused(vocab):

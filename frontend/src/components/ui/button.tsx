@@ -5,7 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 /**
- * Button — shadcn/ui convention, IPM tokens.
+ * Button — shadcn/ui convention, CreditProbe tokens.
  *
  * Variants are named by intent rather than appearance, so a theme change or a
  * palette revision never requires touching a call site.

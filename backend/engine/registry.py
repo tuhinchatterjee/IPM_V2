@@ -1,7 +1,7 @@
 """
 The Engine Registry — the menu the AI may order from.
 
-Every analytical capability in IPM is registered here with a declared contract
+Every analytical capability in CreditProbe is registered here with a declared contract
 (see contracts.py) and a bound Python implementation. Three things depend on it:
 
   * the planner   — may only name registered, runnable analyses
@@ -123,7 +123,7 @@ class Registry:
             return self._items[analysis_id]
         except KeyError:
             raise UnknownAnalysisError(
-                f"'{analysis_id}' is not a registered IPM analysis. "
+                f"'{analysis_id}' is not a registered CreditProbe analysis. "
                 f"Available: {', '.join(self.ids()) or '(none registered yet)'}"
             ) from None
 

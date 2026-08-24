@@ -13,7 +13,7 @@ into the three-layer analytical store described in docs/ARCHITECTURE.md §4.2:
   data/raw/         the original workbook, untouched — never modified, so any
                     number can always be re-derived from exactly what was received
   data/curated/     the same data with the bank's own column names mapped to
-                    governed IPM field names, types enforced, and validation run
+                    governed CreditProbe field names, types enforced, and validation run
   data/analytics/   business-ready Parquet, one folder per dataset and one file
                     per reporting period, which is what the engine actually reads
 
@@ -193,7 +193,7 @@ def read_source_dictionary(xl: pd.ExcelFile) -> dict[str, tuple[str, str]]:
 
     Returns {source column header: (type/units, definition)}. Using the bank's own
     published definitions rather than inventing our own is the whole point: the
-    Data Dictionary in IPM must say what the data owner says it says.
+    Data Dictionary in CreditProbe must say what the data owner says it says.
     """
     if DICT_SHEET not in xl.sheet_names:
         return {}
@@ -357,7 +357,7 @@ def main() -> int:
         print(f"ERROR: source workbook not found at {source}")
         return 1
 
-    print(f"Building the IPM analytical data lake from {source.name}")
+    print(f"Building the CreditProbe analytical data lake from {source.name}")
     print()
 
     with pd.ExcelFile(source) as xl:
@@ -438,7 +438,7 @@ def main() -> int:
                 "status": "active",
                 "version": "1.0.0",
                 "is_synthetic": True,
-                # Governance. This is IPM's bundled demonstration book: it is
+                # Governance. This is CreditProbe's bundled demonstration book: it is
                 # labelled DEMO in Data Builder, and the moment a client dataset
                 # is published and marked authoritative for the same purpose,
                 # the engine reads that one instead (see data_access/authority.py).

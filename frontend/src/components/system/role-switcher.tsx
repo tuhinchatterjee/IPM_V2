@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 /**
  * The acting role.
  *
- * IPM has no login yet, so the role is chosen here and sent on every request as
+ * CreditProbe has no login yet, so the role is chosen here and sent on every request as
  * a header the backend reads (see backend/api/permissions.py). That makes the
  * permission model demonstrable — a Viewer genuinely cannot publish a dataset,
  * because the backend refuses — while being explicit that it is a demonstration

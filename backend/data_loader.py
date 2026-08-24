@@ -1,5 +1,5 @@
 """
-Data access layer for the IPM Executive Portfolio Risk Cockpit.
+Data access layer for the CreditProbe Executive Portfolio Risk Cockpit.
 
 Loads every quarterly snapshot tab from Portfolio_Monitoring_Dataset.xlsx into a
 single long-form DataFrame and exposes pure aggregation helpers that the Dash

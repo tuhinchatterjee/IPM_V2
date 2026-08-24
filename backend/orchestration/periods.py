@@ -5,7 +5,7 @@ Two jobs.
 
 **Reading a period out of the question.** "Which sectors deteriorated this
 quarter?" specifies a comparison; "which sectors deteriorated?" does not. The
-difference decides whether IPM answers or asks, so it is worked out here rather
+difference decides whether CreditProbe answers or asks, so it is worked out here rather
 than guessed at the point of use.
 
 **Offering choices that exist.** If the book is quarterly, "last 3 months" is a

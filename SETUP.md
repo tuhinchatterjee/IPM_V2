@@ -1,4 +1,4 @@
-# Setting up the IPM Tool on a new Windows PC
+# Setting up the CreditProbe Tool on a new Windows PC
 
 A complete, start-to-finish guide for someone who has never run this project
 before. Every command is typed into **Windows Terminal**. You do not need to

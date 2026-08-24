@@ -22,7 +22,7 @@ Why the operation list is closed
 The supported operations are enumerated below and nothing else is possible. A
 free-text instruction cannot introduce a new filter dimension, a new data source,
 or a new calculation, because there is no operation that does any of those. This
-is the same principle as the plan contract: the model chooses among things IPM
+is the same principle as the plan contract: the model chooses among things CreditProbe
 already knows how to do, and the choice is validated before it runs.
 """
 
@@ -129,7 +129,7 @@ def interpret(request: str, plan: AnalysisPlan,
 
     Order matters. "Remove this filter" and "Remove Sector Concentration" both
     begin with "remove"; the filter reading is tried first because it is the more
-    specific phrase. Returning None is a real answer — an instruction IPM cannot
+    specific phrase. Returning None is a real answer — an instruction CreditProbe cannot
     carry out is reported as such rather than approximated.
     """
     vocab = vocab or get_vocabulary()
@@ -459,7 +459,7 @@ def preview(request: str, plan: AnalysisPlan, graph: dict[str, Any],
         return ProposedChange(
             request=request, understood=False, operation=None,
             description=(
-                "IPM did not recognise that as a change it can make to this analysis. "
+                "CreditProbe did not recognise that as a change it can make to this analysis. "
                 "The changes it supports are listed below."
             ),
             current_plan=plan, proposed_plan=plan,

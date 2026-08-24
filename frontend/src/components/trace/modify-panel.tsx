@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
  * The interaction is deliberately two-stage, and the two stages are not the same
  * kind of action:
  *
- *   1. **Propose.** Nothing runs. IPM says what it understood, which steps would
+ *   1. **Propose.** Nothing runs. CreditProbe says what it understood, which steps would
  *      change, and which parts of the map that invalidates. If it did not
  *      understand, it says so and lists what it can do — it never approximates.
  *   2. **Apply & re-run.** Only on an explicit press. The affected steps re-run,
@@ -234,7 +234,7 @@ function ProposedChangeView({
         {!change.understood && (
           <div>
             <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.11em] text-text-muted">
-              What IPM can change
+              What CreditProbe can change
             </p>
             <ul className="space-y-1">
               {change.supported.map((option) => (
@@ -255,7 +255,7 @@ function ProposedChangeView({
         {change.rejected.length > 0 && (
           <div className="rounded-md border border-negative/30 bg-negative-muted p-3">
             <p className="mb-1 text-xs font-medium text-negative">
-              IPM refused this change
+              CreditProbe refused this change
             </p>
             {change.rejected.map((reason) => (
               <p key={reason} className="text-xs text-negative">

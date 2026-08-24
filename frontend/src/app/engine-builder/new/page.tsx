@@ -163,7 +163,7 @@ export default function AnalysisBuilderPage() {
             <h3 className="mb-2 text-sm font-semibold text-text-primary">Certification</h3>
             <p className="mb-3 text-xs leading-relaxed text-text-muted">
               A new analysis starts as <strong>User Defined</strong> and carries no verification
-              tick. It becomes IPM Certified only after review and approval in Workflow.
+              tick. It becomes CreditProbe Certified only after review and approval in Workflow.
             </p>
             <Badge variant="warning">User Defined</Badge>
           </Card>

@@ -2,13 +2,13 @@
 The Data Access Layer contract.
 
 This is the single most important boundary in the backend. Everything above it
-(the IPM Engine, the orchestration layer, the API) asks for *governed datasets by
+(the CreditProbe Engine, the orchestration layer, the API) asks for *governed datasets by
 name*. Everything below it (DuckDB over Parquet today; Databricks, Snowflake or
 another bank lakehouse later) decides how that request is physically satisfied.
 
 The rule:
 
-    The IPM Engine never writes SQL, never opens a file, and never imports duckdb.
+    The CreditProbe Engine never writes SQL, never opens a file, and never imports duckdb.
     It calls fetch() / aggregate() with governed names and gets a DataFrame back.
 
 That is what makes the storage swappable. When the bank moves its analytical data

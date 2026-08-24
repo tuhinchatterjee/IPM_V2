@@ -52,8 +52,8 @@ def validate_step(step: PlanStep, vocab: Vocabulary | None = None) -> list[str]:
         registered = registry.require_runnable(step.analysis_id)
     except UnknownAnalysisError:
         return [
-            f"'{step.analysis_id}' is not a registered IPM analysis, so it cannot be run. "
-            "IPM can only run analyses that exist in the Engine Library."
+            f"'{step.analysis_id}' is not a registered CreditProbe analysis, so it cannot be run. "
+            "CreditProbe can only run analyses that exist in the Engine Library."
         ]
     except ContractError as e:
         return [str(e)]
@@ -74,7 +74,7 @@ def validate_step(step: PlanStep, vocab: Vocabulary | None = None) -> list[str]:
             continue
         if vocab.periods and value not in vocab.periods:
             problems.append(
-                f"'{value}' is not a reporting period IPM holds data for ({label}). "
+                f"'{value}' is not a reporting period CreditProbe holds data for ({label}). "
                 f"Available: {', '.join(vocab.periods)}."
             )
 
@@ -82,7 +82,7 @@ def validate_step(step: PlanStep, vocab: Vocabulary | None = None) -> list[str]:
     for dimension, value in (step.filters or {}).items():
         if dimension not in FILTERABLE_DIMENSIONS:
             problems.append(
-                f"'{dimension}' is not a dimension IPM allows filtering on. "
+                f"'{dimension}' is not a dimension CreditProbe allows filtering on. "
                 f"Allowed: {', '.join(FILTERABLE_DIMENSIONS)}."
             )
             continue
@@ -123,7 +123,7 @@ def validate_plan(plan: AnalysisPlan, vocab: Vocabulary | None = None) -> Analys
         reasons.append("The plan contained no analyses to run.")
     if len(plan.steps) > MAX_PLAN_STEPS:
         reasons.append(
-            f"The plan asked for {len(plan.steps)} analyses; IPM runs at most "
+            f"The plan asked for {len(plan.steps)} analyses; CreditProbe runs at most "
             f"{MAX_PLAN_STEPS} for one question."
         )
 

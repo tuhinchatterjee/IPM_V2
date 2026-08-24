@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* =============================================================================
-   IPM DESIGN TOKENS
+   CreditProbe DESIGN TOKENS
    =============================================================================
 
    Every colour in the interface is referenced by the JOB IT DOES, never by what
@@ -11,7 +11,7 @@
    That single discipline is what makes eight themes possible. A theme is one set
    of values for these role names — nothing else changes. Layout, typography,
    spacing, radii and motion are deliberately theme-invariant, so switching theme
-   changes how IPM looks and never how it works.
+   changes how CreditProbe looks and never how it works.
 
    RULE: a literal colour value inside a component is a bug. Add a token instead.
 

@@ -1,4 +1,4 @@
-# Start IPM on Windows using Docker — one command.
+# Start CreditProbe on Windows using Docker — one command.
 #
 #     .\scripts\start-docker.ps1
 #
@@ -48,13 +48,13 @@ if ($LASTEXITCODE -ne 0) {
 Ok "Docker Desktop is running"
 
 # .env is optional: docker-compose.yml carries development defaults for
-# everything IPM needs. It is only mentioned so the choice is visible.
+# everything CreditProbe needs. It is only mentioned so the choice is visible.
 if (Test-Path ".env") { Ok "Using the settings in your .env file" }
 else { Warn "No .env file — using the built-in development defaults (this is fine)" }
 
 # --------------------------------------------------------------- start it
 
-Step "Building and starting IPM"
+Step "Building and starting CreditProbe"
 Write-Host "  The first run downloads and builds the containers." -ForegroundColor DarkGray
 Write-Host "  Expect 5-10 minutes the first time, and a few seconds after that." -ForegroundColor DarkGray
 Write-Host ""
@@ -62,12 +62,12 @@ Write-Host ""
 if ($Rebuild) { docker compose build --no-cache }
 docker compose up --build -d
 if ($LASTEXITCODE -ne 0) {
-    Die "IPM did not start." "See what went wrong with:  docker compose logs"
+    Die "CreditProbe did not start." "See what went wrong with:  docker compose logs"
 }
 
 # -------------------------------------------------------------- wait for it
 
-Step "Waiting for IPM to be ready"
+Step "Waiting for CreditProbe to be ready"
 $ready = $false
 foreach ($attempt in 1..120) {
     try {
@@ -78,12 +78,12 @@ foreach ($attempt in 1..120) {
 }
 
 if (-not $ready) {
-    Die "IPM started but is not answering yet." `
+    Die "CreditProbe started but is not answering yet." `
         "Give it another minute, then check:  docker compose logs backend"
 }
 
 Write-Host ""
-Write-Host "  IPM is running." -ForegroundColor Green
+Write-Host "  CreditProbe is running." -ForegroundColor Green
 Write-Host ""
 Write-Host "    Open this in your browser:   http://localhost:3000" -ForegroundColor White
 Write-Host ""

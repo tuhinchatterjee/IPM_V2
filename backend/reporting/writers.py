@@ -168,7 +168,7 @@ def write_pdf(report: dict, context: dict | None = None) -> bytes:
         Paragraph("Basis of preparation", styles["section"]),
         Paragraph(
             "Every figure in this pack is computed from the active portfolio dataset at the stated "
-            "reporting date and reconciles to the corresponding screen in the IPM tool. Capital-linked "
+            "reporting date and reconciles to the corresponding screen in the CreditProbe tool. Capital-linked "
             "figures use a documented risk-weight proxy; macro scenario paths and the climate stressed-PD "
             "model are disclosed as model output rather than measured outcomes. Recommended actions and "
             "remediation items are derived from the findings raised in this pack.",
@@ -276,7 +276,7 @@ def write_docx(report: dict, context: dict | None = None) -> bytes:
     document.add_heading("Basis of preparation", level=1)
     document.add_paragraph(
         "Every figure in this pack is computed from the active portfolio dataset at the stated "
-        "reporting date and reconciles to the corresponding screen in the IPM tool. Capital-linked "
+        "reporting date and reconciles to the corresponding screen in the CreditProbe tool. Capital-linked "
         "figures use a documented risk-weight proxy; macro scenario paths and the climate stressed-PD "
         "model are disclosed as model output rather than measured outcomes. Recommended actions and "
         "remediation items are derived from the findings raised in this pack.")

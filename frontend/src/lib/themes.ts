@@ -1,11 +1,11 @@
 /**
- * The eight IPM themes.
+ * The eight CreditProbe themes.
  *
  * A theme is nothing more than a set of values for the semantic tokens defined
  * in globals.css. It changes background, surface, border, text, accent, status
  * and chart colours — and nothing else. Layout, typography, spacing, hierarchy
  * and interaction are identical across all eight, so switching theme changes how
- * IPM looks and never how it works.
+ * CreditProbe looks and never how it works.
  *
  * Each palette is checked rather than judged by eye: tests/frontend/
  * test_theme_contrast.py reads globals.css and asserts body text, secondary

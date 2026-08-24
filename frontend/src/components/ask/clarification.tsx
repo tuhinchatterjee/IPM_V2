@@ -8,12 +8,12 @@ import { Card } from "@/components/ui/card";
 import type { Clarification, PlannerMode } from "@/lib/api";
 
 /**
- * The one question IPM asks back.
+ * The one question CreditProbe asks back.
  *
  * "Which sectors deteriorated?" has no answer until someone says since when.
  * Choosing a comparison silently would produce a confident number answering a
  * question nobody asked — and it would carry a certification mark while doing
- * it. So IPM asks, once, and says why it is asking.
+ * it. So CreditProbe asks, once, and says why it is asking.
  *
  * Every option here resolves to two real published periods, so answering is a
  * click. The custom row exists for the case the quick options do not cover, and

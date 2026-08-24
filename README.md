@@ -1,4 +1,4 @@
-# IPM — Credit Portfolio Intelligence & Monitoring
+# CreditProbe — Credit Portfolio Intelligence & Monitoring
 
 An AI-native credit-risk analytical platform for banks.
 
@@ -8,7 +8,7 @@ engine** — and every result is fully traceable back to the data, filters,
 parameters and function version that produced it.
 
 > **New here?** Jump straight to
-> [How to run IPM locally — for a non-developer](#how-to-run-ipm-locally--for-a-non-developer).
+> [How to run CreditProbe locally — for a non-developer](#how-to-run-ipm-locally--for-a-non-developer).
 
 | Document | What it covers |
 |---|---|
@@ -22,12 +22,12 @@ parameters and function version that produced it.
 
 **The language model is not the calculator and is not the source of truth.**
 
-| The language model does | The IPM Engine does |
+| The language model does | The CreditProbe Engine does |
 |---|---|
 | Understand the question | Retrieve, filter and aggregate data |
 | Interpret intent | Compute portfolio metrics |
 | Build an investigation plan | Compute stage and DPD migration |
-| Choose approved IPM analyses | Compute rating transition matrices |
+| Choose approved CreditProbe analyses | Compute rating transition matrices |
 | Select parameters | Analyse ECL and deterioration |
 | Interpret returned results | Run stress scenarios |
 | Write the narrative | Return structured numerical output |
@@ -41,10 +41,10 @@ contract. Anything else is **rejected before execution**.
 
 ---
 
-## Run IPM on Windows with Docker — no Node.js or Python required
+## Run CreditProbe on Windows with Docker — no Node.js or Python required
 
-**This is the easiest way to run IPM, and the one to use if your company blocks
-software installation.** Everything IPM needs — the interface, the analytics and
+**This is the easiest way to run CreditProbe, and the one to use if your company blocks
+software installation.** Everything CreditProbe needs — the interface, the analytics and
 the database — runs inside Docker. The only thing on your own machine is Docker
 Desktop.
 
@@ -54,7 +54,7 @@ Install **Docker Desktop** once, from
 https://www.docker.com/products/docker-desktop/, and open it. Wait until it says
 **Running** in the bottom-left corner. That is the only installation required.
 
-### Start IPM
+### Start CreditProbe
 
 Open **PowerShell** (press Start, type `PowerShell`, press Enter), then:
 
@@ -63,7 +63,7 @@ cd C:\Users\T.Chatterjee\IPM_V2
 docker compose up --build
 ```
 
-Or use the helper script, which checks Docker first and tells you when IPM is
+Or use the helper script, which checks Docker first and tells you when CreditProbe is
 actually ready rather than only started:
 
 ```powershell
@@ -85,11 +85,11 @@ ipm-backend  | [ipm] Applying database migrations...
 ipm-backend  | [ipm] Database schema is up to date.
 ipm-backend  | [ipm] Building the analytical layer from data/raw (first run only, ~20 seconds)...
 ipm-backend  | [ipm] Analytical layer built.
-ipm-backend  | [ipm] Starting the IPM API on 0.0.0.0:8000
+ipm-backend  | [ipm] Starting the CreditProbe API on 0.0.0.0:8000
 ipm-frontend | ✓ Ready
 ```
 
-When you see `Ready`, IPM is up.
+When you see `Ready`, CreditProbe is up.
 
 ### Open it
 
@@ -103,7 +103,7 @@ Also available:
 | API health check | http://localhost:8000/api/v1/health |
 | API documentation | http://localhost:8000/docs |
 
-Everything works with no AI key: Ask IPM reads your questions with its own
+Everything works with no AI key: Ask CreditProbe reads your questions with its own
 built-in planner and still runs the real analytical engine.
 
 ### Stop it
@@ -144,7 +144,7 @@ docker compose up
 |---|---|---|
 | `Cannot connect to the Docker daemon` | Docker Desktop is not running | Open Docker Desktop, wait for **Running**, try again |
 | `port is already allocated` | Something else is using port 3000 or 8000 | Close it, or set `WEB_PORT=3001` / `API_PORT=8001` in `.env` |
-| The page loads but says **Cannot reach the IPM backend** | The backend is still starting | Wait a minute. If it persists: `docker compose logs backend` |
+| The page loads but says **Cannot reach the CreditProbe backend** | The backend is still starting | Wait a minute. If it persists: `docker compose logs backend` |
 | `Could not connect to PostgreSQL after 60 seconds` | The database did not start | `docker compose logs db` |
 | `env: 'bash\r': No such file or directory` and the backend exits with 127 | The repository was checked out with Windows line endings before `.gitattributes` pinned them | `git pull`, then `docker compose build --no-cache backend`. To tidy the working tree as well: `git add --renormalize .` then `git checkout -- .` |
 | The build fails downloading packages | A corporate proxy is inspecting HTTPS traffic | Ask IT for your proxy's certificate authority file, then see the note at the top of `docker/backend.Dockerfile` about the `PYTHON_IMAGE` and `NODE_IMAGE` build arguments |
@@ -172,20 +172,20 @@ The browser only ever talks to **one** address, `localhost:3000`. The frontend
 passes API calls through to the backend inside Docker, so there is no second
 address to configure and nothing to get wrong. The analytical data stays in the
 `data\` folder in your repository rather than being copied into a container, so
-it is never duplicated and the Parquet layer IPM builds on first start is still
+it is never duplicated and the Parquet layer CreditProbe builds on first start is still
 there next time.
 
 ---
 
-## How to run IPM locally — for a non-developer
+## How to run CreditProbe locally — for a non-developer
 
-The alternative to Docker: IPM running directly on your machine, which gives
+The alternative to Docker: CreditProbe running directly on your machine, which gives
 instant reload when code changes. Written for someone who does not write
 software. Every step is spelled out. If a step fails, the error message tells
 you exactly what to do.
 
-> If you only want to *use* IPM rather than change it, use
-> [Run IPM on Windows with Docker](#run-ipm-on-windows-with-docker--no-nodejs-or-python-required)
+> If you only want to *use* CreditProbe rather than change it, use
+> [Run CreditProbe on Windows with Docker](#run-ipm-on-windows-with-docker--no-nodejs-or-python-required)
 > above instead — it needs nothing installed but Docker Desktop.
 
 ### What you need to install first
@@ -206,7 +206,7 @@ Three things, once. Install each one and accept all the defaults.
 - **Windows** — press the Start button, type `Windows Terminal`, press Enter.
 - **Mac** — press ⌘ + Space, type `Terminal`, press Enter.
 
-Then move into the IPM folder by typing `cd ` (with a space) and dragging the IPM
+Then move into the CreditProbe folder by typing `cd ` (with a space) and dragging the CreditProbe
 folder onto the terminal window, then pressing Enter.
 
 ---
@@ -229,14 +229,14 @@ copy .env.example .env
 .venv\Scripts\python scripts\build_data_lake.py
 ```
 
-This installs everything IPM needs and converts the sample credit data into the
+This installs everything CreditProbe needs and converts the sample credit data into the
 format the analytics engine reads. It takes a few minutes the first time.
 
 ---
 
 ### Step 2 — Set your database password (once)
 
-Open the file called **`.env`** in the IPM folder with any text editor (Notepad
+Open the file called **`.env`** in the CreditProbe folder with any text editor (Notepad
 is fine). Find these two lines:
 
 ```
@@ -255,7 +255,7 @@ Save the file and close it.
 
 ---
 
-### Step 3 — Start IPM
+### Step 3 — Start CreditProbe
 
 Make sure **Docker Desktop is open and running**, then:
 
@@ -292,7 +292,7 @@ You will see it start each part in turn, checking each one is ready:
 > Starting the frontend
   [ok] Frontend ready
 
-  IPM is running.
+  CreditProbe is running.
 
     Open this in your browser:   http://localhost:3000
 ```
@@ -308,14 +308,14 @@ says **All systems operational**.
 
 1. On the opening screen, click one of the suggested questions — for example
    *"What deteriorated this period?"* — or type your own and press Enter.
-2. IPM shows what it is doing, then returns an executive summary, headline
+2. CreditProbe shows what it is doing, then returns an executive summary, headline
    metrics, key findings, the drivers behind them, and every chart and table
    underneath.
 3. Press **Trace** on the answer. That opens the **Analytical Reasoning Map** —
    every step from your question to the figures, with the boundary between
-   IPM's judgement and the deterministic engine drawn differently.
+   CreditProbe's judgement and the deterministic engine drawn differently.
 4. On the map, type a change into **Ask / Modify Trace** — *"Exclude Real
-   Estate"*, *"Use borrower count instead of EAD"*, *"Add ECL Movement"*. IPM
+   Estate"*, *"Use borrower count instead of EAD"*, *"Add ECL Movement"*. CreditProbe
    shows you exactly what would change before anything runs. Press
    **Apply & re-run** and it creates **Version 2**, leaving the original intact
    and switchable at the top of the page.
@@ -323,16 +323,16 @@ says **All systems operational**.
    Executive Ivory, Midnight Boardroom, Graphite and Warm Sand. It applies
    instantly, is remembered, and never changes the layout.
 
-**Does IPM need an AI key?** No. If no `ANTHROPIC_API_KEY` is set in `.env`,
-IPM reads questions with its own built-in planner and says so under the question
+**Does CreditProbe need an AI key?** No. If no `ANTHROPIC_API_KEY` is set in `.env`,
+CreditProbe reads questions with its own built-in planner and says so under the question
 box. Either way the *answers* are identical in kind: every figure is produced by
-running real, certified IPM Engine analyses against the published data. Nothing
+running real, certified CreditProbe Engine analyses against the published data. Nothing
 is pre-written and no number is invented. Adding a key changes only how freely
 worded a question can be.
 
 ---
 
-### Stopping IPM
+### Stopping CreditProbe
 
 Press **Ctrl + C** once in the terminal. That stops the interface and the
 analytics. The database keeps running quietly in the background; to stop that
@@ -357,7 +357,7 @@ Every failure message names the fix. The most common ones:
 | `No .env file found` | Step 2 was skipped | `cp .env.example .env` (Windows: `copy .env.example .env`) |
 | `The Python packages are not installed` | Step 1 did not finish | Re-run `./scripts/setup.sh` |
 | `PostgreSQL did not become ready` | The database failed to start | Run `docker compose logs db` to see why |
-| `Cannot reach the IPM backend` in the browser | The backend stopped | Look in `logs/api-dev.log` |
+| `Cannot reach the CreditProbe backend` in the browser | The backend stopped | Look in `logs/api-dev.log` |
 | `port is already allocated` | Something else is using port 5432 | Change `POSTGRES_PORT=5433` in `.env` (and in `DATABASE_URL`) |
 
 Two log files hold the detail: **`logs/api-dev.log`** and **`logs/web-dev.log`**.
@@ -366,7 +366,7 @@ Two log files hold the detail: **`logs/api-dev.log`** and **`logs/web-dev.log`**
 
 ## What each part does
 
-| Part | What it is | Why IPM uses it |
+| Part | What it is | Why CreditProbe uses it |
 |---|---|---|
 | **PostgreSQL** | A database | The filing cabinet: users, projects, chats, analysis runs, traces, and the Engine Builder / Data Builder definitions. Everything the bank has *decided* or *recorded*. |
 | **Parquet** | A file format for large tables | Stores data column by column, so totalling one column of millions of rows reads only that column. This is where the monthly credit data lives — **not** in PostgreSQL. |
@@ -387,7 +387,7 @@ Two log files hold the detail: **`logs/api-dev.log`** and **`logs/web-dev.log`**
 | Start only the database | `docker compose up -d db` |
 | Stop the database | `docker compose down` |
 | Browse the database in a web page | `docker compose --profile tools up -d` then http://localhost:5050 |
-| Read the API documentation | http://127.0.0.1:8000/docs while IPM is running |
+| Read the API documentation | http://127.0.0.1:8000/docs while CreditProbe is running |
 
 ---
 
@@ -411,7 +411,7 @@ backend/
   api/              FastAPI — the HTTP surface the frontend talks to
   data_access/      the Data Access Layer: governed names in, DataFrames out.
                     The ONLY place that knows about DuckDB.
-  engine/           the deterministic IPM Engine: contracts, registry, functions
+  engine/           the deterministic CreditProbe Engine: contracts, registry, functions
   trace/            the Trace graph — nodes, edges, content hashing
   orchestration/    the only place a language model is used (Phase 3)
   stress/           stress scenarios (Phase 2+)
@@ -505,25 +505,25 @@ become the implementations behind registered engine functions in Phase 2.
 
 **Phase 5 — product quality: the answer, the workspace and the control plane.**
 
-* **Ask IPM answers the question that was asked.** Each recognised intent names
+* **Ask CreditProbe answers the question that was asked.** Each recognised intent names
   one primary analysis and at most a couple of supporting ones. "Which sectors
   deteriorated the most?" returns the sector attribution and nothing else — it
   no longer returns total exposure, the NPL ratio and the stage distribution
   alongside it.
-* **IPM asks before it guesses.** An analysis that measures change between two
+* **CreditProbe asks before it guesses.** An analysis that measures change between two
   periods will not run until the periods are settled. When the question does not
-  say, IPM asks, with options built from the real published periods — a
+  say, CreditProbe asks, with options built from the real published periods — a
   quarterly book is never offered "last 3 months". A point-in-time question
   ("what is our NPL ratio?") is answered, never interrogated.
 * **Fact and interpretation are kept apart.** Every answer opens with one
   sentence whose figures were quoted unchanged from an engine result, and states
-  IPM's reading of them separately, labelled as a reading. The reading describes
+  CreditProbe's reading of them separately, labelled as a reading. The reading describes
   where a movement sits; it does not claim what caused it.
 * **The Analytical Reasoning Map** now records the whole chain: the question, how
-  IPM read it, the plan, the governed data domain, the dataset with its family,
+  CreditProbe read it, the plan, the governed data domain, the dataset with its family,
   version, period and origin, the variables with their definitions, the filters
   with row counts, the transformations, the aggregations, the certified function
-  and its version, the result, IPM's reading of it, and the visual. The two
+  and its version, the result, CreditProbe's reading of it, and the visual. The two
   interpretive moments — reading the question, reading the result — are named
   separately, because they answer to different things.
 * **Investigations you keep.** A saved investigation has a name, an owner and
@@ -535,7 +535,7 @@ become the implementations behind registered engine functions in Phase 2.
   the decision and its comment become an append-only history. The Workflow Inbox
   separates what you have to do from what you are waiting on.
 * **Data Builder is a control plane.** It states, purpose by purpose, which
-  dataset is answering IPM right now and whether that dataset is your data or the
+  dataset is answering CreditProbe right now and whether that dataset is your data or the
   bundled demonstration book. Archiving the only authoritative source for a
   purpose is refused and names the analyses that would stop working. Replacing
   demonstration data with your own is a governed act: the schemas are compared
@@ -544,7 +544,7 @@ become the implementations behind registered engine functions in Phase 2.
 * **Two assistants that only read metadata.** One answers questions about the
   data dictionary, one about the analysis library. Neither can see portfolio
   data, state a figure, or change anything; a portfolio question is refused and
-  sent to Ask IPM, where it produces a Trace.
+  sent to Ask CreditProbe, where it produces a Trace.
 * **Eight themes** — four light, four dark — switchable in one click. Every
   palette's contrast is asserted by a test, not judged by eye.
 
@@ -554,6 +554,6 @@ interactive map and controlled Trace modification. See
 [docs/DEMO_SCOPE.md](docs/DEMO_SCOPE.md) for the sequence and what remains
 (Documents authoring and production authentication).
 
-Every screen in the application states its own honest status. IPM does not
+Every screen in the application states its own honest status. CreditProbe does not
 present unbuilt functionality as if it were finished, and never shows invented
 figures.

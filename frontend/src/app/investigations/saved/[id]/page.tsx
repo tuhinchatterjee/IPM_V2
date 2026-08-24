@@ -59,7 +59,7 @@ export default function SavedInvestigationPage() {
       setVersion(updated.version);
       setNonce((n) => n + 1);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "IPM could not refresh this.");
+      setError(e instanceof Error ? e.message : "CreditProbe could not refresh this.");
     } finally {
       setBusy(false);
     }
@@ -207,7 +207,7 @@ export default function SavedInvestigationPage() {
       {narrative.interpretation_points && narrative.interpretation_points.length > 0 && (
         <section className="max-w-3xl border-l-2 border-accent/40 pl-4">
           <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
-            IPM&rsquo;s reading
+            CreditProbe&rsquo;s reading
           </h2>
           <ul className="space-y-2">
             {narrative.interpretation_points.map((point) => (
@@ -300,7 +300,7 @@ function Collaboration({
       });
       setSent(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "IPM could not send this for review.");
+      setError(e instanceof Error ? e.message : "CreditProbe could not send this for review.");
     }
   };
 

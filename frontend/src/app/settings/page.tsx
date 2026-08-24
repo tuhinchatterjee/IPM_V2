@@ -33,7 +33,7 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle>Acting role</CardTitle>
           <CardDescription>
-            IPM has no login yet, so the role is chosen here and sent to the API on every request.
+            CreditProbe has no login yet, so the role is chosen here and sent to the API on every request.
             The backend genuinely enforces it — a Viewer cannot publish a dataset. This
             demonstrates the permission model; it is not authentication.
           </CardDescription>
@@ -62,7 +62,7 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle>Connection</CardTitle>
           <CardDescription>
-            Where this interface expects to find the IPM backend. Change it with the{" "}
+            Where this interface expects to find the CreditProbe backend. Change it with the{" "}
             <code className="font-mono text-xs">NEXT_PUBLIC_API_URL</code> setting in
             your <code className="font-mono text-xs">.env</code> file.
           </CardDescription>

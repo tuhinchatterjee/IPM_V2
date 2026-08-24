@@ -43,10 +43,10 @@ export function CertificationMark({
     return (
       <span
         className="inline-flex items-center gap-1 text-xs font-medium text-info"
-        title="IPM Certified — validated and tested by the bank"
+        title="CreditProbe Certified — validated and tested by the bank"
       >
         <BadgeCheck className="size-3.5 shrink-0" aria-hidden />
-        {!compact && "IPM Certified"}
+        {!compact && "CreditProbe Certified"}
       </span>
     );
   }

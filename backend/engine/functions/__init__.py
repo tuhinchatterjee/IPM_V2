@@ -4,7 +4,7 @@ Registered analytical capabilities.
 Importing this package runs the @register decorators and populates the Engine
 Registry, so every function module must be imported here.
 
-Ten IPM Certified analyses, plus one deliberately USER_DEFINED example that
+Ten CreditProbe Certified analyses, plus one deliberately USER_DEFINED example that
 demonstrates a user-built analysis running without a verification tick:
 
   portfolio.py   Portfolio Summary, Stage Distribution, Sector Concentration,

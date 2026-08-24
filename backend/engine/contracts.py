@@ -32,7 +32,7 @@ from typing import Any
 
 
 class Certification(StrEnum):
-    CERTIFIED = "certified"  # IPM Certified — validated, tested, blue tick
+    CERTIFIED = "certified"  # CreditProbe Certified — validated, tested, blue tick
     USER_DEFINED = "user_defined"  # built by a user, not yet certified, no tick
     DRAFT = "draft"  # under construction, not runnable in production
     DEPRECATED = "deprecated"  # superseded; may not be selected by the planner
@@ -60,7 +60,7 @@ class ParamType(StrEnum):
 class PeriodRequirement(StrEnum):
     """How much history an analysis needs before it can answer anything.
 
-    This is the single most important piece of metadata for Ask IPM. "What is
+    This is the single most important piece of metadata for Ask CreditProbe. "What is
     our NPL ratio?" needs one period and must not interrogate the user about
     history; "which sectors deteriorated?" is meaningless without two, and
     silently picking a comparison would answer a question nobody asked.
@@ -246,14 +246,14 @@ class AnalysisContract:
     calculation_description: str = ""
 
     # ---- semantics: what this analysis is FOR -------------------------------
-    # Data Builder teaches IPM what data means. This half teaches it what an
-    # analysis does and when to reach for it, which is what lets Ask IPM answer
+    # Data Builder teaches CreditProbe what data means. This half teaches it what an
+    # analysis does and when to reach for it, which is what lets Ask CreditProbe answer
     # the question actually asked instead of running everything it owns.
 
     # How much history the analysis needs. Drives period clarification.
     period_requirement: PeriodRequirement = PeriodRequirement.POINT_IN_TIME
 
-    # Whether IPM may assume a period without asking. True only where the
+    # Whether CreditProbe may assume a period without asking. True only where the
     # contract's own default is a governed, defensible choice (for example
     # "the latest published period" for a point-in-time level).
     governed_default_period: bool = True
@@ -261,7 +261,7 @@ class AnalysisContract:
     # The shape of the answer, used to pick one primary visual.
     answer_shape: AnswerShape = AnswerShape.LEVEL
 
-    # One sentence a risk officer would recognise: when should IPM reach for
+    # One sentence a risk officer would recognise: when should CreditProbe reach for
     # this rather than something adjacent?
     when_to_use: str = ""
 
@@ -276,7 +276,7 @@ class AnalysisContract:
     # The governed PURPOSES this analysis draws on — "credit_facility_position",
     # not a table name and not a file. The purpose is resolved to whichever
     # dataset is authoritative for it at execution time, which is what lets a
-    # bank's own data replace IPM's demonstration book without touching a line
+    # bank's own data replace CreditProbe's demonstration book without touching a line
     # of analysis code. See backend/data_access/authority.py.
     #
     # It is also the dependency Data Builder reads: archiving the only dataset
@@ -299,7 +299,7 @@ class AnalysisContract:
 
     @property
     def needs_period_clarification(self) -> bool:
-        """Whether IPM must ask the user for a period before running.
+        """Whether CreditProbe must ask the user for a period before running.
 
         True when the analysis spans time AND its contract does not carry a
         governed default. A point-in-time level never asks.

@@ -31,7 +31,7 @@ from backend.config import settings
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["system"])
 
-APP_NAME = "IPM — Credit Portfolio Intelligence & Monitoring"
+APP_NAME = "CreditProbe AI — Credit Portfolio Intelligence"
 APP_VERSION = "0.2.0"
 BUILD_PHASE = "Phase 1 — Foundations"
 

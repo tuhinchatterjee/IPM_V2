@@ -11,7 +11,7 @@ export default function NotFound() {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-text-secondary">
-          That address does not exist in IPM.
+          That address does not exist in CreditProbe.
         </p>
         <Button asChild variant="outline" size="sm">
           <Link href="/">Back to the overview</Link>

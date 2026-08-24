@@ -2,75 +2,92 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Clock } from "lucide-react";
 
 import { NAV_GROUPS, STATUS_LABEL, itemsInGroup } from "@/lib/navigation";
-import { INVESTIGATIONS, PROJECTS } from "@/lib/demo";
 import { cn } from "@/lib/utils";
+
+import { useNavState } from "./nav-state";
 
 /**
  * Primary navigation.
  *
+ * Two states. Expanded shows icons and labels; collapsed shows icons only and
+ * gives roughly 180px back to the workspace, which is the difference between a
+ * readable Trace canvas and a cramped one.
+ *
  * Every capability is listed, including those not yet finished, and each carries
  * an honest status. Hiding unbuilt areas would make the product look smaller
  * than it is; presenting them as finished would mislead. Naming them and marking
- * them does neither.
+ * them does neither. In the collapsed state the status dot is dropped rather
+ * than crowded against the icon — the tooltip still carries it.
  */
-
-const RECENT = [
-  ...INVESTIGATIONS.slice(0, 2).map((i) => ({
-    href: `/investigations/${i.id}`,
-    label: i.title,
-    kind: "Investigation",
-  })),
-  ...PROJECTS.slice(0, 2).map((p) => ({
-    href: `/projects/${p.id}`,
-    label: p.name,
-    kind: "Project",
-  })),
-];
-
 export function Sidebar() {
   const pathname = usePathname();
+  const { collapsed } = useNavState();
 
   return (
     <nav
       aria-label="Primary"
-      className="flex h-full w-60 shrink-0 flex-col gap-5 overflow-y-auto border-r border-border bg-surface px-3 py-4"
+      data-collapsed={collapsed ? "true" : "false"}
+      className={cn(
+        "flex h-full shrink-0 flex-col gap-6 overflow-y-auto overflow-x-hidden border-r border-border bg-surface py-5 transition-[width] duration-200",
+        collapsed ? "w-[60px] px-2" : "w-[212px] px-3",
+      )}
     >
       {NAV_GROUPS.map((group) => (
         <div key={group}>
-          <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-text-muted">
-            {group}
-          </p>
-          <ul className="space-y-px">
+          {collapsed ? (
+            // A heading rendered at icon width is unreadable, so the group is
+            // marked with a rule instead and kept for screen readers.
+            <>
+              <span className="sr-only">{group}</span>
+              <div className="mx-auto mb-2 h-px w-5 bg-border" aria-hidden />
+            </>
+          ) : (
+            <p className="px-2.5 pb-2 text-[10px] font-medium uppercase tracking-[0.1em] text-text-muted">
+              {group}
+            </p>
+          )}
+          <ul className="space-y-0.5">
             {itemsInGroup(group).map((item) => {
               const active =
                 item.href === "/"
                   ? pathname === "/"
                   : pathname === item.href || pathname.startsWith(`${item.href}/`);
               const Icon = item.icon;
+              const hint =
+                item.status === "live"
+                  ? item.label
+                  : `${item.label} — ${STATUS_LABEL[item.status]}${item.phase ? `: ${item.phase}` : ""}`;
               return (
                 <li key={item.href}>
                   <Link
                     href={item.href}
                     aria-current={active ? "page" : undefined}
+                    title={hint}
                     className={cn(
-                      "group flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+                      "group flex items-center rounded-md text-[13px] transition-colors",
+                      collapsed
+                        ? "h-9 w-9 justify-center"
+                        : "gap-2.5 px-2.5 py-[7px]",
                       active
                         ? "bg-accent-muted font-medium text-accent"
                         : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
                     )}
                   >
-                    <Icon className="size-4 shrink-0" aria-hidden />
-                    <span className="truncate">{item.label}</span>
-                    {item.status !== "live" && (
-                      <span
-                        className="ml-auto size-1.5 shrink-0 rounded-full bg-border-strong"
-                        title={`${STATUS_LABEL[item.status]}${item.phase ? ` — ${item.phase}` : ""}`}
-                        aria-hidden
-                      />
+                    <Icon className="size-[15px] shrink-0" aria-hidden />
+                    {!collapsed && (
+                      <>
+                        <span className="truncate">{item.label}</span>
+                        {item.status !== "live" && (
+                          <span
+                            className="ml-auto size-1 shrink-0 rounded-full bg-border-strong"
+                            aria-hidden
+                          />
+                        )}
+                      </>
                     )}
+                    {collapsed && <span className="sr-only">{item.label}</span>}
                   </Link>
                 </li>
               );
@@ -78,26 +95,6 @@ export function Sidebar() {
           </ul>
         </div>
       ))}
-
-      <div className="mt-auto">
-        <p className="flex items-center gap-1.5 px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-text-muted">
-          <Clock className="size-3" aria-hidden />
-          Recent
-        </p>
-        <ul className="space-y-px">
-          {RECENT.map((item) => (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                className="block rounded-md px-3 py-1.5 text-xs text-text-muted transition-colors hover:bg-surface-hover hover:text-text-secondary"
-              >
-                <span className="block truncate">{item.label}</span>
-                <span className="text-[10px] text-text-muted/70">{item.kind}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
     </nav>
   );
 }

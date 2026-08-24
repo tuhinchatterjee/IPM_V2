@@ -65,8 +65,8 @@ def test_the_reasoning_map_separates_judgement_from_arithmetic(investigation):
 
 
 def test_every_map_node_belongs_to_a_step_or_the_interpretive_frame(investigation):
-    # The interpretive frame around the governed subgraphs: the question, IPM's
-    # reading of it, the plan, IPM's reading of the result, and the chart chosen
+    # The interpretive frame around the governed subgraphs: the question, CreditProbe's
+    # reading of it, the plan, CreditProbe's reading of the result, and the chart chosen
     # from the answer's shape.
     frame = {"question", "intent", "plan", "narrative", "visual"}
     for node_id, node in investigation.graph.nodes.items():
@@ -158,7 +158,7 @@ def test_an_unsupported_modification_is_refused_and_explained(base, vocab):
     change = mod.preview("Delete the database.", plan, inv.graph.to_dict(), vocab)
     assert not change.understood
     assert not change.applicable
-    assert change.supported, "the user must be told what IPM can do instead"
+    assert change.supported, "the user must be told what CreditProbe can do instead"
 
 
 def test_a_preview_runs_nothing_and_names_the_affected_nodes(base, vocab):

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# What has to be true before the IPM API can serve a request, in order.
+# What has to be true before the CreditProbe API can serve a request, in order.
 #
 #   1. PostgreSQL is accepting connections, with these credentials
 #   2. The database schema is up to date
@@ -64,5 +64,5 @@ fi
 
 # ------------------------------------------------------------------ 4. serve
 
-say "Starting the IPM API on 0.0.0.0:${API_PORT:-8000}"
+say "Starting the CreditProbe API on 0.0.0.0:${API_PORT:-8000}"
 exec "$@"

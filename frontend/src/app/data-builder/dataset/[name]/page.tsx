@@ -125,7 +125,7 @@ export default function DatasetPage({ params }: { params: Promise<{ name: string
             {dataset.lifecycle === "published" && (
               <span className="ml-2 inline-flex items-center gap-1.5 text-xs font-medium text-positive">
                 <CheckCircle2 className="size-3.5" aria-hidden />
-                Available to IPM Engine
+                Available to CreditProbe Engine
               </span>
             )}
           </div>

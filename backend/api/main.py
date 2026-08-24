@@ -1,5 +1,5 @@
 """
-The IPM API — FastAPI application.
+The CreditProbe API — FastAPI application.
 
 This is the boundary the Next.js front end talks to. Putting every capability
 behind HTTP rather than letting screens call Python directly is what makes the
@@ -152,7 +152,7 @@ def create_app() -> FastAPI:
     def healthz():
         return {"status": "ok"}
 
-    logger.info("IPM API ready (env=%s, cors=%s)", settings.env, list(settings.cors_origins))
+    logger.info("CreditProbe API ready (env=%s, cors=%s)", settings.env, list(settings.cors_origins))
     return app
 
 

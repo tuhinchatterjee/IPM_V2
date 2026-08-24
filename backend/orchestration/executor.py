@@ -49,9 +49,9 @@ logger = logging.getLogger(__name__)
 # phases of this function, in the order they happen — not a decorative loader.
 STAGES = [
     {"id": "understanding", "label": "Understanding the question"},
-    {"id": "planning", "label": "Selecting IPM analyses"},
+    {"id": "planning", "label": "Selecting CreditProbe analyses"},
     {"id": "retrieving", "label": "Retrieving governed data"},
-    {"id": "running", "label": "Running the IPM Engine"},
+    {"id": "running", "label": "Running the CreditProbe Engine"},
     {"id": "synthesising", "label": "Synthesising findings"},
 ]
 
@@ -171,7 +171,7 @@ class Investigation:
     duration_ms: int
     # succeeded | partial | failed | rejected | needs_clarification
     status: str = "succeeded"
-    #: Set when IPM stopped to ask rather than answering.
+    #: Set when CreditProbe stopped to ask rather than answering.
     clarification: Any = None
     analysis_run_id: int | None = None
     version: int = 1
@@ -280,7 +280,7 @@ def build_reasoning_map(plan: AnalysisPlan, steps: list[ExecutedStep],
             ),
             "period_source": scope.period_source,
             "filters": scope.filters,
-            "rule": "This node contains no figures. It records what IPM understood "
+            "rule": "This node contains no figures. It records what CreditProbe understood "
                     "the question to be asking, not what the answer is.",
         },
     ))
@@ -288,7 +288,7 @@ def build_reasoning_map(plan: AnalysisPlan, steps: list[ExecutedStep],
 
     graph.add_node(_interpretive_node(
         "plan", NodeType.PLAN,
-        f"{len(steps)} IPM {'analysis' if len(steps) == 1 else 'analyses'} selected",
+        f"{len(steps)} CreditProbe {'analysis' if len(steps) == 1 else 'analyses'} selected",
         {"steps": [
             {"analysis_id": s.analysis_id, "title": s.title, "rationale": s.rationale,
              "params": s.params, "filters": s.filters}
@@ -364,7 +364,7 @@ def build_reasoning_map(plan: AnalysisPlan, steps: list[ExecutedStep],
             "direct_answer": narrative.direct_answer,
             "summary": narrative.summary,
             "finding_count": len(narrative.findings),
-            # Interpreted: IPM's reading of those figures.
+            # Interpreted: CreditProbe's reading of those figures.
             "interpretation": narrative.interpretation,
             "interpretation_points": list(narrative.interpretation_points),
             "rule": "Every figure quoted was returned by an engine analysis. "
@@ -475,7 +475,7 @@ def run_investigation(question: str, *, user_id: int | None = None,
                       project_id: int | None = None, chat_id: int | None = None,
                       persist: bool = True,
                       period: tuple[str, str] | None = None) -> Investigation:
-    """Answer one question end to end — or ask the one thing IPM needs to know.
+    """Answer one question end to end — or ask the one thing CreditProbe needs to know.
 
     `period` is a comparison already chosen: from answering a clarification, or
     from refreshing a saved Investigation onto newer data.
@@ -505,7 +505,7 @@ def run_investigation(question: str, *, user_id: int | None = None,
         plan = validate_plan(plan, vocab)
     except PlanRejected as rejection:
         # A rejected plan is a real outcome, not an exception to swallow. It is
-        # returned with its reasons so the user can see what IPM refused to do.
+        # returned with its reasons so the user can see what CreditProbe refused to do.
         empty = Investigation(
             question=question, plan=plan, steps=[],
             narrative=build_narrative(question, plan.intent, [], plan=plan),

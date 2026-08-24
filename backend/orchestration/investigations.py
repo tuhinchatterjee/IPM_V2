@@ -121,7 +121,7 @@ def _fmt(value: float | None, unit: str) -> str:
 
 def change_narrative(changes: list[MetricChange], *,
                      from_label: str, to_label: str) -> str:
-    """IPM's account of the difference. Interpretation, and no new figures.
+    """CreditProbe's account of the difference. Interpretation, and no new figures.
 
     Every number in the sentence is a subtraction of two figures the engine
     produced, and the sentence says which way each one went. It does not offer a

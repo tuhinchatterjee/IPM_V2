@@ -16,13 +16,13 @@ export const API_BASE_URL =
 /**
  * The same address, written for a person to read.
  *
- * When IPM runs in Docker the base URL is deliberately empty: the browser calls
+ * When CreditProbe runs in Docker the base URL is deliberately empty: the browser calls
  * this page's own origin and the Next.js server forwards it to the backend
  * container. An empty string is correct for `fetch` and useless in a sentence,
  * so anything shown to a user goes through this instead.
  */
 export const API_DISPLAY_URL =
-  API_BASE_URL || "this page's own address, forwarded to the IPM backend";
+  API_BASE_URL || "this page's own address, forwarded to the CreditProbe backend";
 
 const API_PREFIX = "/api/v1";
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -409,7 +409,7 @@ export interface DataVersionRow {
 }
 
 
-// ---- Ask IPM --------------------------------------------------------------
+// ---- Ask CreditProbe --------------------------------------------------------------
 
 export interface PlanStepDef {
   analysis_id: string;
@@ -422,7 +422,7 @@ export interface PlanStepDef {
   role?: "primary" | "supporting";
 }
 
-/** How IPM read the question. Recorded so a misreading is visible. */
+/** How CreditProbe read the question. Recorded so a misreading is visible. */
 export interface PlanScope {
   focus: string;
   dimension: string | null;
@@ -457,7 +457,7 @@ export interface PeriodOption {
 }
 
 /**
- * A question IPM asks back instead of guessing.
+ * A question CreditProbe asks back instead of guessing.
  *
  * Returned in place of an answer when the analysis spans time and the question
  * did not say which periods to compare.
@@ -525,7 +525,7 @@ export interface Narrative {
   /** Equals direct_answer; kept for callers written before the split. */
   summary: string;
   findings: NarrativeFinding[];
-  /** IPM's reading of the figures, as a paragraph. Never a calculation. */
+  /** CreditProbe's reading of the figures, as a paragraph. Never a calculation. */
   interpretation?: string;
   /** The same reading as discrete points. */
   interpretation_points?: string[];
@@ -558,7 +558,7 @@ export interface InvestigationResponse {
   intent: string;
   steps: ExecutedStep[];
   narrative: Narrative;
-  /** Set when IPM stopped to ask rather than answering. */
+  /** Set when CreditProbe stopped to ask rather than answering. */
   clarification: Clarification | null;
   follow_ups: string[];
   notes: string[];
@@ -750,7 +750,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     throw new ApiError(
       aborted
         ? `The backend did not respond within ${timeoutMs / 1000} seconds.`
-        : `Cannot reach the IPM backend at ${API_DISPLAY_URL}. Is it running?`,
+        : `Cannot reach the CreditProbe backend at ${API_DISPLAY_URL}. Is it running?`,
       0,
       aborted ? "timeout" : "network_error",
     );
@@ -944,7 +944,7 @@ export interface UsedBy {
   safe_to_archive: boolean;
 }
 
-/** One column, and the governed field IPM thinks it supplies. */
+/** One column, and the governed field CreditProbe thinks it supplies. */
 export interface HarmonisationProposal {
   source_column: string;
   source_type: string;
@@ -1018,7 +1018,7 @@ export const api = {
   trace: (runId: number, version?: number) =>
     request<StoredTrace>(`/trace/${runId}${version ? `?version=${version}` : ""}`),
 
-  // ---- ask IPM ----
+  // ---- ask CreditProbe ----
   askMode: () => request<PlannerMode>("/ask/mode"),
   askSuggestions: () =>
     request<{ questions: { question: string; note: string }[] }>("/ask/suggestions"),

@@ -84,7 +84,7 @@ GOVERNED_PURPOSES: dict[str, str] = {
 class DatasetOrigin(StrEnum):
     """Where a dataset came from, and therefore how much it may be trusted.
 
-    DEMO is the bundled synthetic book IPM ships with so the product can be seen
+    DEMO is the bundled synthetic book CreditProbe ships with so the product can be seen
     working. It is never allowed to stand in for client data once a client
     dataset has been made authoritative for the same purpose.
     """

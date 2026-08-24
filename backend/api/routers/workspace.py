@@ -81,7 +81,7 @@ def save_investigation(payload: SaveIn, principal: Principal = RequireAnalyst) -
     """Run the question and keep the answer as a saved investigation.
 
     The question is executed rather than trusted from the client: what gets saved
-    has to be something IPM produced, not something a caller posted.
+    has to be something CreditProbe produced, not something a caller posted.
     """
     period = (
         (payload.from_period, payload.to_period)
@@ -96,7 +96,7 @@ def save_investigation(payload: SaveIn, principal: Principal = RequireAnalyst) -
             status_code=status.HTTP_409_CONFLICT,
             detail={
                 "error": "needs_clarification",
-                "message": "IPM needs the comparison period before it can answer, "
+                "message": "CreditProbe needs the comparison period before it can answer, "
                            "so there is nothing to save yet.",
                 "clarification": result.clarification.to_dict() if result.clarification else None,
             },

@@ -36,7 +36,7 @@ import { cn } from "@/lib/utils";
  * Each section opens with a headline sentence. Every headline is assembled from
  * figures the engine returned for that section — the wording changes with the
  * data, and where the engine returned nothing the section says so. Nothing here
- * is a conclusion IPM invented, and no figure on this page was calculated by the
+ * is a conclusion CreditProbe invented, and no figure on this page was calculated by the
  * front end.
  */
 
@@ -428,7 +428,7 @@ export default function CroLensPage() {
         <div className="mt-4 flex flex-wrap gap-2">
           <Button variant="outline" size="sm" asChild>
             <Link href="/?focus=ask">
-              Ask IPM about these names
+              Ask CreditProbe about these names
               <ArrowRight aria-hidden />
             </Link>
           </Button>
@@ -439,7 +439,7 @@ export default function CroLensPage() {
       </Chapter>
 
       <p className="border-t border-border pt-4 text-xs leading-relaxed text-text-muted">
-        Every headline on this page is assembled from figures the IPM Engine returned for the
+        Every headline on this page is assembled from figures the CreditProbe Engine returned for the
         section beneath it. Where an analysis returned nothing, the section says so rather than
         offering a conclusion. Figures are synthetic demonstration data.
       </p>

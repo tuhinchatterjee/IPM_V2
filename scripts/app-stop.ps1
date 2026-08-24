@@ -1,5 +1,5 @@
 <#
-Stop the IPM Tool container started by scripts\app-start.ps1.
+Stop the CreditProbe Tool container started by scripts\app-start.ps1.
 
 Usage (from the project root):
     powershell -ExecutionPolicy Bypass -File scripts\app-stop.ps1
@@ -13,7 +13,7 @@ NOTE: keep this file ASCII-only (see the note in app-start.ps1).
 
 [CmdletBinding()]
 param(
-    [string]$ContainerName = "IPM"
+    [string]$ContainerName = "CreditProbe"
 )
 
 $ErrorActionPreference = "Stop"

@@ -14,7 +14,7 @@ import { useAsync } from "@/lib/hooks";
  * Trace & Lineage.
  *
  * A trace belongs to a specific analysis run, so this page opens with the runs
- * that have one — every question asked of IPM — and explains the model beneath
+ * that have one — every question asked of CreditProbe — and explains the model beneath
  * them.
  */
 export default function TracePage() {
@@ -80,7 +80,7 @@ export default function TracePage() {
             <Card className="px-5 py-10 text-center">
               <p className="text-sm text-text-secondary">No traces recorded yet.</p>
               <p className="mt-1 text-xs text-text-muted">
-                Every analytical result in IPM carries a Trace button. Ask a question, or open a
+                Every analytical result in CreditProbe carries a Trace button. Ask a question, or open a
                 lens, and the map appears here.
               </p>
               <Button className="mt-4" size="sm" asChild>

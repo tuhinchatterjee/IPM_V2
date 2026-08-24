@@ -12,11 +12,11 @@ import { api, type AssistantAnswer } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 
 /**
- * What is actually powering IPM right now.
+ * What is actually powering CreditProbe right now.
  *
  * The single most important thing Data Builder can tell a bank, and the one it
  * must never be vague about: for each governed purpose, which dataset answers
- * it, and whether that dataset is the bank's own data or IPM's demonstration
+ * it, and whether that dataset is the bank's own data or CreditProbe's demonstration
  * book. A screen that leaves this ambiguous produces credible-looking figures
  * about a portfolio that does not exist.
  */
@@ -49,16 +49,16 @@ export function ControlPlanePanel() {
       <div className="mb-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold tracking-tight text-text-primary">
-            What is powering IPM
+            What is powering CreditProbe
           </h2>
           <InfoPopover title="Governed purposes">
             <p>
               A certified analysis does not read a file. It asks for a governed{" "}
-              <em>purpose</em> — &ldquo;the position of every credit facility&rdquo; — and IPM
+              <em>purpose</em> — &ldquo;the position of every credit facility&rdquo; — and CreditProbe
               resolves that to whichever dataset is marked authoritative for it.
             </p>
             <p>
-              That is what lets your own data replace IPM&rsquo;s demonstration book without
+              That is what lets your own data replace CreditProbe&rsquo;s demonstration book without
               anyone changing a line of analysis code. Every read records which dataset it
               actually used on the Trace.
             </p>
@@ -75,7 +75,7 @@ export function ControlPlanePanel() {
         <Card className="mb-3 flex items-start gap-2.5 border-warning/30 bg-warning-muted p-4">
           <CircleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
           <p className="text-xs leading-relaxed text-warning">
-            At least one governed purpose is being answered by IPM&rsquo;s demonstration
+            At least one governed purpose is being answered by CreditProbe&rsquo;s demonstration
             data. Every figure produced from it describes a synthetic book. Onboard your
             own data and mark it authoritative to replace it.
           </p>
@@ -136,7 +136,7 @@ export function ControlPlanePanel() {
  * Ask about the model.
  *
  * Reads governed metadata only. No portfolio data, no figures, and it changes
- * nothing. A portfolio question is sent to Ask IPM, where it runs a certified
+ * nothing. A portfolio question is sent to Ask CreditProbe, where it runs a certified
  * analysis and produces a Trace.
  */
 export function MetadataAssistant({
@@ -163,7 +163,7 @@ export function MetadataAssistant({
       );
     } catch (e) {
       setAnswer({
-        text: e instanceof Error ? e.message : "IPM could not answer that.",
+        text: e instanceof Error ? e.message : "CreditProbe could not answer that.",
         references: [],
         source: "lookup",
         unanswered_reason: "error",
@@ -196,7 +196,7 @@ export function MetadataAssistant({
             . No portfolio data, no figures, and it changes nothing.
           </p>
           <p>
-            For a portfolio figure, ask IPM on the Cockpit — that runs a certified analysis
+            For a portfolio figure, ask CreditProbe on the Cockpit — that runs a certified analysis
             and produces a Trace.
           </p>
         </InfoPopover>

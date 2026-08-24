@@ -81,7 +81,7 @@ export function CapabilityPlaceholder({
           )}
 
           <p className="border-t border-border pt-4 text-xs text-text-muted">
-            This screen is a deliberate placeholder. IPM does not present unbuilt
+            This screen is a deliberate placeholder. CreditProbe does not present unbuilt
             functionality as if it were finished, and never shows invented figures.
           </p>
         </CardContent>

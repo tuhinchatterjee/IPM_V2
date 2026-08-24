@@ -19,7 +19,7 @@ import {
  * How each kind of step is presented on the reasoning map.
  *
  * The wording is deliberately the bank's, not the codebase's. A reader sees
- * "Governed data", "Filters applied", "IPM Engine" — never "DATASET" or
+ * "Governed data", "Filters applied", "CreditProbe Engine" — never "DATASET" or
  * "ENGINE_FUNCTION". The node type is an implementation detail; what the box
  * says is the product.
  */
@@ -44,7 +44,7 @@ export const NODE_PRESENTATION: Record<string, NodePresentation> = {
     icon: PenLine,
     governed: false,
     blurb:
-      "How IPM understood what was asked, before anything was computed. " +
+      "How CreditProbe understood what was asked, before anything was computed. " +
       "Interpretation — no figures.",
   },
   PLAN: {
@@ -59,7 +59,7 @@ export const NODE_PRESENTATION: Record<string, NodePresentation> = {
     governed: true,
     blurb:
       "The governed purpose the data was drawn for, and whether the dataset " +
-      "serving it is client data or IPM's demonstration data.",
+      "serving it is client data or CreditProbe's demonstration data.",
   },
   DATASET: {
     label: "Governed data",
@@ -98,7 +98,7 @@ export const NODE_PRESENTATION: Record<string, NodePresentation> = {
     blurb: "Arithmetic performed by tested engine code.",
   },
   ENGINE_FUNCTION: {
-    label: "IPM Engine",
+    label: "CreditProbe Engine",
     icon: FunctionSquare,
     governed: true,
     blurb: "The registered analysis, at the version recorded here.",
@@ -114,7 +114,7 @@ export const NODE_PRESENTATION: Record<string, NodePresentation> = {
     icon: PenLine,
     governed: false,
     blurb:
-      "The answer and IPM's reading of it, written after the engine ran. " +
+      "The answer and CreditProbe's reading of it, written after the engine ran. " +
       "Every figure quoted came from a result above.",
   },
   VISUALIZATION: {

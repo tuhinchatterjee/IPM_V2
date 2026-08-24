@@ -76,10 +76,45 @@ MAP_UNMAPPED = "unmapped"
 MAP_IGNORED = "ignored"
 MAP_PROPOSED = "proposed"  # a new governed field the steward wants created
 
-# A saved investigation's lifecycle. LIVE means it is expected to be kept
+# An investigation thread's lifecycle. LIVE means it is expected to be kept
 # current; ARCHIVED means it is kept for the record and no longer refreshed.
 INV_LIVE = "live"
 INV_ARCHIVED = "archived"
+
+# A Project's governed lifecycle. These are NOT decorative labels.
+#
+#   DRAFT      set up, not yet being worked on
+#   ACTIVE     currently being worked on
+#   IN_REVIEW  a workflow review request is actually outstanding
+#   COMPLETED  the work is finished and the conclusions stand
+#   ARCHIVED   kept for the record, no longer worked on
+#
+# IN_REVIEW in particular is derived from real workflow state rather than set by
+# hand, which is why it is excluded from the manual transitions below: a status
+# that can be typed in means nothing to a reviewer.
+PJ_DRAFT = "draft"
+PJ_ACTIVE = "active"
+PJ_IN_REVIEW = "in_review"
+PJ_COMPLETED = "completed"
+PJ_ARCHIVED = "archived"
+PROJECT_STATUSES = (PJ_DRAFT, PJ_ACTIVE, PJ_IN_REVIEW, PJ_COMPLETED, PJ_ARCHIVED)
+PROJECT_STATUS_LABEL = {
+    PJ_DRAFT: "Draft",
+    PJ_ACTIVE: "Active",
+    PJ_IN_REVIEW: "In review",
+    PJ_COMPLETED: "Completed",
+    PJ_ARCHIVED: "Archived",
+}
+#: Transitions a person may make directly. IN_REVIEW is deliberately absent —
+#: it is entered by submitting the project for review, and left by the reviewer
+#: deciding. See backend/services/projects.py.
+PROJECT_MANUAL_TRANSITIONS: dict[str, tuple[str, ...]] = {
+    PJ_DRAFT: (PJ_ACTIVE, PJ_ARCHIVED),
+    PJ_ACTIVE: (PJ_COMPLETED, PJ_ARCHIVED, PJ_DRAFT),
+    PJ_IN_REVIEW: (),
+    PJ_COMPLETED: (PJ_ACTIVE, PJ_ARCHIVED),
+    PJ_ARCHIVED: (PJ_ACTIVE,),
+}
 
 # Workflow states, as one vocabulary rather than three copies of the strings.
 WF_DRAFT = "draft"
@@ -125,15 +160,27 @@ class TeamMember(Base):
 
 
 class Project(Base):
-    """A container for a body of work — "Q1 2026 Board Pack", "Real Estate Deep
-    Dive". Holds chats, investigations, saved analyses, traces and scenarios."""
+    """The MASTER WORKSPACE. The top level of the product hierarchy.
+
+        Project          this
+          Investigation    a conversational thread
+            Analysis         one deterministic engine result
+
+    A Project — "Q1 2026 Board Pack", "Real Estate Deep Dive" — holds the
+    investigations run for it, the analyses somebody kept, documents, people,
+    and the standing context every question inside it should assume.
+
+    `status` is a governed lifecycle (see PROJECT_STATUSES). It is not a
+    decorative label: IN REVIEW means a workflow review request is genuinely
+    outstanding, and every transition is recorded in project_status_events.
+    """
 
     __tablename__ = "projects"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    status: Mapped[str] = mapped_column(String(24), nullable=False, default="active")
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default=PJ_DRAFT)
     team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id"), nullable=True)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -142,6 +189,10 @@ class Project(Base):
     )
     # Default analytical scope for work in this project (period, filters).
     default_context: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: Standing instructions every investigation in this project should assume —
+    #: "we are reviewing the Real Estate book for the Q2 board pack". Read by the
+    #: planner as context, never as a source of figures.
+    instructions: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
     chats: Mapped[list[Chat]] = relationship(back_populates="project", cascade="all, delete-orphan")
 
@@ -443,7 +494,7 @@ class DatasetDefinition(Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # ---- the data control plane ----
-    # demo | client | supplementary. `demo` is IPM's bundled synthetic book. The
+    # demo | client | supplementary. `demo` is CreditProbe's bundled synthetic book. The
     # distinction is not cosmetic: an analysis that reads demo data must say so,
     # and client data always wins over demo data for the same purpose.
     origin: Mapped[str] = mapped_column(String(24), nullable=False, default="demo")
@@ -471,7 +522,7 @@ class DatasetDefinition(Base):
 
 
 class FieldDefinition(Base):
-    """One Data Dictionary entry — the single definition of a field in IPM.
+    """One Data Dictionary entry — the single definition of a field in CreditProbe.
 
     Explain, the planner's resolution of business terms, and the Data Builder UI
     all read this, so there is exactly one definition of "EAD" in the system.
@@ -727,18 +778,25 @@ class Comment(Base):
 
 
 class Investigation(Base):
-    """A saved analytical object: a question, and the answer it currently has.
+    """A CONVERSATIONAL THREAD. The middle level of the product hierarchy.
 
-    Distinct from an AnalysisRun, which is one execution and never changes. An
-    investigation is the thing a person keeps — it has a name, an owner, it can
-    sit in a project, and it can be REFRESHED against newly published data. Each
-    refresh runs the same plan again and stores a new version, so "what has
-    changed since I last looked?" is answerable from stored results rather than
-    from memory.
+        Project          the master workspace
+          Investigation    this: one continuing conversation
+            Analysis         one deterministic engine result
 
-    The figures are never carried forward. A refresh re-executes the registered
-    analyses; if the data has not changed, the numbers are the same because the
-    calculation produced them again, not because they were copied.
+    An Investigation is not one saved answer. It is the whole thread: every
+    question the user asked, every answer CreditProbe AI gave, every analysis
+    that ran inside it, and the data scope the thread settled on. Reopening one
+    puts the person back exactly where they left off, with a composer at the
+    bottom.
+
+    That is a deliberate change from the earlier model, where an Investigation
+    meant a single saved analytical output. A single output is an *Analysis*
+    (see SavedAnalysis below); a conversation is an Investigation.
+
+    `context` holds what the thread has already settled — the governed data
+    domain and the reporting period — so the second question in a thread is not
+    asked the same clarification as the first.
     """
 
     __tablename__ = "investigations"
@@ -748,17 +806,25 @@ class Investigation(Base):
         ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
     )
     title: Mapped[str] = mapped_column(String(300), nullable=False)
+    #: The question that opened the thread. Kept denormalised for listings.
     question: Mapped[str] = mapped_column(Text, nullable=False)
-    # How the question was read, and what period it was answered for. Stored so a
-    # refresh re-asks the same question in the same terms.
+    # How the opening question was read, and what period it was answered for.
     scope: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     plan: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: What this thread has settled: {"domain": ..., "from_period": ..., "to_period": ...}.
+    #: Read before asking a clarification, so it is asked once per thread.
+    context: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=INV_LIVE)
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
-    #: The version currently shown. Points into investigation_versions.
+    #: Kept from the earlier model so existing rows and their history survive.
     current_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    #: Turns in the thread, denormalised so a listing does not count rows.
+    message_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_message_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -769,6 +835,10 @@ class Investigation(Base):
         back_populates="investigation", cascade="all, delete-orphan",
         order_by="InvestigationVersion.version_number",
     )
+    messages: Mapped[list[InvestigationMessage]] = relationship(
+        back_populates="investigation", cascade="all, delete-orphan",
+        order_by="InvestigationMessage.sequence",
+    )
 
     __table_args__ = (
         Index("ix_investigations_project", "project_id", "updated_at"),
@@ -776,10 +846,125 @@ class Investigation(Base):
     )
 
 
+class InvestigationMessage(Base):
+    """One turn in an Investigation thread.
+
+    A user turn carries the question. An assistant turn carries the direct
+    answer in `content` and everything structured in `payload`: the plan, the
+    executed steps, the interpretation, the follow-ups, and — when CreditProbe
+    stopped to ask rather than answer — the clarification.
+
+    `payload` is JSONB rather than a set of columns because it is written and
+    read whole, always belongs to exactly one turn, and is never queried across
+    threads. A document is the right shape for it, and it means the response
+    format can grow without a migration.
+    """
+
+    __tablename__ = "investigation_messages"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    investigation_id: Mapped[int] = mapped_column(
+        ForeignKey("investigations.id", ondelete="CASCADE"), nullable=False
+    )
+    #: Position in the thread, 0-based. Unique per investigation.
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: user | assistant | system
+    role: Mapped[str] = mapped_column(String(16), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: The execution behind an assistant turn. Its Trace is the evidence.
+    analysis_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("analysis_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    investigation: Mapped[Investigation] = relationship(back_populates="messages")
+
+    __table_args__ = (
+        UniqueConstraint("investigation_id", "sequence", name="uq_investigation_message_seq"),
+        Index("ix_investigation_messages_thread", "investigation_id", "sequence"),
+    )
+
+
+class SavedAnalysis(Base):
+    """An executed analysis somebody kept. The lowest level of the hierarchy.
+
+    This is what Work → Analyses lists. It is one deterministic engine result,
+    with everything needed to defend or reproduce it: which registered analysis
+    at which version, which parameters, which filters, which periods, which
+    execution produced it, and the result itself.
+
+    It may have come out of an Investigation thread, been added to a Project, or
+    both — or neither, if someone ran an analysis directly and kept it.
+    """
+
+    __tablename__ = "saved_analyses"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    #: The registered analysis, e.g. "stage_migration".
+    analysis_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    analysis_version: Mapped[str] = mapped_column(String(24), nullable=False, default="")
+    certification: Mapped[str] = mapped_column(String(24), nullable=False, default=CERT_DRAFT)
+
+    analysis_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("analysis_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    investigation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("investigations.id", ondelete="SET NULL"), nullable=True
+    )
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+    )
+
+    params: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    filters: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: {"period": ..., "from_period": ..., "to_period": ...} as executed.
+    period: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: The engine result as returned: rows, values, units, warnings, meta.
+    result: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: Which governed datasets and versions it read. Recorded for defensibility.
+    data_versions: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_saved_analyses_project", "project_id", "created_at"),
+        Index("ix_saved_analyses_investigation", "investigation_id", "created_at"),
+        Index("ix_saved_analyses_owner", "owner_id", "created_at"),
+    )
+
+
+class ProjectStatusEvent(Base):
+    """One change of a Project's lifecycle status.
+
+    Project status is governed rather than decorative: IN REVIEW means a review
+    request is actually outstanding, not that someone liked the label. Recording
+    every transition is what lets the product refuse to invent one.
+    """
+
+    __tablename__ = "project_status_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    from_status: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    to_status: Mapped[str] = mapped_column(String(24), nullable=False)
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (Index("ix_project_status_project", "project_id", "created_at"),)
+
+
 class InvestigationVersion(Base):
     """One answer this investigation has had, and what changed to produce it.
 
-    `change_narrative` is IPM's account of the difference from the previous
+    `change_narrative` is CreditProbe's account of the difference from the previous
     version, written from the two stored results. It is interpretation and is
     labelled as such wherever it is shown; the figures it quotes are the ones
     the engine returned on each run.
@@ -826,7 +1011,7 @@ class Notification(Base):
 
     Deliberately in-app only. Email and push are a deployment concern with their
     own approvals; the product's promise is that work assigned to you is visible
-    when you open IPM.
+    when you open CreditProbe.
     """
 
     __tablename__ = "notifications"
@@ -882,4 +1067,202 @@ class UserPreference(Base):
     preferences: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+# ==================================================================== lenses
+
+
+class Lens(Base):
+    """A live dashboard somebody built by describing it.
+
+    A Lens is not a saved screenshot. `definition` holds the structured
+    specification — which certified analyses to run, over which governed data
+    domains, for which period, with which filters, and how to lay the result
+    out — and the workspace executes that specification against whatever is
+    published now. Two people opening the same Lens a month apart see different
+    figures produced by the same governed method, which is the point.
+
+    The specification is versioned in `revisions` so a conversational change
+    ("show this by region instead") is a recorded edit rather than an
+    overwrite.
+    """
+
+    __tablename__ = "lenses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slug: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    audience: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    #: The LensDefinition: tiles, domains, period, filters, layout, refresh.
+    definition: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: draft | published | archived
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="draft")
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    #: seeded | ai | manual — where the definition came from.
+    origin: Mapped[str] = mapped_column(String(24), nullable=False, default="manual")
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+    )
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    revisions: Mapped[list[LensRevision]] = relationship(
+        back_populates="lens", cascade="all, delete-orphan",
+        order_by="LensRevision.version",
+    )
+
+
+class LensRevision(Base):
+    """One version of a Lens specification, and what was asked for to produce it."""
+
+    __tablename__ = "lens_revisions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    lens_id: Mapped[int] = mapped_column(
+        ForeignKey("lenses.id", ondelete="CASCADE"), nullable=False
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    definition: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: The plain-language request that produced this revision, if any.
+    request: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: What CreditProbe understood the request to mean.
+    change_summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    lens: Mapped[Lens] = relationship(back_populates="revisions")
+
+    __table_args__ = (UniqueConstraint("lens_id", "version", name="uq_lens_revision"),)
+
+
+# ================================================================= playbooks
+
+
+class Playbook(Base):
+    """A reusable monitoring recipe.
+
+    A Playbook answers four questions and nothing else: WHEN does it run, WHAT
+    does it look at, WHICH analyses does it run, and WHAT counts as something
+    worth telling a person about. It replaces the earlier Blueprint concept,
+    which described an analytical template but had no trigger, no condition and
+    no consequence — so it never did anything on its own.
+
+    `conditions` are evaluated against engine results only. A Playbook cannot
+    raise an alert on a figure no registered analysis produced.
+    """
+
+    __tablename__ = "playbooks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slug: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: manual | new_data | scheduled
+    trigger: Mapped[str] = mapped_column(String(32), nullable=False, default="manual")
+    #: Cron-like description for a scheduled playbook, e.g. "quarterly".
+    schedule: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    #: {"sector": ..., "segment": ...} — governed dimensions only.
+    scope: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: [{"analysis_id": ..., "params": {...}}, ...]
+    analyses: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    #: [{"metric": ..., "operator": ">", "threshold": 2.0, "unit": "pp", "severity": ...}]
+    conditions: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    #: {"create_investigation": true, "notify": [...], "update_lens": "cro", ...}
+    actions: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: draft | active | paused
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="draft")
+    origin: Mapped[str] = mapped_column(String(24), nullable=False, default="manual")
+    owner: Mapped[str] = mapped_column(String(160), nullable=False, default="")
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_run_hint: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    runs: Mapped[list[PlaybookRun]] = relationship(
+        back_populates="playbook", cascade="all, delete-orphan",
+        order_by="PlaybookRun.created_at.desc()",
+    )
+
+
+class PlaybookRun(Base):
+    """One execution of a Playbook, and what it decided."""
+
+    __tablename__ = "playbook_runs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    playbook_id: Mapped[int] = mapped_column(
+        ForeignKey("playbooks.id", ondelete="CASCADE"), nullable=False
+    )
+    #: succeeded | failed
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="succeeded")
+    #: Which periods it looked at.
+    period: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: One entry per analysis: id, run id, key figures.
+    results: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    #: One entry per condition: met/not met, the figure, the threshold.
+    evaluations: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    #: What it did as a result.
+    actions_taken: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    alerted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    investigation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("investigations.id", ondelete="SET NULL"), nullable=True
+    )
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    playbook: Mapped[Playbook] = relationship(back_populates="runs")
+
+    __table_args__ = (Index("ix_playbook_runs_playbook", "playbook_id", "created_at"),)
+
+
+# ============================================================= early warning
+
+
+class EarlyWarningModel(Base):
+    """One version of the Forward Risk Signal scoring methodology.
+
+    Never overwritten. Changing a weight in Model Lab creates a NEW row, so the
+    score a borrower had last quarter can always be reproduced from the
+    methodology that was in force at the time. `specification` holds the whole
+    factor architecture — families, factors, transformations, weights,
+    thresholds — as a document, because it is read and written whole and its
+    shape is expected to change.
+
+    `lifecycle` is separate from the analysis certification vocabulary on
+    purpose. A CreditProbe Certified Analysis is a validated *calculation*; an
+    early-warning model is a *predictive* artefact and needs its own evidence
+    before anyone may call it validated.
+    """
+
+    __tablename__ = "early_warning_models"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    #: stage1_to_stage2 | stage1_to_stage3 | stage2_to_stage3
+    target: Mapped[str] = mapped_column(String(48), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    name: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    #: prototype | candidate | validated | approved | retired
+    lifecycle: Mapped[str] = mapped_column(String(24), nullable=False, default="prototype")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    specification: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: What changed against the previous version, and why.
+    change_note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: Backtest output, when it has been run. Empty means unvalidated.
+    validation: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("target", "version", name="uq_early_warning_model_version"),
+        Index("ix_early_warning_active", "target", "is_active"),
     )

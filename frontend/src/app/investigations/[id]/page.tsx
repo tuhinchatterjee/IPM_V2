@@ -38,7 +38,7 @@ export default function InvestigationPage({ params }: { params: Promise<{ id: st
   return <TemplateInvestigation id={id} />;
 }
 
-/** One question actually asked of IPM, read back with its findings and Trace. */
+/** One question actually asked of CreditProbe, read back with its findings and Trace. */
 function StoredInvestigationPage({ runId }: { runId: number }) {
   const router = useRouter();
   const stored = useAsync(() => api.investigation(runId), [runId]);
@@ -157,7 +157,7 @@ function TemplateInvestigation({ id }: { id: string }) {
       <Card className="flex items-start gap-2.5 border-info/30 bg-info-muted p-4 text-sm text-info">
         <Sparkles className="mt-0.5 size-4 shrink-0" aria-hidden />
         <span>
-          This is a hand-written review template. Ask the same question in the Cockpit and IPM
+          This is a hand-written review template. Ask the same question in the Cockpit and CreditProbe
           will plan it itself, write the findings and keep the whole reasoning map —{" "}
           <Link href={`/?focus=ask`} className="font-medium underline">
             open the Cockpit

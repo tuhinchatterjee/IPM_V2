@@ -90,7 +90,7 @@ const DOMAIN_OPTIONS = [
   "Retail / SME Scorecards",
   "Documents",
   "Policies / Knowledge",
-  "IPM Operational Metadata",
+  "CreditProbe Operational Metadata",
 ];
 
 export default function AddDatasetPage() {
@@ -273,7 +273,7 @@ export default function AddDatasetPage() {
     return (
       <div className="space-y-6">
         <BackLink />
-        <PageHeader title="Add Dataset" description="Bring a source file into IPM." />
+        <PageHeader title="Add Dataset" description="Bring a source file into CreditProbe." />
         <ReadOnlyNotice action="create or publish datasets" />
       </div>
     );
@@ -290,7 +290,7 @@ export default function AddDatasetPage() {
       <BackLink />
       <PageHeader
         title="Add Dataset"
-        description="Bring a source file into IPM: upload it, map it to governed fields, document it, validate it and publish it. The raw file is kept unchanged."
+        description="Bring a source file into CreditProbe: upload it, map it to governed fields, document it, validate it and publish it. The raw file is kept unchanged."
         status="live"
       />
 
@@ -515,7 +515,7 @@ export default function AddDatasetPage() {
               <TableRow className="hover:bg-transparent">
                 <TableHead>Source field</TableHead>
                 <TableHead>Source type</TableHead>
-                <TableHead>IPM governed field</TableHead>
+                <TableHead>CreditProbe governed field</TableHead>
                 <TableHead>Business definition</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
@@ -848,7 +848,7 @@ export default function AddDatasetPage() {
           </p>
           <div className="mx-auto mt-5 inline-flex items-center gap-2 rounded-full border border-positive/30 bg-positive-muted px-4 py-1.5 text-sm font-medium text-positive">
             <CheckCircle2 className="size-4" aria-hidden />
-            Available to IPM Engine
+            Available to CreditProbe Engine
           </div>
           {published.periods.length > 0 && (
             <p className="mt-4 text-xs text-text-muted">

@@ -1,5 +1,5 @@
 """
-Ask IPM — the conversational surface, and controlled Trace modification.
+Ask CreditProbe — the conversational surface, and controlled Trace modification.
 
     GET  /ask/mode                        how questions are being planned
     GET  /ask/suggestions                 starting questions, built from the library
@@ -78,7 +78,7 @@ def mode() -> dict:
     }
 
 
-# The questions offered on the Cockpit. Each is one IPM can genuinely answer,
+# The questions offered on the Cockpit. Each is one CreditProbe can genuinely answer,
 # which is checked below against the live registry rather than assumed.
 STARTER_QUESTIONS = [
     {"question": "What deteriorated this period?", "needs": "portfolio_summary",
@@ -100,7 +100,7 @@ STARTER_QUESTIONS = [
 ]
 
 
-@router.get("/suggestions", summary="Questions IPM can answer today")
+@router.get("/suggestions", summary="Questions CreditProbe can answer today")
 def suggestions() -> dict:
     registry = get_registry()
     available = set(registry.ids())
@@ -160,7 +160,7 @@ def briefing() -> dict:
 # ----------------------------------------------------------------------- ask
 
 
-@router.post("", summary="Ask IPM a question")
+@router.post("", summary="Ask CreditProbe a question")
 def ask(payload: AskIn, principal: Principal = RequireAnalyst) -> dict:
     """Plan, execute and narrate one investigation."""
     try:
@@ -216,7 +216,7 @@ def preview_modification(run_id: int, payload: ModifyIn) -> dict:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"error": "not_modifiable",
-                    "message": "This trace was recorded before IPM stored the plan behind "
+                    "message": "This trace was recorded before CreditProbe stored the plan behind "
                                "it, so it cannot be modified. Re-run the analysis to get a "
                                "modifiable version."},
         )

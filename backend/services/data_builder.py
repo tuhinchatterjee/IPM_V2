@@ -6,7 +6,7 @@ The workflow this implements:
     Domain -> Dataset -> Upload -> Inspect -> Map -> Dictionary
            -> Relationships -> Validate -> Publish
 
-The point is that a data steward can bring a file into IPM without a developer
+The point is that a data steward can bring a file into CreditProbe without a developer
 putting it in a folder. Everything below is the backend for that.
 
 Two rules the whole module is built around:

@@ -1,8 +1,8 @@
 """
-Schema harmonisation: matching a bank's columns to IPM's governed vocabulary.
+Schema harmonisation: matching a bank's columns to CreditProbe's governed vocabulary.
 
 The problem. A bank's extract calls it `EAD_USD_MN`, `Exposure at Default` or
-`exp_at_def`. IPM's dictionary calls it `ead`. Someone has to decide those are
+`exp_at_def`. CreditProbe's dictionary calls it `ead`. Someone has to decide those are
 the same thing, and doing it by hand for two hundred columns is where data
 onboarding actually stalls.
 
@@ -63,7 +63,7 @@ COMPATIBLE: dict[str, set[str]] = {
 
 @dataclass
 class Proposal:
-    """One source column, and what IPM thinks it is."""
+    """One source column, and what CreditProbe thinks it is."""
 
     source_column: str
     source_type: str
@@ -94,7 +94,7 @@ class Proposal:
 
 
 def _dictionary(session: Session) -> dict[str, dict[str, Any]]:
-    """Every governed field IPM knows, with the definition a steward would read."""
+    """Every governed field CreditProbe knows, with the definition a steward would read."""
     out: dict[str, dict[str, Any]] = {}
     for row in session.execute(select(FieldDefinition)).scalars():
         # A field name is used across datasets; the first definition wins and the
@@ -192,7 +192,7 @@ def propose(session: Session, dataset_name: str) -> dict[str, Any]:
             proposal.reasons.append(
                 "No governed field has this name, a known alias of it, or a name "
                 "it contains. This is either a new field or one named differently "
-                "from anything IPM has seen."
+                "from anything CreditProbe has seen."
             )
             proposals.append(proposal)
             continue
@@ -214,7 +214,7 @@ def propose(session: Session, dataset_name: str) -> dict[str, Any]:
             )
 
         if entry.get("definition"):
-            proposal.reasons.append(f"IPM defines '{governed}' as: {entry['definition']}")
+            proposal.reasons.append(f"CreditProbe defines '{governed}' as: {entry['definition']}")
 
         note = _type_note(source_type, str(entry.get("data_type") or ""))
         if note:

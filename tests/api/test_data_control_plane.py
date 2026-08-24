@@ -4,7 +4,7 @@ Data Builder as a control plane, not an inventory.
 The behaviours here are the ones that stop a bank looking at a number produced
 from the wrong book:
 
-  * IPM says, per governed purpose, which dataset answers it and whether that
+  * CreditProbe says, per governed purpose, which dataset answers it and whether that
     dataset is demonstration data
   * archiving the only authoritative source for a purpose is REFUSED, and the
     refusal names the certified analyses that would stop being answerable

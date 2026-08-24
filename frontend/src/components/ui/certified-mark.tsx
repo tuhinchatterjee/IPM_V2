@@ -3,21 +3,21 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * The IPM certification mark.
+ * The CreditProbe certification mark.
  *
  * Two ticks, drawn as one stroke pair: the first for "the method is validated",
- * the second for "the run is recorded". Certification in IPM is exactly those
+ * the second for "the run is recorded". Certification in CreditProbe is exactly those
  * two claims, so the mark carries two ticks rather than one.
  *
  * It is drawn here rather than taken from an icon set on purpose. A tick inside
  * a coloured badge is another product's mark and would read as borrowed
- * credibility; this is a quiet pair of strokes in IPM's own blue, sized to sit
+ * credibility; this is a quiet pair of strokes in CreditProbe's own blue, sized to sit
  * inside a line of text without shouting.
  */
 
 export function CertifiedMark({
   className,
-  title = "IPM Certified — a validated method, and a recorded run",
+  title = "CreditProbe Certified — a validated method, and a recorded run",
 }: {
   className?: string;
   title?: string;
@@ -45,7 +45,7 @@ export function CertifiedMark({
  * The certification state of one analysis, as a line of text.
  *
  * Three states, and they are not decorative. "Certified" means the bank has
- * validated the method and IPM recorded the run. "Custom" means someone in the
+ * validated the method and CreditProbe recorded the run. "Custom" means someone in the
  * bank defined it and it has not been through validation. "Unvalidated" is a
  * draft. A reader must be able to tell which figure they are allowed to put in
  * front of a regulator.

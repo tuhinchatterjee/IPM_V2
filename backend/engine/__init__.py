@@ -1,9 +1,9 @@
 """
-The IPM Engine — deterministic, versioned, tested credit-risk analytics.
+The CreditProbe Engine — deterministic, versioned, tested credit-risk analytics.
 
 The rule this package exists to enforce (docs/PRODUCT_SPEC.md §2):
 
-    Every material number displayed in IPM must be produced by deterministic,
+    Every material number displayed in CreditProbe must be produced by deterministic,
     testable, version-controlled engine code. The LLM never performs arithmetic
     and is never the source of truth for a figure.
 

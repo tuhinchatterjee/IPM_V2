@@ -26,7 +26,7 @@ type State =
  *
  * The important design choice is honesty. It does not show a single green light
  * that means "probably fine": it names each dependency and repeats the backend's
- * own explanation, because for a non-developer setting IPM up, "PostgreSQL is not
+ * own explanation, because for a non-developer setting CreditProbe up, "PostgreSQL is not
  * configured — start it with docker compose up -d db" is the whole answer.
  */
 export function useBackendHealth() {
@@ -144,7 +144,7 @@ export function BackendStatusPanel() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-negative">
             <XCircle className="size-4" aria-hidden />
-            Cannot reach the IPM backend
+            Cannot reach the CreditProbe backend
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">

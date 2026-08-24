@@ -1,6 +1,6 @@
-# IPM — Architecture
+# CreditProbe — Architecture
 
-Companion to `PRODUCT_SPEC.md`. This document covers **how** IPM is built: the layers,
+Companion to `PRODUCT_SPEC.md`. This document covers **how** CreditProbe is built: the layers,
 the data architecture, the repository structure, and the reasoning behind each choice.
 
 Status: **target architecture + migration path.** Section 2 records what exists today
@@ -99,7 +99,7 @@ not rewrite the working maths.
 └───────────────────────────────┬──────────────────────────────────────┘
                                 │  only registered functions, validated params
 ┌───────────────────────────────┴──────────────────────────────────────┐
-│  IPM ENGINE                  (deterministic · versioned · tested)    │
+│  CreditProbe ENGINE                  (deterministic · versioned · tested)    │
 │  registry · contracts · functions · calculations · stress            │
 │  NO LLM.  NO framework.  NO knowledge of physical storage.           │
 └───────────────────────────────┬──────────────────────────────────────┘
@@ -120,7 +120,7 @@ not rewrite the working maths.
 
 ### Why the DAL matters
 
-The IPM Engine never writes `duckdb.query(...)`. It writes:
+The CreditProbe Engine never writes `duckdb.query(...)`. It writes:
 
 ```python
 frame = dal.fetch(
@@ -173,7 +173,7 @@ data/
                 Portfolio_Monitoring_Dataset.xlsx, Macro_GCC_Compact.xlsx,
                 Oman_Climate_StressedPD_v5 1.xlsx, RAROC samples
 
-  curated/      MAPPED AND VALIDATED IPM DATA
+  curated/      MAPPED AND VALIDATED CreditProbe DATA
                 Source columns mapped to governed field names, types enforced,
                 quality rules applied, rejects quarantined with reasons.
                 Parquet, partitioned by reporting period.
@@ -205,13 +205,13 @@ plausible is substituted:
 | Situation | Outcome |
 |---|---|
 | A client dataset is authoritative | Use it |
-| Only IPM's bundled demonstration data is authoritative | Use it, and **say** it is demo data |
+| Only CreditProbe's bundled demonstration data is authoritative | Use it, and **say** it is demo data |
 | Neither | **Refuse**, and say what is missing |
 
 Client data always outranks demonstration data for the same purpose. When a steward
 marks a client dataset authoritative in Data Builder, every certified analysis follows
 immediately — no analysis code changes — and the redirect is recorded on the Trace's
-DATASET node with its reason. That is why "IPM is quietly still reading the demo book"
+DATASET node with its reason. That is why "CreditProbe is quietly still reading the demo book"
 is not a state the product can be in without saying so.
 
 Each dataset also carries an **origin** (`demo` / `client` / `supplementary`) and a
@@ -220,7 +220,7 @@ rather than an unrelated table appearing: `backend/services/governance.py` compa
 two schemas field by field and refuses a replacement that drops a field the outgoing
 dataset supplies, unless the caller acknowledges exactly what is lost.
 
-**Dependency checks.** Before a dataset is archived, IPM lists what reads it — the
+**Dependency checks.** Before a dataset is archived, CreditProbe lists what reads it — the
 purposes it is the only authoritative source for, the certified analyses that would
 stop being answerable, the relationships joining to it, and the saved investigations
 produced from it. An archive with blocking dependants is refused until acknowledged.
@@ -264,7 +264,7 @@ getting a different answer is itself a finding.
                                 │  function, validate the output against its contract.
                                 │  Emits a TraceNode per step as it goes.
                                 ▼
-6  IPM ENGINE     ──────────────┤  Pure functions. Same inputs → same outputs, always.
+6  CreditProbe ENGINE     ──────────────┤  Pure functions. Same inputs → same outputs, always.
                                 ▼
 7  Structured results  { values, units, precision, row counts, warnings }
                                 │
@@ -438,7 +438,7 @@ four themes are achievable without a rewrite.
 **Why not rewrite the front end now.** A React/Next.js front end is the right long-term
 answer, but it is weeks of work, and doing it *first* would mean spending that time
 before a single new analytical capability exists. The engine, the DAL, the plan and
-Trace are what make IPM a product; the front end is how it is shown.
+Trace are what make CreditProbe a product; the front end is how it is shown.
 
 **So:** build the API-first spine now, use Dash to demonstrate it, and treat the React
 front end as a scheduled, planned replacement — not an emergency. Because the UI talks
@@ -513,6 +513,6 @@ theme work starts rather than alongside it.
 | Saved investigations | A refresh re-executes rather than reloading; identical figures are reported as recalculated, not copied; a metric present on only one side is not reported as a movement. |
 | Workflow | Every permitted transition is taken and every forbidden one is refused with the list of what is allowed; the event history is append-only; the reviewer and the requester are each notified at the right moment. |
 | Data control plane | Archiving the only authoritative source for a purpose is refused and names the analyses that would break; an incompatible replacement is refused; a steward's client-data marking survives a re-sync of the bundled catalogue. |
-| Metadata assistants | They answer from governed metadata, refuse a portfolio question and send it to Ask IPM, and report an undefined field as undefined rather than guessing. |
+| Metadata assistants | They answer from governed metadata, refuse a portfolio question and send it to Ask CreditProbe, and report an undefined field as undefined rather than guessing. |
 | UI | Route registry completeness; every theme defines every token; no literal colours in component CSS. |
 | Themes | Per theme, on that theme's own surfaces: body text ≥ 7:1, secondary ≥ 4.5:1, every status colour legible on the surface AND on its own tint, every chart slot ≥ 2.6:1 on the surface, and adjacent chart slots ≥ 18 ΔE apart in CIELAB. |

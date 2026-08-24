@@ -35,7 +35,7 @@ export default function TraceDetailPage({ params }: { params: Promise<{ runId: s
   const [proposed, setProposed] = React.useState<ProposedChange | null>(null);
 
   const investigation = useAsync(() => api.investigation(id, version), [id, version]);
-  // The list of changes IPM can make is served by the backend rather than
+  // The list of changes CreditProbe can make is served by the backend rather than
   // hard-coded here, so the two can never drift apart.
   const mode = useAsync(() => api.askMode(), []);
   const data = investigation.data;
@@ -100,7 +100,7 @@ export default function TraceDetailPage({ params }: { params: Promise<{ runId: s
               </span>
               <span className="flex items-center gap-1.5">
                 <Sparkles className="size-3.5" aria-hidden />
-                Planned by {data.mode?.planner === "demo" ? "IPM (deterministic)" : data.mode?.planner}
+                Planned by {data.mode?.planner === "demo" ? "CreditProbe (deterministic)" : data.mode?.planner}
               </span>
               <Badge variant="outline">{data.label}</Badge>
             </div>
@@ -162,7 +162,7 @@ export default function TraceDetailPage({ params }: { params: Promise<{ runId: s
             }}
             disabled={stepCount === 0}
             disabledReason={
-              "This trace was recorded before IPM stored the plan behind it, so it cannot be " +
+              "This trace was recorded before CreditProbe stored the plan behind it, so it cannot be " +
               "modified. Re-run the analysis to get a modifiable version."
             }
           />

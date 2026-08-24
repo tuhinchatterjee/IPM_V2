@@ -44,7 +44,7 @@ from backend.orchestration.vocabulary import Vocabulary, get_vocabulary
 logger = logging.getLogger(__name__)
 
 # The model used when a key is configured. Pinned rather than "latest" so a
-# provider-side change cannot alter how IPM reads a question without a release.
+# provider-side change cannot alter how CreditProbe reads a question without a release.
 DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
 
 
@@ -365,7 +365,7 @@ class DemoPlanner:
         if unmatched:
             notes.insert(
                 0,
-                "IPM did not recognise a specific analytical question here, so it has run "
+                "CreditProbe did not recognise a specific analytical question here, so it has run "
                 "the standard portfolio review instead. Try one of the suggestions below, "
                 "or name a sector, a stage, a rating or a scenario.",
             )
@@ -639,10 +639,10 @@ def _with_periods(step: PlanStep, read: PeriodIntent) -> PlanStep:
 # ---------------------------------------------------------------------------
 
 PLANNER_SYSTEM_PROMPT = """\
-You are the planning component of IPM, a credit-risk analytical platform used by \
+You are the planning component of CreditProbe, a credit-risk analytical platform used by \
 bank risk officers.
 
-Your ONLY job is to choose which of IPM's registered analytical functions should \
+Your ONLY job is to choose which of CreditProbe's registered analytical functions should \
 run to answer the user's question, and with which parameters.
 
 Hard rules:
@@ -657,7 +657,7 @@ supplied lists.
 
 Reply with a single JSON object and nothing else:
 
-{{"intent": "<one sentence restating what the user is asking, in IPM's terms>",
+{{"intent": "<one sentence restating what the user is asking, in CreditProbe's terms>",
   "steps": [{{"analysis_id": "...", "title": "<short heading for this result>",
              "rationale": "<one sentence: why this analysis>",
              "params": {{...}}, "filters": {{...}}}}],
@@ -698,7 +698,7 @@ class AnthropicPlanner:
                 question=plan.question, intent=plan.intent, scope=plan.scope, steps=plan.steps,
                 planner="demo-fallback", model_name=self.model_name,
                 follow_ups=plan.follow_ups, unmatched=plan.unmatched,
-                notes=[*plan.notes, "The configured model was unavailable, so IPM planned "
+                notes=[*plan.notes, "The configured model was unavailable, so CreditProbe planned "
                                     "this investigation deterministically."],
             )
 
@@ -812,11 +812,11 @@ def planner_mode() -> dict[str, Any]:
         "planner": planner.name,
         "model_name": planner.model_name,
         "description": (
-            "No model key is configured, so IPM reads questions with its built-in "
+            "No model key is configured, so CreditProbe reads questions with its built-in "
             "deterministic planner. Every figure is still produced by executing real "
-            "IPM Engine analyses against the published data."
+            "CreditProbe Engine analyses against the published data."
             if demo
-            else "Questions are read by a language model, which selects registered IPM "
+            else "Questions are read by a language model, which selects registered CreditProbe "
                  "analyses. It never calculates a figure; the engine does."
         ),
     }

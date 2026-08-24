@@ -37,7 +37,7 @@ import { byUnit, delta, money, percent } from "@/lib/format";
 import { useAsync } from "@/lib/hooks";
 
 /**
- * The AI Cockpit — IPM's hero screen.
+ * The AI Cockpit — CreditProbe's hero screen.
  *
  * The order of the page is the order of a credit officer's morning: what would
  * you like to investigate, then where the book stands, then what is already
@@ -53,9 +53,9 @@ import { useAsync } from "@/lib/hooks";
 
 const FALLBACK_STAGES: Stage[] = [
   { id: "understanding", label: "Understanding the question" },
-  { id: "planning", label: "Selecting IPM analyses" },
+  { id: "planning", label: "Selecting CreditProbe analyses" },
   { id: "retrieving", label: "Retrieving governed data" },
-  { id: "running", label: "Running the IPM Engine" },
+  { id: "running", label: "Running the CreditProbe Engine" },
   { id: "synthesising", label: "Synthesising findings" },
 ];
 
@@ -89,7 +89,7 @@ function Cockpit() {
     null,
   );
   const [askError, setAskError] = React.useState<string | null>(null);
-  // When IPM asks a period question back, the question that prompted it is held
+  // When CreditProbe asks a period question back, the question that prompted it is held
   // here so answering can re-run the same question with the chosen periods.
   const [pending, setPending] = React.useState<string | null>(null);
   const [savedId, setSavedId] = React.useState<number | null>(null);
@@ -130,7 +130,7 @@ function Cockpit() {
         setAskError(
           e instanceof ApiError
             ? e.message
-            : "IPM could not complete that investigation.",
+            : "CreditProbe could not complete that investigation.",
         );
       } finally {
         setAsking(null);
@@ -150,7 +150,7 @@ function Cockpit() {
    * Keep this answer.
    *
    * The question is re-executed server-side rather than the displayed result
-   * being posted: what gets saved has to be something IPM produced, not
+   * being posted: what gets saved has to be something CreditProbe produced, not
    * something a browser sent. The period already settled is carried over so the
    * saved answer is the one on screen.
    */
@@ -166,7 +166,7 @@ function Cockpit() {
       setSavedId(stored.id);
     } catch (e) {
       setAskError(
-        e instanceof ApiError ? e.message : "IPM could not save this investigation.",
+        e instanceof ApiError ? e.message : "CreditProbe could not save this investigation.",
       );
     }
   }, [answer]);
@@ -255,7 +255,7 @@ function Cockpit() {
             autoFocus={focusAsk}
             modeNote={
               mode.data?.mode === "demo"
-                ? "No model key is configured, so questions are read by IPM's built-in planner."
+                ? "No model key is configured, so questions are read by CreditProbe's built-in planner."
                 : undefined
             }
           />
@@ -361,7 +361,7 @@ function Cockpit() {
             info={
               <p>
                 Borrowers whose expected credit loss rose most against the prior
-                period, ranked by the engine. Selecting one asks IPM the full
+                period, ranked by the engine. Selecting one asks CreditProbe the full
                 question.
               </p>
             }
@@ -564,11 +564,11 @@ function Cockpit() {
       <p className="flex items-center gap-2 border-t border-border pt-4 text-xs text-text-muted">
         <InfoPopover title="About these figures">
           <p>
-            Every number on this page was produced by a registered IPM Engine
+            Every number on this page was produced by a registered CreditProbe Engine
             analysis executed against the published data, and carries a Trace.
           </p>
           <p>
-            The book itself is IPM&rsquo;s synthetic demonstration data until
+            The book itself is CreditProbe&rsquo;s synthetic demonstration data until
             client data is onboarded and marked authoritative in Data Builder.
           </p>
         </InfoPopover>

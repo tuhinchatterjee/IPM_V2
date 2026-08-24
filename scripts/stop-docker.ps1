@@ -1,4 +1,4 @@
-# Stop IPM.
+# Stop CreditProbe.
 #
 #     .\scripts\stop-docker.ps1
 #
@@ -18,7 +18,7 @@ Set-Location (Join-Path $PSScriptRoot "..")
 
 if ($EraseData) {
     Write-Host ""
-    Write-Host "This will permanently erase the IPM database:" -ForegroundColor Yellow
+    Write-Host "This will permanently erase the CreditProbe database:" -ForegroundColor Yellow
     Write-Host "  saved investigations, traces, and anything created in Data Builder."
     Write-Host "  The analytical Parquet data under data\ is NOT affected."
     Write-Host ""
@@ -29,11 +29,11 @@ if ($EraseData) {
     }
     docker compose down -v
     Write-Host ""
-    Write-Host "  IPM stopped and the database erased." -ForegroundColor Green
+    Write-Host "  CreditProbe stopped and the database erased." -ForegroundColor Green
 } else {
     docker compose down
     Write-Host ""
-    Write-Host "  IPM stopped. Your data is kept." -ForegroundColor Green
+    Write-Host "  CreditProbe stopped. Your data is kept." -ForegroundColor Green
     Write-Host "  Start it again with:  .\scripts\start-docker.ps1" -ForegroundColor DarkGray
 }
 Write-Host ""

@@ -32,7 +32,7 @@ import { useAsync } from "@/lib/hooks";
  * domain has an owner and a quality position, and datasets live inside it. Each
  * card reports what is actually in the database rather than a fixed list.
  *
- * The seven domains below are the standard IPM starting set. Any that do not yet
+ * The seven domains below are the standard CreditProbe starting set. Any that do not yet
  * exist are shown as available to create rather than hidden, so the intended
  * shape of the estate is visible from the first screen.
  */
@@ -69,8 +69,8 @@ const STANDARD_DOMAINS = [
     owner: "Credit Policy",
   },
   {
-    name: "IPM Operational Metadata",
-    description: "Runs, traces, versions, usage and audit produced by IPM itself.",
+    name: "CreditProbe Operational Metadata",
+    description: "Runs, traces, versions, usage and audit produced by CreditProbe itself.",
     owner: "Risk Technology",
   },
 ];

@@ -1,11 +1,11 @@
-# PostgreSQL backup for the IPM Tool database.
+# PostgreSQL backup for the CreditProbe Tool database.
 # Writes a compressed custom-format dump and prunes to the newest 14.
 # Schedule daily via Task Scheduler (see docs/deploy.md section 9):
-#   schtasks /create /tn "IPM PG Backup" /tr "powershell -ExecutionPolicy Bypass -File C:\QA\IPM Tool\scripts\backup_db.ps1" /sc daily /st 02:00 /ru SYSTEM
+#   schtasks /create /tn "CreditProbe PG Backup" /tr "powershell -ExecutionPolicy Bypass -File C:\QA\CreditProbe Tool\scripts\backup_db.ps1" /sc daily /st 02:00 /ru SYSTEM
 
 $ErrorActionPreference = "Stop"
 
-$BackupDir = "C:\QA\IPM Tool\backups"
+$BackupDir = "C:\QA\CreditProbe Tool\backups"
 $PgDump    = "C:\Program Files\PostgreSQL\18\bin\pg_dump.exe"
 $DbName    = "ipm"
 $DbUser    = "ipm_app"

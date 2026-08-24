@@ -71,7 +71,7 @@ export default function AnalysisRunPage({
               <span className="mt-1 block text-xs text-text-secondary">
                 {unmatched ? (
                   <>
-                    Free-text planning is not connected yet, so IPM has not interpreted this
+                    Free-text planning is not connected yet, so CreditProbe has not interpreted this
                     question. It has run the portfolio summary instead. Choose a suggested
                     question on the Cockpit to run the analysis that answers it.
                   </>

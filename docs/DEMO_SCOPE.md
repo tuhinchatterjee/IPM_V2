@@ -1,4 +1,4 @@
-# IPM — Demo Scope & Implementation Sequence
+# CreditProbe — Demo Scope & Implementation Sequence
 
 Companion to `PRODUCT_SPEC.md` (what the product is) and `ARCHITECTURE.md` (how it is
 built). This document is about **what gets built, in what order, and what fits in the
@@ -26,7 +26,7 @@ ones: the moment a senior banker clicks the third dead button, the whole demo lo
 credibility, including the parts that were real.
 
 **So the plan below is built on a deliberate trade:** go deep on the things that make
-IPM different, and be honest and tidy about the things that are not built yet.
+CreditProbe different, and be honest and tidy about the things that are not built yet.
 
 The recommendation is to build in three tiers.
 
@@ -118,7 +118,7 @@ through DuckDB via the DAL, and the existing Dash app still runs unchanged.
    Portfolio Summary · Stage Distribution · Stage Migration · DPD Migration ·
    Rating Transition Matrix · Sector Concentration · ECL Movement ·
    Top Deteriorating Borrowers · Portfolio Trend · Basic Stress Scenario.
-4. All ten marked **IPM Certified** with passing tests and recorded owners.
+4. All ten marked **CreditProbe Certified** with passing tests and recorded owners.
 
 **Done when:** every function returns a typed, unit-carrying result from real data,
 with golden-value tests passing, callable with no UI present.
@@ -158,7 +158,7 @@ get a new version alongside the original.
 
 ### Phase 5 — Engine Builder and Data Builder
 1. **Engine Builder:** Analysis Library (all ten functions with full metadata and the
-   IPM Certified tick) · Analysis Builder form · Testing & Validation runner ·
+   CreditProbe Certified tick) · Analysis Builder form · Testing & Validation runner ·
    Version & Governance history.
 2. **Data Builder:** Data Domains · Dataset Designer · Data Dictionary (the real 69
    fields) · Relationships & Lineage (the real raw→curated→analytical path) ·
@@ -189,17 +189,17 @@ script with the exact questions to ask and what each will show.
 ## 4. If only one working day is available
 
 Recommended cut — the **AI Cockpit → Real Analytics → Trace** vertical slice, because
-it is the only part of IPM that no competitor's dashboard can imitate, plus enough
+it is the only part of CreditProbe that no competitor's dashboard can imitate, plus enough
 governed surface around it to prove the platform is real.
 
 | Capability | Tier | What it does on the day |
 |---|---|---|
-| **AI Cockpit / Ask IPM** | **A** | Ask a question, see interpretation → plan → progress → real result + narrative + follow-ups |
+| **AI Cockpit / Ask CreditProbe** | **A** | Ask a question, see interpretation → plan → progress → real result + narrative + follow-ups |
 | **Engine (10 functions)** | **A** | Real credit-risk maths on the real 10-period dataset, tested |
 | **Data layer: Parquet + DuckDB + DAL** | **A** | Real lake, real pushdown, storage genuinely swappable |
 | **Trace (view)** | **A** | Full interactive DAG, every node inspectable, on every result |
 | **Trace (modify)** | **B** | Four supported modification types, with preview, branch and selective re-run |
-| **Engine Builder** | **B** | Library + full metadata + IPM Certified ticks + version history, real and browsable; Builder form read-mostly |
+| **Engine Builder** | **B** | Library + full metadata + CreditProbe Certified ticks + version history, real and browsable; Builder form read-mostly |
 | **Data Builder** | **B** | Domains, datasets, the real 69-field dictionary, real lineage; editing limited |
 | **Stress Testing** | **B** | Named scenarios via the engine, with Trace; existing climate model reachable |
 | **Themes** | **A** | All four, complete, switchable, in the Theme Gallery |

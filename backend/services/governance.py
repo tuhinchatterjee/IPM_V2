@@ -7,14 +7,14 @@ seen the answer. That is the difference this module makes.
 
 Three questions it answers
 --------------------------
-**Who uses this?** Before a dataset is archived, IPM lists what reads it: the
+**Who uses this?** Before a dataset is archived, CreditProbe lists what reads it: the
 governed purposes it is authoritative for, the certified analyses that depend on
 those purposes, the relationships joining to it, and the saved investigations
 whose Trace names it. An archive with dependants is refused unless the caller
 says, explicitly, to go ahead anyway.
 
-**What is actually powering IPM right now?** For each governed purpose, which
-dataset answers it and whether that dataset is client data or IPM's bundled
+**What is actually powering CreditProbe right now?** For each governed purpose, which
+dataset answers it and whether that dataset is client data or CreditProbe's bundled
 demonstration book. A bank must never be unclear about this.
 
 **Can this dataset replace that one?** Replacement is a governed act, not a
@@ -54,7 +54,7 @@ VALID_ORIGINS = {o.value for o in DatasetOrigin}
 
 # ========================================================= the domain library
 #
-# IPM's bundled demonstration book is generated to metadata/catalog.json by
+# CreditProbe's bundled demonstration book is generated to metadata/catalog.json by
 # scripts/build_data_lake.py, which is what the Data Access Layer reads. Data
 # Builder needs those datasets in the database too — not to change how they are
 # read, but so a steward can SEE them: which domain they sit in, that they are
@@ -98,7 +98,7 @@ def sync_bundled_catalog(session: Session) -> dict[str, Any]:
         ).scalar_one_or_none():
             session.add(DataDomain(
                 name=domain_name,
-                description="Created from IPM's bundled catalogue.",
+                description="Created from CreditProbe's bundled catalogue.",
                 owner=str(entry.get("owner") or ""),
             ))
             session.flush()
@@ -338,7 +338,7 @@ def archive_dataset(session: Session, dataset_name: str, *,
 
 
 def set_origin(session: Session, dataset_name: str, origin: str) -> DatasetDefinition:
-    """Say whether this is client data or IPM's demonstration book."""
+    """Say whether this is client data or CreditProbe's demonstration book."""
     if origin not in VALID_ORIGINS:
         raise DataBuilderError(
             f"'{origin}' is not a dataset origin. Valid: {', '.join(sorted(VALID_ORIGINS))}."
@@ -435,7 +435,7 @@ def families(session: Session) -> list[dict[str, Any]]:
 
 
 def control_plane(session: Session) -> dict[str, Any]:
-    """What is powering IPM right now, purpose by purpose."""
+    """What is powering CreditProbe right now, purpose by purpose."""
     out: list[dict[str, Any]] = []
     for purpose, description in sorted(GOVERNED_PURPOSES.items()):
         candidates = session.execute(

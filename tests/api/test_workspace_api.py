@@ -10,7 +10,7 @@ decorative:
   * the person who needs to know is told — the reviewer on submission, the
     requester on the outcome
   * an inbox separates what I have to do from what I am waiting on
-  * an object that IPM cannot open cannot be sent for review
+  * an object that CreditProbe cannot open cannot be sent for review
 """
 
 from __future__ import annotations
