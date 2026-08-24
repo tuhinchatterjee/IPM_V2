@@ -76,12 +76,17 @@ function storedToInvestigation(stored: StoredInvestigation): InvestigationRespon
     intent: stored.intent || stored.plan?.intent || "",
     steps: stored.steps,
     narrative: {
+      direct_answer: narrative.direct_answer ?? narrative.summary ?? "",
       summary: narrative.summary ?? "",
       findings: narrative.findings ?? [],
+      interpretation: narrative.interpretation ?? "",
+      interpretation_points: narrative.interpretation_points ?? [],
       metrics: narrative.metrics ?? [],
       drivers: narrative.drivers ?? [],
       caveats: narrative.caveats ?? [],
     },
+    // A stored investigation was answered; a clarification never reaches storage.
+    clarification: null,
     follow_ups: stored.follow_ups ?? [],
     notes: stored.plan?.notes ?? [],
     unmatched: stored.plan?.unmatched ?? false,
