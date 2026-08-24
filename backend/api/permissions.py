@@ -26,6 +26,8 @@ from enum import StrEnum
 
 from fastapi import Depends, Header, HTTPException, status
 
+from backend.config import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -79,7 +81,33 @@ def current_principal(
                            f"{', '.join(r.value for r in Role)}.",
             },
         ) from None
-    return Principal(user_id=x_ipm_user_id, role=role)
+    return Principal(user_id=_known_user(x_ipm_user_id), role=role)
+
+
+def _known_user(user_id: int | None) -> int | None:
+    """The caller's id, but only if that user actually exists.
+
+    Several tables record who did something with a foreign key to `users`. An id
+    that names nobody would fail that constraint deep inside a service and
+    surface as a 500 — "something went wrong on the server" — for what is really
+    "the id you sent is not a user here".
+
+    Treating an unknown id as anonymous instead means the action still happens
+    and is simply recorded as having no named actor, which is the honest reading
+    of a caller who could not be identified. Nothing about permissions depends on
+    it: the ROLE decides what may be done, and the role is unaffected.
+    """
+    if user_id is None or not settings.has_database:
+        return None
+    try:
+        from backend.db.engine import get_session
+        from backend.db.models import User
+
+        with get_session() as session:
+            return user_id if session.get(User, user_id) is not None else None
+    except Exception as e:  # pragma: no cover - the database went away
+        logger.warning("Could not confirm user %s: %s", user_id, e)
+        return None
 
 
 def require(allowed: frozenset[Role]):

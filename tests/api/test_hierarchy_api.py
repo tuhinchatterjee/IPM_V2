@@ -451,3 +451,31 @@ def test_a_project_reports_what_is_filed_under_it(client, people, project):
     assert len(body["analyses"]) >= 1
     assert body["project"]["investigation_count"] >= 1
     assert body["project"]["analysis_count"] >= 1
+
+
+# ============================================================== the principal
+
+
+def test_an_unknown_user_id_is_treated_as_anonymous_not_as_an_error(client):
+    """Several tables record who acted, with a foreign key to `users`. An id that
+    names nobody used to fail that constraint deep inside a service and surface
+    as "something went wrong on the server" — for what is really "that is not a
+    user here". The action happens and is recorded as having no named actor."""
+    response = client.post(
+        "/api/v1/projects",
+        json={"name": "Opened by a caller nobody knows"},
+        headers={"X-IPM-User-Id": "99999999", "X-IPM-Role": "ANALYST"},
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["created_by"] is None
+
+
+def test_a_real_user_id_is_still_recorded(client, people):
+    author, _ = people
+    response = client.post(
+        "/api/v1/projects",
+        json={"name": "Opened by a real user"},
+        headers=_as(author),
+    )
+    assert response.status_code == 201
+    assert response.json()["created_by"] == author
