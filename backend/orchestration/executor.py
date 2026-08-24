@@ -35,6 +35,7 @@ from typing import Any
 
 from backend.engine.runner import AnalysisRunResult, run_analysis
 from backend.orchestration.clarification import needed_clarification
+from backend.orchestration.comprehension import comprehend
 from backend.orchestration.interpreter import Narrative, build_narrative
 from backend.orchestration.planner import get_planner, planner_mode
 from backend.orchestration.schema import AnalysisPlan, PlanRejected, PlanStep
@@ -485,6 +486,22 @@ def run_investigation(question: str, *, user_id: int | None = None,
     vocab = get_vocabulary()
 
     plan = planner.plan(question, vocab, period=period)
+
+    # Did CreditProbe understand the question at all? If not, ASK — never fall
+    # through to a default analysis. A confident answer to the wrong question is
+    # worse than no answer, because nothing about it looks wrong.
+    reading = comprehend(question, plan, vocab)
+    if reading.should_ask:
+        narrative = build_narrative(question, plan.intent, [], plan=plan)
+        asking = Investigation(
+            question=question, plan=plan, steps=[], narrative=narrative,
+            graph=build_reasoning_map(plan, [], narrative),
+            node_hashes={}, duration_ms=int((time.perf_counter() - started) * 1000),
+            status="needs_clarification", clarification=reading.clarification,
+            mode=planner_mode(),
+        )
+        asking.node_hashes = asking.graph.compute_hashes()
+        return asking
 
     # Ask before running, never after. A clarification costs the user one click;
     # a confidently wrong comparison costs them a credit decision.

@@ -439,6 +439,68 @@ def move(thread_id: int, *, project_id: int | None) -> ThreadView:
         return _thread_view(session, row, with_messages=False)
 
 
+def copy(thread_id: int, *, project_id: int | None = None, title: str = "",
+         user_id: int | None = None) -> ThreadView:
+    """Duplicate a thread, messages and all, somewhere else.
+
+    Distinct from `move` on purpose. Moving a project's investigation to the
+    global list takes it OUT of the project, which is sometimes wrong: the
+    project's record of what was explored should usually survive. Copying leaves
+    the original where it is.
+
+    The copy carries the same settled context, so the duplicate does not start
+    by asking a clarification the original already answered.
+    """
+    _require_db()
+    from sqlalchemy import func, select
+
+    from backend.db.engine import get_session
+    from backend.models.platform import INV_LIVE, Investigation, InvestigationMessage
+
+    with get_session() as session:
+        source = session.get(Investigation, thread_id)
+        if source is None:
+            raise ThreadNotFound(f"Investigation {thread_id} does not exist.")
+
+        clone = Investigation(
+            project_id=project_id,
+            title=(title or f"{source.title} (copy)")[:300],
+            question=source.question,
+            scope=dict(source.scope or {}),
+            plan=dict(source.plan or {}),
+            context=dict(source.context or {}),
+            status=INV_LIVE,
+            owner_id=user_id,
+            current_version=1,
+            message_count=source.message_count,
+        )
+        session.add(clone)
+        session.flush()
+
+        messages = session.execute(
+            select(InvestigationMessage)
+            .where(InvestigationMessage.investigation_id == thread_id)
+            .order_by(InvestigationMessage.sequence)
+        ).scalars().all()
+        for message in messages:
+            session.add(InvestigationMessage(
+                investigation_id=clone.id,
+                sequence=message.sequence,
+                role=message.role,
+                content=message.content,
+                payload=dict(message.payload or {}),
+                # The copy points at the SAME runs. A run is evidence of
+                # something that happened once; duplicating the pointer is
+                # right, duplicating the run would invent a second execution
+                # that never took place.
+                analysis_run_id=message.analysis_run_id,
+                created_by=user_id,
+            ))
+        clone.last_message_at = func.now()
+        session.commit()
+        return _thread_view(session, clone)
+
+
 def archive(thread_id: int) -> ThreadView:
     """Take a thread off the working list. Nothing is deleted."""
     _require_db()
@@ -470,9 +532,25 @@ def load(thread_id: int) -> ThreadView:
 
 
 def listing(*, project_id: int | None = None, owner_id: int | None = None,
-            include_archived: bool = False,
+            include_archived: bool = False, scope: str = "standalone",
             limit: int = 50) -> list[dict[str, Any]]:
-    """Threads, most recently spoken in first, with a one-line preview."""
+    """Threads, most recently spoken in first, with a one-line preview.
+
+    `scope` decides which world you are looking at, and it is the whole reason
+    this argument exists:
+
+        "standalone"  threads that belong to no project. This is Work >
+                      Investigations, and it must NOT contain a project's
+                      threads — otherwise a project is not a container, it is a
+                      tag, and the global list becomes an undifferentiated pile
+                      of everything anyone has ever asked.
+        "project"     the threads of one project. `project_id` is required.
+        "all"         everything, for administration and search.
+
+    Defaulting to "standalone" is deliberate: the global list is the one a
+    caller reaches for without thinking, and the safe default is the narrower
+    one.
+    """
     if not settings.has_database:
         return []
     from sqlalchemy import select
@@ -490,8 +568,19 @@ def listing(*, project_id: int | None = None, owner_id: int | None = None,
             .order_by(Investigation.updated_at.desc())
             .limit(limit)
         )
-        if project_id is not None:
+        if scope == "project":
+            if project_id is None:
+                raise ValueError(
+                    "Listing a project's investigations needs a project id."
+                )
             query = query.where(Investigation.project_id == project_id)
+        elif scope == "standalone":
+            # The point of the rule: a thread started inside a project is that
+            # project's, and does not also appear in the global list.
+            query = query.where(Investigation.project_id.is_(None))
+        elif project_id is not None:
+            query = query.where(Investigation.project_id == project_id)
+
         if owner_id is not None:
             query = query.where(Investigation.owner_id == owner_id)
         if not include_archived:
@@ -535,6 +624,7 @@ __all__ = [
     "append",
     "archive",
     "ask",
+    "copy",
     "create",
     "listing",
     "load",

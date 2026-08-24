@@ -425,6 +425,9 @@ def contents(project_id: int, *, limit: int = 200) -> dict[str, Any]:
         if row is None:
             raise ProjectNotFound(f"Project {project_id} does not exist.")
 
+        # A project's investigations live here and in no other list: the global
+        # Work > Investigations view is scoped to threads with no project. See
+        # backend/services/threads.listing().
         threads = session.execute(
             select(Investigation)
             .where(Investigation.project_id == project_id)

@@ -24,7 +24,7 @@ import logging
 from dataclasses import dataclass
 from enum import StrEnum
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 
 from backend.config import settings
 
@@ -62,14 +62,36 @@ class Principal:
 
 
 def current_principal(
+    request: Request,
     x_ipm_role: str | None = Header(default=None, alias="X-IPM-Role"),
     x_ipm_user_id: int | None = Header(default=None, alias="X-IPM-User-Id"),
 ) -> Principal:
     """Resolve the caller.
 
-    Defaults to ADMIN because the API has no authentication yet. This is the one
-    line that changes when real sessions arrive.
+    A signed session cookie ALWAYS wins. That is the whole security property:
+    a signed-in Viewer cannot promote themselves by sending a header, because
+    the header is never consulted once a session exists.
+
+    Without a session, the headers decide. That path is what the demonstration's
+    role switcher uses to let one person see the product as four different
+    people, and it is also how the test suite acts as a particular user. It
+    defaults to ADMIN so an unauthenticated local run is usable; behind a real
+    deployment `settings.require_login` closes it.
     """
+    # A real session, if there is one.
+    from backend.api.auth import principal_from_request  # local: avoids a cycle
+
+    session_principal = principal_from_request(request)
+    if session_principal is not None:
+        return session_principal
+
+    if settings.require_login:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "not_signed_in",
+                    "message": "Sign in to use CreditProbe."},
+        )
+
     try:
         role = Role(x_ipm_role.upper()) if x_ipm_role else Role.ADMIN
     except ValueError:

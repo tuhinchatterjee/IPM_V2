@@ -192,6 +192,10 @@ class ThreadIn(BaseModel):
     from_period: str | None = Field(default=None, max_length=64)
     to_period: str | None = Field(default=None, max_length=64)
 
+    @property
+    def is_project_thread(self) -> bool:
+        return self.project_id is not None
+
 
 class FollowUpIn(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
@@ -218,11 +222,30 @@ def _window(from_period: str | None, to_period: str | None) -> tuple[str, str] |
 @threads_router.get("", summary="Investigations")
 def list_threads(project_id: int | None = None, owner_id: int | None = None,
                  include_archived: bool = False,
+                 scope: str = Query(
+                     default="standalone",
+                     pattern="^(standalone|project|all)$",
+                     description=(
+                         "standalone: threads in no project — this is Work > "
+                         "Investigations. project: one project's threads. "
+                         "all: everything."
+                     ),
+                 ),
                  limit: int = Query(default=50, ge=1, le=200)) -> dict:
-    return {"investigations": th.listing(
-        project_id=project_id, owner_id=owner_id,
-        include_archived=include_archived, limit=limit,
-    )}
+    """Investigations, scoped.
+
+    The default is `standalone`, and that is the rule rather than a
+    convenience: a thread started inside a Project belongs to that Project and
+    does not also appear in the global list. Otherwise a Project is a tag, not
+    a container, and the global list becomes everything anybody ever asked.
+    """
+    try:
+        return {"investigations": th.listing(
+            project_id=project_id, owner_id=owner_id, scope=scope,
+            include_archived=include_archived, limit=limit,
+        ), "scope": scope}
+    except ValueError as e:
+        raise _refused(e, "invalid_scope") from e
 
 
 @threads_router.post("", status_code=201, summary="Start an investigation")
@@ -323,6 +346,73 @@ def move_thread(thread_id: int, payload: MoveIn,
         raise _not_found(e) from e
     except th.StorageUnavailable as e:
         raise _unavailable(e) from e
+
+
+class CopyIn(BaseModel):
+    """Duplicate a thread. `project_id` null means the standalone list."""
+
+    project_id: int | None = None
+    title: str = Field(default="", max_length=300)
+
+
+class ProjectFromThreadIn(BaseModel):
+    name: str = Field(default="", max_length=200)
+    description: str = Field(default="", max_length=MAX_TEXT)
+    #: Move the investigation in, rather than leaving a copy behind.
+    move: bool = True
+
+
+@threads_router.post("/{thread_id}/copy", status_code=201,
+                     summary="Duplicate an investigation")
+def copy_thread(thread_id: int, payload: CopyIn,
+                principal: Principal = RequireAnalyst) -> dict:
+    """Take a copy somewhere else, leaving the original where it is.
+
+    Distinct from Move: moving a project's investigation out takes it OUT of the
+    project, and the project's record of what was explored should usually
+    survive.
+    """
+    try:
+        return th.copy(thread_id, project_id=payload.project_id,
+                       title=payload.title, user_id=principal.user_id).to_dict()
+    except th.ThreadNotFound as e:
+        raise _not_found(e) from e
+    except th.StorageUnavailable as e:
+        raise _unavailable(e) from e
+
+
+@threads_router.post("/{thread_id}/project", status_code=201,
+                     summary="Start a project from this investigation")
+def project_from_thread(thread_id: int, payload: ProjectFromThreadIn,
+                        principal: Principal = RequireAnalyst) -> dict:
+    """Open a project around a conversation that turned out to matter.
+
+    The investigation's settled context becomes the project's standing context,
+    so the work already done carries over rather than being re-established.
+    """
+    try:
+        thread = th.load(thread_id)
+    except th.ThreadNotFound as e:
+        raise _not_found(e) from e
+    except th.StorageUnavailable as e:
+        raise _unavailable(e) from e
+
+    try:
+        project = pj.create(
+            name=payload.name or thread.title,
+            description=payload.description,
+            default_context=dict(thread.context or {}),
+            user_id=principal.user_id,
+        )
+        if payload.move:
+            th.move(thread_id, project_id=project.id)
+        else:
+            th.copy(thread_id, project_id=project.id, user_id=principal.user_id)
+    except pj.StorageUnavailable as e:
+        raise _unavailable(e) from e
+
+    return {"project": pj.get(project.id).to_dict(),
+            "investigation": th.load(thread_id).to_dict()}
 
 
 @threads_router.post("/{thread_id}/archive", summary="Take it off the working list")

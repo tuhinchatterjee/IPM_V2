@@ -138,6 +138,16 @@ def _analysis_menu() -> dict[str, dict[str, Any]]:
             "category": c.category.value,
             "certification": c.certification.value,
             "requires_compare_period": c.requires_compare_period,
+            # Registry metadata the planner reasons over rather than guessing
+            # from the name. `trigger_questions` is also what a clarification
+            # offers when CreditProbe has not understood, so the list of things
+            # it can do is read from the registry and cannot drift out of date.
+            "when_to_use": getattr(c, "when_to_use", "") or "",
+            "limitations": getattr(c, "limitations", "") or "",
+            "trigger_questions": list(getattr(c, "trigger_questions", []) or []),
+            "answer_shape": getattr(c.answer_shape, "value", ""),
+            "period_requirement": getattr(c.period_requirement, "value", ""),
+            "required_domains": list(getattr(c, "required_domains", []) or []),
             "parameters": [
                 {
                     "name": p.name,

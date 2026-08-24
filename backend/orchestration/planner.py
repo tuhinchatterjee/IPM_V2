@@ -363,11 +363,18 @@ class DemoPlanner:
         steps = [_with_periods(step, read) for step in steps]
 
         if unmatched:
+            # The plan still carries steps, because a caller that only wants a
+            # PLAN (the validator's tests, the Trace preview) should get a
+            # well-formed one. But nothing runs it: the executor consults
+            # `comprehension.comprehend` first and asks instead. Running the
+            # standard portfolio review here is exactly the behaviour that
+            # produced a confident, certified answer to a question nobody
+            # asked, which is worse than no answer.
             notes.insert(
                 0,
-                "CreditProbe did not recognise a specific analytical question here, so it has run "
-                "the standard portfolio review instead. Try one of the suggestions below, "
-                "or name a sector, a stage, a rating or a scenario.",
+                "CreditProbe did not recognise a specific analytical question "
+                "here. It will ask what you meant rather than answer a "
+                "different question.",
             )
 
         primary = steps[0] if steps else None

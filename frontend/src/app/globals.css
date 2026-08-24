@@ -77,10 +77,17 @@
   --color-trace-interpretive: var(--ipm-trace-interpretive);
   --color-trace-edge: var(--ipm-trace-edge);
 
-  /* Typography. Geist for the interface; a tabular-figure mono for every number,
-     so digits align in columns and a change of value never shifts the layout. */
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  /* Typography — four families, each with one job. See app/layout.tsx.
+
+     A reader should be able to tell CreditProbe's prose from their own question
+     from the machine's record without reading any of them. That distinction is
+     load-bearing in a product whose central claim is about where a number came
+     from, so it is carried by the typeface rather than by a label. */
+  --font-sans: var(--font-prose), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-prose-stack: var(--font-prose), ui-sans-serif, system-ui, sans-serif;
+  --font-user-stack: var(--font-user), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display-stack: var(--font-display), ui-sans-serif, system-ui, sans-serif;
 
   /* Spacing and radii are theme-invariant. */
   --radius-sm: 0.25rem;
@@ -513,6 +520,66 @@ body {
   /* Only colours transition on a theme switch. Animating layout would make the
      change feel unstable rather than deliberate. */
   transition: background-color 160ms ease, color 160ms ease;
+}
+
+/* ---------------------------------------------------------------- type roles
+
+   Four utilities rather than four families scattered through components. A
+   screen picks the ROLE the text plays, and the family follows from that — so
+   changing what CreditProbe's prose is set in is one line here, not a sweep. */
+
+/* CreditProbe's own prose: interpretation, findings, narrative. Set a little
+   looser than the interface, because it is read in sentences rather than
+   scanned. */
+.prose-ai {
+  font-family: var(--font-prose-stack);
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: -0.005em;
+}
+
+/* What the person typed. Distinguished by weight and family, not by a bubble:
+   a chat bubble in an analytical tool reads as a toy. */
+.prose-user {
+  font-family: var(--font-user-stack);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* The machine's record — identifiers, versions, periods, field names. Small,
+   tracked, upper-case where it is a label rather than a value. Anything a
+   person might copy exactly belongs here. */
+.meta {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+/* Same family, but a value rather than a label: an identifier, a hash, a period
+   code. Not upper-cased, because the case is part of the value. */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Things you act on, and figures you read at a glance. */
+.display {
+  font-family: var(--font-display-stack);
+  letter-spacing: -0.02em;
+}
+
+button,
+.display-num {
+  font-family: var(--font-display-stack);
+}
+
+.display-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  letter-spacing: -0.02em;
 }
 
 /* Every figure uses tabular (fixed-width) digits so columns of numbers align and

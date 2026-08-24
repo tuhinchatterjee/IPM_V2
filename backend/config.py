@@ -62,6 +62,10 @@ class Settings:
     # Populated in later phases; empty until then.
     database_url: str
     secret_key: str
+    #: When true every API call needs a signed session, and the header-based
+    #: role switcher is refused. Off by default so a local run works out of the
+    #: box; on for any deployment where the browser is not the only client.
+    require_login: bool
 
     # ---- API (FastAPI) ----
     api_host: str
@@ -110,6 +114,8 @@ def _load() -> Settings:
         anthropic_api_key=_get("ANTHROPIC_API_KEY", ""),
         database_url=_get("DATABASE_URL", ""),
         secret_key=_get("SECRET_KEY", ""),
+        require_login=_get("REQUIRE_LOGIN", "false").strip().lower()
+        in ("1", "true", "yes", "on"),
         api_host=_get("API_HOST", "127.0.0.1"),
         api_port=_int("API_PORT", 8000),
         cors_origins=tuple(

@@ -739,6 +739,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     response = await fetch(`${API_BASE_URL}${API_PREFIX}${path}`, {
       ...init,
       signal: controller.signal,
+      // The session is an HTTP-only cookie, so it only travels if we ask for it.
+      // Without this every request is anonymous and the product silently falls
+      // back to the header-based demonstration role.
+      credentials: "include",
       headers: {
         ...(rawBody ? {} : { "Content-Type": "application/json" }),
         "X-IPM-Role": activeRole,
@@ -1526,7 +1530,96 @@ export interface LensProposal {
   matched: string[];
 }
 
+// ============================================================ authentication
+
+export interface SignedInUser {
+  id: number;
+  username: string;
+  first_name: string;
+  last_name: string;
+  display_name: string;
+  /** What the Cockpit greets them by. A first name, or the username. */
+  greeting_name: string;
+  email: string;
+  role: Role;
+  team: string;
+  is_active: boolean;
+}
+
+export interface UserRecord extends SignedInUser {
+  last_login_at: string | null;
+  created_at: string | null;
+}
+
+export interface RoleDescription {
+  role: Role;
+  label: string;
+  /** One sentence on what this role may do, shown when assigning it. */
+  can: string;
+}
+
 export const api = {
+  // ---- authentication ----
+  me: () => request<{ user: SignedInUser | null; authenticated: boolean }>("/auth/me"),
+  signIn: (username: string, password: string) =>
+    request<{ user: SignedInUser }>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    }),
+  signOut: () => request<{ signed_out: boolean }>("/auth/logout", { method: "POST" }),
+
+  // ---- user administration (administrators only) ----
+  users: () =>
+    request<{ users: UserRecord[]; roles: RoleDescription[] }>("/users"),
+  createUser: (payload: {
+    username: string;
+    password: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    role?: Role;
+    team?: string;
+  }) =>
+    request<UserRecord>("/users", {
+      method: "POST",
+      body: JSON.stringify({
+        username: payload.username,
+        password: payload.password,
+        first_name: payload.firstName ?? "",
+        last_name: payload.lastName ?? "",
+        email: payload.email ?? "",
+        role: payload.role ?? "ANALYST",
+        team: payload.team ?? "",
+      }),
+    }),
+  updateUser: (
+    id: number,
+    payload: {
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      role?: Role;
+      team?: string;
+      isActive?: boolean;
+    },
+  ) =>
+    request<UserRecord>(`/users/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        first_name: payload.firstName ?? null,
+        last_name: payload.lastName ?? null,
+        email: payload.email ?? null,
+        role: payload.role ?? null,
+        team: payload.team ?? null,
+        is_active: payload.isActive ?? null,
+      }),
+    }),
+  setUserPassword: (id: number, password: string) =>
+    request<{ user_id: number; password_set: boolean }>(`/users/${id}/password`, {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    }),
+
   // ---- system ----
   health: (timeoutMs?: number) =>
     request<HealthResponse>("/health", { timeoutMs: timeoutMs ?? 8_000 }),

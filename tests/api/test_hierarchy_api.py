@@ -280,11 +280,16 @@ def test_archiving_hides_a_thread_without_deleting_it(client, people, thread):
                            headers=_steward(author))
     assert archived.json()["status"] == "archived"
 
-    listed = client.get("/api/v1/investigations").json()["investigations"]
+    # Scoped to "all" because this fixture's thread lives inside a project, and
+    # the standalone list correctly excludes it either way.
+    listed = client.get(
+        "/api/v1/investigations", params={"scope": "all"}
+    ).json()["investigations"]
     assert all(t["id"] != thread["id"] for t in listed)
 
     with_archived = client.get(
-        "/api/v1/investigations", params={"include_archived": True}
+        "/api/v1/investigations",
+        params={"scope": "all", "include_archived": True},
     ).json()["investigations"]
     assert any(t["id"] == thread["id"] for t in with_archived)
 
@@ -479,3 +484,108 @@ def test_a_real_user_id_is_still_recorded(client, people):
     )
     assert response.status_code == 201
     assert response.json()["created_by"] == author
+
+
+# ================================================== project vs standalone
+
+
+def test_a_cockpit_chat_becomes_a_standalone_investigation(client, people):
+    """Started outside a project, it belongs to the global list."""
+    author, _ = people
+    thread = client.post(
+        "/api/v1/investigations",
+        json={"question": "Started from the Cockpit", "ask": False},
+        headers=_as(author),
+    ).json()["thread"]
+    assert thread["project_id"] is None
+
+    listed = client.get("/api/v1/investigations").json()["investigations"]
+    assert any(t["id"] == thread["id"] for t in listed)
+
+
+def test_a_project_chat_stays_inside_its_project(client, people, project):
+    """The rule that makes a Project a container rather than a tag.
+
+    A thread started inside a project must NOT also appear in the global list,
+    or Work > Investigations becomes an undifferentiated pile of everything
+    anybody ever asked.
+    """
+    author, _ = people
+    thread = client.post(
+        "/api/v1/investigations",
+        json={
+            "question": "Started inside the project",
+            "project_id": project["id"],
+            "ask": False,
+        },
+        headers=_as(author),
+    ).json()["thread"]
+    assert thread["project_id"] == project["id"]
+
+    standalone = client.get("/api/v1/investigations").json()["investigations"]
+    assert all(t["id"] != thread["id"] for t in standalone), (
+        "A project's investigation leaked into the standalone list."
+    )
+
+    inside = client.get(
+        "/api/v1/investigations",
+        params={"scope": "project", "project_id": project["id"]},
+    ).json()["investigations"]
+    assert any(t["id"] == thread["id"] for t in inside)
+
+    contents = client.get(f"/api/v1/projects/{project['id']}/contents").json()
+    assert any(t["id"] == thread["id"] for t in contents["investigations"])
+
+
+def test_listing_a_project_scope_without_a_project_is_refused(client):
+    response = client.get("/api/v1/investigations", params={"scope": "project"})
+    assert response.status_code == 422
+    assert response.json()["detail"]["error"] == "invalid_scope"
+
+
+def test_copying_leaves_the_original_where_it_is(client, people, project):
+    """Distinct from moving. A project's record of what was explored should
+    usually survive somebody taking a copy elsewhere."""
+    author, _ = people
+    thread = client.post(
+        "/api/v1/investigations",
+        json={"question": "Worth copying", "project_id": project["id"], "ask": False},
+        headers=_as(author),
+    ).json()["thread"]
+
+    copied = client.post(
+        f"/api/v1/investigations/{thread['id']}/copy",
+        json={"project_id": None},
+        headers=_as(author),
+    )
+    assert copied.status_code == 201
+    body = copied.json()
+    assert body["id"] != thread["id"]
+    assert body["project_id"] is None
+    assert body["message_count"] == thread["message_count"]
+
+    still_there = client.get(f"/api/v1/projects/{project['id']}/contents").json()
+    assert any(t["id"] == thread["id"] for t in still_there["investigations"])
+
+
+def test_a_project_can_be_started_from_a_standalone_investigation(client, people):
+    author, _ = people
+    thread = client.post(
+        "/api/v1/investigations",
+        json={"question": "This turned out to matter", "ask": False},
+        headers=_as(author),
+    ).json()["thread"]
+
+    response = client.post(
+        f"/api/v1/investigations/{thread['id']}/project",
+        json={"name": "Grew out of a conversation", "move": True},
+        headers=_as(author),
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["project"]["investigation_count"] == 1
+    assert body["investigation"]["project_id"] == body["project"]["id"]
+
+    # Moved, so it is no longer standalone.
+    standalone = client.get("/api/v1/investigations").json()["investigations"]
+    assert all(t["id"] != thread["id"] for t in standalone)

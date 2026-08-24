@@ -1,19 +1,24 @@
 "use client";
 
 import * as React from "react";
-import { ShieldCheck } from "lucide-react";
+import { LogOut, ShieldCheck } from "lucide-react";
 
+import { useAuth } from "@/components/system/auth";
 import { setActiveRole, type Role } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 /**
  * The acting role.
  *
- * CreditProbe has no login yet, so the role is chosen here and sent on every request as
- * a header the backend reads (see backend/api/permissions.py). That makes the
- * permission model demonstrable — a Viewer genuinely cannot publish a dataset,
- * because the backend refuses — while being explicit that it is a demonstration
- * of the model rather than authentication.
+ * When somebody is SIGNED IN, their role comes from their user record and
+ * cannot be changed here. The backend enforces the same thing: a session always
+ * beats the header, so a Viewer who sends `X-IPM-Role: ADMIN` is refused.
+ *
+ * When nobody is signed in — a local run with `REQUIRE_LOGIN` off — the role is
+ * chosen here and sent as a header. That is what lets one person demonstrate
+ * the permission model as four different people, and it is genuinely
+ * demonstrable rather than cosmetic: a Viewer cannot publish a dataset because
+ * the backend refuses, not because the button is hidden.
  */
 
 const ROLES: { id: Role; label: string; note: string }[] = [
@@ -62,7 +67,11 @@ const RoleContext = React.createContext<{ role: Role; setRole: (r: Role) => void
 });
 
 export function RoleProvider({ children }: { children: React.ReactNode }) {
-  const role = React.useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const stored = React.useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const { user } = useAuth();
+  // A real session decides the role. The stored demonstration choice applies
+  // only when nobody is signed in.
+  const role = user?.role ?? stored;
 
   // Keep the module-level value the API client reads in step with the store.
   // This touches an external system and sets no state, so it introduces no
@@ -103,6 +112,32 @@ export function useCanRunAnalysis(): boolean {
 
 export function RoleSwitcher({ className }: { className?: string }) {
   const { role, setRole } = useRole();
+  const { user, signOut } = useAuth();
+
+  // Signed in: the role is a fact about the account, not a control. Showing a
+  // dropdown here would imply it can be changed, and the backend would refuse.
+  if (user) {
+    const detail = ROLES.find((r) => r.id === role);
+    return (
+      <div className={cn("flex items-center gap-1.5", className)}>
+        <span
+          className="meta hidden text-text-muted sm:inline"
+          title={detail?.note}
+        >
+          {detail?.label ?? role}
+        </span>
+        <button
+          type="button"
+          onClick={() => void signOut()}
+          title={`Signed in as ${user.display_name} — sign out`}
+          className="flex size-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-hover hover:text-text-primary"
+        >
+          <LogOut className="size-[15px]" aria-hidden />
+          <span className="sr-only">Sign out</span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <label className={cn("flex items-center gap-1.5", className)} title="Acting role — sent to the API on every request">
