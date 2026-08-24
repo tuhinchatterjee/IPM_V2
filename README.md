@@ -106,6 +106,31 @@ Also available:
 Everything works with no AI key: Ask CreditProbe reads your questions with its own
 built-in planner and still runs the real analytical engine.
 
+### Signing in
+
+CreditProbe creates four demonstration accounts on first start, one per role, so
+you can see what each role can and cannot do. They all share the same password:
+
+| Username | Role | Can |
+|---|---|---|
+| `alex.rahman` | Administrator | Everything, including managing users |
+| `sara.qahtani` | Data Steward | Onboard, validate and publish data |
+| `omar.nasser` | Analyst | Ask questions and run analyses |
+| `layla.haddad` | Viewer | Read what others produced; cannot run an analysis |
+
+**Password: `creditprobe-demo`**
+
+These are for a local demonstration on synthetic data. They are safe to have on
+your laptop and are not safe anywhere else — change them before this touches a
+real portfolio, and set `REQUIRE_LOGIN=true` in `.env` so signing in is
+compulsory rather than optional.
+
+CreditProbe never stores a password. It stores an Argon2id hash, which cannot be
+turned back into the password even by somebody holding the database.
+
+Restarting never resets a password you have changed: the seeding step creates
+accounts that are missing and leaves existing ones alone.
+
 ### Stop it
 
 Press **Ctrl + C** in the PowerShell window, then:
@@ -457,16 +482,36 @@ the storage move to a lakehouse — without touching a calculation.
 
 ## The data
 
-The bundled portfolio is **synthetic**: 6,599 facility positions across ten
-quarterly reporting periods from Q4 2023 to Q1 2026, with 53 attributes each,
-plus 389 borrower financial records.
+The bundled portfolio is **synthetic**: a Saudi corporate book of 4,100
+borrowers and 16,346 facilities, generated from one fixed seed so every machine
+gets the identical universe.
 
-It is rich enough for genuine stage migration, DPD migration, rating transitions,
-ECL attribution and deterioration ranking — it carries the prior period's rating
-and utilisation, so movement is measured rather than estimated.
+| Dataset | Grain | Periods | Rows | Fields |
+|---|---|---|---|---|
+| `portfolio_facility` | facility per quarter | 15 quarters, Q4 2022 – Q2 2026 | 245,190 | 53 |
+| `ifrs9_staging` | facility per quarter | 15 quarters | 245,190 | 29 |
+| `facility_delinquency` | facility per quarter | 15 quarters | 245,190 | 24 |
+| `credit_memo_signals` | one credit file note | 15 quarters | 44,054 | 21 |
+| `customer_ratings` | customer per year | 8 years, 2018 – 2025 | 32,800 | 21 |
+| `macro_saudi` | quarter | 34 quarters | 34 | 13 |
+| `borrower_financials` | one per borrower | — | 4,100 | 12 |
 
-Every dataset carries a `synthetic` flag through the governed catalogue, and the
-interface labels it wherever its figures appear.
+It is rich enough for genuine stage migration, arrears movement, rating
+transitions, ECL attribution and deterioration ranking — it carries the prior
+period's rating and utilisation, so movement is measured rather than estimated.
+
+The datasets agree with each other by construction. Arrears are derived from the
+facility book's own days-past-due rather than simulated beside it, so a facility
+90 days down here is Stage 3 there; there is a test asserting exactly that. A
+demonstration that contradicts itself is worse than no demonstration.
+
+Credit memo extracts are assembled from a fixed sentence bank and prefixed
+`SYNTHETIC EXTRACT`. A plausible-looking paragraph of credit opinion about a
+named company is precisely what nobody should be able to mistake for a real one.
+
+Every dataset carries a `synthetic` flag through the governed catalogue, the
+interface labels it wherever its figures appear, and a governed export says so in
+the file and in its filename.
 
 ---
 
@@ -483,6 +528,7 @@ interface labels it wherever its figures appear.
 | `tsc --noEmit` | TypeScript type checking |
 | `eslint` | Frontend linting |
 | `next build` | Frontend production build |
+| `npm test` | Frontend unit tests — link building and the rule about which return URLs are honoured |
 
 CI runs the Python gates on every push (`.github/workflows/ci.yml`).
 

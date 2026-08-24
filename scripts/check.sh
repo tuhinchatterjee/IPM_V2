@@ -9,7 +9,8 @@
 #   2. Python tests (pytest)
 #   3. Frontend type checking (TypeScript)
 #   4. Frontend linting (ESLint)
-#   5. Frontend production build (Next.js)
+#   5. Frontend unit tests (node --test)
+#   6. Frontend production build (Next.js)
 #
 # Exits non-zero if anything fails, and says which one.
 #
@@ -38,6 +39,7 @@ run "Python lint (ruff)"       "$PY" -m ruff check .
 run "Python tests (pytest)"    "$PY" -m pytest -q
 run "Frontend typecheck"       npm --prefix frontend run typecheck
 run "Frontend lint"            npm --prefix frontend run lint
+run "Frontend tests"           npm --prefix frontend test
 run "Frontend build"           npm --prefix frontend run build
 
 echo
