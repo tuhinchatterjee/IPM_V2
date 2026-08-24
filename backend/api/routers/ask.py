@@ -46,6 +46,11 @@ class AskIn(BaseModel):
     project_id: int | None = None
     chat_id: int | None = None
     persist: bool = True
+    # Set when the user has answered a period clarification. Two real reporting
+    # period labels; anything else is rejected by the analysis contract rather
+    # than interpreted here.
+    from_period: str | None = Field(default=None, max_length=64)
+    to_period: str | None = Field(default=None, max_length=64)
 
 
 class ModifyIn(BaseModel):
@@ -159,12 +164,17 @@ def briefing() -> dict:
 def ask(payload: AskIn, principal: Principal = RequireAnalyst) -> dict:
     """Plan, execute and narrate one investigation."""
     try:
+        period = (
+            (payload.from_period, payload.to_period)
+            if payload.from_period and payload.to_period else None
+        )
         investigation = run_investigation(
             payload.question,
             user_id=principal.user_id,
             project_id=payload.project_id,
             chat_id=payload.chat_id,
             persist=payload.persist,
+            period=period,
         )
     except PlanRejected as e:  # pragma: no cover - run_investigation returns instead
         raise HTTPException(status_code=422,
