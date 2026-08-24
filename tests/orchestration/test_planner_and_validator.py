@@ -31,7 +31,9 @@ def planner():
 # The questions the demonstration is built around. Each names the analysis that
 # must appear in the plan for the answer to be the right one.
 DEMO_QUESTIONS = [
-    ("What deteriorated this period?", "portfolio_summary"),
+    # "What deteriorated?" asks what moved, not what the book looks like — so the
+    # plan leads with a movement analysis rather than the portfolio position.
+    ("What deteriorated this period?", "stage_migration"),
     ("Why has Stage 2 increased?", "stage_migration"),
     ("Which sectors deteriorated the most?", "ecl_movement"),
     ("Show me the rating transition matrix.", "rating_transition_matrix"),
@@ -59,6 +61,33 @@ def test_a_sector_named_in_the_question_is_resolved_against_real_data(planner, v
     stress = next(s for s in plan.steps if s.analysis_id == "stress_scenario_basic")
     assert stress.params.get("sector") == "Real Estate"
     assert "Real Estate" in vocab.dimensions["sector"]
+
+
+@pytest.mark.parametrize("question,expected", DEMO_QUESTIONS)
+def test_exactly_one_step_answers_the_question(planner, vocab, question, expected):
+    """Question-scoped planning: one PRIMARY analysis, and it is the right one."""
+    plan = planner.plan(question, vocab)
+    primaries = [s for s in plan.steps if s.is_primary]
+    assert len(primaries) == 1
+    assert primaries[0].analysis_id == expected
+    assert plan.primary is primaries[0]
+
+
+def test_a_narrow_question_does_not_return_a_general_briefing(planner, vocab):
+    """"Which sectors deteriorated?" is a ranking, not a portfolio review."""
+    plan = planner.plan("Which sectors deteriorated the most?", vocab)
+    assert [s.analysis_id for s in plan.steps] == ["ecl_movement"]
+    assert plan.scope.focus == "sector deterioration"
+    assert plan.scope.dimension == "sector"
+
+
+def test_a_period_chosen_by_the_user_overrides_the_wording(planner, vocab):
+    plan = planner.plan("How has ECL changed?", vocab, period=("Q1 2025", "Q1 2026"))
+    assert plan.scope.period_specified is True
+    assert (plan.scope.from_period, plan.scope.to_period) == ("Q1 2025", "Q1 2026")
+    primary = plan.primary
+    assert primary.params.get("from_period") == "Q1 2025"
+    assert primary.params.get("to_period") == "Q1 2026"
 
 
 def test_a_stage_mentioned_in_a_question_is_not_read_as_a_filter(planner, vocab):
