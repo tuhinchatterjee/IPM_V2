@@ -5,6 +5,7 @@ import * as React from "react";
 import { BadgeCheck, ClipboardCheck, GitCommitHorizontal, Plus, Search, Wrench } from "lucide-react";
 
 import { CertificationMark } from "@/components/analytics/analytical-card";
+import { MetadataAssistant } from "@/components/data-builder/control-plane";
 import { PageHeader } from "@/components/layout/page-header";
 import { useCanEditData } from "@/components/system/role-switcher";
 import { Badge } from "@/components/ui/badge";
@@ -304,6 +305,8 @@ export default function EngineBuilderPage() {
           </p>
         </Card>
       )}
+
+      <MetadataAssistant scope="engine" />
     </div>
   );
 }
