@@ -438,6 +438,13 @@ def main() -> int:
                 "status": "active",
                 "version": "1.0.0",
                 "is_synthetic": True,
+                # Governance. This is IPM's bundled demonstration book: it is
+                # labelled DEMO in Data Builder, and the moment a client dataset
+                # is published and marked authoritative for the same purpose,
+                # the engine reads that one instead (see data_access/authority.py).
+                "origin": "demo",
+                "dataset_family": FACILITY_DATASET,
+                "authoritative_for": ["credit_facility_position"],
                 "fields": facility_fields,
             },
             {
@@ -455,6 +462,9 @@ def main() -> int:
                 "status": "active",
                 "version": "1.0.0",
                 "is_synthetic": True,
+                "origin": "demo",
+                "dataset_family": BORROWER_DATASET,
+                "authoritative_for": ["borrower_financials"],
                 "fields": borrower_fields,
             },
         ],
