@@ -1111,6 +1111,231 @@ export interface SavedAnalysis {
   created_at: string | null;
 }
 
+// ==================================================== early warning: the Forward Risk Signal
+
+/**
+ * The signal is a PROTOTYPE. Every response carries `notice`, and the UI shows
+ * it — the words "validated", "production model" and "regulatory model" are
+ * derived from a validation record on the backend and are unreachable without
+ * one.
+ */
+export interface EarlyWarningTarget {
+  id: string;
+  label: string;
+  definition: string;
+  from_stage: number;
+  to_stage: number;
+  horizon: string;
+  action: string;
+  eligible_note: string;
+}
+
+export interface FactorFamilyDef {
+  id: string;
+  label: string;
+  definition: string;
+  factors?: FactorDef[];
+}
+
+export interface FactorDef {
+  id: string;
+  family: string;
+  family_label: string;
+  label: string;
+  definition: string;
+  fields: string[];
+  direction: "up-is-worse" | "up-is-better";
+  unit: string;
+  derived: boolean;
+  notes: string;
+}
+
+export interface FactorContribution {
+  factor_id: string;
+  label: string;
+  family: string;
+  family_label: string;
+  value: number;
+  unit: string;
+  standardised: number;
+  contribution: number;
+}
+
+export interface ScoredFacility {
+  account_id: string;
+  customer_id: string;
+  borrower_name: string;
+  sector: string;
+  segment: string;
+  ead: number;
+  stage: number;
+  score: number;
+  probability_pct: number;
+  band: string;
+  intercept: number;
+  contributions: FactorContribution[];
+  family_contributions: { family: string; label: string; contribution: number }[];
+}
+
+export interface EarlyWarningScores {
+  period: string;
+  target: EarlyWarningTarget;
+  facilities: number;
+  total_ead?: number;
+  scored: ScoredFacility[];
+  bands: { band: string; facilities: number; ead: number }[];
+  families?: FactorFamilyDef[];
+  factors?: FactorDef[];
+  notice: string;
+  message?: string;
+}
+
+export interface EarlyWarningOverview {
+  capability: string;
+  notice: string;
+  targets: (EarlyWarningTarget & {
+    versions: number;
+    active: EarlyWarningModel | null;
+  })[];
+  families: FactorFamilyDef[];
+  factors: FactorDef[];
+  methodology: string;
+}
+
+export interface EarlyWarningMethodology {
+  capability: string;
+  notice: string;
+  targets: EarlyWarningTarget[];
+  families: FactorFamilyDef[];
+  bands: { band: string; floor_pct: number }[];
+  form: string;
+  document: string;
+}
+
+export interface SignalWeight {
+  factor_id: string;
+  label: string;
+  family: string;
+  family_label: string;
+  weight: number;
+  mean: number;
+  std: number;
+  expected_direction: string;
+  agrees_with_expectation: boolean;
+}
+
+export interface SignalSpecification {
+  target_id: string;
+  intercept: number;
+  weights: SignalWeight[];
+  fitted_periods: string[];
+  fitted_rows: number;
+  fitted_events: number;
+  base_rate_pct: number;
+  ridge: number;
+  notes: string;
+  form: string;
+}
+
+export interface BacktestResult {
+  target_id: string;
+  fitted_periods: string[];
+  tested_periods: string[];
+  facilities: number;
+  events: number;
+  base_rate_pct: number;
+  auc: number | null;
+  ks: number | null;
+  top_decile_capture_pct: number;
+  deciles: {
+    decile: number;
+    facilities: number;
+    events: number;
+    rate_pct: number;
+    lift: number;
+    cumulative_capture_pct: number;
+  }[];
+  calibration: {
+    band: string;
+    facilities: number;
+    events: number;
+    predicted_pct: number;
+    observed_pct: number;
+    gap_pp: number;
+  }[];
+  by_period: {
+    period: string;
+    facilities: number;
+    events: number;
+    auc: number | null;
+    ks: number | null;
+    top_decile_capture_pct: number;
+  }[];
+  verdict: string;
+  is_validation: false;
+}
+
+export interface EarlyWarningModel {
+  id: number;
+  target: string;
+  target_label: string;
+  name: string;
+  version: number;
+  lifecycle: string;
+  lifecycle_stored: string;
+  lifecycle_label: string;
+  display_name: string;
+  notice: string;
+  is_active: boolean;
+  change_note: string;
+  specification: SignalSpecification & { backtest?: BacktestResult };
+  validation: Record<string, unknown>;
+  created_by: number | null;
+  created_at: string | null;
+}
+
+export interface FitResponse {
+  specification: SignalSpecification;
+  backtest: BacktestResult;
+  saved: EarlyWarningModel | null;
+  notice: string;
+}
+
+export interface ImpactAnalysis {
+  period: string;
+  target: EarlyWarningTarget;
+  from_model: { id: number; name: string; version: number };
+  to_model: { id: number; name: string; version: number };
+  facilities_compared: number;
+  unchanged: number;
+  moved_to_worse_band: number;
+  moved_to_better_band: number;
+  ead_to_worse_band: number;
+  ead_to_better_band: number;
+  biggest_increases: BandMove[];
+  biggest_decreases: BandMove[];
+  weight_changes: {
+    factor_id: string;
+    label: string;
+    family: string;
+    before: number;
+    after: number;
+    change: number;
+  }[];
+  summary: string;
+}
+
+export interface BandMove {
+  account_id: string;
+  borrower_name: string;
+  sector: string;
+  ead: number;
+  from_band: string;
+  to_band: string;
+  from_pct: number;
+  to_pct: number;
+}
+
 export const api = {
   // ---- system ----
   health: (timeoutMs?: number) =>
@@ -1280,6 +1505,61 @@ export const api = {
     request<{ dataset: string; count: number; versions: DataVersionRow[] }>(
       `/data-builder/datasets/${name}/versions`,
     ),
+
+  // ---- early warning ----
+  earlyWarning: () => request<EarlyWarningOverview>("/early-warning"),
+  earlyWarningMethodology: () =>
+    request<EarlyWarningMethodology>("/early-warning/methodology"),
+  earlyWarningScores: (targetId: string, opts: { period?: string; limit?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (opts.period) query.set("period", opts.period);
+    if (opts.limit) query.set("limit", String(opts.limit));
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<EarlyWarningScores>(
+      `/early-warning/${encodeURIComponent(targetId)}/scores${suffix}`,
+      { timeoutMs: 90_000 },
+    );
+  },
+  earlyWarningModels: (targetId?: string) =>
+    request<{ models: EarlyWarningModel[] }>(
+      `/early-warning/lab/models${targetId ? `?target_id=${encodeURIComponent(targetId)}` : ""}`,
+    ),
+  earlyWarningModel: (id: number) =>
+    request<EarlyWarningModel>(`/early-warning/lab/models/${id}`),
+  fitEarlyWarning: (payload: {
+    targetId: string;
+    testQuarters?: number;
+    name?: string;
+    changeNote?: string;
+    save?: boolean;
+    activate?: boolean;
+  }) =>
+    request<FitResponse>("/early-warning/lab/fit", {
+      method: "POST",
+      body: JSON.stringify({
+        target_id: payload.targetId,
+        test_quarters: payload.testQuarters ?? 3,
+        name: payload.name ?? "",
+        change_note: payload.changeNote ?? "",
+        save: payload.save ?? true,
+        activate: payload.activate ?? true,
+      }),
+      timeoutMs: 180_000,
+    }),
+  activateEarlyWarningModel: (id: number) =>
+    request<EarlyWarningModel>(`/early-warning/lab/models/${id}/activate`, {
+      method: "POST",
+    }),
+  compareEarlyWarningModels: (fromId: number, toId: number, period?: string) =>
+    request<ImpactAnalysis>("/early-warning/lab/compare", {
+      method: "POST",
+      body: JSON.stringify({
+        from_model_id: fromId,
+        to_model_id: toId,
+        period: period ?? null,
+      }),
+      timeoutMs: 180_000,
+    }),
 
   // ---- projects ----
   projects: (opts: { status?: string; ownerId?: number } = {}) => {
