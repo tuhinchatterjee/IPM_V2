@@ -4,6 +4,11 @@ Companion to `PRODUCT_SPEC.md` (what the product is) and `ARCHITECTURE.md` (how 
 built). This document is about **what gets built, in what order, and what fits in the
 time available.**
 
+> **Status note.** This was written before Phase 1 as a planning document, and the
+> sequence below is the plan that was followed. It is kept as the record of that
+> reasoning. For what actually exists now, read the "Current status" section of the
+> README; §6 below is a list of decisions that have all since been taken.
+
 ---
 
 ## 1. An honest statement about scope
@@ -11,8 +16,8 @@ time available.**
 The target is a polished demo covering: AI Cockpit, Projects, Investigations, Lenses,
 Stress Testing, Blueprints, Engine Builder, Data Builder, Trace, Documents,
 Users & Teams, Workflow, Settings/Administration — **plus** real analytical
-calculations on real credit data, **plus** four premium themes, **plus** an
-interactive editable Trace graph.
+calculations on real credit data, **plus** premium themes (four at the time of
+writing; eight now), **plus** an interactive editable Trace graph.
 
 That is a genuine platform. Building all of it to a standard that survives a CRO's
 attention is **not one day of work** — it is several weeks. Anyone who says otherwise
