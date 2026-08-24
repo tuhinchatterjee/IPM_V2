@@ -190,14 +190,32 @@ INTENTS: list[Intent] = [
     ),
     Intent(
         id="arrears",
-        focus="arrears movement",
-        patterns=[(r"\bdpd\b|past due|arrears|days? past|delinquen", 6)],
-        intent_text="Show the movement between days-past-due buckets.",
+        focus="arrears",
+        patterns=[
+            (r"\bdpd\b|past due|arrears|days? past|delinquen", 6),
+            (r"forbear|forborne|restructur|collections|overdue|cured?\b", 5),
+        ],
+        intent_text="Report the arrears position, or the movement between buckets.",
         build="_arrears",
         follow_ups=[
             "Show me the top ten deteriorating borrowers.",
-            "Why has Stage 2 increased?",
+            "How much has been forborne?",
             "How has ECL changed?",
+        ],
+    ),
+    Intent(
+        id="credit_file",
+        focus="credit file commentary",
+        patterns=[
+            (r"credit (memo|file|note|commentary)|memos?\b", 7),
+            (r"covenant breach|going concern|write.?up|what are the notes", 5),
+        ],
+        intent_text="Report what the credit file notes raised in the period.",
+        build="_credit_file",
+        follow_ups=[
+            "How much is in arrears?",
+            "Show me the top ten deteriorating borrowers.",
+            "What is in Stage 2 by sector?",
         ],
     ),
     Intent(
@@ -558,12 +576,54 @@ class DemoPlanner:
                      filters=filters),
         ]
 
+    #: Words that make an arrears question a question about change. Without one
+    #: of these, "how much is in arrears" is a position and answering it with a
+    #: migration matrix would demand two periods the asker never mentioned.
+    _MOVEMENT = re.compile(
+        r"\bmov|migrat|chang|cured?\b|since|versus|\bvs\b|trend|deteriorat|"
+        r"improv|compare"
+    )
+
     def _arrears(self, lowered: str, vocab: Vocabulary, filters: dict) -> list[PlanStep]:
+        if self._MOVEMENT.search(lowered):
+            return [
+                PlanStep("dpd_migration", "Arrears movement",
+                         "The exposure moving between days-past-due buckets, and "
+                         "what cured.",
+                         params={"basis": "ead"}, filters=filters),
+            ]
         return [
-            PlanStep("dpd_migration", "Arrears movement",
-                     "The exposure moving between days-past-due buckets, and what cured.",
-                     params={"basis": "ead"}, filters=filters),
+            PlanStep("arrears_position", "Arrears position",
+                     "How much is overdue, in which bucket, and how far "
+                     "collections has escalated.",
+                     params={"group_by": self._arrears_dimension(lowered)},
+                     filters=filters),
         ]
+
+    def _arrears_dimension(self, lowered: str) -> str:
+        """Arrears break down by the collections dimensions as well as the usual ones."""
+        for candidate in ("collections_stage", "forbearance_type"):
+            if candidate.replace("_", " ") in lowered:
+                return candidate
+        if "forbear" in lowered or "forborne" in lowered:
+            return "forbearance_type"
+        if "collection" in lowered:
+            return "collections_stage"
+        dimension = self._group_dimension(lowered, default="none")
+        return dimension if dimension in ("sector", "region", "segment") else "none"
+
+    def _credit_file(self, lowered: str, vocab: Vocabulary, filters: dict) -> list[PlanStep]:
+        return [
+            PlanStep("credit_file_signals", "Credit file signals",
+                     "What the notes on file raised: covenant breaches, "
+                     "liquidity, going concern, management change.",
+                     params={"group_by": self._credit_file_dimension(lowered)},
+                     filters=filters),
+        ]
+
+    def _credit_file_dimension(self, lowered: str) -> str:
+        dimension = self._group_dimension(lowered, default="none")
+        return dimension if dimension in ("sector", "region") else "none"
 
     def _utilisation(self, lowered: str, vocab: Vocabulary, filters: dict) -> list[PlanStep]:
         return [

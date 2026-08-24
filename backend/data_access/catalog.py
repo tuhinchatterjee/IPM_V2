@@ -72,6 +72,8 @@ BORROWER_FINANCIALS = "borrower_financials"
 IFRS9_STAGING = "ifrs9_impairment_staging"
 CUSTOMER_RATING_HISTORY = "customer_rating_history"
 MACROECONOMIC_SERIES = "macroeconomic_series"
+FACILITY_DELINQUENCY = "facility_delinquency"
+CREDIT_FILE_COMMENTARY = "credit_file_commentary"
 
 GOVERNED_PURPOSES: dict[str, str] = {
     FACILITY_POSITION: (
@@ -93,6 +95,16 @@ GOVERNED_PURPOSES: dict[str, str] = {
     MACROECONOMIC_SERIES: (
         "Quarterly macroeconomic series for the economy the book lends into, "
         "and the credit cycle factor derived from them."
+    ),
+    FACILITY_DELINQUENCY: (
+        "Arrears and collections per facility: days past due, the arrears "
+        "bucket, the amount overdue, forbearance granted, and how far recovery "
+        "action has escalated."
+    ),
+    CREDIT_FILE_COMMENTARY: (
+        "What the credit file says, as structured signals: covenant breaches, "
+        "liquidity concerns, management changes, sector headwinds and "
+        "going-concern language, with the extract that raised each one."
     ),
 }
 

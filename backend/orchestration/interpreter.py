@@ -480,6 +480,75 @@ def _watchlist(values: dict, rows: list[dict], index: int) -> tuple[list[Metric]
     return metrics, findings
 
 
+def _arrears_position(values: dict, rows: list[dict], index: int
+                      ) -> tuple[list[Metric], list[Finding]]:
+    in_arrears = _n(values.get("facilities_in_arrears")) or 0
+    ninety_plus = _n(values.get("facilities_90_plus")) or 0
+    metrics = [
+        Metric("Facilities in arrears", values.get("facilities_in_arrears"), "",
+               None, "", "up-is-bad",
+               f"{pct(values.get('arrears_rate_pct'))} of the book", index),
+        Metric("Amount overdue", values.get("total_arrears_amount"), "USD mn",
+               None, "", "up-is-bad", "", index),
+        Metric("Exposure at risk", values.get("exposure_at_risk"), "USD mn",
+               None, "", "up-is-bad", "90 or more days past due", index),
+        Metric("Cured this period", values.get("cured_this_period"), "",
+               None, "", "down-is-bad", "current again after being behind", index),
+    ]
+
+    findings = [Finding(
+        f"{int(in_arrears):,} facilities are in arrears — "
+        f"{pct(values.get('arrears_rate_pct'))} of those read — owing "
+        f"{money(values.get('total_arrears_amount'))} in overdue amounts.",
+        "warning" if in_arrears else "positive", [], index,
+    )]
+    if ninety_plus:
+        findings.append(Finding(
+            f"{int(ninety_plus):,} of them are 90 or more days past due, carrying "
+            f"{money(values.get('exposure_at_risk'))} of exposure at default.",
+            "negative", [], index,
+        ))
+    forborne = _n(values.get("forborne_facilities")) or 0
+    if forborne:
+        findings.append(Finding(
+            f"{int(forborne):,} facilities have been granted a concession, of which "
+            f"{int(_n(values.get('restructured_facilities')) or 0):,} were restructured.",
+            "warning", [], index,
+        ))
+    return metrics, findings
+
+
+def _credit_file_signals(values: dict, rows: list[dict], index: int
+                         ) -> tuple[list[Metric], list[Finding]]:
+    notes = _n(values.get("notes_written")) or 0
+    metrics = [
+        Metric("Notes written", values.get("notes_written"), "", None, "", "neutral",
+               "credit file entries in the period", index),
+        Metric("Negative", values.get("negative_notes"), "", None, "", "up-is-bad",
+               f"{pct(values.get('negative_share_pct'))} of notes", index),
+        Metric("Borrowers reviewed", values.get("borrowers_reviewed"), "", None, "",
+               "neutral", "", index),
+        Metric("Concerns per note", values.get("mean_concerns_per_note"), "", None, "",
+               "up-is-bad", "of the six tracked", index),
+    ]
+
+    findings = [Finding(
+        f"{int(notes):,} credit file notes were written, "
+        f"{int(_n(values.get('negative_notes')) or 0):,} of them negative "
+        f"({pct(values.get('negative_share_pct'))}).",
+        "warning" if (_n(values.get("negative_share_pct")) or 0) > 33 else "neutral",
+        [], index,
+    )]
+    for row in rows[:2]:
+        findings.append(Finding(
+            f"{row.get('signal')} was raised in {int(row.get('mentions') or 0):,} "
+            f"notes ({pct(row.get('share_of_notes_pct'))}), against "
+            f"{int(row.get('borrowers') or 0):,} borrowers.",
+            "warning", [], index,
+        ))
+    return metrics, findings
+
+
 # ---------------------------------------------------------- the direct answer
 #
 # One sentence that answers the question that was asked, in the engine's own
@@ -628,7 +697,44 @@ def _answer_watchlist(values: dict, rows: list[dict]) -> str:
     )
 
 
+def _answer_arrears_position(values: dict, rows: list[dict]) -> str:
+    in_arrears = int(_n(values.get("facilities_in_arrears")) or 0)
+    if not in_arrears:
+        return (
+            f"Nothing in {values.get('period', 'the period')} is in arrears — every "
+            f"one of the {int(_n(values.get('facilities_read')) or 0):,} facilities "
+            "read is current."
+        )
+    return (
+        f"{in_arrears:,} facilities are in arrears in "
+        f"{values.get('period', 'the period')} — "
+        f"{pct(values.get('arrears_rate_pct'))} of the book — owing "
+        f"{money(values.get('total_arrears_amount'))}, with "
+        f"{money(values.get('exposure_at_risk'))} of exposure 90 or more days "
+        "past due."
+    )
+
+
+def _answer_credit_file_signals(values: dict, rows: list[dict]) -> str:
+    notes = int(_n(values.get("notes_written")) or 0)
+    if not notes:
+        return f"No credit file notes were written in {values.get('period', 'the period')}."
+    top = rows[0] if rows else {}
+    leading = (
+        f" The concern raised most often was {str(top.get('signal', '')).lower()}, in "
+        f"{int(_n(top.get('mentions')) or 0):,} of them."
+        if top else ""
+    )
+    return (
+        f"{notes:,} credit file notes were written in "
+        f"{values.get('period', 'the period')}, "
+        f"{pct(values.get('negative_share_pct'))} of them negative.{leading}"
+    )
+
+
 ANSWERS = {
+    "arrears_position": _answer_arrears_position,
+    "credit_file_signals": _answer_credit_file_signals,
     "ecl_movement": _answer_ecl_movement,
     "stage_migration": _answer_migration,
     "dpd_migration": _answer_migration,
@@ -863,7 +969,96 @@ def _interpret_watchlist(values: dict, rows: list[dict]) -> list[str]:
     ]
 
 
+def _interpret_arrears_position(values: dict, rows: list[dict]) -> list[str]:
+    """A reading of the arrears position. Never a forecast of recovery."""
+    points: list[str] = []
+    rate = _n(values.get("arrears_rate_pct")) or 0
+    ninety = _n(values.get("facilities_90_plus")) or 0
+    in_arrears = _n(values.get("facilities_in_arrears")) or 0
+
+    if in_arrears and ninety:
+        share = 100.0 * ninety / in_arrears
+        points.append(
+            f"Of the facilities behind, {share:.0f}% are already 90 or more days "
+            "past due, so the arrears are concentrated at the hard end rather "
+            "than spread thinly across early buckets."
+            if share >= 40 else
+            f"Only {share:.0f}% of the facilities behind have reached 90 days, so "
+            "most of the arrears are still early and, on this data alone, "
+            "still curable."
+        )
+
+    cured = _n(values.get("cured_this_period")) or 0
+    new = _n(values.get("newly_delinquent")) or 0
+    if cured or new:
+        points.append(
+            f"{int(new):,} facilities fell behind this period against {int(cured):,} "
+            "that returned to current — " +
+            ("the book is losing ground on arrears."
+             if new > cured else
+             "cures outpaced new delinquencies.")
+        )
+
+    forborne = _n(values.get("forborne_facilities")) or 0
+    if forborne and in_arrears:
+        points.append(
+            f"{int(forborne):,} facilities carry a concession. Forbearance keeps a "
+            "facility from ageing into a worse bucket, so an arrears rate of "
+            f"{rate:.2f}% understates how many borrowers are under strain."
+        )
+
+    points.append(
+        "This is the position at one quarter end. It says what is overdue and "
+        "how far collections has escalated; it does not estimate what will be "
+        "recovered."
+    )
+    return points
+
+
+def _interpret_credit_file_signals(values: dict, rows: list[dict]) -> list[str]:
+    """A reading of what was written. Explicitly not a prediction."""
+    points: list[str] = []
+    negative = _n(values.get("negative_share_pct")) or 0
+    concerns = _n(values.get("mean_concerns_per_note")) or 0
+
+    if negative >= 40:
+        points.append(
+            f"{negative:.0f}% of the notes are negative in tone, which is high "
+            "enough that the commentary is describing a book under pressure "
+            "rather than isolated names."
+        )
+    elif negative:
+        points.append(
+            f"{negative:.0f}% of the notes are negative in tone; the balance of "
+            "the commentary is neutral or better."
+        )
+
+    if len(rows) >= 2:
+        first, second = rows[0], rows[1]
+        points.append(
+            f"{first.get('signal')} and {second.get('signal')} are the two concerns "
+            f"raised most often, in {pct(first.get('share_of_notes_pct'))} and "
+            f"{pct(second.get('share_of_notes_pct'))} of notes respectively."
+        )
+
+    if concerns >= 2:
+        points.append(
+            f"Notes raise {concerns:.1f} of the six tracked concerns on average, so "
+            "the files that are worried tend to be worried about more than one "
+            "thing at once."
+        )
+
+    points.append(
+        "These are counts of what was written, not evidence of what will "
+        "happen. No relationship between these signals and credit outcomes has "
+        "been established here, and none is claimed."
+    )
+    return points
+
+
 INTERPRETERS = {
+    "arrears_position": _interpret_arrears_position,
+    "credit_file_signals": _interpret_credit_file_signals,
     "ecl_movement": _interpret_ecl_movement,
     "stage_migration": _interpret_migration,
     "dpd_migration": _interpret_migration,
@@ -879,6 +1074,8 @@ INTERPRETERS = {
 
 
 READERS = {
+    "arrears_position": _arrears_position,
+    "credit_file_signals": _credit_file_signals,
     "portfolio_summary": _portfolio_summary,
     "stage_distribution": _stage_distribution,
     "sector_concentration": _sector_concentration,

@@ -4,6 +4,7 @@ Registered analytical capabilities.
 Importing this package runs the @register decorators and populates the Engine
 Registry, so every function module must be imported here.
 
+  arrears.py       Arrears Position, Credit File Signals
   portfolio.py     Portfolio Summary, Stage Distribution, Sector Concentration,
                    Portfolio Trend
   migration.py     Stage Migration, DPD Migration, Rating Transition Matrix,
@@ -21,6 +22,7 @@ Registry, so every function module must be imported here.
 """
 
 from backend.engine.functions import (  # noqa: F401
+    arrears,
     concentration,
     ifrs9,
     migration,
@@ -29,4 +31,5 @@ from backend.engine.functions import (  # noqa: F401
     stress,
 )
 
-__all__ = ["concentration", "ifrs9", "migration", "portfolio", "ratings", "stress"]
+__all__ = ["arrears", "concentration", "ifrs9", "migration", "portfolio",
+           "ratings", "stress"]

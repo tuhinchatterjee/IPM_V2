@@ -26,6 +26,8 @@ BORROWER = "borrower_financials"
 STAGING = "ifrs9_staging"
 RATINGS = "customer_ratings"
 MACRO = "macro_saudi"
+DELINQUENCY = "facility_delinquency"
+MEMOS = "credit_memo_signals"
 
 # DPD buckets, in the order a credit committee reads them.
 DPD_BUCKETS = ["Current", "1-29", "30-59", "60-89", "90-179", "180+"]

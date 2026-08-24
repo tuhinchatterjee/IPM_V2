@@ -154,12 +154,25 @@ def test_a_question_is_answered_with_the_analysis_it_asked_for(client, demo_mode
     assert [s for s in body["steps"] if s["role"] == "primary"]
 
 
-def test_an_unrecognised_question_is_answered_honestly(client, demo_mode):
+def test_an_unrecognised_question_gets_a_question_back_not_a_number(client, demo_mode):
+    """The most important refusal in the product.
+
+    This used to run the standard portfolio review and put a note above it, so
+    somebody asking about anything at all got the bank's total exposure —
+    correctly calculated, carrying a certification tick, answering a question
+    nobody asked. A confident answer to the wrong question is worse than no
+    answer, because nothing about it looks wrong.
+    """
     body = client.post("/api/v1/ask", json={"question": "Who won the cup final?",
                                             "persist": False}).json()
-    assert body["unmatched"] is True
-    assert body["notes"]
-    assert body["steps"], "CreditProbe still shows the standard review rather than nothing"
+    assert body["status"] == "needs_clarification"
+    assert body["steps"] == [], "nothing may be executed for a question not understood"
+
+    clarification = body["clarification"]
+    assert clarification["kind"] == "intent"
+    assert clarification["options"], "a refusal must leave something to click"
+    for option in clarification["options"]:
+        assert option["question"], "every offer must be a question that can be asked"
 
 
 def test_an_empty_question_is_rejected_by_the_schema(client):

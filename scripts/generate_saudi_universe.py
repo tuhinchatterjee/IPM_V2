@@ -750,6 +750,270 @@ def build_borrower_financials(customers: pd.DataFrame,
     })
 
 
+# ---------------------------------------------------------- delinquency
+
+
+#: The arrears buckets a collections team works in. Ordered, because "worse
+#: than 60 days" is a question somebody asks and an alphabetical bucket list
+#: cannot answer it.
+DPD_BUCKETS: list[tuple[str, int, int]] = [
+    ("Current", 0, 0),
+    ("1-29 days", 1, 29),
+    ("30-59 days", 30, 59),
+    ("60-89 days", 60, 89),
+    ("90-179 days", 90, 179),
+    ("180+ days", 180, 10_000),
+]
+
+COLLECTIONS_STAGES = [
+    "None", "Soft reminder", "Formal demand", "Collections", "Legal recovery",
+]
+
+FORBEARANCE_TYPES = [
+    "None", "Payment holiday", "Term extension", "Interest capitalisation",
+    "Covenant waiver", "Restructured facility",
+]
+
+
+def bucket_for(dpd: np.ndarray) -> np.ndarray:
+    """The arrears bucket each days-past-due figure falls in."""
+    out = np.full(len(dpd), DPD_BUCKETS[0][0], dtype=object)
+    for label, low, high in DPD_BUCKETS:
+        out[(dpd >= low) & (dpd <= high)] = label
+    return out
+
+
+def build_delinquency(facility: pd.DataFrame,
+                      rng: np.random.Generator) -> pd.DataFrame:
+    """Arrears and collections, one row per facility per quarter.
+
+    Derived from the facility book's own `dpd_days` rather than simulated
+    separately. That is the whole point: an analyst who reads 90 days past due
+    here and a Stage 1 classification in the impairment table has found a
+    contradiction in the demonstration data, not an insight, and the fastest way
+    to destroy confidence in a demonstration is to let it disagree with itself.
+
+    What this dataset adds is everything the facility snapshot does not carry:
+    which bucket the arrears fall in, how much is actually overdue, how many
+    instalments were missed, when the borrower last paid, whether they have been
+    forborne, and where collections has got to.
+    """
+    frame = facility[[
+        "period", "account_id", "customer_id", "borrower_name", "sector",
+        "region", "segment", "product_type", "dpd_days", "exposure", "ead",
+        "ifrs9_stage", "npl", "watchlist",
+    ]].copy()
+    frame = frame.sort_values(["account_id", "period"], kind="mergesort")
+
+    dpd = frame["dpd_days"].to_numpy()
+    n = len(frame)
+
+    # Amount overdue: roughly one quarterly instalment per 30 days in arrears,
+    # capped at the exposure. Nobody can be more overdue than they owe.
+    exposure = frame["exposure"].to_numpy()
+    instalment = exposure / 20.0
+    missed = np.ceil(dpd / 30.0).astype(int)
+    arrears = np.minimum(instalment * missed * rng.uniform(0.7, 1.3, n), exposure)
+    arrears = np.where(dpd > 0, np.round(arrears, 3), 0.0)
+
+    # A borrower 45 days down last paid about 45 days ago, give or take. One
+    # who is current paid at some point in the quarter.
+    since_payment = np.where(
+        dpd > 0,
+        dpd + rng.integers(0, 20, n),
+        rng.integers(1, 92, n),
+    )
+    period_end = pd.to_datetime([quarter_end(p) for p in frame["period"]])
+    last_payment = period_end - pd.to_timedelta(since_payment, unit="D")
+
+    # Cured this quarter: in arrears last quarter, current now. Computed by
+    # shifting within each account, so it is a real transition rather than a
+    # coin flip.
+    previous_dpd = frame.groupby("account_id", observed=True)["dpd_days"].shift(1)
+    cured = (previous_dpd.fillna(0).to_numpy() > 0) & (dpd == 0)
+    newly_delinquent = (previous_dpd.fillna(0).to_numpy() == 0) & (dpd > 0)
+
+    # Forbearance concentrates where the arrears are, but is not implied by
+    # them: a bank forbears some borrowers and pursues others.
+    forborne_odds = np.clip(dpd / 400.0, 0.0, 0.45)
+    forborne = rng.random(n) < forborne_odds
+    forbearance = np.where(
+        forborne,
+        rng.choice(FORBEARANCE_TYPES[1:], size=n),
+        FORBEARANCE_TYPES[0],
+    )
+
+    # Collections escalates with the bucket, which is how a collections
+    # function actually works.
+    stage_index = np.digitize(dpd, [1, 30, 90, 180])
+    collections = np.array(COLLECTIONS_STAGES, dtype=object)[
+        np.clip(stage_index, 0, len(COLLECTIONS_STAGES) - 1)
+    ]
+
+    out = pd.DataFrame({
+        "period": frame["period"].to_numpy(),
+        "period_end_date": [quarter_end(p) for p in frame["period"]],
+        "account_id": frame["account_id"].to_numpy(),
+        "customer_id": frame["customer_id"].to_numpy(),
+        "borrower_name": frame["borrower_name"].to_numpy(),
+        "sector": frame["sector"].to_numpy(),
+        "region": frame["region"].to_numpy(),
+        "segment": frame["segment"].to_numpy(),
+        "product_type": frame["product_type"].to_numpy(),
+        "days_past_due": dpd,
+        "dpd_bucket": bucket_for(dpd),
+        "arrears_amount": arrears,
+        "instalments_missed": np.where(dpd > 0, missed, 0),
+        "last_payment_date": last_payment.strftime("%Y-%m-%d"),
+        "days_since_last_payment": since_payment,
+        "forbearance_type": forbearance,
+        "restructured_flag": forbearance == "Restructured facility",
+        "collections_stage": collections,
+        "cured_this_period": cured,
+        "newly_delinquent": newly_delinquent,
+        "exposure_at_risk": np.where(dpd >= 90, np.round(frame["ead"], 3), 0.0),
+        "ifrs9_stage": frame["ifrs9_stage"].to_numpy(),
+        "npl": frame["npl"].to_numpy(),
+        "watchlist": frame["watchlist"].to_numpy(),
+    })
+    return out.sort_values(["period", "account_id"], kind="mergesort").reset_index(drop=True)
+
+
+# ------------------------------------------------------- credit memo signals
+
+
+MEMO_TYPES = [
+    "Annual review", "Interim review", "Covenant waiver request",
+    "Site visit note", "Watchlist escalation", "Credit committee paper",
+]
+
+MEMO_AUTHORS = [
+    "Relationship Manager", "Credit Analyst", "Sector Specialist",
+    "Portfolio Manager", "Credit Officer",
+]
+
+RECOMMENDATIONS = [
+    "Maintain limits", "Reduce exposure", "Hold and monitor",
+    "Escalate to watchlist", "Seek additional security", "Exit facility",
+]
+
+#: Sentences a credit file actually contains, one per concern. Assembled rather
+#: than generated, so the text is obviously a template and nobody mistakes a
+#: demonstration extract for a real credit opinion about a real company.
+_CONCERN_SENTENCES = {
+    "covenant_breach": "Net leverage covenant was breached at the last test date.",
+    "liquidity_concern": "Headroom on committed facilities is under three months of cover.",
+    "management_change": "The finance director left during the period and has not been replaced.",
+    "sector_headwind": "Sector demand has softened and margins are compressing.",
+    "going_concern": "The auditor has drawn attention to a material uncertainty over going concern.",
+    "receivables_stretch": "Debtor days have extended materially against the prior year.",
+}
+
+_POSITIVE_SENTENCES = [
+    "Trading is ahead of budget and the order book has lengthened.",
+    "The shareholder injected equity during the period.",
+    "Leverage has reduced following the disposal of a non-core asset.",
+    "Collateral was revalued upward at the last inspection.",
+]
+
+
+def build_credit_memos(customers: pd.DataFrame, facility: pd.DataFrame,
+                       rng: np.random.Generator) -> pd.DataFrame:
+    """Credit file notes, as structured signals rather than free prose.
+
+    Real credit memos are documents. What an analytical product can actually
+    use from them is what they SAY — a covenant breach mentioned, a finance
+    director gone, a going-concern paragraph — so this dataset carries those as
+    flags with a short extract attached, rather than pretending to hold the
+    document.
+
+    The signals are anchored to the borrower's condition in the same quarter, so
+    a memo raising liquidity concern belongs to a borrower whose numbers were in
+    fact deteriorating. A memo dataset uncorrelated with the book would teach
+    the product that unstructured signals predict nothing.
+
+    Every extract is assembled from a fixed sentence bank. It is deliberately
+    obvious that these are templates: a plausible-looking paragraph of credit
+    opinion about a named company is exactly the thing nobody should be able to
+    mistake for a real one.
+    """
+    # One memo per borrower per quarter for the deteriorating half of the book,
+    # and an annual review for everybody else — which is roughly the cadence a
+    # real credit function runs at.
+    rows: list[dict] = []
+    by_period = facility.groupby("period", observed=True)
+
+    for period, chunk in by_period:
+        worst = (
+            chunk.sort_values(["ifrs9_stage", "pd_12m_pct"], ascending=False)
+            .drop_duplicates("customer_id")
+        )
+        # Everyone in stage 2 or 3, plus a rotating slice of the rest, so the
+        # performing book is reviewed once a year rather than never.
+        watched = worst[worst["ifrs9_stage"] >= 2]
+        performing = worst[worst["ifrs9_stage"] == 1]
+        rotation = performing.iloc[
+            rng.integers(0, max(1, len(performing)), size=max(1, len(performing) // 4))
+        ]
+        subjects = pd.concat([watched, rotation]).drop_duplicates("customer_id")
+
+        n = len(subjects)
+        if n == 0:
+            continue
+
+        stage = subjects["ifrs9_stage"].to_numpy()
+        pd_pct = subjects["pd_12m_pct"].to_numpy()
+        # Concern probability rises with the borrower's own condition.
+        pressure = np.clip((stage - 1) * 0.3 + pd_pct / 25.0, 0.02, 0.92)
+
+        flags = {
+            key: rng.random(n) < pressure * weight
+            for key, weight in (
+                ("covenant_breach", 0.75),
+                ("liquidity_concern", 0.65),
+                ("management_change", 0.30),
+                ("sector_headwind", 0.55),
+                ("going_concern", 0.20),
+                ("receivables_stretch", 0.45),
+            )
+        }
+        raised = np.sum(list(flags.values()), axis=0)
+
+        # Sentiment follows what was actually flagged, not a separate die roll.
+        sentiment = np.where(raised >= 2, "negative",
+                             np.where(raised == 1, "mixed", "positive"))
+
+        extracts = []
+        for i in range(n):
+            said = [_CONCERN_SENTENCES[key] for key, series in flags.items()
+                    if series[i]]
+            if not said:
+                said = [_POSITIVE_SENTENCES[int(rng.integers(0, len(_POSITIVE_SENTENCES)))]]
+            extracts.append("SYNTHETIC EXTRACT — " + " ".join(said))
+
+        rows.append(pd.DataFrame({
+            "period": period,
+            "period_end_date": quarter_end(str(period)),
+            "memo_id": [f"MEMO-{period.replace(' ', '')}-{i:05d}" for i in range(n)],
+            "customer_id": subjects["customer_id"].to_numpy(),
+            "borrower_name": subjects["borrower_name"].to_numpy(),
+            "sector": subjects["sector"].to_numpy(),
+            "region": subjects["region"].to_numpy(),
+            "memo_type": rng.choice(MEMO_TYPES, size=n),
+            "author_role": rng.choice(MEMO_AUTHORS, size=n),
+            "sentiment": sentiment,
+            "concerns_raised": raised.astype(int),
+            "signal_strength_pct": np.round(100.0 * np.clip(raised / 6.0, 0, 1), 1),
+            "recommendation": rng.choice(RECOMMENDATIONS, size=n),
+            "extract": extracts,
+            "is_synthetic_text": True,
+            **{f"{key}_mentioned": series for key, series in flags.items()},
+        }))
+
+    memos = pd.concat(rows, ignore_index=True)
+    return memos.sort_values(["period", "memo_id"], kind="mergesort").reset_index(drop=True)
+
+
 # ================================================================= writing
 
 
@@ -812,6 +1076,117 @@ def infer_fields(df: pd.DataFrame, described: dict[str, dict]) -> list[dict]:
 
 # The columns worth describing properly. The generated datasets are new, so
 # nothing else in the product knows what these mean unless it is written down.
+DELINQUENCY_FIELDS = {
+    "period": field("period", "Reporting period", "Reporting quarter, e.g. Q1 2026.",
+                    "string"),
+    "period_end_date": field("period_end_date", "Period end date",
+                             "Last calendar day of the reporting quarter.", "date"),
+    "account_id": field("account_id", "Account ID", "Facility identifier.", "string",
+                        sensitivity="confidential"),
+    "customer_id": field("customer_id", "Customer ID", "Borrower identifier.",
+                         "string", sensitivity="confidential"),
+    "borrower_name": field("borrower_name", "Borrower", "Registered borrower name.",
+                           "string", sensitivity="confidential"),
+    "days_past_due": field("days_past_due", "Days past due",
+                           "Days the oldest unpaid amount has been outstanding at "
+                           "period end. The same figure the facility snapshot "
+                           "carries — the two cannot disagree.", "integer", "days"),
+    "dpd_bucket": field("dpd_bucket", "Arrears bucket",
+                        "Current, 1-29, 30-59, 60-89, 90-179 or 180+ days.", "string"),
+    "arrears_amount": field("arrears_amount", "Amount overdue",
+                            "Contractual amount past due at period end.", "number",
+                            "USD mn"),
+    "instalments_missed": field("instalments_missed", "Instalments missed",
+                                "Scheduled payments not made.", "integer"),
+    "last_payment_date": field("last_payment_date", "Last payment",
+                               "Date of the most recent payment received.", "date"),
+    "days_since_last_payment": field("days_since_last_payment", "Days since payment",
+                                     "Days between the last payment and period end.",
+                                     "integer", "days"),
+    "forbearance_type": field("forbearance_type", "Forbearance",
+                              "Concession granted, if any: payment holiday, term "
+                              "extension, interest capitalisation, covenant waiver "
+                              "or a restructured facility.", "string"),
+    "restructured_flag": field("restructured_flag", "Restructured",
+                               "The facility has been restructured.", "boolean"),
+    "collections_stage": field("collections_stage", "Collections stage",
+                               "How far recovery action has gone: none, soft "
+                               "reminder, formal demand, collections, or legal "
+                               "recovery.", "string"),
+    "cured_this_period": field("cured_this_period", "Cured this period",
+                               "In arrears at the previous quarter end and current "
+                               "at this one.", "boolean"),
+    "newly_delinquent": field("newly_delinquent", "Newly delinquent",
+                              "Current at the previous quarter end and in arrears "
+                              "at this one.", "boolean"),
+    "exposure_at_risk": field("exposure_at_risk", "Exposure at risk",
+                              "Exposure at default on facilities 90 or more days "
+                              "past due; zero otherwise.", "number", "USD mn"),
+}
+
+
+MEMO_FIELDS = {
+    "period": field("period", "Reporting period", "Reporting quarter the memo "
+                    "belongs to, e.g. Q1 2026.", "string"),
+    "period_end_date": field("period_end_date", "Period end date",
+                             "Last calendar day of the reporting quarter.", "date"),
+    "memo_id": field("memo_id", "Memo ID", "Credit file note identifier.", "string"),
+    "customer_id": field("customer_id", "Customer ID", "Borrower identifier.",
+                         "string", sensitivity="confidential"),
+    "borrower_name": field("borrower_name", "Borrower", "Registered borrower name.",
+                           "string", sensitivity="confidential"),
+    "memo_type": field("memo_type", "Memo type",
+                       "Annual or interim review, covenant waiver request, site "
+                       "visit note, watchlist escalation or committee paper.",
+                       "string"),
+    "author_role": field("author_role", "Author role",
+                         "The role that wrote the note.", "string"),
+    "sentiment": field("sentiment", "Sentiment",
+                       "Positive, mixed or negative — derived from what the note "
+                       "actually raised, not scored separately.", "string"),
+    "concerns_raised": field("concerns_raised", "Concerns raised",
+                             "How many of the six tracked concerns the note "
+                             "mentions.", "integer"),
+    "signal_strength_pct": field("signal_strength_pct", "Signal strength",
+                                 "Concerns raised as a share of the six tracked.",
+                                 "number", "%"),
+    "recommendation": field("recommendation", "Recommendation",
+                            "The action the author proposed.", "string"),
+    "extract": field("extract", "Extract",
+                     "A short quotation from the note. SYNTHETIC: assembled from "
+                     "a fixed sentence bank, never a real credit opinion about a "
+                     "real company.", "string", sensitivity="confidential"),
+    "is_synthetic_text": field("is_synthetic_text", "Synthetic text",
+                               "Always true. The extract is generated, not "
+                               "written.", "boolean"),
+    "covenant_breach_mentioned": field("covenant_breach_mentioned",
+                                       "Covenant breach mentioned",
+                                       "The note refers to a covenant breach.",
+                                       "boolean"),
+    "liquidity_concern_mentioned": field("liquidity_concern_mentioned",
+                                         "Liquidity concern mentioned",
+                                         "The note refers to constrained liquidity.",
+                                         "boolean"),
+    "management_change_mentioned": field("management_change_mentioned",
+                                         "Management change mentioned",
+                                         "The note refers to a change of key "
+                                         "management.", "boolean"),
+    "sector_headwind_mentioned": field("sector_headwind_mentioned",
+                                       "Sector headwind mentioned",
+                                       "The note refers to sector conditions "
+                                       "worsening.", "boolean"),
+    "going_concern_mentioned": field("going_concern_mentioned",
+                                     "Going concern mentioned",
+                                     "The note refers to a going-concern "
+                                     "qualification or material uncertainty.",
+                                     "boolean"),
+    "receivables_stretch_mentioned": field("receivables_stretch_mentioned",
+                                           "Receivables stretch mentioned",
+                                           "The note refers to lengthening debtor "
+                                           "days.", "boolean"),
+}
+
+
 STAGING_FIELDS = {
     "period": field("period", "Reporting period", "Reporting quarter, e.g. Q1 2026.", "string"),
     "period_end_date": field("period_end_date", "Period end date",
@@ -985,6 +1360,19 @@ def main() -> int:
     financials = build_borrower_financials(customers, ratings)
     log(f"borrower_financials: {len(financials):,} rows")
 
+    delinquency = build_delinquency(facility, rng)
+    in_arrears = int((delinquency["days_past_due"] > 0).sum())
+    log(f"facility_delinquency: {len(delinquency):,} rows, {in_arrears:,} in arrears "
+        f"({100.0 * in_arrears / len(delinquency):.1f}% of facility-quarters)")
+    for label in ("30-59 days", "60-89 days", "90-179 days", "180+ days"):
+        count = int((delinquency["dpd_bucket"] == label).sum())
+        log(f"    {label}: {count:,}")
+
+    memos = build_credit_memos(customers, facility, rng)
+    negative = int((memos["sentiment"] == "negative").sum())
+    log(f"credit_memo_signals: {len(memos):,} notes, {negative:,} negative "
+        f"({100.0 * negative / len(memos):.1f}%)")
+
     print()
     print("ANALYTICS layer — Parquet, partitioned by period")
     parts = write_partitioned(facility, settings.analytics_dir / "portfolio_facility", "period")
@@ -995,6 +1383,12 @@ def main() -> int:
     log(f"customer_ratings: {parts} annual partitions")
     parts = write_partitioned(macro, settings.analytics_dir / "macro_saudi", "period")
     log(f"macro_saudi: {parts} period partitions")
+    parts = write_partitioned(
+        delinquency, settings.analytics_dir / "facility_delinquency", "period")
+    log(f"facility_delinquency: {parts} period partitions")
+    parts = write_partitioned(
+        memos, settings.analytics_dir / "credit_memo_signals", "period")
+    log(f"credit_memo_signals: {parts} period partitions")
     write_partitioned(financials, settings.analytics_dir / "borrower_financials", None)
     log("borrower_financials: 1 file (no period dimension)")
 
@@ -1072,6 +1466,49 @@ def main() -> int:
                 "dataset_family": "ifrs9_staging",
                 "authoritative_for": ["ifrs9_impairment_staging"],
                 "fields": infer_fields(staging, STAGING_FIELDS),
+            },
+            {
+                "name": "facility_delinquency",
+                "domain": "Arrears and Collections",
+                "business_name": "Facility Arrears and Collections",
+                "purpose": (
+                    "Days past due, the arrears bucket, the amount overdue, "
+                    "forbearance granted and how far collections has escalated, "
+                    "for every facility at every quarter end."
+                ),
+                "grain": "One row per facility (account) per reporting period.",
+                "primary_keys": ["period", "account_id"],
+                "period_field": "period",
+                "owner": "Credit Risk Operations",
+                "status": "active",
+                "version": "1.0.0",
+                "is_synthetic": True,
+                "origin": "demo",
+                "dataset_family": "facility_delinquency",
+                "authoritative_for": ["facility_delinquency"],
+                "fields": infer_fields(delinquency, DELINQUENCY_FIELDS),
+            },
+            {
+                "name": "credit_memo_signals",
+                "domain": "Credit File and Commentary",
+                "business_name": "Credit Memo Signals",
+                "purpose": (
+                    "What the credit file says, as structured signals: covenant "
+                    "breaches, liquidity concerns, management changes, sector "
+                    "headwinds and going-concern language, with the extract that "
+                    "raised each one."
+                ),
+                "grain": "One row per credit file note.",
+                "primary_keys": ["memo_id"],
+                "period_field": "period",
+                "owner": "Credit Risk Analytics",
+                "status": "active",
+                "version": "1.0.0",
+                "is_synthetic": True,
+                "origin": "demo",
+                "dataset_family": "credit_memo_signals",
+                "authoritative_for": ["credit_file_commentary"],
+                "fields": infer_fields(memos, MEMO_FIELDS),
             },
             {
                 "name": "customer_ratings",
