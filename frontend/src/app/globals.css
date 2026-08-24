@@ -8,7 +8,7 @@
    it looks like. Components say `bg-surface` and `text-negative`; they never say
    "navy" or "#e5484d".
 
-   That single discipline is what makes four themes possible. A theme is one set
+   That single discipline is what makes eight themes possible. A theme is one set
    of values for these role names — nothing else changes. Layout, typography,
    spacing, radii and motion are deliberately theme-invariant, so switching theme
    changes how IPM looks and never how it works.
@@ -257,7 +257,7 @@
 
   --ipm-text-primary: #1e1b16;
   --ipm-text-secondary: #4a443a;
-  --ipm-text-muted: #7a7263;
+  --ipm-text-muted: #736b5c;
   --ipm-text-inverse: #fdfcf8;
 
   --ipm-accent: #6b4423;
@@ -288,6 +288,207 @@
   --ipm-trace-edge: #c3bba7;
 
   color-scheme: light;
+}
+
+/* -----------------------------------------------------------------------------
+   THEME 5 — ALPINE
+   Cool, glacial light. Crisp blue-grey paper with a deep teal accent; the
+   brightest and most awake of the light themes.
+   -------------------------------------------------------------------------- */
+[data-theme="alpine"] {
+  --ipm-canvas: #f3f6f8;
+  --ipm-surface: #ffffff;
+  --ipm-surface-raised: #ffffff;
+  --ipm-surface-sunken: #e8eef2;
+  --ipm-surface-hover: #eef3f6;
+
+  --ipm-border: #dae3e9;
+  --ipm-border-strong: #bccad4;
+
+  --ipm-text-primary: #0e1a21;
+  --ipm-text-secondary: #374954;
+  --ipm-text-muted: #5f7079;
+  --ipm-text-inverse: #ffffff;
+
+  --ipm-accent: #12657a;
+  --ipm-accent-hover: #0d4c5c;
+  --ipm-accent-muted: #e0eef1;
+  --ipm-accent-contrast: #ffffff;
+
+  --ipm-positive: #0f6a4f;
+  --ipm-positive-muted: #e2f1ec;
+  --ipm-warning: #8f6008;
+  --ipm-warning-muted: #faefdb;
+  --ipm-negative: #a52a2a;
+  --ipm-negative-muted: #fae9e9;
+  --ipm-info: #12657a;
+  --ipm-info-muted: #e0eef1;
+
+  --ipm-chart-1: #2563A8;
+  --ipm-chart-2: #C2410C;
+  --ipm-chart-3: #0E8A6A;
+  --ipm-chart-4: #7C3AED;
+  --ipm-chart-5: #A16207;
+  --ipm-chart-6: #0891B2;
+  --ipm-chart-7: #BE185D;
+  --ipm-chart-8: #3F6212;
+
+  --ipm-trace-governed: #12657a;
+  --ipm-trace-interpretive: #6d5b8f;
+  --ipm-trace-edge: #bccad4;
+
+  color-scheme: light;
+}
+
+/* -----------------------------------------------------------------------------
+   THEME 6 — PORCELAIN
+   The quietest theme. Near-white with almost no chroma in the furniture, so the
+   only saturated colour on screen belongs to the data.
+   -------------------------------------------------------------------------- */
+[data-theme="porcelain"] {
+  --ipm-canvas: #fafafb;
+  --ipm-surface: #ffffff;
+  --ipm-surface-raised: #ffffff;
+  --ipm-surface-sunken: #f0f1f3;
+  --ipm-surface-hover: #f5f6f8;
+
+  --ipm-border: #e4e6ea;
+  --ipm-border-strong: #c6cad2;
+
+  --ipm-text-primary: #15171c;
+  --ipm-text-secondary: #414650;
+  --ipm-text-muted: #676d78;
+  --ipm-text-inverse: #ffffff;
+
+  --ipm-accent: #37445f;
+  --ipm-accent-hover: #262f44;
+  --ipm-accent-muted: #eaecf1;
+  --ipm-accent-contrast: #ffffff;
+
+  --ipm-positive: #14664a;
+  --ipm-positive-muted: #e5f0eb;
+  --ipm-warning: #8c5f0d;
+  --ipm-warning-muted: #f8efdd;
+  --ipm-negative: #a32a2a;
+  --ipm-negative-muted: #fae9e9;
+  --ipm-info: #37445f;
+  --ipm-info-muted: #eaecf1;
+
+  --ipm-chart-1: #2563A8;
+  --ipm-chart-2: #C2410C;
+  --ipm-chart-3: #0E8A6A;
+  --ipm-chart-4: #7C3AED;
+  --ipm-chart-5: #A16207;
+  --ipm-chart-6: #0891B2;
+  --ipm-chart-7: #BE185D;
+  --ipm-chart-8: #3F6212;
+
+  --ipm-trace-governed: #37445f;
+  --ipm-trace-interpretive: #6b5a7a;
+  --ipm-trace-edge: #c6cad2;
+
+  color-scheme: light;
+}
+
+/* -----------------------------------------------------------------------------
+   THEME 7 — OXBLOOD
+   Deep wine and brass. Warm, low and closed — the panelled room rather than the
+   trading floor. The accent is brass rather than red, so it can never be
+   mistaken for the negative status colour.
+   -------------------------------------------------------------------------- */
+[data-theme="oxblood"] {
+  --ipm-canvas: #160d10;
+  --ipm-surface: #201318;
+  --ipm-surface-raised: #29191f;
+  --ipm-surface-sunken: #0f080a;
+  --ipm-surface-hover: #322026;
+
+  --ipm-border: #3a2229;
+  --ipm-border-strong: #57343d;
+
+  --ipm-text-primary: #f5edef;
+  --ipm-text-secondary: #cdb8bd;
+  --ipm-text-muted: #9c848a;
+  --ipm-text-inverse: #160d10;
+
+  --ipm-accent: #d2a86f;
+  --ipm-accent-hover: #e5c091;
+  --ipm-accent-muted: #2f2118;
+  --ipm-accent-contrast: #17100a;
+
+  --ipm-positive: #6cbc92;
+  --ipm-positive-muted: #14261e;
+  --ipm-warning: #dcae55;
+  --ipm-warning-muted: #2b2214;
+  --ipm-negative: #e58982;
+  --ipm-negative-muted: #331a19;
+  --ipm-info: #9db9d9;
+  --ipm-info-muted: #1a222d;
+
+  --ipm-chart-1: #6FA8DC;
+  --ipm-chart-2: #E08A4B;
+  --ipm-chart-3: #56B894;
+  --ipm-chart-4: #A98CE8;
+  --ipm-chart-5: #C9A03C;
+  --ipm-chart-6: #57B2CE;
+  --ipm-chart-7: #E081AE;
+  --ipm-chart-8: #93B054;
+
+  --ipm-trace-governed: #d2a86f;
+  --ipm-trace-interpretive: #b795c7;
+  --ipm-trace-edge: #57343d;
+
+  color-scheme: dark;
+}
+
+/* -----------------------------------------------------------------------------
+   THEME 8 — FOREST
+   Deep pine, with a eucalyptus accent. The calmest of the dark themes; green
+   grounds read as quieter than blue ones at low light.
+   -------------------------------------------------------------------------- */
+[data-theme="forest"] {
+  --ipm-canvas: #0a1210;
+  --ipm-surface: #111b18;
+  --ipm-surface-raised: #172420;
+  --ipm-surface-sunken: #060d0b;
+  --ipm-surface-hover: #1c2a26;
+
+  --ipm-border: #23332e;
+  --ipm-border-strong: #384c45;
+
+  --ipm-text-primary: #eaf2ee;
+  --ipm-text-secondary: #b4c5bd;
+  --ipm-text-muted: #7f928b;
+  --ipm-text-inverse: #0a1210;
+
+  --ipm-accent: #6dc09b;
+  --ipm-accent-hover: #8ed4b3;
+  --ipm-accent-muted: #12281f;
+  --ipm-accent-contrast: #05130c;
+
+  --ipm-positive: #5fc094;
+  --ipm-positive-muted: #10261c;
+  --ipm-warning: #d7ab4d;
+  --ipm-warning-muted: #29230f;
+  --ipm-negative: #e3837a;
+  --ipm-negative-muted: #2e1a18;
+  --ipm-info: #7cafcf;
+  --ipm-info-muted: #12222b;
+
+  --ipm-chart-1: #6FA8DC;
+  --ipm-chart-2: #E08A4B;
+  --ipm-chart-3: #56B894;
+  --ipm-chart-4: #A98CE8;
+  --ipm-chart-5: #C9A03C;
+  --ipm-chart-6: #57B2CE;
+  --ipm-chart-7: #E081AE;
+  --ipm-chart-8: #93B054;
+
+  --ipm-trace-governed: #6dc09b;
+  --ipm-trace-interpretive: #b09ad0;
+  --ipm-trace-edge: #384c45;
+
+  color-scheme: dark;
 }
 
 /* -----------------------------------------------------------------------------
