@@ -6,6 +6,7 @@ import {
   Filter,
   FunctionSquare,
   Layers,
+  LibraryBig,
   ListChecks,
   MessageSquareQuote,
   PenLine,
@@ -39,16 +40,26 @@ export const NODE_PRESENTATION: Record<string, NodePresentation> = {
     blurb: "What was asked, in the user's own words.",
   },
   LLM_INTENT: {
-    label: "Reading",
+    label: "Reading of the question",
     icon: PenLine,
     governed: false,
-    blurb: "How IPM understood the question. Interpretation — no figures.",
+    blurb:
+      "How IPM understood what was asked, before anything was computed. " +
+      "Interpretation — no figures.",
   },
   PLAN: {
     label: "Plan",
     icon: ListChecks,
     governed: false,
     blurb: "Which registered analyses were selected, and why.",
+  },
+  DATA_DOMAIN: {
+    label: "Data domain",
+    icon: LibraryBig,
+    governed: true,
+    blurb:
+      "The governed purpose the data was drawn for, and whether the dataset " +
+      "serving it is client data or IPM's demonstration data.",
   },
   DATASET: {
     label: "Governed data",
@@ -99,10 +110,12 @@ export const NODE_PRESENTATION: Record<string, NodePresentation> = {
     blurb: "The structured output, with its declared units.",
   },
   LLM_EXPLANATION: {
-    label: "Findings",
+    label: "Reading of the result",
     icon: PenLine,
     governed: false,
-    blurb: "The written findings. Every figure quoted came from a result above.",
+    blurb:
+      "The answer and IPM's reading of it, written after the engine ran. " +
+      "Every figure quoted came from a result above.",
   },
   VISUALIZATION: {
     label: "Visualisation",
