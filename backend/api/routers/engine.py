@@ -245,3 +245,23 @@ def get_trace(analysis_run_id: int, version: int | None = None) -> dict:
                     "message": f"No stored Trace for analysis run {analysis_run_id}."},
         )
     return trace
+
+
+# ------------------------------------------------------ the Engine Builder AI
+
+
+class EngineAskIn(BaseModel):
+    question: str = Field(min_length=1, max_length=400)
+
+
+@engine_router.post("/assistant", summary="Ask about the analysis library")
+def engine_assistant(payload: EngineAskIn) -> dict:
+    """Answer a question about the registered analyses.
+
+    Reads the analysis contracts — what each one measures, what period it needs,
+    what it cannot tell you, and at what certification. It never runs one, never
+    states a figure, and cannot register or change a definition.
+    """
+    from backend.services import assistant
+
+    return assistant.ask(payload.question, scope="engine").to_dict()
