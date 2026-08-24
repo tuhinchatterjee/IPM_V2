@@ -979,6 +979,138 @@ export interface AssistantAnswer {
   rule: string;
 }
 
+// ============================================== the hierarchy: Analysis < Investigation < Project
+
+/**
+ * Project statuses, as the backend governs them.
+ *
+ * `in_review` is deliberately never offered in `available_statuses`: it means a
+ * review is genuinely outstanding, so it is reached by sending the project for
+ * review and left when the reviewer decides.
+ */
+export type ProjectStatus = "draft" | "active" | "in_review" | "completed" | "archived";
+
+export interface ProjectRow {
+  id: number;
+  name: string;
+  description: string;
+  status: ProjectStatus;
+  status_label: string;
+  instructions: string;
+  team_id: number | null;
+  created_by: number | null;
+  default_context: Record<string, unknown>;
+  created_at: string | null;
+  updated_at: string | null;
+  available_statuses: { status: ProjectStatus; label: string }[];
+  review_open: boolean;
+  review_item_id: number | null;
+  investigation_count: number;
+  analysis_count: number;
+  history: ProjectStatusEventRow[];
+}
+
+export interface ProjectStatusEventRow {
+  from_status: string | null;
+  to_status: string;
+  to_label: string;
+  actor_id: number | null;
+  note: string;
+  created_at: string | null;
+}
+
+export interface ProjectContents {
+  project: ProjectRow;
+  investigations: {
+    id: number;
+    title: string;
+    question: string;
+    status: string;
+    message_count: number;
+    last_message_at: string | null;
+    updated_at: string | null;
+  }[];
+  analyses: {
+    id: number;
+    title: string;
+    analysis_id: string;
+    certification: string;
+    investigation_id: number | null;
+    period: Record<string, unknown>;
+    created_at: string | null;
+  }[];
+}
+
+/** One turn of a conversation. An assistant turn carries the whole answer. */
+export interface ThreadMessage {
+  id: number;
+  sequence: number;
+  role: "user" | "assistant" | "system";
+  content: string;
+  payload: Partial<InvestigationResponse> & Record<string, unknown>;
+  analysis_run_id: number | null;
+  created_by: number | null;
+  created_at: string | null;
+}
+
+/** An Investigation: a conversation, and what it has settled. */
+export interface Thread {
+  id: number;
+  title: string;
+  question: string;
+  status: string;
+  project_id: number | null;
+  owner_id: number | null;
+  /** Domain, period and filters the thread has agreed. Asked once, not again. */
+  context: Record<string, unknown>;
+  message_count: number;
+  last_message_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  messages: ThreadMessage[];
+}
+
+export interface ThreadSummary {
+  id: number;
+  title: string;
+  question: string;
+  status: string;
+  project_id: number | null;
+  owner_id: number | null;
+  context: Record<string, unknown>;
+  message_count: number;
+  last_answer: string;
+  last_message_at: string | null;
+  updated_at: string | null;
+}
+
+/** What comes back from asking inside a thread. */
+export interface ThreadTurn {
+  status: string;
+  run: InvestigationResponse | null;
+  thread: Thread;
+}
+
+/** A kept calculation. Records a run that already happened; nothing re-runs. */
+export interface SavedAnalysis {
+  id: number;
+  title: string;
+  analysis_id: string;
+  analysis_version: string;
+  certification: string;
+  analysis_run_id: number | null;
+  investigation_id: number | null;
+  project_id: number | null;
+  params: Record<string, unknown>;
+  filters: Record<string, unknown>;
+  period: Record<string, unknown>;
+  result: Record<string, unknown>;
+  data_versions: Record<string, unknown>;
+  note: string;
+  owner_id: number | null;
+  created_at: string | null;
+}
+
 export const api = {
   // ---- system ----
   health: (timeoutMs?: number) =>
@@ -1148,6 +1280,195 @@ export const api = {
     request<{ dataset: string; count: number; versions: DataVersionRow[] }>(
       `/data-builder/datasets/${name}/versions`,
     ),
+
+  // ---- projects ----
+  projects: (opts: { status?: string; ownerId?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (opts.status) query.set("status", opts.status);
+    if (opts.ownerId !== undefined) query.set("owner_id", String(opts.ownerId));
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<{ projects: ProjectRow[]; statuses: Record<string, string> }>(
+      `/projects${suffix}`,
+    );
+  },
+  project: (id: number) => request<ProjectRow>(`/projects/${id}`),
+  projectContents: (id: number) => request<ProjectContents>(`/projects/${id}/contents`),
+  createProject: (payload: {
+    name: string;
+    description?: string;
+    instructions?: string;
+    defaultContext?: Record<string, unknown>;
+  }) =>
+    request<ProjectRow>("/projects", {
+      method: "POST",
+      body: JSON.stringify({
+        name: payload.name,
+        description: payload.description ?? "",
+        instructions: payload.instructions ?? "",
+        default_context: payload.defaultContext ?? {},
+      }),
+    }),
+  updateProject: (
+    id: number,
+    payload: {
+      name?: string;
+      description?: string;
+      instructions?: string;
+      defaultContext?: Record<string, unknown>;
+    },
+  ) =>
+    request<ProjectRow>(`/projects/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: payload.name ?? null,
+        description: payload.description ?? null,
+        instructions: payload.instructions ?? null,
+        default_context: payload.defaultContext ?? null,
+      }),
+    }),
+  setProjectStatus: (id: number, status: ProjectStatus, note = "") =>
+    request<ProjectRow>(`/projects/${id}/status`, {
+      method: "POST",
+      body: JSON.stringify({ status, note }),
+    }),
+  sendProjectForReview: (id: number, assignedTo: number | null, note = "") =>
+    request<ProjectRow>(`/projects/${id}/review`, {
+      method: "POST",
+      body: JSON.stringify({ assigned_to: assignedTo, note }),
+    }),
+
+  // ---- investigations: conversations ----
+  threads: (opts: { projectId?: number; includeArchived?: boolean } = {}) => {
+    const query = new URLSearchParams();
+    if (opts.projectId !== undefined) query.set("project_id", String(opts.projectId));
+    if (opts.includeArchived) query.set("include_archived", "true");
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<{ investigations: ThreadSummary[] }>(`/investigations${suffix}`);
+  },
+  thread: (id: number) => request<Thread>(`/investigations/${id}`),
+  startThread: (payload: {
+    question: string;
+    title?: string;
+    projectId?: number | null;
+    ask?: boolean;
+    fromPeriod?: string;
+    toPeriod?: string;
+  }) =>
+    request<ThreadTurn>("/investigations", {
+      method: "POST",
+      body: JSON.stringify({
+        question: payload.question,
+        title: payload.title ?? "",
+        project_id: payload.projectId ?? null,
+        ask: payload.ask ?? true,
+        from_period: payload.fromPeriod ?? null,
+        to_period: payload.toPeriod ?? null,
+      }),
+      timeoutMs: 120_000,
+    }),
+  askInThread: (
+    id: number,
+    question: string,
+    period?: { from: string; to: string },
+  ) =>
+    request<ThreadTurn>(`/investigations/${id}/messages`, {
+      method: "POST",
+      body: JSON.stringify({
+        question,
+        from_period: period?.from ?? null,
+        to_period: period?.to ?? null,
+      }),
+      timeoutMs: 120_000,
+    }),
+  setThreadContext: (id: number, context: Record<string, unknown>) =>
+    request<Thread>(`/investigations/${id}/context`, {
+      method: "POST",
+      body: JSON.stringify({ context }),
+    }),
+  renameThread: (id: number, title: string) =>
+    request<Thread>(`/investigations/${id}/rename`, {
+      method: "POST",
+      body: JSON.stringify({ title }),
+    }),
+  moveThread: (id: number, projectId: number | null) =>
+    request<Thread>(`/investigations/${id}/move`, {
+      method: "POST",
+      body: JSON.stringify({ project_id: projectId }),
+    }),
+  archiveThread: (id: number) =>
+    request<Thread>(`/investigations/${id}/archive`, { method: "POST" }),
+
+  // ---- saved analyses ----
+  savedAnalyses: (
+    opts: { projectId?: number; investigationId?: number; analysisId?: string } = {},
+  ) => {
+    const query = new URLSearchParams();
+    if (opts.projectId !== undefined) query.set("project_id", String(opts.projectId));
+    if (opts.investigationId !== undefined)
+      query.set("investigation_id", String(opts.investigationId));
+    if (opts.analysisId) query.set("analysis_id", opts.analysisId);
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<{ analyses: SavedAnalysis[] }>(`/analyses${suffix}`);
+  },
+  savedAnalysis: (id: number) => request<SavedAnalysis>(`/analyses/${id}`),
+  saveAnalysis: (payload: {
+    analysisId: string;
+    title?: string;
+    result?: Record<string, unknown>;
+    params?: Record<string, unknown>;
+    filters?: Record<string, unknown>;
+    period?: Record<string, unknown>;
+    dataVersions?: Record<string, unknown>;
+    analysisRunId?: number | null;
+    investigationId?: number | null;
+    projectId?: number | null;
+    note?: string;
+  }) =>
+    request<SavedAnalysis>("/analyses", {
+      method: "POST",
+      body: JSON.stringify({
+        analysis_id: payload.analysisId,
+        title: payload.title ?? "",
+        result: payload.result ?? {},
+        params: payload.params ?? {},
+        filters: payload.filters ?? {},
+        period: payload.period ?? {},
+        data_versions: payload.dataVersions ?? {},
+        analysis_run_id: payload.analysisRunId ?? null,
+        investigation_id: payload.investigationId ?? null,
+        project_id: payload.projectId ?? null,
+        note: payload.note ?? "",
+      }),
+    }),
+  saveAnalysesFromAnswer: (payload: {
+    investigationId: number;
+    sequence: number;
+    projectId?: number | null;
+    title?: string;
+    note?: string;
+  }) =>
+    request<{ analyses: SavedAnalysis[]; count: number }>("/analyses/from-message", {
+      method: "POST",
+      body: JSON.stringify({
+        investigation_id: payload.investigationId,
+        sequence: payload.sequence,
+        project_id: payload.projectId ?? null,
+        title: payload.title ?? "",
+        note: payload.note ?? "",
+      }),
+    }),
+  moveAnalysis: (id: number, projectId: number | null) =>
+    request<SavedAnalysis>(`/analyses/${id}/move`, {
+      method: "POST",
+      body: JSON.stringify({ project_id: projectId }),
+    }),
+  renameAnalysis: (id: number, title: string) =>
+    request<SavedAnalysis>(`/analyses/${id}/rename`, {
+      method: "POST",
+      body: JSON.stringify({ title }),
+    }),
+  deleteAnalysis: (id: number) =>
+    request<void>(`/analyses/${id}`, { method: "DELETE" }),
 
   // ---- workspace: saved investigations ----
   savedInvestigations: (params: { projectId?: number; ownerId?: number } = {}) => {
