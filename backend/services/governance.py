@@ -81,7 +81,7 @@ def sync_bundled_catalog(session: Session) -> dict[str, Any]:
     path = settings.metadata_dir / "catalog.json"
     if not path.exists():
         return {"synced": [], "skipped": [],
-                "message": "No catalogue file — run scripts/build_data_lake.py first."}
+                "message": "No catalogue file — run scripts/generate_saudi_universe.py first."}
 
     catalogue = json.loads(path.read_text(encoding="utf-8"))
     synced: list[str] = []

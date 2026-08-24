@@ -31,7 +31,7 @@ QUESTION = "Which sectors deteriorated the most?"
 @pytest.fixture(scope="module", autouse=True)
 def require_data():
     if FACILITY not in get_data_source().datasets():
-        pytest.skip("Analytical lake not built — run `python scripts/build_data_lake.py`")
+        pytest.skip("Analytical lake not built — run `python scripts/generate_saudi_universe.py`")
 
 
 @pytest.fixture(scope="module")

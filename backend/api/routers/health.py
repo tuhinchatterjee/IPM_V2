@@ -55,7 +55,7 @@ def _check_analytical_store() -> ComponentHealth:
         if count == 0:
             return ComponentHealth(
                 name="analytical_store", status="empty",
-                detail="No analytical datasets found. Run: python scripts/build_data_lake.py",
+                detail="No analytical datasets found. Run: python scripts/generate_saudi_universe.py",
                 data=health,
             )
         return ComponentHealth(
@@ -79,7 +79,7 @@ def _check_catalog() -> ComponentHealth:
         if len(catalog) == 0:
             return ComponentHealth(
                 name="data_catalog", status="empty",
-                detail="No governed datasets defined. Run: python scripts/build_data_lake.py",
+                detail="No governed datasets defined. Run: python scripts/generate_saudi_universe.py",
             )
         fields = sum(len(d.fields) for d in catalog.all())
         return ComponentHealth(

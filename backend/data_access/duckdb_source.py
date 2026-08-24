@@ -107,7 +107,7 @@ class DuckDBSource:
         if not directory.exists():
             raise DataAccessError(
                 f"No data on disk for dataset '{dataset}'. Expected {directory}. "
-                "Run `python scripts/build_data_lake.py` to build the analytical layer."
+                "Run `python scripts/generate_saudi_universe.py` to build the analytical layer."
             )
         if period and not (directory / f"period={period}").exists():
             available = ", ".join(self.periods(dataset)) or "(none)"
@@ -273,7 +273,13 @@ def _period_sort_key(period: str) -> tuple[int, int]:
     Alphabetical ordering puts "Q1 2024" before "Q4 2023", which would silently
     reverse every trend chart in the product.
     """
-    m = re.match(r"^Q([1-4])\s+(\d{4})$", period.strip())
-    if not m:
-        return (9999, 9)
-    return (int(m.group(2)), int(m.group(1)))
+    text = period.strip()
+    m = re.match(r"^Q([1-4])\s+(\d{4})$", text)
+    if m:
+        return (int(m.group(2)), int(m.group(1)))
+    # An annual dataset labels its periods with the year alone. Sorting those as
+    # unknown would leave a rating history in whatever order the filesystem
+    # happened to return, which is no order at all.
+    if re.fullmatch(r"\d{4}", text):
+        return (int(text), 0)
+    return (9999, 9)

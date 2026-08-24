@@ -121,7 +121,7 @@ if (Test-Path (Join-Path $analyticsDir "portfolio_facility")) {
     Ok "Analytical layer already built"
 } else {
     Warn "Not built yet — building it now (this takes a few seconds)"
-    & $Python scripts/build_data_lake.py
+    & $Python scripts/generate_saudi_universe.py
 }
 
 # ----------------------------------------------------------------- backend

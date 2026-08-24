@@ -87,7 +87,10 @@ def test_periods_are_chronological_not_alphabetical(source):
     leaks through, every trend chart in the product silently reverses."""
     periods = source.periods(DATASET)
     assert periods == sorted(periods, key=lambda p: (int(p.split()[1]), int(p[1])))
-    assert periods[0] == "Q4 2023"
+    # The hazard is real only when the two orderings actually differ, which they
+    # do whenever the book starts on a Q4: "Q1 2023" sorts before "Q4 2022"
+    # alphabetically and would silently reverse every trend chart.
+    assert periods != sorted(periods)
 
 
 def test_fetch_returns_only_requested_fields(source, ctx):
@@ -154,7 +157,7 @@ def test_list_filter_behaves_as_an_or(source, ctx):
         DATASET, context=ctx.with_filters(sector="Real Estate"), group_by=[], measures={"ead": "sum"}
     )["ead"].iloc[0]
     two = source.aggregate(
-        DATASET, context=ctx.with_filters(sector=["Real Estate", "Energy"]), group_by=[],
+        DATASET, context=ctx.with_filters(sector=["Real Estate", "Contracting"]), group_by=[],
         measures={"ead": "sum"},
     )["ead"].iloc[0]
     assert two > one

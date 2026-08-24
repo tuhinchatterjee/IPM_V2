@@ -50,7 +50,7 @@ jobs:
         # The Data Access Layer tests skip themselves when the lake is missing,
         # which would quietly reduce coverage rather than fail. Building it here
         # means those tests actually run against real Parquet on every push.
-        run: uv run python scripts/build_data_lake.py
+        run: uv run python scripts/generate_saudi_universe.py
 
       - name: Tests (pytest)
         # Runs against the PostgreSQL service above, so the Data Builder and

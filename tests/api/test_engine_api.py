@@ -122,7 +122,7 @@ def test_filters_are_honoured_by_the_api(client):
     whole = client.post("/api/v1/engine/analyses/portfolio_summary/execute",
                         json={}).json()["result"]["values"]["total_ead"]
     part = client.post("/api/v1/engine/analyses/portfolio_summary/execute",
-                       json={"filters": {"sector": "Energy"}}).json()["result"]["values"]["total_ead"]
+                       json={"filters": {"sector": "Contracting"}}).json()["result"]["values"]["total_ead"]
     assert 0 < part < whole
 
 

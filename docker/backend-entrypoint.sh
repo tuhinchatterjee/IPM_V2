@@ -53,12 +53,20 @@ fi
 
 # ------------------------------------------------------- 3. the analytics layer
 
+# The demonstration book is SIMULATED rather than read from a file: it is a
+# Saudi corporate portfolio of ~16,000 facilities across 15 quarters, with the
+# IFRS 9 staging, rating history and macroeconomic series that go with it. One
+# fixed seed, so every machine gets the identical universe.
+#
+# The raw workbook under data/raw is left alone. `scripts/build_data_lake.py`
+# still turns it into the same governed shape, which is how a client dataset is
+# onboarded — the generated universe is only what is there before one is.
 ANALYTICS_DIR="${DATA_ANALYTICS_DIR:-data/analytics}"
 if [ -d "${ANALYTICS_DIR}/portfolio_facility" ]; then
   say "Analytical layer already built."
 else
-  say "Building the analytical layer from data/raw (first run only, ~20 seconds)..."
-  python scripts/build_data_lake.py
+  say "Generating the demonstration universe (first run only, ~15 seconds)..."
+  python scripts/generate_saudi_universe.py
   say "Analytical layer built."
 fi
 

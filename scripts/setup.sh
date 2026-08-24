@@ -78,7 +78,7 @@ fi
 # ---------------------------------------------------------------- data lake
 
 step "Building the analytical data"
-"$VENV_PY" scripts/build_data_lake.py
+"$VENV_PY" scripts/generate_saudi_universe.py
 
 # ------------------------------------------------------------------- docker
 

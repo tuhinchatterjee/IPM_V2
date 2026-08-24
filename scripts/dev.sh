@@ -130,7 +130,7 @@ if [ -d "${DATA_ANALYTICS_DIR:-data/analytics}/portfolio_facility" ]; then
   ok "Analytical layer already built ($(find "${DATA_ANALYTICS_DIR:-data/analytics}" -name '*.parquet' | wc -l | tr -d ' ') Parquet files)"
 else
   warn "Not built yet — building it now (this takes a few seconds)"
-  "$PYTHON" scripts/build_data_lake.py
+  "$PYTHON" scripts/generate_saudi_universe.py
 fi
 
 # -------------------------------------------------------------- 4. backend

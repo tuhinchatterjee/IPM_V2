@@ -392,6 +392,6 @@ def test_filters_narrow_every_analysis():
 
 
 def test_filters_are_recorded_in_the_trace():
-    run = ok("portfolio_summary", filters={"sector": "Energy"})
+    run = ok("portfolio_summary", filters={"sector": "Contracting"})
     filter_nodes = [n for n in run.graph.nodes.values() if n.type.value == "FILTER"]
-    assert any(n.config.get("filters") == {"sector": "Energy"} for n in filter_nodes)
+    assert any(n.config.get("filters") == {"sector": "Contracting"} for n in filter_nodes)

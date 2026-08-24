@@ -226,7 +226,7 @@ cd frontend
 npm install
 cd ..
 copy .env.example .env
-.venv\Scripts\python scripts\build_data_lake.py
+.venv\Scripts\python scripts\generate_saudi_universe.py
 ```
 
 This installs everything CreditProbe needs and converts the sample credit data into the
@@ -382,7 +382,7 @@ Two log files hold the detail: **`logs/api-dev.log`** and **`logs/web-dev.log`**
 |---|---|
 | Start everything | `./scripts/dev.sh` (Windows: `.\scripts\dev.ps1`) |
 | Run every quality check | `./scripts/check.sh` |
-| Rebuild the analytical data | `.venv/bin/python scripts/build_data_lake.py` |
+| Rebuild the demonstration data | `.venv/bin/python scripts/generate_saudi_universe.py` |
 | Update the database schema | `.venv/bin/python -m alembic upgrade head` |
 | Start only the database | `docker compose up -d db` |
 | Stop the database | `docker compose down` |
@@ -436,7 +436,7 @@ tests/              engine, trace, data_access, api, and the legacy Dash suites
 legacy/dash_app/    the original Dash application, preserved and still tested
 docs/               product spec, architecture, demo scope
 docker/             the Dockerfiles and the backend start-up script
-scripts/            setup.sh, dev.sh, dev.ps1, check.sh, build_data_lake.py,
+scripts/            setup.sh, dev.sh, dev.ps1, check.sh, generate_saudi_universe.py,
                     start-docker.ps1, stop-docker.ps1
 ```
 
