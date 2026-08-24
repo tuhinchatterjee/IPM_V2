@@ -41,6 +41,10 @@ class Role(StrEnum):
 WRITE_DATA_BUILDER = frozenset({Role.ADMIN, Role.DATA_STEWARD})
 PUBLISH_DATASET = frozenset({Role.ADMIN, Role.DATA_STEWARD})
 RUN_ANALYSIS = frozenset({Role.ADMIN, Role.DATA_STEWARD, Role.ANALYST})
+#: Changing the model that ranks a bank's watchlist. Deliberately the narrowest
+#: permission in the product: a data steward may publish data and an analyst may
+#: run anything, but neither may decide what "high risk" means.
+MANAGE_MODELS = frozenset({Role.ADMIN})
 READ_ONLY = frozenset({Role.ADMIN, Role.DATA_STEWARD, Role.ANALYST, Role.VIEWER})
 
 
@@ -102,3 +106,4 @@ def require(allowed: frozenset[Role]):
 RequireDataSteward = Depends(require(WRITE_DATA_BUILDER))
 RequirePublisher = Depends(require(PUBLISH_DATASET))
 RequireAnalyst = Depends(require(RUN_ANALYSIS))
+RequireAdmin = Depends(require(MANAGE_MODELS))

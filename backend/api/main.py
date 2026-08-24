@@ -24,6 +24,7 @@ from fastapi.responses import JSONResponse
 
 from backend.api.routers import ask as ask_router
 from backend.api.routers import data_builder as data_builder_router
+from backend.api.routers import early_warning as early_warning_router
 from backend.api.routers import engine as engine_router
 from backend.api.routers import health as health_router
 from backend.api.routers import hierarchy as hierarchy_router
@@ -136,6 +137,7 @@ def create_app() -> FastAPI:
     app.include_router(engine_router.trace_router, prefix=API_PREFIX)
     app.include_router(ask_router.router, prefix=API_PREFIX)
     app.include_router(ask_router.trace_edit_router, prefix=API_PREFIX)
+    app.include_router(early_warning_router.router, prefix=API_PREFIX)
     app.include_router(hierarchy_router.projects_router, prefix=API_PREFIX)
     app.include_router(hierarchy_router.threads_router, prefix=API_PREFIX)
     app.include_router(hierarchy_router.analyses_router, prefix=API_PREFIX)
