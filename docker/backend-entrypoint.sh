@@ -62,12 +62,35 @@ fi
 # still turns it into the same governed shape, which is how a client dataset is
 # onboarded — the generated universe is only what is there before one is.
 ANALYTICS_DIR="${DATA_ANALYTICS_DIR:-data/analytics}"
-if [ -d "${ANALYTICS_DIR}/portfolio_facility" ]; then
+
+# Every dataset the generator produces. Checking the whole list rather than one
+# of them matters on an UPGRADE: a volume built by an earlier version has
+# portfolio_facility and would pass a single-directory check, while the datasets
+# added since would silently not exist — and the analyses that read them would
+# report no data rather than an error.
+EXPECTED_DATASETS="portfolio_facility ifrs9_staging customer_ratings macro_saudi borrower_financials facility_delinquency credit_memo_signals"
+
+missing=""
+for dataset in ${EXPECTED_DATASETS}; do
+  if [ ! -d "${ANALYTICS_DIR}/${dataset}" ]; then
+    missing="${missing} ${dataset}"
+  fi
+done
+
+if [ -z "${missing}" ]; then
   say "Analytical layer already built."
 else
-  say "Generating the demonstration universe (first run only, ~15 seconds)..."
+  say "Building the demonstration universe (~20 seconds). Missing:${missing}"
   python scripts/generate_saudi_universe.py
   say "Analytical layer built."
+fi
+
+# --------------------------------------------------- 3b. the demo accounts
+
+# Idempotent, and it NEVER changes a password that already exists — so a
+# restart cannot undo a password somebody set, and this can run on every boot.
+if [ -n "${DATABASE_URL:-}" ]; then
+  python scripts/seed_demo_users.py || say "Could not seed the demonstration users."
 fi
 
 # ------------------------------------------------------------------ 4. serve

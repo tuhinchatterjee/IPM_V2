@@ -487,9 +487,11 @@ function SummaryTile({
       {loading ? (
         <Skeleton className="mt-2 h-7 w-20" />
       ) : (
-        <p className="mt-1.5 text-2xl font-semibold text-text-primary tabular">
+        <p className="display-num mt-1.5 text-2xl font-semibold text-text-primary tabular">
           {value}
-          {of !== undefined && (
+          {/* "9 of 7" is not a fraction, it is a bug that reads as one. The
+              comparison only means something while the count is below it. */}
+          {of !== undefined && value <= of && (
             <span className="ml-1 text-sm font-normal text-text-muted">of {of}</span>
           )}
         </p>
