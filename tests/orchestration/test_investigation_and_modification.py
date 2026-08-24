@@ -65,7 +65,10 @@ def test_the_reasoning_map_separates_judgement_from_arithmetic(investigation):
 
 
 def test_every_map_node_belongs_to_a_step_or_the_interpretive_frame(investigation):
-    frame = {"question", "intent", "plan", "narrative"}
+    # The interpretive frame around the governed subgraphs: the question, IPM's
+    # reading of it, the plan, IPM's reading of the result, and the chart chosen
+    # from the answer's shape.
+    frame = {"question", "intent", "plan", "narrative", "visual"}
     for node_id, node in investigation.graph.nodes.items():
         if node_id in frame:
             continue
