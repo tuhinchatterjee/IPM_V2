@@ -1,11 +1,17 @@
 /**
- * The four IPM themes.
+ * The eight IPM themes.
  *
  * A theme is nothing more than a set of values for the semantic tokens defined
  * in globals.css. It changes background, surface, border, text, accent, status
  * and chart colours — and nothing else. Layout, typography, spacing, hierarchy
- * and interaction are identical across all four, so switching theme changes how
+ * and interaction are identical across all eight, so switching theme changes how
  * IPM looks and never how it works.
+ *
+ * Each palette is checked rather than judged by eye: tests/frontend/
+ * test_theme_contrast.py reads globals.css and asserts body text, secondary
+ * text, muted text, every status colour and every chart slot clear their
+ * contrast floors on that theme's own surfaces, and that adjacent chart slots
+ * are perceptually separated in CIELAB.
  *
  * The swatches below are for the Theme Gallery preview only. The values that
  * actually render the application live in globals.css; these mirror three of
@@ -21,7 +27,11 @@ export type ThemeId =
   | "executive-light"
   | "midnight"
   | "graphite"
-  | "warm-institutional";
+  | "warm-institutional"
+  | "alpine"
+  | "porcelain"
+  | "oxblood"
+  | "forest";
 
 export interface ThemeDefinition {
   id: ThemeId;
@@ -66,6 +76,38 @@ export const THEMES: ThemeDefinition[] = [
       "Warm off-white and ink. Traditional and document-like, in the manner of a committee paper.",
     mode: "light",
     swatch: ["#f2ede4", "#fdfcf8", "#6b4423"],
+  },
+  {
+    id: "alpine",
+    name: "Alpine",
+    description:
+      "Cool glacial light with a deep teal accent. The crispest of the light themes.",
+    mode: "light",
+    swatch: ["#f3f6f8", "#ffffff", "#12657a"],
+  },
+  {
+    id: "porcelain",
+    name: "Porcelain",
+    description:
+      "Near-white and almost chroma-free, so the only saturated colour belongs to the data.",
+    mode: "light",
+    swatch: ["#fafafb", "#ffffff", "#37445f"],
+  },
+  {
+    id: "oxblood",
+    name: "Oxblood",
+    description:
+      "Deep wine and brass. Warm and closed — the panelled room rather than the trading floor.",
+    mode: "dark",
+    swatch: ["#160d10", "#201318", "#d2a86f"],
+  },
+  {
+    id: "forest",
+    name: "Forest",
+    description:
+      "Deep pine with a eucalyptus accent. The calmest of the dark themes at low light.",
+    mode: "dark",
+    swatch: ["#0a1210", "#111b18", "#6dc09b"],
   },
 ];
 
