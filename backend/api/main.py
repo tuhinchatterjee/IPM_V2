@@ -26,6 +26,7 @@ from backend.api.routers import ask as ask_router
 from backend.api.routers import data_builder as data_builder_router
 from backend.api.routers import engine as engine_router
 from backend.api.routers import health as health_router
+from backend.api.routers import hierarchy as hierarchy_router
 from backend.api.routers import workspace as workspace_router
 from backend.api.schemas import ErrorResponse
 from backend.config import settings
@@ -135,6 +136,9 @@ def create_app() -> FastAPI:
     app.include_router(engine_router.trace_router, prefix=API_PREFIX)
     app.include_router(ask_router.router, prefix=API_PREFIX)
     app.include_router(ask_router.trace_edit_router, prefix=API_PREFIX)
+    app.include_router(hierarchy_router.projects_router, prefix=API_PREFIX)
+    app.include_router(hierarchy_router.threads_router, prefix=API_PREFIX)
+    app.include_router(hierarchy_router.analyses_router, prefix=API_PREFIX)
     app.include_router(workspace_router.router, prefix=API_PREFIX)
 
     @app.get("/", include_in_schema=False)

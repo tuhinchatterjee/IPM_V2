@@ -83,6 +83,7 @@ STATE_LABEL: dict[str, str] = {
 #: The objects that can be sent for review. Anything else is refused, so a
 #: workflow can never point at something the product cannot open.
 REVIEWABLE = {
+    "project": "Project",
     "investigation": "Investigation",
     "analysis": "Engine analysis",
     "dataset": "Dataset",
@@ -266,7 +267,21 @@ def transition(item_id: int, to_state: str, *, actor_id: int | None = None,
                 actor_id=actor_id,
             )
         session.commit()
-        return _view(session, item)
+        view = _view(session, item)
+        object_type, object_id = item.object_type, item.object_id
+
+    # A project's status is not a label somebody types; it follows the review.
+    # The reviewer deciding is what takes it out of "In review", so the landing
+    # status is recorded here rather than left for the interface to guess.
+    if object_type == "project" and to_state in (WF_APPROVED, WF_REJECTED):
+        from backend.services import projects as pj
+
+        try:
+            pj.review_decided(int(object_id), approved=to_state == WF_APPROVED,
+                              actor_id=actor_id, note=comment)
+        except (pj.ProjectNotFound, ValueError):  # pragma: no cover - deleted project
+            logger.warning("Review decided for missing project %s", object_id)
+    return view
 
 
 def get(item_id: int) -> WorkflowView:
