@@ -57,6 +57,40 @@ class ParamType(StrEnum):
     LIST = "list"  # a list of strings
 
 
+class PeriodRequirement(StrEnum):
+    """How much history an analysis needs before it can answer anything.
+
+    This is the single most important piece of metadata for Ask IPM. "What is
+    our NPL ratio?" needs one period and must not interrogate the user about
+    history; "which sectors deteriorated?" is meaningless without two, and
+    silently picking a comparison would answer a question nobody asked.
+
+    The orchestrator reads this to decide whether to run or to ask.
+    """
+
+    POINT_IN_TIME = "point_in_time"          # one reporting period
+    TWO_PERIOD = "two_period"                # a comparison between two
+    TIME_SERIES = "time_series"              # every period, or a window of them
+    USER_DEFINED_WINDOW = "user_defined_window"  # the user chooses the span
+
+
+class AnswerShape(StrEnum):
+    """What kind of answer the analysis produces.
+
+    Used to choose the one primary visual for a focused response, rather than
+    rendering every chart an analysis is capable of.
+    """
+
+    LEVEL = "level"              # where something stands now
+    MOVEMENT = "movement"        # how much it changed, and where
+    RANKING = "ranking"          # which groups are worst / largest
+    DISTRIBUTION = "distribution"  # how a total splits across groups
+    MATRIX = "matrix"            # from-to transitions
+    TREND = "trend"              # a path over time
+    SCENARIO = "scenario"        # what a shock would do
+    LIST = "list"                # named rows requiring attention
+
+
 class VisualizationType(StrEnum):
     TABLE = "table"
     BAR = "bar"
@@ -211,8 +245,69 @@ class AnalysisContract:
     # text that appears in Explain and in the Trace node for the function.
     calculation_description: str = ""
 
-    # Whether the analysis needs a comparison period (movements and migrations do).
-    requires_compare_period: bool = False
+    # ---- semantics: what this analysis is FOR -------------------------------
+    # Data Builder teaches IPM what data means. This half teaches it what an
+    # analysis does and when to reach for it, which is what lets Ask IPM answer
+    # the question actually asked instead of running everything it owns.
+
+    # How much history the analysis needs. Drives period clarification.
+    period_requirement: PeriodRequirement = PeriodRequirement.POINT_IN_TIME
+
+    # Whether IPM may assume a period without asking. True only where the
+    # contract's own default is a governed, defensible choice (for example
+    # "the latest published period" for a point-in-time level).
+    governed_default_period: bool = True
+
+    # The shape of the answer, used to pick one primary visual.
+    answer_shape: AnswerShape = AnswerShape.LEVEL
+
+    # One sentence a risk officer would recognise: when should IPM reach for
+    # this rather than something adjacent?
+    when_to_use: str = ""
+
+    # Questions this analysis is the right answer to. The planner matches
+    # against these; Engine Builder displays them.
+    trigger_questions: list[str] = field(default_factory=list)
+
+    # What this analysis cannot tell you. Shown wherever its results are, so a
+    # reader is not left to infer the boundary.
+    limitations: str = ""
+
+    # The governed PURPOSES this analysis draws on — "credit_facility_position",
+    # not a table name and not a file. The purpose is resolved to whichever
+    # dataset is authoritative for it at execution time, which is what lets a
+    # bank's own data replace IPM's demonstration book without touching a line
+    # of analysis code. See backend/data_access/authority.py.
+    #
+    # It is also the dependency Data Builder reads: archiving the only dataset
+    # authoritative for a purpose named here is refused, because the analyses
+    # listing it would stop being answerable.
+    required_domains: list[str] = field(default_factory=list)
+
+    @property
+    def requires_compare_period(self) -> bool:
+        """Whether a comparison period is part of the question.
+
+        Derived rather than declared, so it can never disagree with
+        `period_requirement`. Kept as a property because the API and the
+        Engine Builder screen have always exposed it.
+        """
+        return self.period_requirement in (
+            PeriodRequirement.TWO_PERIOD,
+            PeriodRequirement.USER_DEFINED_WINDOW,
+        )
+
+    @property
+    def needs_period_clarification(self) -> bool:
+        """Whether IPM must ask the user for a period before running.
+
+        True when the analysis spans time AND its contract does not carry a
+        governed default. A point-in-time level never asks.
+        """
+        return (
+            self.period_requirement is not PeriodRequirement.POINT_IN_TIME
+            and not self.governed_default_period
+        )
 
     @property
     def is_certified(self) -> bool:
@@ -270,4 +365,12 @@ class AnalysisContract:
             "supported_visualizations": [v.value for v in self.supported_visualizations],
             "calculation_description": self.calculation_description,
             "requires_compare_period": self.requires_compare_period,
+            "period_requirement": self.period_requirement.value,
+            "governed_default_period": self.governed_default_period,
+            "needs_period_clarification": self.needs_period_clarification,
+            "answer_shape": self.answer_shape.value,
+            "when_to_use": self.when_to_use,
+            "trigger_questions": list(self.trigger_questions),
+            "limitations": self.limitations,
+            "required_domains": list(self.required_domains),
         }
