@@ -18,7 +18,8 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -59,6 +60,40 @@ class FieldDef:
         }
 
 
+# Governed purposes — what a dataset is FOR, independent of what it is called.
+#
+# This is the join between Data Builder and the engine. An analysis needs "the
+# credit facility position"; today that is served by the bundled demo dataset,
+# and tomorrow by a client's own upload. Naming the purpose rather than the
+# table is what lets the second replace the first without touching a
+# calculation.
+FACILITY_POSITION = "credit_facility_position"
+BORROWER_FINANCIALS = "borrower_financials"
+
+GOVERNED_PURPOSES: dict[str, str] = {
+    FACILITY_POSITION: (
+        "The position of every credit facility at a reporting date: exposure, "
+        "limits, collateral, rating, IFRS 9 staging, PD, LGD and ECL."
+    ),
+    BORROWER_FINANCIALS: (
+        "Borrower-level financial statements and derived credit ratios."
+    ),
+}
+
+
+class DatasetOrigin(StrEnum):
+    """Where a dataset came from, and therefore how much it may be trusted.
+
+    DEMO is the bundled synthetic book IPM ships with so the product can be seen
+    working. It is never allowed to stand in for client data once a client
+    dataset has been made authoritative for the same purpose.
+    """
+
+    DEMO = "demo"                # bundled bootstrap data
+    CLIENT = "client"            # onboarded through Data Builder
+    SUPPLEMENTARY = "supplementary"  # reference data, not a source of truth
+
+
 @dataclass(frozen=True)
 class DatasetDef:
     """One governed dataset."""
@@ -75,6 +110,29 @@ class DatasetDef:
     status: str = "active"
     version: str = "1.0.0"
     is_synthetic: bool = False  # surfaced in the UI wherever its figures appear
+
+    # ---- governance ---------------------------------------------------------
+    # Where the data came from. Drives the DEMO label in Data Builder and the
+    # refusal to fall back to demo data once client data exists.
+    origin: str = DatasetOrigin.DEMO
+
+    # Repeated snapshots of the same logical dataset share a family, and a
+    # family shares one canonical schema. "portfolio_facility" is the family
+    # for every quarterly facility file.
+    dataset_family: str = ""
+
+    # The governed purposes this dataset is the authoritative source for. Empty
+    # means it may be read directly by name but never resolved as the answer to
+    # "give me the facility position".
+    authoritative_for: list[str] = field(default_factory=list)
+
+    @property
+    def is_demo(self) -> bool:
+        return self.origin == DatasetOrigin.DEMO
+
+    @property
+    def family(self) -> str:
+        return self.dataset_family or self.name
 
     def field(self, name: str) -> FieldDef:
         try:
@@ -101,6 +159,10 @@ class DatasetDef:
             "status": self.status,
             "version": self.version,
             "is_synthetic": self.is_synthetic,
+            "origin": self.origin,
+            "is_demo": self.is_demo,
+            "dataset_family": self.family,
+            "authoritative_for": list(self.authoritative_for),
             "field_count": len(self.fields),
             "fields": [f.to_dict() for f in self.fields.values()],
         }
@@ -136,6 +198,16 @@ class Catalog:
             out.setdefault(d.domain, []).append(d.name)
         return out
 
+    def serving(self, purpose: str) -> list[DatasetDef]:
+        """Every dataset declared authoritative for a governed purpose."""
+        return [d for d in self.all() if purpose in d.authoritative_for]
+
+    def families(self) -> dict[str, list[DatasetDef]]:
+        out: dict[str, list[DatasetDef]] = {}
+        for d in self.all():
+            out.setdefault(d.family, []).append(d)
+        return out
+
     # ------------------------------------------------------------------ loading
 
     @classmethod
@@ -169,6 +241,11 @@ class Catalog:
                 status=raw.get("status", "active"),
                 version=raw.get("version", "1.0.0"),
                 is_synthetic=raw.get("is_synthetic", False),
+                origin=raw.get("origin",
+                               DatasetOrigin.DEMO if raw.get("is_synthetic")
+                               else DatasetOrigin.CLIENT),
+                dataset_family=raw.get("dataset_family", ""),
+                authoritative_for=list(raw.get("authoritative_for") or []),
             )
         return cls(datasets)
 
