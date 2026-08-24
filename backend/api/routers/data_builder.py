@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from backend.api.permissions import Principal, RequireDataSteward, RequirePublisher
 from backend.config import settings
 from backend.db.engine import SessionLocal
+from backend.services import assistant, governance, harmonisation
 from backend.services import data_builder as db_service
 from backend.services.data_builder import DataBuilderError
 
@@ -127,6 +128,12 @@ def _dataset_out(dataset, session: Session) -> dict[str, Any]:
         "lifecycle": dataset.lifecycle,
         "source_type": dataset.source_type,
         "is_synthetic": dataset.is_synthetic,
+        # The control plane, on every dataset: where it came from, what it
+        # belongs with, and what it is the source of truth for.
+        "origin": dataset.origin,
+        "is_demo": dataset.origin == "demo",
+        "dataset_family": dataset.dataset_family or dataset.name,
+        "authoritative_for": list(dataset.authoritative_for or []),
         "published_version": dataset.published_version,
         "published_at": dataset.published_at.isoformat() if dataset.published_at else None,
         "field_count": len(dataset.fields),
@@ -425,3 +432,176 @@ def list_versions(name: str, session: Session = Depends(get_db)) -> dict:
          "published_at": v.published_at.isoformat() if v.published_at else None}
         for v in versions
     ]}
+
+
+# =========================================================== the control plane
+#
+# Data Builder is not an inventory of files. It is where a bank says which
+# dataset is the source of truth for a governed purpose, what belongs together,
+# and what would break if something were removed. These endpoints are that.
+
+
+class OriginIn(BaseModel):
+    origin: str = Field(max_length=24, description="demo | client | supplementary")
+
+
+class FamilyIn(BaseModel):
+    family: str = Field(default="", max_length=160)
+
+
+class AuthoritativeIn(BaseModel):
+    purposes: list[str] = Field(
+        default_factory=list,
+        description="The governed purposes this dataset is the source of truth for.",
+    )
+
+
+class ReplaceIn(BaseModel):
+    incoming: str = Field(min_length=1, max_length=160)
+    acknowledge: bool = Field(
+        default=False,
+        description="Proceed even though the incoming dataset does not supply "
+                    "everything the outgoing one does.",
+    )
+
+
+@router.post("/sync-bundled", summary="Register IPM's bundled datasets for governance")
+def sync_bundled(session: Session = Depends(get_db),
+                 principal: Principal = RequireDataSteward) -> dict:
+    """Bring the demonstration book into Data Builder so it can be governed.
+
+    Idempotent. A dataset a steward has re-marked as client data is left alone.
+    """
+    return governance.sync_bundled_catalog(session)
+
+
+@router.get("/control-plane", summary="What is powering IPM right now")
+def control_plane(session: Session = Depends(get_db)) -> dict:
+    """Purpose by purpose: which dataset answers it, and is it demo data?"""
+    return governance.control_plane(session)
+
+
+@router.get("/families", summary="Dataset families")
+def dataset_families(session: Session = Depends(get_db)) -> dict:
+    return {"families": governance.families(session)}
+
+
+@router.get("/datasets/{name}/used-by", summary="What depends on this dataset")
+def dataset_used_by(name: str, session: Session = Depends(get_db)) -> dict:
+    try:
+        return governance.used_by(session, name).to_dict()
+    except DataBuilderError as e:
+        raise _fail(e, status.HTTP_404_NOT_FOUND) from e
+
+
+@router.post("/datasets/{name}/origin", summary="Mark a dataset demo or client data")
+def set_origin(name: str, payload: OriginIn, session: Session = Depends(get_db),
+               principal: Principal = RequireDataSteward) -> dict:
+    try:
+        dataset = governance.set_origin(session, name, payload.origin)
+    except DataBuilderError as e:
+        raise _fail(e) from e
+    return {"dataset": dataset.name, "origin": dataset.origin}
+
+
+@router.post("/datasets/{name}/family", summary="Put a dataset in a family")
+def set_family(name: str, payload: FamilyIn, session: Session = Depends(get_db),
+               principal: Principal = RequireDataSteward) -> dict:
+    try:
+        dataset = governance.set_family(session, name, payload.family)
+    except DataBuilderError as e:
+        raise _fail(e, status.HTTP_404_NOT_FOUND) from e
+    return {"dataset": dataset.name, "dataset_family": dataset.dataset_family}
+
+
+@router.post("/datasets/{name}/authoritative",
+             summary="Declare which governed purposes this dataset answers")
+def set_authoritative(name: str, payload: AuthoritativeIn,
+                      session: Session = Depends(get_db),
+                      principal: Principal = RequirePublisher) -> dict:
+    """The moment client data replaces the demonstration book.
+
+    Needs the publishing role, because every certified analysis reading that
+    purpose follows this decision immediately.
+    """
+    try:
+        return governance.set_authoritative(session, name, payload.purposes)
+    except DataBuilderError as e:
+        raise _fail(e) from e
+
+
+@router.post("/datasets/{name}/archive", summary="Take a dataset out of service")
+def archive_dataset(name: str, acknowledge: bool = False,
+                    session: Session = Depends(get_db),
+                    principal: Principal = RequirePublisher) -> dict:
+    try:
+        return governance.archive_dataset(session, name, acknowledge=acknowledge)
+    except DataBuilderError as e:
+        raise _fail(e, status.HTTP_409_CONFLICT) from e
+
+
+@router.get("/datasets/{name}/compare/{incoming}",
+            summary="Can one dataset stand in for another?")
+def compare_datasets(name: str, incoming: str, session: Session = Depends(get_db)) -> dict:
+    try:
+        return governance.compare_schemas(session, name, incoming)
+    except DataBuilderError as e:
+        raise _fail(e, status.HTTP_404_NOT_FOUND) from e
+
+
+@router.post("/datasets/{name}/replace", summary="Hand a purpose over to a new dataset")
+def replace_dataset(name: str, payload: ReplaceIn, session: Session = Depends(get_db),
+                    principal: Principal = RequirePublisher) -> dict:
+    try:
+        return governance.replace_dataset(
+            session, outgoing=name, incoming=payload.incoming,
+            acknowledge=payload.acknowledge,
+        )
+    except DataBuilderError as e:
+        raise _fail(e, status.HTTP_409_CONFLICT) from e
+
+
+# ================================================ harmonisation and assistants
+
+
+class AskIn(BaseModel):
+    question: str = Field(min_length=1, max_length=400)
+
+
+class AcceptIn(BaseModel):
+    accepted: dict[str, str] = Field(
+        default_factory=dict,
+        description="{source column: governed field} — only the ones you agree with.",
+    )
+
+
+@router.get("/datasets/{name}/harmonise", summary="Match columns to the governed dictionary")
+def harmonise(name: str, session: Session = Depends(get_db)) -> dict:
+    """Propose a governed field for every source column, with the reason.
+
+    Nothing is applied. Each proposal carries the evidence behind it so a steward
+    can check it rather than trust a score.
+    """
+    try:
+        return harmonisation.propose(session, name)
+    except DataBuilderError as e:
+        raise _fail(e, status.HTTP_404_NOT_FOUND) from e
+
+
+@router.post("/datasets/{name}/harmonise/accept", summary="Apply the proposals you agree with")
+def accept_harmonisation(name: str, payload: AcceptIn, session: Session = Depends(get_db),
+                         principal: Principal = RequireDataSteward) -> dict:
+    try:
+        return harmonisation.accept(session, name, payload.accepted)
+    except DataBuilderError as e:
+        raise _fail(e) from e
+
+
+@router.post("/assistant", summary="Ask about the data model")
+def data_assistant(payload: AskIn) -> dict:
+    """Answer a question about IPM's governed metadata.
+
+    Reads domain, dataset, field and analysis definitions. It has no access to
+    portfolio data, states no credit figures, and changes nothing.
+    """
+    return assistant.ask(payload.question, scope="data").to_dict()
