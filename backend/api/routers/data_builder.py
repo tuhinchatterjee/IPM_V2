@@ -22,6 +22,7 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
+    Response,
     UploadFile,
     status,
 )
@@ -71,6 +72,14 @@ class DomainIn(BaseModel):
     description: str = ""
     owner: str = ""
     sort_order: int = 0
+
+
+class DomainRenameIn(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+
+
+class DomainStatusIn(BaseModel):
+    status: str = Field(pattern="^(ACTIVE|ARCHIVED)$")
 
 
 class DatasetIn(BaseModel):
@@ -185,7 +194,7 @@ def list_domains(session: Session = Depends(get_db)) -> dict:
     domains = db_service.list_domains(session)
     return {"domains": [
         {"name": d.name, "description": d.description, "owner": d.owner,
-         "sort_order": d.sort_order} for d in domains
+         "status": d.status, "sort_order": d.sort_order} for d in domains
     ]}
 
 
@@ -197,6 +206,58 @@ def upsert_domain(payload: DomainIn, session: Session = Depends(get_db),
         owner=payload.owner, sort_order=payload.sort_order,
     )
     return {"name": domain.name, "description": domain.description, "owner": domain.owner}
+
+
+@router.get("/domains/overview", summary="Domains, with what is in them")
+def domains_overview(session: Session = Depends(get_db)) -> dict:
+    """Every domain with its size, coverage, owner and status.
+
+    What a data steward needs before opening one, rather than a table of
+    contents. Row counts and period coverage are read from the published lake,
+    so a domain whose datasets are still in draft honestly reports nothing.
+    """
+    return {"domains": db_service.domain_overview(session)}
+
+
+@router.post("/domains/{name:path}/rename", summary="Rename a domain")
+def rename_domain(name: str, payload: DomainRenameIn,
+                  session: Session = Depends(get_db),
+                  principal: Principal = RequireDataSteward) -> dict:
+    """Rename a domain and move its datasets with it, or neither."""
+    try:
+        domain = db_service.rename_domain(session, name, payload.name)
+    except DataBuilderError as e:
+        raise _fail(e) from e
+    return {"name": domain.name, "description": domain.description,
+            "owner": domain.owner, "status": domain.status}
+
+
+@router.post("/domains/{name:path}/status", summary="Archive a domain, or restore it")
+def set_domain_status(name: str, payload: DomainStatusIn,
+                      session: Session = Depends(get_db),
+                      principal: Principal = RequireDataSteward) -> dict:
+    """Take a domain off the working list without touching what it contains."""
+    try:
+        domain = db_service.set_domain_status(session, name, payload.status)
+    except DataBuilderError as e:
+        raise _fail(e) from e
+    return {"name": domain.name, "status": domain.status}
+
+
+@router.delete("/domains/{name:path}", summary="Delete an empty domain")
+def delete_domain(name: str, session: Session = Depends(get_db),
+                  principal: Principal = RequirePublisher) -> dict:
+    """Delete a domain — refused while anything still depends on it.
+
+    Publisher-only, and refused outright for a domain that still holds datasets:
+    this is the one genuinely destructive action in Data Builder, and the
+    refusal names what is in the way.
+    """
+    try:
+        db_service.delete_domain(session, name)
+    except DataBuilderError as e:
+        raise _fail(e) from e
+    return {"deleted": name}
 
 
 # ------------------------------------------------------------------- datasets
@@ -623,15 +684,25 @@ def dataset_rows(
     limit: int = Query(default=50, ge=1, le=500),
     sort: str | None = None,
     descending: bool = False,
+    q: str = Query(default="", max_length=200,
+                   description="Substring match across the shown columns."),
+    filter: list[str] = Query(  # noqa: A002 - the query parameter is named 'filter'
+        default=[],
+        description="Repeatable, as field:operator:value — e.g. ifrs9_stage:eq:2.",
+    ),
     fields: str | None = Query(default=None,
                                description="Comma-separated governed field names."),
     principal: Principal = RequireDataSteward,
 ) -> dict:
     """One page of governed rows, with the schema that explains them.
 
-    Every field named here is checked against the governed dictionary before it
-    is read, and the sort column must be one of them — a column name can never
-    become a query.
+    Every field named here — shown, sorted or filtered on — is checked against
+    the governed dictionary before it is read, and the comparison must be one of
+    a fixed set. A column name can never become a query, and neither can a
+    filter value: it is compared, never concatenated.
+
+    Paging is server-side on purpose. A dataset of fifteen thousand rows is not
+    something to hand to a browser and let it cope.
     """
     try:
         return db_service.browse_dataset(
@@ -641,6 +712,8 @@ def dataset_rows(
             limit=limit,
             sort=sort,
             descending=descending,
+            search=q,
+            filters=list(filter),
             fields=[f.strip() for f in fields.split(",")] if fields else None,
         )
     except ValueError as e:
@@ -648,6 +721,117 @@ def dataset_rows(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"error": "invalid_request", "message": str(e)},
         ) from e
+
+
+@router.get("/datasets/{name}/columns/{field}", summary="Profile one column")
+def dataset_column(name: str, field: str, period: str | None = None,
+                   principal: Principal = RequireDataSteward) -> dict:
+    """What is actually in a column: missing, distinct, distribution, extremes.
+
+    The dictionary says what a field is meant to hold. This says what it holds.
+    """
+    try:
+        return db_service.column_profile(name, field, period=period)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error": "invalid_request", "message": str(e)},
+        ) from e
+
+
+@router.get("/datasets/{name}/schema-history",
+            summary="Which columns each period actually carries")
+def dataset_schema_history(name: str,
+                           principal: Principal = RequireDataSteward) -> dict:
+    """Compare the schema across published periods.
+
+    A field that appears in Q3 and not in Q1 explains a movement that would
+    otherwise look like a change in the book.
+    """
+    try:
+        return db_service.schema_across_periods(name)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error": "invalid_request", "message": str(e)},
+        ) from e
+
+
+@router.get("/datasets/{name}/export", summary="Export the current view as CSV")
+def dataset_export(
+    name: str,
+    period: str | None = None,
+    sort: str | None = None,
+    descending: bool = False,
+    q: str = Query(default="", max_length=200),
+    filter: list[str] = Query(default=[]),  # noqa: A002
+    fields: str | None = Query(default=None),
+    limit: int = Query(default=db_service.EXPORT_ROW_CAP, ge=1),
+    principal: Principal = RequireDataSteward,
+) -> Response:
+    """Governed data leaving the product, and a record that it did.
+
+    The same rows the viewer is showing, in the same order. Capped, so a
+    mis-click cannot pull the whole book onto a laptop, and the response says
+    when it was truncated rather than letting a partial file pass for a
+    complete one. Demonstration data is labelled as such in the file itself,
+    because a CSV outlives the screen that produced it.
+    """
+    try:
+        csv_text, description = db_service.export_rows(
+            name, period=period, sort=sort, descending=descending,
+            search=q, filters=list(filter), limit=limit,
+            fields=[f.strip() for f in fields.split(",")] if fields else None,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error": "invalid_request", "message": str(e)},
+        ) from e
+
+    logger.info(
+        "Dataset export: %s period=%s rows=%s by user=%s role=%s truncated=%s",
+        name, description["period"], description["rows"],
+        principal.user_id, principal.role.value, description["truncated"],
+    )
+
+    # Provenance goes AFTER the data, not before it. A spreadsheet opening a CSV
+    # treats the first line as the header row, so a comment block at the top
+    # turns every column name into data — the note about where the file came
+    # from would cost the reader the file.
+    notes = [f"# CreditProbe export of {name}"]
+    if description["period"]:
+        notes.append(f"# Period: {description['period']}")
+    if description["filters"] or description["search"]:
+        notes.append(
+            f"# Filters: {'; '.join(description['filters']) or 'none'}"
+            f" | Search: {description['search'] or 'none'}"
+        )
+    if description["truncated"]:
+        notes.append(
+            f"# TRUNCATED: {description['rows']} of {description['matched_rows']} "
+            "matching rows."
+        )
+    if description["is_synthetic"]:
+        notes.append("# SYNTHETIC DEMONSTRATION DATA — not a real portfolio.")
+
+    body = csv_text.rstrip("\n") + "\n" + "\n".join(notes) + "\n"
+
+    # The filename says it too, because a file gets renamed, forwarded and
+    # opened weeks later by somebody who never saw this screen.
+    period_tag = (description["period"] or "all").replace(" ", "-")
+    synthetic_tag = "_SYNTHETIC" if description["is_synthetic"] else ""
+    return Response(
+        content=body,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="{name}_{period_tag}{synthetic_tag}.csv"',
+            "X-CreditProbe-Rows": str(description["rows"]),
+            "X-CreditProbe-Truncated": str(description["truncated"]).lower(),
+            "X-CreditProbe-Synthetic": str(description["is_synthetic"]).lower(),
+        },
+    )
 
 
 @router.post("/assistant", summary="Ask about the data model")

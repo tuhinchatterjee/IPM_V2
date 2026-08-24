@@ -46,6 +46,7 @@ import type {
   ValidationReport,
 } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { domainHref } from "@/lib/links";
 import { cn } from "@/lib/utils";
 
 /**
@@ -857,7 +858,7 @@ export default function AddDatasetPage() {
           )}
           <div className="mt-6 flex justify-center gap-2">
             <Button variant="outline" asChild>
-              <Link href={`/data-builder/domain/${encodeURIComponent(domain)}`}>Open domain</Link>
+              <Link href={domainHref(domain)}>Open domain</Link>
             </Button>
             <Button onClick={() => router.push("/data-builder")}>Done</Button>
           </div>

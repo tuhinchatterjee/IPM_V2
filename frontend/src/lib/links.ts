@@ -33,3 +33,18 @@ export function withReturnTo(href: string, from: string, label: string): string 
 export function isInternalPath(value: string): boolean {
   return value.startsWith("/") && !value.startsWith("//") && !value.includes(":");
 }
+
+/**
+ * The URL of a data domain's page.
+ *
+ * Domain names contain slashes — "Core Portfolio / Facility" is one of the
+ * seven CreditProbe ships with — and a slash inside a single encoded path
+ * segment is not reliably preserved by the router. So each side of the slash
+ * becomes its own segment, encoded independently, and the page joins them back
+ * with a slash. Spaces around the separator survive because the split is not
+ * trimmed: "A / B" round-trips to "A / B", not "A/B".
+ */
+export function domainHref(name: string): string {
+  const path = name.split("/").map(encodeURIComponent).join("/");
+  return `/data-builder/domain/${path}`;
+}

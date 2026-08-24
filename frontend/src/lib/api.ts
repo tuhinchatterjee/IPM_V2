@@ -261,7 +261,33 @@ export interface DomainSummary {
   name: string;
   description: string;
   owner: string;
+  status: DomainStatus;
   sort_order: number;
+}
+
+export type DomainStatus = "ACTIVE" | "ARCHIVED";
+
+/**
+ * A domain with what is actually in it.
+ *
+ * Row counts and period coverage come from the published lake, so a domain
+ * whose datasets are still in draft reports nothing rather than a number that
+ * does not exist yet.
+ */
+export interface DomainOverview extends DomainSummary {
+  dataset_count: number;
+  published_count: number;
+  row_count: number;
+  period_count: number;
+  first_period: string | null;
+  last_period: string | null;
+  datasets: {
+    name: string;
+    business_name: string;
+    lifecycle: Lifecycle;
+    is_synthetic: boolean;
+    readable: boolean;
+  }[];
 }
 
 export type Lifecycle = "draft" | "mapped" | "validated" | "published" | "archived";
@@ -1447,6 +1473,83 @@ export interface DatasetTree {
   }[];
 }
 
+export interface DatasetField {
+  name: string;
+  business_name: string;
+  definition: string;
+  data_type: string;
+  unit: string | null;
+  sensitivity: string;
+  nullable: boolean;
+}
+
+/** What is actually in a column, as opposed to what the dictionary says. */
+export interface ColumnProfile {
+  dataset: string;
+  field: string;
+  business_name: string;
+  definition: string;
+  data_type: string;
+  unit: string | null;
+  sensitivity: string;
+  allowed_values: string[];
+  period: string | null;
+  rows: number;
+  missing: number;
+  missing_pct: number;
+  distinct: number;
+  statistics: {
+    min: number;
+    p25: number;
+    median: number;
+    p75: number;
+    max: number;
+    mean: number;
+    sum: number;
+  } | null;
+  top_values: { value: string; count: number; share_pct: number }[];
+}
+
+/** Which columns each published period actually carries. */
+export interface SchemaHistory {
+  dataset: string;
+  business_name: string;
+  periods: string[];
+  fields: string[];
+  presence: Record<string, { rows: number; fields: Record<string, boolean> }>;
+  changes: {
+    field: string;
+    period: string;
+    change: "appeared" | "disappeared";
+    from_period: string;
+  }[];
+  stable: boolean;
+}
+
+/** What narrows a dataset view: the same shape for reading it and exporting it. */
+export interface DatasetQuery {
+  period?: string;
+  sort?: string;
+  descending?: boolean;
+  fields?: string[];
+  /** Substring match across the shown columns. */
+  search?: string;
+  /** `field:operator:value`, e.g. `ifrs9_stage:eq:2`. */
+  filters?: string[];
+}
+
+function datasetQuery(opts: DatasetQuery): URLSearchParams {
+  const query = new URLSearchParams();
+  if (opts.period) query.set("period", opts.period);
+  if (opts.sort) query.set("sort", opts.sort);
+  if (opts.descending) query.set("descending", "true");
+  if (opts.search) query.set("q", opts.search);
+  if (opts.fields?.length) query.set("fields", opts.fields.join(","));
+  // Repeated rather than joined: a filter value may itself contain a comma.
+  for (const filter of opts.filters ?? []) query.append("filter", filter);
+  return query;
+}
+
 export interface DatasetPage {
   dataset: string;
   business_name: string;
@@ -1457,18 +1560,17 @@ export interface DatasetPage {
   grain: string;
   period: string | null;
   periods: string[];
+  /** Rows matching the current filters and search. */
   total_rows: number;
+  /** Rows in the period before the viewer narrowed them. */
+  total_in_period: number;
+  filtered: boolean;
   offset: number;
   limit: number;
   returned: number;
-  fields: {
-    name: string;
-    business_name: string;
-    definition: string;
-    data_type: string;
-    unit: string | null;
-    sensitivity: string;
-  }[];
+  fields: DatasetField[];
+  /** Every governed field, including ones not currently shown. */
+  all_fields: string[];
   rows: Record<string, string | number | boolean | null>[];
 }
 
@@ -1711,6 +1813,27 @@ export const api = {
 
   // ---- data builder ----
   domains: () => request<{ domains: DomainSummary[] }>("/data-builder/domains"),
+  /** Every domain, with its size, coverage, owner and status. */
+  domainOverview: () =>
+    request<{ domains: DomainOverview[] }>("/data-builder/domains/overview", {
+      timeoutMs: 60_000,
+    }),
+  renameDomain: (name: string, newName: string) =>
+    request<DomainSummary>(
+      `/data-builder/domains/${encodeURIComponent(name)}/rename`,
+      { method: "POST", body: JSON.stringify({ name: newName }) },
+    ),
+  setDomainStatus: (name: string, status: DomainStatus) =>
+    request<{ name: string; status: DomainStatus }>(
+      `/data-builder/domains/${encodeURIComponent(name)}/status`,
+      { method: "POST", body: JSON.stringify({ status }) },
+    ),
+  /** Refused by the backend while the domain still holds datasets. */
+  deleteDomain: (name: string) =>
+    request<{ deleted: string }>(
+      `/data-builder/domains/${encodeURIComponent(name)}`,
+      { method: "DELETE" },
+    ),
   createDomain: (payload: Partial<DomainSummary> & { name: string }) =>
     request<DomainSummary>("/data-builder/domains", {
       method: "POST",
@@ -1828,28 +1951,50 @@ export const api = {
 
   // ---- the dataset viewer ----
   datasetTree: () => request<DatasetTree>("/data-builder/tree"),
+  /**
+   * One page of a governed dataset.
+   *
+   * `filters` are `field:operator:value` strings. Both the field and the
+   * operator are checked by the backend against the governed dictionary and a
+   * fixed set of comparisons, so this is not a query interface with a friendly
+   * name — a rejected filter comes back as a 422 saying which part was refused.
+   */
   datasetRows: (
     name: string,
-    opts: {
-      period?: string;
-      offset?: number;
-      limit?: number;
-      sort?: string;
-      descending?: boolean;
-      fields?: string[];
-    } = {},
+    opts: DatasetQuery & { offset?: number; limit?: number } = {},
   ) => {
-    const query = new URLSearchParams();
-    if (opts.period) query.set("period", opts.period);
+    const query = datasetQuery(opts);
     if (opts.offset) query.set("offset", String(opts.offset));
     if (opts.limit) query.set("limit", String(opts.limit));
-    if (opts.sort) query.set("sort", opts.sort);
-    if (opts.descending) query.set("descending", "true");
-    if (opts.fields?.length) query.set("fields", opts.fields.join(","));
     const suffix = query.toString() ? `?${query}` : "";
     return request<DatasetPage>(
       `/data-builder/datasets/${encodeURIComponent(name)}/rows${suffix}`,
       { timeoutMs: 60_000 },
+    );
+  },
+  datasetColumn: (name: string, field: string, period?: string) =>
+    request<ColumnProfile>(
+      `/data-builder/datasets/${encodeURIComponent(name)}/columns/` +
+        `${encodeURIComponent(field)}${period ? `?period=${encodeURIComponent(period)}` : ""}`,
+      { timeoutMs: 60_000 },
+    ),
+  datasetSchemaHistory: (name: string) =>
+    request<SchemaHistory>(
+      `/data-builder/datasets/${encodeURIComponent(name)}/schema-history`,
+      { timeoutMs: 120_000 },
+    ),
+  /**
+   * Where a governed export of the current view lives.
+   *
+   * A URL rather than a fetch: the browser downloads it directly, so a large
+   * file never passes through JavaScript memory on its way to disk.
+   */
+  datasetExportUrl: (name: string, opts: DatasetQuery = {}) => {
+    const query = datasetQuery(opts);
+    const suffix = query.toString() ? `?${query}` : "";
+    return (
+      `${API_BASE_URL}${API_PREFIX}/data-builder/datasets/` +
+      `${encodeURIComponent(name)}/export${suffix}`
     );
   },
 

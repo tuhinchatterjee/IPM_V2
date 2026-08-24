@@ -36,9 +36,21 @@ import { useAsync } from "@/lib/hooks";
  * Bundled datasets (built by the data-lake script) appear alongside onboarded
  * ones, because from the engine's point of view they are equally governed.
  */
-export default function DomainPage({ params }: { params: Promise<{ domain: string }> }) {
-  const { domain: encoded } = React.use(params);
-  const domain = decodeURIComponent(encoded);
+/**
+ * A catch-all segment, because domain names contain slashes.
+ *
+ * "Core Portfolio / Facility" is a real domain name. Percent-encoding the
+ * slash does not help — the router decodes it before matching, so a single
+ * dynamic segment 404s on exactly the domains the product ships with. Catching
+ * the remaining segments and joining them back is what makes those names work.
+ */
+export default function DomainPage({
+  params,
+}: {
+  params: Promise<{ domain: string[] }>;
+}) {
+  const { domain: segments } = React.use(params);
+  const domain = segments.map(decodeURIComponent).join("/");
   const canEdit = useCanEditData();
   const [tab, setTab] = React.useState("overview");
 

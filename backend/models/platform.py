@@ -453,6 +453,11 @@ class DataDomain(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     owner: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: ACTIVE or ARCHIVED. Archiving takes a domain off the working list without
+    #: touching what it contains — the datasets stay readable and every analysis
+    #: that depends on them keeps working, which is the difference between
+    #: archiving and deleting.
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="ACTIVE")
 
 
 class DatasetDefinition(Base):

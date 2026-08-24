@@ -3,13 +3,16 @@
 import Link from "next/link";
 import * as React from "react";
 import {
+  Archive,
   ArrowRight,
-  CheckCircle2,
-  CircleDashed,
   Database,
+  MoreHorizontal,
+  Pencil,
   Plus,
   ShieldCheck,
   Table2,
+  Trash2,
+  type LucideIcon,
 } from "lucide-react";
 
 import {
@@ -23,8 +26,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type DatasetSummary, type Lifecycle } from "@/lib/api";
+import { api, type DomainOverview, type Lifecycle } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { domainHref } from "@/lib/links";
+import { cn } from "@/lib/utils";
 
 /**
  * Data Builder landing.
@@ -92,49 +97,20 @@ export function LifecycleBadge({ lifecycle }: { lifecycle: Lifecycle }) {
 
 export default function DataBuilderPage() {
   const canEdit = useCanEditData();
-  const domains = useAsync(() => api.domains(), []);
   const datasets = useAsync(() => api.datasets(), []);
   const catalog = useAsync(() => api.catalog(), []);
+  const [nonce, setNonce] = React.useState(0);
 
-  const byDomain = React.useMemo(() => {
-    const map = new Map<string, DatasetSummary[]>();
-    for (const d of datasets.data?.datasets ?? []) {
-      map.set(d.domain, [...(map.get(d.domain) ?? []), d]);
-    }
-    return map;
-  }, [datasets.data]);
-
-  // The bundled datasets are in the governed catalogue but were built by the
-  // data-lake script rather than onboarded here, so they have no Data Builder
-  // record. Counting them keeps a domain's dataset count honest.
-  const catalogueByDomain = React.useMemo(() => {
-    const map = new Map<string, number>();
-    for (const d of catalog.data?.datasets ?? []) {
-      map.set(d.domain, (map.get(d.domain) ?? 0) + 1);
-    }
-    return map;
-  }, [catalog.data]);
+  // Re-read after a rename, archive or delete. The counts and coverage on these
+  // cards are read from the lake, so re-fetching is the only honest way to
+  // reflect a change — patching them locally would invent a number.
+  const refresh = React.useCallback(() => setNonce((n) => n + 1), []);
+  const domains = useAsync(() => api.domainOverview(), [nonce]);
 
   const known = new Set(domains.data?.domains.map((d) => d.name) ?? []);
-  const extra = (domains.data?.domains ?? []).filter(
-    (d) => !STANDARD_DOMAINS.some((s) => s.name === d.name),
-  );
-  const cards = [
-    ...STANDARD_DOMAINS.map((s) => ({
-      ...s,
-      exists: known.has(s.name),
-      owner:
-        domains.data?.domains.find((d) => d.name === s.name)?.owner || s.owner,
-    })),
-    ...extra.map((d) => ({
-      name: d.name,
-      description: d.description || "Created in Data Builder.",
-      owner: d.owner || "—",
-      exists: true,
-    })),
-  ];
+  const missing = STANDARD_DOMAINS.filter((s) => !known.has(s.name));
 
-  const loading = domains.loading || datasets.loading;
+  const loading = domains.loading && !domains.data;
   const totalPublished = (datasets.data?.datasets ?? []).filter(
     (d) => d.lifecycle === "published",
   ).length;
@@ -195,86 +171,21 @@ export default function DataBuilderPage() {
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {loading
-              ? [0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-44 w-full" />)
-              : cards.map((domain) => {
-                  const owned = byDomain.get(domain.name) ?? [];
-                  const catalogued = catalogueByDomain.get(domain.name) ?? 0;
-                  const datasetCount = Math.max(owned.length, catalogued);
-                  const published = owned.filter((d) => d.lifecycle === "published").length;
-                  const lastRefresh = owned
-                    .map((d) => d.published_at)
-                    .filter(Boolean)
-                    .sort()
-                    .at(-1);
-                  const qualityOk = owned.length === 0 || published === owned.length;
-
-                  return (
-                    <Link
-                      key={domain.name}
-                      href={`/data-builder/domain/${encodeURIComponent(domain.name)}`}
-                      className="group"
-                    >
-                      <Card className="flex h-full flex-col p-5 transition-colors hover:bg-surface-hover">
-                        <div className="mb-3 flex items-start justify-between gap-3">
-                          <Database className="size-5 shrink-0 text-text-muted" aria-hidden />
-                          {domain.exists ? (
-                            <Badge variant={datasetCount ? "positive" : "default"}>
-                              {datasetCount
-                                ? `${datasetCount} dataset${datasetCount === 1 ? "" : "s"}`
-                                : "Empty"}
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline">Not created</Badge>
-                          )}
-                        </div>
-
-                        <h3 className="text-sm font-semibold text-text-primary">{domain.name}</h3>
-                        <p className="mt-1.5 flex-1 text-xs leading-relaxed text-text-muted">
-                          {domain.description}
-                        </p>
-
-                        <dl className="mt-4 space-y-1 border-t border-border pt-3 text-[11px]">
-                          <Row label="Owner" value={domain.owner} />
-                          <Row
-                            label="Published"
-                            value={
-                              owned.length
-                                ? `${published} of ${owned.length}`
-                                : catalogued
-                                  ? `${catalogued} bundled`
-                                  : "—"
-                            }
-                          />
-                          <Row
-                            label="Latest refresh"
-                            value={lastRefresh ? lastRefresh.slice(0, 10) : "—"}
-                          />
-                          <div className="flex items-center justify-between pt-0.5">
-                            <dt className="text-text-muted">Quality</dt>
-                            <dd className="flex items-center gap-1">
-                              {qualityOk ? (
-                                <>
-                                  <CheckCircle2 className="size-3 text-positive" aria-hidden />
-                                  <span className="text-positive">Passing</span>
-                                </>
-                              ) : (
-                                <>
-                                  <CircleDashed className="size-3 text-warning" aria-hidden />
-                                  <span className="text-warning">In progress</span>
-                                </>
-                              )}
-                            </dd>
-                          </div>
-                        </dl>
-
-                        <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100">
-                          Open domain
-                          <ArrowRight className="size-3" aria-hidden />
-                        </span>
-                      </Card>
-                    </Link>
-                  );
-                })}
+              ? [0, 1, 2, 3, 4, 5].map((i) => (
+                  <Skeleton key={i} className="h-56 w-full" />
+                ))
+              : (domains.data?.domains ?? []).map((domain) => (
+                  <DomainCard
+                    key={domain.name}
+                    domain={domain}
+                    canEdit={canEdit}
+                    onChanged={refresh}
+                  />
+                ))}
+            {!loading &&
+              missing.map((domain) => (
+                <UncreatedDomainCard key={domain.name} domain={domain} />
+              ))}
           </div>
 
           {datasets.data?.count === 0 && (
@@ -313,6 +224,240 @@ export default function DataBuilderPage() {
         </p>
       </Card>
     </div>
+  );
+}
+
+/**
+ * One domain, with what is in it and what can be done to it.
+ *
+ * Dataset count, period coverage and row count come from the published lake
+ * rather than from the domain's own record, so the card describes the estate as
+ * it actually stands. A domain with nothing published says so.
+ *
+ * Delete is offered only for an empty domain, and the backend refuses it again
+ * for a domain that holds datasets — hiding the button is a courtesy, not the
+ * control.
+ */
+function DomainCard({
+  domain,
+  canEdit,
+  onChanged,
+}: {
+  domain: DomainOverview;
+  canEdit: boolean;
+  onChanged: () => void;
+}) {
+  const [menu, setMenu] = React.useState(false);
+  const [renaming, setRenaming] = React.useState(false);
+  const [name, setName] = React.useState(domain.name);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const archived = domain.status === "ARCHIVED";
+  const coverage =
+    domain.first_period && domain.last_period
+      ? domain.first_period === domain.last_period
+        ? domain.first_period
+        : `${domain.first_period} → ${domain.last_period}`
+      : "No published periods";
+
+  async function run(work: () => Promise<unknown>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await work();
+      setMenu(false);
+      setRenaming(false);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className={cn("flex h-full flex-col p-5", archived && "opacity-70")}>
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <Database className="size-5 shrink-0 text-text-muted" aria-hidden />
+        <div className="flex items-center gap-1.5">
+          {archived && <Badge variant="default">Archived</Badge>}
+          <Badge variant={domain.dataset_count ? "positive" : "default"}>
+            {domain.dataset_count
+              ? `${domain.dataset_count} dataset${domain.dataset_count === 1 ? "" : "s"}`
+              : "Empty"}
+          </Badge>
+          {canEdit && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenu((m) => !m)}
+                aria-label={`Actions for ${domain.name}`}
+                className="rounded p-1 text-text-muted hover:bg-surface-hover hover:text-text-primary"
+              >
+                <MoreHorizontal className="size-4" aria-hidden />
+              </button>
+              {menu && (
+                <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border border-border bg-surface py-1 shadow-lg">
+                  <MenuItem
+                    icon={Pencil}
+                    label="Rename"
+                    onClick={() => {
+                      setRenaming(true);
+                      setMenu(false);
+                    }}
+                  />
+                  <MenuItem
+                    icon={Archive}
+                    label={archived ? "Restore to active" : "Archive"}
+                    onClick={() =>
+                      void run(() =>
+                        api.setDomainStatus(
+                          domain.name,
+                          archived ? "ACTIVE" : "ARCHIVED",
+                        ),
+                      )
+                    }
+                  />
+                  <MenuItem
+                    icon={Trash2}
+                    label="Delete"
+                    tone="negative"
+                    disabled={domain.dataset_count > 0}
+                    hint={
+                      domain.dataset_count > 0
+                        ? "Move or archive its datasets first"
+                        : undefined
+                    }
+                    onClick={() => void run(() => api.deleteDomain(domain.name))}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {renaming ? (
+        <input
+          autoFocus
+          value={name}
+          disabled={busy}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && name.trim() && name !== domain.name) {
+              void run(() => api.renameDomain(domain.name, name.trim()));
+            }
+            if (e.key === "Escape") {
+              setName(domain.name);
+              setRenaming(false);
+            }
+          }}
+          onBlur={() => {
+            if (name.trim() && name !== domain.name) {
+              void run(() => api.renameDomain(domain.name, name.trim()));
+            } else {
+              setRenaming(false);
+            }
+          }}
+          aria-label="Domain name"
+          className="w-full border-b border-accent bg-transparent text-sm font-semibold text-text-primary focus:outline-none"
+        />
+      ) : (
+        <Link
+          href={domainHref(domain.name)}
+          className="text-sm font-semibold text-text-primary hover:text-accent"
+        >
+          {domain.name}
+        </Link>
+      )}
+
+      <p className="mt-1.5 flex-1 text-xs leading-relaxed text-text-muted">
+        {domain.description || "No description recorded."}
+      </p>
+
+      {error && <p className="mt-2 text-[11px] text-negative">{error}</p>}
+
+      <dl className="mt-4 space-y-1 border-t border-border pt-3 text-[11px]">
+        <Row label="Owner" value={domain.owner || "—"} />
+        <Row
+          label="Published"
+          value={
+            domain.dataset_count
+              ? `${domain.published_count} of ${domain.dataset_count}`
+              : "—"
+          }
+        />
+        <Row label="Period coverage" value={coverage} />
+        <Row
+          label="Rows"
+          value={domain.row_count ? domain.row_count.toLocaleString() : "—"}
+        />
+      </dl>
+
+      <Link
+        href={domainHref(domain.name)}
+        className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-accent"
+      >
+        Open domain
+        <ArrowRight className="size-3" aria-hidden />
+      </Link>
+    </Card>
+  );
+}
+
+function MenuItem({
+  icon: Icon,
+  label,
+  onClick,
+  tone,
+  disabled,
+  hint,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+  tone?: "negative";
+  disabled?: boolean;
+  hint?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={hint}
+      className={cn(
+        "flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-40",
+        tone === "negative" ? "text-negative" : "text-text-primary",
+      )}
+    >
+      <Icon className="size-3.5 shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+    </button>
+  );
+}
+
+/** A domain in the standard set that has not been created here yet. */
+function UncreatedDomainCard({
+  domain,
+}: {
+  domain: (typeof STANDARD_DOMAINS)[number];
+}) {
+  return (
+    <Card className="flex h-full flex-col border-dashed p-5">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <Database className="size-5 shrink-0 text-text-muted" aria-hidden />
+        <Badge variant="outline">Not created</Badge>
+      </div>
+      <h3 className="text-sm font-semibold text-text-muted">{domain.name}</h3>
+      <p className="mt-1.5 flex-1 text-xs leading-relaxed text-text-muted">
+        {domain.description}
+      </p>
+      <dl className="mt-4 space-y-1 border-t border-border pt-3 text-[11px]">
+        <Row label="Suggested owner" value={domain.owner} />
+      </dl>
+    </Card>
   );
 }
 

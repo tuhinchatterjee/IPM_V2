@@ -253,6 +253,179 @@ def upsert_domain(session: Session, *, name: str, description: str = "", owner: 
     return domain
 
 
+DOMAIN_ACTIVE = "ACTIVE"
+DOMAIN_ARCHIVED = "ARCHIVED"
+
+
+def domain_overview(session: Session) -> list[dict[str, Any]]:
+    """Every data domain, with enough to decide what to do about it.
+
+    A domain landing page that lists names is a table of contents. What a data
+    steward actually needs to know before opening one is how much is in it, how
+    far back it goes, how big it is and whether any of it is published — so that
+    is what this returns, read from the governed catalogue rather than
+    estimated.
+
+    Row counts come from the published lake, which means a domain whose datasets
+    are still in draft honestly reports nothing rather than a number that does
+    not exist yet.
+    """
+    from backend.data_access.duckdb_source import DuckDBSource
+
+    source = DuckDBSource()
+    readable = set(source.datasets())
+
+    by_domain: dict[str, list[DatasetDefinition]] = {}
+    for dataset in session.execute(
+        select(DatasetDefinition).order_by(DatasetDefinition.name)
+    ).scalars():
+        by_domain.setdefault(dataset.domain or "", []).append(dataset)
+
+    out: list[dict[str, Any]] = []
+    for domain in list_domains(session):
+        datasets = by_domain.get(domain.name, [])
+        periods: set[str] = set()
+        rows = 0
+        for dataset in datasets:
+            if dataset.name not in readable:
+                continue
+            found = source.periods(dataset.name)
+            periods.update(found)
+            try:
+                rows += source.row_count(dataset.name)
+            except Exception:  # pragma: no cover - a dataset that will not read
+                logger.warning("Could not count rows in %s", dataset.name)
+
+        ordered = _ordered_periods(periods)
+        published = [d for d in datasets if d.lifecycle == DS_PUBLISHED]
+        out.append({
+            "name": domain.name,
+            "description": domain.description,
+            "owner": domain.owner,
+            "status": domain.status,
+            "sort_order": domain.sort_order,
+            "dataset_count": len(datasets),
+            "published_count": len(published),
+            "row_count": rows,
+            "period_count": len(ordered),
+            "first_period": ordered[0] if ordered else None,
+            "last_period": ordered[-1] if ordered else None,
+            "datasets": [
+                {
+                    "name": d.name,
+                    "business_name": d.business_name,
+                    "lifecycle": d.lifecycle,
+                    "is_synthetic": d.is_synthetic,
+                    "readable": d.name in readable,
+                }
+                for d in datasets
+            ],
+        })
+    return out
+
+
+def _ordered_periods(periods: set[str]) -> list[str]:
+    """Periods in time order, not alphabetical order.
+
+    "Q1 2026" sorts before "Q4 2025" alphabetically, which would report a
+    coverage range backwards. Sorting on (year, quarter) fixes that, and
+    anything that does not parse falls to the end rather than raising.
+    """
+    def key(period: str) -> tuple[int, int, str]:
+        match = re.fullmatch(r"Q([1-4])\s+(\d{4})", period.strip())
+        if match:
+            return (int(match.group(2)), int(match.group(1)), period)
+        if period.strip().isdigit():
+            return (int(period.strip()), 0, period)
+        return (9999, 9, period)
+
+    return sorted(periods, key=key)
+
+
+def rename_domain(session: Session, name: str, new_name: str) -> DataDomain:
+    """Rename a domain, taking its datasets with it.
+
+    A domain name is a foreign key in all but declaration — every dataset
+    carries it as text. Renaming without moving them would orphan the lot, so
+    both happen here or neither does.
+    """
+    new_name = (new_name or "").strip()
+    if not new_name:
+        raise DataBuilderError("A domain needs a name.")
+    domain = session.execute(
+        select(DataDomain).where(DataDomain.name == name)).scalar_one_or_none()
+    if domain is None:
+        raise DataBuilderError(f"There is no data domain called '{name}'.")
+    if new_name == name:
+        return domain
+    clash = session.execute(
+        select(DataDomain).where(DataDomain.name == new_name)).scalar_one_or_none()
+    if clash is not None:
+        raise DataBuilderError(
+            f"A domain called '{new_name}' already exists. Two domains with one "
+            "name would make every dataset in them ambiguous."
+        )
+
+    for dataset in session.execute(
+        select(DatasetDefinition).where(DatasetDefinition.domain == name)
+    ).scalars():
+        dataset.domain = new_name
+    domain.name = new_name
+    session.flush()
+    return domain
+
+
+def set_domain_status(session: Session, name: str, status: str) -> DataDomain:
+    """Archive a domain, or bring it back.
+
+    Archiving changes nothing about the data. Every dataset in the domain stays
+    readable and every analysis that depends on one keeps working — this only
+    takes the domain off the working list. That is deliberate: a governance
+    action that silently broke published analyses would be worse than no action.
+    """
+    status = (status or "").strip().upper()
+    if status not in {DOMAIN_ACTIVE, DOMAIN_ARCHIVED}:
+        raise DataBuilderError(
+            f"'{status}' is not a domain status. Use ACTIVE or ARCHIVED."
+        )
+    domain = session.execute(
+        select(DataDomain).where(DataDomain.name == name)).scalar_one_or_none()
+    if domain is None:
+        raise DataBuilderError(f"There is no data domain called '{name}'.")
+    domain.status = status
+    session.flush()
+    return domain
+
+
+def delete_domain(session: Session, name: str) -> None:
+    """Delete a domain — only when nothing depends on it.
+
+    A domain that still holds datasets cannot be deleted, and the refusal names
+    them. This is the one place in Data Builder where something is genuinely
+    destroyed, so it refuses in every case where a person might mean archive.
+    """
+    domain = session.execute(
+        select(DataDomain).where(DataDomain.name == name)).scalar_one_or_none()
+    if domain is None:
+        raise DataBuilderError(f"There is no data domain called '{name}'.")
+
+    datasets = list(session.execute(
+        select(DatasetDefinition).where(DatasetDefinition.domain == name)
+    ).scalars())
+    if datasets:
+        listed = ", ".join(d.name for d in datasets[:5])
+        more = f" and {len(datasets) - 5} more" if len(datasets) > 5 else ""
+        raise DataBuilderError(
+            f"'{name}' still holds {len(datasets)} dataset"
+            f"{'' if len(datasets) == 1 else 's'} ({listed}{more}). Move or "
+            "archive them first, or archive the domain instead — deleting it "
+            "would leave them without one."
+        )
+
+    session.delete(domain)
+    session.flush()
+
+
 def create_dataset(session: Session, *, name: str, domain: str, business_name: str = "",
                    purpose: str = "", grain: str = "", owner: str = "",
                    period_field: str = "", primary_keys: list[str] | None = None,
@@ -967,10 +1140,102 @@ def list_versions(session: Session, dataset_name: str) -> list[DataVersion]:
 # ================================================================ the viewer
 
 
+#: The only comparisons the viewer will make. A filter arrives as
+#: "field:op:value" and the operator must be one of these, so the set of things
+#: a filter can express is fixed here rather than by whatever a caller sends.
+FILTER_OPS: dict[str, str] = {
+    "eq": "is",
+    "ne": "is not",
+    "contains": "contains",
+    "gt": "greater than",
+    "gte": "at least",
+    "lt": "less than",
+    "lte": "at most",
+    "blank": "is blank",
+    "present": "is not blank",
+}
+
+
+def parse_filter(text: str) -> tuple[str, str, str]:
+    """"ifrs9_stage:eq:2" -> ("ifrs9_stage", "eq", "2").
+
+    Raises rather than guessing. A filter that cannot be read is a bug in the
+    caller, and silently dropping it would show the user a filtered-looking grid
+    that is not filtered.
+    """
+    parts = text.split(":", 2)
+    if len(parts) == 2:
+        field, op, value = parts[0], parts[1], ""
+    elif len(parts) == 3:
+        field, op, value = parts
+    else:
+        raise ValueError(
+            f"'{text}' is not a filter. Write it as field:operator:value, "
+            f"for example ifrs9_stage:eq:2."
+        )
+    if op not in FILTER_OPS:
+        raise ValueError(
+            f"'{op}' is not a comparison the viewer offers. "
+            f"Use one of: {', '.join(sorted(FILTER_OPS))}."
+        )
+    return field.strip(), op, value
+
+
+def _apply_filter(frame: pd.DataFrame, field: str, op: str, value: str) -> pd.DataFrame:
+    """One governed comparison, applied in pandas.
+
+    Deliberately not pushed down as SQL text. The column has already been
+    checked against the dictionary, but the *value* is whatever somebody typed,
+    and the only safe thing to do with it is compare it — never concatenate it.
+    """
+    column = frame[field]
+    if op == "blank":
+        return frame[column.isna()]
+    if op == "present":
+        return frame[column.notna()]
+    if op == "contains":
+        return frame[column.astype("string").str.contains(value, case=False, na=False,
+                                                          regex=False)]
+    if op in {"gt", "gte", "lt", "lte"}:
+        numeric = pd.to_numeric(column, errors="coerce")
+        try:
+            threshold = float(value)
+        except ValueError as e:
+            raise ValueError(
+                f"'{value}' is not a number, and {FILTER_OPS[op]} compares numbers."
+            ) from e
+        comparison = {
+            "gt": numeric > threshold, "gte": numeric >= threshold,
+            "lt": numeric < threshold, "lte": numeric <= threshold,
+        }[op]
+        return frame[comparison.fillna(False)]
+
+    # eq / ne, compared as text so "2" matches an integer 2 and a string "2".
+    as_text = column.astype("string").str.strip()
+    matches = as_text.str.casefold() == value.strip().casefold()
+    return frame[matches.fillna(False)] if op == "eq" else frame[(~matches).fillna(True)]
+
+
+def _search(frame: pd.DataFrame, term: str) -> pd.DataFrame:
+    """Rows where any shown column contains the term.
+
+    A plain substring match, never a regex: a user typing "(" into a search box
+    should get no rows, not a traceback.
+    """
+    if not term.strip():
+        return frame
+    hit = pd.Series(False, index=frame.index)
+    for column in frame.columns:
+        hit |= frame[column].astype("string").str.contains(
+            term, case=False, na=False, regex=False)
+    return frame[hit]
+
+
 def browse_dataset(name: str, *, period: str | None = None, offset: int = 0,
                    limit: int = 50, fields: list[str] | None = None,
                    sort: str | None = None, descending: bool = False,
-                   filters: dict[str, str] | None = None) -> dict[str, Any]:
+                   search: str = "",
+                   filters: list[str] | None = None) -> dict[str, Any]:
     """One page of a governed dataset, for a person to look at.
 
     Why this is not "just a SELECT"
@@ -1003,11 +1268,24 @@ def browse_dataset(name: str, *, period: str | None = None, offset: int = 0,
             "governed fields, so a column name cannot become a query."
         )
 
-    context = AnalysisContext(
-        period=effective or "",
-        filters={k: v for k, v in (filters or {}).items() if k in known and v},
-    )
+    parsed = [parse_filter(text) for text in (filters or [])]
+    for field, _, _ in parsed:
+        if field not in known:
+            raise ValueError(
+                f"'{field}' is not a field of {name}. Filtering is offered only "
+                "on the governed fields, so a column name cannot become a query."
+            )
+
+    context = AnalysisContext(period=effective or "")
     frame = source.fetch(name, context=context, fields=chosen, period=effective)
+
+    #: Rows in the period, before the viewer's own narrowing. Shown alongside the
+    #: filtered count so "12 of 15,400" reads as a filter rather than an empty
+    #: dataset.
+    total_in_period = len(frame)
+    for field, op, value in parsed:
+        frame = _apply_filter(frame, field, op, value)
+    frame = _search(frame, search)
 
     total = len(frame)
     if sort:
@@ -1025,6 +1303,8 @@ def browse_dataset(name: str, *, period: str | None = None, offset: int = 0,
         "period": effective,
         "periods": periods,
         "total_rows": total,
+        "total_in_period": total_in_period,
+        "filtered": total != total_in_period,
         "offset": offset,
         "limit": limit,
         "returned": int(len(page)),
@@ -1036,14 +1316,197 @@ def browse_dataset(name: str, *, period: str | None = None, offset: int = 0,
                 "data_type": definition.data_type,
                 "unit": definition.unit,
                 "sensitivity": definition.sensitivity,
+                "nullable": definition.nullable,
             }
             for name, definition in sorted(spec.fields.items())
             if name in chosen
         ],
+        #: Every governed field, so the grid can offer columns it is not
+        #: currently showing without a second request.
+        "all_fields": sorted(known),
         "rows": [
             {k: (None if _is_null(v) else v) for k, v in record.items()}
             for record in page.to_dict(orient="records")
         ],
+    }
+
+
+def column_profile(name: str, field: str, *, period: str | None = None,
+                   top: int = 12) -> dict[str, Any]:
+    """What is actually in one column.
+
+    The question a data steward asks before trusting a field — how much of it is
+    missing, what values it takes, how it is distributed — answered from the
+    governed data rather than from the dictionary's description of it. A
+    dictionary says what a column is supposed to contain; this says what it does.
+
+    Read through the Data Access Layer like everything else, and only for a field
+    the dictionary knows about.
+    """
+    from backend.data_access.catalog import get_catalog
+    from backend.data_access.context import AnalysisContext
+    from backend.data_access.duckdb_source import DuckDBSource
+
+    source = DuckDBSource()
+    spec = get_catalog().dataset(name)
+    if field not in spec.fields:
+        raise ValueError(
+            f"'{field}' is not a field of {name}. A profile is offered only for "
+            "the governed fields."
+        )
+
+    periods = source.periods(name)
+    effective = period or (periods[-1] if periods else None)
+    definition = spec.fields[field]
+
+    frame = source.fetch(name, context=AnalysisContext(period=effective or ""),
+                         fields=[field], period=effective)
+    column = frame[field]
+    rows = int(len(column))
+    missing = int(column.isna().sum())
+
+    out: dict[str, Any] = {
+        "dataset": name,
+        "field": field,
+        "business_name": definition.business_name,
+        "definition": definition.definition,
+        "data_type": definition.data_type,
+        "unit": definition.unit,
+        "sensitivity": definition.sensitivity,
+        "allowed_values": list(definition.allowed_values or []),
+        "period": effective,
+        "rows": rows,
+        "missing": missing,
+        "missing_pct": round(100.0 * missing / rows, 2) if rows else 0.0,
+        "distinct": int(column.nunique(dropna=True)),
+        "statistics": None,
+        "top_values": [],
+    }
+
+    present = column.dropna()
+    if present.empty:
+        return out
+
+    numeric = pd.to_numeric(present, errors="coerce").dropna()
+    # "Mostly numbers" rather than "declared numeric": a column typed as text in
+    # the dictionary but holding numbers still deserves the numeric summary.
+    if len(numeric) >= max(1, int(0.9 * len(present))):
+        out["statistics"] = {
+            "min": float(numeric.min()),
+            "p25": float(numeric.quantile(0.25)),
+            "median": float(numeric.median()),
+            "p75": float(numeric.quantile(0.75)),
+            "max": float(numeric.max()),
+            "mean": float(numeric.mean()),
+            "sum": float(numeric.sum()),
+        }
+
+    counts = present.astype("string").value_counts().head(top)
+    out["top_values"] = [
+        {"value": str(value), "count": int(count),
+         "share_pct": round(100.0 * int(count) / rows, 2) if rows else 0.0}
+        for value, count in counts.items()
+    ]
+    return out
+
+
+def schema_across_periods(name: str) -> dict[str, Any]:
+    """Which columns each published period actually carries.
+
+    A dataset's schema is not a fixed thing once it is loaded period by period: a
+    field appears when a source system starts sending it and disappears when it
+    stops. Somebody comparing Q1 with Q4 needs to know that before they wonder
+    why a number moved.
+
+    "Present" means the column exists and is not entirely empty. A column of
+    nothing but nulls is, for the purpose of comparing periods, absent — and
+    saying so is more useful than reporting it as there.
+    """
+    from backend.data_access.catalog import get_catalog
+    from backend.data_access.context import AnalysisContext
+    from backend.data_access.duckdb_source import DuckDBSource
+
+    source = DuckDBSource()
+    spec = get_catalog().dataset(name)
+    periods = source.periods(name)
+    governed = sorted(spec.fields)
+
+    presence: dict[str, dict[str, Any]] = {}
+    for period in periods:
+        frame = source.fetch(name, context=AnalysisContext(period=period),
+                             fields=governed, period=period)
+        presence[period] = {
+            "rows": int(len(frame)),
+            "fields": {
+                field: bool(field in frame.columns and frame[field].notna().any())
+                for field in governed
+            },
+        }
+
+    changes: list[dict[str, str]] = []
+    for earlier, later in zip(periods, periods[1:], strict=False):
+        for field in governed:
+            was = presence[earlier]["fields"][field]
+            now = presence[later]["fields"][field]
+            if was != now:
+                changes.append({
+                    "field": field,
+                    "period": later,
+                    "change": "appeared" if now else "disappeared",
+                    "from_period": earlier,
+                })
+
+    return {
+        "dataset": name,
+        "business_name": spec.business_name,
+        "periods": periods,
+        "fields": governed,
+        "presence": presence,
+        "changes": changes,
+        "stable": not changes,
+    }
+
+
+#: An export is a copy of governed data leaving the product. It is capped rather
+#: than unbounded so a mis-click cannot pull the whole book onto a laptop, and
+#: the cap is stated in the response headers so nobody mistakes a truncated file
+#: for the full one.
+EXPORT_ROW_CAP = 50_000
+
+
+def export_rows(name: str, *, period: str | None = None,
+                fields: list[str] | None = None,
+                search: str = "", filters: list[str] | None = None,
+                sort: str | None = None, descending: bool = False,
+                limit: int = EXPORT_ROW_CAP) -> tuple[str, dict[str, Any]]:
+    """The current view, as CSV, with what it was.
+
+    Exactly the rows the viewer is showing — same governed fields, same filters,
+    same order — so the file matches the screen it came from. Returns the CSV
+    text and a description of what went into it, which the caller records.
+    """
+    capped = max(1, min(int(limit), EXPORT_ROW_CAP))
+    page = browse_dataset(name, period=period, offset=0, limit=capped,
+                          fields=fields, sort=sort, descending=descending,
+                          search=search, filters=filters)
+
+    columns = [f["name"] for f in page["fields"]]
+    frame = pd.DataFrame(page["rows"], columns=columns)
+    buffer = io.StringIO()
+    frame.to_csv(buffer, index=False)
+
+    return buffer.getvalue(), {
+        "dataset": name,
+        "period": page["period"],
+        "columns": columns,
+        "rows": int(len(frame)),
+        "matched_rows": page["total_rows"],
+        "truncated": page["total_rows"] > len(frame),
+        "cap": capped,
+        "filters": list(filters or []),
+        "search": search,
+        "is_synthetic": page["is_synthetic"],
+        "origin": page["origin"],
     }
 
 

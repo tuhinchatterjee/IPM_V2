@@ -133,6 +133,17 @@ class DuckDBSource:
         found = [p.name.split("=", 1)[1] for p in directory.iterdir() if p.is_dir() and "=" in p.name]
         return sorted(found, key=_period_sort_key)
 
+    def row_count(self, dataset: str, period: str | None = None) -> int:
+        """How many rows are in the lake for this dataset.
+
+        Counted in DuckDB rather than by reading the rows: a domain overview
+        needs the size of five datasets, and materialising them to measure them
+        would be an odd way to find out they are large.
+        """
+        pattern = self._require_files(dataset, period)
+        frame = self._run(f"SELECT count(*) AS n FROM read_parquet('{pattern}')", [])
+        return int(frame["n"].iloc[0]) if len(frame) else 0
+
     # ------------------------------------------------------------------ query
 
     def _where(self, spec: DatasetDef, context: AnalysisContext) -> tuple[str, list[Any]]:

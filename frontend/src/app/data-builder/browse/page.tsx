@@ -1,102 +1,76 @@
 "use client";
 
 import * as React from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Database,
-  Lock,
-} from "lucide-react";
+import { Database, GitCompare } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/layout/back-link";
+import { DataGrid } from "@/components/data-builder/data-grid";
+import { SchemaComparison } from "@/components/data-builder/schema-comparison";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { InfoPopover } from "@/components/ui/info-popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type DatasetPage } from "@/lib/api";
+import { api, type DatasetTree } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
-
-const PAGE_SIZE = 50;
 
 /**
  * The dataset viewer.
  *
  * Navigate the way somebody actually thinks about their data — domain, then
- * family, then dataset, then period — and read the rows, with the governed
- * definition of every column beside it.
+ * family, then dataset — and read the rows in a grid that behaves like the ones
+ * people already work in: a header that stays put, key columns that do not
+ * scroll away, sorting, filtering, searching, column profiles and an export of
+ * exactly what is on screen.
  *
- * Nothing here is a query surface. The dataset name is resolved against the
- * catalogue, every column shown is one the dictionary knows about, and the sort
- * column must be one of them; the backend refuses anything else and says so.
- * That is what makes this a viewer rather than a way around the governance the
- * rest of the product depends on.
+ * Nothing here is a query surface, and nothing here is loaded whole. Every
+ * page, sort, filter and search is a request against the governed catalogue;
+ * the dataset name is resolved there, every column shown is one the dictionary
+ * knows about, and the comparison a filter makes is one of a fixed set. The
+ * backend refuses anything else and says which part it refused.
  */
 export default function BrowseDataPage() {
   const tree = useAsync(() => api.datasetTree(), []);
   const [dataset, setDataset] = React.useState<string | null>(null);
-  const [period, setPeriod] = React.useState<string | null>(null);
-  const [offset, setOffset] = React.useState(0);
-  const [sort, setSort] = React.useState<string | null>(null);
-  const [descending, setDescending] = React.useState(false);
+  const [comparing, setComparing] = React.useState(false);
 
-  const page = useAsync(
-    () =>
-      api.datasetRows(dataset!, {
-        period: period ?? undefined,
-        offset,
-        limit: PAGE_SIZE,
-        sort: sort ?? undefined,
-        descending,
-      }),
-    [dataset, period, offset, sort, descending],
-    { enabled: Boolean(dataset) },
-  );
-
-  function choose(name: string) {
-    setDataset(name);
-    setPeriod(null);
-    setOffset(0);
-    setSort(null);
-  }
+  /** The selected dataset, with the domain it sits under. */
+  const chosen = findDataset(tree.data?.domains ?? [], dataset);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <BackLink href="/data-builder" label="Data Builder" />
 
-      <header>
-        <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-text-muted">
-          Data Builder
-        </p>
-        <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          <h1 className="text-[24px] font-semibold leading-tight tracking-tight text-text-primary">
-            Browse the data
-          </h1>
-          <InfoPopover title="What you are looking at">
-            <p>
-              Governed rows, read through the same Data Access Layer every
-              certified analysis uses. The definition of each column is the one
-              in the data dictionary.
-            </p>
-            <p>
-              This is a viewer, not a query surface. Columns and sorting are
-              restricted to the governed dictionary — a column name cannot become
-              a query.
-            </p>
-          </InfoPopover>
-        </div>
+      <header className="flex flex-wrap items-center gap-2">
+        <h1 className="text-[24px] font-semibold leading-tight tracking-tight text-text-primary">
+          Browse the data
+        </h1>
+        <InfoPopover title="What you are looking at">
+          <p>
+            Governed rows, read through the same Data Access Layer every
+            certified analysis uses. The definition of each column is the one in
+            the data dictionary.
+          </p>
+          <p>
+            This is a viewer, not a query surface. Columns, sorting and filters
+            are restricted to the governed dictionary — a column name cannot
+            become a query, and a filter value is compared rather than executed.
+          </p>
+          <p>
+            Rows are paged on the server. A dataset of fifteen thousand rows is
+            never handed to the browser.
+          </p>
+        </InfoPopover>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[228px_1fr]">
         <nav className="space-y-4">
           {tree.loading && <Skeleton className="h-64 w-full" />}
           {tree.error && <p className="text-xs text-negative">{tree.error}</p>}
           {tree.data?.domains.map((domain) => (
             <div key={domain.domain}>
-              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">
-                {domain.domain}
-              </p>
+              <p className="meta mb-1.5 text-text-muted">{domain.domain}</p>
               {domain.families.map((family) => (
                 <div key={family.family} className="mb-2">
                   {family.datasets.map((entry) => (
@@ -104,7 +78,10 @@ export default function BrowseDataPage() {
                       key={entry.name}
                       type="button"
                       disabled={!entry.readable}
-                      onClick={() => choose(entry.name)}
+                      onClick={() => {
+                        setDataset(entry.name);
+                        setComparing(false);
+                      }}
                       className={cn(
                         "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors",
                         dataset === entry.name
@@ -134,7 +111,7 @@ export default function BrowseDataPage() {
           ))}
         </nav>
 
-        <div className="min-w-0">
+        <div className="min-w-0 space-y-3">
           {!dataset && (
             <Card className="px-5 py-12 text-center">
               <p className="text-sm text-text-secondary">
@@ -147,33 +124,28 @@ export default function BrowseDataPage() {
             </Card>
           )}
 
-          {dataset && page.loading && <Skeleton className="h-96 w-full" />}
-          {dataset && page.error && (
-            <Card className="border-negative/40 p-4 text-sm text-negative">
-              {page.error}
-            </Card>
-          )}
-          {dataset && page.data && (
-            <DatasetView
-              page={page.data}
-              period={period}
-              onPeriod={(p) => {
-                setPeriod(p);
-                setOffset(0);
-              }}
-              onSort={(column) => {
-                if (sort === column) {
-                  setDescending((d) => !d);
-                } else {
-                  setSort(column);
-                  setDescending(true);
-                }
-                setOffset(0);
-              }}
-              sort={sort}
-              descending={descending}
-              onOffset={setOffset}
-            />
+          {dataset && (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-sm font-semibold text-text-primary">
+                  {chosen?.business_name || dataset}
+                </h2>
+                {chosen?.domain && <Badge variant="outline">{chosen.domain}</Badge>}
+                {chosen?.is_synthetic && <Badge variant="warning">Demo data</Badge>}
+                <Button
+                  variant={comparing ? "outline" : "ghost"}
+                  size="sm"
+                  className="ml-auto"
+                  onClick={() => setComparing((c) => !c)}
+                >
+                  <GitCompare aria-hidden />
+                  Compare periods
+                </Button>
+              </div>
+
+              {comparing && <SchemaComparison dataset={dataset} />}
+              <DataGrid dataset={dataset} />
+            </>
           )}
         </div>
       </div>
@@ -181,144 +153,17 @@ export default function BrowseDataPage() {
   );
 }
 
-function DatasetView({
-  page,
-  period,
-  onPeriod,
-  onSort,
-  sort,
-  descending,
-  onOffset,
-}: {
-  page: DatasetPage;
-  period: string | null;
-  onPeriod: (period: string) => void;
-  onSort: (column: string) => void;
-  sort: string | null;
-  descending: boolean;
-  onOffset: (offset: number) => void;
-}) {
-  const from = page.total_rows === 0 ? 0 : page.offset + 1;
-  const to = page.offset + page.returned;
+type TreeDomain = DatasetTree["domains"][number];
 
-  return (
-    <div className="space-y-4">
-      <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-sm font-semibold text-text-primary">
-            {page.business_name || page.dataset}
-          </h2>
-          <Badge variant="outline">{page.domain}</Badge>
-          {page.is_synthetic && <Badge variant="warning">Demo data</Badge>}
-        </div>
-        <p className="mt-1 text-xs text-text-muted">{page.grain}</p>
-      </div>
-
-      {page.periods.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {page.periods.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => onPeriod(p)}
-              className={cn(
-                "rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
-                (period ?? page.period) === p
-                  ? "border-accent bg-accent-muted text-accent"
-                  : "border-border bg-surface text-text-muted hover:border-accent",
-              )}
-            >
-              {p}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-max text-xs">
-            <thead>
-              <tr className="border-b border-border bg-surface-sunken">
-                {page.fields.map((field) => (
-                  <th
-                    key={field.name}
-                    className="whitespace-nowrap px-3 py-2 text-left font-medium"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onSort(field.name)}
-                      title={`${field.definition}${field.unit ? ` (${field.unit})` : ""}`}
-                      className={cn(
-                        "inline-flex items-center gap-1 transition-colors hover:text-accent",
-                        sort === field.name ? "text-accent" : "text-text-secondary",
-                      )}
-                    >
-                      {field.business_name || field.name}
-                      {field.sensitivity === "confidential" && (
-                        <Lock className="size-2.5" aria-hidden />
-                      )}
-                      {sort === field.name && (
-                        <span aria-hidden>{descending ? "↓" : "↑"}</span>
-                      )}
-                    </button>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {page.rows.map((row, i) => (
-                <tr
-                  key={i}
-                  className="border-b border-border last:border-0 hover:bg-surface-hover"
-                >
-                  {page.fields.map((field) => (
-                    <td
-                      key={field.name}
-                      className={cn(
-                        "whitespace-nowrap px-3 py-1.5",
-                        typeof row[field.name] === "number"
-                          ? "tabular text-right text-text-primary"
-                          : "text-text-secondary",
-                      )}
-                    >
-                      {row[field.name] === null || row[field.name] === undefined
-                        ? "—"
-                        : String(row[field.name])}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-text-muted">
-          {from.toLocaleString()}–{to.toLocaleString()} of{" "}
-          {page.total_rows.toLocaleString()} rows in {page.period ?? "the dataset"}
-        </p>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page.offset === 0}
-            onClick={() => onOffset(Math.max(0, page.offset - PAGE_SIZE))}
-          >
-            <ChevronLeft aria-hidden />
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={to >= page.total_rows}
-            onClick={() => onOffset(page.offset + PAGE_SIZE)}
-          >
-            Next
-            <ChevronRight aria-hidden />
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
+/** Walk the tree for one dataset, carrying its domain out with it. */
+function findDataset(domains: TreeDomain[], name: string | null) {
+  if (!name) return null;
+  for (const domain of domains) {
+    for (const family of domain.families) {
+      for (const entry of family.datasets) {
+        if (entry.name === name) return { ...entry, domain: domain.domain };
+      }
+    }
+  }
+  return null;
 }
