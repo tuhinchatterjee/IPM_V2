@@ -45,6 +45,7 @@ class NodeType(StrEnum):
     USER_PROMPT = "USER_PROMPT"
     LLM_INTENT = "LLM_INTENT"
     PLAN = "PLAN"
+    DATA_DOMAIN = "DATA_DOMAIN"
     DATASET = "DATASET"
     VARIABLE = "VARIABLE"
     FILTER = "FILTER"
@@ -61,6 +62,7 @@ class NodeType(StrEnum):
 # differently in the UI from the interpretive ones.
 GOVERNED_NODE_TYPES = frozenset(
     {
+        NodeType.DATA_DOMAIN,
         NodeType.DATASET,
         NodeType.VARIABLE,
         NodeType.FILTER,
