@@ -1466,6 +1466,66 @@ export interface DatasetPage {
   rows: Record<string, string | number | boolean | null>[];
 }
 
+// ================================================================== lenses
+
+/** One thing on a Lens: a certified analysis, drawn a particular way. */
+export interface LensPanel {
+  analysis_id: string;
+  title: string;
+  visual: string;
+  params: Record<string, unknown>;
+  filters: Record<string, unknown>;
+  note: string;
+}
+
+export interface Lens {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  audience: string;
+  panels: LensPanel[];
+  status: string;
+  version: number;
+  origin: string;
+  project_id: number | null;
+  revisions: {
+    version: number;
+    request: string;
+    change_summary: string;
+    panel_count: number;
+    created_at: string | null;
+  }[];
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface RenderedPanel extends LensPanel {
+  status: string;
+  error: string | null;
+  certification?: string;
+  analysis_version?: string;
+  analysis_run_id?: number | null;
+  duration_ms?: number;
+  result: EngineResult | null;
+}
+
+export interface RenderedLens {
+  lens: Lens;
+  period: string | null;
+  panels: RenderedPanel[];
+  failed: number;
+  note: string;
+}
+
+/** What the platform proposes to do about a request, including what it will not. */
+export interface LensProposal {
+  panels: LensPanel[];
+  change_summary: string;
+  refusals: string[];
+  matched: string[];
+}
+
 export const api = {
   // ---- system ----
   health: (timeoutMs?: number) =>
@@ -1635,6 +1695,41 @@ export const api = {
     request<{ dataset: string; count: number; versions: DataVersionRow[] }>(
       `/data-builder/datasets/${name}/versions`,
     ),
+
+  // ---- lenses ----
+  lensList: (status?: string) =>
+    request<{
+      lenses: Lens[];
+      visuals: string[];
+      statuses: string[];
+      max_panels: number;
+    }>(`/lenses${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  lens: (id: number) => request<Lens>(`/lenses/${id}`),
+  renderLens: (id: number, period?: string) =>
+    request<RenderedLens>(
+      `/lenses/${id}/render${period ? `?period=${encodeURIComponent(period)}` : ""}`,
+      { timeoutMs: 180_000 },
+    ),
+  buildLens: (requestText: string, apply = true) =>
+    request<{ lens: Lens | null; proposal: LensProposal }>("/lenses/build", {
+      method: "POST",
+      body: JSON.stringify({ request: requestText, apply }),
+      timeoutMs: 60_000,
+    }),
+  askLens: (id: number, requestText: string, apply = true) =>
+    request<{ lens: Lens; proposal: LensProposal }>(`/lenses/${id}/ask`, {
+      method: "POST",
+      body: JSON.stringify({ request: requestText, apply }),
+      timeoutMs: 60_000,
+    }),
+  restoreLens: (id: number, version: number) =>
+    request<Lens>(`/lenses/${id}/restore/${version}`, { method: "POST" }),
+  setLensStatus: (id: number, status: string) =>
+    request<Lens>(`/lenses/${id}/status`, {
+      method: "POST",
+      body: JSON.stringify({ status }),
+    }),
+  deleteLens: (id: number) => request<void>(`/lenses/${id}`, { method: "DELETE" }),
 
   // ---- the dataset viewer ----
   datasetTree: () => request<DatasetTree>("/data-builder/tree"),
