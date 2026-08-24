@@ -16,13 +16,16 @@ from __future__ import annotations
 
 import pandas as pd
 
+from backend.data_access.catalog import FACILITY_POSITION
 from backend.engine.contracts import (
     AnalysisContract,
+    AnswerShape,
     Category,
     Certification,
     OutputField,
     Parameter,
     ParamType,
+    PeriodRequirement,
     ValidationRule,
     VisualizationType,
 )
@@ -152,6 +155,21 @@ STAGE_MIG_FIELDS = ["account_id", "customer_id", "ead", "total_ecl", "ifrs9_stag
 
 @register(AnalysisContract(
     id="stage_migration",
+    period_requirement=PeriodRequirement.TWO_PERIOD,
+    governed_default_period=False,
+    answer_shape=AnswerShape.MOVEMENT,
+    when_to_use=(
+        "Use when the question is which exposure moved between IFRS 9 stages, and in which direction, between two dates."
+    ),
+    trigger_questions=[
+        "What moved into Stage 2?",
+        "Show stage migration.",
+        "How much exposure deteriorated a stage?",
+    ],
+    limitations=(
+        "Measures gross movement between stages for facilities present in both periods. Facilities that entered or left the book are excluded and reported separately."
+    ),
+    required_domains=[FACILITY_POSITION],
     name="Stage Migration",
     description=(
         "What moved between IFRS 9 stages between two reporting periods, measured "
@@ -188,7 +206,6 @@ STAGE_MIG_FIELDS = ["account_id", "customer_id", "ead", "total_ecl", "ifrs9_stag
         "Facilities in only one period are excluded from the matrix and reported "
         "separately as entries and exits."
     ),
-    requires_compare_period=True,
 ))
 def stage_migration(ctx: ExecutionContext) -> AnalysisResult:
     to_period, from_period, available = resolve_periods(
@@ -232,6 +249,21 @@ DPD_FIELDS = ["account_id", "customer_id", "ead", "dpd_days", "ifrs9_stage"]
 
 @register(AnalysisContract(
     id="dpd_migration",
+    period_requirement=PeriodRequirement.TWO_PERIOD,
+    governed_default_period=False,
+    answer_shape=AnswerShape.MOVEMENT,
+    when_to_use=(
+        "Use when the question is about arrears — what moved between days-past-due buckets, and what cured."
+    ),
+    trigger_questions=[
+        "How have arrears moved?",
+        "Show DPD migration.",
+        "What cured this period?",
+    ],
+    limitations=(
+        "Bucket-to-bucket movement only. A facility can improve its bucket while its credit quality deteriorates on other measures."
+    ),
+    required_domains=[FACILITY_POSITION],
     name="DPD Migration",
     description=(
         "Movement between delinquency buckets (Current, 1-29, 30-59, 60-89, "
@@ -263,7 +295,6 @@ DPD_FIELDS = ["account_id", "customer_id", "ead", "dpd_days", "ifrs9_stage"]
         "cure rate is the share of exposure that was delinquent at the opening "
         "and is Current at the closing."
     ),
-    requires_compare_period=True,
 ))
 def dpd_migration(ctx: ExecutionContext) -> AnalysisResult:
     to_period, from_period, available = resolve_periods(
@@ -317,6 +348,21 @@ RATING_FIELDS = ["account_id", "customer_id", "ead", "risk_rating", "rating_buck
 
 @register(AnalysisContract(
     id="rating_transition_matrix",
+    period_requirement=PeriodRequirement.TWO_PERIOD,
+    governed_default_period=False,
+    answer_shape=AnswerShape.MATRIX,
+    when_to_use=(
+        "Use when the question asks for empirical rating transitions — the probability of moving from one grade to another over an interval."
+    ),
+    trigger_questions=[
+        "Show the rating transition matrix.",
+        "What is the downgrade rate?",
+        "How did ratings migrate?",
+    ],
+    limitations=(
+        "An empirical matrix over one interval, not a through-the-cycle estimate. Short intervals and small grades give unstable probabilities."
+    ),
+    required_domains=[FACILITY_POSITION],
     name="Rating Transition Matrix",
     description=(
         "How internal risk ratings migrated between two reporting periods, as a "
@@ -353,7 +399,6 @@ RATING_FIELDS = ["account_id", "customer_id", "ead", "risk_rating", "rating_buck
         "The interval is whatever separates the two periods chosen; it is "
         "reported alongside the matrix and is NOT annualised."
     ),
-    requires_compare_period=True,
 ))
 def rating_transition_matrix(ctx: ExecutionContext) -> AnalysisResult:
     to_period, from_period, available = resolve_periods(
@@ -411,6 +456,21 @@ ECL_FIELDS = ["account_id", "customer_id", "borrower_name", "ead", "total_ecl", 
 
 @register(AnalysisContract(
     id="ecl_movement",
+    period_requirement=PeriodRequirement.TWO_PERIOD,
+    governed_default_period=False,
+    answer_shape=AnswerShape.MOVEMENT,
+    when_to_use=(
+        "Use when the question is how impairment changed and which groups the change sits in."
+    ),
+    trigger_questions=[
+        "How has ECL changed?",
+        "Which sectors deteriorated the most?",
+        "What drove the impairment charge?",
+    ],
+    limitations=(
+        "Attributes the movement to groups by arithmetic decomposition. Where a group's ECL rose, that is where the change sits — not evidence that the group caused it."
+    ),
+    required_domains=[FACILITY_POSITION],
     name="ECL Movement",
     description=(
         "Why total ECL changed between two periods, attributed to stage migration, "
@@ -448,7 +508,6 @@ ECL_FIELDS = ["account_id", "customer_id", "borrower_name", "ead", "total_ecl", 
         "all components equals closing exactly — there is no residual term "
         "absorbing an unexplained difference."
     ),
-    requires_compare_period=True,
 ))
 def ecl_movement(ctx: ExecutionContext) -> AnalysisResult:
     to_period, from_period, available = resolve_periods(
@@ -560,6 +619,21 @@ DETERIORATION_FIELDS = [
 
 @register(AnalysisContract(
     id="top_deteriorating_borrowers",
+    period_requirement=PeriodRequirement.TWO_PERIOD,
+    governed_default_period=False,
+    answer_shape=AnswerShape.LIST,
+    when_to_use=(
+        "Use when the question asks for names — which individual borrowers worsened, and why."
+    ),
+    trigger_questions=[
+        "Which borrowers deteriorated?",
+        "Show the top ten deteriorating names.",
+        "Who requires attention?",
+    ],
+    limitations=(
+        "Ranks by a composite severity score combining stage, rating, PD, DPD and ECL movement. The score is a triage ordering, not a credit opinion."
+    ),
+    required_domains=[FACILITY_POSITION],
     name="Top Deteriorating Borrowers",
     description=(
         "Borrowers whose credit position worsened most between two periods, ranked "
@@ -603,7 +677,6 @@ DETERIORATION_FIELDS = [
         "days past due. Borrowers with no worsening indicator are excluded rather "
         "than padding the list to top_n."
     ),
-    requires_compare_period=True,
 ))
 def top_deteriorating_borrowers(ctx: ExecutionContext) -> AnalysisResult:
     to_period, from_period, available = resolve_periods(
