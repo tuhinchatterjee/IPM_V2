@@ -434,7 +434,7 @@ class DemoPlanner:
                 return candidate
         return default
 
-    # ------------------------------------------------------------------ builders
+    # ------------------------------------------------------------- builders
     #
     # The FIRST step returned is the primary one: the analysis that answers the
     # question. Anything after it must earn its place by explaining the primary
