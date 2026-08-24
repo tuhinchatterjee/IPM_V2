@@ -12,9 +12,8 @@ import {
 } from "lucide-react";
 
 import { Composer, useGreeting } from "@/components/ask/composer";
-import { KpiTile } from "@/components/analytics/primitives";
+import { useGreetingName } from "@/components/system/auth";
 import { useCanRunAnalysis } from "@/components/system/role-switcher";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { InfoPopover } from "@/components/ui/info-popover";
@@ -26,10 +25,15 @@ import { useAsync } from "@/lib/hooks";
 /**
  * The Cockpit.
  *
- * Above the fold there are exactly three things: who you are talking to, the box
- * you talk in, and what already needs looking at. Everything else — the pulse,
- * what you were working on — is below, because it is context for choosing a
- * question rather than a reason to stop asking one.
+ * Four things, in this order: a greeting, one line telling you what to do, the
+ * box you do it in, and what already needs looking at. Nothing else is above
+ * the fold, and there is deliberately no dashboard here.
+ *
+ * There used to be one — four portfolio figures and a link to the CRO Lens.
+ * They are gone. A page whose claim is "ask me anything" that opens with four
+ * numbers and a row of suggested questions has answered the question of what it
+ * is before the reader gets to the box: it is a dashboard with a search field.
+ * The figures still exist, in the Lens that is built to carry them.
  *
  * Asking does not answer here. It opens an Investigation and takes you into it,
  * because the answer is never the end: the follow-up is. A Cockpit that rendered
@@ -58,13 +62,15 @@ function Cockpit() {
   const [error, setError] = React.useState<string | null>(null);
 
   const greeting = useGreeting();
+  // The real first name of whoever is signed in. Empty when nobody is, and the
+  // greeting reads correctly without it rather than falling back to "there".
+  const name = useGreetingName();
   // A Viewer may read what others have produced but may not execute an analysis.
   // The backend refuses it either way; disabling the composer says so before the
   // question is typed rather than after it is submitted.
   const canRun = useCanRunAnalysis();
 
   const mode = useAsync(() => api.askMode(), []);
-  const suggestions = useAsync(() => api.askSuggestions(), []);
   const briefing = useAsync(() => api.briefing(), []);
   const threads = useAsync(() => api.threads(), []);
 
@@ -90,31 +96,27 @@ function Cockpit() {
     [router, opening],
   );
 
-  const values = briefing.data?.summary?.result?.values;
-  const movement = (values?.movement ?? {}) as Record<string, number>;
   const period = briefing.data?.period ?? "";
   const attention = briefing.data?.attention;
 
   return (
-    <div className="space-y-14">
+    <div className="space-y-10">
       {/* ------------------------------------------------------------ asking */}
       <section>
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-text-muted">
-            Credit Portfolio Intelligence
-          </p>
-          {period && (
-            <Badge variant="outline" className="shrink-0">
-              Reporting period {period}
-            </Badge>
+        <h1 className="text-[30px] font-semibold leading-[1.15] tracking-tight text-text-primary">
+          {greeting}
+          {name && (
+            <>
+              ,{" "}
+              <em className="font-normal italic text-accent">{name}</em>
+            </>
           )}
-        </div>
-
-        <h1 className="mt-3 max-w-3xl text-[26px] font-semibold leading-[1.15] tracking-tight text-text-primary sm:text-[30px]">
-          {greeting}. What&rsquo;s on your mind?
         </h1>
+        <p className="mt-1.5 text-[15px] text-text-secondary">
+          What&rsquo;s on your mind?
+        </p>
 
-        <div className="mt-6">
+        <div className="mt-5">
           <Composer
             value={question}
             onChange={setQuestion}
@@ -125,7 +127,10 @@ function Cockpit() {
                 ? undefined
                 : "You are acting as a Viewer. Running an analysis needs the Analyst role or above."
             }
-            suggestions={suggestions.data?.questions ?? []}
+            // Deliberately none. A row of suggested questions teaches people
+            // that CreditProbe answers a fixed list, which is the opposite of
+            // what it does — and it is the first thing the eye lands on.
+            suggestions={[]}
             autoFocus={focusAsk}
             modeNote={
               mode.data?.mode === "demo"
@@ -152,6 +157,7 @@ function Cockpit() {
       <section>
         <SectionHeading
           title="Requires attention"
+          meta={period ? `Reporting period ${period}` : undefined}
           info={
             <p>
               Borrowers whose expected credit loss rose most against the prior
@@ -223,78 +229,6 @@ function Cockpit() {
             </>
           )}
         </Card>
-      </section>
-
-      {/* ------------------------------------------------------------- pulse */}
-      <section>
-        <SectionHeading
-          title="Where the book stands"
-          info={
-            <>
-              <p>
-                Four figures from the certified portfolio summary, run against
-                the latest published period and compared with the one before it.
-              </p>
-              <p>
-                It is here so you know what to ask, not as a dashboard. The CRO
-                Lens has the full position.
-              </p>
-            </>
-          }
-          action={
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/lenses/cro">
-                CRO Lens
-                <ArrowRight aria-hidden />
-              </Link>
-            </Button>
-          }
-        />
-        {briefing.error ? (
-          <Card className="border-negative/40 p-4 text-sm text-negative">
-            {briefing.error}
-          </Card>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiTile
-              label="Total EAD"
-              value={numberOf(values, "total_ead")}
-              unit="USD mn"
-              change={movement.total_ead ?? null}
-              changeUnit="USD mn"
-              direction="neutral"
-              hint={period ? "vs prior period" : undefined}
-              loading={briefing.loading}
-            />
-            <KpiTile
-              label="NPL ratio"
-              value={numberOf(values, "npl_ratio_pct")}
-              unit="%"
-              change={movement.npl_ratio_pct ?? null}
-              changeUnit="pp"
-              hint="vs prior period"
-              loading={briefing.loading}
-            />
-            <KpiTile
-              label="Stage 2 share"
-              value={numberOf(values, "stage2_pct")}
-              unit="%"
-              change={movement.stage2_pct ?? null}
-              changeUnit="pp"
-              hint="vs prior period"
-              loading={briefing.loading}
-            />
-            <KpiTile
-              label="Total ECL"
-              value={numberOf(values, "total_ecl")}
-              unit="USD mn"
-              change={movement.total_ecl ?? null}
-              changeUnit="USD mn"
-              hint="vs prior period"
-              loading={briefing.loading}
-            />
-          </div>
-        )}
       </section>
 
       {/* ------------------------------------------------------- recent work */}
@@ -374,13 +308,6 @@ function Cockpit() {
   );
 }
 
-function numberOf(
-  values: Record<string, unknown> | undefined,
-  key: string,
-): number | null {
-  const v = values?.[key];
-  return typeof v === "number" ? v : null;
-}
 
 /**
  * A section heading.
@@ -392,10 +319,13 @@ function numberOf(
 function SectionHeading({
   title,
   info,
+  meta,
   action,
 }: {
   title: string;
   info?: React.ReactNode;
+  /** A small fact about the section, e.g. the period it was run against. */
+  meta?: string;
   action?: React.ReactNode;
 }) {
   return (
@@ -405,6 +335,7 @@ function SectionHeading({
           {title}
         </h2>
         {info && <InfoPopover title={title}>{info}</InfoPopover>}
+        {meta && <span className="meta text-text-muted">{meta}</span>}
       </div>
       {action}
     </div>

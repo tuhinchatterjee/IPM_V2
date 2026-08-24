@@ -70,7 +70,7 @@ export function KpiTile({
       <p className="text-[11px] font-medium uppercase tracking-wider text-text-muted">{label}</p>
       <p
         className={cn(
-          "mt-2 flex items-baseline gap-1.5 font-semibold tracking-tight text-text-primary tabular",
+          "display-num mt-2 flex items-baseline gap-1.5 font-semibold text-text-primary tabular",
           emphasis ? "text-3xl" : "text-2xl",
         )}
       >
@@ -214,7 +214,7 @@ export function Stat({
       <p className="text-[11px] uppercase tracking-wider text-text-muted">{label}</p>
       <p
         className={cn(
-          "mt-0.5 text-base font-semibold tabular",
+          "display-num mt-0.5 text-base font-semibold tabular",
           tone === "positive" && "text-positive",
           tone === "negative" && "text-negative",
           !tone && "text-text-primary",

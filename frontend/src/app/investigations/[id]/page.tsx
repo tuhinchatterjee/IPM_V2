@@ -388,7 +388,7 @@ function UserTurn({ content }: { content: string }) {
   return (
     <div className="flex items-start gap-2.5">
       <Sparkles className="mt-1 size-3.5 shrink-0 text-accent" aria-hidden />
-      <p className="max-w-3xl text-[15px] font-medium leading-snug text-text-primary">
+      <p className="prose-user max-w-3xl text-[15px] text-text-primary">
         {content}
       </p>
     </div>
