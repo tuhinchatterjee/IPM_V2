@@ -16,13 +16,21 @@ import { DEMO_NOTICE, INVESTIGATIONS } from "@/lib/demo";
 /**
  * Investigations.
  *
- * Two lists, and the difference between them matters. The first is every
- * question actually asked of IPM, read back from the database with its Trace
- * intact — those are real work. The second is a set of seeded review templates,
- * which name real registered analyses but were written by hand.
+ * Three lists, and the differences between them matter.
+ *
+ * SAVED are analytical objects somebody keeps: named, owned, versioned, and
+ * refreshable against newly published data.
+ *
+ * ASKED is every question put to IPM, with its Trace intact. Real work, but
+ * nobody has decided to keep it yet.
+ *
+ * TEMPLATES are seeded review outlines. They name real registered analyses but
+ * were written by hand and have never been executed, which is why they are last
+ * and labelled.
  */
 export default function InvestigationsPage() {
   const router = useRouter();
+  const saved = useAsync(() => api.savedInvestigations(), []);
   const recent = useAsync(() => api.recentInvestigations(20), []);
 
   return (
@@ -40,6 +48,42 @@ export default function InvestigationsPage() {
           </Button>
         }
       />
+
+      {saved.data && saved.data.investigations.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            Saved
+          </h2>
+          <Card className="divide-y divide-border">
+            {saved.data.investigations.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => router.push(`/investigations/saved/${item.id}`)}
+                className="flex w-full items-start gap-3 px-5 py-3.5 text-left transition-colors hover:bg-surface-hover"
+              >
+                <Search className="mt-0.5 size-4 shrink-0 text-text-muted" aria-hidden />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-text-primary">
+                    {item.title}
+                  </span>
+                  <span className="mt-0.5 line-clamp-1 block text-xs text-text-muted">
+                    {item.answer || item.question}
+                  </span>
+                </span>
+                <span className="hidden shrink-0 items-center gap-3 text-[11px] text-text-muted sm:flex">
+                  {item.from_period && item.to_period && (
+                    <span>
+                      {item.from_period} to {item.to_period}
+                    </span>
+                  )}
+                  <Badge variant="outline">v{item.version}</Badge>
+                </span>
+              </button>
+            ))}
+          </Card>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
@@ -100,6 +144,9 @@ export default function InvestigationsPage() {
       <section>
         <h2 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
           Review templates
+          <span className="ml-2 font-normal normal-case tracking-normal text-text-muted/80">
+            — outlines, never executed
+          </span>
         </h2>
         <div className="grid gap-4 md:grid-cols-2">
           {INVESTIGATIONS.map((inv) => (
