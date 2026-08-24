@@ -11,6 +11,10 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import {
+  ControlPlanePanel,
+  MetadataAssistant,
+} from "@/components/data-builder/control-plane";
 import { PageHeader } from "@/components/layout/page-header";
 import { ReadOnlyNotice, useCanEditData } from "@/components/system/role-switcher";
 import { Badge } from "@/components/ui/badge";
@@ -154,6 +158,8 @@ export default function DataBuilderPage() {
 
       {!canEdit && <ReadOnlyNotice action="create, edit or publish datasets" />}
 
+      <ControlPlanePanel />
+
       {domains.error ? (
         <Card className="border-negative/40 p-4 text-sm text-negative">{domains.error}</Card>
       ) : (
@@ -281,6 +287,8 @@ export default function DataBuilderPage() {
           )}
         </>
       )}
+
+      <MetadataAssistant scope="data" />
 
       <Card className="p-5">
         <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-text-primary">
