@@ -4,8 +4,9 @@ import Link from "next/link";
 import * as React from "react";
 import {
   ArrowRight,
-  BadgeCheck,
+  BookmarkPlus,
   Check,
+  ChevronDown,
   CircleDashed,
   GitBranch,
   Loader2,
@@ -18,6 +19,10 @@ import { KpiTile } from "@/components/analytics/primitives";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  CertificationBadge,
+  CertifiedMark,
+} from "@/components/ui/certified-mark";
 import type {
   AnalysisRunResponse,
   ExecutedStep,
@@ -38,9 +43,10 @@ import { cn } from "@/lib/utils";
  * are not chain-of-thought, and there is none to show: the planner selects from
  * a fixed library and the figures come from tested code.
  *
- * It does not present the narrative as the answer. The executive summary sits
- * above the evidence, and every result block below it carries its own Trace
- * button, so a reader can go from a sentence to the exact rows behind it.
+ * It does not present a briefing. One analysis answers the question and leads
+ * the page; anything else that ran is supporting evidence, folded away until it
+ * is wanted. A reader gets the answer, the chart that fits it, IPM's reading of
+ * it, and a route to the Trace — in that order.
  */
 
 /* ------------------------------------------------------------------ stages */
@@ -61,9 +67,11 @@ export function InvestigationProgress({
   React.useEffect(() => {
     // Only timers here — no synchronous setState. The component is mounted fresh
     // for each question, so `reached` already starts at zero and needs no reset.
-    const timers = stages.slice(1).map((_, index) =>
-      setTimeout(() => setReached(index + 1), 550 * (index + 1)),
-    );
+    const timers = stages
+      .slice(1)
+      .map((_, index) =>
+        setTimeout(() => setReached(index + 1), 550 * (index + 1)),
+      );
     return () => timers.forEach(clearTimeout);
   }, [stages]);
 
@@ -85,9 +93,15 @@ export function InvestigationProgress({
               {done ? (
                 <Check className="size-4 shrink-0 text-positive" aria-hidden />
               ) : active ? (
-                <Loader2 className="size-4 shrink-0 animate-spin text-accent" aria-hidden />
+                <Loader2
+                  className="size-4 shrink-0 animate-spin text-accent"
+                  aria-hidden
+                />
               ) : (
-                <CircleDashed className="size-4 shrink-0 text-text-muted" aria-hidden />
+                <CircleDashed
+                  className="size-4 shrink-0 text-text-muted"
+                  aria-hidden
+                />
               )}
               <span
                 className={cn(
@@ -103,8 +117,8 @@ export function InvestigationProgress({
         })}
       </ol>
       <p className="mt-5 border-t border-border pt-3 text-xs text-text-muted">
-        Every figure in the answer is produced by a registered IPM Engine analysis running
-        against the published data.
+        Every figure in the answer is produced by a registered IPM Engine
+        analysis running against the published data.
       </p>
     </Card>
   );
@@ -124,8 +138,17 @@ function asRun(step: ExecutedStep, runId: number | null): AnalysisRunResponse {
     result: step.result,
     duration_ms: step.duration_ms,
     error: step.error,
-    trace: step.trace ?? { nodes: [], edges: [], layers: [], stats: {
-      node_count: 0, edge_count: 0, governed_nodes: 0, interpretive_nodes: 0 } },
+    trace: step.trace ?? {
+      nodes: [],
+      edges: [],
+      layers: [],
+      stats: {
+        node_count: 0,
+        edge_count: 0,
+        governed_nodes: 0,
+        interpretive_nodes: 0,
+      },
+    },
     node_hashes: step.node_hashes,
     analysis_run_id: runId,
   };
@@ -142,33 +165,68 @@ export function InvestigationView({
   investigation,
   onAsk,
   onReset,
+  onSave,
+  saved,
+  savedHref,
 }: {
   investigation: InvestigationResponse;
   onAsk: (question: string) => void;
   onReset: () => void;
+  onSave?: () => void;
+  saved?: boolean;
+  savedHref?: string;
 }) {
   const runId = investigation.analysis_run_id;
   const { narrative } = investigation;
   const traceHref = runId ? `/trace/${runId}` : null;
 
+  // One step answers the question. The planner marked it, and the layout
+  // follows that marking rather than the order things happened to run in.
+  const primary =
+    investigation.steps.find((s) => s.role === "primary") ??
+    investigation.steps[0] ??
+    null;
+  const supporting = investigation.steps.filter((s) => s !== primary);
+  const answer = narrative.direct_answer || narrative.summary;
+  const reading = narrative.interpretation_points ?? [];
+  const certified = investigation.steps.every(
+    (s) => s.certification === "certified",
+  );
+
   return (
-    <div className="space-y-7">
+    <div className="space-y-8">
       {/* ------------------------------------------------------------ header */}
-      <header className="border-b border-border pb-5">
+      <header>
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-text-muted">
-              Investigation
-            </p>
-            <h1 className="mt-2 max-w-3xl text-2xl font-semibold leading-tight tracking-tight text-text-primary">
+            <h1 className="max-w-3xl text-[22px] font-semibold leading-tight tracking-tight text-text-primary">
               {investigation.question}
             </h1>
-            <p className="mt-2 max-w-3xl text-sm text-text-secondary">{investigation.intent}</p>
+            <p className="mt-1.5 max-w-3xl text-sm text-text-muted">
+              {investigation.intent}
+            </p>
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            {onSave &&
+              (saved && savedHref ? (
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href={savedHref} title="Open the saved investigation">
+                    <BookmarkPlus aria-hidden />
+                    Saved
+                  </Link>
+                </Button>
+              ) : (
+                <Button variant="ghost" size="sm" onClick={onSave} disabled={saved}>
+                  <BookmarkPlus aria-hidden />
+                  Save
+                </Button>
+              ))}
             {traceHref && (
               <Button variant="outline" size="sm" asChild>
-                <Link href={traceHref} title="See exactly how this answer was produced">
+                <Link
+                  href={traceHref}
+                  title="See exactly how this answer was produced"
+                >
                   <GitBranch aria-hidden />
                   Trace
                 </Link>
@@ -180,23 +238,34 @@ export function InvestigationView({
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-muted">
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-text-muted">
+          {certified && (
+            <span className="flex items-center gap-1.5 text-info">
+              <CertifiedMark />
+              Certified analysis
+            </span>
+          )}
+          {investigation.plan.scope?.from_period &&
+            investigation.plan.scope?.to_period && (
+              <span>
+                {investigation.plan.scope.from_period} to{" "}
+                {investigation.plan.scope.to_period}
+              </span>
+            )}
           <span>
             {investigation.steps.length}{" "}
             {investigation.steps.length === 1 ? "analysis" : "analyses"} ·{" "}
-            {investigation.trace.stats.node_count} recorded steps
-          </span>
-          <span>{investigation.duration_ms}ms</span>
-          <span className="flex items-center gap-1">
-            <BadgeCheck className="size-3.5 text-info" aria-hidden />
-            {investigation.steps.filter((s) => s.certification === "certified").length} certified
+            {investigation.trace.stats.node_count} recorded steps ·{" "}
+            {investigation.duration_ms}ms
           </span>
         </div>
       </header>
 
       {investigation.rejected.length > 0 && (
         <Card className="border-negative/40 p-5">
-          <p className="text-sm font-medium text-negative">IPM refused to run this plan</p>
+          <p className="text-sm font-medium text-negative">
+            IPM refused to run this plan
+          </p>
           <ul className="mt-2 space-y-1">
             {investigation.rejected.map((reason) => (
               <li key={reason} className="text-xs text-negative">
@@ -209,46 +278,69 @@ export function InvestigationView({
 
       {investigation.unmatched && investigation.notes.length > 0 && (
         <Card className="flex items-start gap-2.5 border-warning/30 bg-warning-muted p-4">
-          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
-          <p className="text-xs leading-relaxed text-warning">{investigation.notes[0]}</p>
+          <TriangleAlert
+            className="mt-0.5 size-4 shrink-0 text-warning"
+            aria-hidden
+          />
+          <p className="text-xs leading-relaxed text-warning">
+            {investigation.notes[0]}
+          </p>
         </Card>
       )}
 
-      {/* -------------------------------------------------- executive summary */}
-      {narrative.summary && (
-        <section>
-          <SectionLabel>Executive summary</SectionLabel>
-          <p className="max-w-3xl text-[17px] leading-relaxed text-text-primary">
-            {narrative.summary}
+      {/* ------------------------------------------------------- the answer */}
+      {answer && (
+        <p className="max-w-3xl text-[19px] font-medium leading-relaxed tracking-tight text-text-primary">
+          {answer}
+        </p>
+      )}
+
+      {/* --------------------------------------------------- headline figures */}
+      {narrative.metrics.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {narrative.metrics.map((metric) => (
+            <KpiTile
+              key={metric.label}
+              label={metric.label}
+              value={metric.value}
+              unit={metric.unit}
+              change={metric.change}
+              changeUnit={metric.change_unit}
+              direction={metric.direction}
+              hint={metric.hint}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ------------------------------------------------------ primary visual */}
+      {primary && <StepResult step={primary} runId={runId} />}
+
+      {/* --------------------------------------------------- IPM's reading */}
+      {reading.length > 0 && (
+        <section className="max-w-3xl border-l-2 border-accent/40 pl-4">
+          <SectionLabel>IPM&rsquo;s reading</SectionLabel>
+          <ul className="space-y-2">
+            {reading.map((point) => (
+              <li
+                key={point}
+                className="text-sm leading-relaxed text-text-secondary"
+              >
+                {point}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-[11px] leading-relaxed text-text-muted">
+            Interpretation, not calculation. Every figure above it came from a
+            registered analysis; the reading describes what those figures show
+            and does not claim a cause the engine did not establish.
           </p>
         </section>
       )}
 
-      {/* ---------------------------------------------------- headline metrics */}
-      {narrative.metrics.length > 0 && (
-        <section>
-          <SectionLabel>Headline metrics</SectionLabel>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {narrative.metrics.map((metric) => (
-              <KpiTile
-                key={metric.label}
-                label={metric.label}
-                value={metric.value}
-                unit={metric.unit}
-                change={metric.change}
-                changeUnit={metric.change_unit}
-                direction={metric.direction}
-                hint={metric.hint}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ---------------------------------------------------------- findings */}
-      {narrative.findings.length > 0 && (
-        <section>
-          <SectionLabel>Key findings</SectionLabel>
+      {/* --------------------------------------------------------- findings */}
+      {narrative.findings.length > 1 && (
+        <Disclosure summary={`Findings in full (${narrative.findings.length})`}>
           <ul className="space-y-2.5">
             {narrative.findings.map((finding, i) => (
               <li
@@ -258,7 +350,9 @@ export function InvestigationView({
                   TONE_CLASS[finding.tone] ?? TONE_CLASS.neutral,
                 )}
               >
-                <p className="text-sm leading-relaxed text-text-primary">{finding.text}</p>
+                <p className="text-sm leading-relaxed text-text-primary">
+                  {finding.text}
+                </p>
                 {finding.evidence.length > 0 && (
                   <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-text-muted">
                     {finding.evidence.map((e) => (
@@ -271,16 +365,18 @@ export function InvestigationView({
               </li>
             ))}
           </ul>
-        </section>
+        </Disclosure>
       )}
 
       {/* ----------------------------------------------------------- drivers */}
       {narrative.drivers.length > 0 && (
-        <section>
-          <SectionLabel>What is driving it</SectionLabel>
+        <Disclosure summary={`${narrative.drivers[0]?.measure} by contributor`}>
           <Card className="divide-y divide-border">
             {narrative.drivers.map((driver) => (
-              <div key={driver.name} className="flex items-baseline gap-3 px-4 py-2.5">
+              <div
+                key={driver.name}
+                className="flex items-baseline gap-3 px-4 py-2.5"
+              >
                 <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
                   {driver.name}
                 </span>
@@ -300,43 +396,47 @@ export function InvestigationView({
               </div>
             ))}
             <p className="px-4 py-2 text-[11px] text-text-muted">
-              {narrative.drivers[0]?.measure} — ranked by the engine, not re-ordered here.
+              Ranked by the engine, not re-ordered here.
             </p>
           </Card>
-        </section>
+        </Disclosure>
       )}
 
-      {/* ------------------------------------------------------------ results */}
-      <section>
-        <SectionLabel>Evidence</SectionLabel>
-        <div className="space-y-4">
-          {investigation.steps.map((step) => (
-            <StepResult key={step.index} step={step} runId={runId} />
-          ))}
-        </div>
-      </section>
+      {/* ------------------------------------------------- supporting evidence */}
+      {supporting.length > 0 && (
+        <Disclosure
+          summary={`Supporting analysis (${supporting.length})`}
+          hint="Run to help explain the answer, not to answer the question."
+        >
+          <div className="space-y-4">
+            {supporting.map((step) => (
+              <StepResult key={step.index} step={step} runId={runId} />
+            ))}
+          </div>
+        </Disclosure>
+      )}
 
       {/* ------------------------------------------------------------ caveats */}
       {narrative.caveats.length > 0 && (
-        <section>
-          <SectionLabel>Caveats</SectionLabel>
-          <ul className="space-y-1">
-            {narrative.caveats.map((caveat) => (
-              <li key={caveat} className="flex gap-2 text-xs text-text-muted">
-                <TriangleAlert className="mt-0.5 size-3 shrink-0 text-warning" aria-hidden />
-                {caveat}
-              </li>
-            ))}
-          </ul>
-        </section>
+        <ul className="space-y-1">
+          {narrative.caveats.map((caveat) => (
+            <li key={caveat} className="flex gap-2 text-xs text-text-muted">
+              <TriangleAlert
+                className="mt-0.5 size-3 shrink-0 text-warning"
+                aria-hidden
+              />
+              {caveat}
+            </li>
+          ))}
+        </ul>
       )}
 
       {/* --------------------------------------------------------- follow-ups */}
       {investigation.follow_ups.length > 0 && (
         <section>
-          <SectionLabel>Recommended next questions</SectionLabel>
+          <SectionLabel>Ask next</SectionLabel>
           <div className="grid gap-2 md:grid-cols-3">
-            {investigation.follow_ups.map((question) => (
+            {investigation.follow_ups.slice(0, 3).map((question) => (
               <button
                 key={question}
                 type="button"
@@ -363,6 +463,39 @@ export function InvestigationView({
   );
 }
 
+/**
+ * Something the reader can open, but does not have to.
+ *
+ * The answer is above; this is what is underneath it. Using the native
+ * `<details>` element keeps it keyboard-accessible and printable without any
+ * state of its own.
+ */
+function Disclosure({
+  summary,
+  hint,
+  children,
+}: {
+  summary: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="group">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-text-muted transition-colors hover:text-text-primary">
+        <ChevronDown
+          className="size-3.5 transition-transform group-open:rotate-180"
+          aria-hidden
+        />
+        {summary}
+        {hint && (
+          <span className="font-normal text-text-muted/70">— {hint}</span>
+        )}
+      </summary>
+      <div className="mt-3.5">{children}</div>
+    </details>
+  );
+}
+
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <h2 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
@@ -371,7 +504,13 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function StepResult({ step, runId }: { step: ExecutedStep; runId: number | null }) {
+function StepResult({
+  step,
+  runId,
+}: {
+  step: ExecutedStep;
+  runId: number | null;
+}) {
   const run = React.useMemo(() => asRun(step, runId), [step, runId]);
 
   return (
@@ -382,18 +521,12 @@ function StepResult({ step, runId }: { step: ExecutedStep; runId: number | null 
             <h3 className="text-sm font-semibold tracking-tight text-text-primary">
               {step.title || step.analysis_id}
             </h3>
-            {step.certification === "certified" ? (
-              <span
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-info"
-                title="IPM Certified — validated and tested by the bank"
-              >
-                <BadgeCheck className="size-3.5" aria-hidden />
-              </span>
-            ) : (
-              <Badge variant="warning">User defined</Badge>
-            )}
+            <CertificationBadge certification={step.certification} />
             {step.reused && (
-              <Badge variant="outline" title="Nothing about this step changed, so it was not re-run">
+              <Badge
+                variant="outline"
+                title="Nothing about this step changed, so it was not re-run"
+              >
                 Reused
               </Badge>
             )}
@@ -406,13 +539,19 @@ function StepResult({ step, runId }: { step: ExecutedStep; runId: number | null 
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           <Button variant="ghost" size="sm" asChild>
-            <Link href={`/engine-builder/${step.analysis_id}`} title="Open the analysis definition">
+            <Link
+              href={`/engine-builder/${step.analysis_id}`}
+              title="Open the analysis definition"
+            >
               Method
             </Link>
           </Button>
           {runId ? (
             <Button variant="ghost" size="sm" asChild>
-              <Link href={`/trace/${runId}`} title="See exactly how this result was produced">
+              <Link
+                href={`/trace/${runId}`}
+                title="See exactly how this result was produced"
+              >
                 <GitBranch aria-hidden />
                 Trace
               </Link>
@@ -430,14 +569,19 @@ function StepResult({ step, runId }: { step: ExecutedStep; runId: number | null 
         {step.status === "succeeded" && step.result ? (
           <ResultView run={run} />
         ) : (
-          <p className="text-sm text-negative">{step.error ?? "This analysis returned nothing."}</p>
+          <p className="text-sm text-negative">
+            {step.error ?? "This analysis returned nothing."}
+          </p>
         )}
       </div>
 
       {(step.result?.warnings.length ?? 0) > 0 && (
         <div className="border-t border-border bg-surface-sunken px-5 py-2.5">
           {step.result?.warnings.map((warning) => (
-            <p key={warning} className="flex items-start gap-1.5 text-xs text-warning">
+            <p
+              key={warning}
+              className="flex items-start gap-1.5 text-xs text-warning"
+            >
               <TriangleAlert className="mt-0.5 size-3 shrink-0" aria-hidden />
               {warning}
             </p>
