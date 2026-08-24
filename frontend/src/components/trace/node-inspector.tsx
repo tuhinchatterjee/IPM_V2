@@ -24,7 +24,19 @@ import { presentationFor } from "./node-presentation";
  * at.
  */
 
-const HIDDEN_CONFIG_KEYS = new Set(["_step", "_step_title"]);
+const HIDDEN_CONFIG_KEYS = new Set([
+  "_step",
+  "_step_title",
+  // Rendered by the dedicated blocks below rather than in the generic dump.
+  "stage",
+  "stage_label",
+  "direct_answer",
+  "interpretation",
+  "interpretation_points",
+  "summary",
+  "rule",
+  "variables",
+]);
 
 export function NodeInspector({
   node,
@@ -56,7 +68,22 @@ export function NodeInspector({
   const children = graph.edges.filter((e) => e.source === node.id).map((e) => e.target);
   const labelOf = (id: string) => graph.nodes.find((n) => n.id === id)?.label ?? id;
 
+  // The execution stamps each governed field with its business name, unit and
+  // definition. Older traces carry only a definitions map, so both are read.
+  const variables = (node.config?.variables ?? []) as {
+    field: string;
+    business_name?: string;
+    unit?: string;
+    data_type?: string;
+    definition?: string;
+  }[];
   const definitions = (node.config?.definitions ?? null) as Record<string, string> | null;
+  const stage = (node.config?.stage ?? "") as string;
+  const stageLabel = (node.config?.stage_label ?? "") as string;
+  const directAnswer = (node.config?.direct_answer ?? "") as string;
+  const points = (node.config?.interpretation_points ?? []) as string[];
+  const rule = (node.config?.rule ?? "") as string;
+  const isDemo = node.config?.is_demo === true;
   const config = Object.fromEntries(
     Object.entries(node.config ?? {}).filter(
       ([k]) => !HIDDEN_CONFIG_KEYS.has(k) && k !== "definitions",
@@ -98,6 +125,46 @@ export function NodeInspector({
       </div>
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
+        {isDemo && (
+          <p className="rounded-md border border-warning/30 bg-warning-muted px-3 py-2 text-xs leading-relaxed text-warning">
+            This is IPM&rsquo;s demonstration data. It is not your bank&rsquo;s book.
+            Onboard client data in Data Builder to replace it.
+          </p>
+        )}
+
+        {stage && (
+          <div className="space-y-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.11em] text-text-muted">
+              {stageLabel || "Interpretation"}
+            </p>
+            {directAnswer && (
+              <div>
+                <Badge variant="accent">Calculated</Badge>
+                <p className="mt-1.5 text-xs leading-relaxed text-text-primary">
+                  {directAnswer}
+                </p>
+              </div>
+            )}
+            {points.length > 0 && (
+              <div>
+                <Badge variant="outline">IPM&rsquo;s reading</Badge>
+                <ul className="mt-1.5 space-y-1.5">
+                  {points.map((point) => (
+                    <li key={point} className="text-xs leading-relaxed text-text-secondary">
+                      {point}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {rule && (
+              <p className="border-l-2 border-border pl-3 text-[11px] leading-relaxed text-text-muted">
+                {rule}
+              </p>
+            )}
+          </div>
+        )}
+
         <dl className="divide-y divide-border">
           <Row label="Status" value={node.status} />
           {node.dataset && <Row label="Dataset" value={node.dataset} mono />}
@@ -112,7 +179,28 @@ export function NodeInspector({
           {node.content_hash && <Row label="Content hash" value={node.content_hash} mono />}
         </dl>
 
-        {node.fields_used.length > 0 && (
+        {variables.length > 0 ? (
+          <Section title={`Governed variables (${variables.length})`}>
+            <ul className="space-y-2">
+              {variables.map((variable) => (
+                <li key={variable.field} className="text-xs leading-relaxed">
+                  <span className="text-text-primary">
+                    {variable.business_name || variable.field}
+                  </span>
+                  {variable.unit ? (
+                    <span className="ml-1.5 text-text-muted">({variable.unit})</span>
+                  ) : null}
+                  <code className="ml-1.5 rounded bg-surface-sunken px-1.5 py-0.5 font-mono text-[10px] text-text-secondary">
+                    {variable.field}
+                  </code>
+                  {variable.definition ? (
+                    <p className="mt-0.5 text-text-muted">{variable.definition}</p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </Section>
+        ) : node.fields_used.length > 0 ? (
           <Section title={`Governed variables (${node.fields_used.length})`}>
             <ul className="space-y-1.5">
               {node.fields_used.map((field) => (
@@ -127,7 +215,7 @@ export function NodeInspector({
               ))}
             </ul>
           </Section>
-        )}
+        ) : null}
 
         {Object.keys(config).length > 0 && (
           <Section title="What this step was configured to do">
