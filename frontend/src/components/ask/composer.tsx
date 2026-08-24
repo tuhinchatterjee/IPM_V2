@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { CornerDownLeft, Loader2, ShieldCheck } from "lucide-react";
+import { CornerDownLeft, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { InfoPopover } from "@/components/ui/info-popover";
 import { cn } from "@/lib/utils";
 
 /**
@@ -13,6 +14,10 @@ import { cn } from "@/lib/utils";
  * that the conversation is the product and the dashboard is what you see while
  * you decide what to ask — a composer tucked into a sidebar would contradict
  * that on first sight.
+ *
+ * Restraint is the design here. A handful of suggestions, not a menu; and the
+ * statement of what IPM will and will not do sits behind an "i" rather than
+ * under the box, because it is a thing you read once.
  */
 export function Composer({
   value,
@@ -22,6 +27,7 @@ export function Composer({
   suggestions,
   autoFocus,
   modeNote,
+  readOnlyNote,
   placeholder = "What deteriorated this period?",
 }: {
   value: string;
@@ -31,6 +37,8 @@ export function Composer({
   suggestions: { question: string; note: string }[];
   autoFocus?: boolean;
   modeNote?: string;
+  /** Set when the acting role may not run an analysis. */
+  readOnlyNote?: string;
   placeholder?: string;
 }) {
   const ref = React.useRef<HTMLTextAreaElement>(null);
@@ -60,7 +68,7 @@ export function Composer({
             }}
             rows={3}
             disabled={busy}
-            placeholder={placeholder}
+            placeholder={readOnlyNote ?? placeholder}
             aria-label="Ask IPM a question about the portfolio"
             className="w-full resize-none bg-transparent px-5 py-4 pr-32 text-base leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none disabled:opacity-60"
           />
@@ -79,7 +87,7 @@ export function Composer({
 
         {suggestions.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 border-t border-border bg-surface-sunken px-4 py-3">
-            {suggestions.map((s) => (
+            {suggestions.slice(0, 4).map((s) => (
               <button
                 key={s.question}
                 type="button"
@@ -98,14 +106,22 @@ export function Composer({
         )}
       </div>
 
-      <p className="mt-2.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-text-muted">
-        <ShieldCheck className="mt-0.5 size-3 shrink-0" aria-hidden />
-        <span>
-          IPM chooses which certified analyses to run and writes the findings. It never
-          calculates a figure itself, never writes a query, and never invents a number.
-          {modeNote ? ` ${modeNote}` : ""}
+      <div className="mt-2.5 flex items-center gap-2">
+        <InfoPopover title="How IPM answers">
+          <p>
+            IPM chooses which certified analyses to run and writes the findings. It never
+            calculates a figure itself, never writes a query, and never invents a number.
+          </p>
+          <p>
+            Every answer carries a Trace showing the data, the filters, the engine function
+            and its version — so any figure can be followed back to the rows behind it.
+          </p>
+          {modeNote && <p className="text-text-muted">{modeNote}</p>}
+        </InfoPopover>
+        <span className="text-[11px] text-text-muted">
+          {readOnlyNote ?? "Every answer carries a Trace."}
         </span>
-      </p>
+      </div>
     </div>
   );
 }
