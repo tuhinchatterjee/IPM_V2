@@ -254,7 +254,12 @@ class AnalysisRun(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
-    chat_id: Mapped[int | None] = mapped_column(ForeignKey("chats.id", ondelete="SET NULL"), nullable=True)
+    #: The conversation this run was produced in. Points at `investigations`,
+    #: which is where conversations live — it used to point at the old `chats`
+    #: table, and every threaded answer failed its foreign key on the way to
+    #: being stored, which left the Trace button dead on every answer.
+    investigation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("investigations.id", ondelete="SET NULL"), nullable=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
     question: Mapped[str] = mapped_column(Text, nullable=False, default="")

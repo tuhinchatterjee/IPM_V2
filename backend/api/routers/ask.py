@@ -44,7 +44,7 @@ MAX_QUESTION_CHARS = 500
 class AskIn(BaseModel):
     question: str = Field(min_length=1, max_length=MAX_QUESTION_CHARS)
     project_id: int | None = None
-    chat_id: int | None = None
+    investigation_id: int | None = None
     persist: bool = True
     # Set when the user has answered a period clarification. Two real reporting
     # period labels; anything else is rejected by the analysis contract rather
@@ -172,7 +172,7 @@ def ask(payload: AskIn, principal: Principal = RequireAnalyst) -> dict:
             payload.question,
             user_id=principal.user_id,
             project_id=payload.project_id,
-            chat_id=payload.chat_id,
+            investigation_id=payload.investigation_id,
             persist=payload.persist,
             period=period,
         )

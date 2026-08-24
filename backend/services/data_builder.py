@@ -1261,7 +1261,7 @@ def browse_dataset(name: str, *, period: str | None = None, offset: int = 0,
     effective = period or (periods[-1] if periods else None)
 
     known = set(spec.fields)
-    chosen = [f for f in (fields or []) if f in known] or sorted(known)
+    chosen = [f for f in (fields or []) if f in known] or _default_columns(spec)
     if sort and sort not in known:
         raise ValueError(
             f"'{sort}' is not a field of {name}. Sorting is offered only on the "
@@ -1308,18 +1308,20 @@ def browse_dataset(name: str, *, period: str | None = None, offset: int = 0,
         "offset": offset,
         "limit": limit,
         "returned": int(len(page)),
+        # In `chosen` order, not alphabetical: this list IS the column order the
+        # grid renders, and the first columns are the ones it keeps on screen
+        # while you scroll sideways.
         "fields": [
             {
-                "name": name,
-                "business_name": definition.business_name,
-                "definition": definition.definition,
-                "data_type": definition.data_type,
-                "unit": definition.unit,
-                "sensitivity": definition.sensitivity,
-                "nullable": definition.nullable,
+                "name": field_name,
+                "business_name": spec.fields[field_name].business_name,
+                "definition": spec.fields[field_name].definition,
+                "data_type": spec.fields[field_name].data_type,
+                "unit": spec.fields[field_name].unit,
+                "sensitivity": spec.fields[field_name].sensitivity,
+                "nullable": spec.fields[field_name].nullable,
             }
-            for name, definition in sorted(spec.fields.items())
-            if name in chosen
+            for field_name in chosen
         ],
         #: Every governed field, so the grid can offer columns it is not
         #: currently showing without a second request.
@@ -1508,6 +1510,36 @@ def export_rows(name: str, *, period: str | None = None,
         "is_synthetic": page["is_synthetic"],
         "origin": page["origin"],
     }
+
+
+#: Columns that identify a row rather than describe it. Shown first whatever
+#: the dataset, because a grid whose first columns are "AI Risk Score" and
+#: "Appetite Breach" makes the reader hunt for which facility they are looking
+#: at — and those are the columns the grid keeps on screen while you scroll.
+_IDENTIFYING = ("account_id", "customer_id", "memo_id", "borrower_name")
+
+#: Not promoted, even when they are primary keys. Every row on a page carries
+#: the same period — the toolbar already says which — so spending the first and
+#: most visible column on a constant is a waste of the one place the reader
+#: looks first.
+_CONSTANT_PER_PAGE = ("period", "period_end_date")
+
+
+def _default_columns(spec) -> list[str]:
+    """Every governed field, with the ones that identify a row first.
+
+    Alphabetical order is not an order — it is the absence of one, and it puts
+    "AI Risk Score" before "Borrower". The declared primary keys and the names
+    a person reads a row by come first, in that order; everything else follows
+    alphabetically, which at least makes a column findable.
+    """
+    known = set(spec.fields)
+    skip = {*_CONSTANT_PER_PAGE, spec.period_field}
+    leading: list[str] = []
+    for name in (*spec.primary_keys, *_IDENTIFYING):
+        if name in known and name not in leading and name not in skip:
+            leading.append(name)
+    return leading + sorted(known - set(leading))
 
 
 def _is_null(value: Any) -> bool:

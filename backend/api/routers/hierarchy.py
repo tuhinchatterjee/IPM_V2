@@ -272,7 +272,7 @@ def start_thread(payload: ThreadIn, principal: Principal = RequireAnalyst) -> di
     )
     result = run_investigation(
         payload.question, user_id=principal.user_id, project_id=payload.project_id,
-        chat_id=thread.id, persist=True, period=window,
+        investigation_id=thread.id, persist=True, period=window,
     )
     if result.status == "needs_clarification":
         run = result.to_dict()

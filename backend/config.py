@@ -118,8 +118,16 @@ def _load() -> Settings:
         in ("1", "true", "yes", "on"),
         api_host=_get("API_HOST", "127.0.0.1"),
         api_port=_int("API_PORT", 8000),
+        # Both spellings of the same machine. Somebody running the backend
+        # directly and typing 127.0.0.1 into the browser is doing nothing
+        # unusual, and a blocked preflight there looks like a broken product
+        # rather than a CORS default. In Docker neither is used: the browser
+        # calls the page's own origin and Next forwards it.
         cors_origins=tuple(
-            o.strip() for o in _get("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()
+            o.strip() for o in _get(
+                "CORS_ORIGINS",
+                "http://localhost:3000,http://127.0.0.1:3000",
+            ).split(",") if o.strip()
         ),
         raw_dir=_resolve_dir(_get("DATA_RAW_DIR", "data/raw")),
         curated_dir=_resolve_dir(_get("DATA_CURATED_DIR", "data/curated")),

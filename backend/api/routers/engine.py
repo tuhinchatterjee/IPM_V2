@@ -62,7 +62,7 @@ class ExecuteIn(BaseModel):
     persist: bool = Field(default=True,
                           description="Store the run and its Trace so it can be reopened.")
     project_id: int | None = None
-    chat_id: int | None = None
+    investigation_id: int | None = None
 
 
 # ------------------------------------------------------------------- library
@@ -155,7 +155,8 @@ def execute(analysis_id: str, payload: ExecuteIn,
     analysis_run_id = None
     if payload.persist:
         analysis_run_id = persist_run(run, project_id=payload.project_id,
-                                      chat_id=payload.chat_id, user_id=principal.user_id)
+                                      investigation_id=payload.investigation_id,
+                                      user_id=principal.user_id)
 
     body = run.to_dict()
     body["analysis_run_id"] = analysis_run_id

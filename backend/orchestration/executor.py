@@ -473,7 +473,8 @@ def assemble(plan: AnalysisPlan, steps: list[ExecutedStep], *,
 
 
 def run_investigation(question: str, *, user_id: int | None = None,
-                      project_id: int | None = None, chat_id: int | None = None,
+                      project_id: int | None = None,
+                      investigation_id: int | None = None,
                       persist: bool = True,
                       period: tuple[str, str] | None = None) -> Investigation:
     """Answer one question end to end — or ask the one thing CreditProbe needs to know.
@@ -539,7 +540,7 @@ def run_investigation(question: str, *, user_id: int | None = None,
                              duration_ms=int((time.perf_counter() - started) * 1000))
     if persist:
         persist_investigation(investigation, user_id=user_id, project_id=project_id,
-                              chat_id=chat_id)
+                              investigation_id=investigation_id)
     return investigation
 
 
@@ -547,7 +548,8 @@ def run_investigation(question: str, *, user_id: int | None = None,
 
 
 def persist_investigation(investigation: Investigation, *, user_id: int | None = None,
-                          project_id: int | None = None, chat_id: int | None = None) -> int | None:
+                          project_id: int | None = None,
+                          investigation_id: int | None = None) -> int | None:
     """Store the investigation and version 1 of its trace.
 
     Best-effort: a database problem must not lose an answer the user is already
@@ -565,7 +567,7 @@ def persist_investigation(investigation: Investigation, *, user_id: int | None =
         with get_session() as session:
             record = AnalysisRun(
                 project_id=project_id,
-                chat_id=chat_id,
+                investigation_id=investigation_id,
                 user_id=user_id,
                 question=investigation.question,
                 intent={"intent": investigation.plan.intent,

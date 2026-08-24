@@ -474,13 +474,27 @@ export interface PlanDef {
 }
 
 /** One option on a clarification, already resolved to real reporting periods. */
-export interface PeriodOption {
+/**
+ * One thing CreditProbe offers when it asks back.
+ *
+ * A period clarification carries two periods to compare; an intent or entity
+ * clarification carries a question to ask instead. Both shapes travel in the
+ * same field, so which of them is populated depends on the clarification's
+ * `kind` — and the card that renders them branches on exactly that.
+ */
+export interface ClarificationOption {
   id: string;
   label: string;
-  from_period: string;
-  to_period: string;
-  detail: string;
+  detail?: string;
+  /** Set on a period clarification. */
+  from_period?: string;
+  to_period?: string;
+  /** Set on an intent or entity clarification: ask this instead. */
+  question?: string;
 }
+
+/** @deprecated The older name, kept for callers written before intent options. */
+export type PeriodOption = ClarificationOption;
 
 /**
  * A question CreditProbe asks back instead of guessing.
@@ -489,10 +503,11 @@ export interface PeriodOption {
  * did not say which periods to compare.
  */
 export interface Clarification {
+  /** "period" | "intent" | "entity" | "dataset". */
   kind: string;
   question: string;
   detail: string;
-  options: PeriodOption[];
+  options: ClarificationOption[];
   because: string;
   allow_custom: boolean;
 }

@@ -369,7 +369,7 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
     window = period or settled_period(context)
     result = run_investigation(
         question, user_id=user_id, project_id=project_id,
-        chat_id=thread_id, persist=True, period=window,
+        investigation_id=thread_id, persist=True, period=window,
     )
 
     if result.status == "needs_clarification":

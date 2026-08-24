@@ -251,7 +251,7 @@ def _record_failure(graph: TraceGraph, parent: str, message: str) -> None:
 
 
 def persist_run(run: AnalysisRunResult, *, project_id: int | None = None,
-                chat_id: int | None = None, user_id: int | None = None,
+                investigation_id: int | None = None, user_id: int | None = None,
                 question: str = "") -> int | None:
     """Store the run and its Trace, returning the analysis run id.
 
@@ -316,7 +316,7 @@ def persist_run(run: AnalysisRunResult, *, project_id: int | None = None,
         with get_session() as session:
             record = AnalysisRun(
                 project_id=project_id,
-                chat_id=chat_id,
+                investigation_id=investigation_id,
                 user_id=user_id,
                 question=question,
                 intent={"analysis_id": run.analysis_id, "source": "direct"},

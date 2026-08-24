@@ -84,9 +84,19 @@ function Thread({ threadId }: { threadId: number }) {
   const projectId = thread?.project_id ?? null;
 
   const endRef = React.useRef<HTMLDivElement>(null);
+  // Scroll to the newest turn when one ARRIVES — not when the conversation is
+  // opened. Opening a thread scrolled to the bottom means the first thing a
+  // reader sees is the middle of the last interpretation, with the question
+  // that was asked and the sentence answering it both off screen above. The
+  // ref starts unset, so the first render is left where the browser put it.
+  const lastSeen = React.useRef<number | null>(null);
   React.useEffect(() => {
+    const count = thread?.message_count ?? null;
+    const previous = lastSeen.current;
+    lastSeen.current = count;
+    if (previous === null || count === null || count <= previous) return;
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [thread?.message_count, asking]);
+  }, [thread?.message_count]);
 
   const ask = React.useCallback(
     async (question: string, period?: { from: string; to: string }) => {
@@ -355,6 +365,7 @@ function Exchange({
         clarification={run.clarification}
         mode={mode}
         onAnswer={onAnswerClarification}
+        onAsk={onAsk}
         busy={busy}
       />
     );

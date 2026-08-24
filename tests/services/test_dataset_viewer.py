@@ -100,6 +100,30 @@ def test_paging_walks_the_dataset_without_repeating():
     assert [r["account_id"] for r in one["rows"]] != [r["account_id"] for r in two["rows"]]
 
 
+def test_columns_lead_with_the_ones_that_identify_a_row(first_page):
+    """Alphabetical is not an order — it puts "AI Risk Score" before "Borrower".
+
+    These are also the columns the grid keeps on screen while you scroll
+    sideways, so getting them wrong costs the reader the ability to tell which
+    facility a row is.
+    """
+    names = [f["name"] for f in first_page["fields"]]
+    assert names[:3] == ["account_id", "customer_id", "borrower_name"]
+
+
+def test_a_column_constant_across_the_page_is_not_promoted(first_page):
+    """Every row carries the same period; the toolbar already says which."""
+    names = [f["name"] for f in first_page["fields"]]
+    assert names[0] != "period"
+
+
+def test_an_explicit_column_list_is_honoured_in_the_callers_order():
+    page = db.browse_dataset(
+        DATASET, limit=1, fields=["ead", "borrower_name", "ifrs9_stage"])
+    assert [f["name"] for f in page["fields"]] == [
+        "ead", "borrower_name", "ifrs9_stage"]
+
+
 def test_only_governed_fields_are_returned():
     page = db.browse_dataset(DATASET, fields=["ead", "not_a_field"], limit=1)
     assert [f["name"] for f in page["fields"]] == ["ead"]
