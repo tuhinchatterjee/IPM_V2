@@ -23,6 +23,9 @@ import pandas as pd
 
 FACILITY = "portfolio_facility"
 BORROWER = "borrower_financials"
+STAGING = "ifrs9_staging"
+RATINGS = "customer_ratings"
+MACRO = "macro_saudi"
 
 # DPD buckets, in the order a credit committee reads them.
 DPD_BUCKETS = ["Current", "1-29", "30-59", "60-89", "90-179", "180+"]

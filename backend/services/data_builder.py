@@ -921,6 +921,14 @@ def dataset_catalog_entry(session: Session, dataset: DatasetDefinition) -> dict[
         "status": dataset.lifecycle,
         "version": str(dataset.published_version or 1),
         "is_synthetic": dataset.is_synthetic,
+        # Governance metadata, carried through explicitly. A database entry
+        # overrides the bundled catalogue entry of the same name, so anything
+        # omitted here is not merely missing — it is ERASED. Leaving
+        # authoritative_for out meant a published dataset silently stopped
+        # serving the purpose it was published for.
+        "origin": dataset.origin,
+        "dataset_family": dataset.dataset_family or dataset.name,
+        "authoritative_for": list(dataset.authoritative_for or []),
         "fields": [
             {
                 "name": f.name,

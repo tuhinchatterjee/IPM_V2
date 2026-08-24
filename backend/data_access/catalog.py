@@ -69,6 +69,9 @@ class FieldDef:
 # calculation.
 FACILITY_POSITION = "credit_facility_position"
 BORROWER_FINANCIALS = "borrower_financials"
+IFRS9_STAGING = "ifrs9_impairment_staging"
+CUSTOMER_RATING_HISTORY = "customer_rating_history"
+MACROECONOMIC_SERIES = "macroeconomic_series"
 
 GOVERNED_PURPOSES: dict[str, str] = {
     FACILITY_POSITION: (
@@ -77,6 +80,19 @@ GOVERNED_PURPOSES: dict[str, str] = {
     ),
     BORROWER_FINANCIALS: (
         "Borrower-level financial statements and derived credit ratios."
+    ),
+    IFRS9_STAGING: (
+        "The staging decision behind every facility: the PD at origination it is "
+        "measured against, each significant-increase trigger separately, the "
+        "stage before and after, and the resulting expected credit loss."
+    ),
+    CUSTOMER_RATING_HISTORY: (
+        "Annual rating cycles per customer: the internal grade awarded, the "
+        "financials behind it, and the action taken against the previous year."
+    ),
+    MACROECONOMIC_SERIES: (
+        "Quarterly macroeconomic series for the economy the book lends into, "
+        "and the credit cycle factor derived from them."
     ),
 }
 

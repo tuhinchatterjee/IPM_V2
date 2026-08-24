@@ -58,7 +58,11 @@ def monkeypatch_module():
 def test_mode_reports_how_questions_are_planned(client, demo_mode):
     body = client.get("/api/v1/ask/mode").json()
     assert body["mode"] == "demo"
-    assert body["analysis_count"] == 11
+    # Counted from the registry rather than hard-coded, so adding an analysis
+    # does not require editing a test about planning.
+    assert body["analysis_count"] == len(
+        client.get("/api/v1/engine/analyses").json()["analyses"]
+    )
     assert len(body["stages"]) == 5
     assert body["supported_modifications"]
 

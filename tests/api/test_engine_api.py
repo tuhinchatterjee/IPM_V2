@@ -32,17 +32,23 @@ def require_data():
 # =================================================================== library
 
 
-def test_library_lists_ten_certified_and_one_user_defined(client):
+def test_the_library_is_mostly_certified_with_one_user_defined_example(client):
+    """Counted rather than hard-coded: the library grows, and a test that has to
+    be edited every time one is added stops being read."""
     body = client.get("/api/v1/engine/analyses").json()
-    assert body["certified"] == 10
+    assert body["total"] == body["certified"] + body["user_defined"]
+    assert body["total"] >= 20, "The library should cover the credit lifecycle."
+    # Exactly one deliberately uncertified example, so the product can be seen
+    # running an analysis that carries no verification tick.
     assert body["user_defined"] == 1
-    assert body["total"] == 11
 
 
 def test_library_can_filter_to_certified_only(client):
+    everything = client.get("/api/v1/engine/analyses").json()
     body = client.get("/api/v1/engine/analyses", params={"certified_only": True}).json()
     assert all(a["is_certified"] for a in body["analyses"])
-    assert body["total"] == 10
+    assert body["total"] == everything["certified"]
+    assert body["total"] < everything["total"]
 
 
 def test_analysis_definition_carries_everything_engine_builder_shows(client):

@@ -1070,7 +1070,7 @@ def main() -> int:
                 "is_synthetic": True,
                 "origin": "demo",
                 "dataset_family": "ifrs9_staging",
-                "authoritative_for": ["ifrs9_staging"],
+                "authoritative_for": ["ifrs9_impairment_staging"],
                 "fields": infer_fields(staging, STAGING_FIELDS),
             },
             {
