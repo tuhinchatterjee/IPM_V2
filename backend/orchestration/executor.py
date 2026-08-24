@@ -34,6 +34,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.engine.runner import AnalysisRunResult, run_analysis
+from backend.orchestration.clarification import needed_clarification
 from backend.orchestration.interpreter import Narrative, build_narrative
 from backend.orchestration.planner import get_planner, planner_mode
 from backend.orchestration.schema import AnalysisPlan, PlanRejected, PlanStep
@@ -95,6 +96,10 @@ class ExecutedStep:
     # changed. Displayed on the map, because "we did not re-run this" is a claim
     # a reviewer is entitled to see.
     reused: bool = False
+    # PRIMARY when this step is the one that answers the question, SUPPORTING
+    # when it is only there to help explain the primary result. Carried through
+    # so the interface can lead with the answer instead of the longest table.
+    role: str = "primary"
 
     @property
     def signature(self) -> str:
@@ -126,6 +131,7 @@ class ExecutedStep:
             "trace": self.trace,
             "node_hashes": self.node_hashes,
             "reused": self.reused,
+            "role": self.role,
         }
 
     @classmethod
@@ -142,6 +148,7 @@ class ExecutedStep:
             certification=str(payload.get("certification", "")),
             analysis_version=str(payload.get("analysis_version", "")),
             duration_ms=int(payload.get("duration_ms") or 0),
+            role=str(payload.get("role") or "primary"),
             result=payload.get("result"),
             error=payload.get("error"),
             analysis_run_id=payload.get("analysis_run_id"),
@@ -162,7 +169,10 @@ class Investigation:
     graph: TraceGraph
     node_hashes: dict[str, str]
     duration_ms: int
+    # succeeded | partial | failed | rejected | needs_clarification
     status: str = "succeeded"
+    #: Set when IPM stopped to ask rather than answering.
+    clarification: Any = None
     analysis_run_id: int | None = None
     version: int = 1
     version_label: str = "Original"
@@ -183,6 +193,7 @@ class Investigation:
             "node_hashes": self.node_hashes,
             "duration_ms": self.duration_ms,
             "status": self.status,
+            "clarification": self.clarification.to_dict() if self.clarification else None,
             "analysis_run_id": self.analysis_run_id,
             "version": self.version,
             "version_label": self.version_label,
@@ -203,6 +214,29 @@ def _interpretive_node(node_id: str, node_type: NodeType, label: str,
     return node
 
 
+#: How each answer shape is drawn. One primary visual per answer — a question
+#: gets the chart that fits its shape, never a gallery of every chart the data
+#: could support.
+_VISUALS: dict[str, dict[str, str]] = {
+    "level": {"label": "Headline figures", "chart": "metrics",
+              "why": "A position at a point in time reads as figures, not as a chart."},
+    "movement": {"label": "Movement bridge", "chart": "waterfall",
+                 "why": "A change between two periods is a bridge from opening to closing."},
+    "ranking": {"label": "Ranked comparison", "chart": "bar",
+                "why": "A ranking is read by length, so the bars are ordered and horizontal."},
+    "distribution": {"label": "Composition", "chart": "stacked-bar",
+                     "why": "A split of one total is read as parts of a whole."},
+    "matrix": {"label": "Transition matrix", "chart": "matrix",
+               "why": "A from/to grid is read as a matrix, shaded by concentration."},
+    "trend": {"label": "Time series", "chart": "line",
+              "why": "A path over many periods is read as a line."},
+    "scenario": {"label": "Base against stressed", "chart": "comparison-bar",
+                 "why": "A scenario is read by comparing two states of the same measure."},
+    "list": {"label": "Ranked table", "chart": "table",
+             "why": "Named exposures are read as a table, because the names matter."},
+}
+
+
 def build_reasoning_map(plan: AnalysisPlan, steps: list[ExecutedStep],
                         narrative: Narrative) -> TraceGraph:
     """Stitch the executed step traces into one graph.
@@ -213,14 +247,42 @@ def build_reasoning_map(plan: AnalysisPlan, steps: list[ExecutedStep],
     """
     graph = TraceGraph()
 
+    scope = plan.scope
+
     graph.add_node(_interpretive_node(
         "question", NodeType.USER_PROMPT, "Question asked",
         {"question": plan.question},
     ))
     graph.add_node(_interpretive_node(
         "intent", NodeType.LLM_INTENT, plan.intent or "Reading of the question",
-        {"intent": plan.intent, "planner": plan.planner, "model": plan.model_name,
-         "unmatched": plan.unmatched, "notes": plan.notes},
+        {
+            # Which of the two interpretive moments this is. The question is read
+            # BEFORE anything is computed; the findings are written AFTER. Both
+            # are interpretation, but they are answerable to different things, so
+            # the map names them separately.
+            "stage": "question_interpretation",
+            "stage_label": "Interpretation of the question",
+            "intent": plan.intent,
+            "planner": plan.planner,
+            "model": plan.model_name,
+            "unmatched": plan.unmatched,
+            "notes": plan.notes,
+            # How the question was read, field by field. This is the decision a
+            # reviewer most often wants to challenge.
+            "focus": scope.focus,
+            "dimension": scope.dimension,
+            "answer_shape": scope.output,
+            "period_requirement": scope.period_requirement,
+            "period_specified": scope.period_specified,
+            "period": (
+                f"{scope.from_period} to {scope.to_period}"
+                if scope.from_period and scope.to_period else ""
+            ),
+            "period_source": scope.period_source,
+            "filters": scope.filters,
+            "rule": "This node contains no figures. It records what IPM understood "
+                    "the question to be asking, not what the answer is.",
+        },
     ))
     graph.connect("question", "intent")
 
@@ -295,13 +357,36 @@ def build_reasoning_map(plan: AnalysisPlan, steps: list[ExecutedStep],
     graph.add_node(_interpretive_node(
         "narrative", NodeType.LLM_EXPLANATION,
         "Findings written from the engine results",
-        {"summary": narrative.summary,
-         "finding_count": len(narrative.findings),
-         "rule": "Every figure quoted was returned by an engine analysis. "
-                 "No figure on this node was calculated here."},
+        {
+            "stage": "result_interpretation",
+            "stage_label": "Interpretation of the result",
+            # Calculated: quoted unchanged from a result node above.
+            "direct_answer": narrative.direct_answer,
+            "summary": narrative.summary,
+            "finding_count": len(narrative.findings),
+            # Interpreted: IPM's reading of those figures.
+            "interpretation": narrative.interpretation,
+            "interpretation_points": list(narrative.interpretation_points),
+            "rule": "Every figure quoted was returned by an engine analysis. "
+                    "No figure on this node was calculated here, and no statement "
+                    "here asserts a cause the engine did not establish.",
+        },
     ))
     for leaf in leaves:
         graph.connect(leaf, "narrative")
+
+    visual = _VISUALS.get(scope.output or "level", _VISUALS["level"])
+    graph.add_node(_interpretive_node(
+        "visual", NodeType.VISUALIZATION, visual["label"],
+        {
+            "answer_shape": scope.output,
+            "chart": visual["chart"],
+            "why": visual["why"],
+            "rule": "The chart is chosen from the shape of the answer, not from the "
+                    "figures in it.",
+        },
+    ))
+    graph.connect("narrative", "visual")
 
     return graph
 
@@ -326,7 +411,7 @@ def execute_plan(plan: AnalysisPlan, *, user_id: int | None = None,
             rationale=step.rationale, params=_resolved(step.analysis_id, step.params),
             filters=dict(step.filters),
             period=step.period, status="pending", certification="", analysis_version="",
-            duration_ms=0, result=None, error=None,
+            duration_ms=0, result=None, error=None, role=str(step.role),
         )
         prior = reusable.get(candidate.signature)
         if prior is not None:
@@ -337,7 +422,7 @@ def execute_plan(plan: AnalysisPlan, *, user_id: int | None = None,
                 certification=prior.certification, analysis_version=prior.analysis_version,
                 duration_ms=prior.duration_ms, result=prior.result, error=prior.error,
                 analysis_run_id=prior.analysis_run_id, trace=prior.trace,
-                node_hashes=prior.node_hashes, reused=True,
+                node_hashes=prior.node_hashes, reused=True, role=str(step.role),
             ))
             continue
 
@@ -365,6 +450,7 @@ def execute_plan(plan: AnalysisPlan, *, user_id: int | None = None,
             error=run.error,
             trace=payload.get("trace"),
             node_hashes=run.node_hashes,
+            role=str(step.role),
         ))
     return executed
 
@@ -372,7 +458,8 @@ def execute_plan(plan: AnalysisPlan, *, user_id: int | None = None,
 def assemble(plan: AnalysisPlan, steps: list[ExecutedStep], *,
              duration_ms: int, mode: dict[str, Any] | None = None) -> Investigation:
     """Turn executed steps into a complete investigation."""
-    narrative = build_narrative(plan.question, plan.intent, [s.to_dict() for s in steps])
+    narrative = build_narrative(plan.question, plan.intent,
+                                [s.to_dict() for s in steps], plan=plan)
     graph = build_reasoning_map(plan, steps, narrative)
     hashes = graph.compute_hashes()
     failed = [s for s in steps if s.status != "succeeded"]
@@ -386,13 +473,34 @@ def assemble(plan: AnalysisPlan, steps: list[ExecutedStep], *,
 
 def run_investigation(question: str, *, user_id: int | None = None,
                       project_id: int | None = None, chat_id: int | None = None,
-                      persist: bool = True) -> Investigation:
-    """Answer one question end to end."""
+                      persist: bool = True,
+                      period: tuple[str, str] | None = None) -> Investigation:
+    """Answer one question end to end — or ask the one thing IPM needs to know.
+
+    `period` is a comparison already chosen: from answering a clarification, or
+    from refreshing a saved Investigation onto newer data.
+    """
     started = time.perf_counter()
     planner = get_planner()
     vocab = get_vocabulary()
 
-    plan = planner.plan(question, vocab)
+    plan = planner.plan(question, vocab, period=period)
+
+    # Ask before running, never after. A clarification costs the user one click;
+    # a confidently wrong comparison costs them a credit decision.
+    clarification = needed_clarification(plan, vocab)
+    if clarification is not None:
+        narrative = build_narrative(question, plan.intent, [], plan=plan)
+        asking = Investigation(
+            question=question, plan=plan, steps=[], narrative=narrative,
+            graph=build_reasoning_map(plan, [], narrative),
+            node_hashes={}, duration_ms=int((time.perf_counter() - started) * 1000),
+            status="needs_clarification", clarification=clarification,
+            mode=planner_mode(),
+        )
+        asking.node_hashes = asking.graph.compute_hashes()
+        return asking
+
     try:
         plan = validate_plan(plan, vocab)
     except PlanRejected as rejection:
@@ -400,8 +508,9 @@ def run_investigation(question: str, *, user_id: int | None = None,
         # returned with its reasons so the user can see what IPM refused to do.
         empty = Investigation(
             question=question, plan=plan, steps=[],
-            narrative=build_narrative(question, plan.intent, []),
-            graph=build_reasoning_map(plan, [], build_narrative(question, plan.intent, [])),
+            narrative=build_narrative(question, plan.intent, [], plan=plan),
+            graph=build_reasoning_map(plan, [],
+                                      build_narrative(question, plan.intent, [], plan=plan)),
             node_hashes={}, duration_ms=int((time.perf_counter() - started) * 1000),
             status="rejected", rejected=rejection.reasons, mode=planner_mode(),
         )
