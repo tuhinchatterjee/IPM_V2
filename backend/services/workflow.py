@@ -469,6 +469,32 @@ def _notify(session: Any, **fields: Any) -> None:
     session.add(Notification(**fields))
 
 
+def notify_playbook_finding(*, user_id: int, playbook: str, title: str,
+                            body: str, actor_id: int | None = None) -> None:
+    """Tell somebody what a playbook found.
+
+    The one public way to raise a notification, and it is narrow on purpose. A
+    playbook run IS "something else happening" — it executed analyses and a
+    threshold was crossed — so this is not a notification about nothing. It
+    still cannot be raised without naming the playbook that produced it.
+    """
+    _require_db()
+    from backend.db.engine import get_session
+
+    with get_session() as session:
+        _notify(
+            session,
+            user_id=user_id,
+            kind="playbook",
+            title=title[:300],
+            body=body,
+            object_type="playbook",
+            object_id=playbook[:120],
+            actor_id=actor_id,
+        )
+        session.commit()
+
+
 def notifications(user_id: int | None, *, unread_only: bool = False,
                   limit: int = 50) -> list[dict[str, Any]]:
     if not settings.has_database or user_id is None:

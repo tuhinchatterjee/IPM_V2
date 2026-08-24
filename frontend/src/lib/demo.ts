@@ -14,7 +14,7 @@
  */
 
 export const DEMO_NOTICE =
-  "Demo record. Projects, investigations, blueprints and documents are not yet persisted; the analytical results inside them are real.";
+  "Demo record. Documents are not yet persisted; the analytical results inside them are real.";
 
 // =============================================================== investigations
 
@@ -217,7 +217,7 @@ export interface Project {
   team: string;
   status: "active" | "in_review" | "closed";
   updated: string;
-  counts: { chats: number; investigations: number; blueprints: number; documents: number };
+  counts: { chats: number; investigations: number; playbooks: number; documents: number };
   investigationIds: string[];
 }
 
@@ -231,7 +231,7 @@ export const PROJECTS: Project[] = [
     team: "Wholesale Credit",
     status: "active",
     updated: "2026-03-31",
-    counts: { chats: 6, investigations: 2, blueprints: 2, documents: 1 },
+    counts: { chats: 6, investigations: 2, playbooks: 2, documents: 1 },
     investigationIds: ["stage-2-deterioration", "rating-migration-review"],
   },
   {
@@ -243,7 +243,7 @@ export const PROJECTS: Project[] = [
     team: "Wholesale Credit",
     status: "active",
     updated: "2026-03-28",
-    counts: { chats: 4, investigations: 1, blueprints: 1, documents: 1 },
+    counts: { chats: 4, investigations: 1, playbooks: 1, documents: 1 },
     investigationIds: ["real-estate-deterioration"],
   },
   {
@@ -255,106 +255,13 @@ export const PROJECTS: Project[] = [
     team: "Group Finance",
     status: "in_review",
     updated: "2026-03-30",
-    counts: { chats: 3, investigations: 1, blueprints: 1, documents: 1 },
+    counts: { chats: 3, investigations: 1, playbooks: 1, documents: 1 },
     investigationIds: ["ecl-movement-investigation"],
   },
 ];
 
 export function findProject(id: string): Project | undefined {
   return PROJECTS.find((p) => p.id === id);
-}
-
-// =================================================================== blueprints
-
-export interface Blueprint {
-  id: string;
-  name: string;
-  description: string;
-  owner: string;
-  cadence: string;
-  version: string;
-  /** The registered analyses this workflow runs, in order. */
-  steps: { analysisId: string; title: string }[];
-  parameters: { name: string; description: string; default: string }[];
-}
-
-export const BLUEPRINTS: Blueprint[] = [
-  {
-    id: "monthly-deterioration-review",
-    name: "Monthly Portfolio Deterioration Review",
-    description:
-      "The standing month-end deterioration pack: position, what moved between stages, what it did to ECL, and the names behind it. Re-run each period against the same definitions so the results are comparable.",
-    owner: "Credit Risk Analytics",
-    cadence: "Monthly",
-    version: "1.2.0",
-    steps: [
-      { analysisId: "portfolio_summary", title: "Portfolio position" },
-      { analysisId: "stage_migration", title: "Stage migration" },
-      { analysisId: "ecl_movement", title: "ECL attribution" },
-      { analysisId: "top_deteriorating_borrowers", title: "Deteriorating names" },
-    ],
-    parameters: [
-      { name: "period", description: "Closing reporting period.", default: "latest" },
-      { name: "compare_period", description: "Opening period.", default: "previous" },
-      { name: "top_n", description: "Number of borrowers to list.", default: "10" },
-    ],
-  },
-  {
-    id: "stage-2-investigation",
-    name: "Stage 2 Investigation",
-    description:
-      "Decomposes a Stage 2 movement into its origin, its sector concentration and the facilities responsible. Used whenever the staging ratio moves more than the tolerance.",
-    owner: "Head of Credit Risk",
-    cadence: "On trigger",
-    version: "1.0.0",
-    steps: [
-      { analysisId: "stage_distribution", title: "Stage split" },
-      { analysisId: "stage_migration", title: "What moved" },
-      { analysisId: "sector_concentration", title: "Where it concentrated" },
-    ],
-    parameters: [
-      { name: "period", description: "Reporting period.", default: "latest" },
-      { name: "basis", description: "Exposure or facility count.", default: "ead" },
-    ],
-  },
-  {
-    id: "rating-migration-review-bp",
-    name: "Rating Migration Review",
-    description:
-      "Produces the empirical rating transition matrix over a chosen interval, with upgrade and downgrade rates and a delinquency cross-check.",
-    owner: "Credit Risk Analytics",
-    cadence: "Quarterly",
-    version: "1.1.0",
-    steps: [
-      { analysisId: "rating_transition_matrix", title: "Transition matrix" },
-      { analysisId: "dpd_migration", title: "Delinquency migration" },
-    ],
-    parameters: [
-      { name: "from_period", description: "Opening period.", default: "earliest" },
-      { name: "to_period", description: "Closing period.", default: "latest" },
-    ],
-  },
-  {
-    id: "sector-concentration-review",
-    name: "Sector Concentration Review",
-    description:
-      "Concentration by sector with the Herfindahl index and the largest single name inside each sector, followed by a downturn scenario on the largest exposures.",
-    owner: "Portfolio Management",
-    cadence: "Quarterly",
-    version: "1.0.0",
-    steps: [
-      { analysisId: "sector_concentration", title: "Concentration" },
-      { analysisId: "stress_scenario_basic", title: "Downturn sensitivity" },
-    ],
-    parameters: [
-      { name: "dimension", description: "Concentration dimension.", default: "sector" },
-      { name: "scenario", description: "Stress preset.", default: "moderate" },
-    ],
-  },
-];
-
-export function findBlueprint(id: string): Blueprint | undefined {
-  return BLUEPRINTS.find((b) => b.id === id);
 }
 
 // ==================================================================== documents

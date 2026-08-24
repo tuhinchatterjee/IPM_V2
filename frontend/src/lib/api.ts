@@ -1336,6 +1336,87 @@ export interface BandMove {
   to_pct: number;
 }
 
+// ============================================================== playbooks
+
+/** A standing instruction the platform carries out. */
+export interface Playbook {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  trigger: string;
+  trigger_label: string;
+  schedule: string;
+  scope: Record<string, unknown>;
+  analyses: { analysis_id: string; params?: Record<string, unknown> }[];
+  conditions: PlaybookCondition[];
+  actions: { create_investigation?: boolean; notify?: number[] };
+  status: string;
+  origin: string;
+  owner: string;
+  last_run_at: string | null;
+  next_run_hint: string;
+  run_count: number;
+  last_run: PlaybookRun | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface PlaybookCondition {
+  metric: string;
+  label: string;
+  operator: string;
+  threshold: number;
+  unit: string;
+  severity: string;
+}
+
+/** One condition, tested against a figure the engine returned. */
+export interface PlaybookEvaluation {
+  metric: string;
+  label: string;
+  operator: string;
+  operator_label: string;
+  threshold: number;
+  severity: string;
+  value: number | null;
+  unit: string;
+  met: boolean;
+  /** False when no analysis produced the metric — different from "not met". */
+  testable: boolean;
+  analysis_id: string;
+  sentence: string;
+}
+
+export interface PlaybookRun {
+  id: number | null;
+  playbook_id: number;
+  status: string;
+  period: Record<string, unknown>;
+  results: {
+    analysis_id: string;
+    analysis_run_id: number | null;
+    values: Record<string, unknown>;
+    units: Record<string, string>;
+    row_count: number;
+  }[];
+  evaluations: PlaybookEvaluation[];
+  actions_taken: { action: string; investigation_id?: number; detail?: string }[];
+  alerted: boolean;
+  summary: string;
+  error: string;
+  investigation_id: number | null;
+}
+
+export interface PlaybookLibrary {
+  playbooks: Playbook[];
+  triggers: Record<string, string>;
+  operators: Record<string, string>;
+  severities: string[];
+  scope_dimensions: string[];
+  statuses: string[];
+}
+
 export const api = {
   // ---- system ----
   health: (timeoutMs?: number) =>
@@ -1505,6 +1586,51 @@ export const api = {
     request<{ dataset: string; count: number; versions: DataVersionRow[] }>(
       `/data-builder/datasets/${name}/versions`,
     ),
+
+  // ---- playbooks ----
+  playbooks: (status?: string) =>
+    request<PlaybookLibrary>(
+      `/playbooks${status ? `?status=${encodeURIComponent(status)}` : ""}`,
+    ),
+  playbook: (id: number) => request<Playbook>(`/playbooks/${id}`),
+  createPlaybook: (payload: {
+    name: string;
+    description?: string;
+    trigger?: string;
+    schedule?: string;
+    scope?: Record<string, unknown>;
+    analyses: { analysis_id: string; params?: Record<string, unknown> }[];
+    conditions?: PlaybookCondition[];
+    actions?: { create_investigation?: boolean; notify?: number[] };
+  }) =>
+    request<Playbook>("/playbooks", {
+      method: "POST",
+      body: JSON.stringify({
+        name: payload.name,
+        description: payload.description ?? "",
+        trigger: payload.trigger ?? "manual",
+        schedule: payload.schedule ?? "",
+        scope: payload.scope ?? {},
+        analyses: payload.analyses,
+        conditions: payload.conditions ?? [],
+        actions: payload.actions ?? { create_investigation: false, notify: [] },
+      }),
+    }),
+  setPlaybookStatus: (id: number, status: string) =>
+    request<Playbook>(`/playbooks/${id}/status`, {
+      method: "POST",
+      body: JSON.stringify({ status }),
+    }),
+  runPlaybook: (id: number, period?: string) =>
+    request<PlaybookRun>(`/playbooks/${id}/run`, {
+      method: "POST",
+      body: JSON.stringify({ period: period ?? null }),
+      timeoutMs: 180_000,
+    }),
+  playbookRuns: (id: number) =>
+    request<{ runs: PlaybookRun[] }>(`/playbooks/${id}/runs`),
+  deletePlaybook: (id: number) =>
+    request<void>(`/playbooks/${id}`, { method: "DELETE" }),
 
   // ---- early warning ----
   earlyWarning: () => request<EarlyWarningOverview>("/early-warning"),
