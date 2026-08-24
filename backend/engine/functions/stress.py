@@ -13,13 +13,16 @@ from __future__ import annotations
 
 import pandas as pd
 
+from backend.data_access.catalog import FACILITY_POSITION
 from backend.engine.contracts import (
     AnalysisContract,
+    AnswerShape,
     Category,
     Certification,
     OutputField,
     Parameter,
     ParamType,
+    PeriodRequirement,
     ValidationRule,
     VisualizationType,
 )
@@ -80,6 +83,21 @@ def _ratio(stressed: pd.Series, base: pd.Series) -> pd.Series:
 
 @register(AnalysisContract(
     id="stress_scenario_basic",
+    period_requirement=PeriodRequirement.POINT_IN_TIME,
+    governed_default_period=True,
+    answer_shape=AnswerShape.SCENARIO,
+    when_to_use=(
+        "Use when the question is what a downturn would do to impairment, applied to the position as reported."
+    ),
+    trigger_questions=[
+        "Stress the portfolio.",
+        "What happens under a severe downturn?",
+        "Size the impact on Real Estate.",
+    ],
+    limitations=(
+        "A management scenario, not regulatory stress testing. Each facility's reported ECL is scaled by the shock; there is no forward-looking macro path and no lifetime PD term structure."
+    ),
+    required_domains=[FACILITY_POSITION],
     name="Basic Management Stress Scenario",
     description=(
         "Applies a named or custom shock to PD, LGD and exposure, migrates part of "
@@ -307,6 +325,21 @@ def stress_scenario_basic(ctx: ExecutionContext) -> AnalysisResult:
 
 @register(AnalysisContract(
     id="high_utilisation_watchlist",
+    period_requirement=PeriodRequirement.POINT_IN_TIME,
+    governed_default_period=True,
+    answer_shape=AnswerShape.LIST,
+    when_to_use=(
+        "Use when the question is which facilities are drawing unusually heavily on their committed limits."
+    ),
+    trigger_questions=[
+        "Which facilities are near their limit?",
+        "Show high utilisation.",
+        "What is fully drawn?",
+    ],
+    limitations=(
+        "Built by a user and not validated by the bank. High utilisation is an early-warning signal, not a default indicator."
+    ),
+    required_domains=[FACILITY_POSITION],
     name="High Utilisation Watchlist",
     description=(
         "Facilities drawn above a utilisation threshold that are not already on "
