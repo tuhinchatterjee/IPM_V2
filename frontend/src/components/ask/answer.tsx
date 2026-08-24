@@ -7,6 +7,7 @@ import {
   BookmarkPlus,
   Check,
   ChevronDown,
+  FolderPlus,
   GitBranch,
   TriangleAlert,
 } from "lucide-react";
@@ -23,27 +24,31 @@ import type {
   InvestigationResponse,
 } from "@/lib/api";
 import { byUnit } from "@/lib/format";
+import { withReturnTo } from "@/lib/return-to";
 import { cn } from "@/lib/utils";
 
 /**
  * ONE response architecture, used everywhere CreditProbe answers.
  *
- * Every answer — on the Cockpit, inside an Investigation, under a Lens — is laid
- * out in the same four movements, in this order:
+ * The order is the argument:
  *
- *   1. ANSWER                   the sentence, the headline figures, the one chart
- *   2. ANALYSES USED            which certified functions produced those figures
- *   3. CREDITPROBE INTERPRETATION  what CreditProbe reads into them, labelled as reading
- *   4. FOLLOW-UPS               three short things to ask next
+ *   1. CREDITPROBE INTERPRETATION  what the answer to YOUR question is
+ *   2. PRIMARY ANALYSIS            the figures and the one chart behind it
+ *   3. SUPPORTING ANALYSES         collapsed; open them if you want them
+ *   4. ACTION STRIP                certified · method · trace · save · project
+ *   5. FOLLOW-UPS                  three short things to ask next
  *
- * (The composer sits between 3 and 4 and belongs to the page, not to this
- * component, because a thread has one composer at the bottom rather than one
- * under every answer.)
+ * (The composer sits between 4 and 5 and belongs to the page, because a thread
+ * has one composer at the bottom rather than one under every answer.)
  *
- * The order is the argument. A reader gets the conclusion first, then the
- * evidence for it, and only then an opinion about it — clearly separated, so
- * nobody mistakes CreditProbe's reading for something the engine calculated.
- * Reversing any two of those would change what the product is claiming.
+ * Interpretation comes FIRST, and that is the change that matters most. An
+ * answer that opens with total exposure at default when the question was about
+ * sector deterioration is a portfolio review wearing the costume of an answer.
+ * Leading with the reading forces the product to answer the question asked, and
+ * makes it obvious on sight when it has not.
+ *
+ * The calculated figures follow immediately, so nothing is hidden — the reading
+ * is a summary of what is directly beneath it, not a substitute for it.
  */
 
 /* ------------------------------------------------------------------ helpers */
@@ -91,20 +96,26 @@ export function Disclosure({
   summary,
   hint,
   children,
+  defaultOpen,
 }: {
   summary: string;
   hint?: string;
   children: React.ReactNode;
+  defaultOpen?: boolean;
 }) {
   return (
-    <details className="group">
-      <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-text-muted transition-colors hover:text-text-primary">
+    <details className="group" open={defaultOpen}>
+      <summary className="meta flex cursor-pointer list-none items-center gap-1.5 text-text-muted transition-colors hover:text-text-primary">
         <ChevronDown
           className="size-3.5 transition-transform group-open:rotate-180"
           aria-hidden
         />
         {summary}
-        {hint && <span className="font-normal text-text-muted/70">— {hint}</span>}
+        {hint && (
+          <span className="font-normal normal-case tracking-normal text-text-muted/70">
+            — {hint}
+          </span>
+        )}
       </summary>
       <div className="mt-3.5">{children}</div>
     </details>
@@ -112,11 +123,7 @@ export function Disclosure({
 }
 
 export function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
-      {children}
-    </h2>
-  );
+  return <h2 className="meta mb-2.5 text-text-muted">{children}</h2>;
 }
 
 /* ------------------------------------------------------------- step results */
@@ -125,20 +132,32 @@ export function StepResult({
   step,
   runId,
   compact,
+  returnTo,
 }: {
   step: ExecutedStep;
   runId: number | null;
   /** Inside a thread, a result sits closer to the text around it. */
   compact?: boolean;
+  /** Where Method and Trace should come back to. */
+  returnTo?: { href: string; label: string };
 }) {
   const run = React.useMemo(() => asRun(step, runId), [step, runId]);
+  const method = returnTo
+    ? withReturnTo(`/engine-builder/${step.analysis_id}`, returnTo.href, returnTo.label)
+    : `/engine-builder/${step.analysis_id}`;
+  const trace =
+    runId && returnTo
+      ? withReturnTo(`/trace/${runId}`, returnTo.href, returnTo.label)
+      : runId
+        ? `/trace/${runId}`
+        : null;
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-3.5">
+      <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold tracking-tight text-text-primary">
+            <h3 className="display text-sm font-semibold text-text-primary">
               {step.title || step.analysis_id}
             </h3>
             <CertificationBadge certification={step.certification} />
@@ -152,26 +171,20 @@ export function StepResult({
             )}
           </div>
           {step.rationale && !compact && (
-            <p className="mt-0.5 max-w-2xl text-xs leading-relaxed text-text-muted">
+            <p className="prose-ai mt-0.5 max-w-2xl text-xs text-text-muted">
               {step.rationale}
             </p>
           )}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           <Button variant="ghost" size="sm" asChild>
-            <Link
-              href={`/engine-builder/${step.analysis_id}`}
-              title="Open the analysis definition"
-            >
+            <Link href={method} title="Open the analysis definition">
               Method
             </Link>
           </Button>
-          {runId ? (
+          {trace ? (
             <Button variant="ghost" size="sm" asChild>
-              <Link
-                href={`/trace/${runId}`}
-                title="See exactly how this result was produced"
-              >
+              <Link href={trace} title="See exactly how this result was produced">
                 <GitBranch aria-hidden />
                 Trace
               </Link>
@@ -212,94 +225,108 @@ export function StepResult({
   );
 }
 
+/* --------------------------------------------------------- interpretation */
+
+/**
+ * CreditProbe's reading, and nothing else on the page is.
+ *
+ * First, because the point of the product is to answer the question that was
+ * asked. An answer that opens with a portfolio total when the question was
+ * about sectors is a review pretending to be an answer, and putting the reading
+ * at the top makes that failure obvious rather than burying it under a chart.
+ */
+export function Interpretation({
+  answer,
+  points,
+  whyMultiple,
+}: {
+  answer: string;
+  points: string[];
+  whyMultiple?: string;
+}) {
+  if (!answer && points.length === 0) return null;
+
+  return (
+    <section className="max-w-[68ch]">
+      <SectionLabel>CreditProbe interpretation</SectionLabel>
+      {answer && (
+        <p className="prose-ai text-[15px] leading-relaxed text-text-primary">
+          {answer}
+        </p>
+      )}
+      {points.length > 0 && (
+        <p className="prose-ai mt-2.5 text-sm text-text-secondary">
+          {points.slice(0, 2).join(" ")}
+        </p>
+      )}
+      {whyMultiple && (
+        <p className="prose-ai mt-2.5 text-xs text-text-muted">{whyMultiple}</p>
+      )}
+      <p className="prose-ai mt-2.5 text-[11px] leading-relaxed text-text-muted">
+        Every figure quoted here was produced by a registered analysis. The
+        reading describes what those figures show; it does not claim a cause the
+        engine did not establish.
+      </p>
+    </section>
+  );
+}
+
 /* --------------------------------------------------------- analyses used */
 
 /**
- * Which certified functions produced the figures above.
+ * Which certified functions produced the figures.
  *
- * Named as its own section rather than left implicit. "Where did this number
- * come from" is the first question a credit committee asks, and an answer that
- * makes them hunt for it has failed before the figure is even discussed.
+ * Behind a disclosure rather than always open: "where did this come from" is
+ * the first question a committee asks, but it is not the first thing every
+ * reader needs on screen. One click, and it is complete.
  */
 export function AnalysesUsed({
   steps,
-  runId,
+  returnTo,
 }: {
   steps: ExecutedStep[];
-  runId: number | null;
+  returnTo?: { href: string; label: string };
 }) {
   if (steps.length === 0) return null;
 
   return (
-    <section>
-      <SectionLabel>Analyses used</SectionLabel>
+    <Disclosure
+      summary={`Analyses used (${steps.length})`}
+      hint="what produced these figures"
+    >
       <Card className="divide-y divide-border">
         {steps.map((step) => (
           <div
             key={step.index}
-            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5"
+            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2"
           >
             <Link
-              href={`/engine-builder/${step.analysis_id}`}
+              href={
+                returnTo
+                  ? withReturnTo(
+                      `/engine-builder/${step.analysis_id}`,
+                      returnTo.href,
+                      returnTo.label,
+                    )
+                  : `/engine-builder/${step.analysis_id}`
+              }
               className="text-sm font-medium text-text-primary hover:text-accent"
             >
               {step.title || step.analysis_id}
             </Link>
             <CertificationBadge certification={step.certification} />
-            <span className="text-[11px] text-text-muted">
+            <span className="mono text-[11px] text-text-muted">
               {step.analysis_version && `v${step.analysis_version}`}
               {step.period && ` · ${step.period}`}
               {step.role === "supporting" && " · supporting"}
             </span>
-            <span className="ml-auto text-[11px] text-text-muted">
+            <span className="mono ml-auto text-[11px] text-text-muted">
               {step.status === "succeeded" ? `${step.duration_ms}ms` : step.status}
             </span>
           </div>
         ))}
-        {runId && (
-          <div className="px-4 py-2">
-            <Link
-              href={`/trace/${runId}`}
-              className="inline-flex items-center gap-1.5 text-[11px] text-text-muted hover:text-accent"
-            >
-              <GitBranch className="size-3" aria-hidden />
-              Follow every figure back to the rows behind it
-            </Link>
-          </div>
-        )}
       </Card>
-    </section>
-  );
-}
-
-/* --------------------------------------------------------- interpretation */
-
-/**
- * CreditProbe's reading — and nothing else on the page is.
- *
- * Kept visually distinct (its own rule, its own label, its own footnote) because
- * the separation between what was calculated and what was inferred is the single
- * most important boundary in the product.
- */
-export function Interpretation({ points }: { points: string[] }) {
-  if (points.length === 0) return null;
-
-  return (
-    <section className="max-w-3xl border-l-2 border-accent/40 pl-4">
-      <SectionLabel>CreditProbe interpretation</SectionLabel>
-      <ul className="space-y-2">
-        {points.map((point) => (
-          <li key={point} className="text-sm leading-relaxed text-text-secondary">
-            {point}
-          </li>
-        ))}
-      </ul>
-      <p className="mt-3 text-[11px] leading-relaxed text-text-muted">
-        Interpretation, not calculation. Every figure above came from a registered
-        analysis; this describes what those figures show and does not claim a
-        cause the engine did not establish.
-      </p>
-    </section>
+    </Disclosure>
   );
 }
 
@@ -324,11 +351,11 @@ export function FollowUps({
           type="button"
           disabled={busy}
           onClick={() => onAsk(question)}
-          className="group inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-text-secondary transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+          className="group inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 text-[11px] text-text-muted transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
         >
           {question}
           <ArrowRight
-            className="size-3 text-text-muted transition-colors group-hover:text-accent"
+            className="size-2.5 opacity-60 transition-opacity group-hover:opacity-100"
             aria-hidden
           />
         </button>
@@ -337,30 +364,105 @@ export function FollowUps({
   );
 }
 
-/* ------------------------------------------------------------- the answer */
+/* -------------------------------------------------------------- action strip */
 
 /**
- * One answer, in the standard four movements.
+ * The same five actions under every answer, in the same order.
  *
- * `onSave` is offered wherever an answer can become evidence. Saving keeps the
- * analyses behind the answer — the certified functions and their results — not
- * a screenshot of the text.
+ * Consistency is the feature: somebody who learns where Trace is once should
+ * never have to look for it again.
  */
+export function ActionStrip({
+  run,
+  onSave,
+  saved,
+  onAddToProject,
+  busy,
+  returnTo,
+}: {
+  run: InvestigationResponse;
+  onSave?: () => void;
+  saved?: boolean;
+  onAddToProject?: () => void;
+  busy?: boolean;
+  returnTo?: { href: string; label: string };
+}) {
+  const runId = run.analysis_run_id;
+  const certified =
+    run.steps.length > 0 && run.steps.every((s) => s.certification === "certified");
+  const scope = run.plan.scope;
+  const trace =
+    runId && returnTo
+      ? withReturnTo(`/trace/${runId}`, returnTo.href, returnTo.label)
+      : runId
+        ? `/trace/${runId}`
+        : null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border pt-3">
+      {certified && (
+        <span
+          className="flex items-center gap-1.5 text-[11px] text-info"
+          title="CreditProbe Certified — deterministic governed analysis"
+        >
+          <CertifiedMark />
+          Certified
+        </span>
+      )}
+      {scope?.from_period && scope?.to_period && (
+        <span className="mono text-[11px] text-text-muted">
+          {scope.from_period} → {scope.to_period}
+        </span>
+      )}
+
+      <div className="ml-auto flex items-center gap-0.5">
+        {trace && (
+          <Button variant="ghost" size="sm" asChild>
+            <Link href={trace}>
+              <GitBranch aria-hidden />
+              Trace
+            </Link>
+          </Button>
+        )}
+        {onAddToProject && (
+          <Button variant="ghost" size="sm" onClick={onAddToProject} disabled={busy}>
+            <FolderPlus aria-hidden />
+            Project
+          </Button>
+        )}
+        {onSave && (
+          <Button variant="ghost" size="sm" onClick={onSave} disabled={saved || busy}>
+            {saved ? <Check aria-hidden /> : <BookmarkPlus aria-hidden />}
+            {saved ? "Saved" : "Save analysis"}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- the answer */
+
 export function AnswerBlock({
   run,
   onAsk,
   onSave,
   saved,
+  onAddToProject,
   busy,
   compact,
+  returnTo,
 }: {
   run: InvestigationResponse;
   onAsk?: (question: string) => void;
   onSave?: () => void;
   saved?: boolean;
+  onAddToProject?: () => void;
   busy?: boolean;
   /** Inside a thread the answer sits tighter and drops the run statistics. */
   compact?: boolean;
+  /** Where Method and Trace links should return to. */
+  returnTo?: { href: string; label: string };
 }) {
   const runId = run.analysis_run_id;
   const { narrative } = run;
@@ -372,13 +474,11 @@ export function AnswerBlock({
   const primary =
     run.steps.find((s) => s.role === "primary") ?? run.steps[0] ?? null;
   const supporting = run.steps.filter((s) => s !== primary);
-  const certified =
-    run.steps.length > 0 && run.steps.every((s) => s.certification === "certified");
 
   return (
-    <div className={cn(compact ? "space-y-5" : "space-y-8")}>
+    <div className={cn(compact ? "space-y-5" : "space-y-6")}>
       {run.rejected.length > 0 && (
-        <Card className="border-negative/40 p-5">
+        <Card className="border-negative/40 p-4">
           <p className="text-sm font-medium text-negative">
             CreditProbe refused to run this plan
           </p>
@@ -393,24 +493,25 @@ export function AnswerBlock({
       )}
 
       {run.unmatched && run.notes.length > 0 && (
-        <Card className="flex items-start gap-2.5 border-warning/30 bg-warning-muted p-4">
+        <Card className="flex items-start gap-2.5 border-warning/30 bg-warning-muted p-3.5">
           <TriangleAlert
             className="mt-0.5 size-4 shrink-0 text-warning"
             aria-hidden
           />
-          <p className="text-xs leading-relaxed text-warning">{run.notes[0]}</p>
+          <p className="prose-ai text-xs text-warning">{run.notes[0]}</p>
         </Card>
       )}
 
-      {/* ------------------------------------------------------- 1. ANSWER */}
-      {answer && (
-        <p className="max-w-3xl text-[18px] font-medium leading-relaxed tracking-tight text-text-primary">
-          {answer}
-        </p>
-      )}
+      {/* ------------------------------------ 1. CREDITPROBE INTERPRETATION */}
+      <Interpretation
+        answer={answer}
+        points={reading}
+        whyMultiple={narrative.why_multiple}
+      />
 
+      {/* ------------------------------------------- 2. THE PRIMARY ANALYSIS */}
       {narrative.metrics.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
           {narrative.metrics.map((metric) => (
             <KpiTile
               key={metric.label}
@@ -426,7 +527,34 @@ export function AnswerBlock({
         </div>
       )}
 
-      {primary && <StepResult step={primary} runId={runId} compact={compact} />}
+      {primary && (
+        <StepResult
+          step={primary}
+          runId={runId}
+          compact={compact}
+          returnTo={returnTo}
+        />
+      )}
+
+      {/* --------------------------------------- 3. SUPPORTING, COLLAPSED */}
+      {supporting.length > 0 && (
+        <Disclosure
+          summary={`Supporting analysis (${supporting.length})`}
+          hint="run to help explain the answer, not to answer the question"
+        >
+          <div className="space-y-4">
+            {supporting.map((step) => (
+              <StepResult
+                key={step.index}
+                step={step}
+                runId={runId}
+                compact
+                returnTo={returnTo}
+              />
+            ))}
+          </div>
+        </Disclosure>
+      )}
 
       {narrative.findings.length > 1 && (
         <Disclosure summary={`Findings in full (${narrative.findings.length})`}>
@@ -439,13 +567,11 @@ export function AnswerBlock({
                   TONE_CLASS[finding.tone] ?? TONE_CLASS.neutral,
                 )}
               >
-                <p className="text-sm leading-relaxed text-text-primary">
-                  {finding.text}
-                </p>
+                <p className="prose-ai text-sm text-text-primary">{finding.text}</p>
                 {finding.evidence.length > 0 && (
-                  <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-text-muted">
+                  <p className="mono mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-text-muted">
                     {finding.evidence.map((e) => (
-                      <span key={e.label} className="tabular">
+                      <span key={e.label}>
                         {e.label} {byUnit(e.value, e.unit)}
                       </span>
                     ))}
@@ -463,7 +589,7 @@ export function AnswerBlock({
             {narrative.drivers.map((driver) => (
               <div
                 key={driver.name}
-                className="flex items-baseline gap-3 px-4 py-2.5"
+                className="flex items-baseline gap-3 px-4 py-2"
               >
                 <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
                   {driver.name}
@@ -475,7 +601,7 @@ export function AnswerBlock({
                 )}
                 <span
                   className={cn(
-                    "shrink-0 text-sm font-medium tabular",
+                    "display-num shrink-0 text-sm font-medium",
                     (driver.value ?? 0) > 0 ? "text-negative" : "text-positive",
                   )}
                 >
@@ -490,24 +616,7 @@ export function AnswerBlock({
         </Disclosure>
       )}
 
-      {/* ------------------------------------------------ 2. ANALYSES USED */}
-      <AnalysesUsed steps={run.steps} runId={runId} />
-
-      {supporting.length > 0 && (
-        <Disclosure
-          summary={`Supporting results (${supporting.length})`}
-          hint="Run to help explain the answer, not to answer the question."
-        >
-          <div className="space-y-4">
-            {supporting.map((step) => (
-              <StepResult key={step.index} step={step} runId={runId} compact />
-            ))}
-          </div>
-        </Disclosure>
-      )}
-
-      {/* --------------------------------------- 3. CREDITPROBE INTERPRETATION */}
-      <Interpretation points={reading} />
+      <AnalysesUsed steps={run.steps} returnTo={returnTo} />
 
       {narrative.caveats.length > 0 && (
         <ul className="space-y-1">
@@ -523,40 +632,17 @@ export function AnswerBlock({
         </ul>
       )}
 
-      {/* ------------------------------------------------- provenance and save */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-muted">
-        {certified && (
-          <span className="flex items-center gap-1.5 text-info">
-            <CertifiedMark />
-            Certified analysis
-          </span>
-        )}
-        {run.plan.scope?.from_period && run.plan.scope?.to_period && (
-          <span>
-            {run.plan.scope.from_period} to {run.plan.scope.to_period}
-          </span>
-        )}
-        {!compact && (
-          <span>
-            {run.steps.length} {run.steps.length === 1 ? "analysis" : "analyses"} ·{" "}
-            {run.trace.stats.node_count} recorded steps · {run.duration_ms}ms
-          </span>
-        )}
-        {onSave && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto"
-            onClick={onSave}
-            disabled={saved || busy}
-          >
-            {saved ? <Check aria-hidden /> : <BookmarkPlus aria-hidden />}
-            {saved ? "Saved" : "Save analysis"}
-          </Button>
-        )}
-      </div>
+      {/* -------------------------------------------------- 4. ACTION STRIP */}
+      <ActionStrip
+        run={run}
+        onSave={onSave}
+        saved={saved}
+        onAddToProject={onAddToProject}
+        busy={busy}
+        returnTo={returnTo}
+      />
 
-      {/* ---------------------------------------------------- 4. FOLLOW-UPS */}
+      {/* ---------------------------------------------------- 5. FOLLOW-UPS */}
       {onAsk && <FollowUps questions={run.follow_ups} onAsk={onAsk} busy={busy} />}
     </div>
   );

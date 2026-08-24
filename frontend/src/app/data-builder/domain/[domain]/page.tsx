@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { ArrowLeft, Database, Plus } from "lucide-react";
+import { Database, Plus } from "lucide-react";
 
 import { LifecycleBadge } from "@/app/data-builder/page";
 import { ResultTable } from "@/components/analytics/primitives";
 import { PageHeader } from "@/components/layout/page-header";
 import { useCanEditData } from "@/components/system/role-switcher";
 import { Badge } from "@/components/ui/badge";
+import { BackLink } from "@/components/layout/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty";
@@ -122,12 +123,7 @@ export default function DomainPage({ params }: { params: Promise<{ domain: strin
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link href="/data-builder">
-          <ArrowLeft aria-hidden />
-          All domains
-        </Link>
-      </Button>
+      <BackLink href="/data-builder" label="Data Builder" />
 
       <PageHeader
         title={domain}

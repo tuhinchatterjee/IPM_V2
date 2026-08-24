@@ -3,6 +3,8 @@
 import { useSearchParams } from "next/navigation";
 import * as React from "react";
 
+import { isInternalPath, type ReturnTo } from "./links";
+
 /**
  * Where "Back" actually goes.
  *
@@ -24,21 +26,8 @@ import * as React from "react";
  * They survive a refresh and a shared link, which `history.state` would not.
  */
 
-export interface ReturnTo {
-  /** Where Back goes. */
-  href: string;
-  /** What the Back action says, e.g. "Contracting review". */
-  label: string;
-}
-
-/** Add return context to a link. */
-export function withReturnTo(href: string, from: string, label: string): string {
-  const separator = href.includes("?") ? "&" : "?";
-  return (
-    `${href}${separator}returnTo=${encodeURIComponent(from)}` +
-    `&returnLabel=${encodeURIComponent(label)}`
-  );
-}
+export type { ReturnTo } from "./links";
+export { isInternalPath, withReturnTo } from "./links";
 
 /**
  * The place to go back to, or the caller's default.
@@ -58,9 +47,4 @@ export function useReturnTo(fallback: ReturnTo): ReturnTo {
     // The fallback is an inline object at every call site, so keying the memo on
     // its parts rather than its identity is what stops it recomputing forever.
   }, [href, label, fallback.href, fallback.label]); // eslint-disable-line react-hooks/exhaustive-deps
-}
-
-/** A path inside this application: one leading slash, and no scheme or host. */
-export function isInternalPath(value: string): boolean {
-  return value.startsWith("/") && !value.startsWith("//") && !value.includes(":");
 }

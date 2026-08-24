@@ -2,18 +2,12 @@
 
 import Link from "next/link";
 import * as React from "react";
-import {
-  ArrowLeft,
-  Check,
-  FolderInput,
-  Loader2,
-  Pencil,
-  Sparkles,
-} from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, Sparkles } from "lucide-react";
 
 import { AnswerBlock, FollowUps } from "@/components/ask/answer";
 import { ClarificationCard } from "@/components/ask/clarification";
 import { Composer } from "@/components/ask/composer";
+import { ProjectMenu } from "@/components/ask/project-picker";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -81,6 +75,7 @@ function Thread({ threadId }: { threadId: number }) {
   const [draft, setDraft] = React.useState("");
   const [asking, setAsking] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [picking, setPicking] = React.useState(false);
   const [pendingQuestion, setPendingQuestion] = React.useState("");
   const [savedMessages, setSavedMessages] = React.useState<Set<number>>(
     () => new Set(),
@@ -112,6 +107,13 @@ function Thread({ threadId }: { threadId: number }) {
     },
     [threadId, asking],
   );
+
+  // An answer's Project action opens the investigation's own project menu:
+  // a project owns investigations, so that is the thing being placed.
+  const addToProject = React.useCallback(() => {
+    setPicking(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   const saveAnswer = React.useCallback(
     async (sequence: number) => {
@@ -158,22 +160,32 @@ function Thread({ threadId }: { threadId: number }) {
         projects={projects.data?.projects ?? []}
         settled={settled}
         onChange={setLocal}
+        picking={picking}
+        onPickingChange={setPicking}
       />
 
       <div className="space-y-9">
         {thread.messages.map((message) => (
-          <Exchange
-            key={message.id}
-            message={message}
-            onAsk={ask}
-            onSave={() => saveAnswer(message.sequence)}
-            saved={savedMessages.has(message.sequence)}
-            busy={asking}
-            mode={mode.data ?? null}
-            onAnswerClarification={(from, to) =>
-              ask(previousQuestion(thread.messages, message.sequence), { from, to })
-            }
-          />
+          // The anchor is what makes "Back to conversation" land on the exact
+          // question rather than the top of a long thread.
+          <div key={message.id} id={turnAnchor(message.sequence)}>
+            <Exchange
+              message={message}
+              onAsk={ask}
+              onSave={() => saveAnswer(message.sequence)}
+              saved={savedMessages.has(message.sequence)}
+              busy={asking}
+              mode={mode.data ?? null}
+              onAnswerClarification={(from, to) =>
+                ask(previousQuestion(thread.messages, message.sequence), { from, to })
+              }
+              returnTo={{
+                href: `/investigations/${thread.id}#${turnAnchor(message.sequence)}`,
+                label: thread.title,
+              }}
+              onAddToProject={projectId === null ? addToProject : undefined}
+            />
+          </div>
         ))}
 
         {asking && (
@@ -217,16 +229,20 @@ function ThreadHeader({
   projects,
   settled,
   onChange,
+  picking,
+  onPickingChange,
 }: {
   thread: Thread;
   project: ProjectRow | null;
   projects: ProjectRow[];
   settled: string | null;
   onChange: (thread: Thread) => void;
+  /** Held above, so an answer's Project action can open this same menu. */
+  picking: boolean;
+  onPickingChange: (open: boolean) => void;
 }) {
   const [renaming, setRenaming] = React.useState(false);
   const [title, setTitle] = React.useState(thread.title);
-  const [moving, setMoving] = React.useState(false);
 
   async function rename() {
     setRenaming(false);
@@ -234,12 +250,6 @@ function ThreadHeader({
       const updated = await api.renameThread(thread.id, title.trim());
       onChange({ ...thread, title: updated.title });
     }
-  }
-
-  async function move(projectId: number | null) {
-    setMoving(false);
-    const updated = await api.moveThread(thread.id, projectId);
-    onChange({ ...thread, project_id: updated.project_id });
   }
 
   return (
@@ -272,43 +282,13 @@ function ThreadHeader({
             <Pencil aria-hidden />
             Rename
           </Button>
-          <div className="relative">
-            <Button variant="ghost" size="sm" onClick={() => setMoving((m) => !m)}>
-              <FolderInput aria-hidden />
-              {project ? project.name : "Add to project"}
-            </Button>
-            {moving && (
-              <div className="absolute right-0 top-full z-20 mt-1 w-64 rounded-lg border border-border bg-surface py-1 shadow-lg">
-                {projects.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => move(p.id)}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-surface-hover"
-                  >
-                    {p.id === thread.project_id && (
-                      <Check className="size-3.5 text-accent" aria-hidden />
-                    )}
-                    <span className="truncate">{p.name}</span>
-                  </button>
-                ))}
-                {thread.project_id !== null && (
-                  <button
-                    type="button"
-                    onClick={() => move(null)}
-                    className="w-full border-t border-border px-3 py-2 text-left text-sm text-text-muted hover:bg-surface-hover"
-                  >
-                    Remove from project
-                  </button>
-                )}
-                {projects.length === 0 && (
-                  <p className="px-3 py-2 text-xs text-text-muted">
-                    No projects yet.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+          <ProjectMenu
+            thread={thread}
+            projects={projects}
+            open={picking}
+            onOpenChange={onPickingChange}
+            onChanged={onChange}
+          />
         </div>
       </div>
 
@@ -349,6 +329,8 @@ function Exchange({
   busy,
   mode,
   onAnswerClarification,
+  returnTo,
+  onAddToProject,
 }: {
   message: ThreadMessage;
   onAsk: (question: string) => void;
@@ -357,6 +339,9 @@ function Exchange({
   busy: boolean;
   mode: PlannerMode | null;
   onAnswerClarification: (from: string, to: string) => void;
+  /** Where Method, Trace and Analysis links come back to — this exact turn. */
+  returnTo: { href: string; label: string };
+  onAddToProject?: () => void;
 }) {
   if (message.role === "user") return <UserTurn content={message.content} />;
 
@@ -391,6 +376,8 @@ function Exchange({
         onSave={onSave}
         saved={saved}
         busy={busy}
+        onAddToProject={onAddToProject}
+        returnTo={returnTo}
         compact
       />
     </div>
@@ -411,6 +398,17 @@ function UserTurn({ content }: { content: string }) {
 /* ------------------------------------------------------------------ helpers */
 
 /** The question a clarification is asking about: the message just before it. */
+/**
+ * The id of one turn in the thread.
+ *
+ * Used both as the anchor on the rendered turn and in the `returnTo` handed to
+ * Method, Trace and Analysis, so coming back lands on the question that was
+ * asked rather than the top of the conversation.
+ */
+function turnAnchor(sequence: number): string {
+  return `turn-${sequence}`;
+}
+
 function previousQuestion(messages: ThreadMessage[], sequence: number): string {
   for (let i = sequence - 1; i >= 0; i -= 1) {
     const message = messages.find((m) => m.sequence === i);

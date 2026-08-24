@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import * as React from "react";
 import {
-  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Database,
@@ -11,6 +9,7 @@ import {
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { BackLink } from "@/components/layout/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { InfoPopover } from "@/components/ui/info-popover";
@@ -64,12 +63,7 @@ export default function BrowseDataPage() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link href="/data-builder">
-          <ArrowLeft aria-hidden />
-          Data Builder
-        </Link>
-      </Button>
+      <BackLink href="/data-builder" label="Data Builder" />
 
       <header>
         <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-text-muted">

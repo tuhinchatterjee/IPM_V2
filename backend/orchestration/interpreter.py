@@ -87,6 +87,9 @@ class Narrative:
     interpretation: str = ""
     #: The same reading as discrete points, for a scannable panel.
     interpretation_points: list[str] = field(default_factory=list)
+    #: One line saying why more than one analysis ran. Empty when only one did.
+    #: Describes the PLAN, not the portfolio, so it introduces no figure.
+    why_multiple: str = ""
     metrics: list[Metric] = field(default_factory=list)
     drivers: list[dict[str, Any]] = field(default_factory=list)
     caveats: list[str] = field(default_factory=list)
@@ -98,6 +101,7 @@ class Narrative:
             "findings": [f.to_dict() for f in self.findings],
             "interpretation": self.interpretation,
             "interpretation_points": list(self.interpretation_points),
+            "why_multiple": self.why_multiple,
             "metrics": [m.to_dict() for m in self.metrics],
             "drivers": self.drivers,
             "caveats": self.caveats,
@@ -1121,9 +1125,44 @@ def build_narrative(question: str, intent: str, steps: list[dict[str, Any]],
         findings=findings,
         interpretation=" ".join(interpretation_points),
         interpretation_points=interpretation_points,
+        why_multiple=_why_multiple(steps, primary_index),
         metrics=unique_metrics[:4],
         drivers=_drivers(steps),
         caveats=list(dict.fromkeys(caveats))[:6],
+    )
+
+
+def _why_multiple(steps: list[dict[str, Any]], primary_index: int) -> str:
+    """One line on why more than one analysis ran.
+
+    A reader who sees three results is entitled to know why three, and the
+    honest answer is a property of the PLAN: each supporting step was chosen
+    because the question needs something the primary analysis does not provide.
+
+    Composed from the steps' own recorded rationale, so it says what actually
+    happened rather than a generic sentence about thoroughness. It introduces no
+    figure, because it is not describing the portfolio.
+    """
+    completed = [s for s in steps if s.get("status") == "succeeded"]
+    if len(completed) < 2:
+        return ""
+
+    supporting = [
+        str(step.get("rationale") or "").strip().rstrip(".")
+        for index, step in enumerate(steps)
+        if index != primary_index and step.get("status") == "succeeded"
+    ]
+    supporting = [r for r in supporting if r]
+    if not supporting:
+        return (
+            f"CreditProbe ran {len(completed)} analyses: one answers the "
+            "question, the others provide the context needed to read it."
+        )
+
+    reasons = "; ".join(supporting[:2]).lower()
+    return (
+        f"CreditProbe ran {len(completed)} analyses because the question needs "
+        f"more than one: {reasons}."
     )
 
 

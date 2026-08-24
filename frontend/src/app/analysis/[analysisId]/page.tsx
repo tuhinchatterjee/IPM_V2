@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { ArrowLeft, Play, Sparkles } from "lucide-react";
+import { Play, Sparkles } from "lucide-react";
 
 import { AnalyticalCard, CertificationMark } from "@/components/analytics/analytical-card";
 import { ResultView } from "@/components/analytics/result-view";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
+import { BackLink } from "@/components/layout/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { api } from "@/lib/api";
@@ -55,12 +56,7 @@ export default function AnalysisRunPage({
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link href="/">
-          <ArrowLeft aria-hidden />
-          Back to Cockpit
-        </Link>
-      </Button>
+      <BackLink href="/" label="Cockpit" />
 
       {question && (
         <Card className="border-accent/30 bg-accent-muted/30 p-4">

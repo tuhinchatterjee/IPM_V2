@@ -3,7 +3,6 @@
 import Link from "next/link";
 import * as React from "react";
 import {
-  ArrowLeft,
   GitBranch,
   History,
   Loader2,
@@ -14,6 +13,7 @@ import {
 
 import { ResultView } from "@/components/analytics/result-view";
 import { Badge } from "@/components/ui/badge";
+import { BackLink } from "@/components/layout/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CertificationBadge } from "@/components/ui/certified-mark";
@@ -114,12 +114,7 @@ function LensView({ id }: { id: number }) {
 
   return (
     <div className="space-y-7">
-      <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link href="/lenses">
-          <ArrowLeft aria-hidden />
-          Lenses
-        </Link>
-      </Button>
+      <BackLink href="/lenses" label="Lenses" />
 
       <Header lens={lens} rendered={rendered.data} />
 

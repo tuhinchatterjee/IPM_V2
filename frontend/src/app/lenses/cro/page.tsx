@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { ArrowLeft, ArrowRight, GitBranch, Printer } from "lucide-react";
+import { ArrowRight, GitBranch, Printer } from "lucide-react";
 
 import { TraceButton } from "@/components/analytics/analytical-card";
 import {
@@ -13,6 +13,7 @@ import {
 import { KpiTile, ResultTable } from "@/components/analytics/primitives";
 import { StageCompositionChart } from "@/components/analytics/result-view";
 import { Badge } from "@/components/ui/badge";
+import { BackLink } from "@/components/layout/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -79,12 +80,7 @@ export default function CroLensPage() {
 
   return (
     <div className="space-y-10">
-      <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link href="/lenses">
-          <ArrowLeft aria-hidden />
-          All lenses
-        </Link>
-      </Button>
+      <BackLink href="/lenses" label="Lenses" />
 
       {/* ------------------------------------------------------------ masthead */}
       <header className="border-b border-border pb-6">

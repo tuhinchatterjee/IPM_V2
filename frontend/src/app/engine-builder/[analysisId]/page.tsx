@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import * as React from "react";
-import { ArrowLeft, Play } from "lucide-react";
+import { Play } from "lucide-react";
 
 import { AnalyticalCard, CertificationMark } from "@/components/analytics/analytical-card";
 import { DefinitionRow } from "@/components/analytics/primitives";
@@ -10,6 +9,7 @@ import { ResultView } from "@/components/analytics/result-view";
 import { PageHeader } from "@/components/layout/page-header";
 import { useCanRunAnalysis } from "@/components/system/role-switcher";
 import { Badge } from "@/components/ui/badge";
+import { BackLink } from "@/components/layout/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -50,12 +50,7 @@ export default function AnalysisDetailPage({
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link href="/engine-builder">
-          <ArrowLeft aria-hidden />
-          Analysis Library
-        </Link>
-      </Button>
+      <BackLink href="/engine-builder" label="Analysis Library" />
 
       {detail.loading && <Skeleton className="h-64 w-full" />}
       {detail.error && (

@@ -1,14 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import * as React from "react";
-import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, Rocket, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, Rocket, ShieldCheck } from "lucide-react";
 
 import { LifecycleBadge } from "@/app/data-builder/page";
 import { ResultTable } from "@/components/analytics/primitives";
 import { PageHeader } from "@/components/layout/page-header";
 import { ReadOnlyNotice, useCanEditData } from "@/components/system/role-switcher";
 import { Badge } from "@/components/ui/badge";
+import { BackLink } from "@/components/layout/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty";
@@ -57,12 +57,7 @@ export default function DatasetPage({ params }: { params: Promise<{ name: string
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link href="/data-builder">
-          <ArrowLeft aria-hidden />
-          Data Builder
-        </Link>
-      </Button>
+      <BackLink href="/data-builder" label="Data Builder" />
 
       {detail.loading && <Skeleton className="h-64 w-full" />}
       {detail.error && (

@@ -3,13 +3,13 @@
 import Link from "next/link";
 import * as React from "react";
 import {
-  ArrowLeft,
   BarChart3,
   MessageSquare,
   Send,
   Sparkles,
 } from "lucide-react";
 
+import { BackLink } from "@/components/layout/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CertificationBadge } from "@/components/ui/certified-mark";
@@ -92,12 +92,7 @@ export default function ProjectPage({
 
   return (
     <div className="space-y-7">
-      <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link href="/projects">
-          <ArrowLeft aria-hidden />
-          Projects
-        </Link>
-      </Button>
+      <BackLink href="/projects" label="Projects" />
 
       <header>
         <div className="flex flex-wrap items-start justify-between gap-4">

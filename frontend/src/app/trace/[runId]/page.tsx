@@ -1,14 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import * as React from "react";
-import { ArrowLeft, Clock, GitBranch, Layers, Sparkles } from "lucide-react";
+import { Clock, GitBranch, Layers, Sparkles } from "lucide-react";
 
 import { NodeInspector } from "@/components/trace/node-inspector";
 import { ModifyPanel, VersionSwitcher } from "@/components/trace/modify-panel";
 import { ReasoningMap, type MapHighlight } from "@/components/trace/reasoning-map";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { BackLink } from "@/components/layout/back-link";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type Narrative, type ProposedChange } from "@/lib/api";
@@ -59,12 +58,7 @@ export default function TraceDetailPage({ params }: { params: Promise<{ runId: s
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link href="/trace">
-          <ArrowLeft aria-hidden />
-          Trace &amp; Lineage
-        </Link>
-      </Button>
+      <BackLink href="/trace" label="Trace & Lineage" />
 
       {investigation.loading && <Skeleton className="h-[32rem] w-full" />}
       {investigation.error && (

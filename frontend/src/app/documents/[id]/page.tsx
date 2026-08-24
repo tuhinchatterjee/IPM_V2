@@ -1,15 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import * as React from "react";
 import {
-  ArrowLeft, FileDown, GitBranch, History, MessageSquare, Pencil, Presentation, Workflow,
+  FileDown, GitBranch, History, MessageSquare, Pencil, Presentation, Workflow,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { BackLink } from "@/components/layout/back-link";
 import { Card } from "@/components/ui/card";
 import { findDocument } from "@/lib/demo";
 
@@ -37,9 +36,7 @@ export default function DocumentPage({ params }: { params: Promise<{ id: string 
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link href="/documents"><ArrowLeft aria-hidden />Documents</Link>
-      </Button>
+      <BackLink href="/documents" label="Documents" />
 
       <PageHeader
         title={doc.title}

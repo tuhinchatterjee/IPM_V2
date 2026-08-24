@@ -532,6 +532,8 @@ export interface Narrative {
   metrics: NarrativeMetric[];
   drivers: NarrativeDriver[];
   caveats: string[];
+  /** Why more than one analysis was needed. Empty when only one ran. */
+  why_multiple?: string;
 }
 
 export interface Stage {
@@ -2008,9 +2010,24 @@ export const api = {
     }),
 
   // ---- investigations: conversations ----
-  threads: (opts: { projectId?: number; includeArchived?: boolean } = {}) => {
+  /**
+   * Investigations.
+   *
+   * `scope` is the difference between the global list and a project's list.
+   * "standalone" (the default the backend applies) is the Cockpit's own
+   * conversations — a project's investigations belong to that project and are
+   * deliberately absent. Pass a `projectId` with scope "project" for those.
+   */
+  threads: (
+    opts: {
+      projectId?: number;
+      includeArchived?: boolean;
+      scope?: "standalone" | "project" | "all";
+    } = {},
+  ) => {
     const query = new URLSearchParams();
     if (opts.projectId !== undefined) query.set("project_id", String(opts.projectId));
+    if (opts.scope) query.set("scope", opts.scope);
     if (opts.includeArchived) query.set("include_archived", "true");
     const suffix = query.toString() ? `?${query}` : "";
     return request<{ investigations: ThreadSummary[] }>(`/investigations${suffix}`);
@@ -2065,6 +2082,30 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ project_id: projectId }),
     }),
+  copyThread: (id: number, opts: { projectId?: number | null; title?: string } = {}) =>
+    request<Thread>(`/investigations/${id}/copy`, {
+      method: "POST",
+      body: JSON.stringify({
+        project_id: opts.projectId ?? null,
+        title: opts.title ?? "",
+      }),
+    }),
+  /** Open a project around this conversation, carrying its settled context in. */
+  projectFromThread: (
+    id: number,
+    opts: { name?: string; description?: string; move?: boolean } = {},
+  ) =>
+    request<{ project: ProjectRow; investigation: Thread }>(
+      `/investigations/${id}/project`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: opts.name ?? "",
+          description: opts.description ?? "",
+          move: opts.move ?? true,
+        }),
+      },
+    ),
   archiveThread: (id: number) =>
     request<Thread>(`/investigations/${id}/archive`, { method: "POST" }),
 
