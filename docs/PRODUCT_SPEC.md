@@ -122,23 +122,87 @@ business meaning and lineage, a function's methodology, a specific number's
 derivation, or a regulatory concept. Explain draws on the Data Dictionary and the
 Engine Registry, so definitions come from governed metadata rather than model memory.
 
-### 8. Projects and Chats
-A **Project** is a container for a body of work — e.g. "Q1 2026 Board Pack",
-"Real Estate Deep Dive". It holds chats, investigations, saved analyses, traces,
-scenarios, documents, members and comments. A **Chat** is a threaded conversation
-within a project; every analytical result in it is permanently linked to its Trace.
+### 8. The work hierarchy: Analysis &lt; Investigation &lt; Project
 
-### 9. Blueprints
-Reusable, parameterised analytical templates. A Blueprint captures a proven
-investigation — its plan, its functions, its parameters, its layout — so it can be
-re-run next month, on another portfolio, or by another user, producing a comparable
-result. Blueprints are the mechanism by which one analyst's good work becomes
-institutional capability.
+Three levels, and each is a different unit of work:
 
-### 10. Lenses / Dashboards
-Saved, composable views. A Lens is a named arrangement of analytical outputs with
-fixed filters — "CRO Monthly", "Real Estate Committee", "IFRS 9 Review". Each tile
-in a Lens is itself a governed engine result with its own Trace.
+| | What it is | What makes it that |
+|---|---|---|
+| **Analysis** | One certified calculation, kept | A single engine function, stated parameters, a stated period, one result, and the `analysis_run_id` that ties it to its Trace |
+| **Investigation** | A conversation | A question, its answer, and the follow-ups it led to. Every answer keeps the analyses that produced it |
+| **Project** | A body of work | The investigations that explore one question and the analyses kept as evidence for it, over weeks |
+
+An Investigation remembers what it has SETTLED — the domain and period it has
+agreed — so a clarifying question is asked once per thread and never again. A
+Project carries standing instructions into every investigation opened inside it,
+so "answer for the corporate book" is said once rather than in every question.
+
+A Project's status is governed: DRAFT, ACTIVE, IN REVIEW, COMPLETED, ARCHIVED.
+Four of the five are a person's declaration. **IN REVIEW is not**: it appears
+only while there is a genuinely open review item against the project, and it is
+left when the reviewer decides. A status badge anyone can apply to themselves
+means nothing to the person reading it, and "In review" is the badge most likely
+to be trusted without checking.
+
+### 9. Playbooks
+
+A **Playbook** is a standing instruction the platform carries out. Five parts:
+a **trigger** (on demand, on publication, on a schedule), a **scope** over
+governed dimensions, the **analyses** to run, the **conditions** worth somebody's
+attention, and the **actions** to take.
+
+Playbooks replaced Blueprints. A Blueprint was a template of a document —
+something you filled in. A Playbook RUNS. The work a credit team repeats every
+quarter is not writing the same document; it is asking the same questions of new
+data and noticing when an answer has changed.
+
+A playbook cannot invent an analysis, write a query, or compute a metric of its
+own. A condition whose metric no analysis produced reports as **untestable**,
+which is a different fact from being false — and a run that finds nothing says
+so rather than reaching for something to report.
+
+### 10. Lenses
+
+A **Lens** is a live view of the book for one audience, made of panels. Two
+things distinguish it from a dashboard somebody configured once:
+
+- **It is live.** Opening a Lens executes its analyses against what is published
+  now. There are no stored figures, so a Lens cannot quietly go stale, and every
+  panel carries its own Trace.
+- **It is changed by asking.** "Add obligor concentration", "drop the stress
+  panel". Each applied change is a new revision with a sentence saying what
+  changed, and restoring an earlier one moves FORWARD as a new revision rather
+  than rewinding — so the history of what was tried survives.
+
+The request is matched against the analysis **names**, not their descriptions,
+and needs two words to land before anything counts as a match. A request the
+library has nothing for changes nothing and says so, rather than being
+approximated with the nearest available panel.
+
+### 10b. Early Warning — the Forward Risk Signal
+
+A forward-looking estimate of the chance a facility moves to a worse IFRS 9
+stage next quarter, fitted separately for three transitions: Stage 1 to Stage 2,
+Stage 1 to default, and Stage 2 to default.
+
+The scoring form is additive and logistic, chosen so that **every score
+decomposes exactly** into one contribution per factor, and those contributions
+add up to the score. That is what makes the explanation screen a decomposition
+rather than a story.
+
+Eighteen factors in six families — Behaviour, Capacity, Rating dynamics,
+Structure, Sentiment, Cycle sensitivity — each declaring the governed fields it
+reads and the direction a credit officer would expect. A fitted weight that
+disagrees with that expectation is flagged rather than hidden.
+
+**It is a prototype and the product never calls it anything else.** The words
+*validated*, *production model* and *regulatory model* are derived in code from a
+validation record carrying who validated it, when, and the report reference; they
+are unreachable without one. Fitting and activating a model is
+administrator-only — deliberately the narrowest permission in the product.
+
+See `docs/EARLY_WARNING_METHODOLOGY.md` for the full specification and the public
+literature it draws on.
 
 ### 11. Documents
 *Placeholder for the current demo.* Eventually: a document workspace where Board and

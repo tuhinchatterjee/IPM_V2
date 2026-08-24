@@ -138,20 +138,20 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/early-warning",
     label: "Early Warning",
     description:
-      "Forward Risk Signal: a transparent, factor-based score for three credit transitions. Prototype methodology, not a validated model.",
+      "Forward Risk Signal: a transparent, factor-based estimate of the chance a facility moves to a worse IFRS 9 stage next quarter, for three transitions. Every score decomposes exactly into one number per factor.",
     icon: Radar,
     status: "partial",
-    phase: "Prototype methodology",
+    phase: "Prototype signal, fitted on synthetic data. Not a validated model.",
     group: "Intelligence",
   },
   {
     href: "/playbooks",
     label: "Playbooks",
     description:
-      "Reusable monitoring recipes: a trigger, a scope, the analyses to run, the conditions that constitute an alert and what happens next.",
+      "A standing instruction: run these certified analyses over this scope, test these thresholds, and act when one is crossed. A run that finds nothing says so.",
     icon: ClipboardCheck,
     status: "partial",
-    phase: "Definitions run on request",
+    phase: "Manual and on-publication triggers run; scheduled ones are not yet wired to a scheduler",
     group: "Intelligence",
   },
   {

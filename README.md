@@ -549,8 +549,10 @@ become the implementations behind registered engine functions in Phase 2.
   palette's contrast is asserted by a test, not judged by eye.
 
 Phases 1–4 built what this rests on: the Data Access Layer and Parquet lake, the
-eleven registered analyses, Data Builder, Engine Builder, the Trace model, the
-interactive map and controlled Trace modification. See
+registered analyses, Data Builder, Engine Builder, the Trace model, the
+interactive map and controlled Trace modification. The current phase added the
+Analysis &lt; Investigation &lt; Project hierarchy, the Saudi demonstration universe,
+the Early Warning module, Lenses, Playbooks and the dataset viewer. See
 [docs/DEMO_SCOPE.md](docs/DEMO_SCOPE.md) for the sequence and what remains
 (Documents authoring and production authentication).
 

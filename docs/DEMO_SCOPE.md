@@ -186,6 +186,48 @@ script with the exact questions to ask and what each will show.
 
 ---
 
+### Phase 8 — The product phase · **COMPLETE**
+
+What this phase added, and what it deliberately did not.
+
+**The work hierarchy.** Analysis &lt; Investigation &lt; Project, made real in the
+database, the API and the interface with one vocabulary. An Investigation is now
+a CONVERSATION with a persistent composer; it remembers the domain and period it
+has settled, so a clarification is asked once per thread. Migration `0005` moves
+existing saved objects forward without destroying anything: `investigation_versions`
+survives, and each row is copied into both the new message table and the new
+saved-analysis table.
+
+**The demonstration universe.** A simulated Saudi corporate book:
+approximately 16,000 facilities across 15 quarters (Q4 2022 to Q2 2026), 15
+quarters of IFRS 9 staging, 8 annual rating cycles over 4,100 customers, and 34
+quarters of macroeconomic series. Generated from one fixed seed by
+`scripts/generate_saudi_universe.py`, so every machine gets the identical
+universe. Simulated rather than sampled, because a forward risk signal can only
+be demonstrated on data where deterioration is genuinely predictable.
+
+**Early Warning.** A prototype Forward Risk Signal for three transitions, with a
+transparent factor architecture, exact score decomposition, out-of-time
+backtesting and an administrator-only Model Lab. Documented in
+`docs/EARLY_WARNING_METHODOLOGY.md`.
+
+**Engine Builder expansion.** Twenty-two registered analyses, up from eleven,
+including four IFRS 9 staging analyses, three rating and macro analyses, and four
+concentration and behaviour analyses reading the new governed datasets.
+
+**Lenses and Playbooks.** Lenses are live dashboards built and revised by asking.
+Playbooks replaced Blueprints: a standing instruction that runs, rather than a
+template you fill in.
+
+**The dataset viewer.** Navigate domain to family to dataset to period and read
+the governed rows, with each column's definition and classification beside it —
+through the Data Access Layer, so it is a viewer and not a query surface.
+
+**Still not built, on purpose.** Full Document authoring; production identity and
+access management; a scheduler for scheduled Playbooks; and independent
+validation of the Forward Risk Signal, without which it remains — and is
+described as — a prototype.
+
 ## 4. If only one working day is available
 
 Recommended cut — the **AI Cockpit → Real Analytics → Trace** vertical slice, because
