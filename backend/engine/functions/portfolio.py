@@ -14,13 +14,16 @@ from __future__ import annotations
 
 import pandas as pd
 
+from backend.data_access.catalog import FACILITY_POSITION
 from backend.engine.contracts import (
     AnalysisContract,
+    AnswerShape,
     Category,
     Certification,
     OutputField,
     Parameter,
     ParamType,
+    PeriodRequirement,
     ValidationRule,
     VisualizationType,
 )
@@ -58,6 +61,22 @@ PORTFOLIO_SUMMARY_FIELDS = [
 
 @register(AnalysisContract(
     id="portfolio_summary",
+    period_requirement=PeriodRequirement.POINT_IN_TIME,
+    governed_default_period=True,
+    answer_shape=AnswerShape.LEVEL,
+    when_to_use=(
+        "Use when the question is where the book stands right now — its size, its staging, its coverage — rather than what changed."
+    ),
+    trigger_questions=[
+        "What is our current NPL ratio?",
+        "Where does the portfolio stand?",
+        "What is total exposure and coverage?",
+        "Give me the headline position.",
+    ],
+    limitations=(
+        "A position, not an explanation. It reports the movement against the prior period but does not attribute it to any cause."
+    ),
+    required_domains=[FACILITY_POSITION],
     name="Portfolio Summary",
     description=(
         "Headline position of the book for one reporting period: exposure, limits, "
@@ -101,7 +120,6 @@ PORTFOLIO_SUMMARY_FIELDS = [
         "one as equally important. Movement is the difference against the "
         "comparison period on the same basis."
     ),
-    requires_compare_period=False,
 ))
 def portfolio_summary(ctx: ExecutionContext) -> AnalysisResult:
     period, compare, available = resolve_periods(
@@ -193,6 +211,21 @@ STAGE_FIELDS = ["account_id", "customer_id", "ead", "total_ecl", "ifrs9_stage",
 
 @register(AnalysisContract(
     id="stage_distribution",
+    period_requirement=PeriodRequirement.POINT_IN_TIME,
+    governed_default_period=True,
+    answer_shape=AnswerShape.DISTRIBUTION,
+    when_to_use=(
+        "Use when the question is how exposure and impairment split across IFRS 9 stages, optionally within a dimension."
+    ),
+    trigger_questions=[
+        "How is exposure split across stages?",
+        "What is in Stage 2 by sector?",
+        "Show the IFRS 9 staging.",
+    ],
+    limitations=(
+        "A snapshot of where exposure sits. It does not show what moved between stages — Stage Migration does that."
+    ),
+    required_domains=[FACILITY_POSITION],
     name="Stage Distribution",
     description=(
         "How exposure and ECL are split across IFRS 9 stages 1, 2 and 3, both "
@@ -299,6 +332,21 @@ CONCENTRATION_FIELDS = ["account_id", "customer_id", "ead", "total_ecl", "ifrs9_
 
 @register(AnalysisContract(
     id="sector_concentration",
+    period_requirement=PeriodRequirement.POINT_IN_TIME,
+    governed_default_period=True,
+    answer_shape=AnswerShape.RANKING,
+    when_to_use=(
+        "Use when the question is where exposure is concentrated, and how good or bad the largest concentrations are."
+    ),
+    trigger_questions=[
+        "Where is the book most concentrated?",
+        "What are our largest sectors?",
+        "Show exposure by region.",
+    ],
+    limitations=(
+        "Measures size and quality of concentration at a point in time. It says nothing about whether a concentration is getting worse."
+    ),
+    required_domains=[FACILITY_POSITION],
     name="Sector Concentration",
     description=(
         "Where the book is concentrated: exposure, share, ECL coverage and NPL by "
@@ -413,6 +461,21 @@ TREND_FIELDS = ["account_id", "customer_id", "ead", "total_ecl", "ifrs9_stage", 
 
 @register(AnalysisContract(
     id="portfolio_trend",
+    period_requirement=PeriodRequirement.TIME_SERIES,
+    governed_default_period=True,
+    answer_shape=AnswerShape.TREND,
+    when_to_use=(
+        "Use when the question is about direction of travel across several reporting periods rather than a single comparison."
+    ),
+    trigger_questions=[
+        "How has coverage moved over time?",
+        "Show the trend in Stage 2.",
+        "What has happened over the last few quarters?",
+    ],
+    limitations=(
+        "Shows the path, not the cause. Each point is a portfolio total; it cannot attribute a movement to a sector or a name."
+    ),
+    required_domains=[FACILITY_POSITION],
     name="Portfolio Trend",
     description=(
         "How the headline metrics have moved across every available reporting "
