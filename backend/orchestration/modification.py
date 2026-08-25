@@ -418,6 +418,20 @@ def _why_no_effect(operation: Operation, plan: AnalysisPlan) -> str:
     return "This investigation already does that, so nothing would change."
 
 
+#: The analysis id a composed plan carries.
+COMPOSED = "dynamic_analysis"
+
+
+def is_composed(plan: AnalysisPlan) -> bool:
+    """Whether this answer was composed rather than selected.
+
+    A composed plan is modified by re-composing: the change is applied to the
+    question's reading and the whole analysis is rebuilt, because its steps are
+    an Analytical IR rather than a list of registered analyses to re-run.
+    """
+    return bool(plan.steps) and all(s.analysis_id == COMPOSED for s in plan.steps)
+
+
 def _step_signature(step: PlanStep) -> str:
     import json
 
@@ -467,11 +481,17 @@ def preview(request: str, plan: AnalysisPlan, graph: dict[str, Any],
 
     proposed = apply_operation(operation, plan)
 
+    # A composed analysis is not made of registered engine analyses, so the
+    # registry validator has nothing to say about it. Its plan is validated
+    # where it is built — against the governed catalogue, by the runtime — and
+    # running that check here would reject every dynamic answer as "not a
+    # registered analysis", which is true and beside the point.
     rejected: list[str] = []
-    try:
-        validate_plan(proposed, vocab)
-    except PlanRejected as rejection:
-        rejected = rejection.reasons
+    if not is_composed(plan):
+        try:
+            validate_plan(proposed, vocab)
+        except PlanRejected as rejection:
+            rejected = rejection.reasons
 
     before = {_step_signature(s): i for i, s in enumerate(plan.steps)}
     before_ids = [s.analysis_id for s in plan.steps]
@@ -535,6 +555,8 @@ def apply_modification(plan: AnalysisPlan, previous_steps: list[ExecutedStep],
                        change: ProposedChange, *, user_id: int | None = None) -> Investigation:
     """Execute the modified plan, reusing every step that did not change."""
     started = time.perf_counter()
+    if is_composed(plan):
+        return _recompose(plan, change, user_id=user_id, started=started)
     proposed = validate_plan(change.proposed_plan)
     steps = execute_plan(proposed, user_id=user_id, previous=previous_steps)
     return assemble(proposed, steps,
@@ -542,12 +564,39 @@ def apply_modification(plan: AnalysisPlan, previous_steps: list[ExecutedStep],
                     mode=planner_mode())
 
 
+def _recompose(plan: AnalysisPlan, change: ProposedChange, *,
+               user_id: int | None, started: float) -> Investigation:
+    """Rebuild a composed analysis with the change applied.
+
+    Nothing is reused. A composed plan is one IR, compiled as one statement:
+    there are no independent steps to re-run selectively, and pretending
+    otherwise would report a step as "unchanged" while the query underneath it
+    was rewritten.
+    """
+    from backend.orchestration.executor import run_investigation
+
+    proposed = change.proposed_plan
+    filters = dict(proposed.steps[0].filters) if proposed.steps else {}
+    scope = proposed.scope
+    period = ((scope.from_period, scope.to_period)
+              if scope.from_period and scope.to_period else None)
+
+    investigation = run_investigation(
+        plan.question, user_id=user_id, persist=False, period=period,
+        extra_filters=filters)
+    investigation.duration_ms = int((time.perf_counter() - started) * 1000)
+    investigation.plan.notes.append(change.description)
+    return investigation
+
+
 __all__ = [
+    "COMPOSED",
     "SUPPORTED_OPERATIONS",
     "Operation",
     "ProposedChange",
     "apply_modification",
     "apply_operation",
     "interpret",
+    "is_composed",
     "preview",
 ]

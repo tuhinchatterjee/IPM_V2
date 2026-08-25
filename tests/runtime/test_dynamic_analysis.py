@@ -268,7 +268,11 @@ def test_ask_answers_the_worked_example_end_to_end():
     body = investigation.to_dict()
 
     assert body["status"] == "succeeded"
-    assert body["plan"]["planner"] == "dynamic"
+    # Who READ the question, not which builder ran: "offline" is the
+    # deterministic semantic reader, "llm" is a configured model. Both compose,
+    # and the step below is what says the analysis was composed.
+    assert body["plan"]["planner"] in {"offline", "llm"}
+    assert [s["analysis_id"] for s in body["steps"]] == ["dynamic_analysis"]
     assert body["mode"]["execution"] == ExecutionClass.DYNAMIC
 
     step = body["steps"][0]
@@ -279,7 +283,13 @@ def test_ask_answers_the_worked_example_end_to_end():
 
     # The answer says it was composed, every time. Somebody reading only the
     # headline must not come away thinking this was a reviewed calculation.
-    assert "composed for this question" in body["narrative"]["interpretation"].lower()
+    #
+    # Said once, where it belongs: on the plan's notes and on the certification
+    # the answer carries. It used to be repeated inside the interpretation of
+    # every answer, which is how a disclaimer becomes something readers skip.
+    assert any("composed for this question" in note.lower()
+               for note in body["notes"])
+    assert "Dynamic" in step["result"]["certification_label"]
     assert str(len(step["result"]["rows"])) in body["narrative"]["direct_answer"]
 
 

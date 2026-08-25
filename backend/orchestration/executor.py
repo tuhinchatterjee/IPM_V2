@@ -39,7 +39,7 @@ from backend.orchestration.clarification import needed_clarification
 from backend.orchestration.comprehension import comprehend
 from backend.orchestration.dynamic import DynamicRequest, build_plan, read_question
 from backend.orchestration.interpreter import Finding, Metric, Narrative, build_narrative
-from backend.orchestration.planner import get_planner, planner_mode
+from backend.orchestration.planner import DemoPlanner, planner_mode
 from backend.orchestration.schema import AnalysisPlan, PlanRejected, PlanStep, Scope, StepRole
 from backend.orchestration.validator import validate_plan
 from backend.orchestration.vocabulary import get_vocabulary
@@ -890,57 +890,264 @@ def run_investigation(question: str, *, user_id: int | None = None,
                       project_id: int | None = None,
                       investigation_id: int | None = None,
                       persist: bool = True,
-                      period: tuple[str, str] | None = None) -> Investigation:
-    """Answer one question end to end — or ask the one thing CreditProbe needs to know.
+                      period: tuple[str, str] | None = None,
+                      extra_filters: dict[str, Any] | None = None) -> Investigation:
+    """Answer one question end to end — or ask the one thing CreditProbe needs.
 
-    `period` is a comparison already chosen: from answering a clarification, or
-    from refreshing a saved Investigation onto newer data.
+    Routing, in order:
+
+      1. **Read the request.** A language model when one is configured, the
+         deterministic semantic reader otherwise. It produces a structured
+         reading: what kind of request, which governed concepts, which
+         entities, how sure.
+      2. **Route by capability.** Only ANALYSIS reaches the runtime. A question
+         about the catalogue, a join, a field or a method is answered from
+         governed metadata, and nothing computes.
+      3. **Compose and run.** The reading becomes an Analytical IR, which is
+         validated against the catalogue and executed as parameterised SQL.
+
+    The legacy registry planner is reached only when the composition path
+    fails — an emergency fallback, never the normal route, and the answer says
+    so when it is used.
     """
+    from backend.orchestration import assembly, orchestrator
+
     started = time.perf_counter()
-    planner = get_planner()
+    try:
+        answered = orchestrator.answer(question, period=period,
+                                       extra_filters=extra_filters)
+        mode_now = orchestrator.mode()
+
+        if answered.clarification:
+            # Before asking, see whether a certified analysis already answers
+            # this. "What deteriorated this period?" names no governed measure,
+            # so the composer cannot read it — but the registry has an analysis
+            # built for exactly that question, and asking the user to rephrase
+            # something the product can already answer is worse service than
+            # answering it and saying which route was taken.
+            rescued = _registry_rescue(question, started, period=period,
+                                       user_id=user_id)
+            if rescued is not None:
+                if persist:
+                    persist_investigation(rescued, user_id=user_id,
+                                          project_id=project_id,
+                                          investigation_id=investigation_id)
+                return rescued
+            return _asking(question, answered, mode_now, started)
+
+        if answered.result is not None:
+            investigation = assembly.from_handler(
+                question, answered.reading, answered.result,
+                duration_ms=answered.duration_ms, mode=mode_now)
+        else:
+            investigation = assembly.from_analysis(
+                question, answered.reading, answered.build, answered.runtime,
+                duration_ms=answered.duration_ms, mode=mode_now)
+            _check_grounding(investigation, answered.runtime)
+
+        if persist:
+            persist_investigation(investigation, user_id=user_id,
+                                  project_id=project_id,
+                                  investigation_id=investigation_id)
+        return investigation
+    except Exception as e:  # noqa: BLE001 - the fallback is the point
+        logger.exception("The orchestrator failed on %r; falling back to the "
+                         "registry planner.", question)
+        fallback = _legacy_investigation(question, started, period=period,
+                                          user_id=user_id, reason=str(e))
+        if persist:
+            persist_investigation(fallback, user_id=user_id,
+                                  project_id=project_id,
+                                  investigation_id=investigation_id)
+        return fallback
+
+
+def _about_a_period(clarification: str) -> bool:
+    """Whether what is missing is the comparison window."""
+    lowered = (clarification or "").lower()
+    return ("over what period" in lowered or "which periods" in lowered
+            or "span needs" in lowered)
+
+
+#: How strongly the registry must recognise a question before it is allowed to
+#: answer one the composer could not read.
+#
+#: Lower than it looks, because the registry is no longer what stands between a
+#: question and a wrong answer. Capability routing is: a question about ratings
+#: data or about a join never reaches this path at all, which is what stopped it
+#: coming back as a Stage 2 distribution. What is left here is a question
+#: already classified as an analysis whose measure the composer could not read,
+#: and for those a labelled certified analysis beats a refusal.
+_RESCUE_CONFIDENCE = 5
+
+
+def _registry_rescue(question: str, started: float, *,
+                     period: tuple[str, str] | None,
+                     user_id: int | None) -> Investigation | None:
+    """A certified analysis for a question the composer could not read.
+
+    Returns None unless the registry recognises the question strongly and its
+    plan validates. Emergency mode, and labelled as such on the answer.
+    """
+    try:
+        vocab = get_vocabulary()
+        plan = DemoPlanner().plan(question, vocab, period=period)
+        if plan.unmatched or not plan.steps:
+            return None
+        if _registry_score(question) < _RESCUE_CONFIDENCE:
+            return None
+        if needed_clarification(plan, vocab) is not None:
+            return None
+        plan = validate_plan(plan, vocab)
+        steps = execute_plan(plan, user_id=user_id)
+        if not steps or any(s.status != "succeeded" for s in steps):
+            return None
+    except Exception as e:  # noqa: BLE001 - a failed rescue just means "ask"
+        logger.info("No registry analysis rescued %r: %s", question, e)
+        return None
+
+    plan.notes.append(
+        "CreditProbe could not compose an analysis for this question from the "
+        "governed concepts, so it ran the certified analyses registered for it "
+        "instead. Naming the figure you want will compose one directly.")
+    investigation = assemble(
+        plan, steps, duration_ms=int((time.perf_counter() - started) * 1000))
+    investigation.mode = {**investigation.mode, "fallback": True,
+                          "fallback_reason": "no governed measure was named"}
+    return investigation
+
+
+def _registry_score(question: str) -> int:
+    """How strongly the registry's own patterns match this question."""
+    import re
+
+    from backend.orchestration.planner import INTENTS
+
+    lowered = (question or "").lower()
+    best = 0
+    for intent in INTENTS:
+        score = sum(weight for pattern, weight in intent.patterns
+                    if re.search(pattern, lowered))
+        best = max(best, score)
+    return best
+
+
+def _asking(question: str, answered: Any, mode_now: dict[str, Any],
+            started: float) -> Investigation:
+    """CreditProbe stopping to ask rather than answering.
+
+    A clarification is a real outcome with its own Trace: the question, how far
+    the reading got, and what is missing. It is not an error and it is not an
+    empty analysis.
+    """
+    from backend.orchestration.schema import Clarification
+
+    reading = answered.reading
+
+    # The comprehension module already knows how to ask well: it detects a
+    # borrower nobody has heard of, distinguishes "no measure named" from "no
+    # intent at all", and offers options resolved to things the engine can
+    # actually do. Re-deriving a worse version of that here would be a second
+    # way of asking, and the two would drift.
+    typed = None
+    try:
+        vocab = get_vocabulary()
+        registry_plan = DemoPlanner().plan(question, vocab)
+        understanding = comprehend(question, registry_plan, vocab)
+        if understanding.should_ask:
+            typed = understanding.clarification
+        elif _about_a_period(answered.clarification):
+            # A missing comparison window has resolved options — "last quarter",
+            # "last 12 months" — and answering by clicking one is a click rather
+            # than a re-typed sentence. The clarification module already builds
+            # them, so the composer's plainer version is only used when it does
+            # not apply.
+            typed = needed_clarification(registry_plan, vocab)
+    except Exception as e:  # noqa: BLE001 - a worse question is better than none
+        logger.info("Could not type the clarification for %r: %s", question, e)
+    scope = Scope(focus=reading.label, output="level",
+                  period_requirement=reading.period_requirement,
+                  period_specified=bool(reading.periods))
+    plan = AnalysisPlan(
+        question=question, intent=reading.objective or question, scope=scope,
+        steps=[], planner=reading.source, model_name=reading.model or None,
+        unmatched=True,
+        notes=["CreditProbe stopped to ask rather than answering a question it "
+               "had not fully read."],
+    )
+    narrative = build_narrative(question, plan.intent, [], plan=plan)
+    graph = TraceGraph()
+    graph.add_node(TraceNode(id="question", type=NodeType.USER_PROMPT,
+                             label="Question asked",
+                             config={"question": question}))
+    node = graph.add_node(TraceNode(
+        id="intent", type=NodeType.CAPABILITY,
+        label=f"Read as: {reading.label}",
+        config={"intent": reading.intent, "confidence": reading.confidence,
+                "concepts": list(reading.concepts), "read_by": reading.source,
+                "clarification": answered.clarification,
+                "rule": "Nothing was computed: CreditProbe asked instead."}))
+    node.mark_ok()
+    graph.connect("question", "intent")
+    graph.compute_hashes()
+
+    asking = Investigation(
+        question=question, plan=plan, steps=[], narrative=narrative,
+        graph=graph, node_hashes=graph.compute_hashes(),
+        duration_ms=int((time.perf_counter() - started) * 1000),
+        status="needs_clarification",
+        clarification=typed or Clarification(
+            kind="reading", question=answered.clarification,
+            detail=reading.objective,
+            because=reading.reasoning or "The request was not fully read.",
+            options=[], allow_custom=True),
+        mode=mode_now,
+    )
+    return asking
+
+
+def _check_grounding(investigation: Investigation, runtime: Any) -> None:
+    """Refuse to ship prose containing a figure the result does not carry.
+
+    Logged rather than raised: an ungrounded figure is a defect in how the
+    narrative was assembled, and taking the whole answer away from the user
+    because one sentence rounded badly would be worse than showing it. The
+    test suite asserts this list is empty.
+    """
+    from backend.orchestration import assembly
+
+    step = investigation.steps[0] if investigation.steps else None
+    allowed = assembly.grounded_values(
+        runtime, (step.result or {}).get("values") if step else None)
+    for text in (investigation.narrative.direct_answer,
+                 investigation.narrative.interpretation,
+                 *[f.text for f in investigation.narrative.findings]):
+        loose = assembly.ungrounded(text, allowed)
+        if loose:
+            logger.error("Ungrounded figure(s) %s in: %s", loose, text)
+            investigation.narrative.caveats.append(
+                "One figure in this reading could not be traced to the result "
+                "and has been flagged for review.")
+            return
+
+
+def _legacy_investigation(question: str, started: float, *,
+                          period: tuple[str, str] | None,
+                          user_id: int | None, reason: str) -> Investigation:
+    """The registry planner, as an emergency fallback only.
+
+    This is the path the whole product used to take. It is kept because a
+    composition that will not run is not a reason to return nothing, but the
+    answer says plainly that it is a fallback — presenting it as the normal
+    route is what made six questions in a row come back confidently wrong.
+    """
     vocab = get_vocabulary()
+    plan = DemoPlanner().plan(question, vocab, period=period)
+    plan.notes.append(
+        "CreditProbe could not compose an analysis for this question and fell "
+        "back to its registered analyses. The answer may be narrower than what "
+        "was asked.")
 
-    # Compose before looking up, but only for questions no single certified
-    # analysis answers. A question naming several independent conditions is one
-    # of those: the closest certified analysis would return a correct figure for
-    # a narrower question, carrying a tick while doing it.
-    # A question naming several governed sources is composed across them
-    # first. Answering it from one dataset would produce a correct figure about
-    # a narrower question, and nothing about it would look wrong.
-    across = multi_candidate(question, vocab)
-    if across is not None:
-        try:
-            investigation = run_multi(question, across, started=started,
-                                      user_id=user_id)
-            if persist:
-                persist_investigation(investigation, user_id=user_id,
-                                      project_id=project_id,
-                                      investigation_id=investigation_id)
-            return investigation
-        except Exception as e:
-            logger.warning("Multi-dataset analysis failed, falling back: %s", e)
-
-    composed = dynamic_candidate(question, vocab)
-    if composed is not None:
-        try:
-            investigation = run_dynamic(question, composed, started=started,
-                                        user_id=user_id)
-            if persist:
-                persist_investigation(investigation, user_id=user_id,
-                                      project_id=project_id,
-                                      investigation_id=investigation_id)
-            return investigation
-        except Exception as e:
-            # A composition that will not run is not a reason to answer a
-            # different question. It falls through to the certified path, and
-            # the reason is logged rather than shown as a portfolio finding.
-            logger.warning("Dynamic analysis failed, falling back: %s", e)
-
-    plan = planner.plan(question, vocab, period=period)
-
-    # Did CreditProbe understand the question at all? If not, ASK — never fall
-    # through to a default analysis. A confident answer to the wrong question is
-    # worse than no answer, because nothing about it looks wrong.
     reading = comprehend(question, plan, vocab)
     if reading.should_ask:
         narrative = build_narrative(question, plan.intent, [], plan=plan)
@@ -949,13 +1156,11 @@ def run_investigation(question: str, *, user_id: int | None = None,
             graph=build_reasoning_map(plan, [], narrative),
             node_hashes={}, duration_ms=int((time.perf_counter() - started) * 1000),
             status="needs_clarification", clarification=reading.clarification,
-            mode=planner_mode(),
+            mode={**planner_mode(), "fallback": True, "fallback_reason": reason},
         )
         asking.node_hashes = asking.graph.compute_hashes()
         return asking
 
-    # Ask before running, never after. A clarification costs the user one click;
-    # a confidently wrong comparison costs them a credit decision.
     clarification = needed_clarification(plan, vocab)
     if clarification is not None:
         narrative = build_narrative(question, plan.intent, [], plan=plan)
@@ -964,7 +1169,7 @@ def run_investigation(question: str, *, user_id: int | None = None,
             graph=build_reasoning_map(plan, [], narrative),
             node_hashes={}, duration_ms=int((time.perf_counter() - started) * 1000),
             status="needs_clarification", clarification=clarification,
-            mode=planner_mode(),
+            mode={**planner_mode(), "fallback": True, "fallback_reason": reason},
         )
         asking.node_hashes = asking.graph.compute_hashes()
         return asking
@@ -972,15 +1177,14 @@ def run_investigation(question: str, *, user_id: int | None = None,
     try:
         plan = validate_plan(plan, vocab)
     except PlanRejected as rejection:
-        # A rejected plan is a real outcome, not an exception to swallow. It is
-        # returned with its reasons so the user can see what CreditProbe refused to do.
         empty = Investigation(
             question=question, plan=plan, steps=[],
             narrative=build_narrative(question, plan.intent, [], plan=plan),
             graph=build_reasoning_map(plan, [],
                                       build_narrative(question, plan.intent, [], plan=plan)),
             node_hashes={}, duration_ms=int((time.perf_counter() - started) * 1000),
-            status="rejected", rejected=rejection.reasons, mode=planner_mode(),
+            status="rejected", rejected=rejection.reasons,
+            mode={**planner_mode(), "fallback": True, "fallback_reason": reason},
         )
         empty.node_hashes = empty.graph.compute_hashes()
         return empty
@@ -988,9 +1192,8 @@ def run_investigation(question: str, *, user_id: int | None = None,
     steps = execute_plan(plan, user_id=user_id)
     investigation = assemble(plan, steps,
                              duration_ms=int((time.perf_counter() - started) * 1000))
-    if persist:
-        persist_investigation(investigation, user_id=user_id, project_id=project_id,
-                              investigation_id=investigation_id)
+    investigation.mode = {**investigation.mode, "fallback": True,
+                          "fallback_reason": reason}
     return investigation
 
 

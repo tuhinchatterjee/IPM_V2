@@ -35,13 +35,32 @@ def vocab():
 
 @pytest.fixture(scope="module")
 def investigation():
-    """One real investigation, executed once and shared by the tests below."""
+    """One real investigation, executed once and shared by the tests below.
+
+    A composed analysis rather than a registry selection: since the capability
+    router became the front door, composing is the normal route and the
+    registry is an emergency fallback, so a fixture that exercised the registry
+    would be testing the path the product no longer takes.
+    """
+    return run_investigation(
+        "Which customers had a rating downgrade and an increase in ECL over "
+        "the latest year?", persist=False)
+
+
+@pytest.fixture(scope="module")
+def rescued():
+    """A question the composer cannot read, answered by the registry.
+
+    "What deteriorated this period?" names no governed measure, so nothing can
+    be composed for it — but a certified analysis exists, and answering with it
+    beats asking the user to rephrase something the product can already do.
+    """
     return run_investigation("What deteriorated this period?", persist=False)
 
 
 def test_an_investigation_runs_real_analyses(investigation):
     assert investigation.status == "succeeded"
-    assert len(investigation.steps) >= 3
+    assert investigation.steps
     for step in investigation.steps:
         assert step.status == "succeeded"
         assert step.result is not None
@@ -49,14 +68,30 @@ def test_an_investigation_runs_real_analyses(investigation):
         assert step.result["input_row_count"] > 0
 
 
+def test_composing_is_the_normal_route(investigation):
+    """The registry is a fallback now, not the front door."""
+    assert investigation.mode.get("fallback") is not True
+    assert investigation.steps[0].analysis_id == "dynamic_analysis"
+
+
+def test_a_question_the_composer_cannot_read_still_gets_answered(rescued):
+    """And says which route it took, rather than presenting a narrower answer
+    as though it were the one that was asked for."""
+    assert rescued.status == "succeeded"
+    assert rescued.mode.get("fallback") is True
+    assert any("could not compose" in note for note in rescued.plan.notes)
+
+
 def test_the_reasoning_map_separates_judgement_from_arithmetic(investigation):
     graph = investigation.graph
     kinds = {n.type for n in graph.nodes.values()}
     assert NodeType.USER_PROMPT in kinds
-    assert NodeType.LLM_INTENT in kinds
-    assert NodeType.PLAN in kinds
+    # How the request was read — structured now, not a prose "reading" node.
+    assert NodeType.CAPABILITY in kinds
     assert NodeType.LLM_EXPLANATION in kinds
-    assert NodeType.ENGINE_FUNCTION in kinds
+    # What actually computed the figures.
+    assert NodeType.SQL_QUERY in kinds
+    assert NodeType.MATHEMATICAL_QUERY in kinds
 
     # No interpretive node may carry a row count: those come from reading data.
     for node in graph.nodes.values():
@@ -68,11 +103,14 @@ def test_every_map_node_belongs_to_a_step_or_the_interpretive_frame(investigatio
     # The interpretive frame around the governed subgraphs: the question, CreditProbe's
     # reading of it, the plan, CreditProbe's reading of the result, and the chart chosen
     # from the answer's shape.
-    frame = {"question", "intent", "plan", "narrative", "visual"}
-    for node_id, node in investigation.graph.nodes.items():
+    frame = {"question", "intent", "plan", "narrative", "visual",
+             "mathematical_query", "interpretation"}
+    for node_id in investigation.graph.nodes:
         if node_id in frame:
             continue
-        assert isinstance(node.config.get("_step"), int), node_id
+        # A composed analysis records its lineage under one run rather than
+        # numbering steps: every other node came from the runtime's own graph.
+        assert node_id.startswith("run__"), node_id
 
 
 def test_the_map_is_acyclic_and_hashable(investigation):

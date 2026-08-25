@@ -56,8 +56,21 @@ def monkeypatch_module():
 
 
 def test_mode_reports_how_questions_are_planned(client, demo_mode):
+    """With no provider key the product must say it is degraded.
+
+    Not "demo mode" in the old sense — that name described which planner was
+    selected. This says what a user needs to know: natural-language
+    understanding is constrained, and here is how.
+    """
     body = client.get("/api/v1/ask/mode").json()
-    assert body["mode"] == "demo"
+    assert body["mode"] == "offline"
+    assert body["configured"] is False
+    assert body["label"] == "LIMITED OFFLINE MODE"
+    assert body["limitations"], "an offline product must say what it cannot do"
+    assert "LIMITED OFFLINE MODE" in body["description"]
+    # Only ANALYSIS computes; the rest are answered from governed metadata.
+    computing = [c for c in body["capabilities"] if c["computes"]]
+    assert [c["id"] for c in computing] == ["ANALYSIS"]
     # Counted from the registry rather than hard-coded, so adding an analysis
     # does not require editing a test about planning.
     assert body["analysis_count"] == len(
@@ -116,7 +129,10 @@ def test_asking_a_question_runs_real_analyses(client, demo_mode):
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "succeeded"
-    assert "ecl_movement" in [s["analysis_id"] for s in body["steps"]]
+    # Composed rather than selected: the question named its own measure and the
+    # caller settled the window, so nothing pre-built had to exist for it.
+    assert [s["analysis_id"] for s in body["steps"]] == ["dynamic_analysis"]
+    assert body["steps"][0]["result"]["datasets"]
     assert body["narrative"]["summary"]
     assert body["trace"]["stats"]["governed_nodes"] > 0
     assert body["trace"]["stats"]["interpretive_nodes"] > 0

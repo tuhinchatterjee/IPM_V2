@@ -117,7 +117,8 @@ class CannotPlan(Exception):
 
 
 def plan(reading: Reading, context: GovernedContext, *,
-         question: str = "") -> AnalysisBuild:
+         question: str = "",
+         period: tuple[str, str] | None = None) -> AnalysisBuild:
     """Build the IR one reading implies, or say what is missing.
 
     Never guesses a threshold, a period or a dimension the reading did not
@@ -149,9 +150,17 @@ def plan(reading: Reading, context: GovernedContext, *,
     dimension = _dimension(reading, context, text)
     shape = _shape(reading, conditions, dimension, text)
 
-    if shape in (COHORT, MOVEMENT):
+    if shape == MOVEMENT and not conditions:
+        # "How has ECL changed?" wants the movement, not a list of every
+        # facility that moved. Reported as the two totals and the change
+        # between them, which is the answer somebody asking that sentence is
+        # holding in their head.
+        return _movement(reading, context, text, matches, filters, dimension,
+                         catalogue, period=period)
+    if shape in (COHORT, MOVEMENT) or period:
         return _two_period(reading, context, text, matches, filters,
-                           conditions, shape)
+                           conditions, shape if shape in (COHORT, MOVEMENT)
+                           else MOVEMENT, period=period)
     return _single_period(reading, context, text, matches, filters,
                           dimension, shape, catalogue)
 
@@ -383,8 +392,12 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     # different question, and reporting the filtered population's share of
     # itself as 100% — which is what a concentration analysis run on a filtered
     # book does — answers no question at all.
+    # A grouped aggregate gets the share too: "EAD by sector" is almost always
+    # asked in order to see which sector is the big one, and a share the reader
+    # has to compute from two columns is a share the product did not give them.
     share_of = ""
-    if shape == RANKING and _ROLLUP.get(ordered_by.concept.unit or "") == "sum":
+    wants_share = (shape == RANKING or (shape == AGGREGATE and dimension))
+    if wants_share and _ROLLUP.get(ordered_by.concept.unit or "") == "sum":
         share_of = f"{ordered_by.field}_share_pct"
         operations.append({
             "id": "population", "op": "WINDOW", "inputs": [current],
@@ -399,8 +412,8 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
             "params": {"numerator": ordered_by.field,
                        "denominator": f"{ordered_by.field}_population",
                        "as": share_of, "as_percent": True},
-            "label": (f"Each {grain}'s share of that total — not of the whole "
-                      "book, which the question did not ask about"),
+            "label": (f"Each {dimension or grain}'s share of that total — not "
+                      "of the whole book, which the question did not ask about"),
         })
         current = "shared"
 
@@ -483,13 +496,124 @@ def _summary(shape: str, measures: list[cx.ConceptMatch],
     return f"{names}{where} at {period}."
 
 
+def _movement(reading: Reading, context: GovernedContext, text: str,
+              matches: list[cx.ConceptMatch], filters: list[tuple[str, str]],
+              dimension: str, catalogue: Any, *,
+              period: tuple[str, str] | None = None) -> AnalysisBuild:
+    """How a measure moved between two dates, as two totals and a change.
+
+    One scan across both periods rather than two scans joined: the periods are
+    a column, so grouping by it gives both totals from one pass, and there is
+    no join to lose rows at.
+    """
+    dataset = matches[0].dataset
+    fields_of = {d.name: set(d.fields) for d in catalogue.all()}
+    available = fields_of.get(dataset, set())
+
+    annual_only = all(_is_annual(m.dataset, context) for m in matches)
+    if period:
+        opening, closing, reason, assumed = period[0], period[1], "", False
+    else:
+        opening, closing, reason, assumed = _two_periods(
+            reading, context, text, annual_only=annual_only)
+    if reason:
+        raise CannotPlan(reason, clarification=reason)
+
+    summary_of = context.dataset(dataset)
+    published = list(summary_of.periods) if summary_of else []
+    for name, value in (("opening", opening), ("closing", closing)):
+        if published and value not in published:
+            raise CannotPlan(
+                f"{dataset} has no data for {value}.",
+                clarification=(f"{dataset} is published for "
+                               f"{published[0]} to {published[-1]}; it has no "
+                               f"{name} period at {value}."))
+
+    if "period" not in available:
+        raise CannotPlan(f"{dataset} is not reported by period.")
+
+    measures = [m for m in matches if m.dataset == dataset
+                and m.field in available]
+    if not measures:
+        raise CannotPlan(f"{dataset} does not carry the measures named.")
+
+    if dimension and dimension not in available:
+        dimension = ""
+    filters = [(f, v) for f, v in filters if f in available]
+
+    read_fields = sorted({"period", *[f for f, _ in filters],
+                          *([dimension] if dimension else []),
+                          *[m.field for m in measures]} & available)
+    operations: list[dict[str, Any]] = [{
+        "id": "source", "op": "SCAN",
+        "params": {"dataset": dataset, "fields": read_fields,
+                   "alias": dataset},
+        "label": f"Read {dataset}",
+    }]
+    where = [{"column": "period", "op": "in", "value": [opening, closing]}]
+    where += [{"column": f, "op": "=", "value": v} for f, v in filters]
+    operations.append({
+        "id": "scoped", "op": "FILTER", "inputs": ["source"],
+        "params": {"where": where},
+        "label": (f"Keep {opening} and {closing}"
+                  + (", " + ", ".join(v for _, v in filters) if filters else "")),
+    })
+    group_by = ["period"] + ([dimension] if dimension else [])
+    operations.append({
+        "id": "totals", "op": "GROUP", "inputs": ["scoped"],
+        "params": {"by": group_by,
+                   "aggregates": [{"function": _rollup_for(m),
+                                   "column": m.field, "as": m.field}
+                                  for m in measures]},
+        "label": ("Total at each reporting date"
+                  + (f", by {dimension}" if dimension else "")),
+    })
+    # Not sorted by period: "Q1 2026" sorts before "Q4 2025" as text, and a
+    # movement read in the wrong direction is a sign error. The rows are
+    # matched to their periods by name where they are read.
+    operations.append({
+        "id": "result", "op": "SORT", "inputs": ["totals"],
+        "params": {"by": [{"column": measures[0].field, "direction": "desc"}]},
+        "label": f"Largest {measures[0].concept.label} first",
+    })
+
+    label = measures[0].concept.label
+    summary = (f"How {label} moved between {opening} and {closing}"
+               + (f", by {dimension}" if dimension else "") + ".")
+    warnings: list[str] = []
+    if assumed:
+        warnings.append(
+            f"The question did not say over what period to measure the change, "
+            f"so CreditProbe compared {opening} with {closing}.")
+
+    plan_doc = {
+        "id": "dynamic_movement",
+        "operations": operations,
+        "meta": {
+            "kind": "dynamic_movement", "grain": dimension or "portfolio",
+            "opening_period": opening, "closing_period": closing,
+            "dataset": dataset, "datasets": [dataset], "dimension": dimension,
+            "concepts": [m.to_dict() for m in measures],
+            "filters": [{"field": f, "value": v} for f, v in filters],
+            "conditions": [], "explanation": summary,
+        },
+    }
+    return AnalysisBuild(
+        plan=plan_doc, shape=MOVEMENT, reading=reading, matches=measures,
+        conditions=[], filters=filters, dataset=dataset,
+        grain=dimension or "portfolio", opening=opening, closing=closing,
+        dimension=dimension, warnings=warnings, summary=summary,
+    )
+
+
 # --------------------------------------------------------- two-period plans
 
 
 def _two_period(reading: Reading, context: GovernedContext, text: str,
                 matches: list[cx.ConceptMatch],
                 filters: list[tuple[str, str]],
-                conditions: list[Condition], shape: str) -> AnalysisBuild:
+                conditions: list[Condition], shape: str, *,
+                period: tuple[str, str] | None = None) -> AnalysisBuild:
     """Delegate to the multi-dataset builder, driven by the reading.
 
     The reading has already done the part that used to be a regex: which
@@ -501,7 +625,15 @@ def _two_period(reading: Reading, context: GovernedContext, text: str,
     from backend.runtime.joins import build_graph, resolve
 
     catalogue = get_catalog()
-    opening, closing, reason, assumed = _two_periods(reading, context, text)
+    if period:
+        opening, closing, reason, assumed = period[0], period[1], "", False
+    else:
+        # Every measure published only once a year? Then the previous cycle is
+        # the only comparison there is.
+        annual_only = bool(matches) and all(
+            _is_annual(m.dataset, context) for m in matches)
+        opening, closing, reason, assumed = _two_periods(
+            reading, context, text, annual_only=annual_only)
     if reason:
         raise CannotPlan(reason, clarification=reason)
 
@@ -560,6 +692,20 @@ def _two_period(reading: Reading, context: GovernedContext, text: str,
     )
 
 
+def _is_annual(dataset: str, context: GovernedContext) -> bool:
+    """Whether this source publishes once a year.
+
+    Read from the published periods rather than assumed from the name: a
+    dataset whose periods are bare years has one cycle per year, and one
+    sensible comparison.
+    """
+    summary = context.dataset(dataset)
+    if summary is None or not summary.periods:
+        return False
+    return all(str(p).strip().isdigit() and len(str(p).strip()) == 4
+               for p in summary.periods)
+
+
 def _relationship_rows(context: GovernedContext) -> list[dict[str, Any]]:
     return [
         {"id": r.relationship_id, "from_dataset": r.from_dataset,
@@ -573,9 +719,13 @@ def _relationship_rows(context: GovernedContext) -> list[dict[str, Any]]:
     ]
 
 
-def _two_periods(reading: Reading, context: GovernedContext,
-                 text: str) -> tuple[str, str, str, bool]:
-    """Opening and closing, and whether the window had to be assumed."""
+def _two_periods(reading: Reading, context: GovernedContext, text: str, *,
+                 annual_only: bool = False) -> tuple[str, str, str, bool]:
+    """Opening and closing, and whether the window had to be assumed.
+
+    `annual_only` says every measure in the question comes from a source
+    published once a year, which is what makes assuming a window defensible.
+    """
     periods = context.periods
     if not periods:
         return "", "", "No reporting periods are published.", False
@@ -603,12 +753,23 @@ def _two_periods(reading: Reading, context: GovernedContext,
             break
 
     if not quarters:
-        # A credit review compares against a year ago unless it says otherwise,
-        # and refusing to answer until the user restates the obvious is worse
-        # service than answering and saying which window was used. The window
-        # is carried into the summary and shown on the answer, so a reader who
-        # meant something else can see that immediately rather than discover it
-        # in a committee.
+        # Whether a window can be assumed depends on what is being measured.
+        #
+        # Measures that only exist annually — the rating cycle's leverage,
+        # DSCR, internal grade — have one sensible comparison: the previous
+        # cycle. Assuming it and saying so is better service than making
+        # somebody restate the obvious.
+        #
+        # A quarterly measure is different. "How has ECL changed?" could mean
+        # since last quarter, since year end, or over the year, and those are
+        # materially different numbers. Choosing one silently is exactly the
+        # confident-answer-to-a-different-question failure this product exists
+        # to prevent, so it asks.
+        if not annual_only:
+            return "", "", (
+                "Over what period should the change be measured? The book is "
+                "reported quarterly, so 'since last quarter' and 'over the "
+                "latest year' are different answers."), False
         quarters = DEFAULT_HORIZON_QUARTERS
 
     if len(named) == 1:

@@ -66,3 +66,34 @@ def data_loaded():
     assert dl.DF is not None and len(dl.DF) > 0
     assert dl.ACTIVE_SOURCE == "bundled"
     return dl
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _offline_ai():
+    """No test may call a real model.
+
+    A key present in the developer's environment would otherwise make the suite
+    hit the network, cost money, and — worse — pass or fail depending on what a
+    model said that afternoon. Live model behaviour is exercised by the eval
+    suite, which is opt-in.
+    """
+    import os
+
+    previous = os.environ.get("AI_PROVIDER")
+    os.environ["AI_PROVIDER"] = "offline"
+
+    import dataclasses
+
+    from backend import llm
+    from backend.config import settings
+
+    original = llm.settings
+    llm.settings = dataclasses.replace(settings, ai_provider="offline")
+    llm.get_provider(refresh=True)
+    yield
+    llm.settings = original
+    if previous is None:
+        os.environ.pop("AI_PROVIDER", None)
+    else:
+        os.environ["AI_PROVIDER"] = previous
+    llm.get_provider(refresh=True)

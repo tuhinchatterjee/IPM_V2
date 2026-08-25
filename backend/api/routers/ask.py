@@ -66,14 +66,19 @@ class ModifyIn(BaseModel):
 
 @router.get("/mode", summary="How questions are currently planned")
 def mode() -> dict:
+    """How CreditProbe is answering questions, said plainly.
+
+    With no provider key this reports LIMITED OFFLINE MODE and lists what is
+    constrained. The product must not present a deterministic semantic planner
+    as full natural-language understanding — that is the specific dishonesty
+    that let six questions in a row come back confidently wrong.
+    """
+    from backend.orchestration.orchestrator import mode as orchestrator_mode
+
     vocab = get_vocabulary()
     return {
-        **planner_mode(),
-        "stages": STAGES,
+        **orchestrator_mode(),
         "analysis_count": len(vocab.analyses),
-        "periods": vocab.periods,
-        "latest_period": vocab.latest,
-        "dimensions": {k: len(v) for k, v in vocab.dimensions.items()},
         "supported_modifications": modification_service.SUPPORTED_OPERATIONS,
     }
 

@@ -124,7 +124,13 @@ def find_movement(text: str) -> Movement | None:
         return None
 
     direction = best[1]
-    magnitude = _MAGNITUDE.search(lowered)
+    # The magnitude must come AFTER the movement word. "increased more than
+    # 20%" and "deteriorated at least two notches" both do; "Stage 2 increased"
+    # does not, and reading its 2 as a threshold turns "Stage 2 rose" into
+    # "stage rose by more than two", which is a different and empty question.
+    at = re.search(direction.pattern, lowered)
+    tail = lowered[at.end():] if at else ""
+    magnitude = _MAGNITUDE.search(tail)
     if not magnitude:
         return Movement(direction=direction, phrase=text.strip())
 

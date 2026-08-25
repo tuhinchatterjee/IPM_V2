@@ -113,8 +113,16 @@ class Answered:
         return self.runtime is not None
 
 
-def answer(question: str, *, context: Any = None) -> Answered:
+def answer(question: str, *, context: Any = None,
+           period: tuple[str, str] | None = None,
+           extra_filters: dict[str, Any] | None = None) -> Answered:
     """Read, route, and either answer from metadata or compose and run.
+
+    `period` is a comparison already chosen — from answering a clarification,
+    or from refreshing a saved Investigation onto newer data. When it is given
+    the planner uses it rather than reading a window out of the question, so a
+    refresh onto a different pair of quarters does not silently re-derive the
+    original one.
 
     Raises nothing for an unreadable question: it comes back as a clarification,
     because a question CreditProbe cannot read is a conversation rather than an
@@ -123,6 +131,25 @@ def answer(question: str, *, context: Any = None) -> Answered:
     started = time.perf_counter()
     context = context or retrieve(question)
     reading = read_request(question, context=context)
+    if period or extra_filters:
+        import dataclasses
+
+        entities = list(reading.entities)
+        for kind, value in (extra_filters or {}).items():
+            # A filter arriving from a Trace modification is a governed choice
+            # the user made in the UI, so it is added to the reading rather
+            # than to the plan: everything downstream — the summary, the
+            # narrative, the share denominators — reads the population from
+            # the reading, and a filter bolted on later would not reach them.
+            if isinstance(value, list):
+                continue
+            entities = [e for e in entities if e.get("kind") != kind]
+            entities.append({"kind": str(kind), "value": str(value)})
+        reading = dataclasses.replace(
+            reading, entities=tuple(entities),
+            periods=tuple(period) if period else reading.periods,
+            period_requirement=("two_period" if period
+                                else reading.period_requirement))
 
     answered = Answered(reading=reading, question=question)
 
@@ -153,7 +180,8 @@ def answer(question: str, *, context: Any = None) -> Answered:
     from backend.runtime.executor import ExecutionClass, execute
 
     try:
-        build = ap.plan(reading, context, question=question)
+        build = ap.plan(reading, context, question=question,
+                        period=period)
     except ap.CannotPlan as e:
         answered.clarification = e.clarification
         answered.duration_ms = int((time.perf_counter() - started) * 1000)
