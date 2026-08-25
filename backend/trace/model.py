@@ -55,6 +55,10 @@ class NodeType(StrEnum):
     #: analysis. Governed, because every figure on it was counted rather than
     #: asserted.
     RECONCILIATION = "RECONCILIATION"
+    #: What identifies this execution: the plan, the dataset versions, the
+    #: relationship versions and the bound parameters, hashed separately so two
+    #: runs that disagree can say which of the four moved.
+    FINGERPRINT = "FINGERPRINT"
     DERIVED_VARIABLE = "DERIVED_VARIABLE"
     TRANSFORMATION = "TRANSFORMATION"
     AGGREGATION = "AGGREGATION"
@@ -83,6 +87,7 @@ GOVERNED_NODE_TYPES = frozenset(
         NodeType.FILTER,
         NodeType.JOIN,
         NodeType.RECONCILIATION,
+        NodeType.FINGERPRINT,
         NodeType.DERIVED_VARIABLE,
         NodeType.TRANSFORMATION,
         NodeType.AGGREGATION,

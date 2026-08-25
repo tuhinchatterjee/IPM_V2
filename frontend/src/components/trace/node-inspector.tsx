@@ -24,6 +24,18 @@ import { presentationFor } from "./node-presentation";
  * at.
  */
 
+/** Rendered by the fingerprint block rather than the generic config dump. */
+const FINGERPRINT_KEYS = new Set([
+  "run",
+  "plan",
+  "data",
+  "relationships",
+  "parameters",
+  "datasets",
+  "relationships_used",
+  "parameters_used",
+]);
+
 const HIDDEN_CONFIG_KEYS = new Set([
   "_step",
   "_step_title",
@@ -84,9 +96,15 @@ export function NodeInspector({
   const points = (node.config?.interpretation_points ?? []) as string[];
   const rule = (node.config?.rule ?? "") as string;
   const isDemo = node.config?.is_demo === true;
+  // The fingerprint node has its own block below: four hashes and what each
+  // one covers reads as a statement about the run, not as a config dump.
+  const isFingerprint = node.type === "FINGERPRINT";
   const config = Object.fromEntries(
     Object.entries(node.config ?? {}).filter(
-      ([k]) => !HIDDEN_CONFIG_KEYS.has(k) && k !== "definitions",
+      ([k]) =>
+        !HIDDEN_CONFIG_KEYS.has(k) &&
+        k !== "definitions" &&
+        !(isFingerprint && FINGERPRINT_KEYS.has(k)),
     ),
   );
 
@@ -217,6 +235,8 @@ export function NodeInspector({
           </Section>
         ) : null}
 
+        {isFingerprint && <FingerprintBlock config={node.config ?? {}} />}
+
         {Object.keys(config).length > 0 && (
           <Section title="What this step was configured to do">
             <dl className="divide-y divide-border">
@@ -300,6 +320,87 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </p>
       {children}
     </div>
+  );
+}
+
+/**
+ * What identifies this run.
+ *
+ * Four hashes rather than one, because a reviewer comparing two runs needs to
+ * tell "someone changed the analysis" from "someone restated the data" from "a
+ * steward re-declared a join" — and one hash collapses all three into "these
+ * are different". The datasets and relationships behind the hashes are listed
+ * underneath, because a hash nobody can explain is a hash nobody will trust.
+ */
+function FingerprintBlock({ config }: { config: Record<string, unknown> }) {
+  const datasets = (config.datasets ?? []) as {
+    dataset: string;
+    version: string;
+    origin: string;
+    periods: string[];
+  }[];
+  const used = (config.relationships_used ?? []) as {
+    relationship_id: number;
+    version: number;
+    cardinality: string;
+  }[];
+
+  const parts: { key: string; label: string; covers: string }[] = [
+    { key: "plan", label: "Plan", covers: "the steps, their inputs and their parameters" },
+    { key: "data", label: "Data", covers: "every dataset read, at the version it was read at" },
+    {
+      key: "relationships",
+      label: "Relationships",
+      covers: "every governed join walked, at the version that was active",
+    },
+    { key: "parameters", label: "Parameters", covers: "the periods and values bound into it" },
+  ];
+
+  return (
+    <Section title="What identifies this run">
+      <p className="mb-2 flex flex-wrap items-baseline gap-2 text-xs">
+        <span className="text-text-muted">Run</span>
+        <code className="rounded bg-surface-sunken px-1.5 py-0.5 font-mono text-[11px] text-text-primary">
+          {String(config.run ?? "")}
+        </code>
+      </p>
+      <dl className="divide-y divide-border">
+        {parts.map((part) => (
+          <div key={part.key} className="py-1.5">
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-xs text-text-primary">{part.label}</dt>
+              <dd>
+                <code className="font-mono text-[10px] text-text-secondary">
+                  {String(config[part.key] ?? "")}
+                </code>
+              </dd>
+            </div>
+            <p className="text-[11px] leading-snug text-text-muted">{part.covers}</p>
+          </div>
+        ))}
+      </dl>
+
+      {datasets.length > 0 && (
+        <ul className="mt-2.5 space-y-1">
+          {datasets.map((entry) => (
+            <li key={entry.dataset} className="text-[11px] leading-relaxed text-text-secondary">
+              <code className="font-mono text-[10px] text-text-primary">{entry.dataset}</code>
+              <span className="ml-1.5 text-text-muted">
+                v{entry.version}
+                {entry.periods.length > 0 && ` · ${entry.periods.join(", ")}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {used.length > 0 && (
+        <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
+          {used.length} governed {used.length === 1 ? "relationship" : "relationships"} walked, at{" "}
+          {used.map((r) => `#${r.relationship_id} v${r.version}`).join(", ")}.
+        </p>
+      )}
+    </Section>
   );
 }
 

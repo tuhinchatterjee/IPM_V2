@@ -39,6 +39,7 @@ from typing import Any
 import pandas as pd
 
 from backend.runtime.compiler import CompiledQuery, compile_plan
+from backend.runtime.fingerprint import fingerprint as run_fingerprint
 from backend.runtime.ir import AnalyticalPlan, Operation, OpType, PlanError
 from backend.runtime.kernels import kernel_for, run_kernel
 from backend.runtime.validation import (
@@ -108,6 +109,10 @@ class RuntimeResult:
     reconciliation: list[dict[str, Any]] = field(default_factory=list)
     #: One entry per governed join, for the lineage panel and the Trace.
     joins: list[dict[str, Any]] = field(default_factory=list)
+    #: What identifies this execution: the plan, the data versions, the
+    #: relationship versions and the bound parameters, each hashed separately
+    #: so two runs that disagree can say which of the four moved.
+    fingerprint: dict[str, Any] = field(default_factory=dict)
 
     @property
     def certification_label(self) -> str:
@@ -131,6 +136,7 @@ class RuntimeResult:
             "chart": self.chart,
             "reconciliation": self.reconciliation,
             "joins": self.joins,
+            "fingerprint": self.fingerprint,
             "query": self.query.to_dict() if (self.query and include_sql) else None,
             "trace": self.graph.to_dict() if self.graph else None,
         }
@@ -182,6 +188,10 @@ def execute(plan: AnalyticalPlan | dict[str, Any], *,
     result.reconciliation = reconciliation
     result.joins = _join_lineage(graph, sql_node, plan, reconciliation)
     result.warnings.extend(_explosion_warnings(result.joins))
+    # After the joins, because a relationship version is bound by walking the
+    # path rather than by naming it.
+    result.fingerprint = run_fingerprint(plan, joins=result.joins)
+    _trace_fingerprint(graph, cursor, result)
 
     _trace_result(graph, cursor, result)
     graph.compute_hashes()
@@ -668,6 +678,36 @@ def _run_kernel_step(graph: TraceGraph, parent: str, op: Operation,
     if kernel.limitations:
         node.warnings.append(kernel.limitations)
     return out, f"kernel_{op.id}"
+
+
+def _trace_fingerprint(graph: TraceGraph, parent: str,
+                       result: RuntimeResult) -> None:
+    """Record what identifies this run, beside the answer it produced.
+
+    A reviewer comparing two runs nine months apart needs to tell "someone
+    changed the analysis" from "someone restated the data" from "a steward
+    re-declared a join". One hash cannot make that distinction, so four are
+    recorded and the run hash binds them.
+    """
+    marks = result.fingerprint
+    if not marks:
+        return
+    node = graph.add_node(TraceNode(
+        id="fingerprint", type=NodeType.FINGERPRINT,
+        label=f"Run fingerprint · {marks.get('run', '')}",
+        config={
+            "run": marks.get("run", ""),
+            "plan": marks.get("plan", ""),
+            "data": marks.get("data", ""),
+            "relationships": marks.get("relationships", ""),
+            "parameters": marks.get("parameters", ""),
+            "datasets": marks.get("datasets", []),
+            "relationships_used": marks.get("relationships_used", []),
+            "parameters_used": marks.get("parameters_used", {}),
+        },
+    ))
+    node.mark_ok()
+    graph.connect(parent, node.id)
 
 
 def _trace_result(graph: TraceGraph, parent: str, result: RuntimeResult) -> None:

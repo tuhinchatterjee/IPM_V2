@@ -1,6 +1,7 @@
 import {
   Binary,
   Braces,
+  Fingerprint,
   Calculator,
   Database,
   Filter,
@@ -8,6 +9,7 @@ import {
   Layers,
   LibraryBig,
   ListChecks,
+  Scale,
   MessageSquareQuote,
   PenLine,
   Sigma,
@@ -102,6 +104,23 @@ export const NODE_PRESENTATION: Record<string, NodePresentation> = {
     icon: FunctionSquare,
     governed: true,
     blurb: "The registered analysis, at the version recorded here.",
+  },
+  RECONCILIATION: {
+    label: "Population reconciled",
+    icon: Scale,
+    governed: true,
+    blurb:
+      "How many rows each step kept, counted against the same query that " +
+      "produced the answer. A join that lost half the book says so here.",
+  },
+  FINGERPRINT: {
+    label: "Run fingerprint",
+    icon: Fingerprint,
+    governed: true,
+    blurb:
+      "What identifies this run: the plan, the dataset versions, the " +
+      "relationship versions and the bound parameters, hashed separately so " +
+      "two runs that disagree can say which of the four moved.",
   },
   RESULT: {
     label: "Result",
