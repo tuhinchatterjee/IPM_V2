@@ -46,12 +46,22 @@ class NodeType(StrEnum):
     LLM_INTENT = "LLM_INTENT"
     PLAN = "PLAN"
     DATA_DOMAIN = "DATA_DOMAIN"
+    DATASET_FAMILY = "DATASET_FAMILY"
     DATASET = "DATASET"
     VARIABLE = "VARIABLE"
     FILTER = "FILTER"
+    JOIN = "JOIN"
+    DERIVED_VARIABLE = "DERIVED_VARIABLE"
     TRANSFORMATION = "TRANSFORMATION"
     AGGREGATION = "AGGREGATION"
+    WINDOW = "WINDOW"
     ENGINE_FUNCTION = "ENGINE_FUNCTION"
+    CERTIFIED_METHOD = "CERTIFIED_METHOD"
+    #: The compiled statement actually sent to DuckDB, with its parameters kept
+    #: separate — the separation IS the safety property, so the Trace shows it.
+    SQL_QUERY = "SQL_QUERY"
+    #: An allowlisted numerical operation run on the query's result.
+    KERNEL = "KERNEL"
     CALCULATION = "CALCULATION"
     RESULT = "RESULT"
     LLM_EXPLANATION = "LLM_EXPLANATION"
@@ -63,12 +73,19 @@ class NodeType(StrEnum):
 GOVERNED_NODE_TYPES = frozenset(
     {
         NodeType.DATA_DOMAIN,
+        NodeType.DATASET_FAMILY,
         NodeType.DATASET,
         NodeType.VARIABLE,
         NodeType.FILTER,
+        NodeType.JOIN,
+        NodeType.DERIVED_VARIABLE,
         NodeType.TRANSFORMATION,
         NodeType.AGGREGATION,
+        NodeType.WINDOW,
         NodeType.ENGINE_FUNCTION,
+        NodeType.CERTIFIED_METHOD,
+        NodeType.SQL_QUERY,
+        NodeType.KERNEL,
         NodeType.CALCULATION,
         NodeType.RESULT,
     }
