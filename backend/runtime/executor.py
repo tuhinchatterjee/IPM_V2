@@ -29,6 +29,7 @@ looking.
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 import uuid
@@ -101,6 +102,12 @@ class RuntimeResult:
     graph: TraceGraph | None = None
     duration_ms: int = 0
     chart: dict[str, Any] = field(default_factory=dict)
+    #: How the population shrank at each step, measured against the same CTEs
+    #: that produced the answer. Empty for a single-dataset plan, where there
+    #: is nothing to reconcile.
+    reconciliation: list[dict[str, Any]] = field(default_factory=list)
+    #: One entry per governed join, for the lineage panel and the Trace.
+    joins: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def certification_label(self) -> str:
@@ -122,6 +129,8 @@ class RuntimeResult:
             "datasets": self.datasets,
             "duration_ms": self.duration_ms,
             "chart": self.chart,
+            "reconciliation": self.reconciliation,
+            "joins": self.joins,
             "query": self.query.to_dict() if (self.query and include_sql) else None,
             "trace": self.graph.to_dict() if self.graph else None,
         }
@@ -139,7 +148,8 @@ def execute(plan: AnalyticalPlan | dict[str, Any], *,
             certification: str = ExecutionClass.DYNAMIC,
             question: str = "",
             intent: str = "",
-            source: Any = None) -> RuntimeResult:
+            source: Any = None,
+            population_steps: list[str] | None = None) -> RuntimeResult:
     """Validate, compile and run one plan.
 
     The single entry point. Every caller — Ask CreditProbe, a saved method, a
@@ -161,11 +171,16 @@ def execute(plan: AnalyticalPlan | dict[str, Any], *,
     frame, sql_node = _run_sql(graph, cursor, plan, query, limits)
     cursor = sql_node
 
+    reconciliation = _reconcile(graph, sql_node, plan, query, population_steps,
+                                limits)
+
     for operation in query.kernel_steps:
         frame, cursor = _run_kernel_step(graph, cursor, operation, frame)
 
     duration_ms = int((time.perf_counter() - started) * 1000)
     result = _shape(run_id, plan, frame, query, report, certification, duration_ms)
+    result.reconciliation = reconciliation
+    result.joins = _join_lineage(graph, sql_node, plan, reconciliation)
 
     _trace_result(graph, cursor, result)
     graph.compute_hashes()
@@ -413,6 +428,184 @@ def _run_sql(graph: TraceGraph, parent: str, plan: AnalyticalPlan,
     }
     node.mark_ok(rows_out=int(len(frame)))
     return frame, "sql"
+
+
+
+def _reconcile(graph: TraceGraph, parent: str, plan: AnalyticalPlan,
+               query: CompiledQuery, steps: list[str] | None,
+               limits: Limits) -> list[dict[str, Any]]:
+    """Count the rows surviving each named step, and put it on the Trace.
+
+    A join that quietly drops a fifth of the book produces a correct number for
+    a population nobody chose. So for a composed multi-dataset plan the
+    population is measured at each step against the SAME compiled CTEs — not a
+    re-derivation, which could disagree — and the drop between consecutive
+    steps is reported.
+
+    Best-effort by design: a diagnostic that fails must not lose an answer the
+    user already has.
+    """
+    wanted = list(steps or [])
+    if not wanted:
+        wanted = [op.id for op in plan.operations
+                  if str(op.op) in ("SCAN", "JOIN", "ASOF_JOIN",
+                                    "RECONCILE_GRAIN", "AGGREGATE_BEFORE_JOIN",
+                                    "TEMPORAL_ALIGN", "DERIVE", "FILTER",
+                                    "LIMIT")]
+    if len(plan.datasets()) < 2 or not wanted:
+        return []
+
+    names = [query.steps[s] for s in wanted if s in query.steps]
+    sql = query.population_sql(names)
+    if not sql:
+        return []
+
+    from backend.data_access.duckdb_source import DuckDBSource
+
+    try:
+        source = DuckDBSource()
+        with source._lock:
+            connection = source._conn
+            watchdog = threading.Timer(
+                float(limits.timeout_seconds), connection.interrupt)
+            watchdog.daemon = True
+            watchdog.start()
+            try:
+                counts = dict(connection.execute(sql, query.params).fetchall())
+            finally:
+                watchdog.cancel()
+    except Exception as e:  # pragma: no cover - a diagnostic, never the answer
+        logger.warning("Population reconciliation failed: %s", e)
+        return []
+
+    labels = {op.id: (op.label or op.id) for op in plan.operations}
+    by_id = {op.id: op for op in plan.operations}
+    measured: dict[str, int] = {}
+    for step in wanted:
+        name = query.steps.get(step)
+        if name is not None and name in counts:
+            measured[step] = int(counts[name])
+
+    # Compared against the step's own INPUT rather than against whatever came
+    # before it in the list. A plan branches — an opening side and a closing
+    # side — and reading it as one chain reports the second branch's first scan
+    # as a catastrophic loss, which is nonsense and trains people to ignore the
+    # panel.
+    out: list[dict[str, Any]] = []
+    for step, rows in measured.items():
+        operation = by_id.get(step)
+        inputs = list(getattr(operation, "inputs", []) or [])
+        before = measured.get(inputs[0]) if inputs else None
+        kind = str(operation.op) if operation is not None else ""
+        by_design = kind in ("RECONCILE_GRAIN", "AGGREGATE_BEFORE_JOIN")
+
+        change = None if before is None else before - rows
+        out.append({
+            "step": step,
+            "label": labels.get(step, step),
+            "operation": kind,
+            "rows": rows,
+            "rows_in": before,
+            "lost": None if by_design else change,
+            "lost_pct": (None if by_design or not before or change is None
+                         else round(100.0 * change / before, 2)),
+            "reduced_by_design": by_design,
+            "note": ("Rolled up to the analysis grain — fewer rows is what this "
+                     "step is for." if by_design else ""),
+        })
+
+    if out:
+        node = _node("reconciliation", NodeType.RECONCILIATION,
+                     "Population at each step",
+                     {"steps": out,
+                      "rule": "Counted against the same compiled query that "
+                              "produced the answer, so these are the rows that "
+                              "actually survived rather than an estimate."})
+        graph.add_node(node)
+        graph.connect(parent, "reconciliation")
+        lost = [e for e in out if (e["lost"] or 0) > 0 and not e["reduced_by_design"]]
+        node.output_summary = {
+            "final_rows": out[-1]["rows"],
+            "steps_losing_rows": len(lost),
+        }
+        node.mark_ok(rows_out=out[-1]["rows"])
+    return out
+
+
+def _join_lineage(graph: TraceGraph, parent: str, plan: AnalyticalPlan,
+                  reconciliation: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One Trace node per governed join, carrying what it did to the rows.
+
+    The join is where a multi-dataset analysis goes wrong, so it is the step
+    that gets shown in full: which relationship, at which version, on which
+    keys, with what cardinality, how many rows went in and how many came out.
+    """
+    by_step = {entry["step"]: entry for entry in reconciliation}
+    path_meta: dict[str, dict[str, Any]] = {}
+    for operation in plan.operations:
+        if str(operation.op) == "RELATIONSHIP_PATH":
+            for hop in operation.params.get("path") or []:
+                path_meta[f"{hop.get('from')}->{hop.get('to')}"] = hop
+
+    out: list[dict[str, Any]] = []
+    for operation in plan.operations:
+        kind = str(operation.op)
+        if kind not in ("JOIN", "ASOF_JOIN"):
+            continue
+        entry = by_step.get(operation.id, {})
+        params = operation.params
+        keys = params.get("on") or []
+        detail = {
+            "step": operation.id,
+            "label": operation.label or operation.id,
+            "policy": "as-of" if kind == "ASOF_JOIN" else str(
+                params.get("kind") or "inner"),
+            "keys": keys,
+            "rows_out": entry.get("rows"),
+            "rows_lost": entry.get("lost"),
+            "lost_pct": entry.get("lost_pct"),
+            "temporal_rule": ("latest_on_or_before" if kind == "ASOF_JOIN"
+                              else "same_period"),
+        }
+        if operation.id == "movement":
+            detail.update({
+                "relationship_name": "Opening period to closing period",
+                "from": "opening", "to": "closing",
+                "cardinality": "one_to_one",
+                "note": ("The same population at two reporting dates. Not a "
+                         "governed relationship — a self-join on the analysis "
+                         "key across periods."),
+            })
+        for key, hop in path_meta.items():
+            if hop.get("to") and _slugish(str(hop["to"])) in operation.id:
+                detail.update({
+                    "relationship_id": hop.get("relationship_id"),
+                    "relationship_name": hop.get("relationship_name"),
+                    "relationship_version": hop.get("relationship_version"),
+                    "from": hop.get("from"), "to": hop.get("to"),
+                    "cardinality": hop.get("cardinality"),
+                    "path_key": key,
+                })
+                break
+        out.append(detail)
+
+        node = _node(f"join__{operation.id}", NodeType.JOIN,
+                     operation.label or f"Join {operation.id}", detail)
+        graph.add_node(node)
+        graph.connect(parent, node.id)
+        node.mark_ok(rows_out=entry.get("rows"))
+    return out
+
+
+def _slugish(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+
+def _node(node_id: str, node_type: NodeType, label: str,
+          config: dict[str, Any]) -> TraceNode:
+    node = TraceNode(id=node_id, type=node_type, label=label, config=config)
+    node.mark_started()
+    return node
 
 
 def _run_kernel_step(graph: TraceGraph, parent: str, op: Operation,

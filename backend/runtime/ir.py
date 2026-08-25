@@ -77,8 +77,22 @@ class OpType(StrEnum):
 
     # ---- combining
     JOIN = "JOIN"                    # inner/left/right/full, direction in params
+    ASOF_JOIN = "ASOF_JOIN"          # latest right-hand row on or before the left
     UNION = "UNION"                  # set union, deduplicated
     APPEND = "APPEND"                # stack rows, keeping duplicates
+
+    # ---- multi-dataset composition
+    #
+    # These carry the governance of a composed join. Each one computes
+    # something the plan could express with the operations above; naming them
+    # separately is what lets the Trace say WHY a step is there — "rolled the
+    # covenant table up to facility level so the join could not multiply it" is
+    # a different statement from "grouped by account_id", and only the first
+    # one is reviewable.
+    AGGREGATE_BEFORE_JOIN = "AGGREGATE_BEFORE_JOIN"  # roll up the many side first
+    RECONCILE_GRAIN = "RECONCILE_GRAIN"              # bring a side to the output grain
+    TEMPORAL_ALIGN = "TEMPORAL_ALIGN"                # map one frequency onto another
+    RELATIONSHIP_PATH = "RELATIONSHIP_PATH"          # records the path; computes nothing
 
     # ---- grouping and aggregation
     GROUP = "GROUP"                  # group + aggregate in one step

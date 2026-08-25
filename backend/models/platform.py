@@ -669,7 +669,18 @@ class FieldMapping(Base):
 
 
 class DatasetRelationship(Base):
-    """A governed join between two datasets, e.g. Portfolio.facility_id -> ECL.facility_id."""
+    """A governed join between two datasets, e.g. Portfolio.facility_id -> ECL.facility_id.
+
+    This is the single source of truth for how governed datasets may be joined.
+    The dynamic planner reads it; nothing else keeps a second join registry,
+    because two registries eventually disagree and the analysis silently follows
+    the wrong one.
+
+    Governance is on the row rather than in a policy document. Only an ACTIVE
+    relationship may be used at runtime, and `version` is stamped onto every
+    Trace that used it — so a steward changing a definition creates a new
+    version rather than quietly altering what a past analysis did.
+    """
 
     __tablename__ = "dataset_relationships"
 
@@ -686,10 +697,68 @@ class DatasetRelationship(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    # ---- governance --------------------------------------------------------
+    #: draft | validated | active | archived. Only ACTIVE is usable at runtime.
+    lifecycle: Mapped[str] = mapped_column(String(16), nullable=False, default="draft")
+    #: Bumped whenever the join keys, cardinality or temporal rule change. A
+    #: Trace records the version it used, so history stays true.
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    #: The preferred edge when two datasets can be joined more than one way.
+    is_preferred: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    #: How sure the bank is that this join means what it says, 0-1. A proposed
+    #: relationship starts below the threshold and cannot be used until raised.
+    confidence: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    #: What the join MEANS in business terms — "the facility this covenant
+    #: tests" — as opposed to which columns it matches on.
+    semantic: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: inner | left | asof. How unmatched rows are treated, recorded rather than
+    #: decided at each call site.
+    join_policy: Mapped[str] = mapped_column(String(16), nullable=False, default="inner")
+    #: same_period | latest_on_or_before | none. How periods align across a
+    #: frequency change. `latest_on_or_before` is the as-of rule, and it is what
+    #: stops an annual rating from being read from the future.
+    temporal_rule: Mapped[str] = mapped_column(String(32), nullable=False,
+                                               default="same_period")
+
+    # ---- validation --------------------------------------------------------
+    match_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    orphan_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    duplicate_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    validated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    validation: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
     __table_args__ = (
         UniqueConstraint(
             "from_dataset", "from_field", "to_dataset", "to_field", name="uq_relationship"
         ),
+        Index("ix_dataset_relationships_lifecycle", "lifecycle"),
+    )
+
+
+class DatasetRelationshipVersion(Base):
+    """What a relationship WAS, when a past analysis used it.
+
+    Kept so a Trace from March still describes the join that actually ran, not
+    the one somebody redefined in June. Without this, "why did this number
+    change" has no answer that survives a governance edit.
+    """
+
+    __tablename__ = "dataset_relationship_versions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    relationship_id: Mapped[int] = mapped_column(
+        ForeignKey("dataset_relationships.id", ondelete="CASCADE"), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    definition: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    change_note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    changed_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("relationship_id", "version", name="uq_relationship_version"),
     )
 
 

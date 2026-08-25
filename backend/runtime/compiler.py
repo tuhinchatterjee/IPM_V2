@@ -88,6 +88,28 @@ class CompiledQuery:
     kernel_steps: list[Operation] = field(default_factory=list)
     #: Datasets read, for the Trace and the lineage panel.
     datasets: list[str] = field(default_factory=list)
+    #: The WITH block on its own, so a second question can be asked of the same
+    #: intermediate steps without recompiling or re-binding anything.
+    cte_body: str = ""
+
+    def population_sql(self, steps: list[str]) -> str:
+        """One query counting the rows at each named step.
+
+        Reuses the compiled CTEs verbatim, so the counts describe exactly the
+        query that produced the answer rather than a re-derivation of it — and
+        takes the same parameters in the same order, because the WITH block is
+        unchanged.
+
+        This is what makes "4,100 customers opened, 3,984 survived every join"
+        a measured fact rather than a claim.
+        """
+        usable = [s for s in steps if s in self.steps.values()]
+        if not usable or not self.cte_body:
+            return ""
+        counts = "\nUNION ALL\n".join(
+            f"SELECT '{name}' AS step, COUNT(*) AS rows FROM {name}"
+            for name in usable)
+        return f"WITH {self.cte_body}\n{counts}"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -99,6 +121,24 @@ class CompiledQuery:
             "kernel_steps": [o.to_dict() for o in self.kernel_steps],
             "datasets": list(self.datasets),
         }
+
+
+
+def _join_pairs(on: Any) -> list[tuple[str, str]]:
+    """Join keys as (left, right) pairs, from any of the accepted spellings."""
+    if isinstance(on, str):
+        on = [on]
+    pairs: list[tuple[str, str]] = []
+    for entry in on or []:
+        if isinstance(entry, str):
+            pairs.append((entry, entry))
+        elif isinstance(entry, dict):
+            left_key = str(entry.get("left") or entry.get("left_column"))
+            pairs.append((left_key, str(entry.get("right")
+                                        or entry.get("right_column") or left_key)))
+        else:
+            pairs.append((str(entry[0]), str(entry[1])))
+    return pairs
 
 
 class Compiler:
@@ -172,6 +212,7 @@ class Compiler:
             steps=dict(self._steps),
             kernel_steps=list(self._kernels),
             datasets=self.plan.datasets(),
+            cte_body=body,
         )
 
     # ---- emitting ----------------------------------------------------------
@@ -413,19 +454,7 @@ class Compiler:
         kind = str(op.params.get("kind") or op.params.get("how") or "inner").lower()
         kind = {"left_join": "left", "inner_join": "inner", "outer": "full"}.get(kind, kind)
 
-        on = op.params.get("on") or op.params.get("keys") or []
-        if isinstance(on, str):
-            on = [on]
-        pairs: list[tuple[str, str]] = []
-        for entry in on:
-            if isinstance(entry, str):
-                pairs.append((entry, entry))
-            elif isinstance(entry, dict):
-                left_key = str(entry.get("left") or entry.get("left_column"))
-                pairs.append((left_key, str(entry.get("right")
-                                            or entry.get("right_column") or left_key)))
-            else:
-                pairs.append((str(entry[0]), str(entry[1])))
+        pairs = _join_pairs(op.params.get("on") or op.params.get("keys") or [])
 
         condition = " AND ".join(
             f"L.{ident(left_key)} = R.{ident(right_key)}" for left_key, right_key in pairs
@@ -452,6 +481,161 @@ class Compiler:
 
         return (f"SELECT {', '.join(selected)}\nFROM {left_cte} L\n"
                 f"{keyword} {right_cte} R ON {condition}")
+
+
+    def _op_asof_join(self, op: Operation) -> str:
+        """The latest right-hand row dated on or before each left-hand row.
+
+        This is the join that makes an annual rating usable against a quarterly
+        book, and the one place where getting the comparison backwards would
+        silently read the future. The ordering column is compared with `<=`
+        and never `<`, because a rating dated exactly at the reporting date IS
+        available at that date — and never with `>=`, which is how look-ahead
+        gets in.
+
+        Compiled as a windowed pick rather than DuckDB's ASOF JOIN so the
+        tie-breaking is explicit and identical on every engine: partition by the
+        join keys, order by the right-hand date descending, take the first.
+        """
+        left_cte, right_cte = self._input(op, 0), self._input(op, 1)
+        left_schema = self._schema(op.inputs[0])
+        right_schema = self._schema(op.inputs[1])
+
+        pairs = _join_pairs(op.params.get("on") or op.params.get("keys") or [])
+        if not pairs:
+            raise PlanError(f"{op.id}: an as-of join needs at least one key.")
+
+        left_order = str(op.params.get("left_order")
+                         or op.params.get("left_time") or "")
+        right_order = str(op.params.get("right_order")
+                          or op.params.get("right_time") or "")
+        if not left_order or not right_order:
+            raise PlanError(
+                f"{op.id}: an as-of join needs the ordering column on both "
+                "sides — without it there is nothing to be 'as of'.")
+
+        direction = str(op.params.get("direction") or "backward").lower()
+        if direction != "backward":
+            raise PlanError(
+                f"{op.id}: only a backward as-of join is permitted. A forward "
+                "one reads an observation that had not happened at the "
+                "analysis date.")
+
+        # Both sides are cast to the same type before they are compared. A
+        # governed period is a LABEL — "2025", "Q2 2026" — and one side
+        # arriving as an integer from a Hive partition while the other is text
+        # is a type error at best and an arbitrary ordering at worst. The plan
+        # says which comparison it means; text is the default because that is
+        # what a period label is.
+        compare_as = str(op.params.get("order_as") or "text").lower()
+        cast_type = {"text": "VARCHAR", "number": "DOUBLE"}.get(compare_as)
+        if cast_type is None:
+            raise PlanError(
+                f"{op.id}: '{compare_as}' is not a comparison an as-of join "
+                "performs. Use 'text' for period labels or 'number'.")
+
+        def ordered(alias: str, column: str) -> str:
+            qualified = f"{alias}.{ident(column)}" if alias else ident(column)
+            return f"CAST({qualified} AS {cast_type})"
+
+        condition = " AND ".join(
+            f"L.{ident(left_key)} = R.{ident(right_key)}"
+            for left_key, right_key in pairs)
+
+        prefix = str(op.params.get("right_prefix") or "")
+        right_keys = {p[1] for p in pairs}
+        selected = [f"L.{ident(c)} AS {ident(c)}" for c in left_schema.columns]
+        for column in right_schema.columns:
+            if column in right_keys and column in left_schema.columns:
+                continue
+            alias = f"{prefix}{column}" if prefix else column
+            if alias in left_schema.columns:
+                alias = f"right_{column}"
+            selected.append(f"R.{ident(column)} AS {ident(alias)}")
+
+        # LEFT JOIN on purpose: a left-hand row with no observation on or before
+        # its date has no as-of match, and dropping it silently would shrink the
+        # population without saying so. The plan filters it explicitly if it
+        # means to.
+        return (
+            f"SELECT {', '.join(selected)}\n"
+            f"FROM {left_cte} L\n"
+            f"LEFT JOIN (\n"
+            f"  SELECT *, ROW_NUMBER() OVER (\n"
+            f"    PARTITION BY {', '.join(ident(p[1]) for p in pairs)}, "
+            f"_cp_asof_left\n"
+            f"    ORDER BY {ordered('', right_order)} DESC\n"
+            f"  ) AS _cp_asof_rank FROM (\n"
+            f"    SELECT R2.*, {ordered('L2', left_order)} AS _cp_asof_left\n"
+            f"    FROM {right_cte} R2\n"
+            f"    JOIN (SELECT DISTINCT {ident(left_order)} FROM {left_cte}) L2\n"
+            f"      ON {ordered('R2', right_order)} <= {ordered('L2', left_order)}\n"
+            f"  )\n"
+            f") R ON {condition} AND R._cp_asof_left = "
+            f"{ordered('L', left_order)} AND R._cp_asof_rank = 1"
+        )
+
+    def _op_aggregate_before_join(self, op: Operation) -> str:
+        """Roll the many-side up to the grain it will be joined at.
+
+        Identical SQL to GROUP. It exists as its own operation so the Trace can
+        say WHY the step is there — "rolled the covenant table up to facility
+        level so the join could not multiply it" is reviewable and "grouped by
+        account_id" is not.
+        """
+        return self._op_group(op)
+
+    def _op_reconcile_grain(self, op: Operation) -> str:
+        """Bring one side to the analysis output grain."""
+        return self._op_group(op)
+
+    def _op_temporal_align(self, op: Operation) -> str:
+        """Map one reporting frequency onto another, as a derived column.
+
+        Computes the period a row belongs to on the OTHER side's calendar —
+        the rating year behind a quarter, say — so the join afterwards is an
+        equality on a governed column rather than an inequality nobody checked.
+        """
+        source = str(op.params.get("column") or op.params["source"])
+        target = str(op.params.get("as") or "aligned_period")
+        rule = str(op.params.get("rule") or "year_of_quarter")
+
+        schema = self._schema(op.inputs[0])
+        kept = [ident(c) for c in schema.columns if c != target]
+
+        year = (f"CAST(regexp_extract({ident(source)}, "
+                f"'(\\d{{4}})$', 1) AS INTEGER)")
+
+        if rule == "year_of_quarter":
+            # "Q3 2026" -> "2026". The year is the last whitespace-separated
+            # token, taken from the string rather than parsed as a date,
+            # because the governed period IS a label.
+            expression = f"CAST({year} AS VARCHAR)"
+        elif rule == "completed_year_of_quarter":
+            # "Q2 2026" -> "2025". An annual cycle labelled 2026 is not
+            # complete until the end of 2026, so it is not available to an
+            # analysis run in Q2 of that year. Aligning to the year label
+            # itself would let a quarter read a cycle that had not finished —
+            # look-ahead that produces no error and no movement, because both
+            # ends of a year-on-year comparison land on the same cycle.
+            expression = f"CAST(({year} - 1) AS VARCHAR)"
+        elif rule == "identity":
+            expression = ident(source)
+        else:
+            raise PlanError(
+                f"{op.id}: '{rule}' is not a governed temporal alignment rule.")
+
+        return (f"SELECT {', '.join([*kept, f'{expression} AS {ident(target)}'])}\n"
+                f"FROM {self._input(op)}")
+
+    def _op_relationship_path(self, op: Operation) -> str:
+        """Records which governed relationships the plan used. Computes nothing.
+
+        A pass-through so the path appears on the Trace as a step rather than as
+        a footnote, and so the compiled SQL still reads in the order the
+        analysis was reasoned about.
+        """
+        return f"SELECT *\nFROM {self._input(op)}"
 
     def _op_union(self, op: Operation) -> str:
         schema = self._schema(op.inputs[0])

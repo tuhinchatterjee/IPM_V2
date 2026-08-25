@@ -51,6 +51,10 @@ class NodeType(StrEnum):
     VARIABLE = "VARIABLE"
     FILTER = "FILTER"
     JOIN = "JOIN"
+    #: How the population changed at each step of a composed multi-dataset
+    #: analysis. Governed, because every figure on it was counted rather than
+    #: asserted.
+    RECONCILIATION = "RECONCILIATION"
     DERIVED_VARIABLE = "DERIVED_VARIABLE"
     TRANSFORMATION = "TRANSFORMATION"
     AGGREGATION = "AGGREGATION"
@@ -78,6 +82,7 @@ GOVERNED_NODE_TYPES = frozenset(
         NodeType.VARIABLE,
         NodeType.FILTER,
         NodeType.JOIN,
+        NodeType.RECONCILIATION,
         NodeType.DERIVED_VARIABLE,
         NodeType.TRANSFORMATION,
         NodeType.AGGREGATION,

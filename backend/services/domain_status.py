@@ -59,6 +59,26 @@ def _read() -> frozenset[str]:
         return frozenset()
 
 
+def archived_datasets() -> frozenset[str]:
+    """Governed datasets sitting in a retired domain.
+
+    Derived rather than stored: a domain is what gets archived, and a dataset is
+    in exactly one. Keeping a second list of archived DATASETS would be a second
+    thing to forget to update.
+    """
+    retired = archived_domains()
+    if not retired:
+        return frozenset()
+    try:
+        from backend.data_access import get_catalog
+
+        return frozenset(
+            d.name for d in get_catalog().all() if d.domain in retired)
+    except Exception as e:  # pragma: no cover - fails open, as _read does
+        logger.warning("Could not resolve archived datasets: %s", e)
+        return frozenset()
+
+
 def forget() -> None:
     """Drop the cache. Called when a domain is archived or restored."""
     global _cached
@@ -73,4 +93,4 @@ def install() -> None:
     set_archived_domains_provider(archived_domains)
 
 
-__all__ = ["archived_domains", "forget", "install"]
+__all__ = ["archived_datasets", "archived_domains", "forget", "install"]

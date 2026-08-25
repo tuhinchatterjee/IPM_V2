@@ -269,12 +269,20 @@ def _direction(word: str, higher_is_worse: bool) -> str:
     return ""
 
 
-def read_conditions(question: str) -> tuple[list[Condition], list[str]]:
+def read_conditions(question: str, *, resolver: Any = None
+                    ) -> tuple[list[Condition], list[str]]:
     """Every movement condition in the question, and anything unreadable.
 
     Reads clause by clause rather than matching whole sentence templates: a
     question carries three or four of these joined by commas and "and", and a
     template that has to anticipate the combination stops working at the fourth.
+
+    `resolver` replaces the flat measure lexicon below with something that knows
+    about governed concepts across several datasets. Passing one is how the
+    multi-dataset planner reuses the clause reading — the direction words, the
+    magnitudes, the negations — without a second copy of it drifting out of
+    step with this one. It takes (phrase, question) and returns
+    (field, higher_is_worse) or None.
     """
     conditions: list[Condition] = []
     unread: list[str] = []
@@ -287,7 +295,8 @@ def read_conditions(question: str) -> tuple[list[Condition], list[str]]:
         if match is None:
             continue
         phrase = match.group(0).strip()
-        measure = _measure_for(match.group("measure"))
+        measure = (resolver(match.group("measure"), question) if resolver
+                   else _measure_for(match.group("measure")))
         if measure is None:
             continue
         target, higher_is_worse = measure

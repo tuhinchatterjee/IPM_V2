@@ -525,6 +525,33 @@ def _top_n(op: Operation, inputs: list[StepSchema], catalog: Any, limits: Limits
 # ---- combining -------------------------------------------------------------
 
 
+
+#: The temporal mappings a plan may use to align two reporting frequencies.
+TEMPORAL_RULES = frozenset({"year_of_quarter",
+                            "completed_year_of_quarter", "identity"})
+
+
+def _pairs(op: Operation, on: Any) -> list[tuple[str, str]]:
+    """Join keys as (left, right) pairs, refusing anything malformed."""
+    if isinstance(on, str):
+        on = [on]
+    pairs: list[tuple[str, str]] = []
+    for entry in on or []:
+        if isinstance(entry, str):
+            pairs.append((entry, entry))
+        elif isinstance(entry, dict):
+            left_key = str(entry.get("left") or entry.get("left_column") or "")
+            right_key = str(entry.get("right") or entry.get("right_column") or left_key)
+            if not left_key:
+                raise PlanError(f"{op.id}: a join key needs a 'left' column.")
+            pairs.append((left_key, right_key))
+        elif isinstance(entry, (list, tuple)) and len(entry) == 2:
+            pairs.append((str(entry[0]), str(entry[1])))
+        else:
+            raise PlanError(f"{op.id}: a join key must be a name or a left/right pair.")
+    return pairs
+
+
 def _join(op: Operation, inputs: list[StepSchema], catalog: Any, limits: Limits,
           archived: frozenset[str], warnings: list[str]) -> StepSchema:
     if len(inputs) != 2:
@@ -548,20 +575,7 @@ def _join(op: Operation, inputs: list[StepSchema], catalog: Any, limits: Limits,
             "row with every row, which the runtime refuses."
         )
 
-    pairs: list[tuple[str, str]] = []
-    for entry in on:
-        if isinstance(entry, str):
-            pairs.append((entry, entry))
-        elif isinstance(entry, dict):
-            left_key = str(entry.get("left") or entry.get("left_column") or "")
-            right_key = str(entry.get("right") or entry.get("right_column") or left_key)
-            if not left_key:
-                raise PlanError(f"{op.id}: a join key needs a 'left' column.")
-            pairs.append((left_key, right_key))
-        elif isinstance(entry, (list, tuple)) and len(entry) == 2:
-            pairs.append((str(entry[0]), str(entry[1])))
-        else:
-            raise PlanError(f"{op.id}: a join key must be a name or a left/right pair.")
+    pairs = _pairs(op, on)
 
     for left_key, right_key in pairs:
         _column(op, left_key, left, "join key on the left")
@@ -595,6 +609,116 @@ def _join(op: Operation, inputs: list[StepSchema], catalog: Any, limits: Limits,
             alias = f"right_{name}"
         out[alias] = origin
     return StepSchema(out, "", left.period or right.period)
+
+
+
+def _asof_join(op: Operation, inputs: list[StepSchema], catalog: Any, limits: Limits,
+               archived: frozenset[str], warnings: list[str]) -> StepSchema:
+    """An as-of join, and the two ways it can read the future.
+
+    Both are refused here rather than caught in review:
+
+      * a forward direction, which pairs a row with an observation dated AFTER
+        it — the definition of look-ahead;
+      * a missing ordering column, which leaves nothing for "as of" to mean and
+        would compile to an ordinary join that silently takes an arbitrary row.
+    """
+    if len(inputs) != 2:
+        raise PlanError(f"{op.id}: an as-of join needs exactly two inputs.")
+    left, right = inputs
+
+    direction = str(op.params.get("direction") or "backward").lower()
+    if direction != "backward":
+        raise PlanError(
+            f"{op.id}: '{direction}' is not permitted. An as-of join reads the "
+            "latest observation on or before the analysis date; a forward one "
+            "reads data that had not happened yet.")
+
+    left_order = str(op.params.get("left_order") or op.params.get("left_time") or "")
+    right_order = str(op.params.get("right_order") or op.params.get("right_time") or "")
+    if not left_order or not right_order:
+        raise PlanError(
+            f"{op.id}: an as-of join needs an ordering column on both sides. "
+            "Without one there is nothing for 'as of' to be measured against.")
+    _column(op, left_order, left, "as-of ordering column on the left")
+    _column(op, right_order, right, "as-of ordering column on the right")
+
+    pairs = _pairs(op, op.params.get("on") or op.params.get("keys") or [])
+    if not pairs:
+        raise PlanError(
+            f"{op.id}: an as-of join needs join keys. Without them every "
+            "left-hand row would take the latest right-hand row in the whole "
+            "table.")
+    for left_key, right_key in pairs:
+        _column(op, left_key, left, "join key on the left")
+        _column(op, right_key, right, "join key on the right")
+
+    warnings.append(
+        f"{op.id} is an as-of join: each row takes the latest "
+        f"{right.dataset or 'right-hand'} observation dated on or before its "
+        "own period. Rows with no earlier observation carry nulls rather than "
+        "being dropped.")
+
+    # Mirrors the compiler, including the reserved columns the window adds and
+    # then discards.
+    out = dict(left.columns)
+    prefix = str(op.params.get("right_prefix") or "")
+    right_keys = {p[1] for p in pairs}
+    for name, origin in right.columns.items():
+        if name in right_keys and name in left.columns:
+            continue
+        alias = f"{prefix}{name}" if prefix else name
+        if alias in left.columns:
+            alias = f"right_{name}"
+        out[alias] = origin
+    return StepSchema(out, "", left.period or right.period)
+
+
+def _aggregate_before_join(op: Operation, inputs: list[StepSchema], catalog: Any,
+                           limits: Limits, archived: frozenset[str],
+                           warnings: list[str]) -> StepSchema:
+    """Same shape as GROUP, kept separate so the Trace can say why it is here."""
+    return _group(op, inputs, catalog, limits, archived, warnings)
+
+
+def _temporal_align(op: Operation, inputs: list[StepSchema], catalog: Any,
+                    limits: Limits, archived: frozenset[str],
+                    warnings: list[str]) -> StepSchema:
+    schema = inputs[0]
+    source = str(op.params.get("column") or op.params.get("source") or "")
+    if not source:
+        raise PlanError(f"{op.id}: TEMPORAL_ALIGN needs the period column to map.")
+    _column(op, source, schema, "period column")
+
+    rule = str(op.params.get("rule") or "year_of_quarter")
+    if rule not in TEMPORAL_RULES:
+        raise PlanError(
+            f"{op.id}: '{rule}' is not a governed temporal alignment. Use one "
+            f"of: {', '.join(sorted(TEMPORAL_RULES))}.")
+
+    target = str(op.params.get("as") or "aligned_period")
+    out = dict(schema.columns)
+    out[target] = schema.dataset or ""
+    return StepSchema(out, schema.dataset, schema.period)
+
+
+def _relationship_path(op: Operation, inputs: list[StepSchema], catalog: Any,
+                       limits: Limits, archived: frozenset[str],
+                       warnings: list[str]) -> StepSchema:
+    """Records the governed relationships used. Changes nothing about the rows.
+
+    The path is checked for shape only — it is metadata the planner wrote, and
+    the joins it describes were each validated as their own operation.
+    """
+    path = op.params.get("path") or []
+    if not isinstance(path, list):
+        raise PlanError(f"{op.id}: a relationship path is a list of hops.")
+    for hop in path:
+        if not isinstance(hop, dict) or not hop.get("relationship_id"):
+            raise PlanError(
+                f"{op.id}: every hop must name the governed relationship it "
+                "used. A join path with an anonymous hop cannot be audited.")
+    return inputs[0]
 
 
 def _union(op: Operation, inputs: list[StepSchema], catalog: Any, limits: Limits,
@@ -1028,6 +1152,11 @@ _HANDLERS: dict[OpType, Any] = {
     OpType.TOP_N: _top_n,
     OpType.BOTTOM_N: _top_n,
     OpType.JOIN: _join,
+    OpType.ASOF_JOIN: _asof_join,
+    OpType.AGGREGATE_BEFORE_JOIN: _aggregate_before_join,
+    OpType.RECONCILE_GRAIN: _aggregate_before_join,
+    OpType.TEMPORAL_ALIGN: _temporal_align,
+    OpType.RELATIONSHIP_PATH: _relationship_path,
     OpType.UNION: _union,
     OpType.APPEND: _union,
     OpType.GROUP: _group,
