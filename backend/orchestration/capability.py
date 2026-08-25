@@ -363,7 +363,9 @@ _SIGNALS: tuple[_Signal, ...] = (
     _Signal(Capability.DATA_DICTIONARY,
             r"\bwhat does\b.{0,40}\bmean\b|\bdefinition of\b", 8),
     _Signal(Capability.DATA_DICTIONARY,
-            r"\bhow (?:is|do you) (?:\w+ )?defined?\b", 7),
+            r"\bhow (?:is|are|do you) (?:[\w-]+ ){0,4}defined?\b", 7),
+    _Signal(Capability.DATA_DICTIONARY,
+            r"\bwhat is meant by\b|\bmeaning of\b|\bwhat counts as\b", 7),
     _Signal(Capability.DATA_DICTIONARY,
             r"\bwhat fields?\b|\bwhich fields?\b|\bwhat columns?\b", 7),
 
@@ -385,7 +387,10 @@ _SIGNALS: tuple[_Signal, ...] = (
     _Signal(Capability.METHOD_DISCOVERY,
             r"\bwhat (?:methods?|analyses|analysis|models?)\b.{0,20}\b(?:do you|are|exist|available)", 8),
     _Signal(Capability.METHOD_DISCOVERY,
-            r"\bwhich methods?\b|\blist (?:the )?methods?\b", 7),
+            r"\bwhich (?:analytical )?methods?\b|\blist (?:the )?methods?\b"
+            r"|\bwhat (?:analytical )?methods?\b", 7),
+    _Signal(Capability.METHOD_DISCOVERY,
+            r"\b(?:methods?|analyses)\b.{0,20}\b(?:exist|available|do you have)\b", 8),
     _Signal(Capability.METHOD_EXPLANATION,
             r"\bhow (?:do you|does creditprobe|is)\b.{0,40}\bcalculat", 8),
     _Signal(Capability.METHOD_EXPLANATION,

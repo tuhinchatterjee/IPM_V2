@@ -1,0 +1,2255 @@
+{
+ "version": 1,
+ "note": "Natural-language evaluation cases for Ask CreditProbe. expected_behavior is what should HAPPEN, not which analysis runs: answer | aggregate | rank | cohort | movement | clarify | clarify_or_fallback | clarify_or_answer. forbidden_methods names analyses that answering with would be wrong.",
+ "cases": [
+  {
+   "question": "What data do you have about borrower ratings?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "customer_ratings"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "portfolio_summary",
+    "stage_distribution"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Do you have any borrower ratings data?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "customer_ratings"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data do you have about IFRS 9?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "ifrs9_staging"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "portfolio_summary",
+    "stage_distribution"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Do you have any IFRS 9 data?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "ifrs9_staging"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data do you have about arrears?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "facility_delinquency"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "portfolio_summary",
+    "stage_distribution"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Do you have any arrears data?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "facility_delinquency"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data do you have about collateral?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "collateral_register"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "portfolio_summary",
+    "stage_distribution"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Do you have any collateral data?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "collateral_register"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data do you have about covenants?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "covenant_tests"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "portfolio_summary",
+    "stage_distribution"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Do you have any covenants data?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "covenant_tests"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data do you have about the watchlist?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "watchlist_register"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "portfolio_summary",
+    "stage_distribution"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Do you have any the watchlist data?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "watchlist_register"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data do you have about recoveries?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "recoveries"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "portfolio_summary",
+    "stage_distribution"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Do you have any recoveries data?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "recoveries"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data do you have about borrower financials?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "borrower_financials"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "portfolio_summary",
+    "stage_distribution"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Do you have any borrower financials data?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "borrower_financials"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data do you have about macroeconomic data?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "macro_saudi"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "portfolio_summary",
+    "stage_distribution"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Do you have any macroeconomic data data?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "macro_saudi"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data do you have about credit memos?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "credit_memo_signals"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "portfolio_summary",
+    "stage_distribution"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Do you have any credit memos data?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "credit_memo_signals"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data do you have about payment history?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "payment_history"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "portfolio_summary",
+    "stage_distribution"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Do you have any payment history data?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "payment_history"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data do you have about rating transitions?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "rating_transitions"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "portfolio_summary",
+    "stage_distribution"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Do you have any rating transitions data?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "rating_transitions"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data do you have about climate risk?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "climate_risk"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "portfolio_summary",
+    "stage_distribution"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Do you have any climate risk data?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "climate_risk"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data do you have about group structures?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "group_structure"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "portfolio_summary",
+    "stage_distribution"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Do you have any group structures data?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "group_structure"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data do you have about facility limits?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "facility_limits"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "portfolio_summary",
+    "stage_distribution"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Do you have any facility limits data?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "facility_limits"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What datasets are available?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data can you see?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What sources does CreditProbe hold?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which datasets do you have?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What domains are in the catalogue?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is ratings connected to IFRS 9?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "stage_distribution",
+    "portfolio_summary"
+   ],
+   "note": ""
+  },
+  {
+   "question": "How would you join ratings to IFRS 9?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is collateral connected to the facility book?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "stage_distribution",
+    "portfolio_summary"
+   ],
+   "note": ""
+  },
+  {
+   "question": "How would you join collateral to the facility book?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is arrears connected to IFRS 9?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "stage_distribution",
+    "portfolio_summary"
+   ],
+   "note": ""
+  },
+  {
+   "question": "How would you join arrears to IFRS 9?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is covenants connected to the facility book?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "stage_distribution",
+    "portfolio_summary"
+   ],
+   "note": ""
+  },
+  {
+   "question": "How would you join covenants to the facility book?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is borrower financials connected to ratings?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "stage_distribution",
+    "portfolio_summary"
+   ],
+   "note": ""
+  },
+  {
+   "question": "How would you join borrower financials to ratings?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is recoveries connected to the facility book?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "stage_distribution",
+    "portfolio_summary"
+   ],
+   "note": ""
+  },
+  {
+   "question": "How would you join recoveries to the facility book?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is macro connected to the facility book?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "stage_distribution",
+    "portfolio_summary"
+   ],
+   "note": ""
+  },
+  {
+   "question": "How would you join macro to the facility book?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is credit memos connected to ratings?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "stage_distribution",
+    "portfolio_summary"
+   ],
+   "note": ""
+  },
+  {
+   "question": "How would you join credit memos to ratings?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is payment history connected to arrears?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "stage_distribution",
+    "portfolio_summary"
+   ],
+   "note": ""
+  },
+  {
+   "question": "How would you join payment history to arrears?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is facility limits connected to the facility book?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [
+    "stage_distribution",
+    "portfolio_summary"
+   ],
+   "note": ""
+  },
+  {
+   "question": "How would you join facility limits to the facility book?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is the relationship between ratings and IFRS 9?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How does collateral link to facilities?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is the join key between ratings and the facility book?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What does EAD mean?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is EAD defined?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What does ECL mean?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is ECL defined?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What does DSCR mean?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is DSCR defined?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What does LGD mean?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is LGD defined?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What does PD mean?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is PD defined?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What does net leverage mean?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is net leverage defined?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What does covenant headroom mean?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is covenant headroom defined?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What does utilisation mean?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is utilisation defined?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What does interest coverage mean?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is interest coverage defined?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What does days past due mean?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is days past due defined?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What does ECL coverage mean?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is ECL coverage defined?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What does EBITDA margin mean?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is EBITDA margin defined?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What fields are in the ECL dataset?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What fields are in customer_ratings?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What fields are in the facility book?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What fields are in borrower financials?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What fields are in the arrears data?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How many quarters of DPD are there?",
+   "expected_intent": "DATA_QUALITY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How much history do you have for DPD?",
+   "expected_intent": "DATA_QUALITY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How many quarters of ratings are there?",
+   "expected_intent": "DATA_QUALITY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How much history do you have for ratings?",
+   "expected_intent": "DATA_QUALITY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How many quarters of IFRS 9 data are there?",
+   "expected_intent": "DATA_QUALITY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How much history do you have for IFRS 9 data?",
+   "expected_intent": "DATA_QUALITY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How many quarters of the facility book are there?",
+   "expected_intent": "DATA_QUALITY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How much history do you have for the facility book?",
+   "expected_intent": "DATA_QUALITY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How many quarters of collateral are there?",
+   "expected_intent": "DATA_QUALITY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How much history do you have for collateral?",
+   "expected_intent": "DATA_QUALITY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How many quarters of macro data are there?",
+   "expected_intent": "DATA_QUALITY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How much history do you have for macro data?",
+   "expected_intent": "DATA_QUALITY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What periods are published?",
+   "expected_intent": "DATA_QUALITY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which periods do you have?",
+   "expected_intent": "DATA_QUALITY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Is there missing data in the facility book?",
+   "expected_intent": "DATA_QUALITY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is the data quality of the ratings data?",
+   "expected_intent": "DATA_QUALITY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total EAD by sector in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "EAD"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total EAD by region in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "EAD"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total EAD by segment in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "EAD"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total EAD by product type in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "EAD"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total ECL by sector in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "ECL"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total ECL by region in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "ECL"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total ECL by segment in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "ECL"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total ECL by product type in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "ECL"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total exposure by sector in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "exposure"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total exposure by region in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "exposure"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total exposure by segment in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "exposure"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total exposure by product type in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "exposure"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total provisions by sector in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "provisions"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total provisions by region in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "provisions"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total provisions by segment in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "provisions"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total provisions by product type in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "provisions"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total EAD?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "EAD"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is the average DSCR by sector?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "DSCR"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is average ECL coverage by rating bucket?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How many facilities are in Stage 2?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How many customers are on the watchlist?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Show the five largest Real Estate customers by EAD",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "EAD"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "rank",
+   "forbidden_methods": [
+    "sector_concentration"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Show the ten largest Contracting customers by EAD",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "EAD"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "rank",
+   "forbidden_methods": [
+    "sector_concentration"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Show the 20 largest Petrochemicals customers by EAD",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "EAD"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "rank",
+   "forbidden_methods": [
+    "sector_concentration"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Show the five largest Manufacturing customers by EAD",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "EAD"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "rank",
+   "forbidden_methods": [
+    "sector_concentration"
+   ],
+   "note": ""
+  },
+  {
+   "question": "Show the top ten customers by exposure",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "rank",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which are the largest borrowers by ECL?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "rank",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "List the ten worst facilities by days past due",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "rank",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Show the smallest exposures in Real Estate",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "rank",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Top 5 customers by covenant headroom",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "rank",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which customers had a rating downgrade and an increase in ECL over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "rating",
+    "ECL"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which customers have worsening leverage and declining DSCR together with a rating downgrade?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "leverage",
+    "DSCR",
+    "rating"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which borrowers were downgraded over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "rating"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which customers had rising ECL and rising DPD over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Show customers whose leverage worsened over the latest year",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "leverage"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which customers had ECL increase more than 20% over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which customers deteriorated by at least two notches over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Show Real Estate customers whose ECL rose and EAD did not fall over the latest year",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which customers improved their DSCR over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which borrowers had a rating upgrade over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How has ECL changed over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "movement",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How has EAD changed over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "movement",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How has exposure changed over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "movement",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How has days past due changed over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "movement",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How has ECL changed by sector over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "movement",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How has exposure moved since last quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "movement",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How has ECL changed?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify",
+   "forbidden_methods": [],
+   "note": "A quarterly measure with no window: several answers are possible."
+  },
+  {
+   "question": "What deteriorated?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify_or_fallback",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Show me the numbers",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "asdfghjkl",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How do I bake sourdough?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is Summit Power's outlook?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify",
+   "forbidden_methods": [],
+   "note": "A borrower the book does not contain must be reported as missing."
+  },
+  {
+   "question": "How is Vertex Holdings doing?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What methods do you have for rating migration?",
+   "expected_intent": "METHOD_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which analytical methods exist?",
+   "expected_intent": "METHOD_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What methods are available for ECL?",
+   "expected_intent": "METHOD_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "List the methods for concentration",
+   "expected_intent": "METHOD_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How does CreditProbe calculate the observed default rate?",
+   "expected_intent": "METHOD_EXPLANATION",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How does the ECL movement method work?",
+   "expected_intent": "METHOD_EXPLANATION",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What methodology does stage migration use?",
+   "expected_intent": "METHOD_EXPLANATION",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Create a new method for downgrade rate",
+   "expected_intent": "METHOD_CREATION",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Build a method that measures covenant breaches",
+   "expected_intent": "METHOD_CREATION",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Create a project for the Q2 review",
+   "expected_intent": "PROJECT_ACTION",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Save this investigation",
+   "expected_intent": "INVESTIGATION_ACTION",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Rename this investigation",
+   "expected_intent": "INVESTIGATION_ACTION",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data do you have about borower ratings?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": "A typo must not change the routing."
+  },
+  {
+   "question": "Show the five largest Real Estate custmers by EAD",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "rank",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is teh ratings data connected to IFRS 9?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "total EAD by sectr",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "And by region?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify_or_answer",
+   "forbidden_methods": [],
+   "note": "A follow-up with no antecedent must not invent one."
+  },
+  {
+   "question": "What about Real Estate?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify_or_answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Show me more",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify_or_answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How much exposure is in arrears?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [
+    "days past due"
+   ],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total exposure more than 90 days past due?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which facilities are more than 30 days past due?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "rank",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How has days past due moved over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "movement",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is average DPD by sector?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which customers had rising arrears over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which borrowers are closest to a covenant breach?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "rank",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How many covenant tests failed in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is average covenant headroom by sector?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which customers had covenant headroom fall over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data do you have about covenant tests?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "covenant_tests"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is total collateral value by sector?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which facilities have the least collateral cover?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "rank",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What does collateral value mean?",
+   "expected_intent": "DATA_DICTIONARY",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What macroeconomic data do you have?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "macro_saudi"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How has GDP growth moved over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "movement",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is the credit cycle factor in the latest quarter?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How is macro data connected to the facility book?",
+   "expected_intent": "DATA_RELATIONSHIP",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What exposure sits on the watchlist?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which watchlist customers had ECL rise over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is the observed default rate?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How many customers were downgraded in the latest cycle?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is the downgrade rate by sector?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is exposure by IFRS 9 stage?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How much exposure is in Stage 2?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Why has Stage 2 increased?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "movement_or_cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which facilities moved from Stage 1 to Stage 2?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is ECL coverage by stage?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is exposure by rating bucket?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "How many customers are investment grade?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is the rating distribution?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which customers hold the weakest internal grades?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "rank",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is RAROC by segment?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "aggregate",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which facilities are least profitable?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "rank",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What data do you have about facility profitability?",
+   "expected_intent": "DATA_DISCOVERY",
+   "required_concepts": [],
+   "expected_domains": [
+    "facility_profitability"
+   ],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What is Summit Power's exposure?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify",
+   "forbidden_methods": [],
+   "note": "A borrower the book does not contain must be reported as missing rather than matched to the nearest name."
+  },
+  {
+   "question": "What is Vertex Holdings's exposure?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify",
+   "forbidden_methods": [],
+   "note": "A borrower the book does not contain must be reported as missing rather than matched to the nearest name."
+  },
+  {
+   "question": "What is Northwind Trading's exposure?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify",
+   "forbidden_methods": [],
+   "note": "A borrower the book does not contain must be reported as missing rather than matched to the nearest name."
+  },
+  {
+   "question": "What is Apex Marine's exposure?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify",
+   "forbidden_methods": [],
+   "note": "A borrower the book does not contain must be reported as missing rather than matched to the nearest name."
+  },
+  {
+   "question": "What is Cedar Grove Estates's exposure?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify",
+   "forbidden_methods": [],
+   "note": "A borrower the book does not contain must be reported as missing rather than matched to the nearest name."
+  },
+  {
+   "question": "What is our exposure?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify_or_answer",
+   "forbidden_methods": [],
+   "note": "Exposure may mean drawn balance or regulatory EAD."
+  },
+  {
+   "question": "Show me risk",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Is the portfolio getting worse?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify_or_fallback",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "What should I worry about?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify_or_fallback",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Give me the important numbers",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "clarify_or_fallback",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which Real Estate customers on the watchlist had ECL rise over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which downgraded customers also breached a covenant?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Do customers with high leverage have higher ECL?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "association_or_cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Which customers had both rising DPD and a rating downgrade over the latest year?",
+   "expected_intent": "ANALYSIS",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "cohort",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Show me the customer_ratings dataset",
+   "expected_intent": "DATA_INSPECTION",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Show me a sample of the facility book",
+   "expected_intent": "DATA_INSPECTION",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  },
+  {
+   "question": "Preview the arrears data",
+   "expected_intent": "DATA_INSPECTION",
+   "required_concepts": [],
+   "expected_domains": [],
+   "expected_behavior": "answer",
+   "forbidden_methods": [],
+   "note": ""
+  }
+ ]
+}

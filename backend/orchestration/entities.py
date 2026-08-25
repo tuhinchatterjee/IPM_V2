@@ -124,6 +124,10 @@ def unresolved_names(question: str, context: Any) -> list[str]:
     candidates: list[str] = []
     for phrase in re.findall(r"\b(?:[A-Z][a-z0-9&.'-]+)(?:\s+[A-Z][a-z0-9&.'-]+)*\b",
                              text):
+        # "Summit Power's exposure" names Summit Power. The possessive is
+        # grammar, and reporting it as part of the name makes the "we have
+        # never heard of this borrower" message look like a parsing bug.
+        phrase = re.sub(r"['\u2019]s$", "", phrase).strip()
         if len(phrase) < 4 or phrase.lower() in matched:
             continue
         if phrase.lower() in _NOT_A_NAME:
