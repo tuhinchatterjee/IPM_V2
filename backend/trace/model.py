@@ -44,6 +44,19 @@ class NodeType(StrEnum):
 
     USER_PROMPT = "USER_PROMPT"
     LLM_INTENT = "LLM_INTENT"
+    #: How the request was routed: what KIND of request it is, which governed
+    #: concepts and entities it named, and how sure the router was. Governed,
+    #: because every field on it is a resolved fact rather than a judgement —
+    #: the judgement is the intent, and the node records who made it.
+    CAPABILITY = "CAPABILITY"
+    #: The catalogue itself answering, for a question about the data rather
+    #: than about the portfolio.
+    GOVERNED_METADATA = "GOVERNED_METADATA"
+    #: One declared relationship, as consulted rather than as executed.
+    RELATIONSHIP = "RELATIONSHIP"
+    #: The compiled statement, its formulas and its bound parameters, gathered
+    #: as one thing a reader can open. Every dynamic analysis has exactly one.
+    MATHEMATICAL_QUERY = "MATHEMATICAL_QUERY"
     PLAN = "PLAN"
     DATA_DOMAIN = "DATA_DOMAIN"
     DATASET_FAMILY = "DATASET_FAMILY"
@@ -88,6 +101,10 @@ GOVERNED_NODE_TYPES = frozenset(
         NodeType.JOIN,
         NodeType.RECONCILIATION,
         NodeType.FINGERPRINT,
+        NodeType.CAPABILITY,
+        NodeType.GOVERNED_METADATA,
+        NodeType.RELATIONSHIP,
+        NodeType.MATHEMATICAL_QUERY,
         NodeType.DERIVED_VARIABLE,
         NodeType.TRANSFORMATION,
         NodeType.AGGREGATION,
