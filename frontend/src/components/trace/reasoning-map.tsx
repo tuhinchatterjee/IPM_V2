@@ -28,8 +28,10 @@ import { cn } from "@/lib/utils";
 import type { TraceGraph } from "@/lib/api";
 
 import {
+  LAYER_LABELS,
   NODE_HEIGHT,
   NODE_WIDTH,
+  SWIMLANE_HEIGHT,
   ancestorsOf,
   descendantsOf,
   layoutGraph,
@@ -208,7 +210,25 @@ function TraceCard({ data, selected }: NodeProps<Node<NodeData>>) {
   );
 }
 
-const nodeTypes = { trace: TraceCard };
+interface BandData extends Record<string, unknown> {
+  label: string;
+}
+
+/**
+ * A band's name, drawn on the canvas rather than beside it.
+ *
+ * In a panel it would sit still while the graph moved underneath, which is
+ * worse than no label: it would name the wrong row.
+ */
+function BandLabel({ data }: NodeProps<Node<BandData>>) {
+  return (
+    <span className="whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.13em] text-text-muted">
+      {data.label}
+    </span>
+  );
+}
+
+const nodeTypes = { trace: TraceCard, band: BandLabel };
 
 interface ReasoningMapProps {
   graph: TraceGraph;
@@ -263,10 +283,36 @@ function MapCanvas({ graph, selected, onSelect, highlight, height = 520 }: Reaso
     };
   }, [layout.edges, selectedPlacedId]);
 
+  // Which bands this map actually uses. An empty band with a heading beside it
+  // reads as a step that failed to appear.
+  const layers = React.useMemo(() => {
+    if (steps.length > 1) return [];
+    const used = new Set(
+      layout.nodes.map((placed) => Math.round(placed.y / SWIMLANE_HEIGHT)),
+    );
+    return LAYER_LABELS.map((name, index) => ({ name, index, span: 1 })).filter(
+      (band) => used.has(band.index),
+    );
+  }, [layout.nodes, steps.length]);
+
   const changed = React.useMemo(() => new Set(highlight?.changed ?? []), [highlight]);
   const downstream = React.useMemo(() => new Set(highlight?.downstream ?? []), [highlight]);
   const added = React.useMemo(() => new Set(highlight?.added ?? []), [highlight]);
   const hasHighlight = changed.size > 0 || downstream.size > 0 || added.size > 0;
+
+  const bandNodes: Node<BandData>[] = React.useMemo(
+    () =>
+      layers.map((band) => ({
+        id: `band__${band.index}`,
+        type: "band",
+        position: { x: -200, y: band.index * SWIMLANE_HEIGHT + 14 },
+        draggable: false,
+        selectable: false,
+        connectable: false,
+        data: { label: band.name },
+      })),
+    [layers],
+  );
 
   const nodes: Node<NodeData>[] = React.useMemo(
     () =>
@@ -351,7 +397,7 @@ function MapCanvas({ graph, selected, onSelect, highlight, height = 520 }: Reaso
   return (
     <div style={{ height }} className="relative">
       <ReactFlow
-        nodes={nodes}
+        nodes={[...bandNodes, ...nodes] as Node[]}
         edges={edges}
         nodeTypes={nodeTypes}
         onNodeClick={(_, clicked) => {

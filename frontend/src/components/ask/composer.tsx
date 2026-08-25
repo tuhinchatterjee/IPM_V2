@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CornerDownLeft, Loader2 } from "lucide-react";
+import { CornerDownLeft, Loader2, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { InfoPopover } from "@/components/ui/info-popover";
@@ -106,21 +106,36 @@ export function Composer({
         )}
       </div>
 
-      <div className="mt-2.5 flex items-center gap-2">
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
         <InfoPopover title="How CreditProbe answers">
           <p>
-            CreditProbe chooses which certified analyses to run and writes the findings. It never
-            calculates a figure itself, never writes a query, and never invents a number.
+            CreditProbe reads the question into a structured plan and the governed
+            runtime executes it. It never calculates a figure itself, never writes
+            a query by hand, and never states a number the engine did not return.
           </p>
           <p>
-            Every answer carries a Trace showing the data, the filters, the engine function
-            and its version — so any figure can be followed back to the rows behind it.
+            An analysis is composed for the question rather than chosen from a
+            list, and a question about the data itself — what exists, what a field
+            means, how two datasets join — is answered from Data Builder without
+            running an analysis at all.
           </p>
-          {modeNote && <p className="text-text-muted">{modeNote}</p>}
+          <p>
+            Every answer carries a Trace showing the sources, the joins, the
+            derivations and the query, so any figure can be followed back to the
+            rows behind it.
+          </p>
         </InfoPopover>
         <span className="text-[11px] text-text-muted">
           {readOnlyNote ?? "Every answer carries a Trace."}
         </span>
+        {/* Visible, not behind the popover. A user must not have to click
+            anything to learn that natural-language understanding is degraded. */}
+        {modeNote && (
+          <span className="flex items-start gap-1.5 text-[11px] leading-snug text-warning">
+            <TriangleAlert className="mt-0.5 size-3 shrink-0" aria-hidden />
+            {modeNote}
+          </span>
+        )}
       </div>
     </div>
   );

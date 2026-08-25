@@ -587,14 +587,18 @@ def formulas(build: ap.AnalysisBuild) -> list[dict[str, str]]:
                 "means": f"The movement in {label}, in its own unit.",
             })
 
-    if build.shape == ap.RANKING and build.matches:
+    # The share column, wherever it was computed. A grouped aggregate gets one
+    # too, and a formula shown for a ranking but not for the aggregate beside
+    # it would look like the two were computed differently.
+    if build.matches:
         measure = build.matches[0]
         if f"{measure.field}_share_pct" in str(build.plan):
             scope = ", ".join(v for _, v in build.filters) or "the population"
+            of = build.dimension or build.grain
             out.append({
                 "name": f"{measure.concept.label} share %",
                 "column": f"{measure.field}_share_pct",
-                "formula": (f"{measure.concept.label} ÷ total "
+                "formula": (f"{of} {measure.concept.label} ÷ total "
                             f"{measure.concept.label} across {scope} × 100"),
                 "means": f"Each row's share of {scope}, not of the whole book.",
             })

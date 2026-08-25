@@ -758,7 +758,7 @@ export interface InvestigationResponse {
   version: number;
   version_label: string;
   rejected: string[];
-  mode: { mode: string; planner: string; model_name: string | null; description: string };
+  mode: RunMode;
   stages: Stage[];
 }
 
@@ -802,7 +802,25 @@ export interface StoredInvestigation {
   model_provider: string | null;
   model_name: string | null;
   stages: Stage[];
-  mode: { mode: string; planner: string; model_name: string | null; description: string };
+  mode: RunMode;
+}
+
+/** How one run was produced — the same shape wherever a run is returned. */
+export interface RunMode {
+  mode: string;
+  planner?: string;
+  configured?: boolean;
+  label?: string;
+  model_name: string | null;
+  description: string;
+  execution?: string;
+  execution_label?: string;
+  intent?: string;
+  datasets?: string[];
+  /** Set when the composer could not build a plan and the registered
+   *  analyses answered instead. */
+  fallback?: boolean;
+  fallback_reason?: string;
 }
 
 export interface SupportedModification {

@@ -10,7 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/layout/back-link";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type Narrative, type ProposedChange } from "@/lib/api";
+import {
+  api,
+  type Narrative,
+  type ProposedChange,
+  type RunMode,
+} from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 
 /**
@@ -25,6 +30,26 @@ import { useAsync } from "@/lib/hooks";
  * Every version ever produced stays reachable from the switcher at the top. A
  * modification never overwrites what a colleague already read.
  */
+/**
+ * How this run was produced, in one phrase.
+ *
+ * Two facts, because a reader needs both: who read the question, and whether
+ * the analysis was composed for it or selected from the registry.
+ */
+function readBy(mode: RunMode | undefined): string {
+  const read =
+    mode?.configured === true
+      ? `read by ${String(mode?.model_name ?? "the configured model")}`
+      : "read by the deterministic semantic planner";
+  const built =
+    mode?.fallback === true
+      ? "answered from registered analyses"
+      : mode?.execution === "metadata"
+        ? "answered from the governed catalogue"
+        : "composed for this question";
+  return `Question ${read} · ${built}`;
+}
+
 export default function TraceDetailPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = React.use(params);
   const id = Number(runId);
@@ -92,10 +117,17 @@ export default function TraceDetailPage({ params }: { params: Promise<{ runId: s
                 {data.duration_ms ?? "—"}ms
                 {data.created_at ? ` · ${data.created_at.slice(0, 16).replace("T", " ")}` : ""}
               </span>
+              {/* Who READ the question, and how the analysis was produced.
+                  "Planned by CreditProbe (deterministic)" said neither, and
+                  was the line that made it look like a model was involved when
+                  none was — and like a model was NOT involved when one is. */}
               <span className="flex items-center gap-1.5">
                 <Sparkles className="size-3.5" aria-hidden />
-                Planned by {data.mode?.planner === "demo" ? "CreditProbe (deterministic)" : data.mode?.planner}
+                {readBy(data.mode)}
               </span>
+              {data.mode?.fallback === true && (
+                <Badge variant="warning">Fallback: registered analyses</Badge>
+              )}
               <Badge variant="outline">{data.label}</Badge>
             </div>
 
