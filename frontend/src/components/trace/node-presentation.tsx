@@ -2,6 +2,10 @@ import {
   Binary,
   Braces,
   Fingerprint,
+  Compass,
+  Library,
+  Sigma as SigmaIcon,
+  Waypoints,
   Calculator,
   Database,
   Filter,
@@ -104,6 +108,39 @@ export const NODE_PRESENTATION: Record<string, NodePresentation> = {
     icon: FunctionSquare,
     governed: true,
     blurb: "The registered analysis, at the version recorded here.",
+  },
+  CAPABILITY: {
+    label: "How the request was read",
+    icon: Compass,
+    governed: true,
+    blurb:
+      "What KIND of request this is, which governed concepts and entities it " +
+      "names, and how sure the router was. It contains no figures — only " +
+      "ANALYSIS requests reach the engine at all.",
+  },
+  GOVERNED_METADATA: {
+    label: "Governed catalogue",
+    icon: Library,
+    governed: true,
+    blurb:
+      "Answered from Data Builder rather than from the data. No analysis ran " +
+      "and no figure was computed.",
+  },
+  RELATIONSHIP: {
+    label: "Governed relationship",
+    icon: Waypoints,
+    governed: true,
+    blurb:
+      "A join a steward declared, as consulted: its keys, cardinality, period " +
+      "rule and measured coverage.",
+  },
+  MATHEMATICAL_QUERY: {
+    label: "Mathematical query",
+    icon: SigmaIcon,
+    governed: true,
+    blurb:
+      "The whole calculation in one place: the analytical plan, the SQL that " +
+      "ran, the formula behind every derived column, and the bound parameters.",
   },
   RECONCILIATION: {
     label: "Population reconciled",
