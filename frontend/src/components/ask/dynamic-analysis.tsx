@@ -65,13 +65,16 @@ export function DynamicAnalysisPanel({
           <p className="mt-1 text-sm leading-relaxed text-text-primary">
             {reading.summary}
           </p>
+          {/* Defensive on both: a reading arrives from either the single- or
+              the multi-dataset planner, and a missing key must not take the
+              whole answer down with it. */}
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {reading.filters.map((f) => (
+            {(reading.filters ?? []).map((f) => (
               <Badge key={`${f.field}-${f.value}`} variant="outline">
                 {f.field} = {f.value}
               </Badge>
             ))}
-            {reading.conditions.map((c) => (
+            {(reading.conditions ?? []).map((c) => (
               <Badge key={c.column} variant="accent">
                 {c.description}
               </Badge>

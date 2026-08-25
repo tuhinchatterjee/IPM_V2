@@ -240,6 +240,11 @@ class MultiRequest:
             "datasets": self.datasets,
             "concepts": self.reading.to_dict(),
             "bindings": [b.to_dict() for b in self.bindings],
+            # Also flat, under the name the single-dataset reading uses. The
+            # answer panel renders one reading shape whichever path produced
+            # it, and a key present on one and absent on the other is how a
+            # panel that works for a single dataset breaks for three.
+            "conditions": [b.condition.to_dict() for b in self.bindings],
             "filters": [{"field": f, "value": v} for f, v in self.filters],
             "join_plan": self.resolution.to_dict() if self.resolution else None,
             "summary": self.summary,
