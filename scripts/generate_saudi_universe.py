@@ -662,6 +662,8 @@ def build_ratings(customers: pd.DataFrame, macro: pd.DataFrame,
     )
 
     rows = []
+    # Its own stream, so a field added here cannot restate the rest of the book.
+    dscr_rng = np.random.default_rng(SEED + 991)
     z = base + rng.normal(0, vol * 0.8)
     for year in RATING_YEARS:
         drift = base + beta * float(annual_factor.get(year, 0.0)) * 0.6
@@ -676,6 +678,19 @@ def build_ratings(customers: pd.DataFrame, macro: pd.DataFrame,
         leverage = np.clip(2.4 - 0.42 * z + rng.normal(0, 0.55, n), 0.1, 12.0)
         coverage_ratio = np.clip(4.2 + 0.85 * z + rng.normal(0, 0.9, n), 0.15, 18.0)
         current_ratio = np.clip(1.35 + 0.16 * z + rng.normal(0, 0.28, n), 0.25, 4.5)
+        # Debt service cover: EBITDA over interest AND scheduled principal. It
+        # tracks interest coverage but is not a rescaling of it — amortisation
+        # is borrower-specific, so a company can service its interest
+        # comfortably and still be tight on debt service, which is the whole
+        # reason banks look at both.
+        #
+        # Drawn from its own generator rather than the shared one. Taking two
+        # more draws from `rng` inside this loop would shift every number drawn
+        # after it — margins, revenues, and every dataset built later — so
+        # adding one field would silently restate the whole demonstration book.
+        amortisation = np.clip(dscr_rng.normal(0.42, 0.13, n), 0.12, 0.85)
+        dscr = np.clip(coverage_ratio * (1.0 - amortisation)
+                       + dscr_rng.normal(0, 0.22, n), 0.05, 9.0)
         margin = np.clip(11.5 + 2.6 * z + rng.normal(0, 2.6, n), -18.0, 38.0)
         revenue = customers["size_usd_mn"].to_numpy() * np.clip(
             rng.normal(2.4, 0.5, n), 0.6, 6.0
@@ -697,6 +712,7 @@ def build_ratings(customers: pd.DataFrame, macro: pd.DataFrame,
             "revenue_usd_mn": np.round(revenue, 2),
             "net_leverage": np.round(leverage, 2),
             "interest_coverage": np.round(coverage_ratio, 2),
+            "dscr": np.round(dscr, 2),
             "current_ratio": np.round(current_ratio, 2),
             "ebitda_margin_pct": np.round(margin, 2),
             "rating_action": "",
@@ -738,6 +754,8 @@ def build_borrower_financials(customers: pd.DataFrame,
         "net_leverage_fy25": latest.loc[order, "net_leverage"].to_numpy(),
         "interest_coverage_fy24": previous.loc[order, "interest_coverage"].to_numpy(),
         "interest_coverage_fy25": latest.loc[order, "interest_coverage"].to_numpy(),
+        "dscr_fy24": previous.loc[order, "dscr"].to_numpy(),
+        "dscr_fy25": latest.loc[order, "dscr"].to_numpy(),
         "current_ratio_fy24": previous.loc[order, "current_ratio"].to_numpy(),
         "current_ratio_fy25": latest.loc[order, "current_ratio"].to_numpy(),
         "external_rating": latest.loc[order, "external_rating"].to_numpy(),
@@ -1274,6 +1292,11 @@ RATINGS_FIELDS = {
                           "Net debt divided by EBITDA at the rating date.", "number", "x"),
     "interest_coverage": field("interest_coverage", "Interest coverage",
                                "EBITDA divided by interest expense.", "number", "x"),
+    "dscr": field("dscr", "Debt service coverage ratio",
+                  "EBITDA divided by total debt service — interest plus "
+                  "scheduled principal. Below 1.0x the borrower cannot cover "
+                  "its obligations from earnings. Higher is stronger.",
+                  "number", "x"),
     "current_ratio": field("current_ratio", "Current ratio",
                            "Current assets divided by current liabilities.", "number", "x"),
     "ebitda_margin_pct": field("ebitda_margin_pct", "EBITDA margin",

@@ -231,6 +231,21 @@ CONCEPTS: tuple[Concept, ...] = (
                "cycle.", default=True),
         )),
     Concept(
+        id="dscr", label="debt service coverage",
+        pattern=r"\bdscr\b|debt service cover(?:age)?|debt.service ratio",
+        unit="x", higher_is_worse=False,
+        candidates=(
+            _c(RATINGS, "dscr",
+               "EBITDA to total debt service — interest plus scheduled "
+               "principal — from the financials behind the rating cycle. The "
+               "credit-analysis figure, at customer level and annual.",
+               "customer", "annual", "financials", "credit", default=True),
+            _c(FACILITY, "dscr",
+               "Debt service cover as carried on the facility position each "
+               "quarter. The operational figure, at facility level.",
+               "facility", "quarterly", "operational", "book"),
+        )),
+    Concept(
         id="interest_cover", label="interest coverage",
         pattern=r"interest cover(?:age)?|ebitda to interest", unit="x",
         higher_is_worse=False,

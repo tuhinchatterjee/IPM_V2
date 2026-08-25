@@ -119,6 +119,8 @@ BORROWER_FIELDS: dict[str, str] = {
     "Net Leverage FY25 (x)": "net_leverage_fy25",
     "Interest Coverage FY24 (x)": "interest_coverage_fy24",
     "Interest Coverage FY25 (x)": "interest_coverage_fy25",
+    "DSCR FY24 (x)": "dscr_fy24",
+    "DSCR FY25 (x)": "dscr_fy25",
     "Current Ratio FY24 (x)": "current_ratio_fy24",
     "Current Ratio FY25 (x)": "current_ratio_fy25",
     "External Rating": "external_rating",
@@ -129,6 +131,18 @@ BORROWER_FIELDS: dict[str, str] = {
 
 # Definitions for the two columns the workbook's own dictionary omits.
 EXTRA_DEFINITIONS = {
+    "DSCR FY24 (x)": (
+        "x",
+        "Debt service coverage ratio at the prior fiscal year end: EBITDA "
+        "divided by total debt service, interest plus scheduled principal. "
+        "Below 1.0x the borrower cannot cover its obligations from earnings.",
+    ),
+    "DSCR FY25 (x)": (
+        "x",
+        "Debt service coverage ratio at the latest fiscal year end: EBITDA "
+        "divided by total debt service, interest plus scheduled principal. "
+        "Below 1.0x the borrower cannot cover its obligations from earnings.",
+    ),
     "Model ECL (USD mn)": (
         "USD mn",
         "Expected credit loss produced by the IFRS 9 model, before any management "

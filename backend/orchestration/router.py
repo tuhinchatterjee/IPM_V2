@@ -1,0 +1,294 @@
+"""
+Reading a request, with a model when there is one and without when there is not.
+
+Both paths produce the same `Reading`, and both are treated with the same
+scepticism afterwards: a reading is a claim about what was asked, never a claim
+about what is true. Nothing here touches data.
+
+The model's job here is narrow on purpose. It is not asked to plan the
+calculation — that is the next stage — only to say what kind of request this is,
+which governed concepts it involves, which entities it names, and how sure it
+is. Keeping the two apart means a wrong plan and a wrong reading fail
+differently and are debuggable separately, and it means the cheap question
+("is this even an analysis?") is answered before the expensive one.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from backend.llm import LLMError, get_provider
+from backend.orchestration import capability as cap
+from backend.orchestration.context import GovernedContext, retrieve
+
+logger = logging.getLogger(__name__)
+
+TOOL_NAME = "record_reading"
+
+SYSTEM = """You are the request router for CreditProbe AI, a credit-risk \
+intelligence platform used by banks.
+
+Your ONLY job is to say what KIND of request this is and what governed concepts \
+and entities it involves. You do NOT plan the calculation and you NEVER state a \
+figure — a deterministic engine computes every number.
+
+Route by what the user wants, not by which words appear:
+
+- DATA_DISCOVERY     what data exists at all ("what data do you have about X")
+- DATA_INSPECTION    look at one dataset's contents
+- DATA_DICTIONARY    what a field or term means, what fields a dataset has
+- DATA_QUALITY       coverage, history length, missing values, how many periods
+- DATA_RELATIONSHIP  how two datasets connect, join keys, grain alignment
+- METHOD_DISCOVERY   which analytical methods exist
+- METHOD_EXPLANATION how a named method works
+- METHOD_CREATION    build or save a method
+- ANALYSIS           compute a figure from governed data
+- PROJECT_ACTION / INVESTIGATION_ACTION / ANALYSIS_ACTION  change a workspace object
+- CLARIFICATION      the request cannot be acted on as it stands
+
+Critical distinctions:
+- "How is ratings connected to IFRS 9?" is DATA_RELATIONSHIP, NOT an analysis of \
+IFRS 9 stages.
+- "What data do you have about ratings?" is DATA_DISCOVERY, NOT a portfolio summary.
+- "How many quarters of DPD are there?" is DATA_QUALITY, NOT a count of anything.
+- "How many customers are in Stage 2?" IS an ANALYSIS — it counts rows in data.
+
+Use ONLY the governed concept labels, dataset names, dimension values and period \
+labels supplied in the context. Never invent a column name, a customer or a sector.
+
+Set `clarification` ONLY when you genuinely cannot proceed — for example when a \
+term maps to two different governed figures and the choice changes the answer. \
+Do not ask for a period the user did not need to give: the planner resolves \
+"latest" itself.
+
+Be honest about `confidence`. A confident answer to the wrong question is the \
+worst outcome this system can produce."""
+
+
+def _prompt(question: str, context: GovernedContext) -> str:
+    """The governed context, compact. Metadata only — never a row of data."""
+    lines: list[str] = []
+
+    lines.append("GOVERNED DATASETS (name · grain · what it is for):")
+    for d in context.datasets:
+        auth = (f" · authoritative for {', '.join(d.authoritative_for)}"
+                if d.authoritative_for else "")
+        lines.append(f"  {d.name} · {d.grain} · {d.purpose}{auth}")
+        lines.append(f"      periods: {d.period_count} "
+                     f"({d.periods[0] if d.periods else 'n/a'}"
+                     f"..{d.latest_period or 'n/a'})")
+        shown = [f["name"] for f in d.fields[:18]]
+        lines.append(f"      fields: {', '.join(shown)}"
+                     + (" …" if len(d.fields) > 18 else ""))
+    if context.other_datasets:
+        lines.append(f"  (also available, ask if needed: "
+                     f"{', '.join(context.other_datasets)})")
+
+    lines.append("\nGOVERNED CREDIT CONCEPTS (use these labels):")
+    for c in context.concepts:
+        note = " (ordinal)" if c.get("is_ordinal") else ""
+        lines.append(f"  {c['label']}{note} — carried by "
+                     f"{', '.join(c['carried_by'])}")
+
+    if context.relationships:
+        lines.append("\nDECLARED RELATIONSHIPS:")
+        for r in context.relationships[:20]:
+            lines.append(f"  {r.describe()}")
+
+    if context.methods:
+        lines.append("\nRELEVANT ANALYSIS STUDIO METHODS:")
+        for m in context.methods:
+            tick = " [certified]" if m.is_certified else ""
+            lines.append(f"  {m.id}: {m.name}{tick} — {m.definition[:110]}")
+
+    lines.append(f"\nREPORTING PERIODS: {', '.join(context.periods)}")
+    lines.append(f"LATEST PERIOD: {context.latest_period}")
+    lines.append("\nFILTER DIMENSIONS AND PERMITTED VALUES:")
+    for name, values in context.dimensions.items():
+        shown = values if len(values) <= 18 else values[:18] + ["…"]
+        lines.append(f"  {name}: {', '.join(str(v) for v in shown)}")
+
+    lines.append(f"\nREQUEST: {question}")
+    return "\n".join(lines)
+
+
+def read_request(question: str, *,
+                 context: GovernedContext | None = None) -> cap.Reading:
+    """What kind of request this is, and what it is about.
+
+    Falls back to the offline reader when there is no provider or the provider
+    fails. The Reading records which path produced it, so the answer and the
+    Trace can say so rather than presenting a degraded reading as a full one.
+    """
+    context = context or retrieve(question)
+    provider = get_provider()
+
+    if provider.configured:
+        try:
+            result = provider.structured(
+                system=SYSTEM,
+                prompt=_prompt(question, context),
+                schema=cap.SCHEMA,
+                tool_name=TOOL_NAME,
+                tool_description=(
+                    "Record how you have read this request. Call this exactly "
+                    "once. Do not compute anything."),
+                max_tokens=1400,
+            )
+            reading = cap.from_payload(result.data, source="llm",
+                                       model=result.model)
+            return _sanitised(reading, context)
+        except LLMError as e:
+            logger.warning("The orchestrator could not read the request (%s); "
+                           "falling back to the offline reader.", e)
+        except Exception as e:  # noqa: BLE001 - an outage must not 500
+            logger.warning("Unexpected orchestrator failure (%s); falling back.", e)
+
+    return read_request_offline(question, context=context)
+
+
+def read_request_offline(question: str, *,
+                         context: GovernedContext | None = None) -> cap.Reading:
+    """The reading CreditProbe can produce with no model.
+
+    Shape recognition for the capability, then the governed concept and entity
+    resolvers for the content. It is not a phrase-to-analysis map: nothing here
+    selects what to compute, and every concept it names came from the governed
+    catalogue rather than from a table of anticipated questions.
+    """
+    from backend.orchestration import concepts as cx
+    from backend.orchestration.entities import resolve_entities
+
+    context = context or retrieve(question)
+    intent, confidence, why = cap.recognise(question)
+
+    known = {d.name: {f["name"] for f in d.fields} for d in context.datasets}
+    reading = cx.read_concepts(question, known=known,
+                               catalogue=_catalogue_or_none())
+    found = [m.concept.label for m in reading.matches]
+
+    entities = resolve_entities(question, context)
+    dimensions = _dimensions(question, context)
+    periods = _periods(question, context)
+
+    return cap.Reading(
+        intent=intent,
+        objective=question.strip(),
+        concepts=tuple(found),
+        entities=tuple(entities),
+        dimensions=tuple(dimensions),
+        datasets=tuple(sorted({m.dataset for m in reading.matches})),
+        operation=_operation(question),
+        computation_required=intent in cap.COMPUTES,
+        period_requirement=_period_requirement(question, intent),
+        periods=tuple(periods),
+        confidence=confidence,
+        reasoning=why,
+        source="offline",
+    )
+
+
+def _catalogue_or_none() -> Any:
+    from backend.data_access import get_catalog
+
+    try:
+        return get_catalog()
+    except Exception:
+        return None
+
+
+def _sanitised(reading: cap.Reading, context: GovernedContext) -> cap.Reading:
+    """Drop anything the model named that the catalogue does not have.
+
+    A hallucinated dataset or sector must never reach the planner. Silently
+    dropping is right here rather than refusing: the planner re-resolves
+    concepts and entities against the catalogue anyway, and a reading that lost
+    one invented name is still a better reading than none.
+    """
+    import dataclasses
+
+    known_datasets = {d.name for d in context.datasets} | set(context.other_datasets)
+    datasets = tuple(d for d in reading.datasets if d in known_datasets)
+
+    permitted = {k: {str(v).lower() for v in vals}
+                 for k, vals in context.dimensions.items()}
+    entities = tuple(
+        e for e in reading.entities
+        if e["kind"] not in permitted
+        or str(e["value"]).lower() in permitted[e["kind"]]
+    )
+
+    periods = tuple(p for p in reading.periods if p in context.periods)
+    dropped = (len(reading.datasets) - len(datasets)
+               + len(reading.entities) - len(entities)
+               + len(reading.periods) - len(periods))
+    if dropped:
+        logger.info("Dropped %d name(s) the catalogue does not carry.", dropped)
+    return dataclasses.replace(reading, datasets=datasets, entities=entities,
+                               periods=periods)
+
+
+# ------------------------------------------------------- offline helpers
+
+
+_OPERATIONS: tuple[tuple[str, str], ...] = (
+    ("rank", r"\b(?:top|largest|biggest|smallest|bottom|worst|best|"
+             r"rank|ranked|five|ten|\d+)\b.{0,25}\b(?:by|customers?|borrowers?)\b"),
+    ("rank", r"\b(?:top|largest|biggest|smallest|bottom)\b"),
+    ("compare", r"\b(?:compare|versus|\bvs\b|change|movement|increase|decrease|"
+                r"rose|fell|grew|declin|worsen|improv|deteriorat|downgrade|upgrade)"),
+    ("distribution", r"\b(?:distribution|breakdown|split|by sector|by region|"
+                     r"by segment|by stage|by rating)\b"),
+    ("average", r"\b(?:average|mean of|median)\b"),
+    ("count", r"\bhow many\b|\bnumber of\b|\bcount\b"),
+    ("sum", r"\b(?:total|sum|aggregate|how much)\b"),
+    ("list", r"\b(?:which|show|list|find|identify)\b"),
+)
+
+
+def _operation(question: str) -> str:
+    import re
+
+    text = (question or "").lower()
+    for name, pattern in _OPERATIONS:
+        if re.search(pattern, text):
+            return name
+    return "none"
+
+
+def _dimensions(question: str, context: GovernedContext) -> list[str]:
+    """Which governed dimension the answer should be broken down by."""
+    import re
+
+    text = (question or "").lower()
+    out: list[str] = []
+    for name in context.dimensions:
+        if re.search(rf"\bby {re.escape(name)}\b|\bper {re.escape(name)}\b"
+                     rf"|\bacross {re.escape(name)}s?\b", text):
+            out.append(name)
+    return out
+
+
+def _periods(question: str, context: GovernedContext) -> list[str]:
+    from backend.orchestration.periods import read_period_intent
+
+    read = read_period_intent(question, context.periods)
+    return [p for p in (read.from_period, read.to_period) if p]
+
+
+def _period_requirement(question: str, intent: str) -> str:
+    import re
+
+    if intent not in cap.COMPUTES:
+        return "none"
+    text = (question or "").lower()
+    if re.search(r"\b(?:increase|decrease|rose|fell|grew|declin|worsen|improv|"
+                 r"deteriorat|downgrade|upgrade|change|movement|compare|versus|"
+                 r"\bvs\b|over the (?:latest|last|past)|year on year|"
+                 r"quarter on quarter|trend)\w*", text):
+        return "two_period"
+    return "point_in_time"
+
+
+__all__ = ["SYSTEM", "TOOL_NAME", "read_request", "read_request_offline"]
