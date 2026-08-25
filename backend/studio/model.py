@@ -218,6 +218,23 @@ class MethodDefinition:
     interpretation: str = ""
     limitations: str = ""
 
+    # ---- what a multi-dataset method needs before it can run again ---------
+    #: The semantic concepts the method measures — "exposure at default",
+    #: "expected credit loss" — rather than the columns one dataset happens to
+    #: call them. A method that stored `ifrs9_staging.ead` would break the day
+    #: a bank supplies its own IFRS 9 extract under a different column name;
+    #: one that stores "exposure at default" re-resolves against whatever the
+    #: catalogue declares authoritative at the time it runs.
+    required_concepts: list[dict[str, Any]] = field(default_factory=list)
+    #: The governed relationships the plan walked, with the cardinality each
+    #: was walked at. A steward re-declaring one of these changes what the
+    #: method means, and this is what lets the Studio say so.
+    required_relationships: list[dict[str, Any]] = field(default_factory=list)
+    #: How periods were aligned across sources reported at different
+    #: frequencies — which side was as-of, and against what rule. Two methods
+    #: with the same plan and different alignment answer different questions.
+    period_alignment: dict[str, Any] = field(default_factory=dict)
+
     # ---- implementation ----------------------------------------------------
     #: The Analytical IR that computes it. None for a definition nobody built.
     plan: dict[str, Any] | None = None
@@ -356,6 +373,9 @@ class MethodDefinition:
             "output_type": self.output_type,
             "interpretation": self.interpretation,
             "limitations": self.limitations,
+            "required_concepts": list(self.required_concepts),
+            "required_relationships": list(self.required_relationships),
+            "period_alignment": dict(self.period_alignment),
             "plan": self.plan,
             "engine_analysis": self.engine_analysis,
             "test_cases": [t.to_dict() for t in self.test_cases],
@@ -390,6 +410,9 @@ class MethodDefinition:
             output_type=str(raw.get("output_type") or ""),
             interpretation=str(raw.get("interpretation") or ""),
             limitations=str(raw.get("limitations") or ""),
+            required_concepts=list(raw.get("required_concepts") or []),
+            required_relationships=list(raw.get("required_relationships") or []),
+            period_alignment=dict(raw.get("period_alignment") or {}),
             plan=raw.get("plan"),
             engine_analysis=str(raw.get("engine_analysis") or ""),
             test_cases=[TestCase.from_dict(t) for t in (raw.get("test_cases") or [])],

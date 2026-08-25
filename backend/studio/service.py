@@ -200,6 +200,113 @@ def _short(value: Any, limit: int = 60) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
+def _domains_for(datasets: list[str]) -> list[str]:
+    """The governed domains the method reads.
+
+    Derived from the catalogue rather than assumed: a multi-dataset method that
+    declared only the facility domain would be offered for a question its
+    other sources have since been archived out of.
+    """
+    if not datasets:
+        return ["credit_facility_position"]
+    from backend.data_access.catalog import get_catalog
+
+    catalog = get_catalog()
+    domains: list[str] = []
+    for name in datasets:
+        try:
+            domain = catalog.dataset(name).domain
+        except Exception:
+            continue
+        if domain and domain not in domains:
+            domains.append(domain)
+    return domains or ["credit_facility_position"]
+
+
+def _required_concepts(meta: dict[str, Any]) -> list[dict[str, Any]]:
+    """What the method measures, in concepts rather than columns.
+
+    A method that stored `ifrs9_staging.ead` breaks the day a bank supplies its
+    own IFRS 9 extract under a different column name. One that stores "exposure
+    at default" — with the dataset and field it resolved to on the day it was
+    saved, and the reason it chose that one — can re-resolve against whatever
+    the catalogue declares authoritative when it next runs, and can say what
+    changed if the resolution moves.
+    """
+    out: list[dict[str, Any]] = []
+    for raw in meta.get("concepts") or []:
+        if not isinstance(raw, dict) or not raw.get("concept"):
+            continue
+        out.append({
+            "concept": raw.get("concept"),
+            "label": raw.get("label"),
+            "dataset": raw.get("dataset"),
+            "field": raw.get("field"),
+            "definition": raw.get("definition"),
+            "unit": raw.get("unit"),
+            "reason": raw.get("reason"),
+        })
+    return out
+
+
+def _required_relationships(meta: dict[str, Any]) -> list[dict[str, Any]]:
+    """The governed joins the plan walked, at the version it walked them.
+
+    Stored so the Studio can say "a steward has re-declared one of the joins
+    this method depends on" — a change that alters what the method means
+    without altering a character of its plan.
+    """
+    path = meta.get("join_path") or {}
+    out: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for edge in path.get("edges") or []:
+        identifier = edge.get("relationship_id")
+        if identifier is None or identifier in seen:
+            continue
+        seen.add(identifier)
+        out.append({
+            "relationship_id": identifier,
+            "name": edge.get("relationship_name"),
+            "version": edge.get("relationship_version"),
+            "left": edge.get("left"), "right": edge.get("right"),
+            "cardinality": edge.get("cardinality"),
+            "join_policy": edge.get("join_policy"),
+            "temporal_rule": edge.get("temporal_rule"),
+        })
+    return out
+
+
+def _period_alignment(meta: dict[str, Any]) -> dict[str, Any]:
+    """How periods were reconciled across sources of different frequency.
+
+    Two methods with the same plan and different alignment answer different
+    questions: a quarterly book joined to the rating cycle that had completed
+    by the reporting date is not the same population as one joined to the cycle
+    the quarter falls inside.
+    """
+    path = meta.get("join_path") or {}
+    asof = [
+        {"dataset": edge.get("right"), "rule": edge.get("temporal_rule")}
+        for edge in path.get("edges") or []
+        if edge.get("temporal_rule") == "latest_on_or_before"
+    ]
+    alignment: dict[str, Any] = {
+        "opening_period": meta.get("opening_period"),
+        "closing_period": meta.get("closing_period"),
+        "as_of": asof,
+    }
+    if asof:
+        names = ", ".join(str(a["dataset"]) for a in asof)
+        alignment["description"] = (
+            f"{names} is reported at a different frequency and was joined "
+            "as-of — the latest observation on or before the reporting date, "
+            "never after it")
+    elif meta.get("opening_period") and meta.get("closing_period"):
+        alignment["description"] = (
+            "every source was read at the same reporting period")
+    return alignment
+
+
 def from_dynamic(*, name: str, question: str, plan: dict[str, Any],
                  summary: str = "", author: str = "",
                  method_id: str = "") -> MethodDefinition:
@@ -218,8 +325,12 @@ def from_dynamic(*, name: str, question: str, plan: dict[str, Any],
     conditions = [str(c.get("description") or "") for c in meta.get("conditions") or []]
     filters = [f"{f.get('field')} = {f.get('value')}" for f in meta.get("filters") or []]
     grain = str(meta.get("grain") or "facility")
+    concepts = _required_concepts(meta)
+    relationships = _required_relationships(meta)
+    alignment = _period_alignment(meta)
+    datasets = [str(d) for d in meta.get("datasets") or []]
 
-    methodology = "\n".join([
+    methodology = "\n".join(line for line in [
         f"Question as asked: {question}",
         f"Read as: {summary}" if summary else "",
         f"Grain: one row per {grain}.",
@@ -228,7 +339,11 @@ def from_dynamic(*, name: str, question: str, plan: dict[str, Any],
         *[f"  - {c}" for c in conditions],
         f"Measured between {meta.get('opening_period')} and "
         f"{meta.get('closing_period')} on the run that produced it.",
-    ])
+        (f"Read across {len(datasets)} governed sources: {', '.join(datasets)}."
+         if len(datasets) > 1 else ""),
+        (f"Period alignment: {alignment['description']}."
+         if alignment.get("description") else ""),
+    ] if line)
 
     return MethodDefinition(
         id=method_id or slugify(name), name=name,
@@ -243,9 +358,15 @@ def from_dynamic(*, name: str, question: str, plan: dict[str, Any],
             "Anywhere the answer will be relied on without review. This was "
             "composed for one question and has never been validated."),
         required_grain=f"One row per {grain} per reporting period",
-        required_fields=sorted({str(c.get("field")) for c in meta.get("conditions") or []
-                                if c.get("field")}),
-        required_domains=["credit_facility_position"],
+        required_fields=sorted(
+            {f"{c['dataset']}.{c['field']}" for c in concepts
+             if c.get("dataset") and c.get("field")}
+            or {str(c.get("field")) for c in meta.get("conditions") or []
+                if c.get("field")}),
+        required_domains=_domains_for(datasets),
+        required_concepts=concepts,
+        required_relationships=relationships,
+        period_alignment=alignment,
         output_type="Row list",
         interpretation="Each row met every condition between the two dates.",
         limitations=(

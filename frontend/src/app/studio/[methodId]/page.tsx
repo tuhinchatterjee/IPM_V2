@@ -28,7 +28,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs } from "@/components/ui/tabs";
-import { ApiError, api, type StudioMethod, type StudioValidationPack } from "@/lib/api";
+import {
+  ApiError,
+  api,
+  type StudioConcept,
+  type StudioMethod,
+  type StudioPeriodAlignment,
+  type StudioRelationshipNeed,
+  type StudioValidationPack,
+} from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 
 /**
@@ -225,6 +233,9 @@ export default function MethodPage() {
         <Card className="space-y-5 p-5">
           <Prose label="Required grain" text={method.required_grain} />
           <Prose label="Required history" text={method.required_history} />
+          <Concepts values={method.required_concepts ?? []} />
+          <RelationshipNeeds values={method.required_relationships ?? []} />
+          <PeriodAlignment alignment={method.period_alignment ?? {}} />
           <Chips label="Governed domains" values={method.required_domains} />
           <Chips label="Governed fields" values={method.required_fields} />
           <Chips label="Weighting options" values={method.weighting_options} />
@@ -437,6 +448,95 @@ function Prose({
         {text}
       </p>
       {hint && <p className="mt-1 text-[11px] leading-relaxed text-text-muted">{hint}</p>}
+    </div>
+  );
+}
+
+/**
+ * What the method measures, in concepts rather than columns.
+ *
+ * The dataset and field it resolved to are shown as the answer on the day it
+ * was saved, not as the definition. A method that stored `ifrs9_staging.ead`
+ * breaks the day a bank supplies its own extract under another column name;
+ * one that stores "exposure at default" re-resolves against whatever the
+ * catalogue declares authoritative when it next runs.
+ */
+function Concepts({ values }: { values: StudioConcept[] }) {
+  if (!values.length) return null;
+  return (
+    <div>
+      <p className="text-xs font-medium text-text-secondary">
+        Semantic concepts it measures
+      </p>
+      <ul className="mt-1.5 space-y-2">
+        {values.map((c) => (
+          <li key={c.concept}>
+            <p className="text-sm text-text-primary">
+              {c.label}
+              {c.unit && <span className="ml-1.5 text-xs text-text-muted">{c.unit}</span>}
+            </p>
+            <p className="text-[11px] leading-relaxed text-text-muted">
+              Resolved to{" "}
+              <code className="font-mono text-text-secondary">
+                {c.dataset}.{c.field}
+              </code>
+              {c.definition && ` — ${c.definition}`}
+            </p>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1.5 text-[11px] leading-relaxed text-text-muted">
+        Stored as concepts, so the method re-resolves against whatever the
+        catalogue declares authoritative when it next runs.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The governed joins the method depends on.
+ *
+ * A steward re-declaring one of these changes what the method means without
+ * changing a character of its plan, which is why the version is recorded.
+ */
+function RelationshipNeeds({ values }: { values: StudioRelationshipNeed[] }) {
+  if (!values.length) return null;
+  return (
+    <div>
+      <p className="text-xs font-medium text-text-secondary">
+        Governed relationships it walks
+      </p>
+      <ul className="mt-1.5 space-y-1">
+        {values.map((r) => (
+          <li key={r.relationship_id} className="text-[11px] leading-relaxed">
+            <code className="font-mono text-text-secondary">
+              {r.left} → {r.right}
+            </code>
+            <span className="ml-1.5 text-text-muted">
+              {r.cardinality.replace(/_/g, " ")} · {r.join_policy} · v{r.version}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** How periods were reconciled across sources of different frequency. */
+function PeriodAlignment({ alignment }: { alignment: StudioPeriodAlignment }) {
+  if (!alignment.description) return null;
+  return (
+    <div>
+      <p className="text-xs font-medium text-text-secondary">Period alignment</p>
+      <p className="mt-1 text-sm leading-relaxed text-text-secondary">
+        {alignment.description}.
+      </p>
+      {alignment.opening_period && alignment.closing_period && (
+        <p className="mt-1 text-[11px] text-text-muted">
+          Saved from a run measuring {alignment.opening_period} against{" "}
+          {alignment.closing_period}.
+        </p>
+      )}
     </div>
   );
 }

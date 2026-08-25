@@ -1076,6 +1076,34 @@ export interface StudioMethodBrief {
   tests_failing: number;
 }
 
+export interface StudioConcept {
+  concept: string;
+  label: string;
+  dataset: string;
+  field: string;
+  definition: string;
+  unit: string;
+  reason: string;
+}
+
+export interface StudioRelationshipNeed {
+  relationship_id: number;
+  name: string;
+  version: number;
+  left: string;
+  right: string;
+  cardinality: string;
+  join_policy: string;
+  temporal_rule: string;
+}
+
+export interface StudioPeriodAlignment {
+  opening_period?: string;
+  closing_period?: string;
+  as_of?: { dataset: string; rule: string }[];
+  description?: string;
+}
+
 export interface StudioMethod extends StudioMethodBrief {
   purpose: string;
   methodology: string;
@@ -1090,6 +1118,12 @@ export interface StudioMethod extends StudioMethodBrief {
   output_type: string;
   interpretation: string;
   limitations: string;
+  /* A multi-dataset method carries what it needs before it can be run again:
+   * the concepts it measures rather than the columns one dataset happens to
+   * call them, the governed joins it walked, and how periods were aligned. */
+  required_concepts: StudioConcept[];
+  required_relationships: StudioRelationshipNeed[];
+  period_alignment: StudioPeriodAlignment;
   plan: { operations?: Record<string, unknown>[]; meta?: Record<string, unknown> } | null;
   engine_analysis: string;
   test_cases: StudioTestCase[];
