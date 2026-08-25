@@ -141,7 +141,10 @@ export function RelationshipInspector({
             </span>
           )}
         </div>
-        <p className="mt-2 font-mono text-xs leading-relaxed text-text-primary">
+        {/* Two qualified column names rarely fit one line in this panel, and a
+            truncated key is worse than a wrapped one: a steward reading it is
+            checking exactly which column the join uses. */}
+        <p className="mt-2 break-all font-mono text-xs leading-relaxed text-text-primary">
           {current.from_dataset}.{current.from_field}
           <span className="px-1.5 text-text-muted">→</span>
           {current.to_dataset}.{current.to_field}

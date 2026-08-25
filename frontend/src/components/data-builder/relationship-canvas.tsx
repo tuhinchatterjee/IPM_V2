@@ -66,6 +66,8 @@ interface DatasetData extends Record<string, unknown> {
   periodic: boolean;
   dim: boolean;
   onCentre: boolean;
+  /** A relationship names it, but the governed catalogue does not have it. */
+  dangling: boolean;
 }
 
 function DatasetCard({ data, selected }: NodeProps<Node<DatasetData>>) {
@@ -74,7 +76,11 @@ function DatasetCard({ data, selected }: NodeProps<Node<DatasetData>>) {
       style={{ width: NODE_WIDTH, minHeight: NODE_HEIGHT }}
       className={cn(
         "relative rounded-lg border bg-surface px-2.5 py-2 text-left transition-[opacity,border-color,box-shadow] duration-200",
-        data.onCentre ? "border-border-strong" : "border-border",
+        data.dangling
+          ? "border-dashed border-warning"
+          : data.onCentre
+            ? "border-border-strong"
+            : "border-border",
         selected && "border-accent shadow-[0_0_0_2px_var(--ipm-accent-muted)]",
         data.dim && "opacity-20",
       )}
@@ -92,8 +98,15 @@ function DatasetCard({ data, selected }: NodeProps<Node<DatasetData>>) {
             /* Authoritative for at least one concept. */ />
         )}
       </div>
-      <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-text-muted">
-        {data.grain || "grain not declared"}
+      <p
+        className={cn(
+          "mt-1 line-clamp-2 text-[10px] leading-snug",
+          data.dangling ? "text-warning" : "text-text-muted",
+        )}
+      >
+        {data.dangling
+          ? "A join names this, but the catalogue does not have it."
+          : data.grain || "grain not declared"}
       </p>
       <div className="mt-1 flex items-center gap-1.5 text-[9px] text-text-muted tabular">
         <span>{data.degree} {data.degree === 1 ? "join" : "joins"}</span>
@@ -167,6 +180,10 @@ function Canvas({
           periodic: Boolean(p.node?.period_field),
           dim: Boolean(chosen) && !lit.has(p.name),
           onCentre: p.ring === 0,
+          // A relationship pointing at a dataset the catalogue no longer has is
+          // a governance finding, not a box like any other: the planner will
+          // never walk it and a steward should withdraw it.
+          dangling: p.node !== undefined && p.node.in_catalogue === false,
         },
       })),
     [placed, degrees, chosen, lit],

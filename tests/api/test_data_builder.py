@@ -58,10 +58,17 @@ def _remove_dataset(name: str) -> None:
     from backend.config import settings
     from backend.data_access import reload_catalog, reset_data_source
     from backend.db.engine import get_session
-    from backend.models.platform import DatasetDefinition
+    from backend.models.platform import DatasetDefinition, DatasetRelationship
 
     try:
         with get_session() as session:
+            # Relationships too. They do not cascade from the dataset row, and
+            # one left behind is a join the Relationship Map draws to a dataset
+            # the catalogue no longer has — a test artefact that looks like a
+            # governance failure to anybody opening the map.
+            session.execute(delete(DatasetRelationship).where(
+                (DatasetRelationship.from_dataset == name)
+                | (DatasetRelationship.to_dataset == name)))
             session.execute(delete(DatasetDefinition).where(DatasetDefinition.name == name))
     except Exception:
         pass
