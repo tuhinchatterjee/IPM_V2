@@ -255,3 +255,51 @@ def test_relationships_are_stored_once(session):
     keys = [(r.from_dataset, r.from_field, r.to_dataset, r.to_field)
             for r in rows]
     assert len(keys) == len(set(keys))
+
+
+
+def _shipped(session, from_dataset, from_field):
+    return session.scalars(
+        select(DatasetRelationship).where(
+            DatasetRelationship.from_dataset == from_dataset,
+            DatasetRelationship.from_field == from_field,
+            DatasetRelationship.lifecycle == rel.ACTIVE,
+        )
+    ).first()
+
+
+def test_validation_reads_one_period_not_all_history(session):
+    """A period-partitioned dataset read with no period named must not report a
+    duplicate rate that is an artefact of reading fifteen quarters at once."""
+    record = _shipped(session, "ifrs9_staging", "account_id")
+    assert record is not None
+    report = rel.validate_relationship(session, record)
+    assert report["duplicate_rate"] <= rel.MAX_DUPLICATE_RATE
+    assert report["ok"] is True
+
+
+def test_blank_key_is_missing_not_orphaned(session):
+    """Standalone entities carry a blank parent. Counting those as orphans
+    reports a coverage failure the hierarchy does not have."""
+    record = _shipped(session, "group_structure", "parent_customer_id")
+    assert record is not None
+    report = rel.validate_relationship(session, record)
+    assert report["match_rate"] >= rel.MIN_MATCH_RATE
+    assert report["orphan_rate"] < 0.2
+
+
+def test_every_shipped_relationship_validates(session):
+    """The relationships CreditProbe ships with must survive their own gate."""
+    records = session.scalars(
+        select(DatasetRelationship).where(
+            DatasetRelationship.lifecycle == rel.ACTIVE
+        )
+    ).all()
+    assert records
+    failed = {}
+    for record in records:
+        report = rel.validate_relationship(session, record)
+        if not report["ok"]:
+            failed[f"{record.from_dataset}.{record.from_field} -> "
+                   f"{record.to_dataset}.{record.to_field}"] = report["findings"]
+    assert failed == {}

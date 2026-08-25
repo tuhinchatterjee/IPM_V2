@@ -343,6 +343,18 @@ def seed(session: Session, *, only_known: bool = True,
 # ---------------------------------------------------------------- validation
 
 
+def _keys(series):
+    """The rows that actually carry a key.
+
+    A blank string is a missing parent, not a parent that has gone missing:
+    counting it as an orphan reports a coverage failure the data does not have.
+    """
+    values = series.dropna()
+    if values.empty:
+        return values
+    return values[values.astype(str).str.strip().ne("")]
+
+
 def validate_relationship(session: Session, record: DatasetRelationship, *,
                           period: str | None = None) -> dict[str, Any]:
     """Measure the join against the real data, and say what it found.
@@ -379,9 +391,19 @@ def validate_relationship(session: Session, record: DatasetRelationship, *,
         return {"ok": False, "findings": findings}
 
     def read(definition, column):
-        chosen = period if definition.period_field else None
-        if chosen and chosen not in source.periods(definition.name):
-            chosen = (source.periods(definition.name) or [None])[-1]
+        if not definition.period_field:
+            return source.fetch(definition.name,
+                                context=AnalysisContext(period=None),
+                                fields=[column]), None
+        published = source.periods(definition.name) or []
+        chosen = period if period in published else None
+        if chosen is None:
+            # A period-partitioned dataset read with no period named is read
+            # across its whole history, which turns one row per customer into
+            # fifteen and reports a duplicate rate that is an artefact of the
+            # read rather than a property of the key. Fall back to the latest
+            # published period instead.
+            chosen = published[-1] if published else None
         return source.fetch(definition.name, context=AnalysisContext(period=chosen),
                             fields=[column], period=chosen), chosen
 
@@ -391,8 +413,8 @@ def validate_relationship(session: Session, record: DatasetRelationship, *,
     except Exception as e:
         return {"ok": False, "findings": [f"Could not read the data: {e}"]}
 
-    left_values = left[record.from_field].dropna()
-    right_values = right[record.to_field].dropna()
+    left_values = _keys(left[record.from_field])
+    right_values = _keys(right[record.to_field])
     right_set = set(right_values.astype(str))
 
     left_count = int(len(left_values))

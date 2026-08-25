@@ -488,6 +488,81 @@ def seed_relationships(session: Session = Depends(get_db),
     return rel_service.seed(session)
 
 
+class RelationshipStateIn(BaseModel):
+    lifecycle: str = Field(pattern="^(draft|validated|active|archived)$")
+    note: str = Field(default="", max_length=2000)
+
+
+@router.get("/relationships/{relationship_id}",
+            summary="One relationship, with its validation and history")
+def relationship_detail(relationship_id: int,
+                        session: Session = Depends(get_db)) -> dict:
+    """Everything a steward needs to decide whether to trust this join."""
+    from backend.models.platform import DatasetRelationship
+    from backend.services import relationships as rel_service
+
+    record = session.get(DatasetRelationship, relationship_id)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "not_found",
+                    "message": f"No relationship {relationship_id}."})
+    return {
+        "relationship": rel_service.to_dict(record),
+        "versions": rel_service.versions(session, relationship_id),
+        "thresholds": {
+            "min_match_rate": rel_service.MIN_MATCH_RATE,
+            "max_duplicate_rate": rel_service.MAX_DUPLICATE_RATE,
+            "min_confidence": rel_service.MIN_CONFIDENCE,
+        },
+    }
+
+
+@router.post("/relationships/{relationship_id}/validate",
+             summary="Measure the join against the real data")
+def validate_relationship(relationship_id: int, period: str | None = None,
+                          session: Session = Depends(get_db),
+                          principal: Principal = RequireDataSteward) -> dict:
+    """Measured rather than asserted.
+
+    A steward declaring "many to one" states an intention; whether the right
+    side actually has unique keys is a property of the data, and the difference
+    between the two is a silently multiplied book.
+    """
+    from backend.models.platform import DatasetRelationship
+    from backend.services import relationships as rel_service
+
+    record = session.get(DatasetRelationship, relationship_id)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "not_found",
+                    "message": f"No relationship {relationship_id}."})
+    report = rel_service.validate_relationship(session, record, period=period)
+    return {"relationship": rel_service.to_dict(record), "report": report}
+
+
+@router.post("/relationships/{relationship_id}/lifecycle",
+             summary="Move a relationship along its lifecycle")
+def set_relationship_lifecycle(relationship_id: int, payload: RelationshipStateIn,
+                               session: Session = Depends(get_db),
+                               principal: Principal = RequirePublisher) -> dict:
+    """ACTIVE is the only state the runtime will join on, so reaching it needs
+    evidence. Archiving is always allowed — withdrawing a join is never the
+    dangerous direction."""
+    from backend.services import relationships as rel_service
+
+    try:
+        record = rel_service.promote(session, relationship_id,
+                                     to=payload.lifecycle,
+                                     user_id=principal.user_id,
+                                     note=payload.note)
+    except DataBuilderError as e:
+        raise _fail(e) from e
+    return {"relationship": rel_service.to_dict(record),
+            "versions": rel_service.versions(session, relationship_id)}
+
+
 @router.post("/relationships", status_code=status.HTTP_201_CREATED,
              summary="Define a relationship between two datasets")
 def add_relationship(payload: RelationshipIn, session: Session = Depends(get_db),
