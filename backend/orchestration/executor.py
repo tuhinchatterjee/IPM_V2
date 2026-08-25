@@ -705,6 +705,8 @@ def run_multi(question: str, request: multi.MultiRequest, *, started: float,
             "query": result.query.to_dict() if result.query else None,
             "joins": result.joins,
             "reconciliation": result.reconciliation,
+            "fingerprint": result.fingerprint,
+            "datasets": request.datasets,
             "explanation": multi.explain(request),
             "join_plan": (request.resolution.to_dict()
                           if request.resolution else None),

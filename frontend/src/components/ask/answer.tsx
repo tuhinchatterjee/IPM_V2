@@ -12,6 +12,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
+import { DataAndMethod } from "@/components/ask/data-and-method";
 import { DynamicAnalysisPanel } from "@/components/ask/dynamic-analysis";
 import { KpiTile } from "@/components/analytics/primitives";
 import { ResultView } from "@/components/analytics/result-view";
@@ -217,6 +218,11 @@ export function StepResult({
           </p>
         )}
       </div>
+
+      {/* Before the composed-analysis disclosure, because "which data, joined
+          how" is the question a reader has first — and it applies to a
+          certified multi-dataset answer too, which has no composition panel. */}
+      {step.result && <DataAndMethod result={step.result} />}
 
       {dynamic && step.result && (
         <DynamicAnalysisPanel result={step.result} question={question ?? ""} />

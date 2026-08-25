@@ -180,6 +180,95 @@ export interface EngineResult {
   certification?: string;
   certification_label?: string;
   truncated?: boolean;
+
+  /* A multi-dataset analysis carries how it was assembled: which sources, on
+   * which governed joins, how the population changed at each step, and what
+   * identifies the run. Absent on a single-dataset analysis, which has no join
+   * to explain. */
+  datasets?: string[];
+  joins?: JoinStep[];
+  reconciliation?: ReconciliationStep[];
+  join_plan?: JoinPlan | null;
+  explanation?: string;
+  fingerprint?: RunFingerprint;
+}
+
+export interface JoinStep {
+  step: string;
+  label: string;
+  policy: string;
+  keys: string[];
+  rows_out: number | null;
+  rows_lost: number | null;
+  lost_pct: number | null;
+  temporal_rule: string;
+  relationship_id?: number | null;
+  relationship_name?: string;
+  relationship_version?: number;
+  from?: string;
+  to?: string;
+  cardinality?: string;
+  note?: string;
+}
+
+export interface ReconciliationStep {
+  step: string;
+  label: string;
+  rows: number;
+  lost: number | null;
+  lost_pct: number | null;
+  reduced_by_design?: boolean;
+}
+
+export interface JoinPathEdge {
+  relationship_id: number;
+  relationship_name: string;
+  relationship_version: number;
+  left: string;
+  left_field: string;
+  right: string;
+  right_field: string;
+  cardinality: string;
+  join_policy: string;
+  temporal_rule: string;
+  semantic: string;
+  multiplies_left: boolean;
+}
+
+export interface JoinPath {
+  target: string;
+  hops: number;
+  datasets: string[];
+  edges: JoinPathEdge[];
+  multiplies: boolean;
+  needs_asof: boolean;
+  score: number;
+  reasons: string[];
+  description: string;
+}
+
+export interface JoinPlan {
+  base: string;
+  datasets: string[];
+  paths: JoinPath[];
+  edges: JoinPathEdge[];
+  /** Dataset name → why nothing reaches it. */
+  unreachable: Record<string, string>;
+  /** Dataset name → the materially different paths that reach it. */
+  ambiguous: Record<string, JoinPath[]>;
+  warnings: string[];
+  ok: boolean;
+  summary: string;
+}
+
+export interface RunFingerprint {
+  run: string;
+  plan: string;
+  data: string;
+  relationships: string;
+  parameters: string;
+  datasets?: { dataset: string; version: string; origin: string; periods: string[] }[];
+  relationships_used?: { relationship_id: number; version: number; cardinality: string }[];
 }
 
 export interface AnalyticalPlanPayload {

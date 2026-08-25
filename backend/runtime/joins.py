@@ -429,9 +429,20 @@ def resolve(graph: JoinGraph, *, base: str, targets: list[str],
         best = options[0]
         resolution.paths.append(best)
 
-        rivals = [p for p in options[1:]
-                  if best.score - p.score < AMBIGUITY_MARGIN
-                  and p.datasets != best.datasets]
+        # Distinct routes, not distinct relationship rows. Two governed
+        # relationships between the same pair of datasets — one declared each
+        # way round — walk the same tables, and listing that twice reads as a
+        # rendering fault rather than as a genuine choice a steward must make.
+        rivals: list[JoinPath] = []
+        routes = {tuple(best.datasets)}
+        for candidate in options[1:]:
+            if best.score - candidate.score >= AMBIGUITY_MARGIN:
+                continue
+            route = tuple(candidate.datasets)
+            if route in routes:
+                continue
+            routes.add(route)
+            rivals.append(candidate)
         if rivals:
             resolution.ambiguous[target] = [best, *rivals[:2]]
             resolution.warnings.append(
