@@ -94,6 +94,12 @@ services:
       # deterministic planner (DEMO_MODE) and still runs the real engine.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       SECRET_KEY: ${SECRET_KEY:-local-dev-not-a-real-secret}
+
+      # Signing in is compulsory unless you deliberately turn it off. The four
+      # demonstration accounts are seeded on first start — see the README. A
+      # credit-risk product where anybody reaching the page is silently an
+      # Analyst is not one anybody can deploy.
+      REQUIRE_LOGIN: ${REQUIRE_LOGIN:-true}
     volumes:
       # The analytical data, mounted rather than copied: no duplication of large
       # files, and the Parquet layer the container builds on first start stays

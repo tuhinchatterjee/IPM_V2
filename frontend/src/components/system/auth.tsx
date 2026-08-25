@@ -23,6 +23,15 @@ export type AuthStatus = "loading" | "anonymous" | "authenticated";
 interface AuthState {
   status: AuthStatus;
   user: SignedInUser | null;
+  /**
+   * Whether this backend insists on a session.
+   *
+   * Read from the backend, not from a build-time flag, so the interface cannot
+   * disagree with the thing actually enforcing it. Null while still asking —
+   * which is not the same as false, and treating it as false would flash the
+   * whole application at somebody who has to sign in.
+   */
+  loginRequired: boolean | null;
   signIn: (username: string, password: string) => Promise<SignedInUser>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -31,6 +40,7 @@ interface AuthState {
 const AuthContext = React.createContext<AuthState>({
   status: "loading",
   user: null,
+  loginRequired: null,
   signIn: async () => {
     throw new Error("No AuthProvider");
   },
@@ -41,6 +51,7 @@ const AuthContext = React.createContext<AuthState>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = React.useState<AuthStatus>("loading");
   const [user, setUser] = React.useState<SignedInUser | null>(null);
+  const [loginRequired, setLoginRequired] = React.useState<boolean | null>(null);
 
   const [nonce, setNonce] = React.useState(0);
 
@@ -60,12 +71,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const body = await api.me();
         if (cancelled) return;
         setUser(body.user);
+        setLoginRequired(Boolean(body.login_required));
         setStatus(body.authenticated ? "authenticated" : "anonymous");
       } catch {
-        // No backend, or no database. The product still runs unauthenticated
-        // in local development, so this is a state rather than an error.
+        // No backend, or no database. Nothing can be signed in to, and there
+        // is nothing to sign in with, so the login page would be a dead end —
+        // the backend-status banner explains the real problem instead.
         if (cancelled) return;
         setUser(null);
+        setLoginRequired(false);
         setStatus("anonymous");
       }
     }
@@ -90,8 +104,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = React.useMemo(
-    () => ({ status, user, signIn, signOut, refresh }),
-    [status, user, signIn, signOut, refresh],
+    () => ({ status, user, loginRequired, signIn, signOut, refresh }),
+    [status, user, loginRequired, signIn, signOut, refresh],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

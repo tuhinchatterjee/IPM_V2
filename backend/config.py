@@ -114,7 +114,12 @@ def _load() -> Settings:
         anthropic_api_key=_get("ANTHROPIC_API_KEY", ""),
         database_url=_get("DATABASE_URL", ""),
         secret_key=_get("SECRET_KEY", ""),
-        require_login=_get("REQUIRE_LOGIN", "false").strip().lower()
+        # Signing in is compulsory by default. A credit-risk product where
+        # anybody who reaches the page is silently an Analyst is not a product
+        # anybody can deploy, and a security default that has to be turned on is
+        # a security default that gets forgotten. Set REQUIRE_LOGIN=false only
+        # for a throwaway local session where nobody has seeded an account.
+        require_login=_get("REQUIRE_LOGIN", "true").strip().lower()
         in ("1", "true", "yes", "on"),
         api_host=_get("API_HOST", "127.0.0.1"),
         api_port=_int("API_PORT", 8000),

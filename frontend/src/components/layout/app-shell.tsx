@@ -47,31 +47,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
  * in, and rendering the application would flash it at somebody who is not.
  * A blank canvas for a few hundred milliseconds is the honest state.
  *
- * When the backend does not require a login — a local run — anonymous callers
- * go straight through, because the product must still be usable with
- * `docker compose up` and nothing else.
+ * Whether a session is required is read from the BACKEND, not baked into this
+ * build. Two places holding the same setting is two places for it to disagree,
+ * and the way they disagree is a login page that never appears in front of a
+ * backend refusing every request.
  */
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { status, user } = useAuth();
+  const { status, user, loginRequired } = useAuth();
 
-  if (status === "loading") {
+  // Still asking is not the same as "no session needed". Treating it as no
+  // would flash the whole application at somebody who has to sign in.
+  if (status === "loading" || loginRequired === null) {
     return <div className="min-h-dvh bg-canvas" aria-busy="true" />;
   }
-  if (status === "anonymous" && requiresLogin()) {
+  if (status === "anonymous" && loginRequired) {
     return <LoginScreen />;
   }
-  // Signed in, or a local run where signing in is optional.
+  // Signed in, or a deployment that has deliberately switched signing in off.
   void user;
   return <>{children}</>;
-}
-
-/**
- * Whether this deployment insists on a session.
- *
- * Baked in at build time so the decision is the deployment's, not the browser's.
- * Unset means "no" — which keeps `docker compose up` working out of the box, and
- * is the setting a real deployment changes first.
- */
-function requiresLogin(): boolean {
-  return process.env.NEXT_PUBLIC_REQUIRE_LOGIN === "true";
 }

@@ -225,6 +225,30 @@ purposes it is the only authoritative source for, the certified analyses that wo
 stop being answerable, the relationships joining to it, and the saved investigations
 produced from it. An archive with blocking dependants is refused until acknowledged.
 
+**Archived domains leave resolution.** A whole data **domain** can be archived, and an
+archived domain's datasets stop being eligible above. An analysis quietly going on
+reading a book the data office has withdrawn — and somebody finding out nine months
+later — is exactly the audit finding this product exists to prevent, so resolution
+refuses and names the archived domain rather than reporting that nothing is
+authoritative, which would send a steward hunting for a dataset that is sitting right
+there.
+
+Archiving is **not** deletion. The rows stay on disk, the Data Builder viewer still
+serves them to anybody authorised to look, and restoring the domain puts it straight
+back into resolution. Deleting a domain that still holds datasets is refused outright:
+remap, replace or archive them first.
+
+Which domains are archived lives in PostgreSQL, and `data_access` may not read it — it
+sits at the bottom of the import order and stays there. So the application registers a
+provider at start-up (`backend/services/domain_status.py`) and the authority resolver
+asks it. The answer is cached, because resolution happens on every step of every
+analysis; the cache is cleared the moment a domain's status changes, so the decision
+takes effect immediately rather than at the next restart. With nothing registered — a
+script, a test, a run with no database — nothing is archived, and a failed governance
+read **fails open** for the same reason: the archive is a curation decision, not a
+security boundary, and treating an unreachable database as "everything is retired"
+would take the whole product down.
+
 ### 4.3 Dataset versioning
 
 Today's model — one `DatasetVersion` per uploaded workbook, exactly one `active` at a

@@ -239,6 +239,36 @@ class ChatMessage(Base):
     __table_args__ = (Index("ix_chat_messages_chat", "chat_id", "created_at"),)
 
 
+class GridPreference(Base):
+    """How one person likes to look at one dataset.
+
+    Column widths, which columns are hidden, how many stay on screen while
+    scrolling, and how tightly the rows are packed. Stored per USER and per
+    DATASET rather than per browser: a data steward who has spent an afternoon
+    arranging the facility grid should find it arranged the next morning, and on
+    the other machine.
+
+    Deliberately opaque JSON. This is a record of somebody's preference, not a
+    governed object — nothing reads it but the grid that wrote it, and giving it
+    a schema would mean a migration every time a column control is added.
+    """
+
+    __tablename__ = "grid_preferences"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    dataset: Mapped[str] = mapped_column(String(160), nullable=False)
+    preferences: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "dataset", name="uq_grid_preference"),
+    )
+
+
 # ============================================================ analysis runs
 
 

@@ -18,6 +18,26 @@ So resolution is explicit and has exactly three outcomes:
 
 There is no fourth branch where something plausible is substituted.
 
+Archived domains
+----------------
+A data domain can be archived in Data Builder. An archived domain is no longer
+part of the live estate, so its datasets stop being eligible here — an analysis
+must not go on reading a book the data office has retired, and finding out it
+did nine months later is exactly the audit finding this product exists to
+prevent.
+
+Archiving deletes nothing. The rows stay on disk, the datasets stay readable in
+the viewer for anybody authorised to look, and restoring the domain puts them
+straight back into resolution. This module only decides what the ENGINE may
+reach for on its own.
+
+Which domains are archived lives in PostgreSQL, and this package may not read
+it — data_access sits at the bottom of the import order and stays there. So the
+application registers a provider at start-up (`set_archived_domains_provider`)
+and this module asks it. With nothing registered — a test, a script, a run with
+no database — nothing is archived, which is the correct answer when there is no
+governance record to consult.
+
 Where the answer shows up
 -------------------------
 The resolution is recorded on the Trace's DATASET node — origin, family,
@@ -28,6 +48,7 @@ answered by looking at the map rather than by trusting this module.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -41,6 +62,38 @@ from backend.data_access.catalog import (
 from backend.data_access.protocol import DataAccessError
 
 logger = logging.getLogger(__name__)
+
+
+#: Set by the application at start-up. Returns the names of the domains that
+#: have been archived, so their datasets drop out of engine resolution.
+_archived_domains_provider: Callable[[], frozenset[str]] | None = None
+
+
+def set_archived_domains_provider(
+    provider: Callable[[], frozenset[str]] | None,
+) -> None:
+    """Tell this module how to find out which domains are archived.
+
+    Called by the API at start-up with something that reads the governance
+    tables. Passing None restores the default of "none are", which is what a
+    test or a script with no database should see.
+    """
+    global _archived_domains_provider
+    _archived_domains_provider = provider
+
+
+def archived_domains() -> frozenset[str]:
+    """Domains the data office has retired. Empty when nothing can say."""
+    if _archived_domains_provider is None:
+        return frozenset()
+    try:
+        return frozenset(_archived_domains_provider())
+    except Exception as e:  # pragma: no cover - a governance read that failed
+        # Deliberately fails OPEN rather than closed. A database hiccup must not
+        # make every analysis report that its data has been retired; the archive
+        # is a curation decision, not a security boundary.
+        logger.warning("Could not read archived domains: %s", e)
+        return frozenset()
 
 
 class GovernedDataUnavailable(DataAccessError):
@@ -104,7 +157,21 @@ def resolve_purpose(purpose: str, catalog: Catalog | None = None) -> Resolution:
             f"Known purposes: {', '.join(sorted(GOVERNED_PURPOSES))}."
         )
 
-    candidates = catalog.serving(purpose)
+    all_candidates = catalog.serving(purpose)
+    retired = archived_domains()
+    candidates = [d for d in all_candidates if d.domain not in retired]
+
+    if not candidates and all_candidates:
+        # Something serves the purpose, but its domain has been retired. Saying
+        # so beats "nothing is authoritative", which would send a steward
+        # looking for a dataset that is sitting right there.
+        domains = sorted({d.domain for d in all_candidates})
+        raise GovernedDataUnavailable(
+            f"The only dataset marked authoritative for '{purpose}' "
+            f"({GOVERNED_PURPOSES[purpose]}) is in an archived domain "
+            f"({', '.join(domains)}). Restore the domain in Data Builder, or "
+            "publish a replacement and mark it authoritative."
+        )
     if not candidates:
         raise GovernedDataUnavailable(
             f"No published dataset is marked authoritative for "
@@ -240,5 +307,7 @@ __all__ = [
     "Resolution",
     "governance_summary",
     "resolve_dataset",
+    "archived_domains",
     "resolve_purpose",
+    "set_archived_domains_provider",
 ]

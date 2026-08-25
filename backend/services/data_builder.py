@@ -375,13 +375,76 @@ def rename_domain(session: Session, name: str, new_name: str) -> DataDomain:
     return domain
 
 
+def get_grid_preferences(session: Session, *, user_id: int,
+                         dataset: str) -> dict[str, Any]:
+    """How this person has arranged this dataset's grid. Empty if never."""
+    from backend.models.platform import GridPreference
+
+    row = session.execute(
+        select(GridPreference)
+        .where(GridPreference.user_id == user_id,
+               GridPreference.dataset == dataset)
+    ).scalar_one_or_none()
+    return dict(row.preferences or {}) if row else {}
+
+
+def set_grid_preferences(session: Session, *, user_id: int, dataset: str,
+                         preferences: dict[str, Any]) -> None:
+    """Record it, replacing whatever was there.
+
+    Replaces rather than merges: the grid always sends its whole arrangement, so
+    merging would make un-hiding a column impossible — the absence of a key
+    would be indistinguishable from not mentioning it.
+    """
+    from backend.models.platform import GridPreference
+
+    row = session.execute(
+        select(GridPreference)
+        .where(GridPreference.user_id == user_id,
+               GridPreference.dataset == dataset)
+    ).scalar_one_or_none()
+
+    if row is None:
+        session.add(GridPreference(user_id=user_id, dataset=dataset,
+                                   preferences=dict(preferences)))
+    else:
+        row.preferences = dict(preferences)
+    session.flush()
+
+
+def _forget_archived_domain_cache() -> None:
+    """The engine holds this set; a change here has to reach it now."""
+    from backend.services.domain_status import forget
+
+    forget()
+
+
+def archived_domain_names(session: Session) -> frozenset[str]:
+    """The domains the data office has retired.
+
+    Read by the engine's authority layer, through the provider the API
+    registers at start-up, to decide what it may resolve. Kept here because
+    this is where domain status is written.
+    """
+    return frozenset(
+        row.name for row in session.execute(
+            select(DataDomain).where(DataDomain.status == DOMAIN_ARCHIVED)
+        ).scalars()
+    )
+
+
 def set_domain_status(session: Session, name: str, status: str) -> DataDomain:
     """Archive a domain, or bring it back.
 
-    Archiving changes nothing about the data. Every dataset in the domain stays
-    readable and every analysis that depends on one keeps working — this only
-    takes the domain off the working list. That is deliberate: a governance
-    action that silently broke published analyses would be worse than no action.
+    Archiving deletes nothing. Every dataset in the domain stays on disk and
+    stays readable in the viewer for anybody authorised to look, and restoring
+    the domain puts it straight back.
+
+    What archiving DOES do is take the domain out of engine resolution: an
+    analysis will no longer reach for a dataset in a retired domain on its own.
+    That is the point of retiring one — an analysis quietly going on reading a
+    book the data office has withdrawn, and somebody finding out nine months
+    later, is exactly the audit finding this product exists to prevent.
     """
     status = (status or "").strip().upper()
     if status not in {DOMAIN_ACTIVE, DOMAIN_ARCHIVED}:
@@ -394,6 +457,9 @@ def set_domain_status(session: Session, name: str, status: str) -> DataDomain:
         raise DataBuilderError(f"There is no data domain called '{name}'.")
     domain.status = status
     session.flush()
+    # The engine caches which domains are archived; this decision has to reach
+    # it now rather than at the next restart.
+    _forget_archived_domain_cache()
     return domain
 
 

@@ -424,21 +424,35 @@ function MapControls({
         >
           <Maximize2 className="size-3.5" aria-hidden />
         </IconButton>
-        {steps.length > 0 && (
-          <IconButton
-            title={allCollapsed ? "Expand every analysis" : "Collapse every analysis"}
-            onClick={() =>
-              setCollapsed(allCollapsed ? new Set() : new Set(steps.map((s) => s.step)))
-            }
-          >
-            {allCollapsed ? (
-              <ChevronsLeftRight className="size-3.5" aria-hidden />
-            ) : (
-              <ChevronsRightLeft className="size-3.5" aria-hidden />
-            )}
-          </IconButton>
-        )}
       </div>
+
+      {/* Labelled, not an icon. The map opens collapsed for readability, which
+          makes "how do I see the whole lineage" the first question a reviewer
+          has — and an icon they have to hover to identify is not an answer.
+          Fitting the view afterwards matters too: expanding without it leaves
+          the new nodes off screen, which looks like nothing happened. */}
+      {steps.length > 0 && (
+        <button
+          type="button"
+          onClick={() => {
+            setCollapsed(
+              allCollapsed ? new Set() : new Set(steps.map((s) => s.step)),
+            );
+            // After the layout has been recomputed with the new node set.
+            window.setTimeout(
+              () => fitView({ padding: 0.18, duration: 220, maxZoom: 1 }), 60,
+            );
+          }}
+          className="flex items-center gap-1.5 rounded-md border border-border bg-surface-raised px-2 py-1 text-[11px] font-medium text-text-secondary shadow-sm transition-colors hover:border-accent hover:text-accent"
+        >
+          {allCollapsed ? (
+            <ChevronsLeftRight className="size-3" aria-hidden />
+          ) : (
+            <ChevronsRightLeft className="size-3" aria-hidden />
+          )}
+          {allCollapsed ? "Expand all" : "Collapse all"}
+        </button>
+      )}
 
     </Panel>
     {steps.length > 1 && (

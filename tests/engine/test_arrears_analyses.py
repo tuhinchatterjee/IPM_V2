@@ -198,3 +198,47 @@ def test_the_result_says_its_text_is_synthetic(signals):
     assert "synthetic" in signals.result.meta["text_origin"].lower()
     assert "claim" in " ".join(signals.result.meta).lower() or \
         "claimed" in signals.result.meta["claims"].lower()
+
+
+# -------------------------------------------- the synthetic marking itself
+
+
+def test_every_credit_memo_extract_is_marked_synthetic():
+    """The marker travels with the row, not with the screen.
+
+    Natural-looking wording in a demonstration is fine and makes it better. What
+    is not fine is a row that could be mistaken for real client information once
+    it has been exported to a CSV, pasted into a deck and read by somebody who
+    never saw where it came from. Every extract carries the prefix, and this
+    asserts it across every published period rather than a sample.
+    """
+    from backend.data_access.context import AnalysisContext
+
+    source = get_data_source()
+    periods = source.periods(MEMOS)
+    assert periods, "no periods published for the credit memo dataset"
+
+    checked = 0
+    for period in periods:
+        frame = source.fetch(MEMOS, context=AnalysisContext(period=period),
+                             fields=["extract", "is_synthetic_text"], period=period)
+        assert len(frame), f"no notes in {period}"
+        unmarked = frame[~frame["extract"].astype(str).str.startswith("SYNTHETIC")]
+        assert unmarked.empty, (
+            f"{len(unmarked)} extracts in {period} are not marked synthetic; "
+            f"first: {unmarked['extract'].iloc[0][:80]!r}"
+        )
+        assert frame["is_synthetic_text"].all(), (
+            f"a note in {period} claims its text is not synthetic"
+        )
+        checked += len(frame)
+
+    assert checked > 1_000, "the marker check covered suspiciously few notes"
+
+
+def test_the_dictionary_tells_a_reader_the_extract_is_synthetic():
+    """Somebody reading the column definition must be told, not have to notice."""
+    from backend.data_access.catalog import get_catalog
+
+    definition = get_catalog().dataset(MEMOS).fields["extract"].definition
+    assert "SYNTHETIC" in definition.upper()

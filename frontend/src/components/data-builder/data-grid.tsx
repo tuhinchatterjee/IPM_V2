@@ -23,6 +23,7 @@ import {
   type ColumnProfile,
   type DatasetField,
   type DatasetPage,
+  type GridPreferences,
 } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
@@ -106,11 +107,66 @@ export function DataGrid({ dataset }: { dataset: string }) {
 }
 
 function Grid_({ dataset }: { dataset: string }) {
-  const [state, setState] = React.useState<GridState>(INITIAL_GRID);
+  // How this person last arranged THIS dataset. Fetched before the grid is
+  // drawn, because applying it afterwards would show every reader somebody
+  // else's column widths for a moment first.
+  const saved = useAsync(() => api.gridPreferences(dataset), [dataset]);
+
+  if (saved.loading) return <Skeleton className="h-[32rem] w-full" />;
+  return <Arranged dataset={dataset} saved={saved.data?.preferences} />;
+}
+
+function Arranged({
+  dataset,
+  saved,
+}: {
+  dataset: string;
+  saved: GridPreferences | undefined;
+}) {
+  const [state, setState] = React.useState<GridState>(() => ({
+    ...INITIAL_GRID,
+    hidden: saved?.hidden ?? INITIAL_GRID.hidden,
+    frozen: saved?.frozen ?? INITIAL_GRID.frozen,
+    dense: saved?.dense ?? INITIAL_GRID.dense,
+  }));
   const [draftSearch, setDraftSearch] = React.useState("");
   const [profiling, setProfiling] = React.useState<string | null>(null);
-  const [widths, setWidths] = React.useState<Record<string, number>>({});
+  const [widths, setWidths] = React.useState<Record<string, number>>(
+    () => saved?.widths ?? {},
+  );
   const [panel, setPanel] = React.useState<"columns" | "filters" | null>(null);
+
+  // Save the arrangement, a beat after it stops changing. Dragging a column
+  // edge fires dozens of times a second, and a request per pixel would be a
+  // denial of service somebody performs on themselves.
+  //
+  // No setState here — the effect only sends — so this stays the subscription
+  // shape effects are for. A failed save is swallowed on purpose: not
+  // remembering a column width is a small disappointment, and an error banner
+  // over the data because of one would be a larger one.
+  const arrangement = React.useMemo(
+    () => ({
+      widths,
+      hidden: state.hidden,
+      frozen: state.frozen,
+      dense: state.dense,
+    }),
+    [widths, state.hidden, state.frozen, state.dense],
+  );
+  const firstRender = React.useRef(true);
+
+  React.useEffect(() => {
+    // Nothing to save on the way in — that would write back exactly what was
+    // just read, on every dataset anybody so much as looks at.
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void api.saveGridPreferences(dataset, arrangement).catch(() => {});
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [dataset, arrangement]);
 
   const page = useAsync(
     () =>

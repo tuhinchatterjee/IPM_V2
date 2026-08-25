@@ -1488,6 +1488,14 @@ export interface DatasetTree {
   }[];
 }
 
+/** The part of a grid's state that belongs to the reader rather than the query. */
+export interface GridPreferences {
+  widths: Record<string, number>;
+  hidden: string[];
+  frozen: number;
+  dense: boolean;
+}
+
 export interface DatasetField {
   name: string;
   business_name: string;
@@ -1679,7 +1687,20 @@ export interface RoleDescription {
 
 export const api = {
   // ---- authentication ----
-  me: () => request<{ user: SignedInUser | null; authenticated: boolean }>("/auth/me"),
+  /**
+   * Who is signed in, and whether this backend insists on somebody being.
+   *
+   * `login_required` comes from the backend rather than a build-time flag on
+   * the interface. Two places holding the same setting is two places for it to
+   * disagree, and the way they disagree is a login page that never appears in
+   * front of a backend refusing every request.
+   */
+  me: () =>
+    request<{
+      user: SignedInUser | null;
+      authenticated: boolean;
+      login_required: boolean;
+    }>("/auth/me"),
   signIn: (username: string, password: string) =>
     request<{ user: SignedInUser }>("/auth/login", {
       method: "POST",
@@ -1987,6 +2008,22 @@ export const api = {
       { timeoutMs: 60_000 },
     );
   },
+  /**
+   * How this person has arranged this dataset's grid.
+   *
+   * Per user and per dataset, stored on the server rather than in the browser:
+   * somebody who spends an afternoon arranging the facility grid should find it
+   * arranged the next morning, and on the other machine.
+   */
+  gridPreferences: (name: string) =>
+    request<{ dataset: string; preferences: GridPreferences; stored: boolean }>(
+      `/data-builder/datasets/${encodeURIComponent(name)}/grid-preferences`,
+    ),
+  saveGridPreferences: (name: string, preferences: GridPreferences) =>
+    request<{ dataset: string; stored: boolean }>(
+      `/data-builder/datasets/${encodeURIComponent(name)}/grid-preferences`,
+      { method: "PUT", body: JSON.stringify(preferences) },
+    ),
   datasetColumn: (name: string, field: string, period?: string) =>
     request<ColumnProfile>(
       `/data-builder/datasets/${encodeURIComponent(name)}/columns/` +

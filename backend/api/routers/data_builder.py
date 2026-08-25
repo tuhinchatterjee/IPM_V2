@@ -26,7 +26,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from backend.api.permissions import Principal, RequireDataSteward, RequirePublisher
@@ -72,6 +72,33 @@ class DomainIn(BaseModel):
     description: str = ""
     owner: str = ""
     sort_order: int = 0
+
+
+class GridPreferenceIn(BaseModel):
+    """How somebody has arranged one dataset's grid.
+
+    A bounded bag rather than free JSON: the store is a convenience, not a place
+    to put arbitrary payloads, and the caps below are what stop it becoming one.
+    """
+
+    #: Pixel width per column, keyed by governed field name.
+    widths: dict[str, int] = Field(default_factory=dict)
+    #: Field names the reader has switched off.
+    hidden: list[str] = Field(default_factory=list, max_length=200)
+    #: How many leading columns stay on screen while scrolling sideways.
+    frozen: int = Field(default=2, ge=0, le=6)
+    #: Tighter rows, to fit more on screen.
+    dense: bool = False
+
+    @field_validator("widths")
+    @classmethod
+    def _sane_widths(cls, value: dict[str, int]) -> dict[str, int]:
+        if len(value) > 200:
+            raise ValueError("A dataset with more than 200 columns is not one.")
+        return {
+            str(name)[:160]: max(48, min(int(width), 1200))
+            for name, width in value.items()
+        }
 
 
 class DomainRenameIn(BaseModel):
@@ -832,6 +859,46 @@ def dataset_export(
             "X-CreditProbe-Synthetic": str(description["is_synthetic"]).lower(),
         },
     )
+
+
+@router.get("/datasets/{name}/grid-preferences",
+            summary="How you have arranged this dataset's grid")
+def get_grid_preferences(name: str, session: Session = Depends(get_db),
+                         principal: Principal = RequireDataSteward) -> dict:
+    """Column widths, hidden columns, frozen count and density, for this user.
+
+    Empty for somebody who has never arranged this dataset, and for anybody not
+    signed in — a preference belongs to a person, and with no person there is
+    nobody whose preference it would be.
+    """
+    if principal.user_id is None:
+        return {"dataset": name, "preferences": {}, "stored": False}
+    return {
+        "dataset": name,
+        "preferences": db_service.get_grid_preferences(
+            session, user_id=principal.user_id, dataset=name),
+        "stored": True,
+    }
+
+
+@router.put("/datasets/{name}/grid-preferences",
+            summary="Remember how you have arranged this grid")
+def set_grid_preferences(name: str, payload: GridPreferenceIn,
+                         session: Session = Depends(get_db),
+                         principal: Principal = RequireDataSteward) -> dict:
+    """Store it against this user and this dataset.
+
+    Silently a no-op when nobody is signed in, rather than an error: the grid
+    saves as you drag a column, and a toast every time somebody resizes one in
+    an unauthenticated local run would be a worse product than not remembering.
+    """
+    if principal.user_id is None:
+        return {"dataset": name, "stored": False}
+    db_service.set_grid_preferences(
+        session, user_id=principal.user_id, dataset=name,
+        preferences=payload.model_dump(),
+    )
+    return {"dataset": name, "stored": True}
 
 
 @router.post("/assistant", summary="Ask about the data model")

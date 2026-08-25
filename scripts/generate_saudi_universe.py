@@ -897,9 +897,16 @@ RECOMMENDATIONS = [
     "Escalate to watchlist", "Seek additional security", "Exit facility",
 ]
 
-#: Sentences a credit file actually contains, one per concern. Assembled rather
-#: than generated, so the text is obviously a template and nobody mistakes a
-#: demonstration extract for a real credit opinion about a real company.
+#: Every synthetic extract carries this prefix, without exception. Natural
+#: wording is fine and makes the demonstration better; wording that could be
+#: mistaken for real client information is not. The marker is what keeps the
+#: second from happening once a row has been exported to a CSV, pasted into a
+#: deck, and read by somebody who never saw the screen it came from.
+SYNTHETIC_MARKER = "SYNTHETIC EXTRACT — "
+
+#: Sentences a credit file actually contains, one per concern. Assembled from a
+#: fixed bank rather than generated, so the same six concerns always read the
+#: same way and the text can be checked by eye.
 _CONCERN_SENTENCES = {
     "covenant_breach": "Net leverage covenant was breached at the last test date.",
     "liquidity_concern": "Headroom on committed facilities is under three months of cover.",
@@ -989,7 +996,7 @@ def build_credit_memos(customers: pd.DataFrame, facility: pd.DataFrame,
                     if series[i]]
             if not said:
                 said = [_POSITIVE_SENTENCES[int(rng.integers(0, len(_POSITIVE_SENTENCES)))]]
-            extracts.append("SYNTHETIC EXTRACT — " + " ".join(said))
+            extracts.append(SYNTHETIC_MARKER + " ".join(said))
 
         rows.append(pd.DataFrame({
             "period": period,
@@ -1153,9 +1160,12 @@ MEMO_FIELDS = {
     "recommendation": field("recommendation", "Recommendation",
                             "The action the author proposed.", "string"),
     "extract": field("extract", "Extract",
-                     "A short quotation from the note. SYNTHETIC: assembled from "
-                     "a fixed sentence bank, never a real credit opinion about a "
-                     "real company.", "string", sensitivity="confidential"),
+                     "A short quotation from the note. Every value begins "
+                     "'SYNTHETIC EXTRACT —': assembled from a fixed sentence "
+                     "bank, never a real credit opinion about a real company. "
+                     "The marker travels with the row into exports, so it "
+                     "cannot be mistaken for client information later.",
+                     "string", sensitivity="confidential"),
     "is_synthetic_text": field("is_synthetic_text", "Synthetic text",
                                "Always true. The extract is generated, not "
                                "written.", "boolean"),

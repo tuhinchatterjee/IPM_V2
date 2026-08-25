@@ -19,6 +19,15 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://unused:unused@localhost:5432/unused")
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-key-not-used")
 
+# The suite acts as a particular role by sending X-IPM-Role, which is the
+# documented mechanism for a deployment that has switched signing in off. The
+# product's own default is REQUIRE_LOGIN=true, and that default is exercised
+# directly by tests/api/test_login_required.py, which sets it explicitly and
+# asserts that an unauthenticated request is refused and that a header cannot
+# be used to get past it. Forcing it off here keeps the other 900-odd tests
+# testing what they are about rather than each maintaining a session.
+os.environ["REQUIRE_LOGIN"] = "false"
+
 from backend import data_loader as dl  # noqa: E402
 
 

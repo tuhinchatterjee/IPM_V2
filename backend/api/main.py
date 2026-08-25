@@ -166,6 +166,13 @@ def create_app() -> FastAPI:
     def healthz():
         return {"status": "ok"}
 
+    # The engine skips datasets in an archived domain. It cannot read domain
+    # status itself — data_access sits at the bottom of the import order — so
+    # the answer is handed down from here, once.
+    from backend.services import domain_status
+
+    domain_status.install()
+
     logger.info("CreditProbe API ready (env=%s, cors=%s)", settings.env, list(settings.cors_origins))
     return app
 

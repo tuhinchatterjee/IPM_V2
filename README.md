@@ -120,10 +120,14 @@ you can see what each role can and cannot do. They all share the same password:
 
 **Password: `creditprobe-demo`**
 
-These are for a local demonstration on synthetic data. They are safe to have on
-your laptop and are not safe anywhere else — change them before this touches a
-real portfolio, and set `REQUIRE_LOGIN=true` in `.env` so signing in is
-compulsory rather than optional.
+Signing in is **compulsory by default**. The API refuses an unauthenticated
+request rather than treating the caller as an Analyst, and the interface shows
+the login screen. Set `REQUIRE_LOGIN=false` only for a throwaway local session
+where nobody has seeded an account.
+
+These accounts are for a local demonstration on synthetic data. They are safe to
+have on your laptop and are not safe anywhere else — change them before this
+touches a real portfolio.
 
 CreditProbe never stores a password. It stores an Argon2id hash, which cannot be
 turned back into the password even by somebody holding the database.
@@ -459,7 +463,7 @@ metadata/           the governed data catalogue (generated)
 alembic/            database migrations
 tests/              engine, trace, data_access, api, and the legacy Dash suites
 legacy/dash_app/    the original Dash application, preserved and still tested
-docs/               product spec, architecture, demo scope
+docs/               product spec, architecture, product decisions, demo scope
 docker/             the Dockerfiles and the backend start-up script
 scripts/            setup.sh, dev.sh, dev.ps1, check.sh, generate_saudi_universe.py,
                     start-docker.ps1, stop-docker.ps1

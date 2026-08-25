@@ -3,13 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
-import {
-  ArrowRight,
-  GitBranch,
-  Loader2,
-  MessageSquare,
-  TriangleAlert,
-} from "lucide-react";
+import { GitBranch, Loader2, TriangleAlert } from "lucide-react";
 
 import { Composer, useGreeting } from "@/components/ask/composer";
 import { useGreetingName } from "@/components/system/auth";
@@ -232,60 +226,54 @@ function Cockpit() {
       </section>
 
       {/* ------------------------------------------------------- recent work */}
+      {/* Deliberately quiet: no card, no second line of preview, no icon per
+          row. This is a way back to something, not a thing to read — and it
+          sits below the fold precisely so it competes with nothing above it. */}
       <section>
-        <SectionHeading
-          title="Continue where you left off"
-          info={
-            <p>
-              Your investigations, most recently spoken in first. Reopening one
-              shows the same figures it showed at the time, with the same
-              lineage — nothing is quietly re-run.
-            </p>
-          }
-          action={
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/investigations">
-                All
-                <ArrowRight aria-hidden />
-              </Link>
-            </Button>
-          }
-        />
+        <div className="mb-2 flex items-baseline justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <h2 className="meta text-text-muted">Continue where you left off</h2>
+            <InfoPopover title="Continue where you left off">
+              <p>
+                Your investigations, most recently spoken in first. Reopening
+                one shows the same figures it showed at the time, with the same
+                lineage — nothing is quietly re-run.
+              </p>
+            </InfoPopover>
+          </div>
+          {threads.data && threads.data.investigations.length > 0 && (
+            <Link
+              href="/investigations"
+              className="text-[11px] text-text-muted underline-offset-4 hover:text-accent hover:underline"
+            >
+              All
+            </Link>
+          )}
+        </div>
+
         {threads.data && threads.data.investigations.length > 0 ? (
-          <Card className="divide-y divide-border">
-            {threads.data.investigations.slice(0, 5).map((thread) => (
-              <Link
-                key={thread.id}
-                href={`/investigations/${thread.id}`}
-                className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-hover"
-              >
-                <MessageSquare
-                  className="mt-0.5 size-3.5 shrink-0 text-text-muted"
-                  aria-hidden
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm text-text-primary">
+          <ul>
+            {threads.data.investigations.slice(0, 4).map((thread) => (
+              <li key={thread.id}>
+                <Link
+                  href={`/investigations/${thread.id}`}
+                  className="group flex items-baseline gap-3 rounded-md px-2 py-1 -mx-2 transition-colors hover:bg-surface-hover"
+                >
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-text-secondary group-hover:text-text-primary">
                     {thread.title}
                   </span>
-                  <span className="mt-0.5 line-clamp-1 block text-xs text-text-muted">
-                    {thread.last_answer || thread.question}
+                  <span className="mono shrink-0 text-[10px] text-text-muted">
+                    {thread.message_count}
                   </span>
-                </span>
-                <span className="hidden shrink-0 text-[11px] text-text-muted sm:block">
-                  {thread.message_count}{" "}
-                  {thread.message_count === 1 ? "message" : "messages"}
-                </span>
-              </Link>
+                </Link>
+              </li>
             ))}
-          </Card>
+          </ul>
         ) : (
-          <Card className="px-5 py-8 text-center">
-            <p className="text-sm text-text-secondary">No investigations yet.</p>
-            <p className="mt-1 text-xs text-text-muted">
-              Ask a question above. It opens an investigation you can keep asking
-              into.
-            </p>
-          </Card>
+          <p className="text-xs text-text-muted">
+            Nothing yet. Ask a question above — it opens an investigation you can
+            keep asking into.
+          </p>
         )}
       </section>
 

@@ -313,11 +313,18 @@ def me(request: Request) -> dict:
     """
     principal = principal_from_request(request)
     if principal is None or principal.user_id is None:
-        return {"user": None, "authenticated": False}
+        return {"user": None, "authenticated": False,
+                "login_required": settings.require_login}
     account = account_for(principal.user_id)
     return {
         "user": account.to_dict() if account else None,
         "authenticated": account is not None,
+        # Whether THIS backend insists on a session, so the interface does not
+        # have to be told separately at build time. Two places holding the same
+        # setting is two places for it to disagree, and the way it disagrees is
+        # a login page that never appears in front of a backend that refuses
+        # every request.
+        "login_required": settings.require_login,
     }
 
 
