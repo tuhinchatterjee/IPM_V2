@@ -156,6 +156,13 @@ what it does not tell you.
 
 ## 6. Dynamic analysis
 
+> **How a question reaches this runtime changed in the Ask orchestration phase.**
+> A capability router now decides what kind of request it is before anything
+> computes, and a semantic planner builds the IR from governed concepts rather
+> than from matched phrases. See `ASK_ARCHITECTURE.md`; this section describes
+> what the runtime does once a plan reaches it.
+
+
 `backend/orchestration/dynamic.py`. A question naming **two or more independent
 conditions** is composed rather than looked up, because no single certified
 analysis answers a multi-condition cohort question and the closest one would
