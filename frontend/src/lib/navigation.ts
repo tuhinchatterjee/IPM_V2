@@ -13,7 +13,6 @@ import {
   Settings,
   Sparkles,
   Users,
-  Wrench,
 } from "lucide-react";
 
 /**
@@ -30,8 +29,12 @@ import {
  *         Analysis       one deterministic engine result
  *
  * so Work lists Projects, Investigations, Analyses and Documents in that order.
- * Engine Builder stays under BUILD because it defines analytical *capabilities*
- * rather than holding executed results.
+ * Analysis Studio stays under BUILD because it defines analytical *capabilities*
+ * rather than holding executed results. It replaced Engine Builder in the
+ * navigation: the registered engine analyses are still there, still certified
+ * and still reachable, but they are now one kind of implementation behind a
+ * method rather than the whole of what the product can compute. The
+ * /engine-builder routes remain for the analyses that link to them.
  *
  * `status` is part of the model rather than a comment. The product rule is that
  * the UI must never present a placeholder as production functionality, and the
@@ -167,11 +170,11 @@ export const NAV_ITEMS: NavItem[] = [
 
   // ---- BUILD: what the product is capable of, and what it may read ----
   {
-    href: "/engine-builder",
-    label: "Engine Builder",
+    href: "/studio",
+    label: "Analysis Studio",
     description:
-      "Define, test, version and certify analytical capability. A CreditProbe Certified Analysis carries the double check.",
-    icon: Wrench,
+      "Every credit-risk method CreditProbe knows, what each one measures, and — where one exists — the implementation and the test cases that prove it. Build new methods by describing them; certify them only once their validation pack passes.",
+    icon: FlaskConical,
     status: "live",
     phase: "",
     group: "Build",

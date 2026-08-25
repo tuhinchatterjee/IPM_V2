@@ -759,6 +759,152 @@ export class ApiError extends Error {
   }
 }
 
+
+// ---------------------------------------------------------------------------
+// Analysis Studio
+// ---------------------------------------------------------------------------
+
+export interface StudioTestCase {
+  id: string;
+  name: string;
+  purpose: string;
+  data: Record<string, unknown>[];
+  expected: Record<string, unknown>;
+  actual: Record<string, unknown>;
+  passed: boolean | null;
+  note: string;
+}
+
+export interface StudioMethodVersion {
+  version: string;
+  lifecycle: string;
+  created_at: string;
+  change_note: string;
+  certified_at: string;
+  certified_by: string;
+}
+
+export interface StudioMethodBrief {
+  id: string;
+  name: string;
+  category: string;
+  definition: string;
+  lifecycle: string;
+  lifecycle_label: string;
+  is_certified: boolean;
+  is_runnable: boolean;
+  version: string;
+  aliases: string[];
+  owner: string;
+  source: string;
+  test_count: number;
+  tests_passing: number;
+  tests_failing: number;
+}
+
+export interface StudioMethod extends StudioMethodBrief {
+  purpose: string;
+  methodology: string;
+  when_to_use: string;
+  when_not_to_use: string;
+  required_grain: string;
+  required_history: string;
+  required_domains: string[];
+  required_fields: string[];
+  applicable_segments: string[];
+  weighting_options: string[];
+  output_type: string;
+  interpretation: string;
+  limitations: string;
+  plan: { operations?: Record<string, unknown>[]; meta?: Record<string, unknown> } | null;
+  engine_analysis: string;
+  test_cases: StudioTestCase[];
+  versions: StudioMethodVersion[];
+  created_at: string;
+  updated_at: string;
+  certified_at: string;
+  certified_by: string;
+  forked_from: string;
+  fingerprint: string;
+  can_certify: boolean;
+  certification_gaps: string[];
+}
+
+export interface StudioCategoryCount {
+  category: string;
+  count: number;
+  certified: number;
+  runnable: number;
+}
+
+export interface StudioStats {
+  total: number;
+  by_lifecycle: Record<string, number>;
+  certified: number;
+  runnable: number;
+  aliases: number;
+  categories: number;
+  certification_audit: {
+    certified: string[];
+    certified_count: number;
+    downgraded: Record<string, string>;
+    downgraded_count: number;
+  };
+}
+
+export interface StudioLibrary {
+  methods: StudioMethodBrief[];
+  total_matched: number;
+  categories: StudioCategoryCount[];
+  lifecycles: { id: string; label: string }[];
+  all_categories: string[];
+  stats: StudioStats;
+}
+
+export interface StudioClarification {
+  id: string;
+  question: string;
+  because: string;
+  options: { id: string; label: string; detail?: string }[];
+  default: string;
+}
+
+export interface StudioReading {
+  understood: boolean;
+  summary: string;
+  kind: string;
+  horizon_periods: number;
+  detected: Record<string, unknown>;
+  clarifications: StudioClarification[];
+  note: string;
+}
+
+export interface StudioValidationPack {
+  method_id: string;
+  method_name: string;
+  cases: StudioTestCase[];
+  dataset: Record<string, unknown>[];
+  opening_period: string;
+  closing_period: string;
+  passed: number;
+  failed: number;
+  complete: boolean;
+  all_passed: boolean;
+  note: string;
+  sql: string;
+  parameters: unknown[];
+  actual: Record<string, unknown>;
+  ran_at: string;
+}
+
+export interface StudioBuildResult {
+  method: StudioMethod;
+  validation: StudioValidationPack;
+  saved: boolean;
+  persisted: boolean;
+  storage_note: string;
+}
+
 // ---------------------------------------------------------------------------
 // Request
 // ---------------------------------------------------------------------------
@@ -2488,6 +2634,84 @@ export const api = {
       `/data-builder/datasets/${name}/harmonise/accept`,
       { method: "POST", body: JSON.stringify({ accepted }) },
     ),
+
+  // ---- Analysis Studio ----
+  studioLibrary: (params: {
+    q?: string;
+    category?: string;
+    lifecycle?: string;
+    certifiedOnly?: boolean;
+    runnableOnly?: boolean;
+    limit?: number;
+  } = {}) => {
+    const query = new URLSearchParams();
+    if (params.q) query.set("q", params.q);
+    if (params.category) query.set("category", params.category);
+    if (params.lifecycle) query.set("lifecycle", params.lifecycle);
+    if (params.certifiedOnly) query.set("certified_only", "true");
+    if (params.runnableOnly) query.set("runnable_only", "true");
+    if (params.limit) query.set("limit", String(params.limit));
+    const suffix = query.toString();
+    return request<StudioLibrary>(`/studio${suffix ? `?${suffix}` : ""}`);
+  },
+  studioMethod: (id: string) =>
+    request<{ method: StudioMethod }>(`/studio/${encodeURIComponent(id)}`),
+  studioCertificationAudit: () =>
+    request<StudioStats["certification_audit"]>("/studio/certification"),
+  studioDescribe: (description: string) =>
+    request<{ reading: StudioReading }>("/studio/describe", {
+      method: "POST",
+      body: JSON.stringify({ description }),
+    }),
+  studioBuild: (payload: {
+    name: string;
+    description: string;
+    answers: Record<string, string>;
+    openingPeriod: string;
+    closingPeriod: string;
+    dataset?: string;
+    save?: boolean;
+  }) =>
+    request<StudioBuildResult>("/studio/build", {
+      method: "POST",
+      timeoutMs: 90_000,
+      body: JSON.stringify({
+        name: payload.name,
+        description: payload.description,
+        answers: payload.answers,
+        opening_period: payload.openingPeriod,
+        closing_period: payload.closingPeriod,
+        dataset: payload.dataset ?? "portfolio_facility",
+        save: payload.save ?? false,
+      }),
+    }),
+  studioValidate: (id: string) =>
+    request<{ method: StudioMethod; validation: StudioValidationPack }>(
+      `/studio/${encodeURIComponent(id)}/validate`,
+      { method: "POST", timeoutMs: 90_000 },
+    ),
+  studioCertify: (id: string, certifiedBy: string) =>
+    request<{ method: StudioMethod; persisted: boolean }>(
+      `/studio/${encodeURIComponent(id)}/certify`,
+      { method: "POST", body: JSON.stringify({ certified_by: certifiedBy }) },
+    ),
+  studioFork: (id: string, name: string) =>
+    request<{ method: StudioMethod; forked_from: string; persisted: boolean; note: string }>(
+      `/studio/${encodeURIComponent(id)}/fork`,
+      { method: "POST", body: JSON.stringify({ name }) },
+    ),
+  studioEdit: (id: string, changes: Record<string, string>, changeNote: string) =>
+    request<{ method: StudioMethod; changes: string[]; persisted: boolean }>(
+      `/studio/${encodeURIComponent(id)}/edit`,
+      { method: "POST", body: JSON.stringify({ changes, change_note: changeNote }) },
+    ),
+  /**
+   * The workbook lives at a URL rather than behind a fetch: the browser's own
+   * download is what a person expects from a download button, and streaming it
+   * through JavaScript to re-offer it as a blob adds a failure mode for nothing.
+   */
+  studioValidationPackUrl: (id: string) =>
+    `${API_BASE_URL}${API_PREFIX}/studio/${encodeURIComponent(id)}/validation-pack.xlsx`,
 
   // ---- the metadata assistants ----
   askDataBuilder: (question: string) =>

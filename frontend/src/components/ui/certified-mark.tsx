@@ -81,7 +81,7 @@ export function CertificationBadge({
       )}
       title={
         custom
-          ? "Defined in Engine Builder by the bank. Not validated."
+          ? "Defined in Analysis Studio by the bank. Not validated."
           : "A draft definition. Not validated, and not to be relied on."
       }
     >
