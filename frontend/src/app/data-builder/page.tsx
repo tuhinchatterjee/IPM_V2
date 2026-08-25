@@ -6,6 +6,7 @@ import {
   Archive,
   ArrowRight,
   Database,
+  Inbox,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -123,6 +124,12 @@ export default function DataBuilderPage() {
         status="live"
         actions={
           <>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/data-builder/inbox">
+                <Inbox aria-hidden />
+                Data Inbox
+              </Link>
+            </Button>
             <Button variant="outline" size="sm" asChild>
               <Link href="/data-builder/browse">
                 <Table2 aria-hidden />

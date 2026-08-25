@@ -1349,3 +1349,62 @@ class StudioMethod(Base):
         Index("ix_studio_methods_lifecycle", "lifecycle"),
         Index("ix_studio_methods_category", "category"),
     )
+
+
+# =============================================================== data inbox
+
+
+class InboxItem(Base):
+    """One file that arrived, and what was decided about it.
+
+    Data does not arrive because somebody sat down to onboard it. It arrives
+    monthly, from a system, into a folder, and the interesting question is never
+    "did the load succeed" — it is "is this file the same shape as the last one,
+    and if not, does anybody know". So every arrival gets a row here whether it
+    was published or held, and the row keeps the drift report and the reason.
+
+    Kept separate from DatasetUpload deliberately. An upload is a file somebody
+    chose to put into a dataset; an inbox item is a file that turned up, which
+    may not belong to any dataset yet and may never be published at all.
+    """
+
+    __tablename__ = "data_inbox"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    filename: Mapped[str] = mapped_column(Text, nullable=False)
+    file_format: Mapped[str] = mapped_column(String(16), nullable=False, default="csv")
+    file_sha256: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+
+    #: The governed dataset this was matched to. Empty when nothing matched —
+    #: which is a state to show, not an error to swallow.
+    dataset: Mapped[str] = mapped_column(String(160), nullable=False, default="")
+    match_confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    match_reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    # received | profiled | held | published | rejected | unmatched
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="received")
+    #: auto_publish | hold | reject — what the policy said, before any person.
+    decision: Mapped[str] = mapped_column(String(24), nullable=False, default="")
+    #: Why, in the words a steward would use. Always populated when a decision is.
+    decision_reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    profile: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    drift: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    #: Set when a person overrode the policy, so an override is never invisible.
+    resolved_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    resolution_note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    upload_id: Mapped[int | None] = mapped_column(
+        ForeignKey("dataset_uploads.id", ondelete="SET NULL"), nullable=True)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_data_inbox_status", "status", "received_at"),
+        Index("ix_data_inbox_dataset", "dataset"),
+    )

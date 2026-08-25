@@ -807,6 +807,61 @@ export class ApiError extends Error {
 
 
 // ---------------------------------------------------------------------------
+// Data Inbox
+// ---------------------------------------------------------------------------
+
+export interface FieldDrift {
+  field: string;
+  kind: string;
+  severity: "blocking" | "material" | "notable" | "informational";
+  detail: string;
+  before: unknown;
+  after: unknown;
+  because: string;
+}
+
+export interface DriftReport {
+  dataset: string;
+  findings: FieldDrift[];
+  first_load: boolean;
+  previous_row_count: number;
+  current_row_count: number;
+  blocking_count: number;
+  material_count: number;
+  clean: boolean;
+  summary: string;
+}
+
+export interface InboxItem {
+  id: number;
+  filename: string;
+  file_format: string;
+  size_bytes: number;
+  dataset: string;
+  match_confidence: number;
+  match_reason: string;
+  status: string;
+  status_label: string;
+  decision: string;
+  decision_reason: string;
+  drift: DriftReport | Record<string, never>;
+  row_count: number;
+  column_count: number;
+  received_at: string;
+  resolved_at: string;
+  resolved_by: number | null;
+  resolution_note: string;
+  profile?: Record<string, unknown>;
+}
+
+export interface InboxListing {
+  items: InboxItem[];
+  counts: Record<string, number>;
+  statuses: { id: string; label: string }[];
+  auto_publish_confidence: number;
+}
+
+// ---------------------------------------------------------------------------
 // Analysis Studio
 // ---------------------------------------------------------------------------
 
@@ -2680,6 +2735,29 @@ export const api = {
       `/data-builder/datasets/${name}/harmonise/accept`,
       { method: "POST", body: JSON.stringify({ accepted }) },
     ),
+
+  // ---- the data inbox ----
+  inbox: (status = "") =>
+    request<InboxListing>(`/data-builder/inbox${status ? `?status=${status}` : ""}`),
+  inboxItem: (id: number) => request<InboxItem>(`/data-builder/inbox/${id}`),
+  receiveFile: (file: File, options: { publish?: boolean; sheetName?: string } = {}) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("publish", String(options.publish ?? true));
+    if (options.sheetName) form.append("sheet_name", options.sheetName);
+    return request<InboxItem>("/data-builder/inbox", {
+      method: "POST",
+      body: form,
+      rawBody: true,
+      timeoutMs: 120_000,
+    });
+  },
+  resolveInboxItem: (id: number, action: "publish" | "reject", note: string, dataset = "") =>
+    request<InboxItem>(`/data-builder/inbox/${id}/resolve`, {
+      method: "POST",
+      body: JSON.stringify({ action, note, dataset }),
+      timeoutMs: 120_000,
+    }),
 
   // ---- Analysis Studio ----
   studioLibrary: (params: {

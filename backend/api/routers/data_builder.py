@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 from backend.api.permissions import Principal, RequireDataSteward, RequirePublisher
 from backend.config import settings
 from backend.db.engine import SessionLocal
-from backend.services import assistant, governance, harmonisation
+from backend.services import assistant, governance, harmonisation, inbox
 from backend.services import data_builder as db_service
 from backend.services.data_builder import DataBuilderError
 
@@ -909,3 +909,89 @@ def data_assistant(payload: AskIn) -> dict:
     portfolio data, states no credit figures, and changes nothing.
     """
     return assistant.ask(payload.question, scope="data").to_dict()
+
+
+# ------------------------------------------------------------------ data inbox
+
+
+class InboxResolveIn(BaseModel):
+    action: str = Field(pattern="^(publish|reject)$")
+    note: str = Field(default="", max_length=2000)
+    dataset: str = Field(default="", max_length=160)
+
+
+@router.get("/inbox", summary="Files that arrived, and what was decided")
+def inbox_listing(status_filter: str | None = Query(default=None, alias="status"),
+                  limit: int = Query(default=100, ge=1, le=500),
+                  session: Session = Depends(get_db)) -> dict:
+    """Every arrival, published or held, with the reason attached.
+
+    A file published automatically has a row here exactly like one that was
+    stopped. "Nothing needed attention" and "nothing arrived" look identical
+    otherwise, and they are very different situations.
+    """
+    return {
+        "items": inbox.listing(session, status=status_filter or "", limit=limit),
+        "counts": inbox.counts(session),
+        "statuses": [{"id": s, "label": inbox.STATUS_LABEL[s]} for s in inbox.STATUSES],
+        "auto_publish_confidence": inbox.MATCH_CONFIDENCE_TO_AUTO_PUBLISH,
+    }
+
+
+@router.get("/inbox/{item_id}", summary="One arrival, in full")
+def inbox_item(item_id: int, session: Session = Depends(get_db)) -> dict:
+    from backend.models.platform import InboxItem
+
+    item = session.get(InboxItem, item_id)
+    if item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "not_found", "message": f"No inbox item {item_id}."})
+    return inbox.to_dict(item, full=True)
+
+
+@router.post("/inbox", status_code=201, summary="A file arrives")
+async def inbox_receive(file: UploadFile = File(...),
+                        sheet_name: str | None = Form(None),
+                        publish: bool = Form(True),
+                        session: Session = Depends(get_db),
+                        principal: Principal = RequireDataSteward) -> dict:
+    """Profile it, match it, compare it against the last accepted file, decide.
+
+    `publish=false` runs the whole assessment without acting on it — what would
+    happen to this file, without it happening.
+    """
+    content = await file.read()
+    if len(content) > settings.max_upload_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail={"error": "file_too_large",
+                    "message": f"The file is larger than the {settings.max_upload_mb} MB limit."},
+        )
+    try:
+        item = inbox.receive(
+            session, content=content, filename=file.filename or "arrival",
+            sheet_name=sheet_name, user_id=principal.user_id, publish=publish,
+        )
+    except DataBuilderError as e:
+        raise _fail(e) from e
+    return inbox.to_dict(item, full=True)
+
+
+@router.post("/inbox/{item_id}/resolve", summary="Decide what happens to a held file")
+def inbox_resolve(item_id: int, payload: InboxResolveIn,
+                  session: Session = Depends(get_db),
+                  principal: Principal = RequirePublisher) -> dict:
+    """Publish or reject a held file.
+
+    Publishing one is a deliberate act by a named person: it needs a reason, the
+    person is recorded, and the drift that stopped it stays on the row
+    afterwards — so "who published this despite the warning" has an answer.
+    """
+    try:
+        item = inbox.resolve(session, item_id, action=payload.action,
+                             user_id=principal.user_id, note=payload.note,
+                             dataset=payload.dataset)
+    except DataBuilderError as e:
+        raise _fail(e) from e
+    return inbox.to_dict(item, full=True)
