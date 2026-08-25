@@ -718,11 +718,20 @@ export interface Stage {
 }
 
 export interface PlannerMode {
-  mode: "demo" | "model";
-  planner: string;
+  /** "model" when a provider key is configured; "offline" when none is. */
+  mode: "offline" | "model";
+  configured: boolean;
+  /** "CreditProbe AI" or "LIMITED OFFLINE MODE". */
+  label: string;
+  provider: string;
   model_name: string | null;
+  state: "connected" | "no_key" | "error";
+  state_label: string;
   description: string;
+  /** What is constrained when no model is answering. Empty when one is. */
+  limitations: string[];
   stages: Stage[];
+  capabilities: { id: string; label: string; computes: boolean }[];
   analysis_count: number;
   periods: string[];
   latest_period: string | null;

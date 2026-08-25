@@ -1,12 +1,15 @@
 "use client";
 
+import { CircleAlert, CircleCheck, Cpu } from "lucide-react";
+
 import { PageHeader } from "@/components/layout/page-header";
 import { BackendStatusPanel } from "@/components/system/backend-status";
 import { ROLES, RoleSwitcher, useRole } from "@/components/system/role-switcher";
 import { ThemeSwitcher } from "@/components/system/theme-switcher";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { API_DISPLAY_URL } from "@/lib/api";
+import { API_DISPLAY_URL, api, type PlannerMode } from "@/lib/api";
+import { useAsync } from "@/lib/hooks";
 
 /**
  * Settings / Administration.
@@ -17,6 +20,7 @@ import { API_DISPLAY_URL } from "@/lib/api";
  */
 export default function SettingsPage() {
   const { role } = useRole();
+  const mode = useAsync(() => api.askMode(), []);
 
   return (
     <div className="space-y-6">
@@ -26,6 +30,8 @@ export default function SettingsPage() {
         status="partial"
         phase="Phase 1"
       />
+
+      <AiProviderCard mode={mode.data} />
 
       <ThemeSwitcher />
 
@@ -82,7 +88,6 @@ export default function SettingsPage() {
         <CardContent>
           <ul className="space-y-1.5 text-sm text-text-secondary">
             {[
-              "Model provider configuration — and the model actually in use, displayed accurately",
               "Reporting calendar and default analytical period",
               "Real authentication, replacing the acting-role selector above",
               "Usage and cost reporting",
@@ -98,6 +103,86 @@ export default function SettingsPage() {
           </ul>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/**
+ * Which model is answering, said accurately.
+ *
+ * The key is never shown, and neither is a reassuring green light when there
+ * is no provider: an administrator looking at this screen is deciding whether
+ * to trust what users are being told, and the honest answer when nothing is
+ * configured is that natural-language understanding is constrained.
+ */
+function AiProviderCard({ mode }: { mode: PlannerMode | null | undefined }) {
+  const connected = mode?.configured ?? false;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Cpu className="size-4 text-text-muted" aria-hidden />
+          AI provider
+        </CardTitle>
+        <CardDescription>
+          Which model orchestrates Ask CreditProbe. Set{" "}
+          <code className="font-mono text-xs">AI_PROVIDER</code>,{" "}
+          <code className="font-mono text-xs">AI_MODEL</code> and the provider&apos;s
+          API key in your <code className="font-mono text-xs">.env</code> file. The
+          key is never displayed here.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Provider" value={mode?.provider || "—"} />
+          <Field label="Model" value={mode?.model_name || "—"} />
+          <div className="rounded-md border border-border px-3 py-2">
+            <p className="text-[11px] text-text-muted">Status</p>
+            <p
+              className={`mt-1 flex items-center gap-1.5 text-sm font-medium ${
+                connected ? "text-positive" : "text-warning"
+              }`}
+            >
+              {connected ? (
+                <CircleCheck className="size-3.5" aria-hidden />
+              ) : (
+                <CircleAlert className="size-3.5" aria-hidden />
+              )}
+              {mode?.state_label ?? "—"}
+            </p>
+          </div>
+        </div>
+        <p className="text-xs leading-relaxed text-text-secondary">
+          {mode?.description}
+        </p>
+        {(mode?.limitations.length ?? 0) > 0 && (
+          <div>
+            <p className="meta mb-1 text-text-muted">What is constrained</p>
+            <ul className="space-y-1">
+              {mode?.limitations.map((line) => (
+                <li key={line} className="flex gap-2 text-xs text-text-muted">
+                  <span aria-hidden>&middot;</span>
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <p className="text-[11px] leading-relaxed text-text-muted">
+          Whatever is configured, the model never calculates a figure. It emits a
+          structured plan; the governed runtime validates it and computes every
+          number.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border px-3 py-2">
+      <p className="text-[11px] text-text-muted">{label}</p>
+      <p className="mt-1 font-mono text-sm text-text-primary">{value}</p>
     </div>
   );
 }

@@ -126,9 +126,15 @@ function Cockpit() {
             // what it does — and it is the first thing the eye lands on.
             suggestions={[]}
             autoFocus={focusAsk}
+            // Subtle, but not absent. A user must not believe full
+            // natural-language understanding is running when it is not — but
+            // the Cockpit is not the place for a paragraph about it, so this
+            // is one line and Settings carries the detail.
             modeNote={
-              mode.data?.mode === "demo"
-                ? "No model key is configured, so questions are read by CreditProbe's built-in planner."
+              mode.data && !mode.data.configured
+                ? `${mode.data.label} — questions are read by a deterministic ` +
+                  "semantic planner over the governed catalogue. It understands " +
+                  "credit concepts, not arbitrary phrasing."
                 : undefined
             }
           />

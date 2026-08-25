@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDown, ArrowUp, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Copy, X } from "lucide-react";
 
 import { ResultTable } from "@/components/analytics/primitives";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,16 @@ import { presentationFor } from "./node-presentation";
  * the Trace and is stated on the panel so a reader knows what they are looking
  * at.
  */
+
+/** Rendered by the mathematical-query block rather than the generic dump. */
+const MATHS_KEYS = new Set([
+  "sql",
+  "parameters",
+  "operations",
+  "formulas",
+  "plain_english",
+  "kernels",
+]);
 
 /** Rendered by the fingerprint block rather than the generic config dump. */
 const FINGERPRINT_KEYS = new Set([
@@ -99,12 +109,14 @@ export function NodeInspector({
   // The fingerprint node has its own block below: four hashes and what each
   // one covers reads as a statement about the run, not as a config dump.
   const isFingerprint = node.type === "FINGERPRINT";
+  const isMaths = node.type === "MATHEMATICAL_QUERY";
   const config = Object.fromEntries(
     Object.entries(node.config ?? {}).filter(
       ([k]) =>
         !HIDDEN_CONFIG_KEYS.has(k) &&
         k !== "definitions" &&
-        !(isFingerprint && FINGERPRINT_KEYS.has(k)),
+        !(isFingerprint && FINGERPRINT_KEYS.has(k)) &&
+        !(isMaths && MATHS_KEYS.has(k)),
     ),
   );
 
@@ -235,6 +247,8 @@ export function NodeInspector({
           </Section>
         ) : null}
 
+        {isMaths && <MathematicalQueryBlock config={node.config ?? {}} />}
+
         {isFingerprint && <FingerprintBlock config={node.config ?? {}} />}
 
         {Object.keys(config).length > 0 && (
@@ -321,6 +335,174 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       {children}
     </div>
   );
+}
+
+/**
+ * The mathematical query.
+ *
+ * Everything a reviewer needs to check the arithmetic, in one place they can
+ * open from the map: what the query does in English, the formula behind every
+ * derived column, the analytical plan, and the SQL that actually ran with its
+ * parameters shown separately. Sending somebody to another screen for the SQL
+ * is how "fully auditable" stops being true in practice.
+ */
+function MathematicalQueryBlock({ config }: { config: Record<string, unknown> }) {
+  const sql = String(config.sql ?? "");
+  const parameters = (config.parameters ?? []) as unknown[];
+  const operations = (config.operations ?? []) as {
+    id: string;
+    op: string;
+    label?: string;
+  }[];
+  const formulas = (config.formulas ?? []) as {
+    name: string;
+    column: string;
+    formula: string;
+    means: string;
+  }[];
+  const plainEnglish = String(config.plain_english ?? "");
+  const [copied, setCopied] = React.useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(sql);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // A clipboard the browser refuses is not worth an error state: the SQL
+      // is on screen and selectable.
+      setCopied(false);
+    }
+  }
+
+  return (
+    <>
+      {plainEnglish && (
+        <Section title="What this query does">
+          <p className="text-xs leading-relaxed text-text-secondary">{plainEnglish}</p>
+        </Section>
+      )}
+
+      {formulas.length > 0 && (
+        <Section title={`Formulas (${formulas.length})`}>
+          <ul className="space-y-2.5">
+            {formulas.map((f) => (
+              <li key={f.column}>
+                <p className="text-xs font-medium text-text-primary">{f.name}</p>
+                <p className="mt-0.5 font-mono text-[11px] leading-relaxed text-accent">
+                  {f.formula}
+                </p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-text-muted">
+                  {f.means}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {operations.length > 0 && (
+        <Section title={`Analytical plan (${operations.length} steps)`}>
+          <ol className="space-y-1">
+            {operations.map((o, index) => (
+              <li key={o.id} className="flex gap-2 text-[11px] leading-relaxed">
+                <span className="tabular w-4 shrink-0 text-text-muted">{index + 1}</span>
+                <span className="w-32 shrink-0 font-mono text-[10px] text-accent">
+                  {o.op}
+                </span>
+                <span className="text-text-secondary">{o.label || o.id}</span>
+              </li>
+            ))}
+          </ol>
+        </Section>
+      )}
+
+      {sql && (
+        <section>
+          <div className="mb-1.5 flex items-center gap-2">
+            <h3 className="meta text-text-muted">SQL</h3>
+            <button
+              type="button"
+              onClick={copy}
+              className="ml-auto flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:border-accent hover:text-accent"
+            >
+              {copied ? (
+                <Check className="size-2.5" aria-hidden />
+              ) : (
+                <Copy className="size-2.5" aria-hidden />
+              )}
+              {copied ? "Copied" : "Copy query"}
+            </button>
+          </div>
+          <pre className="max-h-80 overflow-auto rounded-md border border-border bg-surface-sunken p-2.5 font-mono text-[10px] leading-relaxed text-text-secondary">
+            <code>{highlightSql(sql)}</code>
+          </pre>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-text-muted">
+            {parameters.length} bound parameter
+            {parameters.length === 1 ? "" : "s"}:{" "}
+            <span className="font-mono text-text-secondary">
+              {JSON.stringify(parameters)}
+            </span>
+            . Every value is a placeholder in the statement and a parameter beside
+            it — nothing was concatenated into the SQL.
+          </p>
+        </section>
+      )}
+    </>
+  );
+}
+
+/**
+ * SQL, with its keywords picked out.
+ *
+ * A regex rather than a parser, and deliberately so: it highlights keywords,
+ * strings and the CTE names that give a compiled query its structure, and it
+ * cannot mangle the text because every branch re-emits exactly what it matched.
+ */
+const SQL_KEYWORDS =
+  /\b(WITH|SELECT|FROM|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT|JOIN|LEFT|RIGHT|INNER|OUTER|FULL|ON|AS|AND|OR|NOT|IN|IS|NULL|CASE|WHEN|THEN|ELSE|END|OVER|PARTITION BY|ROW_NUMBER|SUM|AVG|MIN|MAX|COUNT|CAST|COALESCE|NULLIF|DISTINCT|UNION|ALL|ASC|DESC|BETWEEN)\b/g;
+
+function highlightSql(sql: string): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  let key = 0;
+  for (const line of sql.split("\n")) {
+    const parts: React.ReactNode[] = [];
+    let cursor = 0;
+    // Strings first, so a keyword inside a literal is not painted.
+    const tokens = [...line.matchAll(/'[^']*'|\?/g)];
+    const pushKeywords = (text: string) => {
+      let last = 0;
+      for (const match of text.matchAll(SQL_KEYWORDS)) {
+        if (match.index === undefined) continue;
+        if (match.index > last) parts.push(text.slice(last, match.index));
+        parts.push(
+          <span key={`k${key++}`} className="font-semibold text-accent">
+            {match[0]}
+          </span>,
+        );
+        last = match.index + match[0].length;
+      }
+      if (last < text.length) parts.push(text.slice(last));
+    };
+    for (const token of tokens) {
+      if (token.index === undefined) continue;
+      pushKeywords(line.slice(cursor, token.index));
+      parts.push(
+        <span key={`s${key++}`} className="text-positive">
+          {token[0]}
+        </span>,
+      );
+      cursor = token.index + token[0].length;
+    }
+    pushKeywords(line.slice(cursor));
+    out.push(
+      <React.Fragment key={`l${key++}`}>
+        {parts}
+        {"\n"}
+      </React.Fragment>,
+    );
+  }
+  return out;
 }
 
 /**
