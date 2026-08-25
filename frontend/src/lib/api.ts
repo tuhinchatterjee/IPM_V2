@@ -937,6 +937,31 @@ export interface RelationshipEdge {
   is_runnable: boolean;
 }
 
+export interface RelationshipProposal {
+  from_dataset: string;
+  from_field: string;
+  to_dataset: string;
+  to_field: string;
+  cardinality: string;
+  kind: string;
+  match_rate: number;
+  orphan_rate: number;
+  duplicate_rate: number;
+  left_rows: number;
+  right_rows: number;
+  why: string;
+  safe_to_join: boolean;
+  /** Filled in by the steward before accepting, not by the assistant. */
+  semantic?: string;
+}
+
+export interface RelationshipProposals {
+  dataset: string;
+  candidates: RelationshipProposal[];
+  minimum_coverage: number;
+  note: string;
+}
+
 export interface RelationshipThresholds {
   min_match_rate: number;
   max_duplicate_rate: number;
@@ -2950,6 +2975,24 @@ export const api = {
       "/data-builder/relationships/seed", { method: "POST" }),
   relationship: (id: number) =>
     request<RelationshipDetail>(`/data-builder/relationships/${id}`),
+  proposeRelationships: (dataset: string) =>
+    request<RelationshipProposals>(
+      `/data-builder/relationships/propose?dataset=${encodeURIComponent(dataset)}`,
+      { timeoutMs: 120_000 }),
+  acceptRelationshipProposal: (proposal: RelationshipProposal) =>
+    request<{ relationship: RelationshipEdge; note: string }>(
+      "/data-builder/relationships/propose/accept",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          from_dataset: proposal.from_dataset,
+          from_field: proposal.from_field,
+          to_dataset: proposal.to_dataset,
+          to_field: proposal.to_field,
+          cardinality: proposal.cardinality,
+          semantic: proposal.semantic ?? "",
+        }),
+      }),
   validateRelationship: (id: number, period = "") =>
     request<{ relationship: RelationshipEdge; report: RelationshipValidation }>(
       `/data-builder/relationships/${id}/validate${period ? `?period=${encodeURIComponent(period)}` : ""}`,

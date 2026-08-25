@@ -361,6 +361,41 @@ def _authority_rank(dataset: str, catalogue: Any) -> int:
         return 0
 
 
+def _is_client_authority(dataset: str, catalogue: Any) -> bool:
+    """Whether this is the bank's own data, declared authoritative.
+
+    The demonstration book exists so the product can be seen working. Once a
+    bank has onboarded its own dataset and a steward has declared it
+    authoritative for the same governed purpose, answering from the demo book
+    would be a correct calculation over the wrong company's portfolio — which
+    is worse than refusing, because it looks right.
+    """
+    try:
+        definition = catalogue.dataset(dataset)
+    except Exception:
+        return False
+    return (str(getattr(definition, "origin", "")) == "client"
+            and bool(getattr(definition, "authoritative_for", ())))
+
+
+def _client_authority_over(chosen: Candidate, usable: list[Candidate],
+                           catalogue: Any) -> Candidate | None:
+    """The bank's own authoritative source, where it outranks the default.
+
+    Returns None unless exactly one candidate qualifies: two client datasets
+    both declared authoritative for the same concept is a governance question
+    for a steward, not a tie the planner should break on its own.
+    """
+    if catalogue is None:
+        return None
+    client = [c for c in usable if _is_client_authority(c.dataset, catalogue)]
+    if len(client) != 1 or client[0] is chosen:
+        return None
+    if _is_client_authority(chosen.dataset, catalogue):
+        return None
+    return client[0]
+
+
 def resolve_concept(concept: Concept, question: str, *,
                     known: dict[str, set[str]], catalogue: Any = None,
                     phrase: str = "") -> ConceptMatch | None:
@@ -392,6 +427,22 @@ def resolve_concept(concept: Concept, question: str, *,
     #    say which definition it used.
     chosen = next((c for c in usable if c.is_default), None)
     if chosen is not None:
+        # The bank's own authoritative data beats a default that points at the
+        # demonstration book. The default encodes which figure a credit officer
+        # usually means; it cannot know that this bank has since onboarded its
+        # own source for it.
+        client = _client_authority_over(chosen, usable, catalogue)
+        if client is not None:
+            return ConceptMatch(
+                concept=concept, candidate=client, phrase=phrase,
+                confidence=0.9,
+                alternatives=tuple(c for c in usable if c is not client),
+                reason=(f"'{concept.label}' exists in {len(usable)} governed "
+                        f"datasets. CreditProbe used {client.dataset}."
+                        f"{client.field} because it is the bank's own data and "
+                        "a steward has declared it authoritative; the "
+                        f"demonstration source {chosen.dataset}.{chosen.field} "
+                        "was not used."))
         others = tuple(c for c in usable if c is not chosen)
         catalogue_note = ""
         if catalogue is not None:

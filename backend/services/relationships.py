@@ -98,6 +98,9 @@ MANY_TO_MANY = "many_to_many"
 #: handling before it may be joined into an analysis.
 SAFE_CARDINALITIES = frozenset({ONE_TO_ONE, MANY_TO_ONE})
 
+#: Every cardinality a relationship may declare.
+CARDINALITIES = frozenset({ONE_TO_ONE, MANY_TO_ONE, ONE_TO_MANY, MANY_TO_MANY})
+
 # ---- temporal rules --------------------------------------------------------
 
 SAME_PERIOD = "same_period"
@@ -504,6 +507,219 @@ def promote(session: Session, relationship_id: int, *, to: str,
 # ------------------------------------------------------------------- reading
 
 
+# ------------------------------------------------------- proposing a join
+
+
+#: A candidate the assistant will not put in front of a steward. Below this,
+#: the two columns share a name and nothing else, and a list padded with those
+#: teaches a steward to click through the list without reading it.
+MIN_PROPOSAL_COVERAGE = 0.50
+
+#: Column names that match everywhere and mean nothing. Joining two datasets on
+#: `period` produces a cartesian product per period, which is the single most
+#: expensive mistake this assistant could suggest.
+NEVER_A_KEY = frozenset({
+    "period", "reporting_date", "as_of_date", "year", "quarter", "month",
+    "currency", "status", "sector", "country", "segment", "stage", "grade",
+})
+
+
+def propose(session: Session, dataset: str, *,
+            limit: int = 12) -> list[dict[str, Any]]:
+    """Candidate relationships for a dataset, measured against the real data.
+
+    What this is: a search for columns that could be a key, ranked by how much
+    of the left-hand side actually finds a match on the right. What it is not:
+    a decision. Every candidate comes back as a proposal a steward accepts or
+    rejects, because whether `account_id` in a bank's own extract means the
+    same thing as `account_id` in the facility book is a question about the
+    bank's systems, and no amount of coverage answers it.
+
+    Three rules keep the list worth reading:
+
+      - a column that matches everywhere and means nothing — `period`,
+        `currency`, `status` — is never proposed, because joining on it is a
+        cartesian product rather than a relationship;
+      - coverage is measured, not assumed, and anything under
+        MIN_PROPOSAL_COVERAGE is dropped rather than shown with a bad number
+        beside it;
+      - a relationship that already exists is not proposed again, in any
+        direction and whatever its lifecycle.
+    """
+    from backend.data_access import get_catalog
+
+    catalog = get_catalog()
+    try:
+        left_def = catalog.dataset(dataset)
+    except Exception as e:
+        raise db.DataBuilderError(
+            f"{dataset} is not in the governed catalogue: {e}") from e
+
+    declared = {
+        (r.from_dataset, r.from_field, r.to_dataset, r.to_field)
+        for r in session.scalars(select(DatasetRelationship)).all()
+    }
+    declared |= {(to_ds, to_f, from_ds, from_f)
+                 for from_ds, from_f, to_ds, to_f in declared}
+
+    candidates: list[dict[str, Any]] = []
+    for other in sorted(catalog.names()):
+        if other == dataset:
+            continue
+        try:
+            right_def = catalog.dataset(other)
+        except Exception:
+            continue
+        shared = [f for f in left_def.fields
+                  if f in right_def.fields and _could_be_a_key(f)]
+        for column in shared:
+            if (dataset, column, other, column) in declared:
+                continue
+            measured = _measure(left_def, right_def, column, column)
+            if measured is None:
+                continue
+            if measured["match_rate"] < MIN_PROPOSAL_COVERAGE:
+                continue
+            candidates.append({
+                "from_dataset": dataset, "from_field": column,
+                "to_dataset": other, "to_field": column,
+                "cardinality": measured["cardinality"],
+                "kind": "key",
+                "match_rate": measured["match_rate"],
+                "orphan_rate": measured["orphan_rate"],
+                "duplicate_rate": measured["duplicate_rate"],
+                "left_rows": measured["left_rows"],
+                "right_rows": measured["right_rows"],
+                "why": _why(dataset, other, column, measured),
+                "safe_to_join": measured["cardinality"] in SAFE_CARDINALITIES,
+            })
+
+    candidates.sort(key=lambda c: (-c["match_rate"], c["duplicate_rate"]))
+    return candidates[:limit]
+
+
+def _could_be_a_key(column: str) -> bool:
+    """Whether a shared column name could plausibly identify a row.
+
+    Deliberately shaped like a key rather than merely shared: `_id`, `_no`,
+    `_code`, `_ref`. A column called `amount` appearing in two datasets is a
+    coincidence of naming, and proposing a join on it would be noise.
+    """
+    name = column.lower()
+    if name in NEVER_A_KEY:
+        return False
+    return (name.endswith("_id") or name.endswith("_no")
+            or name.endswith("_code") or name.endswith("_ref")
+            or name == "id")
+
+
+def _measure(left_def, right_def, left_field: str,
+             right_field: str) -> dict[str, Any] | None:
+    """Read both sides at one period and count what a join would do.
+
+    Returns None rather than raising when a side cannot be read: an unreadable
+    dataset is a reason not to propose a join, not a reason to fail the whole
+    search.
+    """
+    from backend.data_access import get_data_source
+    from backend.data_access.context import AnalysisContext
+
+    source = get_data_source()
+
+    def read(definition, column):
+        if not definition.period_field:
+            return source.fetch(definition.name,
+                                context=AnalysisContext(period=None),
+                                fields=[column])
+        published = source.periods(definition.name) or []
+        chosen = published[-1] if published else None
+        return source.fetch(definition.name,
+                            context=AnalysisContext(period=chosen),
+                            fields=[column], period=chosen)
+
+    try:
+        left = _keys(read(left_def, left_field)[left_field])
+        right = _keys(read(right_def, right_field)[right_field])
+    except Exception as e:
+        logger.debug("Could not measure %s.%s -> %s.%s: %s", left_def.name,
+                     left_field, right_def.name, right_field, e)
+        return None
+
+    left_rows, right_rows = int(len(left)), int(len(right))
+    if not left_rows or not right_rows:
+        return None
+
+    right_values = set(right.astype(str))
+    matched = int(left.astype(str).isin(right_values).sum())
+    duplicate_rate = 1.0 - right.nunique() / right_rows
+    left_duplicate_rate = 1.0 - left.nunique() / left_rows
+
+    # Declared from what the data shows, not from what would be convenient. A
+    # steward may correct it; a steward may not be handed a cardinality that
+    # the data contradicts.
+    if duplicate_rate <= MAX_DUPLICATE_RATE:
+        cardinality = (ONE_TO_ONE if left_duplicate_rate <= MAX_DUPLICATE_RATE
+                       else MANY_TO_ONE)
+    else:
+        cardinality = (ONE_TO_MANY if left_duplicate_rate <= MAX_DUPLICATE_RATE
+                       else MANY_TO_MANY)
+
+    return {
+        "match_rate": round(matched / left_rows, 6),
+        "orphan_rate": round((left_rows - matched) / left_rows, 6),
+        "duplicate_rate": round(duplicate_rate, 6),
+        "left_rows": left_rows, "right_rows": right_rows,
+        "cardinality": cardinality,
+    }
+
+
+def _why(left: str, right: str, column: str,
+         measured: dict[str, Any]) -> str:
+    """Coverage in a sentence, with the caveat that belongs beside it."""
+    coverage = f"{measured['match_rate'] * 100:.1f}% of {left} rows"
+    if measured["cardinality"] in SAFE_CARDINALITIES:
+        shape = (f"{right}.{column} is unique, so this join cannot multiply "
+                 f"{left}")
+    else:
+        shape = (f"{right}.{column} repeats, so this join would multiply "
+                 f"{left} unless the right side is aggregated first")
+    return (f"{coverage} find a match on {column}. {shape}. Whether the two "
+            "columns mean the same thing is a question about the bank's "
+            "systems, which coverage cannot answer.")
+
+
+def accept_proposal(session: Session, *, from_dataset: str, from_field: str,
+                    to_dataset: str, to_field: str, cardinality: str,
+                    semantic: str = "", user_id: int | None = None,
+                    kind: str = "key") -> DatasetRelationship:
+    """Turn a proposal into a DRAFT relationship the steward now owns.
+
+    DRAFT, never ACTIVE. The assistant found a column that lines up; a steward
+    decided the two columns mean the same thing. Only the second of those is
+    grounds for the runtime to join on it, and collapsing them would make the
+    lifecycle decorative.
+    """
+    if cardinality not in CARDINALITIES:
+        raise db.DataBuilderError(f"'{cardinality}' is not a cardinality.")
+
+    record = db.add_relationship(
+        session, from_dataset=from_dataset, from_field=from_field,
+        to_dataset=to_dataset, to_field=to_field, cardinality=cardinality,
+        kind=kind,
+        description=semantic or (f"Proposed from measured coverage between "
+                                 f"{from_dataset} and {to_dataset}."))
+    record.semantic = semantic
+    record.lifecycle = DRAFT
+    # Not measured coverage but the assistant's own confidence in the
+    # suggestion: a name-matched column is a strong hint and not a fact.
+    record.confidence = 0.80
+    bump_version(session, record, change_note=(
+        "Proposed by the relationship assistant from measured coverage, "
+        "accepted as a draft."), user_id=user_id)
+    session.flush()
+    return record
+
+
 def to_dict(record: DatasetRelationship) -> dict[str, Any]:
     return {
         "id": record.id,
@@ -627,6 +843,7 @@ def graph(session: Session) -> dict[str, Any]:
 __all__ = [
     "ACTIVE",
     "ARCHIVED",
+    "CARDINALITIES",
     "DRAFT",
     "GOVERNED_RELATIONSHIPS",
     "LIFECYCLE",
@@ -635,16 +852,19 @@ __all__ = [
     "MANY_TO_ONE",
     "MIN_CONFIDENCE",
     "MIN_MATCH_RATE",
+    "MIN_PROPOSAL_COVERAGE",
     "ONE_TO_MANY",
     "ONE_TO_ONE",
     "RUNNABLE",
     "SAFE_CARDINALITIES",
-    "VALIDATED",
     "ShippedRelationship",
+    "VALIDATED",
+    "accept_proposal",
     "active_relationships",
     "bump_version",
     "graph",
     "promote",
+    "propose",
     "seed",
     "to_dict",
     "validate_relationship",

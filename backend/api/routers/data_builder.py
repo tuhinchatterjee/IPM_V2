@@ -488,6 +488,70 @@ def seed_relationships(session: Session = Depends(get_db),
     return rel_service.seed(session)
 
 
+class ProposalIn(BaseModel):
+    """Accept one proposal. Echoed back from the search rather than composed
+    here, so a caller cannot declare a join the assistant never measured."""
+
+    from_dataset: str = Field(min_length=1, max_length=120)
+    from_field: str = Field(min_length=1, max_length=120)
+    to_dataset: str = Field(min_length=1, max_length=120)
+    to_field: str = Field(min_length=1, max_length=120)
+    cardinality: str = Field(
+        pattern="^(one_to_one|many_to_one|one_to_many|many_to_many)$")
+    semantic: str = Field(default="", max_length=2000)
+
+
+@router.get("/relationships/propose", summary="Candidate joins for a dataset")
+def propose_relationships(dataset: str = Query(min_length=1, max_length=120),
+                          session: Session = Depends(get_db),
+                          principal: Principal = RequireDataSteward) -> dict:
+    """Columns that could be a key, ranked by how much of the book they match.
+
+    A search, not a decision. Whether `account_id` in a bank's own extract
+    means the same thing as `account_id` in the facility book is a question
+    about the bank's systems, and no amount of coverage answers it — so every
+    candidate comes back as a proposal a steward accepts or rejects.
+    """
+    from backend.services import relationships as rel_service
+
+    try:
+        candidates = rel_service.propose(session, dataset)
+    except DataBuilderError as e:
+        raise _fail(e) from e
+    return {
+        "dataset": dataset,
+        "candidates": candidates,
+        "minimum_coverage": rel_service.MIN_PROPOSAL_COVERAGE,
+        "note": ("Measured against the latest published period of each side. "
+                 "Coverage says the columns line up; it does not say they mean "
+                 "the same thing."),
+    }
+
+
+@router.post("/relationships/propose/accept", status_code=status.HTTP_201_CREATED,
+             summary="Accept a proposed join as a draft")
+def accept_relationship_proposal(payload: ProposalIn,
+                                 session: Session = Depends(get_db),
+                                 principal: Principal = RequireDataSteward) -> dict:
+    """DRAFT, never ACTIVE.
+
+    The assistant found a column that lines up; a steward decided the two
+    columns mean the same thing. Only the second is grounds for the runtime to
+    join on it, and collapsing them would make the lifecycle decorative.
+    """
+    from backend.services import relationships as rel_service
+
+    try:
+        record = rel_service.accept_proposal(
+            session, user_id=principal.user_id, **payload.model_dump())
+    except DataBuilderError as e:
+        raise _fail(e) from e
+    session.commit()
+    return {"relationship": rel_service.to_dict(record),
+            "note": ("Saved as a draft. Measure it against the data and then "
+                     "activate it before the planner will join on it.")}
+
+
 class RelationshipStateIn(BaseModel):
     lifecycle: str = Field(pattern="^(draft|validated|active|archived)$")
     note: str = Field(default="", max_length=2000)

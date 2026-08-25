@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2, Search, Share2 } from "lucide-react";
 
 import { RelationshipCanvas } from "@/components/data-builder/relationship-canvas";
 import { RelationshipInspector } from "@/components/data-builder/relationship-inspector";
+import { RelationshipProposalsPanel } from "@/components/data-builder/relationship-proposals";
 import { PageHeader } from "@/components/layout/page-header";
 import { useCanEditData } from "@/components/system/role-switcher";
 import { Badge } from "@/components/ui/badge";
@@ -233,6 +234,16 @@ export default function RelationshipMapPage() {
             )}
           </div>
         </div>
+      )}
+
+      {canEdit && nodes.length > 0 && (
+        <RelationshipProposalsPanel
+          datasets={nodes.filter((n) => n.in_catalogue).map((n) => n.name)}
+          onAccepted={() => {
+            setPatched({});
+            setNonce((n) => n + 1);
+          }}
+        />
       )}
 
       {(map.data?.unconnected.length ?? 0) > 0 && (
