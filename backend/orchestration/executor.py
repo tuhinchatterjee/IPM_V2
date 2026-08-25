@@ -34,6 +34,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.engine.runner import AnalysisRunResult, run_analysis
+from backend.orchestration import multi
 from backend.orchestration.clarification import needed_clarification
 from backend.orchestration.comprehension import comprehend
 from backend.orchestration.dynamic import DynamicRequest, build_plan, read_question
@@ -592,6 +593,237 @@ def _dynamic_narrative(question: str, request: DynamicRequest,
     )
 
 
+
+def multi_candidate(question: str, vocab: Any) -> multi.MultiRequest | None:
+    """Whether this question needs more than one governed dataset.
+
+    Tried BEFORE the single-dataset reading, because a question mentioning ECL,
+    a rating and exposure is not a facility-book question with extra words in
+    it — answering it from the facility position alone would produce a correct
+    figure about a narrower question, which is the failure this product exists
+    to prevent.
+
+    Returns None whenever the composed path should not run: one dataset is
+    enough, the reading is incomplete, or nothing joins them. In every case the
+    ordinary path's own refusal is better than a half-composed analysis.
+    """
+    from backend.data_access.catalog import get_catalog
+
+    try:
+        request = multi.read_question(
+            question, catalogue=get_catalog(), periods=list(vocab.periods),
+            dimensions=dict(vocab.dimensions),
+            relationships=_active_relationships())
+    except Exception as e:  # pragma: no cover - reading must never break a question
+        logger.warning("Multi-dataset reading failed: %s", e)
+        return None
+
+    if not request.is_multi:
+        return None
+    if not request.understood:
+        # Worth logging: a question that named several datasets and could not be
+        # read is a gap in the reading, not a question nobody asked.
+        logger.info("Multi-dataset question refused: %s", "; ".join(request.reasons))
+        return None
+    return request
+
+
+def _active_relationships() -> list[dict[str, Any]]:
+    """The governed relationship rows the planner may join on.
+
+    Read through the service layer so there is one definition of "usable" —
+    ACTIVE, confident enough, and not in an archived domain. Degrades to an
+    empty graph rather than failing: with no relationships declared, a
+    multi-dataset question is refused for want of a join, which is the honest
+    outcome.
+    """
+    from backend.config import settings
+
+    if not settings.has_database:
+        return []
+    try:
+        from backend.db.engine import get_session
+        from backend.services.relationships import active_relationships
+
+        with get_session() as session:
+            return active_relationships(session)
+    except Exception as e:
+        logger.warning("Could not read the relationship graph: %s", e)
+        return []
+
+
+def run_multi(question: str, request: multi.MultiRequest, *, started: float,
+              user_id: int | None = None) -> Investigation:
+    """Compose, validate, run and assemble one multi-dataset analysis."""
+    from backend.data_access.catalog import get_catalog
+    from backend.runtime.executor import ExecutionClass, execute
+
+    build = multi.build_plan(request, catalogue=get_catalog())
+    import dataclasses
+
+    plan = dataclasses.replace(
+        _dynamic_plan(question, _as_dynamic(request)),
+        notes=["This analysis was composed for this question across "
+               f"{len(request.datasets)} governed datasets, joined on the "
+               "bank's own relationship model. It is not a certified method "
+               "and has not been reviewed."])
+
+    result = execute(build.plan, question=question, intent=request.summary,
+                     certification=ExecutionClass.DYNAMIC)
+
+    step = ExecutedStep(
+        index=0, analysis_id="dynamic_analysis",
+        title="Composed across several governed sources",
+        rationale=(f"No certified analysis reads {', '.join(request.datasets)} "
+                   "together, so CreditProbe composed one from the governed "
+                   "relationship model."),
+        params={"grain": request.grain, "shape": request.shape,
+                "opening_period": request.opening,
+                "closing_period": request.closing,
+                "datasets": request.datasets},
+        filters={f: v for f, v in request.filters},
+        period=request.closing, status="succeeded",
+        certification=ExecutionClass.DYNAMIC, analysis_version="",
+        duration_ms=result.duration_ms,
+        result={
+            "values": {"matching": result.row_count,
+                       "opening_period": request.opening,
+                       "closing_period": request.closing},
+            "units": {"matching": "count"},
+            "input_row_count": result.row_count,
+            "meta": {"execution": ExecutionClass.DYNAMIC,
+                     "grain": request.grain, "shape": request.shape},
+            "rows": result.rows,
+            "columns": result.columns,
+            "warnings": result.warnings,
+            "chart": result.chart,
+            "truncated": result.truncated,
+            "certification": result.certification,
+            "certification_label": result.certification_label,
+            "reading": request.to_dict(),
+            "plan": build.plan,
+            "query": result.query.to_dict() if result.query else None,
+            "joins": result.joins,
+            "reconciliation": result.reconciliation,
+            "explanation": multi.explain(request),
+            "join_plan": (request.resolution.to_dict()
+                          if request.resolution else None),
+        },
+        error=None,
+        trace=result.graph.to_dict() if result.graph else None,
+        node_hashes={}, role="primary",
+    )
+
+    narrative = _multi_narrative(question, request, result, build)
+    graph = build_reasoning_map(plan, [step], narrative)
+    investigation = Investigation(
+        question=question, plan=plan, steps=[step], narrative=narrative,
+        graph=graph, node_hashes=graph.compute_hashes(),
+        duration_ms=int((time.perf_counter() - started) * 1000),
+        status="succeeded",
+        mode={**planner_mode(), "execution": ExecutionClass.DYNAMIC,
+              "execution_label": ExecutionClass.LABELS[ExecutionClass.DYNAMIC],
+              "datasets": request.datasets},
+    )
+    return investigation
+
+
+def _as_dynamic(request: multi.MultiRequest) -> DynamicRequest:
+    """A single-dataset-shaped view of the request, for the shared plan record.
+
+    The AnalysisPlan and the reasoning map were built for the single-dataset
+    path; rather than a second copy of both, the multi-dataset request is
+    described in the same shape. Nothing downstream computes from this — it
+    carries the reading, the periods and the filters onto the map.
+    """
+    shim = DynamicRequest(
+        understood=True, dataset=request.base, grain=request.grain,
+        key=request.key, opening=request.opening, closing=request.closing,
+        filters=list(request.filters), summary=request.summary,
+    )
+    shim.conditions = [b.condition for b in request.bindings]
+    return shim
+
+
+def _multi_narrative(question: str, request: multi.MultiRequest, result: Any,
+                     build: multi.PlanBuild) -> Narrative:
+    """The answer, with the fact/reading boundary kept where it always is.
+
+    Every figure here is a count of what came back or a figure the runtime
+    returned. The reading states which governed sources were used and what the
+    conditions were; it asserts no cause, and where the shape is an association
+    it says co-movement in those words.
+    """
+    grain = multi._plural(request.grain) if result.row_count != 1 else request.grain
+    where = ", ".join(v for _, v in request.filters)
+    subject = f"{where} {grain}" if where else grain
+    conditions = [b.condition.describe() for b in request.bindings]
+
+    if request.shape == multi.ASSOCIATION and result.rows:
+        row = result.rows[0]
+        coefficient = row.get("coefficient")
+        n = row.get("n")
+        direct = (f"Across {n:,} {multi._plural(request.grain)}, the two "
+                  f"measures moved together with a correlation of "
+                  f"{coefficient:.3f}." if coefficient is not None else
+                  "There were too few paired observations to measure an "
+                  "association.")
+        interpretation = (
+            "This is co-movement, not cause. A correlation says the two "
+            "measures moved together across the population; it does not "
+            "establish that either one produced the other, and CreditProbe "
+            "will not say that it does. The conditions read were: "
+            + "; ".join(conditions) + ".")
+        points = ["Composed across several governed sources, not a certified "
+                  "method.",
+                  "Co-movement across the population — not a causal claim.",
+                  *conditions]
+        metrics = [Metric(label="Correlation", value=coefficient, unit="",
+                          direction="neutral",
+                          hint="Between -1 and 1. Zero is no linear relationship.")]
+        findings = [Finding(
+            text=direct, tone="neutral",
+            evidence=[{"label": "Observations", "value": n}])]
+    else:
+        direct = (f"{result.row_count} {subject} meet all "
+                  f"{len(request.bindings)} conditions.")
+        interpretation = (
+            "This analysis was composed for this question across "
+            + ", ".join(request.datasets)
+            + ", joined on the bank's own governed relationships. The "
+            "conditions applied were: " + "; ".join(conditions)
+            + ". Read the join lineage on the Trace before acting on the list "
+              "— nobody has reviewed this calculation.")
+        points = [
+            "Composed for this question, not a certified method.",
+            f"Measured between {request.opening} and {request.closing}, "
+            f"reported at {request.grain} level.",
+            *conditions,
+        ]
+        metrics = [Metric(
+            label=f"{request.grain.title()}s matching", value=result.row_count,
+            unit="", direction="up-is-bad",
+            hint="Every row satisfies every condition stated in the question.")]
+        findings = [Finding(
+            text=direct, tone="warning" if result.row_count else "neutral",
+            evidence=[{"label": "Rows returned", "value": result.row_count}])]
+
+    caveats = list(build.warnings)
+    if result.reconciliation:
+        first = result.reconciliation[0]
+        last = result.reconciliation[-1]
+        caveats.append(
+            f"Population: {first['rows']:,} rows read, {last['rows']:,} in the "
+            "final answer. The step-by-step reconciliation is on the Trace.")
+    if result.truncated:
+        caveats.append("The list was capped; narrow the question to see the rest.")
+
+    return Narrative(
+        direct_answer=direct, summary=direct, findings=findings,
+        interpretation=interpretation, interpretation_points=points,
+        metrics=metrics, caveats=caveats)
+
+
 def run_dynamic(question: str, request: DynamicRequest, *,
                 started: float, user_id: int | None = None) -> Investigation:
     """Compose, validate, run and assemble one dynamic analysis."""
@@ -670,6 +902,22 @@ def run_investigation(question: str, *, user_id: int | None = None,
     # analysis answers. A question naming several independent conditions is one
     # of those: the closest certified analysis would return a correct figure for
     # a narrower question, carrying a tick while doing it.
+    # A question naming several governed sources is composed across them
+    # first. Answering it from one dataset would produce a correct figure about
+    # a narrower question, and nothing about it would look wrong.
+    across = multi_candidate(question, vocab)
+    if across is not None:
+        try:
+            investigation = run_multi(question, across, started=started,
+                                      user_id=user_id)
+            if persist:
+                persist_investigation(investigation, user_id=user_id,
+                                      project_id=project_id,
+                                      investigation_id=investigation_id)
+            return investigation
+        except Exception as e:
+            logger.warning("Multi-dataset analysis failed, falling back: %s", e)
+
     composed = dynamic_candidate(question, vocab)
     if composed is not None:
         try:

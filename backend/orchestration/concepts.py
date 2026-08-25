@@ -82,6 +82,12 @@ class Concept:
     #: An ordinal scale rather than a measure: movement is counted in steps,
     #: never averaged, and rolled up by its worst value.
     is_ordinal: bool = False
+    #: A governed category rather than a quantity. Compared by equality and
+    #: never differenced — subtracting one sentiment from another is not a
+    #: smaller number, it is a type error waiting for a production question.
+    is_categorical: bool = False
+    #: The values a polarity word maps onto, for a categorical concept.
+    polarity: tuple[tuple[str, str], ...] = ()
     unit: str = ""
 
     def default_candidate(self) -> Candidate:
@@ -275,10 +281,14 @@ CONCEPTS: tuple[Concept, ...] = (
     Concept(
         id="sentiment", label="credit file sentiment",
         pattern=r"sentiment|qualitative|credit file|memo|commentary|narrative",
-        higher_is_worse=False, unit="",
+        higher_is_worse=False, is_categorical=True,
+        polarity=(("negative", "negative"), ("adverse", "negative"),
+                  ("positive", "positive"), ("favourable", "positive"),
+                  ("favorable", "positive")),
         candidates=(_c(MEMOS, "sentiment",
                        "The sentiment of the credit file note, as a structured "
-                       "signal. Never the text itself.", default=True),)),
+                       "signal — negative, neutral or positive. Never the text "
+                       "itself.", default=True),)),
     Concept(
         id="signal_strength", label="credit file signal strength",
         pattern=r"signal strength|concern level|red flag",
@@ -324,6 +334,7 @@ class ConceptMatch:
             "definition": self.candidate.definition,
             "unit": self.concept.unit,
             "is_ordinal": self.concept.is_ordinal,
+            "is_categorical": self.concept.is_categorical,
             "higher_is_worse": self.concept.higher_is_worse,
             "confidence": round(self.confidence, 3),
             "reason": self.reason,

@@ -67,9 +67,12 @@ class Condition:
     """
 
     field: str
-    kind: str          # change_pct | change_abs | level
-    op: str            # gt | gte | lt | lte
-    value: float
+    kind: str          # change_pct | change_abs | level | order
+    op: str            # gt | gte | lt | lte | eq
+    #: A number for a measure, a string for a category. Typed loosely on
+    #: purpose: "sentiment is negative" is a governed category and forcing it
+    #: through a float would either crash or, worse, coerce to zero.
+    value: Any
     phrase: str = ""
     #: True where a HIGHER number is worse — a rating grade, days past due.
     higher_is_worse: bool = True
@@ -78,7 +81,10 @@ class Condition:
     def column(self) -> str:
         return {"change_pct": f"{self.field}_change_pct",
                 "change_abs": f"{self.field}_change",
-                "level": self.field}[self.kind]
+                "level": self.field,
+                # An ordering binding filters on nothing; it names the column
+                # the answer is sorted by.
+                "order": self.field}[self.kind]
 
     @property
     def label(self) -> str:
@@ -93,9 +99,14 @@ class Condition:
         A zero threshold is a floor, not a movement, and is said as one.
         """
         unit = "%" if self.kind == "change_pct" else ""
+        if not isinstance(self.value, (int, float)):
+            return f"{self.label} is {self.value}"
+        if self.kind == "order":
+            return f"ranked by {self.label}"
         if self.kind == "level":
             word = {"gt": "above", "gte": "at or above",
-                    "lt": "below", "lte": "at or below"}[self.op]
+                    "lt": "below", "lte": "at or below",
+                    "eq": "exactly"}.get(self.op, self.op)
             return f"{self.label} {word} {self.value:g}{unit}"
 
         if self.value == 0:
@@ -197,16 +208,16 @@ MEASURES: list[tuple[str, str, bool]] = [
 #: resolves against the measure's own direction: a rating deteriorating is a
 #: higher grade number, coverage deteriorating is a lower percentage.
 _WORSE = (r"increas\w*|ris\w*|ros\w*|grew|grow\w*|climb\w*|jump\w*|up\b|higher|"
-          r"deteriorat\w*|worsen\w*|weaken\w*|widen\w*|"
+          r"deteriorat\w*|worsen\w*|weaken\w*|widen\w*|downgrad\w*|"
           r"fell|fall\w*|declin\w*|drop\w*|slip\w*|lower|reduc\w*|decreas\w*|"
-          r"improv\w*|strengthen\w*|narrow\w*|tighten\w*")
+          r"improv\w*|strengthen\w*|narrow\w*|tighten\w*|upgrad\w*")
 
 _UP_WORDS = {"increas", "ris", "ros", "grew", "grow", "climb", "jump", "up",
              "higher", "widen"}
 _DOWN_WORDS = {"fell", "fall", "declin", "drop", "slip", "lower", "reduc",
                "decreas", "narrow"}
-_WORSE_WORDS = {"deteriorat", "worsen", "weaken"}
-_BETTER_WORDS = {"improv", "strengthen", "tighten"}
+_WORSE_WORDS = {"deteriorat", "worsen", "weaken", "downgrad"}
+_BETTER_WORDS = {"improv", "strengthen", "tighten", "upgrad"}
 
 #: "more than 20%", "at least two notches", "by over 5"
 _MAGNITUDE = (
@@ -222,6 +233,26 @@ _CLAUSE = re.compile(
     r"(?P<measure>[a-z0-9 %\-]{2,40}?)\s+"
     r"(?P<negation>did not |didn't |has not |have not |hasn't |haven't )?"
     r"(?P<direction>" + _WORSE + r")"
+    r"(?P<rest>.*)",
+    re.IGNORECASE,
+)
+
+#: The other way people say it: the movement first, then the measure.
+#: "rising arrears", "increasing leverage", "worsening days past due". Tried
+#: BEFORE the forward pattern, because in "Stage 2 accounts showing worsening
+#: arrears" the forward pattern would pair "Stage" with "worsening" and read a
+#: condition about the wrong measure entirely.
+#:
+#: The lookahead is what keeps the two apart. "deteriorated at least two
+#: notches" has a qualifier immediately after the movement word, which means
+#: the measure came BEFORE it — so the reversed pattern declines and the
+#: forward one takes it.
+_CLAUSE_REVERSED = re.compile(
+    r"(?P<negation>did not |didn't |has not |have not |hasn't |haven't )?"
+    r"(?P<direction>" + _WORSE + r")\s+"
+    r"(?!by\b|at least\b|more than\b|less than\b|over\b|under\b|to\b|"
+    r"than\b|from\b|in\b|for\b|the\b)"
+    r"(?P<measure>[a-z][a-z0-9\-]*(?:\s+[a-z][a-z0-9\-]*){0,3})"
     r"(?P<rest>.*)",
     re.IGNORECASE,
 )
@@ -291,67 +322,128 @@ def read_conditions(question: str, *, resolver: Any = None
     for clause in _SEPARATOR.split(question):
         if not clause or not clause.strip():
             continue
-        match = _CLAUSE.search(clause)
-        if match is None:
-            continue
-        phrase = match.group(0).strip()
-        measure = (resolver(match.group("measure"), question) if resolver
-                   else _measure_for(match.group("measure")))
-        if measure is None:
-            continue
-        target, higher_is_worse = measure
+        # Scanned repeatedly rather than once. "Customers with increasing
+        # leverage more likely to have rating downgrades" is one clause holding
+        # two conditions, and stopping at the first would answer half the
+        # question without saying so.
+        position = 0
+        found_here = False
+        saw_direction = bool(re.search(_WORSE, clause, re.IGNORECASE))
 
-        direction = _direction(match.group("direction"), higher_is_worse)
-        if not direction:
-            unread.append(phrase)
-            continue
+        while position < len(clause):
+            window = clause[position:]
+            match = _CLAUSE_REVERSED.search(window)
+            if match is not None:
+                probe = (resolver(match.group("measure"), question) if resolver
+                         else _measure_for(match.group("measure")))
+                if probe is None:
+                    match = None
+            if match is None:
+                match = _CLAUSE.search(window)
+            if match is None:
+                break
 
-        negated = bool(match.group("negation"))
-        rest = match.group("rest") or ""
-        magnitude = re.search(_MAGNITUDE, rest, re.IGNORECASE)
+            phrase = match.group(0).strip()
+            measure = (resolver(match.group("measure"), question) if resolver
+                       else _measure_for(match.group("measure")))
+            if measure is None:
+                # Some movement words name their own measure. "Downgraded" is
+                # about the rating whether or not the sentence says so, and
+                # refusing it for want of a noun would fail a question a credit
+                # officer would call unambiguous.
+                word = match.group("direction")
+                measure = (resolver(word, question) if resolver
+                           else _measure_for(word))
 
-        # "did not decline" is a floor at zero: no magnitude, and the comparison
-        # is the opposite of the direction named.
-        if negated and not (magnitude and magnitude.group("number")):
-            op = "gte" if direction == "down" else "lte"
-            kind = "change_abs"
-            value = 0.0
-        elif magnitude and magnitude.group("number"):
-            raw = magnitude.group("number").lower()
-            value = _WORDS.get(raw, None)
-            if value is None:
-                value = float(raw)
-            unit = (magnitude.group("unit") or "").lower()
-            qualifier = (magnitude.group("qualifier") or "").lower()
+            # Advance past the movement word, never past `rest` — `rest` runs
+            # to the end of the clause and skipping it would hide every
+            # condition after the first.
+            # Relative to the WINDOW, so it is added to where the window
+            # started. Advancing past the movement word only — never past
+            # `rest`, which runs to the end of the clause and would hide every
+            # condition after the first.
+            position += max(match.end("direction"), match.end("measure"), 1)
+            if measure is None:
+                continue
+            target, higher_is_worse = measure
 
-            if unit in ("%", "per cent", "percent"):
-                kind = "change_pct"
-            elif unit in ("bps", "basis points"):
-                kind, value = "change_abs", value / 100.0
-            else:
+            # "GDP growth fell" holds two movement words, and the first is part
+            # of the measure's NAME rather than a movement. They are told apart
+            # by what follows: a movement word immediately followed by another
+            # movement word is a noun, and the verb is the second one. "ECL
+            # increased more than 20%" is not affected — "more" is not a
+            # movement word — so the rule only fires where it is needed.
+            word = match.group("direction")
+            rest = match.group("rest") or ""
+            tail = rest.lstrip()
+            noun = re.match(r"(?:" + _WORSE + r")\b", tail, re.IGNORECASE)
+            if noun:
+                # The measure keeps its name and the movement is the next word.
+                # "GDP growth fell" is one condition about GDP growth, not two
+                # about GDP.
+                word = noun.group(0)
+                rest = tail[noun.end():]
+
+            direction = _direction(word, higher_is_worse)
+            if not direction:
+                unread.append(phrase)
+                continue
+
+
+            negated = bool(match.group("negation"))
+            magnitude = re.search(_MAGNITUDE, rest, re.IGNORECASE)
+
+            # "did not decline" is a floor at zero: no magnitude, and the
+            # comparison is the opposite of the direction named.
+            if negated and not (magnitude and magnitude.group("number")):
+                op = "gte" if direction == "down" else "lte"
                 kind = "change_abs"
+                value = 0.0
+            elif magnitude and magnitude.group("number"):
+                raw = magnitude.group("number").lower()
+                value = _WORDS.get(raw, None)
+                if value is None:
+                    value = float(raw)
+                unit = (magnitude.group("unit") or "").lower()
+                qualifier = (magnitude.group("qualifier") or "").lower()
 
-            strict = qualifier in ("more than", "over", "greater than", "less than",
-                                   "under")
-            if direction == "down":
-                # A fall of more than 20% is a change below -20.
-                value = -value
-                op = "lt" if strict else "lte"
+                if unit in ("%", "per cent", "percent"):
+                    kind = "change_pct"
+                elif unit in ("bps", "basis points"):
+                    kind, value = "change_abs", value / 100.0
+                else:
+                    kind = "change_abs"
+
+                strict = qualifier in ("more than", "over", "greater than",
+                                       "less than", "under")
+                if direction == "down":
+                    # A fall of more than 20% is a change below -20.
+                    value = -value
+                    op = "lt" if strict else "lte"
+                else:
+                    op = "gt" if strict else "gte"
             else:
-                op = "gt" if strict else "gte"
-        else:
-            # A direction with no magnitude — "ECL increased" — is a movement of
-            # any size in that direction.
-            kind = "change_abs"
-            value = 0.0
-            op = "gt" if direction == "up" else "lt"
+                # A direction with no magnitude — "ECL increased" — is a
+                # movement of any size in that direction.
+                kind = "change_abs"
+                value = 0.0
+                op = "gt" if direction == "up" else "lt"
 
-        key = (target, kind)
-        if key in seen:
-            continue
-        seen.add(key)
-        conditions.append(Condition(field=target, kind=kind, op=op, value=value,
-                                    phrase=phrase, higher_is_worse=higher_is_worse))
+            found_here = True
+            key = (target, kind)
+            if key in seen:
+                continue
+            seen.add(key)
+            conditions.append(Condition(
+                field=target, kind=kind, op=op, value=value, phrase=phrase,
+                higher_is_worse=higher_is_worse))
+
+        # A clause that plainly describes a movement and yielded nothing is not
+        # a clause to pass over. Narrowing the question silently is the failure
+        # this whole product exists to avoid, so it is reported and the caller
+        # refuses.
+        if saw_direction and not found_here:
+            unread.append(clause.strip())
 
     return conditions, unread
 

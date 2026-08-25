@@ -66,7 +66,15 @@ logger = logging.getLogger(__name__)
 #: search begins unless the question is plainly about something else.
 DEFAULT_BASE = "portfolio_facility"
 
+#: Mirrors the runtime's own limits, checked here so a question is refused
+#: with an explanation rather than by the compiler with a stack trace.
+_MAX_JOINS = 10
+_MAX_HOPS = 3
+
 MAX_ROWS = 500
+#: A ranking question wants the top of the list. Returning five hundred rows to
+#: "which borrowers are closest to breach" is a table, not an answer.
+MAX_RANKED = 50
 
 #: A question naming this many concepts across this many datasets is composed.
 #: Below it, the single-dataset path or the certified library answers better.
@@ -118,7 +126,47 @@ _HORIZONS = [
     (r"two years|24 months", 8),
 ]
 
-_OPS = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
+_OPS = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "eq": "="}
+
+# ---- the shape of the answer ------------------------------------------------
+#
+# Three shapes, because three genuinely different questions get asked of the
+# same joined data and answering one as another is a wrong answer rather than
+# an ugly one.
+
+#: "Which customers meet ALL of these conditions" — a filtered population.
+COHORT = "cohort"
+#: "Are these two things related" — no threshold, a measured association, and
+#: an interpretation that says co-movement rather than cause.
+ASSOCIATION = "association"
+#: "Which are closest to / worst / top" — an ordering, not a threshold. A
+#: question with no cut-off answered as though it had one invents the cut-off.
+RANKING = "ranking"
+
+_ASSOCIATION_WORDS = (r"more likely|less likely|associated with|correlat\w*|"
+                      r"related to|relationship between|go(?:es)? together|"
+                      r"tend to|predict\w*|co-?move")
+_RANKING_WORDS = (r"closest to|nearest to|most at risk|worst|top \d+|"
+                  r"highest|lowest|largest|biggest|riskiest|which .* are closest")
+
+#: A level stated in the question — "Stage 2", "grade 8". Only where the
+#: concept is ordinal and the number is small: "increased more than 20%" is a
+#: movement and reading it as a level would filter on a figure nobody meant.
+_LEVEL = re.compile(
+    r"\b(stage|grade|bucket)\s*(\d{1,2})\b", re.IGNORECASE)
+
+#: "negative sentiment", "positive signals". A polarity, not a movement: the
+#: question is about where the measure IS, not about how it changed. Applied
+#: only to signed measures — a "negative rating" is not a thing, and reading
+#: one would filter the book to nothing while looking like it worked.
+_POLARITY = re.compile(
+    r"\b(negative|positive|adverse|favourable|favorable)\s+"
+    r"(?P<measure>[a-z][a-z0-9\-]*(?:\s+[a-z][a-z0-9\-]*){0,3})",
+    re.IGNORECASE)
+
+#: Concepts a polarity may be applied to: a signed score centred on zero, or a
+#: governed category with named polarities.
+_SIGNED_CONCEPTS = frozenset({"sentiment"})
 
 
 # ---------------------------------------------------------------- the reading
@@ -151,6 +199,7 @@ class MultiRequest:
     question: str = ""
     understood: bool = False
     base: str = DEFAULT_BASE
+    shape: str = COHORT
     grain: str = CUSTOMER
     key: str = "customer_id"
     opening: str = ""
@@ -183,6 +232,7 @@ class MultiRequest:
             "question": self.question,
             "understood": self.understood,
             "base": self.base,
+            "shape": self.shape,
             "grain": self.grain,
             "key": self.key,
             "opening_period": self.opening,
@@ -296,10 +346,50 @@ def read_question(question: str, *, catalogue: Any, periods: list[str],
     if unread:
         request.reasons.append(
             "CreditProbe could not read: " + "; ".join(f"'{u}'" for u in unread))
-    if not conditions:
+
+    # A level stated outright — "Stage 2 accounts" — is a filter on where the
+    # population IS, not on how it moved. Read separately because the movement
+    # reader would either miss it or, worse, read the number as a magnitude.
+    levels = _read_levels(request.question, known=known, catalogue=catalogue)
+    for match, value, comparison in levels:
+        by_phrase[match.field] = match
+        conditions.append(Condition(
+            field=match.field, kind="level", op=comparison, value=value,
+            phrase=match.phrase, higher_is_worse=match.concept.higher_is_worse))
+
+    lowered = request.question.lower()
+    if re.search(_ASSOCIATION_WORDS, lowered):
+        request.shape = ASSOCIATION
+    elif re.search(_RANKING_WORDS, lowered):
+        request.shape = RANKING
+
+    movement = [c for c in conditions if c.kind != "level"]
+    if request.shape == ASSOCIATION and len(movement) < 2:
+        request.reasons.append(
+            "An association needs two measures that both move. Name the second "
+            "one — CreditProbe will not correlate a measure with itself.")
+    elif request.shape == COHORT and not conditions:
         request.reasons.append(
             "The question names no measurable condition. Say how a measure "
             "moved, and by how much.")
+    elif request.shape == RANKING:
+        # "Closest to covenant breach" names a measure and no movement. That is
+        # a legitimate question — the ranking IS the answer — so every concept
+        # the question named becomes something it is ordered by, with no
+        # threshold invented for one it did not set.
+        bound = {c.field for c in conditions}
+        for candidate in request.reading.matches:
+            if candidate.field in bound:
+                continue
+            by_phrase[candidate.field] = candidate
+            conditions.append(Condition(
+                field=candidate.field, kind="order", op="gte", value=0.0,
+                phrase=candidate.phrase,
+                higher_is_worse=candidate.concept.higher_is_worse))
+        if not conditions:
+            request.reasons.append(
+                "The question asks which are worst, but names no measure to "
+                "rank them by.")
 
     for condition in conditions:
         match = by_phrase.get(condition.field)
@@ -319,11 +409,72 @@ def read_question(question: str, *, catalogue: Any, periods: list[str],
     for why in request.resolution.unreachable.values():
         request.reasons.append(why)
 
-    # ---- 6. is the reading good enough to run?
+    # ---- 6. join safety, before anything is built
+    edges = request.resolution.edges()
+    if len(edges) * 2 > _MAX_JOINS:
+        request.reasons.append(
+            f"Answering this needs {len(edges)} governed joins on each side of "
+            f"the comparison, which is more than the runtime will compose "
+            f"({_MAX_JOINS}). Narrow the question — each extra source costs "
+            "population as well as time.")
+    for path in request.resolution.paths:
+        if path.hops > _MAX_HOPS:
+            request.reasons.append(
+                f"Reaching {path.target} takes {path.hops} hops through the "
+                "governed relationships. Past three, so little of the original "
+                "population survives that the answer stops describing the "
+                "book it started from.")
+
+    # ---- 7. is the reading good enough to run?
     request.understood = not request.reasons and not request.clarifications
     if request.understood:
         request.summary = _summary(request)
     return request
+
+
+def _read_levels(question: str, *, known: dict[str, set[str]],
+                 catalogue: Any) -> list[tuple[cx.ConceptMatch, Any, str]]:
+    """Levels stated outright in the question — "Stage 2", "grade 8".
+
+    Only for ordinal concepts, and only where the number is adjacent to the
+    word. "ECL increased more than 20%" contains a number too, and reading it
+    as a level would filter the book to an ECL of exactly 20.
+    """
+    out: list[tuple[cx.ConceptMatch, float]] = []
+    for found in _POLARITY.finditer(question):
+        local = cx.read_concepts(found.group("measure"), known=known,
+                                 catalogue=catalogue)
+        if not local.matches:
+            continue
+        match = local.matches[0]
+        if match.concept.id not in _SIGNED_CONCEPTS:
+            continue
+        settled = cx.resolve_concept(match.concept, question, known=known,
+                                     catalogue=catalogue, phrase=found.group(0))
+        chosen = settled or match
+        word = found.group(1).lower()
+        if chosen.concept.is_categorical:
+            mapped = dict(chosen.concept.polarity).get(word)
+            if mapped is None:
+                continue
+            out.append((chosen, mapped, "eq"))
+        else:
+            out.append((chosen, 0.0,
+                        "lt" if word in ("negative", "adverse") else "gt"))
+
+    for found in _LEVEL.finditer(question):
+        word, number = found.group(1), found.group(2)
+        local = cx.read_concepts(word, known=known, catalogue=catalogue)
+        if not local.matches:
+            continue
+        match = local.matches[0]
+        if not match.concept.is_ordinal:
+            continue
+        settled = cx.resolve_concept(match.concept, question, known=known,
+                                     catalogue=catalogue,
+                                     phrase=found.group(0))
+        out.append((settled or match, float(number), "eq"))
+    return out
 
 
 def _plural(grain: str) -> str:
@@ -387,6 +538,8 @@ def explain(request: MultiRequest) -> str:
 #: How a measure rolls up when a side has to be aggregated to the analysis
 #: grain. An ordinal takes its worst value; money sums; a rate takes its worst.
 def _rollup(match: cx.ConceptMatch) -> str:
+    if match.concept.is_categorical:
+        return "any_value"
     if match.concept.is_ordinal:
         return "max" if match.concept.higher_is_worse else "min"
     if match.concept.unit in ("USD mn", ""):
@@ -549,8 +702,12 @@ def build_plan(request: MultiRequest, *, catalogue: Any) -> PlanBuild:
         "label": f"{len(request.resolution.edges())} governed relationships used",
     })
 
+    # A category is compared, never differenced. Only quantities get a change
+    # and a percentage change derived for them.
     measures = list(dict.fromkeys(
-        column_for[(b.dataset, b.field)] for b in request.bindings))
+        column_for[(b.dataset, b.field)] for b in request.bindings
+        if (b.dataset, b.field) in column_for
+        and not b.match.concept.is_categorical))
 
     derived: list[dict[str, Any]] = []
     for measure in measures:
@@ -578,30 +735,26 @@ def build_plan(request: MultiRequest, *, catalogue: Any) -> PlanBuild:
         "label": "Derive the movement in each measure",
     })
 
-    where = [{"column": _condition_column(b, column_for),
-              "op": _OPS[b.condition.op], "value": b.condition.value}
-             for b in request.bindings]
-    for dimension, value in request.filters:
-        where.append({"column": dimension, "op": "=", "value": value})
-    operations.append({
-        "id": "cohort", "op": "FILTER", "inputs": ["movements"],
-        "params": {"where": where},
-        "label": "Keep only those meeting every condition",
-    })
+    # Governed dimension filters and any level stated outright apply to every
+    # shape; a threshold on how a measure MOVED applies only where the question
+    # actually set one.
+    standing = [{"column": dimension, "op": "=", "value": value}
+                for dimension, value in request.filters]
+    standing += [{"column": _condition_column(b, column_for),
+                  "op": _OPS[b.condition.op], "value": b.condition.value}
+                 for b in request.bindings if b.condition.kind == "level"]
 
-    first = request.bindings[0]
-    operations.append({
-        "id": "ranked", "op": "SORT", "inputs": ["cohort"],
-        "params": {"by": [{"column": _condition_column(first, column_for),
-                           "direction": ("desc" if first.condition.op in ("gt", "gte")
-                                         else "asc")}]},
-        "label": "Largest movement first",
-    })
-    operations.append({
-        "id": "result", "op": "LIMIT", "inputs": ["ranked"],
-        "params": {"n": MAX_ROWS},
-        "label": f"The first {MAX_ROWS} rows",
-    })
+    movement = [b for b in request.bindings
+                if b.condition.kind not in ("level", "order")]
+    ordering_only = [b for b in request.bindings if b.condition.kind == "order"]
+
+    if request.shape == ASSOCIATION:
+        _association(operations, request, column_for, standing, movement)
+    elif request.shape == RANKING:
+        _ranking(operations, request, column_for, standing,
+                 movement + ordering_only)
+    else:
+        _cohort(operations, request, column_for, standing, movement)
 
     plan = {
         "id": "dynamic_multi_dataset",
@@ -623,13 +776,114 @@ def build_plan(request: MultiRequest, *, catalogue: Any) -> PlanBuild:
                      warnings=warnings + list(request.resolution.warnings))
 
 
+
+def _cohort(operations: list[dict[str, Any]], request: MultiRequest,
+            column_for: dict[tuple[str, str], str],
+            standing: list[dict[str, Any]], movement: list[Binding]) -> None:
+    """Everything meeting every condition, worst first."""
+    where = standing + [
+        {"column": _condition_column(b, column_for),
+         "op": _OPS[b.condition.op], "value": b.condition.value}
+        for b in movement]
+    operations.append({
+        "id": "cohort", "op": "FILTER", "inputs": ["movements"],
+        "params": {"where": where or [{"column": request.key,
+                                       "op": "is_not_null"}]},
+        "label": "Keep only those meeting every condition",
+    })
+
+    first = (movement or request.bindings)[0]
+    operations.append({
+        "id": "ranked", "op": "SORT", "inputs": ["cohort"],
+        "params": {"by": [{"column": _condition_column(first, column_for),
+                           "direction": ("desc" if first.condition.op in
+                                         ("gt", "gte", "eq") else "asc")}]},
+        "label": "Largest movement first",
+    })
+    operations.append({
+        "id": "result", "op": "LIMIT", "inputs": ["ranked"],
+        "params": {"n": MAX_ROWS},
+        "label": f"The first {MAX_ROWS} rows",
+    })
+
+
+def _ranking(operations: list[dict[str, Any]], request: MultiRequest,
+             column_for: dict[tuple[str, str], str],
+             standing: list[dict[str, Any]], movement: list[Binding]) -> None:
+    """An ordering, with no threshold invented.
+
+    "Which borrowers are closest to covenant breach" sets no cut-off, and
+    answering it as though it had one would put a number in the analysis that
+    nobody chose. So the population is filtered only by what the question
+    actually said, and then ordered.
+    """
+    operations.append({
+        "id": "cohort", "op": "FILTER", "inputs": ["movements"],
+        "params": {"where": standing or [{"column": request.key,
+                                          "op": "is_not_null"}]},
+        "label": ("Apply the conditions the question stated — no threshold is "
+                  "invented for a question that set none"),
+    })
+
+    ordering = []
+    for binding in (movement or request.bindings):
+        column = _condition_column(binding, column_for)
+        # Worst first: for a measure where higher is worse, descending.
+        ordering.append({
+            "column": column,
+            "direction": "desc" if binding.match.concept.higher_is_worse else "asc",
+        })
+    operations.append({
+        "id": "ranked", "op": "SORT", "inputs": ["cohort"],
+        "params": {"by": ordering},
+        "label": "Worst first, by each measure the question named",
+    })
+    operations.append({
+        "id": "result", "op": "LIMIT", "inputs": ["ranked"],
+        "params": {"n": MAX_RANKED},
+        "label": (f"The {MAX_RANKED} worst. A ranking question wants the top "
+                  "of the list, not the whole book."),
+    })
+
+
+def _association(operations: list[dict[str, Any]], request: MultiRequest,
+                 column_for: dict[tuple[str, str], str],
+                 standing: list[dict[str, Any]], movement: list[Binding]) -> None:
+    """Whether two measures moved together — and nothing stronger than that.
+
+    No threshold, because the question did not set one, and no direction of
+    causation, because a correlation cannot establish one. The kernel returns
+    a coefficient and a sample size; the interpretation that goes with it says
+    co-movement, and says it in those words.
+    """
+    operations.append({
+        "id": "cohort", "op": "FILTER", "inputs": ["movements"],
+        "params": {"where": standing or [{"column": request.key,
+                                          "op": "is_not_null"}]},
+        "label": "The population the association is measured over",
+    })
+    first, second = movement[0], movement[1]
+    left = _condition_column(first, column_for)
+    right = _condition_column(second, column_for)
+    operations.append({
+        "id": "result", "op": "CORRELATION", "inputs": ["cohort"],
+        "params": {"x": left, "y": right, "columns": [left, right],
+                   "method": "pearson"},
+        "label": (f"Measure how {first.match.concept.label} and "
+                  f"{second.match.concept.label} moved together"),
+    })
+
+
 def _condition_column(binding: Binding,
                       column_for: dict[tuple[str, str], str]) -> str:
     """The column a condition actually tests, after the joins renamed things."""
     measure = column_for[(binding.dataset, binding.field)]
     return {"change_pct": f"{measure}_change_pct",
             "change_abs": f"{measure}_change",
-            "level": measure}[binding.condition.kind]
+            "level": measure,
+            # An ordering binding filters on nothing; it names the column the
+            # answer is sorted by.
+            "order": measure}[binding.condition.kind]
 
 
 def _join_edge(operations: list[dict[str, Any]], joins: list[dict[str, Any]],

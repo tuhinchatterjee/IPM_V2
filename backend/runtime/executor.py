@@ -181,6 +181,7 @@ def execute(plan: AnalyticalPlan | dict[str, Any], *,
     result = _shape(run_id, plan, frame, query, report, certification, duration_ms)
     result.reconciliation = reconciliation
     result.joins = _join_lineage(graph, sql_node, plan, reconciliation)
+    result.warnings.extend(_explosion_warnings(result.joins))
 
     _trace_result(graph, cursor, result)
     graph.compute_hashes()
@@ -594,6 +595,34 @@ def _join_lineage(graph: TraceGraph, parent: str, plan: AnalyticalPlan,
         graph.add_node(node)
         graph.connect(parent, node.id)
         node.mark_ok(rows_out=entry.get("rows"))
+    return out
+
+
+#: A join whose output is this many times its input has fanned out. It is a
+#: warning rather than a refusal because a deliberate fan-out exists — a
+#: facility to its covenants — but an unintended one is the single most common
+#: way a composed analysis overstates a book, and it must never pass silently.
+MAX_JOIN_MULTIPLICATION = 1.5
+
+
+def _explosion_warnings(joins: list[dict[str, Any]]) -> list[str]:
+    """Say so when a join produced more rows than it consumed."""
+    out: list[str] = []
+    for join in joins:
+        rows_in = join.get("rows_lost")
+        rows_out = join.get("rows_out")
+        if rows_out is None or rows_in is None:
+            continue
+        before = rows_out + rows_in
+        if before <= 0:
+            continue
+        factor = rows_out / before
+        if factor > MAX_JOIN_MULTIPLICATION:
+            out.append(
+                f"{join.get('label') or join['step']} produced {rows_out:,} rows "
+                f"from {before:,} — a factor of {factor:.1f}. Check the "
+                "cardinality of the relationship it used before relying on any "
+                "total from this analysis.")
     return out
 
 
