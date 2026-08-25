@@ -10,6 +10,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  Share2,
   ShieldCheck,
   Table2,
   Trash2,
@@ -124,6 +125,12 @@ export default function DataBuilderPage() {
         status="live"
         actions={
           <>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/data-builder/relationships">
+                <Share2 aria-hidden />
+                Relationships
+              </Link>
+            </Button>
             <Button variant="outline" size="sm" asChild>
               <Link href="/data-builder/inbox">
                 <Inbox aria-hidden />

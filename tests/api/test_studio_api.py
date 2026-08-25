@@ -288,3 +288,40 @@ def test_a_method_with_no_plan_has_no_workbook(client):
     response = client.get(f"/api/v1/studio/{target['id']}/validation-pack.xlsx",
                           headers=ANALYST)
     assert response.status_code == 422
+
+
+def test_an_edit_is_read_back_before_it_happens(client, built):
+    """Two steps rather than one: an edit to a certified method starts a new
+    version and drops the tick, and doing that from a sentence nobody read back
+    would make an edit an accident."""
+    method_id = built["method"]["id"]
+    body = client.post(f"/api/v1/studio/{method_id}/propose-edit", headers=ANALYST,
+                       json={"request": 'Add a limitation that "identifiers must '
+                                        'be stable across periods"'}).json()
+    proposal = body["proposal"]
+    assert proposal["understood"]
+    assert proposal["field"] == "limitations"
+    assert "identifiers must be stable" in proposal["after"]
+    assert proposal["before"] in proposal["after"], "Adding must keep what was there."
+
+    # Nothing was applied.
+    unchanged = client.get(f"/api/v1/studio/{method_id}").json()["method"]
+    assert unchanged["limitations"] == proposal["before"]
+
+
+def test_a_proposal_says_when_it_would_cost_the_tick(client, built):
+    method_id = built["method"]["id"]
+    client.post(f"/api/v1/studio/{method_id}/certify", headers=ADMIN,
+                json={"certified_by": "Model Validation"})
+    body = client.post(f"/api/v1/studio/{method_id}/propose-edit", headers=ANALYST,
+                       json={"request": 'Change the interpretation to "read it '
+                                        'against the assigned PD"'}).json()
+    assert body["would_drop_certification"]
+    assert "new version" in body["note"]
+
+
+def test_an_instruction_that_cannot_be_read_is_refused_not_guessed(client, built):
+    body = client.post(f"/api/v1/studio/{built['method']['id']}/propose-edit",
+                       headers=ANALYST, json={"request": "make it better"}).json()
+    assert not body["proposal"]["understood"]
+    assert body["proposal"]["note"]

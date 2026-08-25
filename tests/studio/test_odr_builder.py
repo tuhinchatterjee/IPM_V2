@@ -235,3 +235,73 @@ def test_a_failing_pack_blocks_certification():
     ok, missing = method.can_certify()
     assert not ok
     assert any("failing" in m for m in missing)
+
+
+# -------------------------------------------------- editing it in words
+
+
+@pytest.mark.parametrize("instruction,field", [
+    ('Add a limitation that "it assumes stable identifiers"', "limitations"),
+    ('Change the interpretation to say "read it against the assigned PD"',
+     "interpretation"),
+    ('Also mention in when not to use it that "retail books behave differently"',
+     "when_not_to_use"),
+])
+def test_an_instruction_names_the_part_it_is_about(instruction, field):
+    from backend.studio.builder import read_edit
+
+    proposal = read_edit(instruction, {field: "existing text"})
+    assert proposal.understood, proposal.note
+    assert proposal.field == field
+    assert proposal.after != proposal.before
+
+
+def test_adding_keeps_what_is_there_and_replacing_does_not():
+    from backend.studio.builder import read_edit
+
+    current = {"limitations": "One observation is one observation."}
+    added = read_edit('Add a limitation that "exits bias the result"', current)
+    assert added.mode == "append"
+    assert current["limitations"] in added.after
+
+    replaced = read_edit(
+        'Change the limitations to "exits bias the result"', current)
+    assert replaced.mode == "replace"
+    assert current["limitations"] not in replaced.after
+
+
+def test_an_instruction_naming_no_part_is_refused():
+    from backend.studio.builder import read_edit
+
+    proposal = read_edit("tidy this up", {})
+    assert not proposal.understood
+    assert "could not tell which part" in proposal.note
+
+
+def test_an_instruction_with_no_new_wording_is_refused():
+    from backend.studio.builder import read_edit
+
+    proposal = read_edit("improve the limitations", {})
+    assert not proposal.understood
+
+
+def test_an_instruction_that_does_not_say_add_or_replace_is_refused():
+    """Guessing wrong loses text somebody wrote."""
+    from backend.studio.builder import read_edit
+
+    proposal = read_edit('the limitations: "exits bias the result"',
+                         {"limitations": "something"})
+    assert not proposal.understood
+    assert "replaces" in proposal.note
+
+
+def test_the_plan_cannot_be_reached_through_a_sentence():
+    """A sentence that changes a calculation without changing a test is how a
+    certified method quietly stops computing what it says."""
+    from backend.studio.builder import read_edit
+
+    for instruction in ['Change the plan to "use 60 days"',
+                        'Set the required fields to "whatever"',
+                        'Change the threshold to "60"']:
+        proposal = read_edit(instruction, {})
+        assert proposal.field not in ("plan", "required_fields", "engine_analysis")

@@ -806,6 +806,37 @@ export class ApiError extends Error {
 }
 
 
+export interface RelationshipNode {
+  name: string;
+  domain: string;
+  business_name?: string;
+  grain: string;
+  period_field?: string;
+  field_count: number;
+  is_synthetic: boolean;
+  authoritative_for?: string[];
+  in_catalogue: boolean;
+}
+
+export interface RelationshipEdge {
+  id: number;
+  name: string;
+  from_dataset: string;
+  from_field: string;
+  to_dataset: string;
+  to_field: string;
+  cardinality: string;
+  kind: string;
+  description: string;
+}
+
+export interface RelationshipMap {
+  nodes: RelationshipNode[];
+  edges: RelationshipEdge[];
+  connected: number;
+  unconnected: string[];
+}
+
 // ---------------------------------------------------------------------------
 // Data Inbox
 // ---------------------------------------------------------------------------
@@ -2735,6 +2766,12 @@ export const api = {
       `/data-builder/datasets/${name}/harmonise/accept`,
       { method: "POST", body: JSON.stringify({ accepted }) },
     ),
+
+  // ---- relationships ----
+  relationshipMap: () => request<RelationshipMap>("/data-builder/relationships/map"),
+  seedRelationships: () =>
+    request<{ declared: string[]; skipped: string[]; total: number }>(
+      "/data-builder/relationships/seed", { method: "POST" }),
 
   // ---- the data inbox ----
   inbox: (status = "") =>

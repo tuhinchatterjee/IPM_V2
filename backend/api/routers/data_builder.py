@@ -462,6 +462,32 @@ def list_relationships(dataset: str | None = None, session: Session = Depends(ge
     ]}
 
 
+@router.get("/relationships/map", summary="The relationship map")
+def relationship_map(session: Session = Depends(get_db)) -> dict:
+    """Every governed dataset and every declared join between them.
+
+    Nodes carry their grain, because "one row per what" is the question a
+    relationship map is usually being consulted to answer — two boxes joined by
+    a line whose grain nobody states is a picture rather than a model.
+    """
+    from backend.services import relationships as rel_service
+
+    return rel_service.graph(session)
+
+
+@router.post("/relationships/seed", summary="Declare the shipped joins")
+def seed_relationships(session: Session = Depends(get_db),
+                       principal: Principal = RequireDataSteward) -> dict:
+    """Declare the demonstration book's own joins. Idempotent and additive.
+
+    It never removes a relationship a steward declared: a bank's own join is
+    not this endpoint's to withdraw.
+    """
+    from backend.services import relationships as rel_service
+
+    return rel_service.seed(session)
+
+
 @router.post("/relationships", status_code=status.HTTP_201_CREATED,
              summary="Define a relationship between two datasets")
 def add_relationship(payload: RelationshipIn, session: Session = Depends(get_db),

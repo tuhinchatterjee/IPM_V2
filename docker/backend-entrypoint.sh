@@ -97,6 +97,16 @@ if [ -n "${DATABASE_URL:-}" ]; then
   python scripts/seed_demo_users.py || say "Could not seed the demonstration users."
 fi
 
+# ------------------------------------------------- 3c. the governed joins
+
+# The demonstration book ships with its relationships declared, because a
+# twenty-domain book whose joins a steward has to draw by hand is a
+# twenty-domain book nobody joins. Idempotent and additive: it never removes a
+# relationship somebody declared themselves.
+if [ -n "${DATABASE_URL:-}" ]; then
+  python scripts/seed_relationships.py || say "Could not declare the governed joins."
+fi
+
 # ------------------------------------------------------------------ 4. serve
 
 say "Starting the CreditProbe API on 0.0.0.0:${API_PORT:-8000}"

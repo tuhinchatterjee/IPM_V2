@@ -470,8 +470,115 @@ def _aliases_for(name: str) -> list[str]:
 __all__ = [
     "FORWARD_RATE_CLARIFICATIONS",
     "Clarification",
+    "ProposedEdit",
     "Reading",
     "build_forward_rate_plan",
     "build_method",
     "read_description",
+    "read_edit",
 ]
+
+
+# ------------------------------------------------- editing a method in words
+
+
+#: Which prose field an instruction is about. Matched longest-phrase-first, so
+#: "when not to use" beats "use". Only prose: the plan is not editable as
+#: English, because a sentence that changes a calculation without changing a
+#: test is how a certified method quietly stops computing what it says.
+_EDITABLE_FIELDS: list[tuple[str, str]] = [
+    (r"when (it should )?not be used|when not to use|do not use", "when_not_to_use"),
+    (r"when to use|when it should be used|applicab", "when_to_use"),
+    (r"limitation|what it does not tell|caveat|weakness", "limitations"),
+    (r"interpret|how to read|reading", "interpretation"),
+    (r"methodolog|how it is calculated|how it works", "methodology"),
+    (r"purpose|why we", "purpose"),
+    (r"definition|what it measures", "definition"),
+    (r"output type|output", "output_type"),
+    (r"\bname\b|call it|rename", "name"),
+]
+
+#: Add to what is there, or replace it. "Also say" and "add" append; "change to"
+#: and "say instead" replace. Guessing wrong loses somebody's text, so an
+#: instruction matching neither is refused rather than assumed.
+_APPEND = r"\b(also|add|append|include|as well|mention)\b"
+_REPLACE = r"\b(change|replace|instead|reword|rewrite|set|make it|should (read|say))\b"
+
+
+@dataclass
+class ProposedEdit:
+    """What CreditProbe would change, before anything is changed."""
+
+    understood: bool
+    field: str = ""
+    mode: str = ""              # append | replace
+    before: str = ""
+    after: str = ""
+    note: str = ""
+
+    @property
+    def diff(self) -> str:
+        if not self.understood:
+            return ""
+        return f"{self.field}: {self.before or '(empty)'} → {self.after}"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"understood": self.understood, "field": self.field,
+                "mode": self.mode, "before": self.before, "after": self.after,
+                "note": self.note, "diff": self.diff}
+
+
+def read_edit(instruction: str, current: dict[str, str]) -> ProposedEdit:
+    """Read an instruction into a proposed change. Nothing is applied here.
+
+    Deterministic, and it refuses rather than guesses. "Tidy this up" names no
+    field and no new text; acting on it would rewrite somebody's methodology on
+    a model's judgement, which is precisely the thing this product does not do.
+    """
+    text = " ".join(str(instruction).split())
+    if not text:
+        return ProposedEdit(False, note="Say what should change.")
+
+    lowered = text.lower()
+    field = ""
+    for pattern, target in _EDITABLE_FIELDS:
+        if re.search(pattern, lowered):
+            field = target
+            break
+    if not field:
+        return ProposedEdit(
+            False,
+            note=("CreditProbe could not tell which part of the method this is "
+                  "about. Name one: the definition, purpose, methodology, when "
+                  "to use it, when not to use it, how to read the result, its "
+                  "limitations, or its name."))
+
+    # The new text is what follows the instruction's verb. Quoted text wins,
+    # because somebody who quoted it meant exactly that.
+    quoted = re.search(r"[\"“']([^\"”']{3,})[\"”']", text)
+    if quoted:
+        replacement = quoted.group(1).strip()
+    else:
+        tail = re.split(
+            r"\b(?:to say|should say|should read|to read|that|to|:)\s+", text,
+            maxsplit=1)
+        replacement = tail[1].strip() if len(tail) > 1 else ""
+
+    if not replacement:
+        return ProposedEdit(
+            False, field=field,
+            note=("CreditProbe read which part to change but not what to change "
+                  "it to. Put the new wording in quotes."))
+
+    mode = ("append" if re.search(_APPEND, lowered)
+            else "replace" if re.search(_REPLACE, lowered) else "")
+    if not mode:
+        return ProposedEdit(
+            False, field=field,
+            note=("Say whether this replaces what is there or is added to it. "
+                  "Guessing wrong loses text somebody wrote."))
+
+    before = str(current.get(field, "") or "")
+    after = (f"{before} {replacement}".strip() if mode == "append" and before
+             else replacement)
+    return ProposedEdit(True, field=field, mode=mode, before=before, after=after)

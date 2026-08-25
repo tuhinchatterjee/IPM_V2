@@ -89,6 +89,12 @@ class ForkIn(BaseModel):
     method_id: str = Field(default="", max_length=160)
 
 
+class ProposeEditIn(BaseModel):
+    """An edit described in words. Read, never applied by this endpoint."""
+
+    request: str = Field(min_length=1, max_length=MAX_TEXT)
+
+
 class EditIn(BaseModel):
     changes: dict[str, str] = Field(default_factory=dict)
     change_note: str = Field(default="", max_length=MAX_TEXT)
@@ -298,6 +304,38 @@ def fork(method_id: str, payload: ForkIn,
         "note": ("The fork starts as a draft with no certification and no test "
                  "results, however certified its source was. Run its validation "
                  "pack before relying on it."),
+    }
+
+
+@router.post("/{method_id}/propose-edit",
+             summary="Say what to change, and see the change before it happens")
+def propose_edit(method_id: str, payload: ProposeEditIn,
+                 principal: Principal = RequireAnalyst) -> dict:
+    """Read an instruction into a proposed change, and stop there.
+
+    Two steps rather than one on purpose. An edit to a certified method starts a
+    new version and drops the tick; doing that from a sentence nobody has read
+    back would make an edit an accident. What comes back is the exact before and
+    after, which the caller then applies through /edit.
+
+    It refuses rather than guesses. "Tidy this up" names no part and no wording,
+    and acting on it would rewrite somebody's methodology on a model's judgement.
+    """
+    from backend.studio.builder import read_edit
+
+    try:
+        method = service.load(method_id)
+    except service.StudioError as e:
+        raise _not_found(e) from e
+
+    proposal = read_edit(payload.request, method.to_dict())
+    return {
+        "proposal": proposal.to_dict(),
+        "method_id": method.id,
+        "would_drop_certification": method.is_certified and proposal.understood,
+        "note": ("Applying this starts a new version and removes the "
+                 "certification. The signed-off version stays in the history."
+                 if method.is_certified else ""),
     }
 
 
