@@ -816,6 +816,7 @@ export interface RelationshipNode {
   is_synthetic: boolean;
   authoritative_for?: string[];
   in_catalogue: boolean;
+  degree: number;
 }
 
 export interface RelationshipEdge {
@@ -828,6 +829,55 @@ export interface RelationshipEdge {
   cardinality: string;
   kind: string;
   description: string;
+  /** What the join means in credit terms, not what it does mechanically. */
+  semantic: string;
+  lifecycle: string;
+  lifecycle_label: string;
+  version: number;
+  is_preferred: boolean;
+  confidence: number;
+  join_policy: string;
+  temporal_rule: string;
+  temporal_label: string;
+  match_rate: number | null;
+  orphan_rate: number | null;
+  duplicate_rate: number | null;
+  validated_at: string;
+  validation: Record<string, unknown>;
+  /** Only an ACTIVE relationship may be joined on by the runtime. */
+  is_runnable: boolean;
+}
+
+export interface RelationshipThresholds {
+  min_match_rate: number;
+  max_duplicate_rate: number;
+  min_confidence: number;
+}
+
+export interface RelationshipVersionEntry {
+  version: number;
+  definition: Record<string, unknown>;
+  change_note: string;
+  changed_by: number | null;
+  created_at: string;
+}
+
+export interface RelationshipDetail {
+  relationship: RelationshipEdge;
+  versions: RelationshipVersionEntry[];
+  thresholds: RelationshipThresholds;
+}
+
+export interface RelationshipValidation {
+  ok: boolean;
+  findings: string[];
+  match_rate?: number;
+  orphan_rate?: number;
+  duplicate_rate?: number;
+  left_rows?: number;
+  right_rows?: number;
+  left_period?: string | null;
+  right_period?: string | null;
 }
 
 export interface RelationshipMap {
@@ -835,6 +885,9 @@ export interface RelationshipMap {
   edges: RelationshipEdge[];
   connected: number;
   unconnected: string[];
+  active_count: number;
+  lifecycles: { id: string; label: string }[];
+  thresholds: RelationshipThresholds;
 }
 
 // ---------------------------------------------------------------------------
@@ -2772,6 +2825,16 @@ export const api = {
   seedRelationships: () =>
     request<{ declared: string[]; skipped: string[]; total: number }>(
       "/data-builder/relationships/seed", { method: "POST" }),
+  relationship: (id: number) =>
+    request<RelationshipDetail>(`/data-builder/relationships/${id}`),
+  validateRelationship: (id: number, period = "") =>
+    request<{ relationship: RelationshipEdge; report: RelationshipValidation }>(
+      `/data-builder/relationships/${id}/validate${period ? `?period=${encodeURIComponent(period)}` : ""}`,
+      { method: "POST", timeoutMs: 120_000 }),
+  setRelationshipLifecycle: (id: number, lifecycle: string, note = "") =>
+    request<{ relationship: RelationshipEdge; versions: RelationshipVersionEntry[] }>(
+      `/data-builder/relationships/${id}/lifecycle`,
+      { method: "POST", body: JSON.stringify({ lifecycle, note }) }),
 
   // ---- the data inbox ----
   inbox: (status = "") =>
