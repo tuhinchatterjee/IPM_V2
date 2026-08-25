@@ -578,17 +578,22 @@ def _join(op: Operation, inputs: list[StepSchema], catalog: Any, limits: Limits,
     if kind in ("anti", "semi"):
         return StepSchema(dict(left.columns), left.dataset, left.period)
 
+    # Mirrors the compiler exactly. A schema that disagrees with the SQL is
+    # worse than no schema: validation passes and the database refuses, which
+    # is the failure mode that makes a plan look non-deterministic.
     out = dict(left.columns)
     prefix = str(op.params.get("right_prefix") or "")
+    right_keys = {p[1] for p in pairs}
     for name, origin in right.columns.items():
-        key = f"{prefix}{name}" if prefix else name
-        if key in out and key not in {p[0] for p in pairs}:
+        if name in right_keys and name in left.columns:
+            continue  # the key is already carried by the left side
+        alias = f"{prefix}{name}" if prefix else name
+        if alias in left.columns:
             # Both sides carry it. Keep the left and expose the right renamed,
             # rather than silently choosing one — a silently dropped column is
             # how a join quietly answers a different question.
-            out[f"right_{name}"] = origin
-        else:
-            out[key] = origin
+            alias = f"right_{name}"
+        out[alias] = origin
     return StepSchema(out, "", left.period or right.period)
 
 
