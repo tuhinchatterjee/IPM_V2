@@ -1327,6 +1327,154 @@ MACRO_FIELDS = {
 }
 
 
+
+# ==================================================== the rest of the domains
+#
+# Thirteen more governed domains, every one DERIVED from the simulation above
+# rather than generated beside it. A demonstration where the collateral register
+# contradicts the facility book is a demonstration of nothing, so the register
+# is split out of the facility's own collateral figure, the covenant tests are
+# computed from its headroom, and the recoveries are anchored on its LGD.
+
+
+def build_extra_domains(customers, facility, staging, ratings, macro, rng):
+    """Every additional domain, keyed by governed dataset name."""
+    from scripts import domains_extra as extra
+
+    built = {
+        "collateral_register": extra.build_collateral(facility, rng),
+        "covenant_tests": extra.build_covenants(facility, rng),
+        "facility_limits": extra.build_limits(facility, rng),
+        "watchlist_register": extra.build_watchlist(facility, rng),
+        "recoveries": extra.build_recoveries(facility, rng),
+        "payment_history": extra.build_payments(facility, rng),
+        "group_structure": extra.build_groups(customers, rng),
+        "rating_transitions": extra.build_transitions(ratings),
+        "risk_appetite_limits": extra.build_appetite(facility),
+        "pd_model_performance": extra.build_model_performance(facility),
+        "scenario_definitions": extra.build_scenarios(macro),
+        "facility_profitability": extra.build_profitability(facility),
+        "climate_risk": extra.build_climate(customers, rng),
+    }
+    # An empty frame is a bug, not a dataset. Dropping it silently would leave a
+    # catalogue entry pointing at nothing, which the Data Access Layer would
+    # then serve as "no rows" rather than as the failure it is.
+    return {name: frame for name, frame in built.items() if not frame.empty}
+
+
+#: What each additional domain IS, in the terms the catalogue uses. Written out
+#: rather than derived from the name: the grain and the purpose are the two
+#: things a reader most needs and the two a generator cannot infer.
+EXTRA_DOMAINS = {
+    "collateral_register": (
+        "Collateral", "Collateral Register",
+        "Every collateral item held against a facility, its market value, the "
+        "haircut applied and what it is actually worth in a forced sale.",
+        "One row per collateral item per facility per reporting period.",
+        ["period", "collateral_id"], "Credit Risk Operations"),
+    "covenant_tests": (
+        "Covenants", "Covenant Testing",
+        "Each covenant tested against each facility every quarter: the "
+        "threshold, the actual, the headroom, and whether a breach was waived.",
+        "One row per covenant per facility per reporting period.",
+        ["period", "test_id"], "Credit Risk Operations"),
+    "facility_limits": (
+        "Limits and Approvals", "Facility Limits and Approvals",
+        "The sanctioned limit behind every facility: who was authorised to "
+        "approve it, when it expires, and any excess over it.",
+        "One row per facility per reporting period.",
+        ["period", "account_id"], "Credit Administration"),
+    "watchlist_register": (
+        "Watchlist", "Watchlist Register",
+        "Customers under heightened monitoring: why, since when, who owns the "
+        "relationship and what was agreed.",
+        "One row per watchlisted customer per reporting period.",
+        ["period", "customer_id"], "Credit Risk"),
+    "recoveries": (
+        "Recovery and Cure", "Recoveries and Write-offs",
+        "What happened after default: cash recovered, collateral realised, "
+        "amount written off, and whether the facility cured.",
+        "One row per defaulted facility per reporting period.",
+        ["period", "account_id"], "Special Assets"),
+    "payment_history": (
+        "Arrears and Collections", "Payment History",
+        "What was contractually due and what actually arrived, per facility "
+        "per quarter.",
+        "One row per facility per reporting period.",
+        ["period", "account_id"], "Credit Risk Operations"),
+    "group_structure": (
+        "Group Structure", "Obligor Group Structure",
+        "Who owns whom. Large-exposure limits apply at group level, so a group "
+        "with no structure behind it is a limit nobody can test.",
+        "One row per group member.",
+        ["customer_id"], "Credit Administration"),
+    "rating_transitions": (
+        "Corporate Ratings", "Rating Transitions",
+        "Consecutive rating pairs per customer — the input to a transition "
+        "matrix, reconciling exactly to the rating history it summarises.",
+        "One row per customer per pair of consecutive rating years.",
+        ["customer_id", "from_year"], "Credit Risk Analytics"),
+    "risk_appetite_limits": (
+        "Risk Appetite", "Sector Appetite Limits",
+        "The concentration limit set for each sector and the book's actual "
+        "position against it.",
+        "One row per sector per reporting period.",
+        ["period", "sector"], "Risk Appetite Committee"),
+    "pd_model_performance": (
+        "Model Performance", "PD Model Performance",
+        "Predicted against observed default rates by segment and quarter — the "
+        "input to a calibration finding.",
+        "One row per segment per reporting period.",
+        ["period", "segment"], "Model Validation"),
+    "scenario_definitions": (
+        "Stress and Scenario", "Scenario Definitions",
+        "Named macroeconomic scenarios as shocked quarterly paths, phased in "
+        "over four quarters and persisting.",
+        "One row per scenario per quarter.",
+        ["scenario", "period"], "Stress Testing"),
+    "facility_profitability": (
+        "Return and Profitability", "Facility Profitability",
+        "Revenue, funding cost, expected loss and regulatory capital per "
+        "facility, with RAROC recomputed from its parts.",
+        "One row per facility per reporting period.",
+        ["period", "account_id"], "Finance"),
+    "climate_risk": (
+        "Climate and ESG", "Climate Risk Assessment",
+        "Transition and physical risk per customer, banded by sector and "
+        "region so the placement can be argued with rather than trusted.",
+        "One row per customer.",
+        ["customer_id"], "Sustainability Risk"),
+}
+
+
+def extra_catalog_entries(frames, infer, field_fn):
+    """Catalogue entries for the additional domains."""
+    entries = []
+    for name, frame in frames.items():
+        domain, business, purpose, grain, keys, owner = EXTRA_DOMAINS[name]
+        entries.append({
+            "name": name,
+            "domain": domain,
+            "business_name": business,
+            "purpose": purpose,
+            "grain": grain,
+            "primary_keys": keys,
+            "period_field": "period" if "period" in frame.columns else "",
+            "owner": owner,
+            "status": "active",
+            "version": "1.0.0",
+            "is_synthetic": True,
+            "origin": "demo",
+            "dataset_family": name,
+            # Deliberately empty. These serve questions directly by name; none
+            # of them is the authoritative answer to a governed purpose, and
+            # claiming otherwise would let one stand in for the facility book.
+            "authoritative_for": [],
+            "fields": infer(frame, {}),
+        })
+    return entries
+
+
 def main() -> int:
     from scripts.build_data_lake import (  # noqa: PLC0415 - optional reuse
         BORROWER_FIELDS,
@@ -1383,6 +1531,10 @@ def main() -> int:
     log(f"credit_memo_signals: {len(memos):,} notes, {negative:,} negative "
         f"({100.0 * negative / len(memos):.1f}%)")
 
+    extra = build_extra_domains(customers, facility, staging, ratings, macro, rng)
+    for name, frame in extra.items():
+        log(f"{name}: {len(frame):,} rows")
+
     print()
     print("ANALYTICS layer — Parquet, partitioned by period")
     parts = write_partitioned(facility, settings.analytics_dir / "portfolio_facility", "period")
@@ -1401,6 +1553,11 @@ def main() -> int:
     log(f"credit_memo_signals: {parts} period partitions")
     write_partitioned(financials, settings.analytics_dir / "borrower_financials", None)
     log("borrower_financials: 1 file (no period dimension)")
+
+    for name, frame in extra.items():
+        period_field = "period" if "period" in frame.columns else None
+        parts = write_partitioned(frame, settings.analytics_dir / name, period_field)
+        log(f"{name}: {parts} partition(s)")
 
     settings.curated_dir.mkdir(parents=True, exist_ok=True)
     facility.to_parquet(settings.curated_dir / "portfolio_facility.parquet", index=False)
@@ -1598,6 +1755,9 @@ def main() -> int:
         ],
         "synthetic_notice": DEMO_NOTE,
     }
+
+    catalog["datasets"].extend(
+        extra_catalog_entries(extra, infer_fields, field))
 
     settings.metadata_dir.mkdir(parents=True, exist_ok=True)
     catalog_path = settings.metadata_dir / "catalog.json"

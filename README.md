@@ -14,6 +14,7 @@ parameters and function version that produced it.
 |---|---|
 | [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) | What the product is: the 16 capabilities, the LLM/engine boundary, the Trace model |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How it is built: layers, data architecture, repository structure |
+| [docs/ANALYTICAL_RUNTIME.md](docs/ANALYTICAL_RUNTIME.md) | How CreditProbe composes an analysis nobody built, and why that is safe |
 | [docs/DEMO_SCOPE.md](docs/DEMO_SCOPE.md) | What is being built, in what order, and what is honestly not built yet |
 
 ---

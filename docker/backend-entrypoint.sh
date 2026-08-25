@@ -68,7 +68,11 @@ ANALYTICS_DIR="${DATA_ANALYTICS_DIR:-data/analytics}"
 # portfolio_facility and would pass a single-directory check, while the datasets
 # added since would silently not exist — and the analyses that read them would
 # report no data rather than an error.
-EXPECTED_DATASETS="portfolio_facility ifrs9_staging customer_ratings macro_saudi borrower_financials facility_delinquency credit_memo_signals"
+EXPECTED_DATASETS="portfolio_facility ifrs9_staging customer_ratings macro_saudi \
+borrower_financials facility_delinquency credit_memo_signals collateral_register \
+covenant_tests facility_limits watchlist_register recoveries payment_history \
+group_structure rating_transitions risk_appetite_limits pd_model_performance \
+scenario_definitions facility_profitability climate_risk"
 
 missing=""
 for dataset in ${EXPECTED_DATASETS}; do

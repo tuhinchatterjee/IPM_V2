@@ -1,5 +1,13 @@
 # CreditProbe — Architecture
 
+> **The analytical runtime supersedes parts of §5.** CreditProbe no longer
+> answers only from a fixed list of registered analyses: a question with no
+> prebuilt answer is composed as an Analytical IR plan, validated against the
+> governed catalogue, compiled to parameterised SQL and executed. The layers,
+> the data architecture and the governance boundary below are unchanged —
+> what changed is that the planner's output is now a *plan* rather than a
+> *choice*. See [ANALYTICAL_RUNTIME.md](ANALYTICAL_RUNTIME.md).
+
 Companion to `PRODUCT_SPEC.md`. This document covers **how** CreditProbe is built: the layers,
 the data architecture, the repository structure, and the reasoning behind each choice.
 
