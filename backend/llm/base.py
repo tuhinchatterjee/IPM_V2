@@ -1,0 +1,148 @@
+"""
+What CreditProbe needs from a language model, and nothing more.
+
+The orchestrator asks a model for exactly one thing: a **structured document**
+that conforms to a schema CreditProbe supplied. It never asks for prose that will
+be parsed into a decision, and it never asks for a figure. That constraint is
+what lets the provider be swapped without touching the analytical path, and it
+is why this interface has one method.
+
+Why schema-constrained rather than "return JSON"
+------------------------------------------------
+A model asked for JSON in prose returns JSON *most* of the time. The failure is
+not that parsing throws — that is recoverable — but that a plausible-looking
+object with a misspelled key silently loses a filter, and the analysis then
+answers a slightly different question with complete confidence. So the schema is
+enforced at the provider boundary: the model is given a tool whose input schema
+IS the contract, and a reply that does not call that tool is an error rather
+than something to salvage.
+
+Why no streaming
+----------------
+Nothing downstream can start until the whole plan is known — the validator
+rejects partial plans by construction. Streaming would add a failure mode and
+buy nothing.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Protocol
+
+
+class LLMError(RuntimeError):
+    """The provider could not produce a conforming answer.
+
+    Deliberately not split into subclasses per failure kind. Every caller does
+    the same thing — records that the model was unavailable and degrades — and a
+    taxonomy nobody switches on is decoration.
+    """
+
+
+@dataclass(frozen=True)
+class LLMResult:
+    """One structured answer, with what it cost to get it."""
+
+    data: dict[str, Any]
+    model: str
+    #: Wall-clock, so a slow provider is visible in the Trace rather than felt.
+    duration_ms: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    #: Set when the provider retried. Recorded because a plan that took three
+    #: attempts is worth knowing about even though it succeeded.
+    attempts: int = 1
+
+
+@dataclass(frozen=True)
+class ProviderStatus:
+    """What Settings and the Cockpit show about the AI.
+
+    `configured` is the only field anything branches on. The rest is display,
+    and none of it may ever carry the key — `detail` is written for a screen a
+    user can screenshot.
+    """
+
+    provider: str
+    model: str
+    configured: bool
+    state: str          # connected | no_key | error
+    detail: str
+
+    @property
+    def label(self) -> str:
+        return {"connected": "CONNECTED",
+                "no_key": "NO PROVIDER KEY",
+                "error": "UNAVAILABLE"}.get(self.state, self.state.upper())
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"provider": self.provider, "model": self.model,
+                "configured": self.configured, "state": self.state,
+                "label": self.label, "detail": self.detail}
+
+
+class LLMProvider(Protocol):
+    """A model CreditProbe can orchestrate with."""
+
+    name: str
+    model: str
+
+    @property
+    def configured(self) -> bool:
+        """Whether this provider can actually be called."""
+        ...
+
+    def status(self) -> ProviderStatus:
+        ...
+
+    def structured(self, *, system: str, prompt: str, schema: dict[str, Any],
+                   tool_name: str, tool_description: str,
+                   max_tokens: int = 2000) -> LLMResult:
+        """Return a document conforming to `schema`, or raise LLMError."""
+        ...
+
+
+@dataclass
+class NullProvider:
+    """No model is configured.
+
+    It raises rather than inventing an answer. The product's offline behaviour
+    is decided one level up, where it can be *labelled* — a provider that
+    quietly returned something plausible would make LIMITED OFFLINE MODE
+    unreportable, which is the specific dishonesty this class exists to avoid.
+    """
+
+    name: str = "none"
+    model: str = ""
+    reason: str = "No AI provider key is configured."
+
+    @property
+    def configured(self) -> bool:
+        return False
+
+    def status(self) -> ProviderStatus:
+        return ProviderStatus(
+            provider="none", model="", configured=False, state="no_key",
+            detail=(self.reason + " CreditProbe is running in LIMITED OFFLINE "
+                    "MODE: questions are read by a deterministic semantic "
+                    "planner over the governed catalogue, which understands "
+                    "credit concepts but not arbitrary phrasing."))
+
+    def structured(self, **_: Any) -> LLMResult:
+        raise LLMError(self.reason)
+
+
+#: Registered provider factories, by the value of AI_PROVIDER.
+_FACTORIES: dict[str, Any] = {}
+
+
+def register(name: str, factory: Any) -> None:
+    _FACTORIES[name] = factory
+
+
+def factories() -> dict[str, Any]:
+    return dict(_FACTORIES)
+
+
+__all__ = ["LLMError", "LLMProvider", "LLMResult", "NullProvider",
+           "ProviderStatus", "factories", "register"]

@@ -59,6 +59,13 @@ class Settings:
     max_upload_mb: int
     ollama_base_url: str
     anthropic_api_key: str
+    #: Which LLM provider orchestrates Ask CreditProbe. 'anthropic' by default;
+    #: 'offline' forces LIMITED OFFLINE MODE regardless of any key present.
+    ai_provider: str
+    #: Pins the model. Empty means the provider's own pinned default, which is
+    #: a fixed id rather than an alias so a provider-side change cannot alter
+    #: how CreditProbe reads a question without a release.
+    ai_model: str
     # Populated in later phases; empty until then.
     database_url: str
     secret_key: str
@@ -112,6 +119,8 @@ def _load() -> Settings:
         max_upload_mb=_int("MAX_UPLOAD_MB", 25),
         ollama_base_url=_get("OLLAMA_BASE_URL", "http://localhost:11434"),
         anthropic_api_key=_get("ANTHROPIC_API_KEY", ""),
+        ai_provider=_get("AI_PROVIDER", "anthropic"),
+        ai_model=_get("AI_MODEL", ""),
         database_url=_get("DATABASE_URL", ""),
         secret_key=_get("SECRET_KEY", ""),
         # Signing in is compulsory by default. A credit-risk product where

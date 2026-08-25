@@ -93,6 +93,8 @@ services:
       # Optional. With no key, Ask CreditProbe plans questions with its own
       # deterministic planner (DEMO_MODE) and still runs the real engine.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_PROVIDER: ${AI_PROVIDER:-anthropic}
+      AI_MODEL: ${AI_MODEL:-}
       SECRET_KEY: ${SECRET_KEY:-local-dev-not-a-real-secret}
 
       # Signing in is compulsory unless you deliberately turn it off. The four
