@@ -169,6 +169,52 @@ export interface EngineResult {
   input_row_count: number;
   warnings: string[];
   meta: Record<string, string>;
+
+  /* A dynamic analysis carries what it was composed from as well as what it
+   * returned. Optional, because a certified engine analysis has none of it —
+   * its methodology lives in the Engine Registry instead. */
+  plan?: AnalyticalPlanPayload;
+  query?: { sql: string; parameters: unknown[] } | null;
+  reading?: DynamicReading;
+  columns?: { name: string; type?: string }[];
+  certification?: string;
+  certification_label?: string;
+  truncated?: boolean;
+}
+
+export interface AnalyticalPlanPayload {
+  id?: string;
+  operations: {
+    id: string;
+    op: string;
+    inputs?: string[];
+    params?: Record<string, unknown>;
+    label?: string;
+  }[];
+  meta?: Record<string, unknown>;
+}
+
+export interface DynamicCondition {
+  field: string;
+  kind: string;
+  op: string;
+  value: number;
+  phrase: string;
+  column: string;
+  description: string;
+}
+
+export interface DynamicReading {
+  understood: boolean;
+  dataset: string;
+  grain: string;
+  opening_period: string;
+  closing_period: string;
+  filters: { field: string; value: string }[];
+  conditions: DynamicCondition[];
+  columns: string[];
+  summary: string;
+  reasons: string[];
 }
 
 export interface TraceNode {
@@ -2710,6 +2756,24 @@ export const api = {
    * download is what a person expects from a download button, and streaming it
    * through JavaScript to re-offer it as a blob adds a failure mode for nothing.
    */
+  studioSaveDynamic: (payload: {
+    name: string;
+    question: string;
+    summary: string;
+    plan: AnalyticalPlanPayload;
+  }) =>
+    request<{ method: StudioMethod; persisted: boolean; note: string }>(
+      "/studio/from-analysis",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: payload.name,
+          question: payload.question,
+          summary: payload.summary,
+          plan: payload.plan,
+        }),
+      },
+    ),
   studioValidationPackUrl: (id: string) =>
     `${API_BASE_URL}${API_PREFIX}/studio/${encodeURIComponent(id)}/validation-pack.xlsx`,
 

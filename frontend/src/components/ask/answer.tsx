@@ -12,6 +12,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
+import { DynamicAnalysisPanel } from "@/components/ask/dynamic-analysis";
 import { KpiTile } from "@/components/analytics/primitives";
 import { ResultView } from "@/components/analytics/result-view";
 import { Badge } from "@/components/ui/badge";
@@ -133,6 +134,7 @@ export function StepResult({
   runId,
   compact,
   returnTo,
+  question,
 }: {
   step: ExecutedStep;
   runId: number | null;
@@ -140,8 +142,14 @@ export function StepResult({
   compact?: boolean;
   /** Where Method and Trace should come back to. */
   returnTo?: { href: string; label: string };
+  /** The question this answered. Carried so a composed analysis can be saved
+   *  with the sentence it came from rather than with a generated title. */
+  question?: string;
 }) {
   const run = React.useMemo(() => asRun(step, runId), [step, runId]);
+  // A composed analysis has no definition in the library to open — it did not
+  // exist until the question was asked. It carries its own working instead.
+  const dynamic = step.certification === "dynamic";
   const method = returnTo
     ? withReturnTo(`/engine-builder/${step.analysis_id}`, returnTo.href, returnTo.label)
     : `/engine-builder/${step.analysis_id}`;
@@ -177,11 +185,13 @@ export function StepResult({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href={method} title="Open the analysis definition">
-              Method
-            </Link>
-          </Button>
+          {!dynamic && (
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={method} title="Open the analysis definition">
+                Method
+              </Link>
+            </Button>
+          )}
           {trace ? (
             <Button variant="ghost" size="sm" asChild>
               <Link href={trace} title="See exactly how this result was produced">
@@ -207,6 +217,10 @@ export function StepResult({
           </p>
         )}
       </div>
+
+      {dynamic && step.result && (
+        <DynamicAnalysisPanel result={step.result} question={question ?? ""} />
+      )}
 
       {(step.result?.warnings.length ?? 0) > 0 && (
         <div className="border-t border-border bg-surface-sunken px-5 py-2.5">
@@ -533,6 +547,7 @@ export function AnswerBlock({
           runId={runId}
           compact={compact}
           returnTo={returnTo}
+          question={run.question}
         />
       )}
 

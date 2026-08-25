@@ -21,7 +21,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 from backend.studio.builder import Reading, build_method, read_description
-from backend.studio.model import CERTIFIED_STATES, Lifecycle, MethodDefinition
+from backend.studio.model import (
+    CERTIFIED_STATES,
+    Category,
+    Lifecycle,
+    MethodDefinition,
+)
 from backend.studio.registry import MethodNotFound, Registry, get_registry
 from backend.studio.validation import ValidationPack, build_forward_rate_pack, run_pack
 
@@ -195,6 +200,66 @@ def _short(value: Any, limit: int = 60) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
+def from_dynamic(*, name: str, question: str, plan: dict[str, Any],
+                 summary: str = "", author: str = "",
+                 method_id: str = "") -> MethodDefinition:
+    """Keep a dynamic analysis as a method.
+
+    A composed analysis is a one-off by default: it answered a question and
+    then it is gone. Saving one is how a bank turns "somebody asked this in
+    March" into something the whole team can run — but it arrives as a DRAFT
+    with no tests and no tick, because nothing about running once against one
+    pair of periods is evidence that it is right.
+    """
+    if not (plan.get("operations") or []):
+        raise StudioError("There is no analytical plan to save.")
+
+    meta = dict(plan.get("meta") or {})
+    conditions = [str(c.get("description") or "") for c in meta.get("conditions") or []]
+    filters = [f"{f.get('field')} = {f.get('value')}" for f in meta.get("filters") or []]
+    grain = str(meta.get("grain") or "facility")
+
+    methodology = "\n".join([
+        f"Question as asked: {question}",
+        f"Read as: {summary}" if summary else "",
+        f"Grain: one row per {grain}.",
+        f"Governed filters: {', '.join(filters) or 'none'}.",
+        "Conditions, all of which must hold:",
+        *[f"  - {c}" for c in conditions],
+        f"Measured between {meta.get('opening_period')} and "
+        f"{meta.get('closing_period')} on the run that produced it.",
+    ])
+
+    return MethodDefinition(
+        id=method_id or slugify(name), name=name,
+        category=Category.CUSTOM,
+        definition=summary or f"Composed from the question: {question}",
+        purpose="Saved from a dynamic analysis so it can be run again.",
+        methodology=methodology.strip(),
+        lifecycle=Lifecycle.DRAFT,
+        aliases=[],
+        when_to_use="Where the same population has to be identified again.",
+        when_not_to_use=(
+            "Anywhere the answer will be relied on without review. This was "
+            "composed for one question and has never been validated."),
+        required_grain=f"One row per {grain} per reporting period",
+        required_fields=sorted({str(c.get("field")) for c in meta.get("conditions") or []
+                                if c.get("field")}),
+        required_domains=["credit_facility_position"],
+        output_type="Row list",
+        interpretation="Each row met every condition between the two dates.",
+        limitations=(
+            "Composed for one question and run against one pair of periods. "
+            "It carries no test cases and no certification, and the thresholds "
+            "in it were read from a sentence rather than agreed by anybody."),
+        plan=plan,
+        source="bank",
+        owner=author or "Credit Risk Analytics",
+        created_at=datetime.now(UTC).isoformat(),
+        updated_at=datetime.now(UTC).isoformat(),
+    )
+
+
 # ---------------------------------------------------------------- persistence
 
 
@@ -221,4 +286,4 @@ def load(method_id: str, *, registry: Registry | None = None) -> MethodDefinitio
 
 
 __all__ = ["StudioError", "build", "certify", "describe", "edit", "fork",
-           "load", "revalidate", "save", "slugify"]
+           "from_dynamic", "load", "revalidate", "save", "slugify"]

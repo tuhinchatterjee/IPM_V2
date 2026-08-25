@@ -36,9 +36,10 @@ from typing import Any
 from backend.engine.runner import AnalysisRunResult, run_analysis
 from backend.orchestration.clarification import needed_clarification
 from backend.orchestration.comprehension import comprehend
-from backend.orchestration.interpreter import Narrative, build_narrative
+from backend.orchestration.dynamic import DynamicRequest, build_plan, read_question
+from backend.orchestration.interpreter import Finding, Metric, Narrative, build_narrative
 from backend.orchestration.planner import get_planner, planner_mode
-from backend.orchestration.schema import AnalysisPlan, PlanRejected, PlanStep
+from backend.orchestration.schema import AnalysisPlan, PlanRejected, PlanStep, Scope, StepRole
 from backend.orchestration.validator import validate_plan
 from backend.orchestration.vocabulary import get_vocabulary
 from backend.trace.model import NodeStatus, NodeType, TraceGraph, TraceNode
@@ -472,6 +473,185 @@ def assemble(plan: AnalysisPlan, steps: list[ExecutedStep], *,
     )
 
 
+
+# ------------------------------------------------------ dynamic analysis
+
+
+#: A question naming this many independent conditions is not answered by any one
+#: certified analysis, however close an intent looks. Below it, the certified
+#: library is preferred — a reviewed calculation beats a composed one whenever
+#: both would answer the question.
+DYNAMIC_CONDITION_THRESHOLD = 2
+
+
+def dynamic_candidate(question: str, vocab: Any) -> DynamicRequest | None:
+    """Whether this question should be composed rather than looked up.
+
+    Returns the reading when the question is a multi-condition cohort question
+    CreditProbe can compose, and None when it should go to the certified
+    library. A reading that is not fully understood also returns None: the
+    ordinary path's own refusal is better than a half-composed analysis.
+    """
+    try:
+        request = read_question(question, periods=list(vocab.periods),
+                               dimensions=dict(vocab.dimensions))
+    except Exception as e:  # pragma: no cover - reading must never break a question
+        logger.warning("Dynamic reading failed: %s", e)
+        return None
+    if not request.understood:
+        return None
+    if len(request.conditions) < DYNAMIC_CONDITION_THRESHOLD:
+        return None
+    return request
+
+
+def _dynamic_plan(question: str, request: DynamicRequest) -> AnalysisPlan:
+    """An AnalysisPlan describing the composition, for the map and the record.
+
+    The step names `dynamic_analysis` rather than a registered id, and nothing
+    downstream treats it as certified. What actually runs is the Analytical IR
+    the request produced, through the same validator and compiler as everything
+    else.
+    """
+    return AnalysisPlan(
+        question=question,
+        intent=request.summary,
+        steps=[PlanStep(
+            analysis_id="dynamic_analysis",
+            title="Composed for this question",
+            rationale=("No certified analysis answers this combination of "
+                       "conditions, so CreditProbe composed one and ran it "
+                       "through the governed runtime."),
+            params={"grain": request.grain,
+                    "opening_period": request.opening,
+                    "closing_period": request.closing},
+            filters={f: v for f, v in request.filters},
+            role=StepRole.PRIMARY,
+        )],
+        scope=Scope(
+            focus=f"{request.grain}s meeting every stated condition",
+            output="ranking",
+            period_requirement="period_over_period",
+            period_specified=True,
+            from_period=request.opening,
+            to_period=request.closing,
+            filters={f: v for f, v in request.filters},
+            period_source="read from the question",
+        ),
+        planner="dynamic",
+        follow_ups=[],
+        notes=["This analysis was composed for this question. It is not a "
+               "certified method and has not been reviewed."],
+    )
+
+
+def _dynamic_narrative(question: str, request: DynamicRequest,
+                       result: Any) -> Narrative:
+    """The answer, with the fact/reading boundary kept where it always is.
+
+    Every figure here is `row_count` — a count of what the runtime returned. No
+    figure is computed in this function, and the reading below asserts nothing
+    the conditions did not already state.
+    """
+    grain = f"{request.grain}s" if result.row_count != 1 else request.grain
+    where = ", ".join(v for _, v in request.filters)
+    subject = f"{where} {grain}" if where else grain
+
+    conditions = [c.describe() for c in request.conditions]
+    findings = [Finding(
+        text=(f"{result.row_count} {subject} meet every condition between "
+              f"{request.opening} and {request.closing}."),
+        tone="warning" if result.row_count else "neutral",
+        evidence=[{"label": "Rows returned", "value": result.row_count}],
+    )]
+
+    return Narrative(
+        direct_answer=(
+            f"{result.row_count} {subject} meet all "
+            f"{len(request.conditions)} conditions."),
+        summary=f"{result.row_count} {subject} meet all "
+                f"{len(request.conditions)} conditions.",
+        findings=findings,
+        interpretation=(
+            "This analysis was composed for this question rather than selected "
+            "from the certified library. The conditions applied were: "
+            + "; ".join(conditions) + ". Read the analytical plan on the Trace "
+            "before acting on the list — nobody has reviewed this calculation."),
+        interpretation_points=[
+            "Composed for this question, not a certified method.",
+            f"Measured between {request.opening} and {request.closing}.",
+            *conditions,
+        ],
+        metrics=[Metric(
+            label=f"{request.grain.title()}s matching", value=result.row_count,
+            unit="", direction="up-is-bad",
+            hint="Every row satisfies every condition stated in the question.",
+        )],
+        caveats=(["The list was capped; narrow the question to see the rest."]
+                 if result.truncated else []),
+    )
+
+
+def run_dynamic(question: str, request: DynamicRequest, *,
+                started: float, user_id: int | None = None) -> Investigation:
+    """Compose, validate, run and assemble one dynamic analysis."""
+    from backend.runtime.executor import ExecutionClass, execute
+
+    plan = _dynamic_plan(question, request)
+    ir = build_plan(request)
+
+    result = execute(ir, question=question, intent=request.summary,
+                     certification=ExecutionClass.DYNAMIC)
+
+    step = ExecutedStep(
+        index=0, analysis_id="dynamic_analysis",
+        title="Composed for this question",
+        rationale=plan.steps[0].rationale,
+        params=dict(plan.steps[0].params), filters=dict(plan.steps[0].filters),
+        period=request.closing, status="succeeded",
+        certification=ExecutionClass.DYNAMIC, analysis_version="",
+        duration_ms=result.duration_ms,
+        result={
+            "values": {"matching": result.row_count,
+                       "opening_period": request.opening,
+                       "closing_period": request.closing},
+            # The full engine result shape, including the keys a composed
+            # analysis has nothing to put in. Returning a partial shape makes
+            # every consumer defensive, and the first one that is not breaks.
+            "units": {"matching": "count"},
+            "input_row_count": result.row_count,
+            "meta": {"execution": ExecutionClass.DYNAMIC,
+                     "grain": request.grain,
+                     "dataset": request.dataset},
+            "rows": result.rows,
+            "columns": result.columns,
+            "warnings": result.warnings,
+            "chart": result.chart,
+            "truncated": result.truncated,
+            "certification": result.certification,
+            "certification_label": result.certification_label,
+            "reading": request.to_dict(),
+            "plan": ir,
+            "query": result.query.to_dict() if result.query else None,
+        },
+        error=None,
+        trace=result.graph.to_dict() if result.graph else None,
+        node_hashes={}, role="primary",
+    )
+
+    narrative = _dynamic_narrative(question, request, result)
+    graph = build_reasoning_map(plan, [step], narrative)
+    investigation = Investigation(
+        question=question, plan=plan, steps=[step], narrative=narrative,
+        graph=graph, node_hashes=graph.compute_hashes(),
+        duration_ms=int((time.perf_counter() - started) * 1000),
+        status="succeeded",
+        mode={**planner_mode(), "execution": ExecutionClass.DYNAMIC,
+              "execution_label": ExecutionClass.LABELS[ExecutionClass.DYNAMIC]},
+    )
+    return investigation
+
+
 def run_investigation(question: str, *, user_id: int | None = None,
                       project_id: int | None = None,
                       investigation_id: int | None = None,
@@ -485,6 +665,26 @@ def run_investigation(question: str, *, user_id: int | None = None,
     started = time.perf_counter()
     planner = get_planner()
     vocab = get_vocabulary()
+
+    # Compose before looking up, but only for questions no single certified
+    # analysis answers. A question naming several independent conditions is one
+    # of those: the closest certified analysis would return a correct figure for
+    # a narrower question, carrying a tick while doing it.
+    composed = dynamic_candidate(question, vocab)
+    if composed is not None:
+        try:
+            investigation = run_dynamic(question, composed, started=started,
+                                        user_id=user_id)
+            if persist:
+                persist_investigation(investigation, user_id=user_id,
+                                      project_id=project_id,
+                                      investigation_id=investigation_id)
+            return investigation
+        except Exception as e:
+            # A composition that will not run is not a reason to answer a
+            # different question. It falls through to the certified path, and
+            # the reason is logged rather than shown as a portfolio finding.
+            logger.warning("Dynamic analysis failed, falling back: %s", e)
 
     plan = planner.plan(question, vocab, period=period)
 

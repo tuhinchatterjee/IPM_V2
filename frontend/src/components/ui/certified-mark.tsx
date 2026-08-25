@@ -71,6 +71,23 @@ export function CertificationBadge({
     );
   }
 
+  if (certification === "dynamic") {
+    // Composed for one question and never reviewed. Named rather than left
+    // blank: a figure with no label reads as certified to somebody scanning.
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5 text-[11px] font-medium text-accent",
+          className,
+        )}
+        title="Composed for this question and run through the governed runtime. Not a certified method, and not reviewed by anybody."
+      >
+        <span aria-hidden className="inline-block size-1.5 rounded-full bg-accent" />
+        Dynamic analysis
+      </span>
+    );
+  }
+
   const custom = certification === "user_defined";
   return (
     <span

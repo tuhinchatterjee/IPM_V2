@@ -65,6 +65,21 @@ class BuildIn(BaseModel):
     save: bool = False
 
 
+class FromAnalysisIn(BaseModel):
+    """Keep a dynamic analysis as a method.
+
+    The plan is echoed back from the analysis that produced it rather than
+    composed here — the caller cannot author an Analytical IR through this
+    endpoint that the runtime has not already validated and run.
+    """
+
+    name: str = Field(min_length=1, max_length=200)
+    question: str = Field(default="", max_length=MAX_TEXT)
+    summary: str = Field(default="", max_length=MAX_TEXT)
+    plan: dict = Field(default_factory=dict)
+    method_id: str = Field(default="", max_length=160)
+
+
 class CertifyIn(BaseModel):
     certified_by: str = Field(min_length=1, max_length=160)
 
@@ -160,6 +175,43 @@ def build(payload: BuildIn, principal: Principal = RequireAnalyst) -> dict:
                          "Saved for this session only — the Studio is running "
                          "without a database, so this method will not survive a "
                          "restart."),
+    }
+
+
+@router.post("/from-analysis", status_code=201,
+             summary="Keep a dynamic analysis as a method")
+def from_analysis(payload: FromAnalysisIn,
+                  principal: Principal = RequireAnalyst) -> dict:
+    """Save a composed analysis so it can be run again.
+
+    It arrives as a DRAFT with no tests and no tick. Running once against one
+    pair of periods is not evidence that a calculation is right, and a method
+    that inherited a tick from the fact that it executed would make the tick
+    mean nothing.
+    """
+    try:
+        method = service.from_dynamic(
+            name=payload.name, question=payload.question, plan=payload.plan,
+            summary=payload.summary, author=str(principal.user_id or ""),
+            method_id=payload.method_id,
+        )
+        # Validated before it is stored: a plan the runtime will not accept is
+        # not a method, whatever produced it.
+        from backend.runtime.ir import AnalyticalPlan
+        from backend.runtime.validation import validate
+
+        validate(AnalyticalPlan.from_dict(method.plan or {})).raise_if_bad()
+    except service.StudioError as e:
+        raise _refused(e) from e
+    except Exception as e:
+        raise _refused(e) from e
+
+    stored = service.save(method, user_id=principal.user_id)
+    return {
+        "method": method.to_dict(), "persisted": stored,
+        "note": ("Saved as a draft. It has no test cases and no certification: "
+                 "running once against one pair of periods is not evidence that "
+                 "a calculation is right."),
     }
 
 
