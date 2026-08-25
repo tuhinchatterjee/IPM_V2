@@ -335,6 +335,52 @@ RE-EXECUTE →  only nodes whose content hash changed; the rest reuse recorded r
 NEW RESULT →  with a version selector: v1 · v2 · compare
 ```
 
+### The multi-dataset path
+
+A question needing more than one governed dataset takes a longer route through
+the same wall. It is composed rather than looked up, and every join it makes
+comes from the relationship model a steward declared in Data Builder — there is
+no second relationship system anywhere in the product.
+
+```
+"Real Estate customers whose ECL rose >20%, rating fell 2 notches,
+ and EAD did not decline over the latest year"
+        │
+        ▼
+CONCEPTS   →  "expected credit loss" → a governed field, not a column name.
+        │      A qualifier in the question settles it; otherwise the bank's own
+        │      authoritative data beats the demonstration book; otherwise the
+        │      declared default, with the alternatives recorded; otherwise ask.
+        ▼
+JOIN PATH  →  datasets are nodes, ACTIVE relationships are edges, breadth-first
+        │      to at most 3 hops. Fewer hops win, the non-multiplying direction
+        │      wins, a measured relationship beats an unvalidated one, archived
+        │      is not a candidate. Two paths within 0.15 → say so, do not choose
+        │      silently.
+        ▼
+GRAIN      →  a source with more than one row per grain is rolled up BEFORE the
+        │      join, never after. Joining first counts one movement many times.
+        ▼
+PERIODS    →  sources at different frequencies join as-of: the latest
+        │      observation on or before the reporting date, never after it. The
+        │      validator refuses a forward as-of join, so a plan that would use
+        │      future data does not compile.
+        ▼
+IR         →  the same Analytical IR, the same validator, the same parameterised
+        │      SQL. Nothing about the multi-dataset path bypasses the wall.
+        ▼
+RECONCILE  →  every step's row count measured against the same query that
+        │      produced the answer. A join that lost a third of the book says so.
+        ▼
+RESULT     →  Data & method on the answer: sources and versions, the join chain,
+               the population at each step, the relationships walked, and a run
+               fingerprint over plan / data / relationships / parameters.
+```
+
+The relationship model itself is governed: **draft → validated → active →
+archived**, only `active` is runnable, promotion needs measured coverage, and
+every change records what the relationship was before it.
+
 ---
 
 ## 6. Recommended repository structure

@@ -192,7 +192,131 @@ part it could not read. It does not narrow silently.
 
 ---
 
-## 7. Analysis Studio
+## 7. Multi-dataset analysis
+
+`backend/runtime/joins.py`, `backend/orchestration/concepts.py`,
+`backend/orchestration/multi.py`.
+
+"Show Real Estate customers whose ECL increased more than 20%, rating
+deteriorated at least two notches, and EAD did not decline over the latest year"
+needs three governed datasets reported at two frequencies. Nothing in the
+sentence names a dataset, a join key, a cardinality or a period alignment — and
+nothing should, because a credit officer thinks in concepts, not in tables.
+
+### 7.1 One relationship model
+
+There is exactly one place a join may come from: the relationships a steward
+declared in Data Builder. The planner consumes that model; it does not have one
+of its own, and it cannot invent an edge that is not in it.
+
+A relationship carries a lifecycle — **draft → validated → active → archived** —
+and only `active` is runnable. Reaching `active` needs measured evidence:
+`backend/services/relationships.py` reads both sides at one published period and
+counts the match rate, the orphan rate and the duplicate rate, and refuses
+promotion where coverage is below 80%, where a relationship declared
+`many_to_one` or `one_to_one` has a right side that is not unique, or where
+confidence is below 0.75. Every change records what the relationship was before
+it, so "why did this number change" survives a governance edit.
+
+### 7.2 Concepts, not columns
+
+`resolve_concept` turns "exposure at default" into a governed field. Where more
+than one dataset carries the concept, resolution goes in this order:
+
+1. **A qualifier in the question settles it.** "regulatory EAD" is not
+   ambiguous.
+2. **The bank's own authoritative data.** A client-origin dataset a steward has
+   declared authoritative beats a default pointing at the demonstration book,
+   and the answer names the source it did **not** use. A correct calculation
+   over the wrong company's portfolio is worse than a refusal: it looks right.
+3. **The declared default**, with the alternatives recorded so the answer can
+   say which definition it used.
+4. **Otherwise it asks.** Two figures that are genuinely different are not
+   resolved silently.
+
+### 7.3 Choosing a join path
+
+Datasets are nodes, active relationships are edges, and the search is a
+breadth-first walk capped at three hops. The interesting part is the ranking:
+
+- fewer hops win — every hop is a chance to lose rows;
+- the safe direction wins — `many_to_one` and `one_to_one` cannot multiply the
+  left-hand book; `one_to_many` and `many_to_many` can, and are allowed only
+  where the resolver also inserts an aggregation before the join;
+- measured beats declared — a relationship with a real match rate outranks one
+  nobody has validated;
+- archived is not a candidate — a retired domain leaves the graph entirely.
+
+Where two materially different paths score within 0.15 of each other, the
+resolver does not choose silently: it records the alternatives and states which
+it used and why, in the plan summary and on the answer.
+
+### 7.4 Grain and period reconciliation
+
+Two failures matter here, and the planner is built around avoiding both.
+
+**Duplicate amplification.** A source with more than one row per analysis grain
+is rolled up to that grain *before* it is joined, never after. `IFRS9_STAGING`
+joins at account level and rolls up to customer; `PORTFOLIO_FACILITY` rolls up
+from facility to customer. Joining first multiplies a customer's rows by its
+facility count and counts one movement many times.
+
+**Look-ahead.** Sources reported at different frequencies are joined **as-of**:
+the latest observation dated on or before the reporting date, never after it.
+The validator refuses a forward as-of join and refuses one with no ordering
+column, so a plan that would use future data does not compile. A quarter is
+aligned to the annual cycle that had *completed* by its reporting date
+(`completed_year_of_quarter`), so Q1 2026 legitimately joins to the FY2025
+rating rather than to one published later in 2026.
+
+### 7.5 What the answer carries
+
+Every multi-dataset answer carries how it was assembled, under **Data & method**:
+
+- which governed sources, at which version, for which periods;
+- the join path as a chain, with each hop's cardinality and period rule;
+- what happened to the population at every step, counted against the same query
+  that produced the answer rather than re-derived afterwards;
+- the relationships walked, with the version each was walked at;
+- warnings — a join that lost a third of the book, a path with a choice in it, a
+  crossing that could have multiplied rows.
+
+The Trace records the same as governed nodes: one `JOIN` node per join, a
+`RECONCILIATION` node, and a `FINGERPRINT` node.
+
+### 7.6 What identifies a run
+
+`backend/runtime/fingerprint.py`. A plan hash answers "is this the same
+computation". It cannot answer "should these two runs agree", because the same
+IR against a restated dataset or a re-declared join is entitled to a different
+answer. So a run carries four hashes and a fifth binding them:
+
+| | covers |
+|---|---|
+| `plan` | the steps, their inputs and their parameters |
+| `data` | every dataset read, at the version it was read at |
+| `relationships` | every governed join walked, at the version that was active |
+| `parameters` | the periods and values bound into it, by step |
+| `run` | all four |
+
+Two runs sharing `run` computed the same thing from the same data under the same
+relationship model. Two that differ say which of the four moved.
+
+### 7.7 Saving one
+
+A multi-dataset analysis saved to Analysis Studio stores the **concepts** it
+measures rather than the columns one dataset happens to call them, the governed
+relationships it walks with their versions and cardinalities, and how periods
+were aligned. A method that stored `ifrs9_staging.ead` would break the day a
+bank supplies its own extract under a different column name; one that stores
+"exposure at default" re-resolves against whatever the catalogue declares
+authoritative when it next runs.
+
+It still arrives as a **draft**, with no tests and no tick.
+
+---
+
+## 8. Analysis Studio
 
 `backend/studio/`. The library holds **320 credit-risk method definitions**
 across 18 categories. **42 carry CreditProbe Certified.** The gap is the point.
@@ -246,7 +370,7 @@ sign-off, not in a web page.
 
 ---
 
-## 8. The Data Inbox
+## 9. The Data Inbox
 
 `backend/services/inbox.py`, `backend/services/drift.py`.
 
@@ -278,7 +402,7 @@ called `extract_final_v3.csv`.
 
 ---
 
-## 9. The demonstration book
+## 10. The demonstration book
 
 Twenty governed datasets, every one derived from a single simulation with one
 fixed seed:
@@ -302,7 +426,7 @@ Everything is marked SYNTHETIC and describes no real borrower, bank or economy.
 
 ---
 
-## 10. What this is not
+## 11. What this is not
 
 - **Not a text-to-SQL product.** The model never sees a SQL dialect and never
   emits one. What it emits is checked against the catalogue before it becomes a
@@ -315,7 +439,7 @@ Everything is marked SYNTHETIC and describes no real borrower, bank or economy.
 - **Not a reproduction of any vendor methodology.** Every certified method
   states its own methodology in reviewable English.
 
-## 11. Where to look
+## 12. Where to look
 
 | | |
 |---|---|
@@ -324,10 +448,16 @@ Everything is marked SYNTHETIC and describes no real borrower, bank or economy.
 | `backend/runtime/compiler.py` | parameterised SQL |
 | `backend/runtime/kernels.py` | the six allowlisted kernels |
 | `backend/runtime/executor.py` | execution, Trace, chart selection |
+| `backend/runtime/fingerprint.py` | what identifies one run |
 | `backend/orchestration/dynamic.py` | reading a question into a plan |
+| `backend/orchestration/concepts.py` | concepts to governed fields |
+| `backend/orchestration/multi.py` | the multi-dataset planner |
+| `backend/runtime/joins.py` | the join graph and path resolver |
+| `backend/services/relationships.py` | the one relationship registry |
 | `backend/studio/` | methods, registry, builder, validation packs, workbook |
 | `backend/services/drift.py` | field-by-field comparison |
 | `backend/services/inbox.py` | arrivals and the auto-publish policy |
 | `tests/runtime/test_runtime_safety.py` | what the runtime refuses |
 | `tests/runtime/test_dynamic_analysis.py` | the worked example end to end |
+| `tests/multi/` | join resolution, grain, look-ahead, governance, fingerprints |
 | `tests/studio/` | the library, the tick, the ODR builder |
