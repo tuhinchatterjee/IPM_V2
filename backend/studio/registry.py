@@ -88,6 +88,13 @@ class Registry:
                 self._verify(method)
                 self._methods[method.id] = method
 
+            # Bank-authored methods last, so a bank's fork of a library method
+            # under the same id is the one that answers. Verified on the way in
+            # exactly as a library entry is.
+            for method in _stored_methods():
+                self._verify(method)
+                self._methods[method.id] = method
+
             self._reindex_aliases()
 
         logger.info(
@@ -276,6 +283,17 @@ def reload_registry() -> Registry:
     with _registry_lock:
         _registry = Registry().load()
         return _registry
+
+
+def _stored_methods() -> list[MethodDefinition]:
+    """Bank methods from PostgreSQL, or none if storage is unavailable."""
+    try:
+        from backend.services.studio import bank_methods
+
+        return bank_methods()
+    except Exception as e:  # pragma: no cover - import-time safety net
+        logger.warning("Bank-authored methods are unavailable: %s", e)
+        return []
 
 
 def _normalise(text: str) -> str:

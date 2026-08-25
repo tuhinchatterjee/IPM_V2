@@ -1306,3 +1306,46 @@ class EarlyWarningModel(Base):
         UniqueConstraint("target", "version", name="uq_early_warning_model_version"),
         Index("ix_early_warning_active", "target", "is_active"),
     )
+
+
+# ============================================================ analysis studio
+
+
+class StudioMethod(Base):
+    """A method the bank authored, forked or edited.
+
+    Library methods are code, because they are a product decision and belong in
+    review. These are not: they encode how one bank has decided to measure
+    something, which is the bank's property and the bank's audit trail. So they
+    live here, and both surface through one registry.
+
+    The whole definition is one JSON document rather than forty columns. What a
+    method IS keeps changing as the Studio grows, and the alternative is a
+    migration every time a field is added — for a document nothing but the
+    Studio reads. The columns that exist are the ones something else has to
+    query on: which methods carry the tick, who owns them, what they were forked
+    from.
+    """
+
+    __tablename__ = "studio_methods"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    method_id: Mapped[str] = mapped_column(String(160), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(240), nullable=False)
+    category: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    lifecycle: Mapped[str] = mapped_column(String(32), nullable=False, default="DRAFT")
+    version: Mapped[str] = mapped_column(String(24), nullable=False, default="1.0.0")
+    #: What it was forked from, so a variant's lineage survives a rename.
+    forked_from: Mapped[str] = mapped_column(String(160), nullable=False, default="")
+    definition: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("ix_studio_methods_lifecycle", "lifecycle"),
+        Index("ix_studio_methods_category", "category"),
+    )

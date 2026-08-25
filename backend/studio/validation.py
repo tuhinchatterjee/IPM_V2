@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 from backend.studio.model import MethodDefinition, TestCase
@@ -149,6 +150,13 @@ class ValidationPack:
     opening_period: str = "OPEN"
     closing_period: str = "CLOSE"
     note: str = ""
+    #: The statement the fixture was actually run through, kept so a reviewer
+    #: reads the SQL that produced the number rather than a description of it.
+    sql: str = ""
+    parameters: list[Any] = field(default_factory=list)
+    #: The whole row the method returned, not only the compared keys.
+    actual: dict[str, Any] = field(default_factory=dict)
+    ran_at: str = ""
 
     @property
     def passed(self) -> int:
@@ -176,6 +184,8 @@ class ValidationPack:
             "passed": self.passed, "failed": self.failed,
             "complete": self.complete, "all_passed": self.all_passed,
             "note": self.note,
+            "sql": self.sql, "parameters": list(self.parameters),
+            "actual": dict(self.actual), "ran_at": self.ran_at,
         }
 
 
@@ -381,6 +391,11 @@ def run_pack(pack: ValidationPack, method: MethodDefinition) -> ValidationPack:
 
         result = execute(plan, source=_FixtureSource(root))
         actual = result.rows[0] if result.rows else {}
+        pack.actual = dict(actual)
+        pack.ran_at = datetime.now(UTC).isoformat()
+        if result.query is not None:
+            pack.sql = result.query.sql
+            pack.parameters = list(result.query.params)
     except Exception as e:
         logger.exception("Validation run failed for %s", method.id)
         for case in pack.cases:
