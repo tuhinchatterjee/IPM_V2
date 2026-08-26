@@ -113,6 +113,8 @@ _ENRICH: tuple[tuple[str, str], ...] = (
 #: "Now show each one's percentage of total portfolio EAD."
 _CONTINUE: tuple[str, ...] = (
     r"^\s*now\b", r"^\s*and\b", r"^\s*what about\b", r"^\s*how about\b",
+    r"^\s*break (?:that|this|it|them)\b", r"\bbreak (?:that|this|it) down\b",
+    r"^\s*split (?:that|this|it)\b", r"^\s*group (?:that|this|it)\b",
     r"\beach one'?s?\b", r"\bper (?:one|each)\b", r"\bfor (?:each|every) one\b",
     r"^\s*(?:ok(?:ay)?|right|good)[,.]?\s+(?:now|then)\b",
 )

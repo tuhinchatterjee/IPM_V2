@@ -21,12 +21,16 @@ suggestion rather than applied.
 from __future__ import annotations
 
 import difflib
+import functools
+import logging
 import re
 from dataclasses import dataclass
 from typing import Any
 
 #: Below this, two strings are not the same thing however close they look.
 #: 0.82 keeps "Real Estate"/"real-estate" and rejects "Retail"/"Real Estate".
+logger = logging.getLogger(__name__)
+
 MIN_SIMILARITY = 0.82
 
 #: A fuzzy match at or above this is applied; between the floor and this it is
@@ -120,6 +124,17 @@ def unresolved_names(question: str, context: Any) -> list[str]:
     """
     text = " ".join(str(question or "").split())
     matched = {m.phrase.lower() for m in match_all(text, context.dimensions)}
+    # Every WORD of every governed value, so a fragment of a multi-word value is
+    # not reported as an unknown borrower. "Transport & Logistics" is a sector;
+    # the ampersand breaks it into two capitalised fragments, and reporting
+    # "Transport" as a name nobody has heard of turned a valid ranking into a
+    # refusal.
+    governed = {
+        word
+        for values in (context.dimensions or {}).values()
+        for value in values
+        for word in re.findall(r"[a-z0-9]+", str(value).lower())
+    }
 
     candidates: list[str] = []
     for phrase in re.findall(r"\b(?:[A-Z][a-z0-9&.'-]+)(?:\s+[A-Z][a-z0-9&.'-]+)*\b",
@@ -128,15 +143,66 @@ def unresolved_names(question: str, context: Any) -> list[str]:
         # grammar, and reporting it as part of the name makes the "we have
         # never heard of this borrower" message look like a parsing bug.
         phrase = re.sub(r"['\u2019]s$", "", phrase).strip()
+        # "Show Real Estate customers whose…" opens with a capitalised verb, and
+        # the regex reads "Show Real Estate" as one proper noun. Dropping a
+        # leading English word leaves the governed value behind it — without
+        # this, a perfectly ordinary request came back as "CreditProbe could not
+        # find Show Real Estate in the published data".
+        head = phrase.split(" ", 1)
+        while len(head) == 2 and head[0].lower() in _NOT_A_NAME:
+            phrase = head[1].strip()
+            head = phrase.split(" ", 1)
         if len(phrase) < 4 or phrase.lower() in matched:
             continue
         if phrase.lower() in _NOT_A_NAME:
+            continue
+        words = set(re.findall(r"[a-z0-9]+", phrase.lower()))
+        if words and words <= governed:
             continue
         # A capitalised word at the start of a sentence is usually just English.
         if text.startswith(phrase) and " " not in phrase:
             continue
         candidates.append(phrase)
     return candidates
+
+
+def known_borrower(name: str) -> str | None:
+    """The published borrower this name refers to, if there is one.
+
+    A real read through the Data Access Layer rather than a scan of the
+    vocabulary: there are thousands of borrowers and the vocabulary deliberately
+    holds only the small dimensions a planner filters on. Cached for the life of
+    the process, because the answer changes only when a dataset is published.
+    """
+    wanted = " ".join(str(name or "").lower().split())
+    if not wanted:
+        return None
+    for candidate in _borrower_names():
+        text = " ".join(candidate.lower().split())
+        if text == wanted or wanted in text or text in wanted:
+            return candidate
+    return None
+
+
+@functools.lru_cache(maxsize=1)
+def _borrower_names() -> tuple[str, ...]:
+    """Every borrower name in the latest published period."""
+    try:
+        from backend.data_access import get_data_source
+        from backend.data_access.context import AnalysisContext
+        from backend.engine.helpers import FACILITY
+
+        source = get_data_source()
+        periods = source.periods(FACILITY)
+        if not periods:
+            return ()
+        latest = periods[-1]
+        frame = source.fetch(FACILITY, context=AnalysisContext(period=latest),
+                             fields=["borrower_name"], period=latest)
+        return tuple(sorted({str(v) for v in frame["borrower_name"].dropna()}))
+    except Exception as e:  # noqa: BLE001 - nothing published yet
+        logger.warning("Could not read borrower names: %s", e)
+        return ()
 
 
 #: Capitalised words that are English rather than entities.
@@ -152,6 +218,7 @@ __all__ = [
     "MIN_SIMILARITY",
     "EntityMatch",
     "match_all",
+    "known_borrower",
     "match_dimension",
     "resolve_entities",
     "unresolved_names",

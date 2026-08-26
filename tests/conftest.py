@@ -17,7 +17,12 @@ from dotenv import load_dotenv
 # importable and those suites skip themselves — see `database_available()`.
 load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://unused:unused@localhost:5432/unused")
-os.environ.setdefault("ANTHROPIC_API_KEY", "test-key-not-used")
+# NO placeholder API key. There used to be one here, so that config imported
+# cleanly while everything ran offline. Now that live tests are allowed to run,
+# a placeholder is worse than nothing: it makes `configured` true, so the live
+# smoke tests attempt a real call with a key that cannot work and report a
+# provider outage instead of skipping. With the variable genuinely unset they
+# skip, and with a real key they run.
 
 # The suite acts as a particular role by sending X-IPM-Role, which is the
 # documented mechanism for a deployment that has switched signing in off. The
@@ -68,25 +73,42 @@ def data_loaded():
     return dl
 
 
-@pytest.fixture(autouse=True, scope="session")
-def _offline_ai():
-    """No test may call a real model.
+#: Tests that are ALLOWED to call a real model. Everything else runs offline.
+LIVE_MARKER = "live"
 
-    A key present in the developer's environment would otherwise make the suite
-    hit the network, cost money, and — worse — pass or fail depending on what a
-    model said that afternoon. Live model behaviour is exercised by the eval
-    suite, which is opt-in.
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "live: exercises a real AI provider; skipped when no key is configured")
+
+
+@pytest.fixture(autouse=True)
+def _offline_ai(request):
+    """Offline by default; live where a test asks for it.
+
+    An earlier version forced offline mode for the whole session. That made the
+    suite deterministic and it also meant 1,300 passing tests said nothing at all
+    about the configuration the product actually ships in — the live path was
+    never executed, and the first person to add an API key found nine broken
+    behaviours the suite had reported as fine.
+
+    So the rule is narrower now: a test marked `live` runs against whatever
+    provider is configured, and everything else is pinned offline so it cannot
+    pass or fail on what a model said that afternoon.
     """
-    import os
-
-    previous = os.environ.get("AI_PROVIDER")
-    os.environ["AI_PROVIDER"] = "offline"
-
     import dataclasses
+    import os
 
     from backend import llm
     from backend.config import settings
 
+    if request.node.get_closest_marker(LIVE_MARKER):
+        yield
+        return
+
+    previous = os.environ.get("AI_PROVIDER")
+    os.environ["AI_PROVIDER"] = "offline"
     original = llm.settings
     llm.settings = dataclasses.replace(settings, ai_provider="offline")
     llm.get_provider(refresh=True)

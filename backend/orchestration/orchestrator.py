@@ -44,8 +44,14 @@ from backend.orchestration import analysis_planner as ap
 from backend.orchestration import capability as cap
 from backend.orchestration import certified as cert
 from backend.orchestration import conversation as cv
+from backend.orchestration import (
+    entities,
+    handlers,
+    interpretation,
+    referents,
+    router,
+)
 from backend.orchestration import guardrail as gr
-from backend.orchestration import handlers, interpretation, referents, router
 from backend.orchestration.context import retrieve
 
 logger = logging.getLogger(__name__)
@@ -204,6 +210,11 @@ def answer(question: str, *, context: Any = None,
         answered.clarification = dangling
         return finish(answered)
 
+    unknown = _unknown_borrower(question, context)
+    if unknown:
+        answered.clarification = unknown
+        return finish(answered)
+
     if reading.clarification:
         answered.clarification = reading.clarification
         return finish(answered)
@@ -240,6 +251,35 @@ def answer(question: str, *, context: Any = None,
 
     return finish(_analyse(answered, question, reading, context, state,
                            continuation, period, extra_filters))
+
+
+def _unknown_borrower(question: str, context: Any) -> str:
+    """A named borrower the published data has never heard of.
+
+    The one thing worse than not knowing who Northwind Trading is, is answering
+    as though the question had not named them: "how much exposure do we have to
+    Northwind Trading?" would come back as the exposure of the whole book,
+    correctly calculated, answering a question nobody asked.
+
+    Narrow on purpose — it is looking for a capitalised proper noun that matched
+    no governed dimension value and no published borrower.
+    """
+    for name in referents_unresolved(question, context):
+        if entities.known_borrower(name) is None:
+            return (f"CreditProbe could not find {name} in the published data. "
+                    "It only reads datasets that have been published and marked "
+                    "authoritative, so a borrower it has never been given "
+                    "cannot be looked up. Check the name, or ask a Data Steward "
+                    "whether that book has been onboarded.")
+    return ""
+
+
+def referents_unresolved(question: str, context: Any) -> list[str]:
+    try:
+        return entities.unresolved_names(question, context)
+    except Exception as e:  # noqa: BLE001 - never lose an answer to this check
+        logger.info("Could not check named entities in %r: %s", question, e)
+        return []
 
 
 def _from_metadata(answered: Answered, question: str, reading: cap.Reading,

@@ -106,18 +106,21 @@ def _graph(question: str, reading: cap.Reading, *,
 
 def _relevant(reading: cap.Reading, context: GovernedContext,
               question: str) -> list[Any]:
-    """The datasets a metadata question is about.
+    """The datasets a metadata question is about, most likely first.
 
-    Named ones first, then the retrieval ranking, which already scored the
-    question against every dataset's purpose, grain and field names.
+    Named ones first, then the retrieval order — which already scores the
+    question against every dataset's purpose, grain, field names and
+    authoritative role, and which `retrieve` now guarantees includes any dataset
+    the question names.
+
+    An earlier version re-sorted this by word overlap with the dataset's name.
+    It looked more precise and was less accurate: "borrower ratings" overlaps
+    "Borrower Financials & External Ratings" on two words and the annual rating
+    history on one, so the reference table won and the eight years of rating
+    history the question was about came second.
     """
     named = [d for d in context.datasets if d.name in reading.datasets]
-    if named:
-        return named
-    return context.datasets
-
-
-# -------------------------------------------------------- what data exists
+    return named or list(context.datasets)
 
 
 def data_discovery(question: str, reading: cap.Reading,
@@ -196,8 +199,18 @@ def data_dictionary(question: str, reading: cap.Reading,
                                           detail={"count": 0}))
 
     lowered = (question or "").lower()
+
+    # "What fields are in the watchlist data?" asks for a LIST. "What does
+    # watchlist mean?" asks for a definition. Both mention a field name, and
+    # answering the first with the second — one row defining `watchlist` — is a
+    # true sentence about the wrong question.
+    wants_the_list = bool(re.search(
+        r"\bwhat (?:fields?|columns?)\b|\bwhich (?:fields?|columns?)\b"
+        r"|\bfields? (?:are|is) (?:available|in|there)\b"
+        r"|\blist (?:the )?(?:fields?|columns?)\b", lowered))
+
     hits: list[tuple[Any, dict[str, Any]]] = []
-    for dataset in datasets:
+    for dataset in ([] if wants_the_list else datasets):
         for entry in dataset.fields:
             names = {entry["name"].lower(),
                      (entry.get("business_name") or "").lower()}

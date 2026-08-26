@@ -102,9 +102,21 @@ class AnalysisBuild:
 
     @property
     def datasets(self) -> list[str]:
+        """Every governed source this plan reads, base and enrichments alike.
+
+        The enriched sources come off the joins rather than being tracked
+        separately: a dataset that was joined in IS a dataset the answer read,
+        and reporting only the base made a two-source answer look single-source
+        on the Trace and in validation.
+        """
         if self.request is not None:
             return list(self.request.datasets)
-        return [self.dataset] if self.dataset else []
+        out = [self.dataset] if self.dataset else []
+        for join in self.joins:
+            target = str(join.get("to") or "")
+            if target and target not in out:
+                out.append(target)
+        return out
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -213,6 +225,12 @@ def plan(reading: Reading, context: GovernedContext, *,
             carried_concepts = [m.concept.label for m in fresh]
 
     count_grain = _wants_count(text, reading)
+    if not count_grain and carrying and not resolved.matches:
+        # "Break that down by sector" after a count is still a count. The
+        # sentence names no measure at all, so the measure is whatever the
+        # conversation was already reporting — and a count is not a concept the
+        # resolver can rediscover from the inherited labels.
+        count_grain = bool((state.ir.get("meta") or {}).get("count_column"))
     if count_grain and _replaces(text):
         # "Replace EAD with number of customers" — the count IS the measure now.
         # Keeping the old one as well would answer with two measures where the
@@ -235,7 +253,11 @@ def plan(reading: Reading, context: GovernedContext, *,
         filters = _inherit_filters(filters, state, context, continuation)
     inherited_top_n = (state.top_n if carrying and state and not _explicit_top_n(text)
                        else 0)
-    conditions = _conditions(text, matches)
+    # Governed values are masked out before movement detection. "Contracting"
+    # is a sector; read as a verb it asserts that something contracted, and a
+    # ranking of Contracting customers was planned as a cohort of shrinking
+    # ones — a different question with no obvious symptom.
+    conditions = _conditions(_without_values(text, filters), matches)
     if carrying and not resolved.matches and state.conditions:
         # The question named no measure of its own — "only show Contracting" —
         # so it is narrowing the analysis that just ran rather than starting a
@@ -274,6 +296,8 @@ def plan(reading: Reading, context: GovernedContext, *,
             catalogue,
             population=continuation if carrying else None,
             count_grain=count_grain, inherited_top_n=inherited_top_n,
+            inherited_count_of=(str((state.ir.get("meta") or {}).get("count_of")
+                                    or "") if carrying else ""),
             fallback_dataset=_fallback_dataset(state if carrying else None),
             preferred_datasets=list(state.datasets) if carrying else None)
 
@@ -422,6 +446,18 @@ def _filters(reading: Reading, context: GovernedContext) -> list[tuple[str, str]
         kind, value = entity.get("kind", ""), entity.get("value", "")
         if kind in permitted and value in permitted[kind]:
             out.append((kind, value))
+    return out
+
+
+def _without_values(text: str, filters: list[tuple[str, str]]) -> str:
+    """The question with its governed filter values blanked out."""
+    import re
+
+    out = text or ""
+    for _, value in filters:
+        if len(value) < 4:
+            continue
+        out = re.sub(rf"\b{re.escape(value)}\b", " ", out, flags=re.I)
     return out
 
 
@@ -697,6 +733,7 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
                    population: cv.Continuation | None = None,
                    count_grain: bool = False,
                    inherited_top_n: int = 0,
+                   inherited_count_of: str = "",
                    fallback_dataset: str = "",
                    preferred_datasets: list[str] | None = None) -> AnalysisBuild:
     """AGGREGATE and RANKING: read one period, scope it, group, order, cut.
@@ -757,7 +794,7 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     # grouping by sector; reusing the group key instead gives a column of ones.
     counted, count_key = "", ""
     if count_grain:
-        counted = _count_subject(text) or grain
+        counted = _count_subject(text) or inherited_count_of or grain
         count_key = _grain_key(counted)
         if count_key not in available:
             counted, count_key = grain, key
@@ -1001,6 +1038,10 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
             "filters": [{"field": f, "value": v} for f, v in filters],
             "conditions": [],
             "count_column": count_column,
+            # What was counted, so a follow-up that adds a breakdown keeps
+            # counting the same thing. "Break that down by sector" after a
+            # customer count must not start counting facilities.
+            "count_of": counted,
             "population": ({"key": population.entity_key,
                             "count": len(population.entity_ids)}
                            if scoped and population else None),

@@ -42,6 +42,13 @@ logger = logging.getLogger(__name__)
 #: precisely the failure mode being designed out.
 MIN_OVERLAP = 0.85
 
+#: How much of the REQUEST the methodology must account for. Containment alone
+#: is not enough: "what is our total exposure?" is contained in "what is total
+#: exposure by region in the latest quarter?", and matching on that ran a
+#: concentration analysis for a question about regions. A methodology that
+#: explains only half the words in the request is not the methodology asked for.
+MIN_PRECISION = 0.6
+
 #: Words that carry no signal about which methodology is wanted.
 _NOISE = frozenset({
     "the", "a", "an", "of", "for", "to", "in", "on", "at", "by", "and", "or",
@@ -127,7 +134,11 @@ def match(question: str, reading: cap.Reading) -> Match | None:
                        for q in (contract.trigger_questions or [])]
 
         for kind, text in candidates:
-            score = _overlap(asked, _words(text))
+            target = _words(text)
+            score = _overlap(asked, target)
+            precision = len(asked & target) / len(asked) if asked else 0.0
+            if precision < MIN_PRECISION:
+                continue
             # A model that named the analysis outright is evidence too, but it
             # is not sufficient on its own: the deterministic overlap still has
             # to agree, or a hallucinated id would select a methodology.
@@ -180,4 +191,4 @@ def parameters(found: Match, reading: cap.Reading, *,
     return params
 
 
-__all__ = ["MIN_OVERLAP", "Match", "match", "parameters"]
+__all__ = ["MIN_OVERLAP", "MIN_PRECISION", "Match", "match", "parameters"]

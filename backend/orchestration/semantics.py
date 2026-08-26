@@ -131,6 +131,12 @@ def find_movement(text: str) -> Movement | None:
     at = re.search(direction.pattern, lowered)
     tail = lowered[at.end():] if at else ""
     magnitude = _MAGNITUDE.search(tail)
+    if magnitude and _is_a_period(tail, magnitude):
+        # "an increase in ECL over the latest 6 months" says WHEN, not HOW MUCH.
+        # Reading the 6 as a threshold turned a question about a year into
+        # "ECL rose by more than six", which is a different and much smaller
+        # cohort — and nothing on screen said so.
+        magnitude = None
     if not magnitude:
         return Movement(direction=direction, phrase=text.strip())
 
@@ -145,6 +151,16 @@ def find_movement(text: str) -> Movement | None:
         bound=_STRICT.get(bound) or _INCLUSIVE.get(bound, ""),
         phrase=text.strip(),
     )
+
+
+#: Units that make a number a span of time rather than a size of movement.
+_TIME_UNIT = re.compile(
+    r"^\s*(?:months?|quarters?|years?|weeks?|days?|periods?)\b", re.I)
+
+
+def _is_a_period(tail: str, magnitude: Any) -> bool:
+    """Whether the number after a movement word is a length of time."""
+    return bool(_TIME_UNIT.match(tail[magnitude.end():]))
 
 
 # ------------------------------------------------------------- the resolution

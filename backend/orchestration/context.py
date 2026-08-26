@@ -45,7 +45,15 @@ _STOP = frozenset("""
 a an and are as at be by can did do does for from had has have how in into is it
 its latest me my of on or over show tell that the their there these this to
 what when where which who why will with you your me give list all any
+available information records much many
 """.split())
+
+# The last line is the vocabulary of ASKING rather than of subjects. It stops
+# there deliberately: "history", "data" and "period" look generic and are load
+# bearing, because several datasets are named for them — dropping "history" from
+# the terms sent "what data do you have about borrower ratings?" to the
+# borrower financials reference table instead of to eight years of rating
+# history.
 
 
 def _terms(text: str) -> set[str]:
@@ -429,6 +437,28 @@ def _score(haystack: str, terms: set[str]) -> int:
     return sum(1 for term in terms if term in haystack)
 
 
+def _identifier(dataset: Any) -> set[str]:
+    """The words of a dataset's technical name.
+
+    The business name is deliberately excluded here: "Facility Limits and
+    Utilisation" carries a word nobody types, so requiring the question to
+    contain all of it would mean no question ever names a dataset in full.
+    """
+    import re
+
+    return {w for w in re.findall(r"[a-z]+", str(dataset.name).lower())
+            if len(w) > 3}
+
+
+def _names(dataset: Any) -> set[str]:
+    """The words of a dataset's own name — its strongest identifier."""
+    import re
+
+    return {w for w in re.findall(
+        r"[a-z]+", f"{dataset.name} {dataset.business_name}".lower())
+        if len(w) > 3}
+
+
 def retrieve(question: str, *, concepts: list[str] | None = None,
              datasets: list[str] | None = None,
              max_datasets: int = MAX_DATASETS,
@@ -445,9 +475,23 @@ def retrieve(question: str, *, concepts: list[str] | None = None,
     every = _catalogue()
     required = set(datasets or [])
 
+    # A dataset the question names by name is always retrieved. Ranking on the
+    # haystack alone dropped `collateral_register` out of the top eight for
+    # "how many quarters of collateral history do you have?", because a dozen
+    # other datasets mention collateral in a field somewhere.
+    required |= {d.name for d in every["datasets"] if _names(d) & terms}
+
+    # A dataset the question names IN FULL leads. "What fields are in the
+    # facility limits data?" names `facility_limits` completely, while
+    # `portfolio_facility` shares one word and scores higher on the haystack
+    # because the facility book mentions limits in a dozen fields.
+    named_in_full = {d.name for d in every["datasets"]
+                     if _identifier(d) and _identifier(d) <= terms}
+
     ranked = sorted(
         every["datasets"],
-        key=lambda d: (d.name not in required, -_score(d.haystack, terms),
+        key=lambda d: (d.name not in named_in_full, d.name not in required,
+                       -_score(d.haystack, terms),
                        # An authoritative source outranks one that merely
                        # mentions the word, so "exposure" reaches the facility
                        # book rather than a reference table that cites it.

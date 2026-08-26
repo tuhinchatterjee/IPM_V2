@@ -579,7 +579,14 @@ def recognise(question: str) -> tuple[str, float, str]:
         # dataset but wants a ranking. Only STRONG evidence may override — a
         # metric name is not enough, or every question mentioning EAD would be
         # dragged into the engine.
+        # ...unless the OBJECT of the sentence is the data itself. "Which
+        # datasets do you have for exposure?" matches the ranking shape —
+        # "which … exposure" — and is a catalogue question, not a ranking.
+        about_the_catalogue = re.search(
+            r"\bdatasets?\b|\bwhat data\b|\bfields?\b|\bcolumns?\b|"
+            r"\btables?\b|\bsources?\b", text)
         if (intent in FROM_DATA_BUILDER and strong >= 1
+                and not about_the_catalogue
                 and intent != Capability.DATA_RELATIONSHIP):
             return (Capability.ANALYSIS, 0.7,
                     "It asks about data, but it asks for a figure computed from it.")

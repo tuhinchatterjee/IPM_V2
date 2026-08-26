@@ -33,6 +33,7 @@ from backend.api.routers import lenses as lenses_router
 from backend.api.routers import playbooks as playbooks_router
 from backend.api.routers import studio as studio_router
 from backend.api.routers import users as users_router
+from backend.api.routers import validation as validation_router
 from backend.api.routers import workspace as workspace_router
 from backend.api.schemas import ErrorResponse
 from backend.config import settings
@@ -152,6 +153,7 @@ def create_app() -> FastAPI:
     app.include_router(playbooks_router.router, prefix=API_PREFIX)
     app.include_router(studio_router.router, prefix=API_PREFIX)
     app.include_router(workspace_router.router, prefix=API_PREFIX)
+    app.include_router(validation_router.router, prefix=API_PREFIX)
 
     @app.get("/", include_in_schema=False)
     def root():

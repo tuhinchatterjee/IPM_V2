@@ -381,9 +381,15 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
         # "across 5 groups" is what a program says when it has forgotten what it
         # grouped by. Name the dimension, or the grain when a carried population
         # is what is on screen.
-        over = build.dimension or build.grain or "group"
-        direct = (f"{_fmt(total)} {subject} across {count} "
-                  f"{over}{'s' if count != 1 else ''} at {build.period}.")
+        where = (" in " + _scope_phrase(build.filters)) if build.filters else ""
+        if build.dimension:
+            direct = (f"{_fmt(total)} {subject}{where} across {count} "
+                      f"{build.dimension}{'s' if count != 1 else ''} at "
+                      f"{build.period}.")
+        else:
+            # One number for the whole population. "across 1 customer" is what
+            # a program says when it has counted its own output rows.
+            direct = f"{_fmt(total)} {subject}{where} at {build.period}."
         metrics.append(Metric(label=f"Total {label}", value=round(total, 2),
                               unit=unit, direction="neutral"))
         if rows and build.dimension and isinstance(
@@ -495,6 +501,23 @@ def _plural(word: str, count: int) -> str:
         word, word + "s")
 
 
+#: Governed dimensions whose values are meaningless without their name.
+#: "in 2" is not a sentence; "in Stage 2" is.
+_NEEDS_ITS_NAME = {"ifrs9_stage": "Stage", "internal_grade": "grade",
+                   "dpd_bucket": "DPD bucket", "charge_rank": "charge rank"}
+
+
+def _scope_phrase(filters: list[tuple[str, str]]) -> str:
+    """The filters as a credit officer would say them."""
+    parts: list[str] = []
+    for field_name, value in filters:
+        prefix = _NEEDS_ITS_NAME.get(field_name)
+        if prefix is None and str(value).replace(".", "").isdigit():
+            prefix = field_name.replace("_", " ")
+        parts.append(f"{prefix} {value}" if prefix else str(value))
+    return ", ".join(parts)
+
+
 def _nothing_matched(build: ap.AnalysisBuild) -> str:
     """"Nothing matched" said in the terms of the question that asked.
 
@@ -503,7 +526,7 @@ def _nothing_matched(build: ap.AnalysisBuild) -> str:
     found in it — an empty result is a finding, and it should be phrased as one.
     """
     population = (build.plan.get("meta") or {}).get("population") or {}
-    where = ", ".join(v for _, v in build.filters)
+    where = _scope_phrase(build.filters)
     if population.get("count"):
         subject = (f"the {population['count']} "
                    f"{build.grain}s carried forward from the previous answer")
