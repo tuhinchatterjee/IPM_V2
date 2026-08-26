@@ -58,6 +58,10 @@ class NodeType(StrEnum):
     #: measure swapped, a filter added. Governed, because every entry on it is a
     #: difference between two recorded plans rather than a description of one.
     PLAN_CHANGE = "PLAN_CHANGE"
+    #: Which route answered this turn, which model role served it, and why.
+    #: Interpretive rather than governed: it records a decision CreditProbe
+    #: made about how hard to think, not a figure it computed.
+    MODEL_ROUTING = "MODEL_ROUTING"
     #: What was checked about the RESULT before it was allowed on the screen:
     #: every threshold, filter and row count the question promised, tested
     #: against the rows themselves. A plan can be reviewed and still be wrong;
@@ -136,7 +140,8 @@ GOVERNED_NODE_TYPES = frozenset(
 
 # Nodes produced by the language model. Never carry arithmetic.
 INTERPRETIVE_NODE_TYPES = frozenset(
-    {NodeType.USER_PROMPT, NodeType.LLM_INTENT, NodeType.PLAN, NodeType.LLM_EXPLANATION}
+    {NodeType.USER_PROMPT, NodeType.LLM_INTENT, NodeType.PLAN,
+     NodeType.MODEL_ROUTING, NodeType.LLM_EXPLANATION}
 )
 
 

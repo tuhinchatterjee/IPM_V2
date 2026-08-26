@@ -115,8 +115,15 @@ class LLMProvider(Protocol):
     def structured(self, *, system: str, prompt: str, schema: dict[str, Any],
                    tool_name: str, tool_description: str,
                    max_tokens: int = 2000,
-                   purpose: str = "reading") -> LLMResult:
+                   purpose: str = "reading",
+                   model: str = "") -> LLMResult:
         """Return a document conforming to `schema`, or raise LLMError.
+
+        `model` names the model to serve THIS call, so a configured role can be
+        answered by the model an administrator chose for it. Empty means the
+        provider's configured default. A provider that cannot serve the named
+        model must fail rather than substitute one: an answer from a different
+        model than the one certified is an answer with no certification.
 
         `purpose` names the stage the call belongs to — reading, repair,
         interpretation, validation — so a failure can be attributed to a stage

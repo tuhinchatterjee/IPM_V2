@@ -120,7 +120,7 @@ def test_every_map_node_belongs_to_a_step_or_the_interpretive_frame(investigatio
     # reading of it, the plan, CreditProbe's reading of the result, and the chart chosen
     # from the answer's shape.
     frame = {"question", "intent", "plan", "narrative", "visual",
-             "mathematical_query", "interpretation", "invariants"}
+             "mathematical_query", "interpretation", "invariants", "routing"}
     for node_id in investigation.graph.nodes:
         if node_id in frame:
             continue

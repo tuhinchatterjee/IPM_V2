@@ -57,6 +57,7 @@ from backend.orchestration import (
 from backend.orchestration import guardrail as gr
 from backend.orchestration import invariants as inv
 from backend.orchestration import memory as wm
+from backend.orchestration import routing as rt
 from backend.orchestration.context import retrieve
 from backend.semantics import ontology
 
@@ -113,6 +114,9 @@ def mode() -> dict[str, Any]:
         "state_label": observed["label"],
         "description": observed["detail"],
         "ai": observed,
+        "roles": _roles(),
+        "demo_safe": demo_safe(),
+        "routes": [{"id": r, "label": rt.LABELS[r]} for r in rt.ROUTES],
         "build": build_info().to_dict(),
         "limitations": ([] if live else [
             "Questions phrased unusually may not be understood.",
@@ -172,6 +176,8 @@ class Answered:
     investigation: dict[str, Any] = field(default_factory=dict)
     #: What was checked about the result, and what did not hold.
     invariants: Any = None
+    #: Which route and model answered this turn.
+    decision: Any = None
     #: Set when a key is configured and the live path could not be used.
     degraded_reason: str = ""
     #: Model calls made for this turn.
@@ -217,8 +223,19 @@ def answer(question: str, *, context: Any = None,
         concepts=list(state.concepts or state.metrics),
         datasets=list(state.datasets) or list(memory.datasets))
 
-    read = router.read(question, context=context, state=state, memory=memory)
+    # Which route answers this, decided before any model is called. Cheap,
+    # deterministic and recorded: a request whose route nobody can see is a
+    # request nobody can reproduce.
+    decision = rt.decide(question, memory=memory, demo_safe=demo_safe())
+    read = router.read(question, context=context, state=state, memory=memory,
+                       decision=decision)
     reading = read.reading
+
+    # Re-scored now that the reading exists. The first pass could only see the
+    # sentence; this one sees how many datasets and concepts it actually needs,
+    # which is where most of the difficulty lives.
+    decision = rt.decide(question, reading=reading, memory=memory,
+                         demo_safe=demo_safe())
     continuation = referents.resolve(
         question, state, model_action=reading.conversation_action,
         memory=memory)
@@ -226,6 +243,7 @@ def answer(question: str, *, context: Any = None,
     answered = Answered(
         question=question, reading=reading, verdict=read.verdict,
         continuation=continuation, calls=read.calls,
+        decision=read.decision or decision,
         degraded_reason=read.degraded_reason)
 
     # A follow-up about what the last turn produced, answered from it. Checked
@@ -239,6 +257,7 @@ def answer(question: str, *, context: Any = None,
     if from_memory is not None:
         answered.result = from_memory
         answered.from_memory = True
+        answered.decision = rt.decide(question, deterministic=True)
         return finish(answered)
 
     # "Something seems wrong with Contracting. Investigate it." — a request to
@@ -308,6 +327,73 @@ def answer(question: str, *, context: Any = None,
 
     return finish(_analyse(answered, question, reading, context, state,
                            continuation, period, extra_filters))
+
+
+def _repair_plan(answered: Answered, question: str, reading: cap.Reading,
+                 context: Any, state: cv.ConversationState,
+                 continuation: cv.Continuation,
+                 period: tuple[str, str] | None,
+                 error: str) -> tuple[Any, cap.Reading] | None:
+    """One re-read with the complex model, told exactly what failed.
+
+    Returns None when there is nothing to escalate to — no provider, or the
+    turn has already used its repair. A second repair would be a negotiation,
+    and a model unconvinced by the validation errors the first time will not be
+    convinced by the same errors again; it would only cost the user another few
+    seconds before the same outcome.
+    """
+    previous = answered.decision or rt.decide(question, reading=reading)
+    if previous.repairs >= 1 or not is_configured():
+        return None
+
+    escalated = rt.escalate(previous, f"The first plan failed validation: {error}")
+    answered.decision = escalated
+
+    read = router.read(question, context=context, state=state,
+                       decision=escalated)
+    answered.calls += read.calls
+    if read.reading is None or read.reading.source != "llm":
+        return None
+
+    try:
+        rebuilt = ap.plan(read.reading, context, question=question,
+                          period=period, state=state,
+                          continuation=continuation)
+    except Exception as e:  # noqa: BLE001 - the repair failed; say so upstream
+        logger.info("The repaired plan failed too (%s).", e)
+        return None
+    return rebuilt, read.reading
+
+
+def _roles() -> dict[str, Any]:
+    """Which model does which job, and any problem with how it is configured.
+
+    Never a key. An administrator who has set four model ids should be able to
+    see all four and be told plainly when one of them is not a model the
+    provider serves — silently answering with a different model would make a
+    certification meaningless.
+    """
+    from backend.llm import roles
+
+    described = roles.describe()
+    try:
+        described["problems"] = roles.verify(get_provider())
+    except Exception as e:  # noqa: BLE001
+        logger.debug("Could not verify model roles: %s", e)
+        described["problems"] = []
+    return described
+
+
+def demo_safe() -> bool:
+    """Whether Demo Safe Mode is on.
+
+    Read from the environment rather than a database so it cannot be changed
+    by a request mid-demo, and so a deployment can pin it.
+    """
+    import os
+
+    return (os.environ.get("DEMO_SAFE_MODE") or "").strip().lower() in {
+        "1", "true", "yes", "on"}
 
 
 def _investigate(answered: Answered, question: str, context: Any) -> Answered | None:
@@ -425,6 +511,7 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
         }
         return answered
 
+    build = None
     try:
         build = ap.plan(reading, context, question=question, period=period,
                         state=state, continuation=continuation)
@@ -432,12 +519,21 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
         answered.clarification = e.clarification
         return answered
     except Exception as e:  # noqa: BLE001
-        logger.exception("Composing an analysis failed for %r", question)
-        answered.failure_kind = FAILED_PLAN
-        answered.failure = (
-            "CreditProbe could not compose a governed analysis for that "
-            f"request. The AI interpretation failed validation: {e}")
-        return answered
+        # Execution-guided repair. The first plan did not compose; the model is
+        # asked again with the VALIDATION ERRORS — never with an expected
+        # answer, which would be teaching to the test — and at most once.
+        logger.info("Composing failed for %r (%s); escalating to repair.",
+                    question, e)
+        repaired = _repair_plan(answered, question, reading, context, state,
+                                continuation, period, str(e))
+        if repaired is None:
+            answered.failure_kind = FAILED_PLAN
+            answered.failure = (
+                "CreditProbe could not compose a governed analysis for that "
+                f"request. The AI interpretation failed validation: {e}")
+            return answered
+        build, reading = repaired
+        answered.reading = reading
 
     answered.build = build
 

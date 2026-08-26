@@ -74,10 +74,18 @@ class AnthropicProvider:
     def structured(self, *, system: str, prompt: str, schema: dict[str, Any],
                    tool_name: str, tool_description: str,
                    max_tokens: int = 2000,
-                   purpose: str = "reading") -> LLMResult:
+                   purpose: str = "reading",
+                   model: str = "") -> LLMResult:
+        """One structured answer.
+
+        `model` overrides the configured default for this call, so a role can
+        be served by the model an administrator chose for it. Empty means the
+        configured one — never a substitution, and never a guess.
+        """
         if not self.configured:
             raise LLMError("No Anthropic API key is configured.")
 
+        chosen = (model or "").strip() or self.model
         client = self._client()
         tool = {"name": tool_name, "description": tool_description,
                 "input_schema": schema}
@@ -87,7 +95,7 @@ class AnthropicProvider:
         for attempt in range(1, MAX_ATTEMPTS + 1):
             try:
                 message = client.messages.create(
-                    model=self.model,
+                    model=chosen,
                     max_tokens=max_tokens,
                     system=system,
                     tools=[tool],
@@ -101,13 +109,13 @@ class AnthropicProvider:
                 usage = getattr(message, "usage", None)
                 elapsed = int((time.perf_counter() - started) * 1000)
                 telemetry.record_success(
-                    provider=self.name, model=self.model, purpose=purpose,
+                    provider=self.name, model=chosen, purpose=purpose,
                     latency_ms=elapsed, request_id=_request_id(message),
                     attempts=attempt,
                     input_tokens=getattr(usage, "input_tokens", 0) or 0,
                     output_tokens=getattr(usage, "output_tokens", 0) or 0)
                 return LLMResult(
-                    data=data, model=self.model, duration_ms=elapsed,
+                    data=data, model=chosen, duration_ms=elapsed,
                     input_tokens=getattr(usage, "input_tokens", 0) or 0,
                     output_tokens=getattr(usage, "output_tokens", 0) or 0,
                     attempts=attempt,
@@ -124,7 +132,7 @@ class AnthropicProvider:
         # Recorded before it is raised, so a failure is visible in Settings even
         # though the caller degrades quietly to the offline reader.
         telemetry.record_failure(
-            provider=self.name, model=self.model, purpose=purpose,
+            provider=self.name, model=chosen, purpose=purpose,
             latency_ms=int((time.perf_counter() - started) * 1000),
             error=last, request_id=_error_request_id(last),
             attempts=min(attempt, MAX_ATTEMPTS))

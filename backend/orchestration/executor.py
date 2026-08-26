@@ -1086,6 +1086,9 @@ def _record_conversation(investigation: Investigation, answered: Any) -> None:
         "invariants": (answered.invariants.to_dict()
                        if getattr(answered, "invariants", None) is not None
                        else None),
+        "routing": (answered.decision.to_dict()
+                    if getattr(answered, "decision", None) is not None
+                    else None),
         "investigation": dict(getattr(answered, "investigation", {}) or {}),
     }
     if answered.degraded_reason:
@@ -1487,6 +1490,8 @@ def _record_invariants(investigation: Investigation, answered: Any) -> None:
     is bad news, which makes its absence invisible — and the absence is the
     thing they would need to notice.
     """
+    _record_routing(investigation, answered)
+
     report = getattr(answered, "invariants", None)
     if report is None or not report.checks:
         return
@@ -1518,6 +1523,33 @@ def _record_invariants(investigation: Investigation, answered: Any) -> None:
         investigation.node_hashes = graph.compute_hashes()
     except Exception as e:  # noqa: BLE001 - a Trace node must not lose an answer
         logger.warning("Could not record the invariant node: %s", e)
+
+
+def _record_routing(investigation: Investigation, answered: Any) -> None:
+    """Which route and model answered this turn, on the Trace.
+
+    Recorded even when the route was "no model at all" — especially then. A
+    user asking why an answer is trustworthy is best served by seeing that the
+    catalogue answered it directly and nothing was inferred.
+    """
+    decision = getattr(answered, "decision", None)
+    graph = investigation.graph
+    if decision is None or graph is None or "intent" not in graph.nodes:
+        return
+    try:
+        node = graph.add_node(TraceNode(
+            id="routing", type=NodeType.MODEL_ROUTING,
+            label=decision.to_dict().get("label", decision.route),
+            config={
+                **decision.to_dict(),
+                "rule": ("The route is decided from structural signals before "
+                         "any model is called, so it costs nothing and is the "
+                         "same for the same request."),
+            }))
+        node.mark_ok()
+        graph.connect("intent", "routing")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Could not record the routing node: %s", e)
 
 
 def _check_grounding(investigation: Investigation, runtime: Any) -> None:

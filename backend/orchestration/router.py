@@ -23,6 +23,7 @@ from backend.llm import LLMError, get_provider
 from backend.orchestration import capability as cap
 from backend.orchestration import conversation as cv
 from backend.orchestration import guardrail as gr
+from backend.orchestration import routing as rt
 from backend.orchestration.context import GovernedContext, retrieve
 
 logger = logging.getLogger(__name__)
@@ -168,6 +169,8 @@ class Read:
     #: the user rather than swallowed: an answer produced offline while a key is
     #: configured must say so.
     degraded_reason: str = ""
+    #: Which route and model served this reading. None when nothing was called.
+    decision: Any = None
 
     @property
     def live(self) -> bool:
@@ -176,7 +179,7 @@ class Read:
 
 def read(question: str, *, context: GovernedContext | None = None,
          state: cv.ConversationState | None = None,
-         memory: Any = None) -> Read:
+         memory: Any = None, decision: Any = None) -> Read:
     """What kind of request this is, checked before it is acted on.
 
     Three stages, and each is recorded rather than inferred:
@@ -204,6 +207,12 @@ def read(question: str, *, context: GovernedContext | None = None,
         return Read(reading=offline, verdict=gr.Verdict(outcome=gr.UNCHECKED),
                     duration_ms=int((time.perf_counter() - started) * 1000))
 
+    # Which model reads this. Decided before the call rather than after, and
+    # recorded whichever way it goes: an answer whose route nobody can see is
+    # an answer nobody can reproduce.
+    if decision is None:
+        decision = rt.decide(question, continuation=None, memory=memory)
+
     try:
         result = provider.structured(
             system=SYSTEM,
@@ -215,6 +224,7 @@ def read(question: str, *, context: GovernedContext | None = None,
                 "once. Do not compute anything."),
             max_tokens=1600,
             purpose="reading",
+            model=getattr(decision, "model", "") or "",
         )
     except LLMError as e:
         return _degraded(question, context, started, str(e))
@@ -234,6 +244,7 @@ def read(question: str, *, context: GovernedContext | None = None,
                                      repaired=repaired)
 
     return Read(reading=reading, verdict=verdict, calls=calls,
+                decision=decision,
                 duration_ms=int((time.perf_counter() - started) * 1000))
 
 
