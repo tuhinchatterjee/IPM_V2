@@ -362,6 +362,7 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
     from backend.db.engine import get_session
     from backend.models.platform import Investigation
     from backend.orchestration import conversation as cv
+    from backend.orchestration import memory as wm
     from backend.orchestration.executor import answer_investigation
 
     with get_session() as session:
@@ -378,6 +379,12 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
         question, user_id=user_id, project_id=project_id,
         investigation_id=thread_id, persist=True, period=window,
         state=cv.load(context),
+        # The TYPED memory as well as the analytical state. Without it a
+        # follow-up about a field set reached the planner with no "those" to
+        # resolve — which worked in tests that drove the orchestrator directly
+        # and failed for every user, because this is the function the browser
+        # actually calls.
+        memory=wm.load(context),
     )
     remember(thread_id, result, answered)
 
