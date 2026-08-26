@@ -55,6 +55,7 @@ from backend.orchestration import (
     router,
 )
 from backend.orchestration import guardrail as gr
+from backend.orchestration import invariants as inv
 from backend.orchestration import memory as wm
 from backend.orchestration.context import retrieve
 from backend.semantics import ontology
@@ -76,6 +77,8 @@ STAGES = [
 FAILED_PLAN = "plan_failed"
 FAILED_RUNTIME = "runtime_failed"
 FAILED_ROUTE = "unroutable"
+#: The answer computed, and then contradicted the question it answered.
+FAILED_INVARIANT = "invariant_failed"
 
 
 def mode() -> dict[str, Any]:
@@ -167,6 +170,8 @@ class Answered:
     from_memory: bool = False
     #: The probes a broad investigation ran, when this turn was one.
     investigation: dict[str, Any] = field(default_factory=dict)
+    #: What was checked about the result, and what did not hold.
+    invariants: Any = None
     #: Set when a key is configured and the live path could not be used.
     degraded_reason: str = ""
     #: Model calls made for this turn.
@@ -447,6 +452,17 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
         answered.failure = (
             "CreditProbe composed the analysis but the governed runtime could "
             f"not complete it: {e}")
+        return answered
+
+    # The answer exists. Before anybody sees it, check that it matches the
+    # question that was asked — every threshold, every filter, every promised
+    # row count, tested against the rows themselves.
+    answered.invariants = inv.check_result(build, answered.runtime, question)
+    if not answered.invariants.ok:
+        logger.warning("Invariants failed for %r: %s", question,
+                       [f.check.rule for f in answered.invariants.failures])
+        answered.failure_kind = FAILED_INVARIANT
+        answered.failure = answered.invariants.sentence()
         return answered
 
     answered.written = interpretation.write(

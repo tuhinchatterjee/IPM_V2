@@ -969,6 +969,7 @@ def answer_investigation(question: str, *, user_id: int | None = None,
             question, answered.reading, answered.build, answered.runtime,
             duration_ms=answered.duration_ms, mode=mode_now)
         _apply_interpretation(investigation, answered)
+        _record_invariants(investigation, answered)
         _check_grounding(investigation, answered.runtime)
 
     _record_conversation(investigation, answered)
@@ -1082,6 +1083,10 @@ def _record_conversation(investigation: Investigation, answered: Any) -> None:
         "degraded_reason": answered.degraded_reason,
         "interpretation": (answered.written.to_dict()
                            if answered.written is not None else None),
+        "invariants": (answered.invariants.to_dict()
+                       if getattr(answered, "invariants", None) is not None
+                       else None),
+        "investigation": dict(getattr(answered, "investigation", {}) or {}),
     }
     if answered.degraded_reason:
         investigation.narrative.caveats.append(
@@ -1472,6 +1477,47 @@ def _stated_failure(question: str, reason: str,
         duration_ms=int((time.perf_counter() - started) * 1000),
         status="failed", rejected=[detail],
     )
+
+
+def _record_invariants(investigation: Investigation, answered: Any) -> None:
+    """Put what was checked on the Trace, whether or not anything failed.
+
+    Recorded on every answer, including the ones where everything held. A node
+    that only appears when something went wrong teaches users that its presence
+    is bad news, which makes its absence invisible — and the absence is the
+    thing they would need to notice.
+    """
+    report = getattr(answered, "invariants", None)
+    if report is None or not report.checks:
+        return
+
+    graph = investigation.graph
+    if graph is None:
+        return
+    try:
+        node = graph.add_node(TraceNode(
+            id="invariants", type=NodeType.BUSINESS_INVARIANT,
+            label=(f"{len(report.checks) - len(report.failures)} of "
+                   f"{len(report.checks)} checks held"),
+            config={
+                "checked": [c.claim for c in report.checks],
+                "failed": [f.to_dict() for f in report.failures],
+                "skipped": list(report.skipped),
+                "rule": ("Every promise the question made is tested against "
+                         "the rows themselves. A failure blocks the answer "
+                         "rather than annotating it."),
+            }))
+        if report.ok:
+            node.mark_ok()
+        else:
+            node.mark_failed(report.sentence())
+        for leaf in ("result", "run__result"):
+            if leaf in graph.nodes:
+                graph.connect(leaf, "invariants")
+                break
+        investigation.node_hashes = graph.compute_hashes()
+    except Exception as e:  # noqa: BLE001 - a Trace node must not lose an answer
+        logger.warning("Could not record the invariant node: %s", e)
 
 
 def _check_grounding(investigation: Investigation, runtime: Any) -> None:

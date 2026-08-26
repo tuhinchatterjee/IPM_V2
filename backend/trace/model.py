@@ -58,6 +58,12 @@ class NodeType(StrEnum):
     #: measure swapped, a filter added. Governed, because every entry on it is a
     #: difference between two recorded plans rather than a description of one.
     PLAN_CHANGE = "PLAN_CHANGE"
+    #: What was checked about the RESULT before it was allowed on the screen:
+    #: every threshold, filter and row count the question promised, tested
+    #: against the rows themselves. A plan can be reviewed and still be wrong;
+    #: this is the node that says the answer matches the question that was
+    #: asked, and that a failure would have blocked it.
+    BUSINESS_INVARIANT = "BUSINESS_INVARIANT"
     #: The catalogue itself answering, for a question about the data rather
     #: than about the portfolio.
     GOVERNED_METADATA = "GOVERNED_METADATA"
@@ -123,6 +129,7 @@ GOVERNED_NODE_TYPES = frozenset(
         NodeType.SQL_QUERY,
         NodeType.KERNEL,
         NodeType.CALCULATION,
+        NodeType.BUSINESS_INVARIANT,
         NodeType.RESULT,
     }
 )
