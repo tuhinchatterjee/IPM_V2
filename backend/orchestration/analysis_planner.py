@@ -285,10 +285,9 @@ def plan(reading: Reading, context: GovernedContext, *,
         # holding in their head.
         build = _movement(reading, context, text, matches, filters, dimension,
                           catalogue, period=period)
-    elif shape in (COHORT, MOVEMENT) or period:
+    elif shape in (COHORT, MOVEMENT):
         build = _two_period(reading, context, text, matches, filters,
-                            conditions, shape if shape in (COHORT, MOVEMENT)
-                            else MOVEMENT, period=period,
+                            conditions, shape, period=period,
                             population=continuation if carrying else None)
     else:
         build = _single_period(

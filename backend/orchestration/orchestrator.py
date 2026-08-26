@@ -385,11 +385,14 @@ def _with_overrides(reading: cap.Reading, period: tuple[str, str] | None,
             continue
         entities = [e for e in entities if e.get("kind") != kind]
         entities.append({"kind": str(kind), "value": str(value)})
+    # A supplied window says WHICH periods, never that a comparison is wanted.
+    # Forcing `two_period` here turned "rank them by EAD" — asked inside a thread
+    # that had settled a year-long window — into a movement of the whole book
+    # between two quarters. The reading's own requirement decides the shape; the
+    # window only decides which periods that shape reads.
     return dataclasses.replace(
         reading, entities=tuple(entities),
-        periods=tuple(period) if period else reading.periods,
-        period_requirement=("two_period" if period
-                            else reading.period_requirement))
+        periods=tuple(period) if period else reading.periods)
 
 
 def _plan_note(build: ap.AnalysisBuild,

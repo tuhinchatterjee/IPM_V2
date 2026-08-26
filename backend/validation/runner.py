@@ -108,8 +108,8 @@ class RunResult:
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.run_id, "score": self.score, "band": self.band,
-            "tone": self.tone, "label": f"AI POWERED · {self.band}"
-            if self.band else "AI POWERED",
+            "tone": self.tone, "label": _label(self.band),
+            "live_cases": sum(1 for c in self.cases if not c.used_fallback),
             "components": dict(self.components),
             "cases": [c.to_dict() for c in self.cases],
             "provider": self.provider, "model": self.model,
@@ -122,6 +122,20 @@ class RunResult:
             "partial": self.partial, "failed": self.failed,
             "notes": list(self.notes),
         }
+
+
+def _label(band: str) -> str:
+    """What the header chip says for a band.
+
+    OFFLINE and UNVERIFIED deliberately do not say AI POWERED. A product that
+    labelled a deterministic run "AI POWERED · HIGH" would be making exactly the
+    claim this whole subsystem exists to substantiate.
+    """
+    if band == "OFFLINE":
+        return "AI OFFLINE"
+    if band == "UNVERIFIED":
+        return "AI UNVERIFIED"
+    return f"AI POWERED · {band}" if band else "AI POWERED"
 
 
 def choose(count_per_family: int = 1) -> list[dict[str, Any]]:
@@ -176,8 +190,20 @@ def run(cases: list[dict[str, Any]] | None = None, *,
     scores = [c.score for c in result.cases]
     result.score = round(sum(scores) / len(scores), 1) if scores else 0.0
     result.components = _average_components(result.cases)
-    result.band, result.tone = scoring.band(result.score)
     result.duration_ms = int((time.perf_counter() - started) * 1000)
+
+    # The band grades the AI, and only cases that reached the live model are
+    # evidence about the AI. A run where every case fell through to the
+    # deterministic reader can score a hundred and still says nothing about the
+    # thing the button claims to check, so it does not get a band at all.
+    live = [c.score for c in result.cases if not c.used_fallback]
+    if not observed.get("configured"):
+        result.band, result.tone = "OFFLINE", "neutral"
+    elif not live:
+        result.band, result.tone = "UNVERIFIED", "amber"
+    else:
+        result.band, result.tone = scoring.band(
+            round(sum(live) / len(live), 1))
 
     if any(c.used_fallback for c in result.cases):
         result.notes.append(
@@ -239,6 +265,10 @@ def _run_case(case: dict[str, Any]) -> CaseResult:
             "plan": seen.get("plan"),
             "sql": seen.get("sql"),
             "rows": seen.get("rows"),
+            # The sample above is capped; the real count is what was scored, and
+            # showing the cap beside a reference count would read as a
+            # disagreement the scorer never found.
+            "row_count": seen.get("row_count"),
             "columns": seen.get("columns"),
             "values": seen.get("values"),
             "live": seen.get("live"),
@@ -312,6 +342,7 @@ def _observe(investigation: Any, answered: Any) -> dict[str, Any]:
         "join_path": list(getattr(build, "joins", [])),
         "values": _values(payload, build),
         "rows": list(payload.get("rows") or [])[:MAX_ROWS],
+        "row_count": len(payload.get("rows") or []),
         "columns": list(payload.get("columns") or []),
         "answer": investigation.narrative.direct_answer,
         "interpretation": investigation.narrative.interpretation,

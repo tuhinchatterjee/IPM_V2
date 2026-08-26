@@ -190,18 +190,18 @@ def _coverage() -> list[dict[str, Any]]:
 # ====================================================== how things join (8)
 
 _PAIRS: tuple[tuple[str, str, str, str], ...] = (
-    ("payment history", "the facility book", "payment_history", FACILITY),
-    ("recoveries", "the facility book", "recoveries", FACILITY),
-    ("borrower financials", "the facility book", "borrower_financials", FACILITY),
-    ("credit memos", "the facility book", "credit_memo_signals", FACILITY),
+    ("payment history", "portfolio facility", "payment_history", FACILITY),
+    ("recoveries", "portfolio facility", "recoveries", FACILITY),
+    ("borrower financials", "portfolio facility", "borrower_financials", FACILITY),
+    ("credit memos", "portfolio facility", "credit_memo_signals", FACILITY),
     ("ratings", "IFRS 9", RATINGS, IFRS9),
-    ("the facility book", "IFRS 9", FACILITY, IFRS9),
-    ("arrears", "the facility book", DELINQUENCY, FACILITY),
-    ("collateral", "the facility book", COLLATERAL, FACILITY),
-    ("covenants", "the facility book", COVENANTS, FACILITY),
-    ("ratings", "the facility book", RATINGS, FACILITY),
-    ("limits", "the facility book", LIMITS, FACILITY),
-    ("the watchlist", "the facility book", WATCHLIST, FACILITY),
+    ("portfolio facility", "IFRS 9", FACILITY, IFRS9),
+    ("arrears", "portfolio facility", DELINQUENCY, FACILITY),
+    ("collateral", "portfolio facility", COLLATERAL, FACILITY),
+    ("covenants", "portfolio facility", COVENANTS, FACILITY),
+    ("ratings", "portfolio facility", RATINGS, FACILITY),
+    ("facility limits", "portfolio facility", LIMITS, FACILITY),
+    ("the watchlist", "portfolio facility", WATCHLIST, FACILITY),
 )
 
 
@@ -211,7 +211,7 @@ def _relationships() -> list[dict[str, Any]]:
         cases.append(_case(
             f"rel-{index:03d}", RELATIONSHIP,
             f"How {left} connects to {right}",
-            [_turn(f"How is the {left} data connected to {right} data?",
+            [_turn(f"How is {left} data connected to {right} data?",
                    intent="DATA_RELATIONSHIP", datasets=[source, target],
                    computes=False, forbidden_methods=["stage_distribution",
                                                       "portfolio_summary"],

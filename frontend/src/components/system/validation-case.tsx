@@ -268,8 +268,15 @@ function ValueComparison({
         ok: close(actual, expected),
       });
     }
-    if (reference.ids?.length && turn.rows?.length) {
-      const returned = turn.rows.length;
+    // Only where the reference's ids ARE identities. A dataset reference lists
+    // field names, and comparing those against returned rows would compare two
+    // different things and call the difference an error — which is exactly what
+    // the backend scorer refuses to do.
+    const identifies = ["ranking", "cohort", "aggregate", "count"].includes(
+      reference.kind,
+    );
+    const returned = turn.row_count ?? turn.rows?.length ?? 0;
+    if (identifies && reference.ids?.length) {
       out.push({
         label: "Rows returned",
         expected: String(reference.ids.length),

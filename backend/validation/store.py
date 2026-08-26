@@ -121,6 +121,12 @@ def case(run_id: int, benchmark_id: str) -> dict[str, Any] | None:
         return None
 
 
+def _label(band: str) -> str:
+    from backend.validation.runner import _label as label_for
+
+    return label_for(str(band or ""))
+
+
 def _run_dict(row: Any, *, with_cases: bool) -> dict[str, Any]:
     out = {
         "id": row.id,
@@ -130,7 +136,7 @@ def _run_dict(row: Any, *, with_cases: bool) -> dict[str, Any]:
         "benchmark_version": row.benchmark_version,
         "data_version": row.data_version, "ai_state": row.ai_state,
         "status": row.status, "score": row.score, "band": row.band,
-        "label": f"AI POWERED · {row.band}" if row.band else "AI POWERED",
+        "label": _label(row.band),
         "case_count": row.case_count, "passed": row.passed,
         "partial": row.partial, "failed": row.failed,
         "duration_ms": row.duration_ms, "components": dict(row.components or {}),

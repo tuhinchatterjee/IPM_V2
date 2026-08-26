@@ -806,7 +806,19 @@ export interface PlannerMode {
 // ---------------------------------------------------------------- AI checks
 
 export type Verdict = "PASS" | "PARTIAL" | "FAIL";
-export type Band = "HIGH" | "GOOD" | "LIMITED" | "DEGRADED" | "";
+/**
+ * A band grades the AI, so it is only awarded to a run that reached the model.
+ * OFFLINE means no provider; UNVERIFIED means one was configured and every case
+ * still fell through to the deterministic reader.
+ */
+export type Band =
+  | "HIGH"
+  | "GOOD"
+  | "LIMITED"
+  | "DEGRADED"
+  | "OFFLINE"
+  | "UNVERIFIED"
+  | "";
 
 export interface ReferenceAnswer {
   kind: string;
@@ -830,6 +842,8 @@ export interface ValidationTurn {
   plan: Record<string, unknown>;
   sql: string;
   rows: Record<string, unknown>[];
+  /** Every row the analysis returned. `rows` above is a capped sample. */
+  row_count?: number;
   columns: { name: string; label?: string; unit?: string }[];
   values: Record<string, unknown>;
   live: boolean;
@@ -878,6 +892,8 @@ export interface ValidationRun {
   partial: number;
   failed: number;
   notes: string[];
+  /** How many cases actually reached the live model. */
+  live_cases?: number;
   stored?: boolean;
   stale?: boolean;
   stale_because?: string[];

@@ -19,7 +19,8 @@ import type { AiStatus, ValidationCase, ValidationRun } from "@/lib/api";
 /**
  * AI POWERED — a claim the product has to be able to back.
  *
- * The chip says one of five things, and each is earned rather than configured:
+ * The chip says one of these, and every one of them is earned rather than
+ * configured:
  *
  *   AI POWERED            nothing has been checked yet
  *   AI POWERED · HIGH     a check scored 90 or above
@@ -27,7 +28,13 @@ import type { AiStatus, ValidationCase, ValidationRun } from "@/lib/api";
  *   AI POWERED · LIMITED  60–74
  *   AI POWERED · DEGRADED below 60
  *   AI POWERED · STALE    the model, build, benchmark or data has moved on
+ *   AI UNVERIFIED         a key is configured and no case reached the model
  *   AI OFFLINE            no provider is configured at all
+ *
+ * The last two matter most. A check where every case fell through to the
+ * deterministic reader can still score a hundred — it measures the governed
+ * runtime, which is worth knowing and is not what the button claims. So it does
+ * not get a band, and the panel says "governed runtime only" beside the number.
  *
  * Pressing it opens the check: three hidden benchmark threads, run through the
  * live path, each scored against an independently computed reference. Every
@@ -268,26 +275,42 @@ function RunSummary({
           <p
             className={cn(
               "font-display text-[13px] font-semibold tracking-[0.04em]",
-              toneOf(run.score),
+              graded(run) ? toneOf(run.score) : "text-text-secondary",
             )}
           >
             {stale ? "AI POWERED · STALE" : run.label}
           </p>
           <p className="mt-0.5 text-[12px] text-text-muted">
-            {run.provider || "no provider"}
-            {run.model ? ` · ${run.model}` : ""} · benchmark v
-            {run.benchmark_version} · {run.data_version}
+            {[
+              run.provider && run.provider !== "none"
+                ? run.model || run.provider
+                : "no provider",
+              `benchmark v${run.benchmark_version}`,
+              run.data_version,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         </div>
-        <p
-          className={cn(
-            "font-display text-3xl font-semibold tabular-nums",
-            toneOf(run.score),
+        <div className="text-right">
+          <p
+            className={cn(
+              "font-display text-3xl font-semibold tabular-nums",
+              graded(run) ? toneOf(run.score) : "text-text-secondary",
+            )}
+          >
+            {Math.round(run.score)}
+            <span className="ml-1 text-base text-text-muted">/ 100</span>
+          </p>
+          {/* A score earned without reaching the model grades the governed
+              runtime, not the AI. Saying so beside the number is the difference
+              between a measurement and a boast. */}
+          {!graded(run) && (
+            <p className="mt-0.5 text-[11px] text-text-muted">
+              governed runtime only
+            </p>
           )}
-        >
-          {Math.round(run.score)}
-          <span className="ml-1 text-base text-text-muted">/ 100</span>
-        </p>
+        </div>
       </div>
 
       {stale && run.stale_because && run.stale_because.length > 0 && (
@@ -362,6 +385,11 @@ function RunSummary({
       </div>
     </section>
   );
+}
+
+/** Whether this run actually graded the AI, rather than the runtime beneath it. */
+function graded(run: ValidationRun): boolean {
+  return run.band !== "OFFLINE" && run.band !== "UNVERIFIED";
 }
 
 /** The thread in one line — its first question, and how many followed. */

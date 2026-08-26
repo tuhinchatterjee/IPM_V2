@@ -50,7 +50,8 @@ def ai_status() -> dict:
 
     if latest and not latest.get("stale"):
         label = latest.get("label") or "AI POWERED"
-        tone = _tone(float(latest.get("score") or 0))
+        tone = _tone(str(latest.get("band") or ""),
+                     float(latest.get("score") or 0))
     elif latest:
         label = "AI POWERED · STALE"
         tone = "neutral"
@@ -71,9 +72,13 @@ def ai_status() -> dict:
     }
 
 
-def _tone(score: float) -> str:
+def _tone(band: str, score: float) -> str:
     from backend.validation import scoring
 
+    if band == "OFFLINE":
+        return "neutral"
+    if band == "UNVERIFIED":
+        return "amber"
     return scoring.band(score)[1]
 
 
