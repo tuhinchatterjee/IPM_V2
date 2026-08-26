@@ -725,3 +725,33 @@ table th {
     scroll-behavior: auto !important;
   }
 }
+
+/* -----------------------------------------------------------------------------
+   AI ACTIVITY
+
+   Three animations, used only while CreditProbe is working. See
+   components/system/ai-activity.tsx for the rule they exist under: motion in
+   this product means the machine is doing something, and its value comes from
+   never being spent on decoration.
+
+   All three are inert under prefers-reduced-motion; the components they belong
+   to stay legible without them.
+   -------------------------------------------------------------------------- */
+
+@keyframes ai-sweep {
+  0%   { transform: translateX(-100%); opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { transform: translateX(400%); opacity: 0; }
+}
+
+@keyframes ai-pulse {
+  0%   { transform: scale(1); opacity: 0.6; }
+  70%  { transform: scale(2.4); opacity: 0; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+@keyframes ai-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 var(--color-ai-edge); }
+  50%      { box-shadow: 0 0 0 3px color-mix(in oklab, transparent 70%, var(--color-ai-edge)); }
+}

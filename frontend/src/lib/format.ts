@@ -180,3 +180,140 @@ export function unitSuffix(unit?: string | null): string {
 export function titleCase(value: string): string {
   return value.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Semantic figures                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A figure and its unit, kept apart.
+ *
+ * Every number in the product is formatted through here so a table, a KPI tile
+ * and a chart tooltip cannot disagree about what "12,261" means. The unit is
+ * returned separately rather than glued on, because a table puts it in the
+ * column header once and a tile sets it small beside the value — and a column
+ * that repeats "USD mn" on all twenty-five rows is twenty-four wasted
+ * repetitions of the one fact that does not change.
+ */
+export interface Figure {
+  /** The number, formatted. Never carries the unit. */
+  text: string;
+  /** The unit as it should be shown, or "" when the format already implies it. */
+  unit: string;
+  /** True when the value was scaled — 12,261 USD mn shown as 12.3, unit "bn". */
+  scaled: boolean;
+}
+
+const EMPTY: Figure = { text: "—", unit: "", scaled: false };
+
+/**
+ * Money held in millions, scaled to the magnitude a person would say out loud.
+ *
+ * A credit officer says "twelve point three billion", never "twelve thousand
+ * two hundred and sixty-one million". Below a thousand millions the figure
+ * stays in millions, because that is how a single facility is discussed.
+ */
+export function scaleMoney(
+  value: number,
+  currency = "USD",
+  scale = "mn",
+): Figure {
+  const abs = Math.abs(value);
+  if (scale === "mn" && abs >= 1000) {
+    const billions = value / 1000;
+    return {
+      text: billions.toLocaleString("en-US", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: abs >= 100_000 ? 0 : 1,
+      }),
+      unit: `${currency} bn`,
+      scaled: true,
+    };
+  }
+  // One decimal, always, below a billion. A single facility at 321.8 rounded
+  // to 322 has lost the precision the reader is checking the figure for, and
+  // the column is no wider for keeping it.
+  return {
+    text: value.toLocaleString("en-US", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    }),
+    unit: `${currency} ${scale}`,
+    scaled: false,
+  };
+}
+
+/**
+ * One value as a figure plus a unit, following the column's contract.
+ *
+ * This is `byContract` split in two. The old one returned "12,261 USD mn" as a
+ * single string, which is correct and unreadable in a column of twenty-five,
+ * and gave a table no way to lift the unit into its header.
+ */
+export function figure(value: unknown, column?: ColumnSpec | null): Figure {
+  if (value === null || value === undefined) return EMPTY;
+  if (typeof value === "boolean") {
+    return { text: value ? "Yes" : "No", unit: "", scaled: false };
+  }
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return { text: String(value), unit: "", scaled: false };
+  }
+
+  const semantic = column?.semantic ?? "";
+  const unit = column?.unit ?? "";
+
+  if (semantic === "money" || unit === "USD mn" || unit === "SAR mn") {
+    const [currency, scale] = unit.split(" ");
+    return scaleMoney(value, column?.currency ?? currency ?? "USD", scale ?? "mn");
+  }
+  if (unit === "%" || semantic === "percent" || semantic === "share") {
+    return {
+      text: value.toFixed(column?.decimals ?? 2),
+      unit: "%",
+      scaled: false,
+    };
+  }
+  if (unit === "pp") {
+    return { text: value.toFixed(column?.decimals ?? 2), unit: "pp", scaled: false };
+  }
+  if (unit === "x" || semantic === "ratio") {
+    return { text: value.toFixed(column?.decimals ?? 2), unit: "x", scaled: false };
+  }
+  if (unit === "days" || semantic === "days") {
+    return { text: count(value), unit: "days", scaled: false };
+  }
+  if (semantic === "count" || Number.isInteger(value)) {
+    return { text: count(value), unit: "", scaled: false };
+  }
+  return {
+    text: value.toLocaleString("en-US", {
+      minimumFractionDigits: column?.decimals ?? 2,
+      maximumFractionDigits: column?.decimals ?? 2,
+    }),
+    unit,
+    scaled: false,
+  };
+}
+
+/**
+ * The unit a whole column shares, for its header — or "" when the rows differ.
+ *
+ * Money is the case that matters: a column whose values straddle the billion
+ * boundary would show "12.3" and "840.0" under one header, meaning two
+ * different things. When that happens the unit stays on the rows.
+ */
+export function columnUnit(values: unknown[], column?: ColumnSpec | null): string {
+  const figures = values
+    .filter((v) => typeof v === "number" && !Number.isNaN(v))
+    .map((v) => figure(v, column));
+  if (!figures.length) return "";
+  const units = new Set(figures.map((f) => f.unit));
+  return units.size === 1 ? [...units][0] : "";
+}
+
+/** A movement, with its sign, as a figure. */
+export function deltaFigure(value: number, column?: ColumnSpec | null): Figure {
+  const base = figure(Math.abs(value), column);
+  const sign = value > 0 ? "+" : value < 0 ? "−" : "";
+  return { ...base, text: `${sign}${base.text}` };
+}

@@ -3,24 +3,10 @@
 import * as React from "react";
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable } from "@/components/analytics/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  byContract,
-  byUnit,
-  humanise,
-  unitSuffix,
-  type ColumnSpec,
-  type Direction,
-  toneFor,
-} from "@/lib/format";
+import { byUnit, unitSuffix, toneFor } from "@/lib/format";
+import type { ColumnSpec, Direction } from "@/lib/format";
 import type { Row } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -122,9 +108,10 @@ export function KpiTile({
 /**
  * A table of engine result rows.
  *
- * Columns are derived from the data and formatted by the unit the engine
- * declared, so nothing here decides what a number means — it only decides how
- * many decimals to show.
+ * Kept as the name every analysis renderer already calls, and now a thin
+ * adapter over `DataTable`. The two things it still has to do are translate
+ * the older `units` map into the column contract `DataTable` expects, and
+ * decide when a table is long enough to be worth sticking its header to.
  */
 export function ResultTable({
   rows,
@@ -137,16 +124,14 @@ export function ResultTable({
   renderCell,
 }: {
   rows: Row[];
+  /** The older per-column unit map, from analyses with no presentation contract. */
   units?: Record<string, string>;
   /** Restrict and order the columns. Defaults to every key on the first row. */
   columns?: string[];
   /**
    * What each column IS, from the backend's presentation contract: its label,
    * its unit, how many decimals it should carry, whether it identifies the
-   * row. Falls back to guessing from the name when absent, which is what
-   * produced "Facility Delinquency Days Past Due" showing 0 beside an answer
-   * saying days past due had risen — the column is the OPENING value, and its
-   * label now says so.
+   * row. Falls back to the unit map, and then to guessing from the name.
    */
   spec?: ColumnSpec[];
   maxRows?: number;
@@ -154,56 +139,32 @@ export function ResultTable({
   emptyMessage?: string;
   renderCell?: (column: string, value: unknown, row: Row) => React.ReactNode | undefined;
 }) {
-  if (!rows.length) {
-    return <p className="py-6 text-center text-sm text-text-muted">{emptyMessage}</p>;
-  }
-
-  const keys = columns ?? Object.keys(rows[0]);
-  const shown = maxRows ? rows.slice(0, maxRows) : rows;
-  const byName = new Map((spec ?? []).map((c) => [c.name, c]));
-  const isNumeric = (key: string) => {
-    const declared = byName.get(key);
-    if (declared) return declared.align === "right";
-    return shown.some((r) => typeof r[key] === "number");
-  };
+  // A contract entry per column, whichever source described it. Without this
+  // the older analyses — the ones that only ever declared a unit — would lose
+  // their formatting the moment they went through the new table.
+  const contract = React.useMemo<ColumnSpec[]>(() => {
+    const declared = new Map((spec ?? []).map((c) => [c.name, c]));
+    const keys = columns ?? (rows.length ? Object.keys(rows[0]) : []);
+    return keys.map(
+      (name) => declared.get(name) ?? { name, unit: units[name] },
+    );
+  }, [spec, units, columns, rows]);
 
   return (
-    <div className={className}>
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            {keys.map((key) => (
-              <TableHead key={key} numeric={isNumeric(key)} title={byName.get(key)?.role}>
-                {byName.get(key)?.label ?? humanise(key)}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {shown.map((row, i) => (
-            <TableRow key={i}>
-              {keys.map((key) => {
-                const custom = renderCell?.(key, row[key], row);
-                return (
-                  <TableCell key={key} numeric={isNumeric(key)}>
-                    {custom !== undefined
-                      ? custom
-                      : byName.has(key)
-                        ? byContract(row[key], byName.get(key))
-                        : byUnit(row[key], units[key])}
-                  </TableCell>
-                );
-              })}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      {maxRows && rows.length > maxRows && (
-        <p className="px-3 pt-2 text-xs text-text-muted">
-          Showing {maxRows} of {rows.length} rows.
-        </p>
-      )}
-    </div>
+    <DataTable
+      rows={rows}
+      spec={contract}
+      columns={columns}
+      maxRows={maxRows}
+      // Long enough that the header would scroll off before the reader is
+      // done with it. Shorter tables get no scroll container at all, which
+      // keeps a five-row answer sitting naturally in the page.
+      stickyHeader={rows.length > 12}
+      maxHeight={rows.length > 12 ? 460 : undefined}
+      className={className}
+      emptyMessage={emptyMessage}
+      renderCell={renderCell}
+    />
   );
 }
 

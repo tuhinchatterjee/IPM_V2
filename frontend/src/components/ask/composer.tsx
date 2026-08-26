@@ -3,21 +3,34 @@
 import * as React from "react";
 import { CornerDownLeft, Loader2, TriangleAlert } from "lucide-react";
 
+import { AiSpectralLine } from "@/components/system/ai-activity";
 import { Button } from "@/components/ui/button";
 import { InfoPopover } from "@/components/ui/info-popover";
 import { cn } from "@/lib/utils";
 
+/** Past this a question has stopped being a question and become a brief. */
+const MAX_HEIGHT = 168;
+
 /**
  * The prompt composer.
  *
- * It is the largest single element on the Cockpit on purpose. CreditProbe's claim is
- * that the conversation is the product and the dashboard is what you see while
- * you decide what to ask — a composer tucked into a sidebar would contradict
- * that on first sight.
+ * The central object of the product, and deliberately not the largest one.
  *
- * Restraint is the design here. A handful of suggestions, not a menu; and the
- * statement of what CreditProbe will and will not do sits behind an "i" rather than
- * under the box, because it is a thing you read once.
+ * It used to open as three empty rows of textarea — roughly a fifth of the
+ * Cockpit given over to blank space before anyone had typed anything. A large
+ * empty box does not read as "ask me anything"; it reads as a form with a lot
+ * to fill in, and the eye has nowhere to rest. So it opens at one line and
+ * grows to fit what is being written, up to a limit past which a question has
+ * stopped being a question.
+ *
+ * Restraint is the design. No suggestion chips by default — a row of them
+ * teaches people that CreditProbe answers a fixed list — and the statement of
+ * what it will and will not do sits behind an "i" rather than under the box,
+ * because it is read once.
+ *
+ * While it is working the composer is the one thing in the interface that
+ * moves. See `ai-activity.tsx`: motion here means the machine is doing
+ * something, and stops the moment it is not.
  */
 export function Composer({
   value,
@@ -47,14 +60,29 @@ export function Composer({
     if (autoFocus) ref.current?.focus();
   }, [autoFocus]);
 
+  // Grow to the text, not to a guess. Measured from scrollHeight after a reset
+  // so the box also SHRINKS when a long question is deleted — a composer that
+  // only ever grows leaves a hole where the question used to be.
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT)}px`;
+  }, [value]);
+
   return (
     <div>
       <div
         className={cn(
-          "overflow-hidden rounded-xl border border-border-strong bg-surface shadow-sm transition-shadow",
-          "focus-within:border-accent focus-within:shadow-md",
+          "relative overflow-hidden rounded-xl border bg-surface transition-all",
+          "duration-[--duration-quick] ease-[--ease-out-quiet]",
+          busy
+            ? "border-ai-edge"
+            : "border-border-strong focus-within:border-accent focus-within:shadow-[var(--shadow-focus)]",
         )}
       >
+        {/* The one piece of motion in the product, and only while it runs. */}
+        {busy && <AiSpectralLine />}
         <div className="relative">
           <textarea
             ref={ref}
@@ -66,13 +94,23 @@ export function Composer({
                 if (value.trim() && !busy) onSubmit(value.trim());
               }
             }}
-            rows={3}
+            rows={1}
             disabled={busy}
             placeholder={readOnlyNote ?? placeholder}
             aria-label="Ask CreditProbe a question about the portfolio"
-            className="w-full resize-none bg-transparent px-5 py-4 pr-32 text-base leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none disabled:opacity-60"
+            style={{ maxHeight: MAX_HEIGHT }}
+            className={cn(
+              "w-full resize-none overflow-y-auto bg-transparent",
+              "px-4 py-3 pr-28",
+              // The user's own voice, in the face the rest of the product uses
+              // for it. What you typed should not be set in the same type as
+              // what CreditProbe wrote back.
+              "font-user text-[0.9375rem] font-medium leading-[1.5]",
+              "text-text-primary placeholder:font-normal placeholder:text-text-muted",
+              "focus:outline-none disabled:opacity-60",
+            )}
           />
-          <div className="absolute bottom-3.5 right-4 flex items-center gap-2">
+          <div className="absolute bottom-2 right-3 flex items-center gap-2">
             <span className="hidden text-[11px] text-text-muted sm:inline">Enter to ask</span>
             <Button
               size="sm"
