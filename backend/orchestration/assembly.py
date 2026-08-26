@@ -415,7 +415,7 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
         where = (" in " + _scope_phrase(build.filters)) if build.filters else ""
         if build.dimension:
             direct = (f"{_fmt(total)} {subject}{where} across {count} "
-                      f"{build.dimension}{'s' if count != 1 else ''} at "
+                      f"{_dimension_word(build)}{'s' if count != 1 else ''} at "
                       f"{build.period}.")
         else:
             # One number for the whole population. "across 1 customer" is what
@@ -650,6 +650,29 @@ def _interpretation(build: ap.AnalysisBuild, runtime: Any, count: int) -> str:
         return (f"Ordered largest first. The figures are sums across every "
                 f"facility in each {build.dimension} at {build.period}.")
     return ""
+
+
+def _dimension_word(build: ap.AnalysisBuild) -> str:
+    """The breakdown, in the words a person uses for it.
+
+    A breakdown reached over a join lands in a prefixed column, so the
+    sentence read "across 10 customer_ratings_internal_grades" — a column
+    name where a noun belongs, in the first line of the answer.
+    """
+    from backend.orchestration import presentation
+
+    raw = str(build.dimension or "")
+    if not raw:
+        return "group"
+    for column in presentation.contract(None, build):
+        if column["name"] == raw and column.get("label"):
+            return str(column["label"]).lower()
+    for dataset in (build.datasets or []):
+        prefix = f"{dataset}_"
+        if raw.startswith(prefix):
+            raw = raw[len(prefix):]
+            break
+    return raw.replace("_", " ")
 
 
 def _fmt(value: Any) -> str:
