@@ -375,12 +375,19 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
     if build.shape == ap.AGGREGATE:
         column = measure.field if measure else ""
         total = float(values.get("total") or 0.0)
-        direct = (f"{_fmt(total)} {unit} of {label} across {count} "
-                  f"{build.dimension or 'group'}"
-                  f"{'s' if count != 1 else ''} at {build.period}.")
+        # "125,259 USD mn of exposure at default" reads correctly; a count has
+        # no unit and "2,159  of customers" does not.
+        subject = f"{unit} of {label}" if unit else label
+        # "across 5 groups" is what a program says when it has forgotten what it
+        # grouped by. Name the dimension, or the grain when a carried population
+        # is what is on screen.
+        over = build.dimension or build.grain or "group"
+        direct = (f"{_fmt(total)} {subject} across {count} "
+                  f"{over}{'s' if count != 1 else ''} at {build.period}.")
         metrics.append(Metric(label=f"Total {label}", value=round(total, 2),
                               unit=unit, direction="neutral"))
-        if rows and build.dimension:
+        if rows and build.dimension and isinstance(
+                rows[0].get(column), (int, float)):
             top = rows[0]
             share = top.get(f"{column}_share_pct")
             share_text = (f", {float(share):.1f}% of the total"
@@ -393,7 +400,8 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                            "value": round(float(top[column]), 2), "unit": unit}]))
     elif build.shape == ap.RANKING:
         direct = (f"The {count} largest {_subject(build, count)} by {label} "
-                  f"at {build.period}.")
+                  f"at {build.period}."
+                  if count else _nothing_matched(build))
         column = measure.field if measure else ""
         share_column = f"{column}_share_pct"
         if rows:
@@ -485,6 +493,28 @@ def _plural(word: str, count: int) -> str:
         return word
     return {"facility": "facilities", "company": "companies"}.get(
         word, word + "s")
+
+
+def _nothing_matched(build: ap.AnalysisBuild) -> str:
+    """"Nothing matched" said in the terms of the question that asked.
+
+    "The 0 largest customers" is a sentence a program writes. What a credit
+    officer needs to read is which population was looked at and what was not
+    found in it — an empty result is a finding, and it should be phrased as one.
+    """
+    population = (build.plan.get("meta") or {}).get("population") or {}
+    where = ", ".join(v for _, v in build.filters)
+    if population.get("count"):
+        subject = (f"the {population['count']} "
+                   f"{build.grain}s carried forward from the previous answer")
+    elif where:
+        subject = f"{where} {build.grain}s"
+    else:
+        subject = f"{build.grain}s in the book"
+    conditions = ", ".join(c.describe() for c in build.conditions)
+    test = conditions or where or "the conditions asked for"
+    return (f"None of {subject} match {test} at "
+            f"{build.closing or build.period}.")
 
 
 def _subject(build: ap.AnalysisBuild, count: int) -> str:

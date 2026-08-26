@@ -67,7 +67,10 @@ def test_mode_reports_how_questions_are_planned(client, demo_mode):
     assert body["configured"] is False
     assert body["label"] == "LIMITED OFFLINE MODE"
     assert body["limitations"], "an offline product must say what it cannot do"
-    assert "LIMITED OFFLINE MODE" in body["description"]
+    assert "LIMITED OFFLINE MODE" == body["label"]
+    assert "deterministic" in body["description"]
+    assert body["ai"]["state"] == "offline"
+    assert body["build"]["version"]
     # Only ANALYSIS computes; the rest are answered from governed metadata.
     computing = [c for c in body["capabilities"] if c["computes"]]
     assert [c["id"] for c in computing] == ["ANALYSIS"]
@@ -76,7 +79,7 @@ def test_mode_reports_how_questions_are_planned(client, demo_mode):
     assert body["analysis_count"] == len(
         client.get("/api/v1/engine/analyses").json()["analyses"]
     )
-    assert len(body["stages"]) == 5
+    assert len(body["stages"]) == 6
     assert body["supported_modifications"]
 
 
@@ -102,35 +105,44 @@ def test_briefing_returns_live_engine_results(client):
 # ======================================================================== ask
 
 
-def test_a_question_about_change_without_a_period_asks_instead_of_guessing(client, demo_mode):
-    """"How has ECL changed?" has no answer until someone says since when."""
-    response = client.post("/api/v1/ask", json={"question": "How has ECL changed?",
-                                                "persist": False})
+def test_a_change_without_a_period_uses_the_governed_default_and_says_so(client, demo_mode):
+    """"How has ECL changed?" gets the review cycle, stated on the answer.
+
+    This used to stop and ask. That was the right instinct applied too widely:
+    every credit officer asking it means over the year, and a product that
+    interrogates the obvious looks unsure of something it is not unsure of. The
+    replacement rule is that the assumption is TAKEN and REPORTED — an unstated
+    default would be worse than either.
+    """
+    response = client.post(
+        "/api/v1/ask",
+        json={"question": "Which customers had a rating downgrade and an "
+                          "increase in ECL?", "persist": False})
     assert response.status_code == 200
     body = response.json()
-    assert body["status"] == "needs_clarification"
-    clarification = body["clarification"]
-    assert clarification["kind"] == "period"
-    assert len(clarification["options"]) >= 2
-    # Every option resolves to real published periods, so answering is a click.
-    periods = client.get("/api/v1/ask/mode").json()
-    for option in clarification["options"]:
-        assert option["from_period"] and option["to_period"]
-        assert option["from_period"] != option["to_period"]
-    assert periods  # the endpoint is reachable; the assertion above is the point
-    assert not body["steps"], "nothing may run before the question is answerable"
+    assert body["status"] == "succeeded", body.get("clarification")
+    assert body["clarification"] is None
+
+    scope = body["plan"]["scope"]
+    periods = client.get("/api/v1/ask/mode").json()["periods"]
+    assert scope["to_period"] == periods[-1]
+    assert scope["from_period"] == periods[-5], "a year back, on a quarterly book"
+
+    said = " ".join(body["narrative"]["caveats"]).lower()
+    assert "governed default" in said, "the assumption must be visible"
+    assert scope["from_period"].lower() in said and scope["to_period"].lower() in said
 
 
 def test_asking_a_question_runs_real_analyses(client, demo_mode):
-    response = client.post("/api/v1/ask", json={"question": "How has ECL changed?",
-                                                "persist": False,
-                                                "from_period": "Q4 2025",
-                                                "to_period": "Q1 2026"})
+    response = client.post(
+        "/api/v1/ask",
+        json={"question": "Show me the ten largest customers by exposure at "
+                          "default.", "persist": False})
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "succeeded"
-    # Composed rather than selected: the question named its own measure and the
-    # caller settled the window, so nothing pre-built had to exist for it.
+    # Composed rather than selected: no registered analysis answers this, and
+    # the composer built it from the governed concept the question named.
     assert [s["analysis_id"] for s in body["steps"]] == ["dynamic_analysis"]
     assert body["steps"][0]["result"]["datasets"]
     assert body["narrative"]["summary"]
@@ -140,10 +152,50 @@ def test_asking_a_question_runs_real_analyses(client, demo_mode):
 
 def test_a_point_in_time_question_is_answered_without_interrogation(client, demo_mode):
     """The opposite failure: asking about history when none is needed."""
-    body = client.post("/api/v1/ask", json={"question": "What is our current NPL ratio?",
+    body = client.post(
+        "/api/v1/ask",
+        json={"question": "What is total EAD by sector in the latest quarter?",
+              "persist": False}).json()
+    assert body["status"] == "succeeded", body.get("clarification")
+    assert body["clarification"] is None
+    assert body["plan"]["scope"]["period_requirement"] == "point_in_time"
+
+
+def test_a_figure_with_no_governed_field_asks_rather_than_approximating(client, demo_mode):
+    """A ratio nothing in the catalogue defines must not be approximated.
+
+    CreditProbe could assemble something plausible-looking out of the fields it
+    does have. It must not: a figure the bank has not defined is a figure nobody
+    can reconcile, and presenting one under a name people recognise is the exact
+    failure this release removed.
+    """
+    body = client.post(
+        "/api/v1/ask",
+        json={"question": "What is our net stable funding ratio?",
+              "persist": False}).json()
+    assert body["status"] == "needs_clarification"
+    assert body["steps"] == []
+    assert "governed concepts" in body["clarification"]["question"]
+
+
+def test_a_named_certified_methodology_is_run_rather_than_recomposed(client, demo_mode):
+    """"How has ECL changed?" is a methodology the bank has approved.
+
+    Recomposing it from first principles would produce a number that probably
+    agrees and is not the same artefact. This is a ROUTE, not the rescue that was
+    removed: it fires on the analysis's own name or trigger question, before the
+    composer runs, and a failure here composes rather than reaching for a
+    different certified analysis.
+    """
+    body = client.post("/api/v1/ask", json={"question": "How has ECL changed?",
                                             "persist": False}).json()
     assert body["status"] == "succeeded"
-    assert body["clarification"] is None
+    assert [s["analysis_id"] for s in body["steps"]] == ["ecl_movement"]
+    assert body["steps"][0]["certification"] == "certified"
+    # The window it used must be visible, because a certified analysis brings
+    # its own governed default and that may not be the composer's.
+    scope = body["plan"]["scope"]
+    assert scope["from_period"] and scope["to_period"]
 
 
 def test_an_answer_separates_calculated_facts_from_ipm_interpretation(client, demo_mode):
@@ -166,6 +218,9 @@ def test_a_question_is_answered_with_the_analysis_it_asked_for(client, demo_mode
                                             "from_period": "Q4 2025",
                                             "to_period": "Q1 2026"}).json()
     ids = [s["analysis_id"] for s in body["steps"]]
+    # "Which sectors deteriorated the most?" is a declared trigger question of
+    # the certified ECL attribution, so that is what runs. The point of the test
+    # is unchanged: it must not come back as a portfolio briefing.
     assert ids == ["ecl_movement"]
     assert [s for s in body["steps"] if s["role"] == "primary"]
 
@@ -185,10 +240,16 @@ def test_an_unrecognised_question_gets_a_question_back_not_a_number(client, demo
     assert body["steps"] == [], "nothing may be executed for a question not understood"
 
     clarification = body["clarification"]
-    assert clarification["kind"] == "intent"
+    assert clarification["kind"] == "reading"
+    # The old refusal offered a menu of registered analyses and said CreditProbe
+    # "can only answer with analyses the engine has registered". That sentence
+    # described a product that no longer exists, and the menu sent people away
+    # from the question they actually had. What is offered now is composed from
+    # governed CONCEPTS, so every option is a question the composer can answer.
     assert clarification["options"], "a refusal must leave something to click"
     for option in clarification["options"]:
         assert option["question"], "every offer must be a question that can be asked"
+    assert "registered" not in (clarification["detail"] or "").lower()
 
 
 def test_an_empty_question_is_rejected_by_the_schema(client):

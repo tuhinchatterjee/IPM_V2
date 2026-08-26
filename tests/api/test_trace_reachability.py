@@ -53,7 +53,7 @@ def answered(client) -> dict:
     """One real answer, produced the way the product produces every answer."""
     started = client.post(
         "/api/v1/investigations",
-        json={"question": "What is our current NPL ratio?", "ask": True},
+        json={"question": "What is total EAD by sector in the latest quarter?", "ask": True},
         headers=ANALYST,
     )
     assert started.status_code in (200, 201), started.text

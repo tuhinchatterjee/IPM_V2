@@ -20,6 +20,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.llm import telemetry
 from backend.llm.base import LLMError, LLMResult, ProviderStatus, register
 
 logger = logging.getLogger(__name__)
@@ -56,23 +57,24 @@ class AnthropicProvider:
         return bool(self.api_key)
 
     def status(self) -> ProviderStatus:
-        if not self.configured:
-            return ProviderStatus(
-                provider=self.name, model=self.model, configured=False,
-                state="no_key",
-                detail=("ANTHROPIC_API_KEY is not set. CreditProbe is running in "
-                        "LIMITED OFFLINE MODE."))
+        """The observed state, not the configured one.
+
+        A key is a necessary condition and never a sufficient one, so the state
+        comes from the ledger of calls actually made. See backend/llm/telemetry.
+        """
+        observed = telemetry.health(provider=self.name, model=self.model,
+                                    configured=self.configured)
         return ProviderStatus(
-            provider=self.name, model=self.model, configured=True,
-            state="connected",
-            detail=(f"Questions are read by {self.model}, which produces a "
-                    "structured plan. It never calculates a figure."))
+            provider=self.name, model=self.model,
+            configured=self.configured, state=observed["state"],
+            detail=observed["detail"], health=observed)
 
     # ---- the one call ------------------------------------------------------
 
     def structured(self, *, system: str, prompt: str, schema: dict[str, Any],
                    tool_name: str, tool_description: str,
-                   max_tokens: int = 2000) -> LLMResult:
+                   max_tokens: int = 2000,
+                   purpose: str = "reading") -> LLMResult:
         if not self.configured:
             raise LLMError("No Anthropic API key is configured.")
 
@@ -97,12 +99,19 @@ class AnthropicProvider:
                 )
                 data = _tool_input(message, tool_name)
                 usage = getattr(message, "usage", None)
+                elapsed = int((time.perf_counter() - started) * 1000)
+                telemetry.record_success(
+                    provider=self.name, model=self.model, purpose=purpose,
+                    latency_ms=elapsed, request_id=_request_id(message),
+                    attempts=attempt,
+                    input_tokens=getattr(usage, "input_tokens", 0) or 0,
+                    output_tokens=getattr(usage, "output_tokens", 0) or 0)
                 return LLMResult(
-                    data=data, model=self.model,
-                    duration_ms=int((time.perf_counter() - started) * 1000),
+                    data=data, model=self.model, duration_ms=elapsed,
                     input_tokens=getattr(usage, "input_tokens", 0) or 0,
                     output_tokens=getattr(usage, "output_tokens", 0) or 0,
                     attempts=attempt,
+                    request_id=_request_id(message),
                 )
             except Exception as e:  # noqa: BLE001 - reported, not swallowed
                 last = e
@@ -112,7 +121,16 @@ class AnthropicProvider:
                             attempt + 1, e)
                 time.sleep(0.4 * attempt)
 
-        raise LLMError(f"The orchestrator did not answer: {last}") from last
+        # Recorded before it is raised, so a failure is visible in Settings even
+        # though the caller degrades quietly to the offline reader.
+        telemetry.record_failure(
+            provider=self.name, model=self.model, purpose=purpose,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            error=last, request_id=_error_request_id(last),
+            attempts=min(attempt, MAX_ATTEMPTS))
+        raise LLMError(
+            f"The orchestrator did not answer: {telemetry.sanitise(str(last))}"
+        ) from last
 
     def _client(self) -> Any:
         if self.client is not None:
@@ -142,6 +160,23 @@ def _tool_input(message: Any, tool_name: str) -> dict[str, Any]:
     raise LLMError(
         "The orchestrator answered in prose rather than calling "
         f"{tool_name}: {spoken[:200] or '(nothing)'}")
+
+
+def _request_id(message: Any) -> str:
+    """The provider's own identifier for this call.
+
+    Safe to show a user and the only thing that lets a provider trace a request
+    on their side, which is why it is surfaced in Settings.
+    """
+    for attribute in ("_request_id", "id"):
+        value = getattr(message, attribute, "")
+        if value:
+            return str(value)
+    return ""
+
+
+def _error_request_id(error: Exception | None) -> str:
+    return str(getattr(error, "request_id", "") or "") if error else ""
 
 
 def _worth_retrying(error: Exception) -> bool:

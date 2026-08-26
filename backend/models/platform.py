@@ -297,7 +297,11 @@ class AnalysisRun(Base):
     plan: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     context: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)  # period, filters
 
-    status: Mapped[str] = mapped_column(String(16), nullable=False, default=RUN_PENDING)
+    # Wide enough for the longest status the orchestrator can produce.
+    # `needs_clarification` is nineteen characters and did not fit in sixteen,
+    # so every question CreditProbe stopped to ask about failed to persist — and
+    # a run with no id has a dead Trace button.
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default=RUN_PENDING)
     # Populated when a plan is rejected by the validator. Rejections are recorded,
     # not discarded: "what did the model try to do that we refused?" is an
     # auditable question.
@@ -1476,4 +1480,105 @@ class InboxItem(Base):
     __table_args__ = (
         Index("ix_data_inbox_status", "status", "received_at"),
         Index("ix_data_inbox_dataset", "dataset"),
+    )
+
+
+# =============================================================================
+# AI validation — what the intelligence check found, and when
+# =============================================================================
+#
+# Kept in PostgreSQL rather than in memory because the point of a score is the
+# comparison: "94 last Tuesday, 79 today" is what tells somebody a model change,
+# a prompt change or a data change broke something. A number that vanished on
+# restart could not do that job.
+#
+# What is NOT stored here is the benchmark's expected answer. Gold data lives in
+# the evaluation package and is loaded only by the runner, after execution — see
+# backend/validation/ for the isolation rule and the test that enforces it.
+
+
+class AiValidationRun(Base):
+    """One user-triggered intelligence check."""
+
+    __tablename__ = "ai_validation_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True)
+
+    #: What was being validated. A score earned against one model on one build
+    #: says nothing about another, which is what makes a run stale.
+    provider: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    model: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    build_sha: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    app_version: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    benchmark_version: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="")
+    data_version: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+
+    #: offline | configured | connected | degraded, as observed during the run.
+    ai_state: Mapped[str] = mapped_column(String(24), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="completed")
+
+    score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    band: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    case_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    passed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    partial: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    #: Per-dimension averages — intent, plan, dataset, relationship, period,
+    #: result, context, grounding.
+    components: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    selected_ids: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    notes: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
+    cases: Mapped[list[AiValidationCase]] = relationship(
+        back_populates="run", cascade="all, delete-orphan",
+        order_by="AiValidationCase.position")
+
+    __table_args__ = (
+        Index("ix_ai_validation_runs_created", "created_at"),
+    )
+
+
+class AiValidationCase(Base):
+    """One benchmark thread inside a run, with everything needed to inspect it."""
+
+    __tablename__ = "ai_validation_cases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[int] = mapped_column(
+        ForeignKey("ai_validation_runs.id", ondelete="CASCADE"), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    benchmark_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    category: Mapped[str] = mapped_column(String(48), nullable=False, default="")
+    title: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    verdict: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: True when the live model was not used for any turn. Such a case fails the
+    #: live-AI benchmark whatever its numbers say — the point of the check is
+    #: whether the AI works, not whether the deterministic reader does.
+    used_fallback: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False)
+
+    components: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: One entry per turn: what was asked, what CreditProbe answered, what the
+    #: independently computed reference was, and how they compared.
+    turns: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    #: Why the score was not 100, in plain language.
+    deductions: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    #: The reference answer, revealed to the user only after execution.
+    reference: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    run: Mapped[AiValidationRun] = relationship(back_populates="cases")
+
+    __table_args__ = (
+        Index("ix_ai_validation_cases_run", "run_id", "position"),
     )

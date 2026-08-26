@@ -3,43 +3,56 @@ Ask CreditProbe, from question to answer.
 
 This is the front door, and the order of its stages is the architecture:
 
-    question
-      → READ      what kind of request is this, and what is it about
-      → ROUTE     metadata question, method question, or an analysis
-      → PLAN      an Analytical IR, from concepts rather than from phrases
-      → VALIDATE  against the governed catalogue (backend/runtime/validation)
-      → EXECUTE   parameterised SQL and allowlisted kernels
-      → INTERPRET the model reads the RESULT, never the data
+    message
+      → REMEMBER   what this investigation has already established
+      → READ       the live model, against the catalogue and the conversation
+      → GUARD      the governed semantic reader checks that reading
+      → RESOLVE    "these" becomes five specific identities
+      → ROUTE      metadata question, method question, or an analysis
+      → PLAN       an Analytical IR, from concepts rather than from phrases
+      → VALIDATE   against the governed catalogue (backend/runtime/validation)
+      → EXECUTE    parameterised SQL and allowlisted kernels
+      → INTERPRET  the model reads the RESULT, never the data
 
-Two things about that order matter more than anything else in this module.
+Four things about that order matter more than anything else in this module.
 
 **Nothing computes before something has decided the request is a computation.**
-The old front door assumed every question was a request for a number, so a
-question about the catalogue came back as a portfolio summary. Here a
-non-analytical request never reaches the engine at all.
+A question about the catalogue never reaches the engine at all.
 
-**The model plans; it does not calculate.** It emits a structured reading and,
-where configured, an analytical plan. Every figure comes back from the runtime.
-There is no branch in this file where model output becomes a number.
+**The model plans; it does not calculate.** Every figure comes back from the
+runtime. There is no branch in this file where model output becomes a number.
+
+**A follow-up is planned from the conversation, not from the sentence.** "Which
+of these are Stage 2?" is planned against the identities the previous run
+returned — written down, not recalled.
+
+**Nothing here answers a different question.** When a stage fails, the outcome is
+a clarification or a stated failure. It is never a nearby analysis that happens
+to have a certified answer. That substitution is the defect this rewrite exists
+to remove, and there is no code path back to it.
 """
 
 from __future__ import annotations
 
 import logging
 import time
+from dataclasses import dataclass, field
 from typing import Any
 
 from backend.llm import get_provider, is_configured, provider_status
 from backend.orchestration import analysis_planner as ap
 from backend.orchestration import capability as cap
-from backend.orchestration import handlers
+from backend.orchestration import certified as cert
+from backend.orchestration import conversation as cv
+from backend.orchestration import guardrail as gr
+from backend.orchestration import handlers, interpretation, referents, router
 from backend.orchestration.context import retrieve
-from backend.orchestration.router import read_request
 
 logger = logging.getLogger(__name__)
 
 #: The stages the UI shows while a question is being answered.
 STAGES = [
+    {"id": "remembering", "label": "Reading the conversation"},
     {"id": "reading", "label": "Reading the request"},
     {"id": "retrieving", "label": "Retrieving governed metadata"},
     {"id": "planning", "label": "Composing the analysis"},
@@ -47,40 +60,49 @@ STAGES = [
     {"id": "interpreting", "label": "Reading the result"},
 ]
 
+#: Why an answer could not be produced. Each is a *stated* outcome shown to the
+#: user — never a reason to run something else.
+FAILED_PLAN = "plan_failed"
+FAILED_RUNTIME = "runtime_failed"
+FAILED_ROUTE = "unroutable"
+
 
 def mode() -> dict[str, Any]:
     """What the product says about how it is answering questions.
 
-    The honesty rule lives here. With no provider key the label is LIMITED
-    OFFLINE MODE and the description says what is constrained — it does not
-    describe a deterministic phrase reader as though it were full natural
-    language understanding.
+    The honesty rule lives here, and it is stricter than it used to be. The
+    label is derived from calls that have actually succeeded, not from the
+    presence of a key: a configured provider whose requests are failing reports
+    AI DEGRADED and says what is failing, rather than reporting the product's
+    full intelligence over an offline reading.
     """
+    from backend.build_info import build_info
+    from backend.llm import health as ai_health
+    from backend.llm import telemetry
     from backend.orchestration.vocabulary import get_vocabulary
 
     status = provider_status()
+    observed = ai_health()
     vocab = get_vocabulary()
-    configured = status.configured
+    live = observed["state"] == telemetry.CONNECTED
+    configured = bool(observed["configured"])
 
     return {
-        "mode": "model" if configured else "offline",
+        "mode": "model" if live else ("degraded" if configured else "offline"),
         "configured": configured,
-        "label": "CreditProbe AI" if configured else "LIMITED OFFLINE MODE",
+        "live": live,
+        "label": ("CreditProbe AI" if live else
+                  ("AI DEGRADED" if configured else "LIMITED OFFLINE MODE")),
         "provider": status.provider,
         "model_name": status.model or None,
-        "state": status.state,
-        "state_label": status.label,
-        "description": (
-            status.detail if configured else
-            "No AI provider key is configured, so CreditProbe is in LIMITED "
-            "OFFLINE MODE. Questions are read by a deterministic semantic "
-            "planner over the governed catalogue: it understands credit "
-            "concepts, governed fields and the relationship model, but not "
-            "arbitrary phrasing, and it will ask rather than guess. Every "
-            "figure is still computed by the governed runtime."),
-        "limitations": ([] if configured else [
+        "state": observed["state"],
+        "state_label": observed["label"],
+        "description": observed["detail"],
+        "ai": observed,
+        "build": build_info().to_dict(),
+        "limitations": ([] if live else [
             "Questions phrased unusually may not be understood.",
-            "Follow-up questions carry less context.",
+            "Follow-up references are resolved by rule rather than by reading.",
             "The written interpretation is assembled from the result rather "
             "than composed.",
         ]),
@@ -96,68 +118,95 @@ def mode() -> dict[str, Any]:
     }
 
 
+@dataclass
 class Answered:
     """What the orchestrator produces, before it is shaped for the API."""
 
-    def __init__(self, *, reading: cap.Reading, question: str) -> None:
-        self.reading = reading
-        self.question = question
-        self.result: handlers.HandlerResult | None = None
-        self.build: ap.AnalysisBuild | None = None
-        self.runtime: Any = None
-        self.clarification: str = ""
-        self.duration_ms: int = 0
+    question: str
+    reading: cap.Reading
+    verdict: gr.Verdict = field(default_factory=gr.Verdict)
+    continuation: cv.Continuation = field(default_factory=cv.Continuation)
+    result: handlers.HandlerResult | None = None
+    #: A certified methodology the request named by name. Selected BEFORE the
+    #: composer runs — a route, not a rescue. See backend/orchestration/certified.
+    certified: cert.Match | None = None
+    certified_params: dict[str, Any] = field(default_factory=dict)
+    build: ap.AnalysisBuild | None = None
+    runtime: Any = None
+    written: interpretation.Interpretation | None = None
+    clarification: str = ""
+    #: Set when CreditProbe could not answer and is saying so. Never a reason to
+    #: answer something else.
+    failure: str = ""
+    failure_kind: str = ""
+    #: Set when a key is configured and the live path could not be used.
+    degraded_reason: str = ""
+    #: Model calls made for this turn.
+    calls: int = 0
+    duration_ms: int = 0
 
     @property
     def computed(self) -> bool:
         return self.runtime is not None
 
+    @property
+    def answered(self) -> bool:
+        return self.result is not None or self.runtime is not None
+
 
 def answer(question: str, *, context: Any = None,
+           state: cv.ConversationState | None = None,
            period: tuple[str, str] | None = None,
-           extra_filters: dict[str, Any] | None = None) -> Answered:
+           extra_filters: dict[str, Any] | None = None,
+           use_certified: bool = True) -> Answered:
     """Read, route, and either answer from metadata or compose and run.
 
-    `period` is a comparison already chosen — from answering a clarification,
-    or from refreshing a saved Investigation onto newer data. When it is given
-    the planner uses it rather than reading a window out of the question, so a
+    `period` is a comparison already chosen — from answering a clarification, or
+    from refreshing a saved Investigation onto newer data. When it is given the
+    planner uses it rather than reading a window out of the question, so a
     refresh onto a different pair of quarters does not silently re-derive the
     original one.
 
     Raises nothing for an unreadable question: it comes back as a clarification,
     because a question CreditProbe cannot read is a conversation rather than an
-    error.
+    error. It raises nothing for a failed plan either — that comes back as a
+    stated failure, for the same reason.
     """
     started = time.perf_counter()
-    context = context or retrieve(question)
-    reading = read_request(question, context=context)
-    if period or extra_filters:
-        import dataclasses
+    state = state or cv.ConversationState()
 
-        entities = list(reading.entities)
-        for kind, value in (extra_filters or {}).items():
-            # A filter arriving from a Trace modification is a governed choice
-            # the user made in the UI, so it is added to the reading rather
-            # than to the plan: everything downstream — the summary, the
-            # narrative, the share denominators — reads the population from
-            # the reading, and a filter bolted on later would not reach them.
-            if isinstance(value, list):
-                continue
-            entities = [e for e in entities if e.get("kind") != kind]
-            entities.append({"kind": str(kind), "value": str(value)})
-        reading = dataclasses.replace(
-            reading, entities=tuple(entities),
-            periods=tuple(period) if period else reading.periods,
-            period_requirement=("two_period" if period
-                                else reading.period_requirement))
+    # The retrieval is widened by what the conversation is already about, so a
+    # follow-up naming no dataset still gets the ones the thread is working in.
+    context = context or retrieve(
+        question,
+        concepts=list(state.concepts or state.metrics),
+        datasets=list(state.datasets))
 
-    answered = Answered(reading=reading, question=question)
+    read = router.read(question, context=context, state=state)
+    reading = read.reading
+    continuation = referents.resolve(
+        question, state, model_action=reading.conversation_action)
 
-    # The router asked for something back.
+    answered = Answered(
+        question=question, reading=reading, verdict=read.verdict,
+        continuation=continuation, calls=read.calls,
+        degraded_reason=read.degraded_reason)
+
+    def finish(target: Answered) -> Answered:
+        target.duration_ms = int((time.perf_counter() - started) * 1000)
+        return target
+
+    # A reference with nothing behind it. Asked rather than widened: answering
+    # "which of these" against the whole book is a confident answer to a
+    # question nobody asked.
+    dangling = referents.unresolved(question, state)
+    if dangling:
+        answered.clarification = dangling
+        return finish(answered)
+
     if reading.clarification:
         answered.clarification = reading.clarification
-        answered.duration_ms = int((time.perf_counter() - started) * 1000)
-        return answered
+        return finish(answered)
 
     # A reading nobody should act on. Below the floor CreditProbe asks rather
     # than running, because a confident answer to the wrong question is the
@@ -166,34 +215,167 @@ def answer(question: str, *, context: Any = None,
         answered.clarification = (
             "CreditProbe is not sure what that is asking for. Name the figure "
             "or the dataset you mean and it will compose the analysis.")
-        answered.duration_ms = int((time.perf_counter() - started) * 1000)
-        return answered
+        return finish(answered)
 
     # Not an analysis: answer from governed metadata, with no engine call.
-    handled = handlers.handle(question, reading, context)
-    if handled is not None:
-        answered.result = handled
-        answered.duration_ms = int((time.perf_counter() - started) * 1000)
+    #
+    # There is deliberately NO fall-through from here into the planner. A
+    # metadata capability whose handler cannot answer says so; sending it on to
+    # the analysis planner is how "what fields are in the ratings data?" used to
+    # come back as a portfolio figure.
+    if reading.intent not in cap.COMPUTES:
+        return finish(_from_metadata(answered, question, reading, context))
+
+    # A methodology asked for by name is answered with the bank's approved
+    # analysis. This is checked BEFORE composing, which is what makes it a route
+    # rather than the rescue that used to sit after a failed composition.
+    if use_certified and not continuation.carries_context:
+        found = cert.match(question, reading)
+        if found is not None:
+            answered.certified = found
+            answered.certified_params = cert.parameters(
+                found, reading, period=period,
+                periods=list(getattr(context, "periods", [])))
+            return finish(answered)
+
+    return finish(_analyse(answered, question, reading, context, state,
+                           continuation, period, extra_filters))
+
+
+def _from_metadata(answered: Answered, question: str, reading: cap.Reading,
+                   context: Any) -> Answered:
+    """Answer a non-analytical capability, or say plainly that it cannot be."""
+    if reading.intent == cap.Capability.CLARIFICATION:
+        answered.clarification = (
+            reading.clarification
+            or "CreditProbe needs one more thing before it can answer that. "
+               "Name the figure or the dataset you mean.")
         return answered
 
-    # An analysis. Plan it, validate it, run it.
+    try:
+        handled = handlers.handle(question, reading, context)
+    except Exception as e:  # noqa: BLE001 - a stated failure, not a substitution
+        logger.exception("The %s handler failed for %r", reading.intent, question)
+        answered.failure_kind = FAILED_ROUTE
+        answered.failure = (
+            f"CreditProbe could not answer that from its governed metadata. "
+            f"The {cap.LABELS.get(reading.intent, reading.intent).lower()} "
+            f"lookup failed: {e}")
+        return answered
+
+    if handled is None:
+        answered.failure_kind = FAILED_ROUTE
+        answered.failure = (
+            "CreditProbe read this as "
+            f"{cap.LABELS.get(reading.intent, reading.intent).lower()}, which "
+            "it has no way to answer yet. It has NOT run a different analysis "
+            "instead.")
+        return answered
+
+    answered.result = handled
+    return answered
+
+
+def _analyse(answered: Answered, question: str, reading: cap.Reading,
+             context: Any, state: cv.ConversationState,
+             continuation: cv.Continuation,
+             period: tuple[str, str] | None,
+             extra_filters: dict[str, Any] | None) -> Answered:
+    """Compose, validate, run and interpret. Or say why it could not."""
     from backend.runtime.executor import ExecutionClass, execute
 
+    reading = _with_overrides(reading, period, extra_filters)
+    answered.reading = reading
+
     try:
-        build = ap.plan(reading, context, question=question,
-                        period=period)
+        build = ap.plan(reading, context, question=question, period=period,
+                        state=state, continuation=continuation)
     except ap.CannotPlan as e:
         answered.clarification = e.clarification
-        answered.duration_ms = int((time.perf_counter() - started) * 1000)
+        return answered
+    except Exception as e:  # noqa: BLE001
+        logger.exception("Composing an analysis failed for %r", question)
+        answered.failure_kind = FAILED_PLAN
+        answered.failure = (
+            "CreditProbe could not compose a governed analysis for that "
+            f"request. The AI interpretation failed validation: {e}")
         return answered
 
     answered.build = build
-    answered.runtime = execute(
-        build.plan, question=question, intent=build.summary,
-        certification=ExecutionClass.DYNAMIC,
-        population_steps=_population_steps(build))
-    answered.duration_ms = int((time.perf_counter() - started) * 1000)
+
+    try:
+        answered.runtime = execute(
+            build.plan, question=question, intent=build.summary,
+            certification=ExecutionClass.DYNAMIC,
+            population_steps=_population_steps(build))
+    except Exception as e:  # noqa: BLE001
+        logger.exception("The governed runtime failed for %r", question)
+        answered.failure_kind = FAILED_RUNTIME
+        answered.failure = (
+            "CreditProbe composed the analysis but the governed runtime could "
+            f"not complete it: {e}")
+        return answered
+
+    answered.written = interpretation.write(
+        question, build.summary, answered.runtime,
+        plan_note=_plan_note(build, continuation))
+    if answered.written is not None and answered.written.model:
+        answered.calls += 1
     return answered
+
+
+def _with_overrides(reading: cap.Reading, period: tuple[str, str] | None,
+                    extra_filters: dict[str, Any] | None) -> cap.Reading:
+    """A reading with a chosen period and any Trace-modified filters folded in.
+
+    Filters arriving from a Trace modification are governed choices the user
+    made in the UI, so they are added to the READING rather than to the plan:
+    everything downstream — the summary, the narrative, the share denominators —
+    reads the population from the reading, and a filter bolted on later would
+    not reach them.
+    """
+    if not period and not extra_filters:
+        return reading
+
+    import dataclasses
+
+    entities = list(reading.entities)
+    for kind, value in (extra_filters or {}).items():
+        if isinstance(value, list):
+            continue
+        entities = [e for e in entities if e.get("kind") != kind]
+        entities.append({"kind": str(kind), "value": str(value)})
+    return dataclasses.replace(
+        reading, entities=tuple(entities),
+        periods=tuple(period) if period else reading.periods,
+        period_requirement=("two_period" if period
+                            else reading.period_requirement))
+
+
+def _plan_note(build: ap.AnalysisBuild,
+               continuation: cv.Continuation) -> str:
+    """One line telling the interpreter what this turn inherited.
+
+    Without it a follow-up's interpretation reads as though the population were
+    the whole book — the model is shown a five-row table and has no way to know
+    those five were carried in rather than selected.
+    """
+    if not continuation.carries_context:
+        return ""
+    parts = []
+    if continuation.has_population:
+        parts.append(f"restricted to the {len(continuation.entity_ids)} "
+                     f"{continuation.entity_key} the previous turn returned")
+    for key, value in continuation.inherited.items():
+        if key != "population":
+            parts.append(f"{key} carried forward: {value}")
+    if build.carried_concepts:
+        parts.append("measures carried from the previous turn: "
+                     + ", ".join(build.carried_concepts))
+    if not parts:
+        return ""
+    return ("THIS IS A FOLLOW-UP. It was planned as a continuation — "
+            + "; ".join(parts) + ".")
 
 
 def _population_steps(build: ap.AnalysisBuild) -> list[str] | None:
@@ -208,5 +390,137 @@ def _population_steps(build: ap.AnalysisBuild) -> list[str] | None:
     return [str(op.get("id")) for op in build.plan.get("operations") or []]
 
 
-__all__ = ["STAGES", "Answered", "answer", "get_provider", "is_configured",
-           "mode"]
+# ------------------------------------------------------------- remembering
+
+
+def remember(state: cv.ConversationState, answered: Answered, *,
+             headline: str = "", run_id: int | None = None
+             ) -> cv.ConversationState:
+    """The conversation state after this turn.
+
+    Two rules, and both were learned from watching follow-ups fail.
+
+    **A metadata answer does not disturb the analytical state.** Asking what
+    fields the ratings data has, mid-investigation, must not wipe the five
+    customers you were working on.
+
+    **A failed turn settles nothing.** A clarification or a stated failure is
+    recorded as a turn — it is part of the conversation — but leaves every
+    settled value exactly as it was, so answering the clarification continues
+    where the thread left off rather than from nothing.
+    """
+    state.remember_turn(cv.Turn(
+        question=answered.question,
+        answer=headline or answered.clarification or answered.failure,
+        intent=answered.reading.intent,
+        run_id=run_id,
+        status=("succeeded" if answered.answered else
+                ("failed" if answered.failure else "needs_clarification")),
+    ))
+
+    if answered.runtime is None or answered.build is None:
+        return state
+
+    if not int(getattr(answered.runtime, "row_count", 0) or 0):
+        # An empty result settles nothing. "None of these five are Stage 2"
+        # answers the question truthfully and leaves the investigation exactly
+        # where it was — carrying its filters forward would make the NEXT
+        # question inherit a restriction that matched nobody, and every answer
+        # after it would be empty for a reason no longer on screen.
+        if answered.continuation.has_population and not state.result.has_population:
+            state.result.entity_key = answered.continuation.entity_key
+            state.result.entity_ids = list(answered.continuation.entity_ids)
+            state.result.entity_labels = dict(answered.continuation.entity_labels)
+        return state
+
+    build = answered.build
+    reading = answered.reading
+    state.subject = reading.objective or answered.question
+    state.intent = reading.intent
+    state.conversation_action = answered.continuation.action
+    state.concepts = [m.concept.label for m in build.matches]
+    state.metrics = list(state.concepts)
+    state.dimensions = [build.dimension] if build.dimension else []
+    state.filters = [{"kind": f, "value": v} for f, v in build.filters]
+    state.grain = build.grain
+    state.shape = build.shape
+    state.top_n = build.top_n
+    state.conditions = [{**c.to_dict(), "describe": c.describe()}
+                        for c in build.conditions]
+    state.plan_summary = build.summary
+    state.ir = dict(build.plan)
+    state.datasets = list(build.datasets)
+    state.join_path = list(build.joins)
+    state.certified_methods = list(reading.candidate_methods)
+
+    if build.opening and build.closing:
+        state.opening_period, state.closing_period = build.opening, build.closing
+        state.periods = [build.opening, build.closing]
+    elif build.period:
+        state.opening_period, state.closing_period = "", ""
+        state.periods = [build.period]
+
+    fresh = _snapshot(answered.runtime, build, run_id=run_id)
+    if not fresh.has_population and answered.continuation.has_population:
+        # A follow-up that matched nothing does not erase what "these" refers
+        # to. "None of the five are Stage 2" leaves the five on the table, and
+        # the next question is almost always about them.
+        fresh.entity_key = answered.continuation.entity_key
+        fresh.entity_ids = list(answered.continuation.entity_ids)
+        fresh.entity_labels = dict(answered.continuation.entity_labels)
+    state.result = fresh
+    state.plan_fingerprint = str(
+        getattr(answered.runtime, "fingerprint", "") or "")
+    return state
+
+
+#: Columns that identify a row, most specific first. The first one present in
+#: the result is what a referent resolves against.
+_IDENTITY_COLUMNS = ("customer_id", "account_id", "borrower_id")
+
+
+def _snapshot(runtime: Any, build: ap.AnalysisBuild, *,
+              run_id: int | None) -> cv.ResultShape:
+    """What the result was, in the shape a follow-up needs it.
+
+    Identities and a handful of headline rows — never the table. A follow-up
+    re-reads governed data through the runtime; carrying rows forward would turn
+    the next answer into a report about a cached copy of the book.
+    """
+    rows = list(getattr(runtime, "rows", []) or [])
+    columns = [{"name": str(c.get("name")), "label": str(c.get("label")
+                                                         or c.get("name")),
+                "unit": str(c.get("unit") or "")}
+               for c in (getattr(runtime, "columns", []) or [])]
+    names = {c["name"] for c in columns}
+
+    key = next((c for c in _IDENTITY_COLUMNS if c in names), "")
+    if not key and build.dimension and build.dimension in names:
+        # A grouped answer is keyed by its dimension: "show only the five
+        # largest sectors" refers to sectors, and those are identities too.
+        key = build.dimension
+
+    ids: list[str] = []
+    labels: dict[str, str] = {}
+    if key:
+        label_column = ("borrower_name" if "borrower_name" in names else "")
+        for row in rows[:cv.MAX_ENTITY_IDS]:
+            value = row.get(key)
+            if value is None or str(value) == "":
+                continue
+            ids.append(str(value))
+            if label_column and row.get(label_column):
+                labels[str(value)] = str(row[label_column])
+
+    return cv.ResultShape(
+        columns=columns, row_count=len(rows), entity_key=key if ids else "",
+        entity_ids=ids, entity_labels=labels,
+        sample=[{k: v for k, v in row.items() if k in names}
+                for row in rows[:cv.MAX_SNAPSHOT_ROWS]],
+        run_id=run_id,
+    )
+
+
+__all__ = ["FAILED_PLAN", "FAILED_ROUTE", "FAILED_RUNTIME", "STAGES",
+           "Answered", "answer", "get_provider", "is_configured", "mode",
+           "remember"]

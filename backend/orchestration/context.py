@@ -388,6 +388,30 @@ def all_methods() -> list[MethodSummary]:
     return list(_catalogue()["methods"])
 
 
+def relationship_rows() -> list[dict[str, Any]]:
+    """The governed relationship rows a planner may join on.
+
+    Read through the service layer so there is one definition of "usable" —
+    ACTIVE, confident enough, and not in an archived domain. Degrades to an
+    empty list rather than failing: with no relationships declared, a
+    multi-dataset question is refused for want of a join, which is the honest
+    outcome and not an outage.
+    """
+    from backend.config import settings
+
+    if not settings.has_database:
+        return []
+    try:
+        from backend.db.engine import get_session
+        from backend.services.relationships import active_relationships
+
+        with get_session() as session:
+            return active_relationships(session)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Could not read the relationship graph: %s", e)
+        return []
+
+
 def all_relationships() -> list[RelationshipSummary]:
     return list(_catalogue()["relationships"])
 
@@ -494,6 +518,7 @@ __all__ = [
     "all_datasets",
     "all_methods",
     "all_relationships",
+    "relationship_rows",
     "invalidate",
     "retrieve",
 ]

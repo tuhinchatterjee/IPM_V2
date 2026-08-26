@@ -241,8 +241,17 @@ def data_dictionary(question: str, reading: cap.Reading,
 
 def data_quality(question: str, reading: cap.Reading,
                  context: GovernedContext) -> HandlerResult:
-    """How much history there is, and how complete it is."""
+    """How much history there is, and how complete it is.
+
+    The lead dataset is the best-matching one that ACTUALLY HAS a history. A
+    coverage question is asking how far back the data goes, so leading with a
+    reference table that matches the words and carries no periods at all —
+    "rating_transitions is not partitioned by reporting period" in answer to
+    "how many years of ratings history do you have?" — is a true sentence about
+    the wrong table.
+    """
     datasets = _relevant(reading, context, question)[:5]
+    datasets = sorted(datasets, key=lambda d: (d.period_count == 0,))
     if not datasets:
         return HandlerResult(answer="No governed dataset matches that.",
                              graph=_graph(question, reading,

@@ -16,10 +16,13 @@ differently and are debuggable separately, and it means the cheap question
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from backend.llm import LLMError, get_provider
 from backend.orchestration import capability as cap
+from backend.orchestration import conversation as cv
+from backend.orchestration import guardrail as gr
 from backend.orchestration.context import GovernedContext, retrieve
 
 logger = logging.getLogger(__name__)
@@ -57,18 +60,48 @@ IFRS 9 stages.
 Use ONLY the governed concept labels, dataset names, dimension values and period \
 labels supplied in the context. Never invent a column name, a customer or a sector.
 
+CONVERSATION
+
+When a CONVERSATION SO FAR block is present, this message is part of a thread \
+and you MUST read it in that light.
+
+- Set `conversation_action` on every reading.
+- A message that refers back — "these", "those", "them", "those five", "the \
+previous result", "same period", "that analysis" — is NEVER NEW_REQUEST. Put \
+the referring phrase in `entity_references` and let CreditProbe resolve it \
+against the identities the previous run returned. Never invent the ids.
+- "Show only the five largest", "rank those by X instead", "replace X with Y" \
+are MODIFY_PREVIOUS. "Add their latest rating", "also show X" are \
+ENRICH_PREVIOUS.
+- A follow-up inherits the previous turn's period, filters, dimension and \
+grain unless it changes them. Do not re-ask for what the thread has settled.
+- A genuinely new subject — a question about the catalogue, a different book — \
+is NEW_REQUEST even mid-thread.
+
 Set `clarification` ONLY when you genuinely cannot proceed — for example when a \
 term maps to two different governed figures and the choice changes the answer. \
 Do not ask for a period the user did not need to give: the planner resolves \
-"latest" itself.
+"latest" and "the latest year" itself, and asking for a window the governed \
+default already covers is a worse answer than giving the default and saying so.
 
 Be honest about `confidence`. A confident answer to the wrong question is the \
 worst outcome this system can produce."""
 
 
-def _prompt(question: str, context: GovernedContext) -> str:
-    """The governed context, compact. Metadata only — never a row of data."""
+def _prompt(question: str, context: GovernedContext,
+            state: cv.ConversationState | None = None,
+            *, note: str = "") -> str:
+    """The governed context, compact. Metadata only — never a row of data.
+
+    The conversation brief goes FIRST, before the catalogue. A follow-up is
+    understood by what just happened rather than by the field list, and a model
+    reading a long prompt weights the opening more heavily than the middle.
+    """
     lines: list[str] = []
+
+    if state is not None and not state.empty:
+        lines.append(state.brief())
+        lines.append("")
 
     lines.append("GOVERNED DATASETS (name · grain · what it is for):")
     for d in context.datasets:
@@ -110,42 +143,150 @@ def _prompt(question: str, context: GovernedContext) -> str:
         lines.append(f"  {name}: {', '.join(str(v) for v in shown)}")
 
     lines.append(f"\nREQUEST: {question}")
+    if note:
+        lines.append("\n" + note)
     return "\n".join(lines)
+
+
+@dataclass(frozen=True)
+class Read:
+    """A reading, and the evidence about how much to trust it."""
+
+    reading: cap.Reading
+    verdict: gr.Verdict
+    #: Model calls made to produce this — one, or two when a repair ran.
+    calls: int = 0
+    duration_ms: int = 0
+    #: Set when the live path was attempted and failed. Sanitised, and shown to
+    #: the user rather than swallowed: an answer produced offline while a key is
+    #: configured must say so.
+    degraded_reason: str = ""
+
+    @property
+    def live(self) -> bool:
+        return self.reading.source in ("llm", "guardrail") and self.calls > 0
+
+
+def read(question: str, *, context: GovernedContext | None = None,
+         state: cv.ConversationState | None = None) -> Read:
+    """What kind of request this is, checked before it is acted on.
+
+    Three stages, and each is recorded rather than inferred:
+
+      1. the live model reads the request against the governed catalogue and the
+         conversation so far;
+      2. the governed semantic reader checks that reading for a cross-family
+         contradiction;
+      3. one repair call where they disagree, and the safe reading where they
+         still do.
+
+    With no provider — or with one that fails — stage 1 is the deterministic
+    reader, stages 2 and 3 have nothing to check, and `degraded_reason` says
+    which of those two situations applies. It never raises: an unreadable
+    question is a conversation, and an unreachable provider is a status.
+    """
+    import time
+
+    started = time.perf_counter()
+    context = context or retrieve(question)
+    provider = get_provider()
+
+    if not provider.configured:
+        offline = read_request_offline(question, context=context)
+        return Read(reading=offline, verdict=gr.Verdict(outcome=gr.UNCHECKED),
+                    duration_ms=int((time.perf_counter() - started) * 1000))
+
+    try:
+        result = provider.structured(
+            system=SYSTEM,
+            prompt=_prompt(question, context, state),
+            schema=cap.SCHEMA,
+            tool_name=TOOL_NAME,
+            tool_description=(
+                "Record how you have read this request. Call this exactly "
+                "once. Do not compute anything."),
+            max_tokens=1600,
+            purpose="reading",
+        )
+    except LLMError as e:
+        return _degraded(question, context, started, str(e))
+    except Exception as e:  # noqa: BLE001 - an outage must not 500
+        return _degraded(question, context, started, str(e))
+
+    reading = _sanitised(cap.from_payload(result.data, source="llm",
+                                          model=result.model), context)
+    verdict = gr.check(question, reading)
+    calls = 1
+
+    if verdict.conflict:
+        repaired = _repair(question, context, state, reading, verdict)
+        if repaired is not None:
+            calls = 2
+        reading, verdict = gr.settle(question, reading, verdict,
+                                     repaired=repaired)
+
+    return Read(reading=reading, verdict=verdict, calls=calls,
+                duration_ms=int((time.perf_counter() - started) * 1000))
+
+
+def _repair(question: str, context: GovernedContext,
+            state: cv.ConversationState | None, reading: cap.Reading,
+            verdict: gr.Verdict) -> cap.Reading | None:
+    """One re-read, with the conflict stated. Never more than one.
+
+    A second repair would be a negotiation, and a model that has not been
+    convinced by the evidence in the first note will not be convinced by the
+    same note again — it would only cost the user another few seconds before
+    the same outcome.
+    """
+    provider = get_provider()
+    try:
+        result = provider.structured(
+            system=SYSTEM,
+            prompt=_prompt(question, context, state,
+                           note=gr.repair_note(question, reading, verdict)),
+            schema=cap.SCHEMA,
+            tool_name=TOOL_NAME,
+            tool_description=("Record your re-read of this request. Call this "
+                              "exactly once."),
+            max_tokens=1600,
+            purpose="repair",
+        )
+    except Exception as e:  # noqa: BLE001 - a failed repair just means "reject"
+        logger.info("The repair call failed for %r: %s", question[:70], e)
+        return None
+    return _sanitised(cap.from_payload(result.data, source="llm",
+                                       model=result.model), context)
+
+
+def _degraded(question: str, context: GovernedContext, started: float,
+              reason: str) -> Read:
+    """The offline reading, labelled as a degradation rather than a mode.
+
+    A key is configured and the model did not answer. The reading is still
+    produced — refusing to answer at all would be worse — but the answer, the
+    Trace and the mode banner all say the live path failed, so nobody reads a
+    deterministic reading as the product's full intelligence.
+    """
+    import time
+
+    from backend.llm import telemetry
+
+    logger.warning("The live reading failed for %r; using the governed "
+                   "semantic reader. Reason: %s", question[:70],
+                   telemetry.sanitise(reason))
+    return Read(
+        reading=read_request_offline(question, context=context),
+        verdict=gr.Verdict(outcome=gr.UNCHECKED),
+        duration_ms=int((time.perf_counter() - started) * 1000),
+        degraded_reason=telemetry.sanitise(reason),
+    )
 
 
 def read_request(question: str, *,
                  context: GovernedContext | None = None) -> cap.Reading:
-    """What kind of request this is, and what it is about.
-
-    Falls back to the offline reader when there is no provider or the provider
-    fails. The Reading records which path produced it, so the answer and the
-    Trace can say so rather than presenting a degraded reading as a full one.
-    """
-    context = context or retrieve(question)
-    provider = get_provider()
-
-    if provider.configured:
-        try:
-            result = provider.structured(
-                system=SYSTEM,
-                prompt=_prompt(question, context),
-                schema=cap.SCHEMA,
-                tool_name=TOOL_NAME,
-                tool_description=(
-                    "Record how you have read this request. Call this exactly "
-                    "once. Do not compute anything."),
-                max_tokens=1400,
-            )
-            reading = cap.from_payload(result.data, source="llm",
-                                       model=result.model)
-            return _sanitised(reading, context)
-        except LLMError as e:
-            logger.warning("The orchestrator could not read the request (%s); "
-                           "falling back to the offline reader.", e)
-        except Exception as e:  # noqa: BLE001 - an outage must not 500
-            logger.warning("Unexpected orchestrator failure (%s); falling back.", e)
-
-    return read_request_offline(question, context=context)
+    """The reading alone, for callers that do not need the evidence."""
+    return read(question, context=context).reading
 
 
 def read_request_offline(question: str, *,
@@ -170,7 +311,8 @@ def read_request_offline(question: str, *,
 
     entities = resolve_entities(question, context)
     dimensions = _dimensions(question, context)
-    periods = _periods(question, context)
+    requirement = _period_requirement(question, intent)
+    periods = _periods(question, context, requirement)
 
     return cap.Reading(
         intent=intent,
@@ -181,7 +323,7 @@ def read_request_offline(question: str, *,
         datasets=tuple(sorted({m.dataset for m in reading.matches})),
         operation=_operation(question),
         computation_required=intent in cap.COMPUTES,
-        period_requirement=_period_requirement(question, intent),
+        period_requirement=requirement,
         periods=tuple(periods),
         confidence=confidence,
         reasoning=why,
@@ -270,11 +412,22 @@ def _dimensions(question: str, context: GovernedContext) -> list[str]:
     return out
 
 
-def _periods(question: str, context: GovernedContext) -> list[str]:
+def _periods(question: str, context: GovernedContext,
+             requirement: str = "two_period") -> list[str]:
+    """The periods the question named, in the shape the requirement needs.
+
+    A point-in-time question gets ONE period — the close. "In the latest
+    quarter" reads as a window because the period reader is built for
+    comparisons, and handing both ends of that window to a single-period plan
+    would report the opening quarter as though it were the answer.
+    """
     from backend.orchestration.periods import read_period_intent
 
     read = read_period_intent(question, context.periods)
-    return [p for p in (read.from_period, read.to_period) if p]
+    both = [p for p in (read.from_period, read.to_period) if p]
+    if requirement == "two_period":
+        return both
+    return both[-1:]
 
 
 def _period_requirement(question: str, intent: str) -> str:
@@ -291,4 +444,5 @@ def _period_requirement(question: str, intent: str) -> str:
     return "point_in_time"
 
 
-__all__ = ["SYSTEM", "TOOL_NAME", "read_request", "read_request_offline"]
+__all__ = ["SYSTEM", "TOOL_NAME", "Read", "read", "read_request",
+           "read_request_offline"]

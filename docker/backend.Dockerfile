@@ -47,6 +47,30 @@ COPY backend/ ./backend/
 COPY scripts/ ./scripts/
 COPY data/raw/ ./data/raw/
 
+# Which build this is, baked in at image-build time.
+#
+# `.git` is excluded from the build context (it would add tens of megabytes to
+# every build), so the commit cannot be read here — it is passed in. Nothing
+# breaks when it is not: the running application then reports the SHA of the
+# mounted working tree instead and says the image SHA is unknown. What the two
+# together give you is the one thing that was previously unanswerable during an
+# incident: whether this container was built from the code that is checked out.
+ARG GIT_SHA=""
+ARG BUILD_TIMESTAMP=""
+ARG APP_VERSION=""
+ENV GIT_SHA=${GIT_SHA} \
+    BUILD_TIMESTAMP=${BUILD_TIMESTAMP} \
+    APP_VERSION=${APP_VERSION}
+RUN python - <<'STAMP'
+import json, os, datetime
+json.dump({
+    "git_sha": os.environ.get("GIT_SHA") or "",
+    "built_at": os.environ.get("BUILD_TIMESTAMP")
+                or datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds"),
+    "version": os.environ.get("APP_VERSION") or "",
+}, open("/app/BUILD_STAMP", "w"))
+STAMP
+
 COPY docker/backend-entrypoint.sh /usr/local/bin/ipm-entrypoint
 COPY docker/healthcheck.py /usr/local/bin/ipm-healthcheck.py
 

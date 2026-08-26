@@ -384,7 +384,7 @@ class DemoPlanner:
             # The plan still carries steps, because a caller that only wants a
             # PLAN (the validator's tests, the Trace preview) should get a
             # well-formed one. But nothing runs it: the executor consults
-            # `comprehension.comprehend` first and asks instead. Running the
+            # the orchestrator's guardrail first and asks instead. Running the
             # standard portfolio review here is exactly the behaviour that
             # produced a confident, certified answer to a question nobody
             # asked, which is worse than no answer.

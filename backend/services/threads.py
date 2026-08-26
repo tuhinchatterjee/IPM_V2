@@ -351,11 +351,18 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
 
     The thread's settled period is used unless the caller supplies one, which is
     what stops CreditProbe re-asking a clarification it has already had answered.
+
+    The thread's **conversation state** goes in too, and that is the change that
+    made follow-ups work at all. This function used to pass the question string
+    and a period, and nothing else — so "which of these are Stage 2?" reached the
+    planner with no "these" to resolve. The orchestrator now receives what the
+    investigation has established, and returns the state it leaves behind.
     """
     _require_db()
     from backend.db.engine import get_session
     from backend.models.platform import Investigation
-    from backend.orchestration.executor import run_investigation
+    from backend.orchestration import conversation as cv
+    from backend.orchestration.executor import answer_investigation
 
     with get_session() as session:
         row = session.get(Investigation, thread_id)
@@ -367,10 +374,12 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
     append(thread_id, role=ROLE_USER, content=question, user_id=user_id)
 
     window = period or settled_period(context)
-    result = run_investigation(
+    result, answered = answer_investigation(
         question, user_id=user_id, project_id=project_id,
         investigation_id=thread_id, persist=True, period=window,
+        state=cv.load(context),
     )
+    remember(thread_id, result, answered)
 
     if result.status == "needs_clarification":
         # A question CreditProbe cannot answer yet is still part of the
@@ -391,6 +400,37 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
     record_answer(thread_id, result, user_id=user_id)
     return {"status": result.status, "run": result.to_dict(),
             "thread": load(thread_id).to_dict()}
+
+
+def remember(thread_id: int, run: Any, answered: Any) -> None:
+    """Write back what this turn established, so the next one can use it.
+
+    Best-effort and separate from storing the message: a state write that failed
+    must not lose the answer the user is already reading. The worst case is a
+    follow-up that has to be asked in full, which is where the product was
+    before this existed.
+    """
+    if answered is None:
+        return
+    from backend.db.engine import get_session
+    from backend.models.platform import Investigation
+    from backend.orchestration import conversation as cv
+    from backend.orchestration.orchestrator import remember as advance
+
+    try:
+        with get_session() as session:
+            row = session.get(Investigation, thread_id)
+            if row is None:
+                return
+            state = advance(
+                cv.load(row.context), answered,
+                headline=str(getattr(run.narrative, "direct_answer", "") or ""),
+                run_id=run.analysis_run_id)
+            row.context = cv.save(row.context, state)
+            session.commit()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Could not store the conversation state for "
+                       "investigation %s: %s", thread_id, e)
 
 
 def set_context(thread_id: int, context: dict[str, Any]) -> ThreadView:
@@ -632,5 +672,6 @@ __all__ = [
     "record_answer",
     "rename",
     "set_context",
+    "remember",
     "settled_period",
 ]

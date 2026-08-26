@@ -33,7 +33,8 @@ def test_health_always_answers(client):
 def test_health_reports_every_component(client):
     body = client.get("/api/v1/health").json()
     names = {c["name"] for c in body["components"]}
-    assert names == {"postgresql", "analytical_store", "data_catalog", "ipm_engine"}
+    assert names == {"postgresql", "analytical_store", "data_catalog",
+                     "ipm_engine", "ai_provider"}
 
 
 def test_health_statuses_are_from_the_known_set(client):

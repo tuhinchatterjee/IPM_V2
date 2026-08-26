@@ -26,14 +26,17 @@ from backend.api.schemas import (
     EngineLibraryResponse,
     HealthResponse,
 )
+from backend.build_info import build_info, started_at
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["system"])
 
 APP_NAME = "CreditProbe AI — Credit Portfolio Intelligence"
-APP_VERSION = "0.2.0"
-BUILD_PHASE = "Phase 1 — Foundations"
+#: Read from the build rather than typed here, so it cannot drift from what is
+#: actually running. See backend/build_info.
+APP_VERSION = build_info().version
+BUILD_PHASE = "Credit intelligence"
 
 # Worst-first, so the overall status is the worst component present.
 _SEVERITY = {"unavailable": 3, "not_configured": 2, "degraded": 2, "empty": 1, "ok": 0}
@@ -137,9 +140,56 @@ def _check_engine() -> ComponentHealth:
         return ComponentHealth(name="ipm_engine", status="unavailable", detail=str(e))
 
 
+def _check_ai() -> ComponentHealth:
+    """The AI provider, reported from calls actually made.
+
+    A key alone reports `not_configured`-adjacent honesty rather than health:
+    CONFIGURED means "reachable, unproven". Only CONNECTED — a real structured
+    response — reports ok.
+    """
+    try:
+        from backend.llm import health as ai_health
+        from backend.llm import telemetry
+
+        observed = ai_health()
+        status = {
+            telemetry.CONNECTED: "ok",
+            telemetry.CONFIGURED: "degraded",
+            telemetry.DEGRADED: "degraded",
+            telemetry.OFFLINE: "not_configured",
+        }.get(observed["state"], "degraded")
+        return ComponentHealth(name="ai_provider", status=status,
+                               detail=observed["detail"], data=observed)
+    except Exception as e:  # noqa: BLE001 - health must never raise
+        logger.exception("AI provider health check failed")
+        return ComponentHealth(name="ai_provider", status="unavailable",
+                               detail=str(e))
+
+
+@router.get("/build", summary="Which build is running")
+def build() -> dict:
+    """The commit, the image and whether they agree.
+
+    Exists because "is the container running the code I just pulled?" was not
+    answerable during a production incident, and the answer to that question
+    changes where you look next.
+    """
+    from backend.llm import health as ai_health
+
+    info = build_info()
+    return {
+        "app": APP_NAME,
+        "environment": settings.env,
+        "started_at": started_at(),
+        "build": info.to_dict(),
+        "ai": ai_health(),
+    }
+
+
 @router.get("/health", response_model=HealthResponse, summary="System health")
 def health() -> HealthResponse:
-    components = [_check_database(), _check_analytical_store(), _check_catalog(), _check_engine()]
+    components = [_check_database(), _check_analytical_store(), _check_catalog(),
+                  _check_engine(), _check_ai()]
     worst = max(_SEVERITY.get(c.status, 0) for c in components) if components else 0
     # "empty" is an expected Phase 1 state, not a fault — a system with no engine
     # functions registered yet is working exactly as designed.

@@ -53,10 +53,16 @@ def detect_frequency(periods: list[str]) -> Frequency:
 #: How many reporting periods make up a span, per frequency. A span the data
 #: cannot express is simply not offered.
 _STEPS_PER_SPAN: dict[Frequency, dict[str, int]] = {
-    Frequency.QUARTERLY: {"3 months": 1, "6 months": 2, "12 months": 4},
-    Frequency.MONTHLY: {"3 months": 3, "6 months": 6, "12 months": 12},
-    Frequency.ANNUAL: {"12 months": 1, "3 years": 3},
+    Frequency.QUARTERLY: {"3 months": 1, "6 months": 2, "12 months": 4,
+                          "2 years": 8, "3 years": 12},
+    Frequency.MONTHLY: {"3 months": 3, "6 months": 6, "12 months": 12,
+                        "2 years": 24, "3 years": 36},
+    Frequency.ANNUAL: {"12 months": 1, "2 years": 2, "3 years": 3},
 }
+
+#: Which spans are offered as clarification choices. The longer spans exist so a
+#: question can resolve them, but a menu of six options is a menu nobody reads.
+_OFFERED_SPANS = ("3 months", "6 months", "12 months")
 
 _UNIT_LABEL: dict[Frequency, str] = {
     Frequency.QUARTERLY: "quarter",
@@ -110,7 +116,7 @@ def comparison_choices(periods: list[str], limit: int = 5) -> list[PeriodChoice]
     ]
 
     for span, steps in _STEPS_PER_SPAN.get(frequency, {}).items():
-        if steps <= 1 or steps >= len(periods):
+        if span not in _OFFERED_SPANS or steps <= 1 or steps >= len(periods):
             continue
         start = periods[-1 - steps]
         choices.append(PeriodChoice(
@@ -146,24 +152,66 @@ def comparison_choices(periods: list[str], limit: int = 5) -> list[PeriodChoice]
 # Reading a period out of a question
 # ---------------------------------------------------------------------------
 
+#: The words a credit officer uses for "the most recent one". Treated as
+#: synonyms on purpose: a product that resolved "over the LAST year" and asked a
+#: clarifying question about "over the LATEST year" is not reading English, it is
+#: pattern-matching, and the difference was visible to every user who hit it.
+_RECENT = r"(?:last|latest|past|previous|prior|current|trailing|most recent|this)"
+
 #: Phrases that pin a comparison without naming a period. Each maps to the
 #: number of reporting steps back from the latest period.
+#:
+#: Ordered longest-match-first within each span so "the last three years" is not
+#: consumed by the plain "last year" rule.
 _RELATIVE_SPANS: list[tuple[str, str]] = [
-    (r"\bthis (period|quarter|month)\b", "previous"),
-    (r"\bsince last (period|quarter|month)\b", "previous"),
-    (r"\bvs\.? (the )?(previous|prior|last) (period|quarter|month)\b", "previous"),
-    (r"\bagainst (the )?(previous|prior|last) (period|quarter|month)\b", "previous"),
-    (r"\blast quarter\b", "previous"),
-    (r"\bquarter[- ]on[- ]quarter\b", "previous"),
-    (r"\blast (3|three) months\b", "3 months"),
-    (r"\blast (6|six) months\b", "6 months"),
-    (r"\blast (12|twelve) months\b", "12 months"),
-    (r"\bover the (last|past) year\b", "12 months"),
-    (r"\byear[- ]on[- ]year\b", "12 months"),
+    # ---- three years
+    (rf"\b(?:over|in|across|for)?\s*(?:the\s+)?{_RECENT}\s+(?:3|three)\s+years?\b",
+     "3 years"),
+    (r"\b(?:3|three)[- ]year\b", "3 years"),
+    (r"\b(?:12|twelve)\s+quarters\b", "3 years"),
+
+    # ---- two years
+    (rf"\b(?:over|in|across|for)?\s*(?:the\s+)?{_RECENT}\s+(?:2|two)\s+years?\b",
+     "2 years"),
+    (r"\b(?:2|two)[- ]year\b", "2 years"),
+    (r"\b(?:8|eight)\s+quarters\b", "2 years"),
+
+    # ---- a year
+    (rf"\b(?:over|in|across|for|during|since)?\s*(?:the\s+)?{_RECENT}\s+year\b",
+     "12 months"),
+    (rf"\b{_RECENT}\s+(?:12|twelve)\s+months\b", "12 months"),
+    (r"\b(?:12|twelve)[- ]months?\b", "12 months"),
+    (r"\byear[- ]on[- ]year\b|\byear[- ]over[- ]year\b|\byoy\b", "12 months"),
+    (r"\b(?:4|four)\s+quarters\b", "12 months"),
+    (r"\bannual (?:change|movement|comparison)\b", "12 months"),
+
+    # ---- six months
+    (rf"\b{_RECENT}\s+(?:6|six)\s+months\b", "6 months"),
+    (r"\b(?:6|six)[- ]months?\b", "6 months"),
+    (r"\b(?:2|two)\s+quarters\b", "6 months"),
+
+    # ---- a quarter
+    (rf"\b{_RECENT}\s+(?:period|quarter|month)\b", "previous"),
+    (rf"\bsince\s+{_RECENT}\s+(?:period|quarter|month)\b", "previous"),
+    (rf"\bvs\.?\s+(?:the\s+)?{_RECENT}\s+(?:period|quarter|month)\b",
+     "previous"),
+    (rf"\bagainst\s+(?:the\s+)?{_RECENT}\s+(?:period|quarter|month)\b",
+     "previous"),
+    (r"\bquarter[- ]on[- ]quarter\b|\bqoq\b", "previous"),
+    (rf"\b{_RECENT}\s+(?:3|three)\s+months\b", "3 months"),
+    (r"\bsequential(?:ly)?\b", "previous"),
+
+    # ---- everything
     (r"\bsince the start\b", "full history"),
-    (r"\ball (available )?(periods|history)\b", "full history"),
-    (r"\bover time\b", "full history"),
+    (r"\ball (?:available )?(?:periods|history)\b", "full history"),
+    (r"\bover time\b|\bfull history\b|\bwhole history\b", "full history"),
+    (r"\bevery (?:quarter|period|year)\b", "full history"),
 ]
+
+#: The comparison a two-period question means when it does not say. A year, and
+#: it is stated on the answer rather than assumed silently — see
+#: `governed_default`.
+DEFAULT_SPAN = "12 months"
 
 
 @dataclass(frozen=True)
@@ -238,11 +286,46 @@ def read_period_intent(question: str, periods: list[str]) -> PeriodIntent:
     return PeriodIntent(False, source="the question did not say which periods to compare")
 
 
+def governed_default(periods: list[str]) -> PeriodIntent:
+    """The comparison window to use when a movement question named none.
+
+    The product used to stop and ask. That is the right instinct applied to the
+    wrong case: a period genuinely IS ambiguous when two readings would give
+    different answers, and "which customers were downgraded?" is not one of
+    those — every credit officer asking it means over the review cycle, which is
+    a year.
+
+    So the default is taken, and the answer says which two periods it used. An
+    unnecessary question costs a round trip and makes the product look unsure;
+    an unstated assumption would be worse than either, which is why the source
+    string is written to be shown rather than logged.
+    """
+    if len(periods) < 2:
+        return PeriodIntent(False, source="there is only one published period")
+
+    steps = _STEPS_PER_SPAN.get(detect_frequency(periods), {}).get(DEFAULT_SPAN)
+    if not steps or steps >= len(periods):
+        # Not enough history for a year. The full span is the honest answer,
+        # and saying so is better than refusing.
+        return PeriodIntent(
+            True, periods[0], periods[-1],
+            f"the question did not name a window, so CreditProbe used the full "
+            f"published history, {periods[0]} to {periods[-1]}")
+
+    opening, closing = periods[-1 - steps], periods[-1]
+    return PeriodIntent(
+        True, opening, closing,
+        f"the question did not name a window, so CreditProbe used the governed "
+        f"default of the latest year: {opening} to {closing}")
+
+
 __all__ = [
+    "DEFAULT_SPAN",
     "Frequency",
     "PeriodChoice",
     "PeriodIntent",
     "comparison_choices",
     "detect_frequency",
+    "governed_default",
     "read_period_intent",
 ]

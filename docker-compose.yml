@@ -68,6 +68,13 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+      args:
+        # Optional. Set GIT_SHA in .env (or your shell) and the image records
+        # which commit it was built from, so the running application can tell
+        # you whether the container is stale. Leave it unset and CreditProbe
+        # falls back to reading the mounted working tree.
+        GIT_SHA: ${GIT_SHA:-}
+        BUILD_TIMESTAMP: ${BUILD_TIMESTAMP:-}
     image: ipm-backend
     container_name: ipm-backend
     environment:
@@ -110,6 +117,11 @@ services:
       - ./metadata:/app/metadata
       - ./logs:/app/logs
       - ./uploads:/app/uploads
+      # Read-only, and only so the application can report which commit is
+      # checked out beside it. Without this the container cannot tell a fresh
+      # image from a stale one — which is exactly the question you want
+      # answered when the behaviour does not match the code you just pulled.
+      - ./.git:/app/.git:ro
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:

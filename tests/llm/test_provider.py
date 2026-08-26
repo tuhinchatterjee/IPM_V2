@@ -83,14 +83,14 @@ def test_no_key_means_no_pretending():
 
 def test_the_offline_status_says_what_is_degraded():
     status = NullProvider().status()
-    assert status.state == "no_key"
-    assert status.label == "NO PROVIDER KEY"
+    assert status.state == "offline"
+    assert status.label == "AI OFFLINE"
     assert "LIMITED OFFLINE MODE" in status.detail
 
 
 def test_a_provider_without_a_key_is_not_configured():
     assert AnthropicProvider(api_key="").configured is False
-    assert AnthropicProvider(api_key="").status().state == "no_key"
+    assert AnthropicProvider(api_key="").status().state == "offline"
 
 
 def test_the_status_never_carries_the_key():

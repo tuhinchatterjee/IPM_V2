@@ -48,12 +48,10 @@ def investigation():
 
 
 @pytest.fixture(scope="module")
-def rescued():
-    """A question the composer cannot read, answered by the registry.
+def unreadable():
+    """A question the composer cannot read and no methodology is named for.
 
-    "What deteriorated this period?" names no governed measure, so nothing can
-    be composed for it — but a certified analysis exists, and answering with it
-    beats asking the user to rephrase something the product can already do.
+    "What deteriorated this period?" names no governed measure at all.
     """
     return run_investigation("What deteriorated this period?", persist=False)
 
@@ -69,17 +67,35 @@ def test_an_investigation_runs_real_analyses(investigation):
 
 
 def test_composing_is_the_normal_route(investigation):
-    """The registry is a fallback now, not the front door."""
+    """Composition is the front door, and there is no longer a back one."""
     assert investigation.mode.get("fallback") is not True
     assert investigation.steps[0].analysis_id == "dynamic_analysis"
 
 
-def test_a_question_the_composer_cannot_read_still_gets_answered(rescued):
-    """And says which route it took, rather than presenting a narrower answer
-    as though it were the one that was asked for."""
-    assert rescued.status == "succeeded"
-    assert rescued.mode.get("fallback") is True
-    assert any("could not compose" in note for note in rescued.plan.notes)
+def test_a_question_the_composer_cannot_read_is_asked_about_not_substituted(
+        unreadable):
+    """The most important guarantee in this release.
+
+    This used to run whichever registered analysis best matched the question's
+    wording and label the answer a fallback. That produced certified, reconciled,
+    completely wrong answers — a request for the five largest Real Estate
+    customers came back as a sector concentration reading 100% of a book already
+    filtered to Real Estate. A confident answer to a question nobody asked is
+    worse than no answer, so the substitution has been removed rather than
+    labelled.
+    """
+    assert unreadable.status == "needs_clarification"
+    assert unreadable.steps == [], "nothing may run for a question not read"
+    assert unreadable.mode.get("fallback") is not True
+
+    clarification = unreadable.clarification
+    assert clarification is not None
+    # It still leaves something to click — built from governed CONCEPTS, so
+    # every offer is a question the composer can actually answer.
+    assert clarification.options
+    for option in clarification.options:
+        assert option["question"]
+    assert "registered" not in (clarification.detail or "").lower()
 
 
 def test_the_reasoning_map_separates_judgement_from_arithmetic(investigation):

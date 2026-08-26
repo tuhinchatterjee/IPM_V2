@@ -107,12 +107,33 @@ class Reading:
 
     intent: str
     objective: str = ""
+    #: How this message relates to the one before it. See
+    #: backend/orchestration/conversation for the enum and what each means.
+    conversation_action: str = ""
     #: Governed concepts named or implied — "exposure at default", "rating".
     concepts: tuple[str, ...] = ()
+    #: The measures to report, where the request distinguishes them from the
+    #: concepts it merely mentions. "Rank those by ECL" concerns ratings and
+    #: stages too; only ECL is the measure.
+    metrics: tuple[str, ...] = ()
+    #: Concepts the request cannot be answered without. Used by the guardrail
+    #: and by validation scoring; a superset of `metrics`.
+    required_concepts: tuple[str, ...] = ()
     #: Named things: sectors, customers, stages, regions.
     entities: tuple[dict[str, str], ...] = ()
+    #: Phrases that point back at an earlier turn — "these", "those five".
+    entity_references: tuple[str, ...] = ()
+    #: Explicit governed restrictions, as {field, value}. Distinct from
+    #: `entities`, which are named things the request is *about*.
+    filters: tuple[dict[str, str], ...] = ()
     #: What to break the answer down by.
     dimensions: tuple[str, ...] = ()
+    #: One row per what — customer, facility, sector.
+    grain: str = ""
+    #: Governed data domains the request plausibly needs.
+    candidate_domains: tuple[str, ...] = ()
+    #: Analysis Studio methods that may already answer this.
+    candidate_methods: tuple[str, ...] = ()
     #: Datasets the request is *about*, where it named or implied one.
     datasets: tuple[str, ...] = ()
     #: sum | average | count | rank | compare | distribution | list | none
@@ -141,7 +162,15 @@ class Reading:
         return {
             "intent": self.intent, "intent_label": self.label,
             "objective": self.objective,
+            "conversation_action": self.conversation_action,
             "concepts": list(self.concepts),
+            "metrics": list(self.metrics),
+            "required_concepts": list(self.required_concepts),
+            "entity_references": list(self.entity_references),
+            "filters": [dict(f) for f in self.filters],
+            "grain": self.grain,
+            "candidate_domains": list(self.candidate_domains),
+            "candidate_methods": list(self.candidate_methods),
             "entities": [dict(e) for e in self.entities],
             "dimensions": list(self.dimensions),
             "datasets": list(self.datasets),
@@ -179,11 +208,76 @@ SCHEMA: dict[str, Any] = {
             "type": "string",
             "description": "What the user wants, in one sentence, in their terms.",
         },
+        "conversation_action": {
+            "type": "string",
+            "enum": ["NEW_REQUEST", "CONTINUE", "MODIFY_PREVIOUS",
+                     "ENRICH_PREVIOUS", "CLARIFY"],
+            "description": (
+                "How this message relates to the conversation so far. "
+                "NEW_REQUEST: a fresh subject. CONTINUE: a new question scoped "
+                "to what the previous turn established (its population, "
+                "period, filters). MODIFY_PREVIOUS: change the analysis that "
+                "just ran — a different cut, order, filter or measure. "
+                "ENRICH_PREVIOUS: keep the previous rows and add a column. "
+                "CLARIFY: the user is answering a question CreditProbe asked. "
+                "When the message refers back with \"these\", \"those\", "
+                "\"them\" or \"the previous result\", it is NEVER "
+                "NEW_REQUEST."),
+        },
         "concepts": {
             "type": "array", "items": {"type": "string"},
             "description": (
                 "Governed credit concepts named or implied, using the concept "
                 "labels supplied in the context — never column names."),
+        },
+        "metrics": {
+            "type": "array", "items": {"type": "string"},
+            "description": (
+                "The governed concepts that are the MEASURES to report, using "
+                "the concept labels supplied in the context. A subset of "
+                "`concepts`: a request may involve a concept as a condition "
+                "without reporting it."),
+        },
+        "required_concepts": {
+            "type": "array", "items": {"type": "string"},
+            "description": "Every governed concept the request cannot be "
+                           "answered without, measures and conditions alike.",
+        },
+        "entity_references": {
+            "type": "array", "items": {"type": "string"},
+            "description": (
+                "Phrases in the message that point back at an earlier turn — "
+                "\"these\", \"those five\", \"them\", \"the previous "
+                "result\". List them verbatim; CreditProbe resolves them "
+                "against the identities the previous run returned. Do NOT "
+                "invent the ids yourself."),
+        },
+        "filters": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "field": {"type": "string"},
+                    "value": {"type": "string"},
+                },
+                "required": ["field", "value"],
+            },
+            "description": "Explicit governed restrictions, using only the "
+                           "dimension names and values supplied in the context.",
+        },
+        "grain": {
+            "type": "string",
+            "description": "One row per what — customer, facility or a "
+                           "dimension name. Empty when the request does not say.",
+        },
+        "candidate_domains": {
+            "type": "array", "items": {"type": "string"},
+            "description": "Governed data domains this plausibly needs.",
+        },
+        "candidate_methods": {
+            "type": "array", "items": {"type": "string"},
+            "description": "Ids of Analysis Studio methods supplied in the "
+                           "context that may already answer this.",
         },
         "entities": {
             "type": "array",
@@ -298,11 +392,27 @@ def from_payload(payload: dict[str, Any], *, source: str,
     if requirement not in {"none", "point_in_time", "two_period"}:
         requirement = "none"
 
+    filters: list[dict[str, str]] = []
+    for raw in payload.get("filters") or []:
+        if isinstance(raw, dict) and raw.get("field") and raw.get("value"):
+            filters.append({"field": str(raw["field"]),
+                            "value": str(raw["value"])})
+
+    action = str(payload.get("conversation_action") or "").strip().upper()
+
     return Reading(
         intent=intent,
         objective=str(payload.get("objective") or "").strip(),
+        conversation_action=action,
         concepts=strings("concepts"),
+        metrics=strings("metrics"),
+        required_concepts=strings("required_concepts") or strings("concepts"),
         entities=tuple(entities),
+        entity_references=strings("entity_references"),
+        filters=tuple(filters),
+        grain=str(payload.get("grain") or "").strip().lower(),
+        candidate_domains=strings("candidate_domains"),
+        candidate_methods=strings("candidate_methods"),
         dimensions=strings("dimensions"),
         datasets=strings("datasets"),
         operation=operation,

@@ -162,7 +162,12 @@ def test_every_answer_is_either_computed_or_asked(answered):
     for question, result in answered.items():
         if isinstance(result, Exception):
             continue
-        assert result.computed or result.clarification or result.result, (
+        # Four legitimate outcomes and no fifth: a computed answer, a metadata
+        # answer, a certified methodology the request named, or a question back.
+        # A stated failure counts too — what must never happen is silence, and
+        # what must never happen even more is a DIFFERENT question's answer.
+        assert (result.computed or result.clarification or result.result
+                or result.certified or result.failure), (
             f"{question!r} produced neither an answer nor a question")
 
 

@@ -208,6 +208,10 @@ class MultiRequest:
     bindings: list[Binding] = field(default_factory=list)
     filters: list[tuple[str, str]] = field(default_factory=list)
     resolution: Resolution | None = None
+    #: Identities carried forward from a previous turn — {"key": ..., "ids": [...]}.
+    #: When set, every shape is restricted to exactly these rows rather than
+    #: re-deriving a population that may have moved.
+    population: dict[str, Any] | None = None
     summary: str = ""
     reasons: list[str] = field(default_factory=list)
     #: Concepts where more than one governed field could have been meant.
@@ -590,6 +594,9 @@ def build_plan(request: MultiRequest, *, catalogue: Any) -> PlanBuild:
     dimensions = [c for c in CARRIED_DIMENSIONS
                   if c in fields_of.get(request.base, set())]
     filter_fields = [f for f, _ in request.filters]
+    if request.population:
+        filter_fields.append(str(request.population.get("key") or ""))
+    filter_fields = [f for f in filter_fields if f]
 
     base_grain = DATASET_GRAIN.get(request.base, FACILITY)
 
@@ -743,8 +750,20 @@ def build_plan(request: MultiRequest, *, catalogue: Any) -> PlanBuild:
     # Governed dimension filters and any level stated outright apply to every
     # shape; a threshold on how a measure MOVED applies only where the question
     # actually set one.
-    standing = [{"column": dimension, "op": "=", "value": value}
-                for dimension, value in request.filters]
+    # Same-dimension values are grouped into one `in`. Two `=` predicates on
+    # `ifrs9_stage` would be ANDed and select nothing — an empty result that
+    # looks like a finding rather than like a bug.
+    grouped: dict[str, list[str]] = {}
+    for dimension, value in request.filters:
+        grouped.setdefault(dimension, []).append(value)
+    standing = [
+        ({"column": dimension, "op": "=", "value": values[0]} if len(values) == 1
+         else {"column": dimension, "op": "in", "values": values})
+        for dimension, values in grouped.items()
+    ]
+    if request.population and request.population.get("ids"):
+        standing.append({"column": str(request.population["key"]), "op": "in",
+                         "values": [str(v) for v in request.population["ids"]]})
     standing += [{"column": _condition_column(b, column_for),
                   "op": _OPS[b.condition.op], "value": b.condition.value}
                  for b in request.bindings if b.condition.kind == "level"]

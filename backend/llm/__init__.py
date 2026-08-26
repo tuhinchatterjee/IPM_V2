@@ -14,6 +14,7 @@ import threading
 from typing import Any
 
 from backend.config import settings
+from backend.llm import telemetry
 from backend.llm.anthropic_provider import DEFAULT_MODEL, AnthropicProvider
 from backend.llm.base import (
     LLMError,
@@ -29,6 +30,10 @@ logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
 _provider: Any = None
+#: The (provider, model) the cached instance was built for. A change to either
+#: invalidates the observed health, because a CONNECTED earned by one model
+#: says nothing about another.
+_built_for: tuple[str, str] = ("", "")
 
 
 def get_provider(*, refresh: bool = False) -> LLMProvider:
@@ -37,11 +42,18 @@ def get_provider(*, refresh: bool = False) -> LLMProvider:
     Cached: a provider holds an HTTP client, and building one per question adds
     a connection handshake to every answer.
     """
-    global _provider
+    global _provider, _built_for
     with _lock:
-        if _provider is not None and not refresh:
+        wanted = ((settings.ai_provider or "").strip().lower(),
+                  (settings.ai_model or "").strip())
+        if _provider is not None and not refresh and wanted == _built_for:
             return _provider
+        if wanted != _built_for and _built_for != ("", ""):
+            # The configuration changed under us. Health observed against the
+            # previous provider must not be reported against this one.
+            telemetry.ledger().reset()
         _provider = _build()
+        _built_for = wanted
         return _provider
 
 
@@ -77,17 +89,37 @@ def provider_status() -> ProviderStatus:
 
 
 def is_configured() -> bool:
-    """Whether a real model is answering, in one expression.
+    """Whether a provider key exists.
 
-    Everything that must not overstate the product's intelligence — the Cockpit
-    banner, Settings, the Trace, the mode endpoint — reads this rather than
-    testing for a key itself.
+    Necessary and not sufficient: it says a call CAN be attempted, never that
+    one has succeeded. Anything reporting health to a user must read `health()`
+    or `ProviderStatus.live` instead — presenting a configured key as a working
+    model is the specific dishonesty this module was rebuilt to end.
     """
     return get_provider().configured
 
 
+def is_live() -> bool:
+    """Whether a real structured response has actually come back."""
+    return get_provider().status().live
+
+
+def health() -> dict[str, Any]:
+    """The observed provider health, safe to show a user.
+
+    Contains no key and no request body — see backend/llm/telemetry for the
+    closed list of what is recorded.
+    """
+    provider = get_provider()
+    return telemetry.health(provider=provider.name, model=provider.model,
+                            configured=provider.configured)
+
+
 __all__ = [
     "DEFAULT_MODEL",
+    "health",
+    "is_live",
+    "telemetry",
     "AnthropicProvider",
     "LLMError",
     "LLMProvider",

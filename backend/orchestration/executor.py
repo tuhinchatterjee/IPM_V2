@@ -28,6 +28,7 @@ trace model already computes.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import time
 from dataclasses import dataclass, field
@@ -35,14 +36,10 @@ from typing import Any
 
 from backend.engine.runner import AnalysisRunResult, run_analysis
 from backend.orchestration import multi
-from backend.orchestration.clarification import needed_clarification
-from backend.orchestration.comprehension import comprehend
 from backend.orchestration.dynamic import DynamicRequest, build_plan, read_question
 from backend.orchestration.interpreter import Finding, Metric, Narrative, build_narrative
-from backend.orchestration.planner import DemoPlanner, planner_mode
-from backend.orchestration.schema import AnalysisPlan, PlanRejected, PlanStep, Scope, StepRole
-from backend.orchestration.validator import validate_plan
-from backend.orchestration.vocabulary import get_vocabulary
+from backend.orchestration.planner import planner_mode
+from backend.orchestration.schema import AnalysisPlan, PlanStep, Scope, StepRole
 from backend.trace.model import NodeStatus, NodeType, TraceGraph, TraceNode
 
 logger = logging.getLogger(__name__)
@@ -181,6 +178,10 @@ class Investigation:
     version_label: str = "Original"
     rejected: list[str] = field(default_factory=list)
     mode: dict[str, Any] = field(default_factory=dict)
+    #: How this turn was read: the conversation action, what it inherited, what
+    #: the governed semantic guardrail made of the live reading, and whether the
+    #: live path was available. Rendered on the Trace.
+    conversation: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -202,6 +203,7 @@ class Investigation:
             "version_label": self.version_label,
             "rejected": self.rejected,
             "mode": self.mode,
+            "conversation": self.conversation,
             "stages": STAGES,
         }
 
@@ -629,27 +631,10 @@ def multi_candidate(question: str, vocab: Any) -> multi.MultiRequest | None:
 
 
 def _active_relationships() -> list[dict[str, Any]]:
-    """The governed relationship rows the planner may join on.
+    """The governed relationship rows the planner may join on."""
+    from backend.orchestration.context import relationship_rows
 
-    Read through the service layer so there is one definition of "usable" —
-    ACTIVE, confident enough, and not in an archived domain. Degrades to an
-    empty graph rather than failing: with no relationships declared, a
-    multi-dataset question is refused for want of a join, which is the honest
-    outcome.
-    """
-    from backend.config import settings
-
-    if not settings.has_database:
-        return []
-    try:
-        from backend.db.engine import get_session
-        from backend.services.relationships import active_relationships
-
-        with get_session() as session:
-            return active_relationships(session)
-    except Exception as e:
-        logger.warning("Could not read the relationship graph: %s", e)
-        return []
+    return relationship_rows()
 
 
 def run_multi(question: str, request: multi.MultiRequest, *, started: float,
@@ -891,145 +876,239 @@ def run_investigation(question: str, *, user_id: int | None = None,
                       investigation_id: int | None = None,
                       persist: bool = True,
                       period: tuple[str, str] | None = None,
-                      extra_filters: dict[str, Any] | None = None) -> Investigation:
-    """Answer one question end to end — or ask the one thing CreditProbe needs.
+                      extra_filters: dict[str, Any] | None = None,
+                      state: Any = None) -> Investigation:
+    """Answer one question end to end — for callers that do not track state."""
+    return answer_investigation(
+        question, user_id=user_id, project_id=project_id,
+        investigation_id=investigation_id, persist=persist, period=period,
+        extra_filters=extra_filters, state=state)[0]
+
+
+def answer_investigation(question: str, *, user_id: int | None = None,
+                         project_id: int | None = None,
+                         investigation_id: int | None = None,
+                         persist: bool = True,
+                         period: tuple[str, str] | None = None,
+                         extra_filters: dict[str, Any] | None = None,
+                         state: Any = None
+                         ) -> tuple[Investigation, Any]:
+    """Answer one question end to end, and report how it was answered.
 
     Routing, in order:
 
-      1. **Read the request.** A language model when one is configured, the
-         deterministic semantic reader otherwise. It produces a structured
-         reading: what kind of request, which governed concepts, which
-         entities, how sure.
+      1. **Read the request** — the live model against the governed catalogue
+         and the conversation so far, checked by the governed semantic reader.
       2. **Route by capability.** Only ANALYSIS reaches the runtime. A question
          about the catalogue, a join, a field or a method is answered from
          governed metadata, and nothing computes.
       3. **Compose and run.** The reading becomes an Analytical IR, which is
          validated against the catalogue and executed as parameterised SQL.
 
-    The legacy registry planner is reached only when the composition path
-    fails — an emergency fallback, never the normal route, and the answer says
-    so when it is used.
+    There are exactly three outcomes, and no fourth:
+
+      * an answer;
+      * a clarification;
+      * a stated failure.
+
+    **There is no fallback to a registered analysis.** The previous version of
+    this function rescued an unreadable question by running whichever certified
+    analysis best matched its wording, and wrapped a failed composition in the
+    old registry planner. Both produced confident, correct-looking answers to
+    questions nobody had asked — "show me the five largest Real Estate
+    customers" came back as a sector concentration reading 100% of a book
+    already filtered to Real Estate. Answering a different question is worse
+    than answering none, so this function no longer can.
     """
     from backend.orchestration import assembly, orchestrator
 
     started = time.perf_counter()
     try:
-        answered = orchestrator.answer(question, period=period,
+        answered = orchestrator.answer(question, state=state, period=period,
                                        extra_filters=extra_filters)
-        mode_now = orchestrator.mode()
+    except Exception as e:  # noqa: BLE001 - stated, never substituted
+        logger.exception("The orchestrator raised on %r", question)
+        return (_stated_failure(question, str(e), started), None)
 
-        if answered.clarification:
-            # Before asking, see whether a certified analysis already answers
-            # this. "What deteriorated this period?" names no governed measure,
-            # so the composer cannot read it — but the registry has an analysis
-            # built for exactly that question, and asking the user to rephrase
-            # something the product can already answer is worse service than
-            # answering it and saying which route was taken.
-            rescued = _registry_rescue(question, started, period=period,
-                                       user_id=user_id)
-            if rescued is not None:
-                if persist:
-                    persist_investigation(rescued, user_id=user_id,
-                                          project_id=project_id,
-                                          investigation_id=investigation_id)
-                return rescued
-            return _asking(question, answered, mode_now, started)
+    mode_now = orchestrator.mode()
 
-        if answered.result is not None:
-            investigation = assembly.from_handler(
-                question, answered.reading, answered.result,
-                duration_ms=answered.duration_ms, mode=mode_now)
-        else:
-            investigation = assembly.from_analysis(
-                question, answered.reading, answered.build, answered.runtime,
-                duration_ms=answered.duration_ms, mode=mode_now)
-            _check_grounding(investigation, answered.runtime)
+    if answered.certified is not None:
+        certified = _run_certified(question, answered, mode_now, started,
+                                   user_id=user_id)
+        if certified is not None:
+            _record_conversation(certified, answered)
+            if persist:
+                persist_investigation(certified, user_id=user_id,
+                                      project_id=project_id,
+                                      investigation_id=investigation_id)
+            return certified, answered
+        # The certified analysis could not run. Compose instead — never a
+        # different certified analysis.
+        logger.info("The certified route failed for %r; composing instead.",
+                    question)
+        answered = orchestrator.answer(question, state=state, period=period,
+                                       extra_filters=extra_filters,
+                                       use_certified=False)
 
-        if persist:
-            persist_investigation(investigation, user_id=user_id,
-                                  project_id=project_id,
-                                  investigation_id=investigation_id)
-        return investigation
-    except Exception as e:  # noqa: BLE001 - the fallback is the point
-        logger.exception("The orchestrator failed on %r; falling back to the "
-                         "registry planner.", question)
-        fallback = _legacy_investigation(question, started, period=period,
-                                          user_id=user_id, reason=str(e))
-        if persist:
-            persist_investigation(fallback, user_id=user_id,
-                                  project_id=project_id,
-                                  investigation_id=investigation_id)
-        return fallback
+    if answered.clarification:
+        investigation = _asking(question, answered, mode_now, started)
+    elif answered.failure:
+        investigation = _controlled_failure(question, answered, mode_now, started)
+    elif answered.result is not None:
+        investigation = assembly.from_handler(
+            question, answered.reading, answered.result,
+            duration_ms=answered.duration_ms, mode=mode_now)
+    else:
+        investigation = assembly.from_analysis(
+            question, answered.reading, answered.build, answered.runtime,
+            duration_ms=answered.duration_ms, mode=mode_now)
+        _apply_interpretation(investigation, answered)
+        _check_grounding(investigation, answered.runtime)
 
-
-def _about_a_period(clarification: str) -> bool:
-    """Whether what is missing is the comparison window."""
-    lowered = (clarification or "").lower()
-    return ("over what period" in lowered or "which periods" in lowered
-            or "span needs" in lowered)
+    _record_conversation(investigation, answered)
+    if persist:
+        persist_investigation(investigation, user_id=user_id,
+                              project_id=project_id,
+                              investigation_id=investigation_id)
+    return investigation, answered
 
 
-#: How strongly the registry must recognise a question before it is allowed to
-#: answer one the composer could not read.
-#
-#: Lower than it looks, because the registry is no longer what stands between a
-#: question and a wrong answer. Capability routing is: a question about ratings
-#: data or about a join never reaches this path at all, which is what stopped it
-#: coming back as a Stage 2 distribution. What is left here is a question
-#: already classified as an analysis whose measure the composer could not read,
-#: and for those a labelled certified analysis beats a refusal.
-_RESCUE_CONFIDENCE = 5
+def _run_certified(question: str, answered: Any, mode_now: dict[str, Any],
+                   started: float, *, user_id: int | None) -> Investigation | None:
+    """Run the bank's approved analysis for a methodology asked for by name.
 
-
-def _registry_rescue(question: str, started: float, *,
-                     period: tuple[str, str] | None,
-                     user_id: int | None) -> Investigation | None:
-    """A certified analysis for a question the composer could not read.
-
-    Returns None unless the registry recognises the question strongly and its
-    plan validates. Emergency mode, and labelled as such on the answer.
+    Returns None if it will not run, and the caller composes instead. It never
+    reaches for a *different* certified analysis: the whole reason this route is
+    safe is that it only ever runs the one the request actually named.
     """
+    found = answered.certified
+    plan = AnalysisPlan(
+        question=question,
+        intent=f"{found.name} — the bank's certified methodology.",
+        scope=Scope(focus=found.name, output="table",
+                    period_requirement=str(found.period_requirement),
+                    period_specified=bool(answered.certified_params)),
+        steps=[PlanStep(analysis_id=found.analysis_id, title=found.name,
+                        rationale=found.because,
+                        params=dict(answered.certified_params),
+                        role=StepRole.PRIMARY)],
+        planner=answered.reading.source,
+        model_name=answered.reading.model or None,
+        notes=[found.because,
+               f"Selected because the request matched {found.matched}."],
+    )
     try:
-        vocab = get_vocabulary()
-        plan = DemoPlanner().plan(question, vocab, period=period)
-        if plan.unmatched or not plan.steps:
-            return None
-        if _registry_score(question) < _RESCUE_CONFIDENCE:
-            return None
-        if needed_clarification(plan, vocab) is not None:
-            return None
-        plan = validate_plan(plan, vocab)
         steps = execute_plan(plan, user_id=user_id)
-        if not steps or any(s.status != "succeeded" for s in steps):
-            return None
-    except Exception as e:  # noqa: BLE001 - a failed rescue just means "ask"
-        logger.info("No registry analysis rescued %r: %s", question, e)
+    except Exception as e:  # noqa: BLE001 - compose instead, never substitute
+        logger.info("Certified analysis %s did not run: %s",
+                    found.analysis_id, e)
+        return None
+    if not steps or any(s.status != "succeeded" for s in steps):
         return None
 
-    plan.notes.append(
-        "CreditProbe could not compose an analysis for this question from the "
-        "governed concepts, so it ran the certified analyses registered for it "
-        "instead. Naming the figure you want will compose one directly.")
+    # The window the certified analysis actually used, back onto the scope, so
+    # the answer and the Trace say which periods were read. A contract's own
+    # governed default is the bank's decision and is often not the composer's,
+    # and leaving the scope empty would hide which one applied.
+    resolved = dict(steps[0].params or {})
+    context = (steps[0].result or {}).get("context") or {}
+    plan = dataclasses.replace(plan, scope=dataclasses.replace(
+        plan.scope,
+        from_period=(resolved.get("from_period")
+                     or context.get("from_period") or None),
+        to_period=(resolved.get("to_period") or resolved.get("period")
+                   or context.get("period") or None),
+        period_source=("read from the request" if answered.certified_params
+                       else "the certified analysis's own governed default"),
+    ))
+
     investigation = assemble(
-        plan, steps, duration_ms=int((time.perf_counter() - started) * 1000))
-    investigation.mode = {**investigation.mode, "fallback": True,
-                          "fallback_reason": "no governed measure was named"}
+        plan, steps, duration_ms=int((time.perf_counter() - started) * 1000),
+        mode=mode_now)
+    answered.written = _interpret_certified(question, found, steps[0])
+    _apply_interpretation(investigation, answered)
     return investigation
 
 
-def _registry_score(question: str) -> int:
-    """How strongly the registry's own patterns match this question."""
-    import re
+class _CertifiedResult:
+    """The shape `interpretation.write` reads, over a certified step's result.
 
-    from backend.orchestration.planner import INTENTS
+    A thin adapter rather than a change to the interpreter: the interpreter's
+    contract is "you are given the result and never the data", and a registered
+    analysis's result satisfies that contract in a different shape.
+    """
 
-    lowered = (question or "").lower()
-    best = 0
-    for intent in INTENTS:
-        score = sum(weight for pattern, weight in intent.patterns
-                    if re.search(pattern, lowered))
-        best = max(best, score)
-    return best
+    def __init__(self, payload: dict[str, Any]) -> None:
+        payload = payload or {}
+        self.rows = list(payload.get("rows") or [])
+        self.columns = list(payload.get("columns") or [])
+        self.values = dict(payload.get("values") or {})
+        self.warnings = list(payload.get("warnings") or [])
+        self.row_count = len(self.rows)
+        self.reconciliation = payload.get("reconciliation")
+
+
+def _interpret_certified(question: str, found: Any, step: ExecutedStep) -> Any:
+    from backend.orchestration import interpretation
+
+    return interpretation.write(
+        question, f"{found.name}: {found.when_to_use or found.because}",
+        _CertifiedResult(step.result or {}),
+        plan_note=("This is the bank's CERTIFIED methodology, run as approved. "
+                   "Do not describe it as a composed or dynamic analysis."))
+
+
+def _record_conversation(investigation: Investigation, answered: Any) -> None:
+    """Put how this turn was read onto the answer, for the Trace and the UI.
+
+    Recorded on every turn, including the ones where everything agreed. A field
+    that only appears when something went wrong teaches users that its presence
+    is bad news, which makes the good news invisible.
+    """
+    investigation.conversation = {
+        "action": answered.continuation.action,
+        "certified": (answered.certified.to_dict()
+                      if answered.certified is not None else None),
+        "continuation": answered.continuation.to_dict(),
+        "guardrail": answered.verdict.to_dict(),
+        "reading": answered.reading.to_dict(),
+        "model_calls": answered.calls,
+        "degraded_reason": answered.degraded_reason,
+        "interpretation": (answered.written.to_dict()
+                           if answered.written is not None else None),
+    }
+    if answered.degraded_reason:
+        investigation.narrative.caveats.append(
+            "A provider key is configured but the live model could not be "
+            "reached for this answer, so the request was read by CreditProbe's "
+            "governed semantic reader. Every figure was still computed by the "
+            "governed runtime.")
+    if answered.verdict.rejected:
+        investigation.narrative.caveats.append(
+            "The live model's reading of this request was rejected by the "
+            "governed semantic guardrail and CreditProbe used its own reading "
+            "of the same question instead.")
+
+
+def _apply_interpretation(investigation: Investigation, answered: Any) -> None:
+    """Put the model's reading of the result into the narrative.
+
+    Only when it survived grounding. A discarded interpretation leaves the
+    deterministic narrative in place and says so, rather than leaving a gap the
+    reader has to interpret.
+    """
+    written = answered.written
+    if written is None:
+        return
+    if written.live:
+        if written.headline:
+            investigation.narrative.direct_answer = written.headline
+        investigation.narrative.interpretation = written.interpretation
+        if written.notable:
+            investigation.narrative.interpretation_points = list(written.notable)
+        investigation.narrative.caveats.extend(written.caveats)
+    elif written.unavailable:
+        investigation.narrative.caveats.append(written.unavailable)
 
 
 def _asking(question: str, answered: Any, mode_now: dict[str, Any],
@@ -1039,32 +1118,18 @@ def _asking(question: str, answered: Any, mode_now: dict[str, Any],
     A clarification is a real outcome with its own Trace: the question, how far
     the reading got, and what is missing. It is not an error and it is not an
     empty analysis.
+
+    What it is NOT, any more, is an invitation to pick from the engine's list of
+    registered analyses. That menu was written when the engine could only answer
+    twenty-four questions; offering it now describes a product that no longer
+    exists, and it sent users away from the question they actually had.
     """
     from backend.orchestration.schema import Clarification
 
     reading = answered.reading
+    typed = _period_clarification(question, answered) or _reading_clarification(
+        question, answered)
 
-    # The comprehension module already knows how to ask well: it detects a
-    # borrower nobody has heard of, distinguishes "no measure named" from "no
-    # intent at all", and offers options resolved to things the engine can
-    # actually do. Re-deriving a worse version of that here would be a second
-    # way of asking, and the two would drift.
-    typed = None
-    try:
-        vocab = get_vocabulary()
-        registry_plan = DemoPlanner().plan(question, vocab)
-        understanding = comprehend(question, registry_plan, vocab)
-        if understanding.should_ask:
-            typed = understanding.clarification
-        elif _about_a_period(answered.clarification):
-            # A missing comparison window has resolved options — "last quarter",
-            # "last 12 months" — and answering by clicking one is a click rather
-            # than a re-typed sentence. The clarification module already builds
-            # them, so the composer's plainer version is only used when it does
-            # not apply.
-            typed = needed_clarification(registry_plan, vocab)
-    except Exception as e:  # noqa: BLE001 - a worse question is better than none
-        logger.info("Could not type the clarification for %r: %s", question, e)
     scope = Scope(focus=reading.label, output="level",
                   period_requirement=reading.period_requirement,
                   period_specified=bool(reading.periods))
@@ -1073,7 +1138,8 @@ def _asking(question: str, answered: Any, mode_now: dict[str, Any],
         steps=[], planner=reading.source, model_name=reading.model or None,
         unmatched=True,
         notes=["CreditProbe stopped to ask rather than answering a question it "
-               "had not fully read."],
+               "had not fully read. No analysis was run and no figure was "
+               "computed."],
     )
     narrative = build_narrative(question, plan.intent, [], plan=plan)
     graph = TraceGraph()
@@ -1086,12 +1152,13 @@ def _asking(question: str, answered: Any, mode_now: dict[str, Any],
         config={"intent": reading.intent, "confidence": reading.confidence,
                 "concepts": list(reading.concepts), "read_by": reading.source,
                 "clarification": answered.clarification,
+                "conversation_action": answered.continuation.action,
                 "rule": "Nothing was computed: CreditProbe asked instead."}))
     node.mark_ok()
     graph.connect("question", "intent")
     graph.compute_hashes()
 
-    asking = Investigation(
+    return Investigation(
         question=question, plan=plan, steps=[], narrative=narrative,
         graph=graph, node_hashes=graph.compute_hashes(),
         duration_ms=int((time.perf_counter() - started) * 1000),
@@ -1103,7 +1170,203 @@ def _asking(question: str, answered: Any, mode_now: dict[str, Any],
             options=[], allow_custom=True),
         mode=mode_now,
     )
-    return asking
+
+
+#: What a clarification offers when the thing that is missing is the figure.
+#:
+#: Built from governed CONCEPTS rather than from the analysis registry. The old
+#: refusal offered a menu of the twenty-four analyses the engine had been given,
+#: under the sentence "I can only answer with analyses the engine has
+#: registered" — which stopped being true when the composer was built, and which
+#: sent people away from the question they actually had. Every option below is a
+#: question the composer can genuinely answer, generated from the catalogue, so
+#: the list cannot drift out of date either.
+#: `(concept id, option label, question)`. The concept is named rather than
+#: taken positionally, because pairing "the largest exposures" with whichever
+#: concept happened to be third in the catalogue produced offers that read as
+#: nonsense to anybody who knows the vocabulary.
+_OFFER_TEMPLATES: tuple[tuple[str, str, str], ...] = (
+    ("ead", "{label} by sector", "What is total {label} by sector in {period}?"),
+    ("ead", "The largest exposures",
+     "Show me the ten largest customers by {label}."),
+    ("ecl", "How {label} moved", "How has {label} changed over the latest year?"),
+)
+
+
+def _reading_clarification(question: str, answered: Any) -> Any:
+    """"Which figure?" — with figures the composer can actually compose.
+
+    Returns None rather than an empty menu when the catalogue cannot be read: a
+    clarification with nothing to click is still a better answer than a
+    confident number about something else, which is what this replaced.
+    """
+    from backend.orchestration.schema import Clarification
+
+    try:
+        from backend.orchestration import concepts as cx
+        from backend.orchestration.vocabulary import get_vocabulary
+
+        vocab = get_vocabulary()
+        period = vocab.periods[-1] if vocab.periods else "the latest quarter"
+        by_id = {c.id: c.label for c in cx.CONCEPTS}
+        spare = [c.label for c in cx.CONCEPTS
+                 if not c.is_categorical and not c.is_ordinal]
+    except Exception as e:  # noqa: BLE001
+        logger.info("Could not offer governed concepts for %r: %s", question, e)
+        return None
+    if not by_id:
+        return None
+
+    options = []
+    for index, (concept_id, option_label, template) in enumerate(_OFFER_TEMPLATES):
+        label = by_id.get(concept_id) or (spare[index] if index < len(spare) else "")
+        if not label:
+            continue
+        options.append({
+            "id": f"concept-{index}",
+            "label": option_label.format(label=label),
+            "question": template.format(label=label, period=period)})
+    options.append({"id": "catalogue", "label": "What data is available",
+                    "question": "What data do you have?"})
+
+    return Clarification(
+        kind="reading",
+        question=answered.clarification or "Which figure should CreditProbe measure?",
+        detail=("CreditProbe composes an analysis from the governed concepts in "
+                "the catalogue. Name the figure you want and it will build it — "
+                "or start from one of these."),
+        options=options,
+        because=(answered.reading.reasoning
+                 or "The request did not name a governed measure."),
+        allow_custom=True,
+    )
+
+
+def _period_clarification(question: str, answered: Any) -> Any:
+    """The one clarification that still has clickable options: a period.
+
+    A comparison window has real alternatives — last quarter, the latest year —
+    and answering by clicking one is a click rather than a re-typed sentence.
+    Every other clarification is a sentence, because the thing that is missing
+    is a figure or a name and a menu cannot offer those.
+    """
+    lowered = (answered.clarification or "").lower()
+    if not any(phrase in lowered for phrase in
+               ("what period", "which periods", "span needs",
+                "nothing to compare")):
+        return None
+    try:
+        from backend.orchestration.periods import comparison_choices
+        from backend.orchestration.schema import Clarification
+        from backend.orchestration.vocabulary import get_vocabulary
+
+        choices = comparison_choices(list(get_vocabulary().periods))
+        if not choices:
+            return None
+        return Clarification(
+            kind="period",
+            question="Over what period should CreditProbe measure this?",
+            detail=answered.clarification,
+            options=[{"id": c.id, "label": c.label, "detail": c.detail,
+                      "from_period": c.from_period, "to_period": c.to_period}
+                     for c in choices],
+            because="The book is reported quarterly, so the window changes the "
+                    "answer.",
+            allow_custom=True,
+        )
+    except Exception as e:  # noqa: BLE001 - a plainer question is still a question
+        logger.info("Could not offer period options for %r: %s", question, e)
+        return None
+
+
+def _controlled_failure(question: str, answered: Any,
+                        mode_now: dict[str, Any],
+                        started: float) -> Investigation:
+    """CreditProbe saying it could not do this, and stopping.
+
+    The important word is *stopping*. This is the branch that used to run the
+    registry planner, and the whole value of the change is that a user who sees
+    this message knows they have not been given an answer — rather than being
+    given a real, certified, reconciled figure for a question they did not ask.
+    """
+    reading = answered.reading
+    scope = Scope(focus=reading.label, output="level",
+                  period_requirement=reading.period_requirement,
+                  period_specified=bool(reading.periods))
+    plan = AnalysisPlan(
+        question=question, intent=reading.objective or question, scope=scope,
+        steps=[], planner=reading.source, model_name=reading.model or None,
+        unmatched=True,
+        notes=["CreditProbe could not complete this request and has not "
+               "substituted a different analysis."],
+    )
+    narrative = Narrative(
+        direct_answer="CreditProbe could not complete that request.",
+        summary=answered.failure,
+        findings=[], interpretation="", interpretation_points=[],
+        caveats=[answered.failure],
+    )
+    graph = TraceGraph()
+    graph.add_node(TraceNode(id="question", type=NodeType.USER_PROMPT,
+                             label="Question asked",
+                             config={"question": question}))
+    node = graph.add_node(TraceNode(
+        id="failure", type=NodeType.CAPABILITY,
+        label="Could not complete",
+        config={"intent": reading.intent, "kind": answered.failure_kind,
+                "detail": answered.failure,
+                "rule": "No substitute analysis was run."}))
+    node.mark_failed(answered.failure)
+    graph.connect("question", "failure")
+    graph.compute_hashes()
+
+    return Investigation(
+        question=question, plan=plan, steps=[], narrative=narrative,
+        graph=graph, node_hashes=graph.compute_hashes(),
+        duration_ms=int((time.perf_counter() - started) * 1000),
+        status="failed", rejected=[answered.failure], mode=mode_now,
+    )
+
+
+def _stated_failure(question: str, reason: str,
+                    started: float) -> Investigation:
+    """The last resort: something threw where nothing should have.
+
+    Still not a fallback analysis. An unexpected exception means CreditProbe
+    does not know what happened, and the one thing it must not do when it does
+    not know what happened is produce a number.
+    """
+    logger.error("Unhandled failure answering %r: %s", question, reason)
+    scope = Scope(focus="Could not complete", output="level",
+                  period_requirement="none", period_specified=False)
+    plan = AnalysisPlan(
+        question=question, intent=question, scope=scope, steps=[],
+        planner="none", unmatched=True,
+        notes=["CreditProbe could not complete this request and has not "
+               "substituted a different analysis."],
+    )
+    detail = ("CreditProbe could not complete that request. "
+              f"The orchestration failed: {reason}")
+    graph = TraceGraph()
+    graph.add_node(TraceNode(id="question", type=NodeType.USER_PROMPT,
+                             label="Question asked",
+                             config={"question": question}))
+    node = graph.add_node(TraceNode(id="failure", type=NodeType.CAPABILITY,
+                                    label="Could not complete",
+                                    config={"detail": detail}))
+    node.mark_failed(reason)
+    graph.connect("question", "failure")
+    graph.compute_hashes()
+    return Investigation(
+        question=question, plan=plan, steps=[],
+        narrative=Narrative(
+            direct_answer="CreditProbe could not complete that request.",
+            summary=detail, findings=[], interpretation="",
+            interpretation_points=[], caveats=[detail]),
+        graph=graph, node_hashes=graph.compute_hashes(),
+        duration_ms=int((time.perf_counter() - started) * 1000),
+        status="failed", rejected=[detail],
+    )
 
 
 def _check_grounding(investigation: Investigation, runtime: Any) -> None:
@@ -1129,72 +1392,6 @@ def _check_grounding(investigation: Investigation, runtime: Any) -> None:
                 "One figure in this reading could not be traced to the result "
                 "and has been flagged for review.")
             return
-
-
-def _legacy_investigation(question: str, started: float, *,
-                          period: tuple[str, str] | None,
-                          user_id: int | None, reason: str) -> Investigation:
-    """The registry planner, as an emergency fallback only.
-
-    This is the path the whole product used to take. It is kept because a
-    composition that will not run is not a reason to return nothing, but the
-    answer says plainly that it is a fallback — presenting it as the normal
-    route is what made six questions in a row come back confidently wrong.
-    """
-    vocab = get_vocabulary()
-    plan = DemoPlanner().plan(question, vocab, period=period)
-    plan.notes.append(
-        "CreditProbe could not compose an analysis for this question and fell "
-        "back to its registered analyses. The answer may be narrower than what "
-        "was asked.")
-
-    reading = comprehend(question, plan, vocab)
-    if reading.should_ask:
-        narrative = build_narrative(question, plan.intent, [], plan=plan)
-        asking = Investigation(
-            question=question, plan=plan, steps=[], narrative=narrative,
-            graph=build_reasoning_map(plan, [], narrative),
-            node_hashes={}, duration_ms=int((time.perf_counter() - started) * 1000),
-            status="needs_clarification", clarification=reading.clarification,
-            mode={**planner_mode(), "fallback": True, "fallback_reason": reason},
-        )
-        asking.node_hashes = asking.graph.compute_hashes()
-        return asking
-
-    clarification = needed_clarification(plan, vocab)
-    if clarification is not None:
-        narrative = build_narrative(question, plan.intent, [], plan=plan)
-        asking = Investigation(
-            question=question, plan=plan, steps=[], narrative=narrative,
-            graph=build_reasoning_map(plan, [], narrative),
-            node_hashes={}, duration_ms=int((time.perf_counter() - started) * 1000),
-            status="needs_clarification", clarification=clarification,
-            mode={**planner_mode(), "fallback": True, "fallback_reason": reason},
-        )
-        asking.node_hashes = asking.graph.compute_hashes()
-        return asking
-
-    try:
-        plan = validate_plan(plan, vocab)
-    except PlanRejected as rejection:
-        empty = Investigation(
-            question=question, plan=plan, steps=[],
-            narrative=build_narrative(question, plan.intent, [], plan=plan),
-            graph=build_reasoning_map(plan, [],
-                                      build_narrative(question, plan.intent, [], plan=plan)),
-            node_hashes={}, duration_ms=int((time.perf_counter() - started) * 1000),
-            status="rejected", rejected=rejection.reasons,
-            mode={**planner_mode(), "fallback": True, "fallback_reason": reason},
-        )
-        empty.node_hashes = empty.graph.compute_hashes()
-        return empty
-
-    steps = execute_plan(plan, user_id=user_id)
-    investigation = assemble(plan, steps,
-                             duration_ms=int((time.perf_counter() - started) * 1000))
-    investigation.mode = {**investigation.mode, "fallback": True,
-                          "fallback_reason": reason}
-    return investigation
 
 
 # ---------------------------------------------------------------- persistence
@@ -1275,5 +1472,6 @@ __all__ = [
     "build_reasoning_map",
     "execute_plan",
     "persist_investigation",
+    "answer_investigation",
     "run_investigation",
 ]

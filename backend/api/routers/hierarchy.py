@@ -265,15 +265,18 @@ def start_thread(payload: ThreadIn, principal: Principal = RequireAnalyst) -> di
 
     # The opening question is already message 0, so the answer is recorded
     # directly rather than through ask(), which would store it twice.
-    from backend.orchestration.executor import run_investigation
+    from backend.orchestration import conversation as cv
+    from backend.orchestration.executor import answer_investigation
 
     window = _window(payload.from_period, payload.to_period) or th.settled_period(
         thread.context
     )
-    result = run_investigation(
-        payload.question, user_id=principal.user_id, project_id=payload.project_id,
-        investigation_id=thread.id, persist=True, period=window,
+    result, answered = answer_investigation(
+        payload.question, user_id=principal.user_id,
+        project_id=payload.project_id, investigation_id=thread.id,
+        persist=True, period=window, state=cv.load(thread.context),
     )
+    th.remember(thread.id, result, answered)
     if result.status == "needs_clarification":
         run = result.to_dict()
         clarification = run.get("clarification") or {}

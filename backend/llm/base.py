@@ -26,7 +26,7 @@ buy nothing.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 
@@ -52,6 +52,9 @@ class LLMResult:
     #: Set when the provider retried. Recorded because a plan that took three
     #: attempts is worth knowing about even though it succeeded.
     attempts: int = 1
+    #: The provider's own identifier for the call. Safe to show, and the only
+    #: handle a provider can trace a request by on their side.
+    request_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -65,20 +68,34 @@ class ProviderStatus:
 
     provider: str
     model: str
+    #: A key exists. Necessary for the model to answer, and never sufficient —
+    #: `state` is what says whether it actually does.
     configured: bool
-    state: str          # connected | no_key | error
+    #: offline | configured | connected | degraded. See backend/llm/telemetry.
+    state: str
     detail: str
+    #: The full observed health, for Settings and the header chip. Empty for a
+    #: provider that has never been called.
+    health: dict[str, Any] = field(default_factory=dict)
 
     @property
     def label(self) -> str:
-        return {"connected": "CONNECTED",
-                "no_key": "NO PROVIDER KEY",
-                "error": "UNAVAILABLE"}.get(self.state, self.state.upper())
+        from backend.llm import telemetry
+
+        return telemetry.LABELS.get(self.state, self.state.upper())
+
+    @property
+    def live(self) -> bool:
+        """Whether a real structured response has actually come back."""
+        from backend.llm import telemetry
+
+        return self.state == telemetry.CONNECTED
 
     def to_dict(self) -> dict[str, Any]:
         return {"provider": self.provider, "model": self.model,
                 "configured": self.configured, "state": self.state,
-                "label": self.label, "detail": self.detail}
+                "label": self.label, "live": self.live, "detail": self.detail,
+                "health": dict(self.health)}
 
 
 class LLMProvider(Protocol):
@@ -97,8 +114,14 @@ class LLMProvider(Protocol):
 
     def structured(self, *, system: str, prompt: str, schema: dict[str, Any],
                    tool_name: str, tool_description: str,
-                   max_tokens: int = 2000) -> LLMResult:
-        """Return a document conforming to `schema`, or raise LLMError."""
+                   max_tokens: int = 2000,
+                   purpose: str = "reading") -> LLMResult:
+        """Return a document conforming to `schema`, or raise LLMError.
+
+        `purpose` names the stage the call belongs to — reading, repair,
+        interpretation, validation — so a failure can be attributed to a stage
+        rather than to "the AI".
+        """
         ...
 
 
@@ -121,12 +144,17 @@ class NullProvider:
         return False
 
     def status(self) -> ProviderStatus:
+        from backend.llm import telemetry
+
         return ProviderStatus(
-            provider="none", model="", configured=False, state="no_key",
+            provider="none", model="", configured=False,
+            state=telemetry.OFFLINE,
             detail=(self.reason + " CreditProbe is running in LIMITED OFFLINE "
                     "MODE: questions are read by a deterministic semantic "
                     "planner over the governed catalogue, which understands "
-                    "credit concepts but not arbitrary phrasing."))
+                    "credit concepts but not arbitrary phrasing."),
+            health=telemetry.health(provider="none", model="",
+                                    configured=False))
 
     def structured(self, **_: Any) -> LLMResult:
         raise LLMError(self.reason)

@@ -110,10 +110,15 @@ class Condition:
             return f"{self.label} {word} {self.value:g}{unit}"
 
         if self.value == 0:
+            # An ordinal grade does not "rise". It is downgraded, and reading it
+            # back as "internal rating rose" makes a correct answer look wrong
+            # to the only people qualified to check it.
+            up, down = (("was downgraded", "was upgraded")
+                        if self.field == "internal_grade" else ("rose", "fell"))
             if self.op == "gt":
-                return f"{self.label} rose"
+                return f"{self.label} {up}"
             if self.op == "lt":
-                return f"{self.label} fell"
+                return f"{self.label} {down}"
             # A floor at zero: "did not fall" rather than "rose or stayed", which
             # is the same set and not how anybody says it.
             return f"{self.label} did not {'fall' if self.op == 'gte' else 'rise'}"
