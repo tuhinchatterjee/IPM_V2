@@ -276,9 +276,14 @@ def movement_near(question: str, phrase: str, *,
         return None
     for clause in clauses(question):
         if phrase.lower() in clause.lower():
-            found = find_movement(clause)
-            if found is not None:
-                return found
+            # The clause the phrase sits in is FINAL, including when its
+            # verdict is "no movement". Falling through to a window search
+            # here let a neighbouring clause lend its verb: in "…a rating
+            # downgrade and covenant headroom below 15%", headroom borrowed
+            # "downgrade" and the 15 with it, and a threshold test became
+            # "headroom fell more than 15%" — which returned borrowers at
+            # 16.17% headroom under a heading that promised below 15%.
+            return find_movement(clause)
 
     text = str(question or "")
     at = text.lower().find(phrase.lower())
@@ -289,12 +294,108 @@ def movement_near(question: str, phrase: str, *,
     return find_movement(text[start:end])
 
 
+# ---------------------------------------------------------------- thresholds
+#
+# A level test, as distinct from a movement. "covenant headroom below 15%" says
+# nothing about how headroom moved; it names a line and asks who is the wrong
+# side of it. Reading it as a movement is not a near miss — it returns a
+# different population, under a heading that describes the one you asked for.
+
+#: Comparison words, and the operator each asserts about the measure.
+_THRESHOLD_OPS: tuple[tuple[str, str], ...] = (
+    (r"(?:strictly\s+)?(?:below|under|less than|lower than|beneath|"
+     r"smaller than|worse than)", "lt"),
+    (r"(?:strictly\s+)?(?:above|over|more than|greater than|higher than|"
+     r"exceed(?:s|ing)?|better than)", "gt"),
+    (r"(?:at most|no more than|not more than|up to|or less|or lower|or below)",
+     "lte"),
+    (r"(?:at least|no less than|not less than|or more|or higher|or above)",
+     "gte"),
+    (r"(?:equal to|exactly|equals?|is)", "eq"),
+)
+
+_THRESHOLD = re.compile(
+    r"\b(?P<word>" + "|".join(p for p, _ in _THRESHOLD_OPS) + r")\s+"
+    r"(?P<value>-?\d+(?:\.\d+)?)\s*(?P<unit>%|percent|percentage points?|"
+    r"pp|x|times|notch(?:es)?|days?|bps)?", re.I)
+
+_OP_BY_WORD: dict[str, str] = {}
+
+
+def _threshold_op(word: str) -> str:
+    if not _OP_BY_WORD:
+        for pattern, op in _THRESHOLD_OPS:
+            _OP_BY_WORD[pattern] = op
+    lowered = (word or "").strip().lower()
+    for pattern, op in _THRESHOLD_OPS:
+        if re.fullmatch(pattern, lowered, re.I):
+            return op
+    return ""
+
+
+@dataclass(frozen=True)
+class Threshold:
+    """A line the measure has to be on one side of."""
+
+    op: str
+    value: float
+    unit: str = ""
+    phrase: str = ""
+
+
+def find_threshold(text: str) -> Threshold | None:
+    """The level test in a fragment, if it states one."""
+    match = _THRESHOLD.search(text or "")
+    if match is None:
+        return None
+    op = _threshold_op(match.group("word"))
+    if not op:
+        return None
+    return Threshold(op=op, value=float(match.group("value")),
+                     unit=(match.group("unit") or "").lower().strip(),
+                     phrase=match.group(0).strip())
+
+
+def threshold_near(question: str, phrase: str) -> Threshold | None:
+    """The level test attached to one concept's phrase.
+
+    Clause-local only, and deliberately so. A threshold that had to be found
+    across a clause boundary is a threshold on a different measure, and
+    borrowing it is how a covenant question ended up filtering ECL.
+    """
+    if not phrase:
+        return None
+    for clause in clauses(question):
+        if phrase.lower() in clause.lower():
+            return find_threshold(clause)
+    return None
+
+
+def threshold_condition(match: Any, threshold: Threshold | None) -> Any:
+    """The level Condition a threshold implies for this concept."""
+    from backend.orchestration.dynamic import Condition
+
+    if threshold is None:
+        return None
+    concept = match.concept
+    if concept.is_categorical:
+        return None
+    return Condition(
+        field=match.field, kind="level", op=threshold.op,
+        value=threshold.value, phrase=threshold.phrase,
+        higher_is_worse=concept.higher_is_worse)
+
+
 __all__ = [
     "DIRECTIONS",
     "Direction",
     "Movement",
+    "Threshold",
     "clauses",
     "condition_for",
     "find_movement",
+    "find_threshold",
     "movement_near",
+    "threshold_condition",
+    "threshold_near",
 ]

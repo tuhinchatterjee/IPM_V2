@@ -1486,7 +1486,8 @@ def _check_grounding(investigation: Investigation, runtime: Any) -> None:
 
     step = investigation.steps[0] if investigation.steps else None
     allowed = assembly.grounded_values(
-        runtime, (step.result or {}).get("values") if step else None)
+        runtime, (step.result or {}).get("values") if step else None,
+        asked=investigation.question)
     for text in (investigation.narrative.direct_answer,
                  investigation.narrative.interpretation,
                  *[f.text for f in investigation.narrative.findings]):

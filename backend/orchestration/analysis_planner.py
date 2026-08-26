@@ -25,6 +25,7 @@ is not duplicated, it is driven from the reading instead of from a regex.
 from __future__ import annotations
 
 import logging
+import re as _re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -461,13 +462,28 @@ def _without_values(text: str, filters: list[tuple[str, str]]) -> str:
 
 
 def _conditions(text: str, matches: list[cx.ConceptMatch]) -> list[Condition]:
-    """One condition per concept the question attached a movement to."""
+    """One condition per concept the question attached a test to.
+
+    Two kinds of test, and the difference is not cosmetic. A **movement** asks
+    how the measure changed between two periods; a **threshold** asks which
+    side of a line it is on right now. "Covenant headroom below 15%" is the
+    second, and reading it as the first returned borrowers at 16.17% headroom
+    under a heading promising below 15% — a contradiction visible in the
+    answer's own table.
+    """
     out: list[Condition] = []
     for match in matches:
         movement = sm.movement_near(text, match.phrase)
         condition = sm.condition_for(match, movement)
         if condition is not None:
             out.append(condition)
+            continue
+        # No movement on this concept. A level test attached to it still is a
+        # condition, and one the user can check by eye.
+        level = sm.threshold_condition(
+            match, sm.threshold_near(text, match.phrase))
+        if level is not None:
+            out.append(level)
     return out
 
 
@@ -492,6 +508,43 @@ def _dimension(reading: Reading, context: GovernedContext, text: str) -> str:
         if re.search(rf"\b(?:largest|biggest|smallest|top|bottom|worst|best|"
                      rf"first|\d+)\s+(?:\w+\s+){{0,2}}{readable}s?\b", lowered):
             return name
+    return _grouping_concept(lowered)
+
+
+#: "for each X" / "by X" / "per X", where X is what the answer breaks down by.
+_GROUPED_BY = _re.compile(
+    r"\b(?:for each|for every|by|per|across|grouped by|broken down by)\s+"
+    r"(?P<phrase>[a-z][a-z ]{2,30}?)\s*(?:,|\.|;|\?|$|\band\b|\bshow\b|"
+    r"\bwith\b|\bin the\b)")
+
+
+def _grouping_concept(lowered: str) -> str:
+    """A governed CONCEPT used as the breakdown, where no dimension fits.
+
+    "For each rating grade, show average ECL coverage…" groups by a field, not
+    by one of the small governed dimensions a filter uses. The rating grade is
+    an ordinal scale with ten values and it is exactly what the answer should
+    have one row per; without this the plan grouped by nothing and returned a
+    single row of nulls under a heading promising a breakdown.
+
+    Restricted to ordinal and categorical concepts on purpose. Grouping by a
+    continuous money measure produces one row per distinct amount, which is not
+    a breakdown — it is the raw table with extra steps.
+    """
+    from backend.semantics import ontology
+
+    match = _GROUPED_BY.search(lowered)
+    if match is None:
+        return ""
+    phrase = match.group("phrase").strip()
+
+    for concept in cx.CONCEPTS:
+        if not _re.search(concept.pattern, phrase):
+            continue
+        contract = ontology.contract(concept.id)
+        if contract is None or not (contract.is_ordinal or contract.is_categorical):
+            continue
+        return concept.default_candidate().field
     return ""
 
 
@@ -715,16 +768,32 @@ def _apply_enrichment(operations: list[dict[str, Any]], current: str, *,
     if not enrichment.active:
         return current, {}, []
 
+    import dataclasses
+
     shim = _JoinShim(base, grain, key)
     columns: dict[tuple[str, str], str] = {}
     joins: list[dict[str, Any]] = []
     for index, path in enumerate(enrichment.resolution.paths):
-        for edge in path.edges:
+        # What each column is actually called at this point in the plan. A hop
+        # prefixes everything it brings, so the second hop of a two-hop path
+        # joins on `portfolio_facility_account_id` rather than `account_id`.
+        renamed: dict[str, str] = {}
+        edges = list(path.edges)
+        for position, edge in enumerate(edges):
+            following = edges[position + 1:]
+            carry = tuple({e.left_field for e in following})
+            left = renamed.get(edge.left_field, edge.left_field)
+            hop = (edge if left == edge.left_field
+                   else dataclasses.replace(edge, left_field=left))
             current, brought = multi._join_edge(
-                operations, joins, warnings, current, edge,
+                operations, joins, warnings, current, hop,
                 label=f"enrich{index}", period=period, request=shim,
                 catalogue=catalogue, fields_of=fields_of,
-                by_dataset=enrichment.reachable)
+                by_dataset=enrichment.reachable, carry=carry)
+            for (dataset, column), actual in brought.items():
+                del dataset
+                if column in carry:
+                    renamed[column] = actual
             columns.update(brought)
     return current, columns, joins
 
@@ -762,7 +831,8 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
 
     fields_of = {d.name: set(d.fields) for d in catalogue.all()}
     base = (_base_dataset(by_dataset, fields_of, filters, dimension, population,
-                          preferred=preferred_datasets)
+                          preferred=preferred_datasets,
+                          period=_asked_period(reading, context))
             or fallback_dataset)
     if not base:
         raise CannotPlan(
@@ -811,16 +881,44 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
             "could not be applied here.")
         filters = [(f, v) for f, v in filters if f in available]
 
+    # A breakdown the base does not carry may still be reachable. "For each
+    # rating grade, show average ECL coverage" is anchored on the impairment
+    # run — it has the quarter the question asked for — and the grade is one
+    # governed hop away. Dropping the breakdown produced a single row of
+    # portfolio totals under a heading promising one row per grade.
+    deferred_dimension = ""
     if dimension and dimension not in available:
-        warnings.append(
-            f"{base} does not carry {dimension}, so the answer is not "
-            "broken down by it.")
-        dimension = ""
+        carried_by = next((n for n, fields in fields_of.items()
+                           if n != base and dimension in fields), "")
+        if carried_by:
+            deferred_dimension, dimension = dimension, ""
+        else:
+            warnings.append(
+                f"{base} does not carry {dimension}, so the answer is not "
+                "broken down by it.")
+            dimension = ""
 
-    base_measures = [m for m in by_dataset.get(base, []) if m.field in available]
-    extras = {name: [m for m in found if m.field in fields_of.get(name, set())]
+    # A concept used as the BREAKDOWN is not also a measure. "For each rating
+    # grade, show average leverage" names the rating twice — once as the thing
+    # to group by and once as a concept the reader recognised — and averaging
+    # the grade beside the grades it is grouped by is meaningless arithmetic
+    # printed in a column nobody asked for.
+    base_measures = [m for m in by_dataset.get(base, [])
+                     if m.field in available and m.field != dimension]
+    extras = {name: [m for m in found if m.field in fields_of.get(name, set())
+                     and m.field != deferred_dimension]
               for name, found in by_dataset.items() if name != base}
     extras = {name: found for name, found in extras.items() if found}
+    if deferred_dimension:
+        # The breakdown column has to be scanned by the hop that brings it,
+        # even though it is not a measure. Registered here so the enrichment
+        # resolves a path to its dataset.
+        for name, fields in fields_of.items():
+            if name != base and deferred_dimension in fields:
+                for match in by_dataset.get(name, []):
+                    if match.field == deferred_dimension:
+                        extras.setdefault(name, []).append(match)
+                break
     enrichment = _resolve_enrichment(base, extras)
     for name in enrichment.unreachable:
         labels = ", ".join(m.concept.label for m in extras[name])
@@ -886,12 +984,24 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
         warnings=warnings)
 
     # Where each measure ends up living once the joins have run.
+    if deferred_dimension:
+        moved = next((column for (_, field), column in joined_columns.items()
+                      if field == deferred_dimension), "")
+        if moved:
+            dimension = moved
+        else:
+            warnings.append(
+                f"{deferred_dimension} could not be brought in, so the answer "
+                "is not broken down by it.")
+
     measures: list[tuple[str, cx.ConceptMatch]] = [
         (m.field, m) for m in base_measures]
     for name, found in enrichment.reachable.items():
         for match in found:
-            measures.append((joined_columns.get((name, match.field),
-                                                match.field), match))
+            column = joined_columns.get((name, match.field), match.field)
+            if column == dimension:
+                continue
+            measures.append((column, match))
 
     if not measures and not count_grain:
         raise CannotPlan(
@@ -1076,13 +1186,19 @@ def _base_dataset(by_dataset: dict[str, list[cx.ConceptMatch]],
                   fields_of: dict[str, set[str]],
                   filters: list[tuple[str, str]], dimension: str,
                   population: cv.Continuation | None,
-                  preferred: list[str] | None = None) -> str:
+                  preferred: list[str] | None = None,
+                  period: str = "") -> str:
     """Which dataset the frame is built from.
 
     The one that can express the question's scope, preferred over the one that
     happens to carry the first measure. A ranking of Real Estate customers has
     to start from a source carrying `sector`, or the filter has to be dropped
     and the answer silently covers the whole book.
+
+    `period` is the reporting period the question asked about, and it is the
+    first thing checked. Datasets do not share a calendar: an annual rating
+    history cannot be the base for a question about the latest quarter, and
+    building from it forced an as-of chain through two hops that lost every row.
     """
     wanted = {f for f, _ in filters} | ({dimension} if dimension else set())
     if population and population.has_population:
@@ -1093,13 +1209,35 @@ def _base_dataset(by_dataset: dict[str, list[cx.ConceptMatch]],
     # because a follow-up that silently moves to a different book changes what
     # the population means without changing anything the user can see.
     order = list(preferred or [])
+    calendar = _publishes(period) if period else set()
 
-    def score(name: str) -> tuple[int, int, int, int]:
+    def score(name: str) -> tuple[int, int, int, int, int]:
         fields = fields_of.get(name, set())
-        return (len(wanted & fields), len(by_dataset.get(name, [])),
+        return (1 if not calendar or name in calendar else 0,
+                len(wanted & fields), len(by_dataset.get(name, [])),
                 1 if name in order else 0, -len(fields))
 
     return max(by_dataset, key=score) if by_dataset else ""
+
+
+def _publishes(period: str) -> set[str]:
+    """Every dataset that has published the given period."""
+    try:
+        from backend.data_access import get_data_source
+
+        source = get_data_source()
+        return {name for name in source.datasets()
+                if period in (source.periods(name) or [])}
+    except Exception:  # noqa: BLE001
+        return set()
+
+
+def _asked_period(reading: Reading, context: GovernedContext) -> str:
+    """The single period this request is about, if it names or implies one."""
+    named = [p for p in (reading.periods or ()) if p]
+    if named:
+        return named[-1]
+    return str(getattr(context, "latest_period", "") or "")
 
 
 def _order_by(measures: list[tuple[str, cx.ConceptMatch]], count_column: str,

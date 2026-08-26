@@ -484,8 +484,13 @@ _SIGNALS: tuple[_Signal, ...] = (
             r"\bhow many (?:quarters|periods|years|rows|records)\b", 8),
     _Signal(Capability.DATA_QUALITY,
             r"\bhow much history\b|\bwhat periods?\b|\bwhich periods?\b", 7),
+    # "coverage" alone is a trap: ECL coverage is a governed MEASURE, and a
+    # request for "average ECL coverage by rating grade" was routed to the data
+    # quality handler and answered with catalogue metadata.
     _Signal(Capability.DATA_QUALITY,
-            r"\bdata quality\b|\bcoverage\b|\bmissing (?:values|data)\b|\bnulls?\b", 7),
+            r"\bdata quality\b|\bdata coverage\b|\bcoverage of the (?:data|"
+            r"dataset|catalogue)\b|\bmissing (?:values|data)\b|\bnulls?\b"
+            r"|\bhow complete\b|\bpopulated\b", 7),
 
     # ---- looking at one dataset
     _Signal(Capability.DATA_INSPECTION,
@@ -538,6 +543,14 @@ _ANALYTICAL_STRONG = (
     r"facilities|accounts?|exposures?)\b",
     r"\bcompare\b|\bversus\b|\bvs\b",
     r"\btotal\b|\bsum of\b|\baggregate\b",
+    # Per-group aggregation, which is an analysis however it is phrased.
+    # "For each rating grade, show average ECL coverage…" names no dataset and
+    # asks for three figures grouped by a dimension; without this it scored as
+    # a coverage question and came back as catalogue metadata.
+    r"\bfor each\b|\bper (?:sector|region|segment|stage|grade|rating|"
+    r"customer|borrower|facility|product)\b",
+    r"\b(?:average|mean|median|total|sum)\b.{0,40}\b(?:by|per|for each)\b",
+    r"\b(?:by|per|for each)\b.{0,40}\b(?:average|mean|median|total|sum)\b",
 )
 
 # "mean" is deliberately absent: in "what does DSCR mean" it is a verb, and

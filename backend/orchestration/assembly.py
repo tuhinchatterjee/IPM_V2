@@ -51,8 +51,16 @@ def _numbers(text: str) -> set[str]:
     return out
 
 
-def grounded_values(runtime: Any, extra: dict[str, Any] | None = None) -> set[str]:
-    """Every figure the result actually contains, in the same normal form."""
+def grounded_values(runtime: Any, extra: dict[str, Any] | None = None,
+                    *, asked: str = "") -> set[str]:
+    """Every figure the answer is entitled to quote, in one normal form.
+
+    Two sources. The result, obviously — a figure the analysis computed. And
+    the **question**, which is less obvious and just as sound: a narrative
+    saying "headroom below 15%" is repeating the user's own threshold back to
+    them, and flagging it as an invented figure trains people to ignore the one
+    check that catches invented figures.
+    """
     out: set[str] = set()
 
     def add(value: Any) -> None:
@@ -75,6 +83,8 @@ def grounded_values(runtime: Any, extra: dict[str, Any] | None = None) -> set[st
     for key, value in (extra or {}).items():
         del key
         add(value)
+    for number in _numbers(asked or ""):
+        out.add(number)
     if runtime is not None:
         add(runtime.row_count)
         for row in runtime.rows:

@@ -603,7 +603,11 @@ class Compiler:
         schema = self._schema(op.inputs[0])
         kept = [ident(c) for c in schema.columns if c != target]
 
-        year = (f"CAST(regexp_extract({ident(source)}, "
+        # Cast to text before matching. A governed period is usually a label
+        # ("Q2 2026") but an annual dataset stores the bare year as an integer,
+        # and regexp_extract on a BIGINT is a binder error that loses the whole
+        # answer to a message about argument types.
+        year = (f"CAST(regexp_extract(CAST({ident(source)} AS VARCHAR), "
                 f"'(\\d{{4}})$', 1) AS INTEGER)")
 
         if rule == "year_of_quarter":

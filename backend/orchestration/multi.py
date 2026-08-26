@@ -914,18 +914,26 @@ def _join_edge(operations: list[dict[str, Any]], joins: list[dict[str, Any]],
                warnings: list[str], current: str, edge: Edge, *, label: str,
                period: str, request: MultiRequest, catalogue: Any,
                fields_of: dict[str, set[str]],
-               by_dataset: dict[str, list[cx.ConceptMatch]]
+               by_dataset: dict[str, list[cx.ConceptMatch]],
+               carry: tuple[str, ...] = ()
                ) -> tuple[str, dict[tuple[str, str], str]]:
     """Add one governed hop: scan the far side, roll it up, join it on.
 
     Returns the new step and, for every concept it brought in, the column name
     that concept now lives under — so the steps after it name the right column
     rather than the one they hoped for.
+
+    `carry` names columns this hop must bring forward for a LATER hop to join
+    on. A two-hop path — ratings to facility to impairment — joins the second
+    hop on `account_id`, which only the middle dataset has; without carrying it
+    the plan asked for a key at a step that had never read it, and the whole
+    multi-measure answer was lost to a validation error.
     """
     target = edge.right
     available = fields_of.get(target, set())
     wanted = sorted(
-        {edge.right_field, *[m.field for m in by_dataset.get(target, [])]}
+        {edge.right_field, *carry,
+         *[m.field for m in by_dataset.get(target, [])]}
         & available)
     if edge.right_field not in wanted:
         wanted = sorted({edge.right_field, *wanted})
@@ -936,7 +944,8 @@ def _join_edge(operations: list[dict[str, Any]], joins: list[dict[str, Any]],
     except Exception:
         target_period_field = ""
 
-    scan_period = period if target_period_field and not edge.is_asof else None
+    scan_period = (_period_in(target, period, catalogue)
+                   if target_period_field and not edge.is_asof else None)
     if edge.is_asof and target_period_field and target_period_field not in wanted:
         wanted = sorted({*wanted, target_period_field})
 
@@ -961,7 +970,12 @@ def _join_edge(operations: list[dict[str, Any]], joins: list[dict[str, Any]],
     # The many side is rolled up to the join key BEFORE the join. Without this
     # the join multiplies the left-hand book by however many rows the right has
     # per key, and every figure downstream is silently overstated.
-    if edge.multiplies_left and not edge.is_asof:
+    carried = tuple(c for c in carry if c in wanted and c != edge.right_field)
+    if edge.multiplies_left and not edge.is_asof and not carried:
+        # A hop that has to carry a key onward cannot be rolled up here: the
+        # roll-up is to one row per join key, and the key the NEXT hop needs
+        # does not survive it. The multiplication it guards against is handled
+        # by the grouping at the end of the plan instead.
         rolled = f"{scan_id}_grain"
         aggregates = [
             {"function": _rollup(m), "column": m.field, "as": m.field}
@@ -1022,8 +1036,46 @@ def _join_edge(operations: list[dict[str, Any]], joins: list[dict[str, Any]],
         "period": scan_period or "as-of",
         "semantic": edge.semantic,
     })
-    return join_id, {(target, m.field): f"{prefix}{m.field}"
-                     for m in by_dataset.get(target, [])}
+    brought = {(target, m.field): f"{prefix}{m.field}"
+               for m in by_dataset.get(target, [])}
+    # A carried key comes through under the join's prefix, so the next hop has
+    # to be told its new name. Recorded the same way a measure is, keyed by the
+    # dataset it came from.
+    for column in carried:
+        brought[(target, column)] = f"{prefix}{column}"
+    return join_id, brought
+
+
+def _period_in(dataset: str, period: str, catalogue: Any) -> str | None:
+    """The period to read `dataset` at, given the one the analysis is about.
+
+    Datasets do not share a calendar. The rating history is annual and the
+    impairment run is quarterly, so an analysis anchored on "2025" asked
+    ifrs9_staging for a period it has never published and the whole answer was
+    lost to "no data for period '2025'".
+
+    The rule is the conservative one: the latest period this dataset publishes
+    that does not run past the one asked for. Reading a later period would
+    answer with impairment the rating had not seen.
+    """
+    if not period:
+        return None
+    try:
+        from backend.data_access import get_data_source
+
+        published = list(get_data_source().periods(dataset) or [])
+    except Exception:  # noqa: BLE001
+        return period
+    if not published or period in published:
+        return period
+
+    year = re.search(r"(\d{4})", period)
+    if year is None:
+        return period
+    ceiling = year.group(1)
+    within = [p for p in published
+              if (m := re.search(r"(\d{4})", p)) and m.group(1) <= ceiling]
+    return within[-1] if within else published[-1]
 
 
 def _slug(name: str) -> str:
