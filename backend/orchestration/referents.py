@@ -35,7 +35,8 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from typing import Any
 
 from backend.orchestration import conversation as cv
 
@@ -119,6 +120,77 @@ _CONTINUE: tuple[str, ...] = (
     r"^\s*(?:ok(?:ay)?|right|good)[,.]?\s+(?:now|then)\b",
 )
 
+#: A change to how the previous result is *shown*, with no new arithmetic.
+#:
+#: This is the one action that must not reach the planner. "Show it as a graph"
+#: composed from scratch produced an analysis with no measure and no rows, and
+#: the user — who could see the numbers a second earlier — was told the filters
+#: selected no exposure.
+_PRESENTATION: tuple[tuple[str, str], ...] = (
+    (r"\bas an?\s+(?:bar\s+|line\s+|pie\s+|column\s+|stacked\s+)?"
+     r"(?:graph|chart|plot|visual(?:isation|ization)?)\b", "chart"),
+    (r"\b(?:show|display|render|draw|plot|visuali[sz]e)\s+"
+     r"(?:it|this|that|them|these|those)?\s*"
+     r"(?:as\s+)?(?:a\s+)?(?:bar|line|pie|column)?\s*"
+     r"(?:graph|chart|plot)\b", "chart"),
+    (r"\b(?:graph|chart|plot)\s+(?:it|this|that|them)\b", "chart"),
+    (r"\bas a table\b", "table"),
+    (r"\b(?:show|display)\s+(?:it|this|that)\s+as a list\b", "table"),
+)
+
+#: Opening something rather than asking about it.
+_NAVIGATE: tuple[str, ...] = (
+    r"^\s*open\b", r"^\s*take me to\b", r"^\s*go to\b",
+    r"^\s*navigate to\b", r"^\s*let me see\b.*\bdataset\b",
+    r"^\s*(?:show|bring up)\s+(?:me\s+)?the\s+\w+\s+(?:dataset|table)\b",
+)
+
+#: A complaint that the previous answer was incomplete.
+_INCOMPLETE: tuple[str, ...] = (
+    r"you (?:did ?n[o']t|didnt|failed to|haven'?t|have not)\s+answer",
+    r"(?:my|the)\s+(?:second|first|third|last|other)\s+(?:question|part)",
+    r"that (?:did ?n[o']t|does ?n[o']t)\s+answer",
+    r"what about the (?:second|other|rest)",
+    r"you only answered",
+    r"\bincomplete\b.*\banswer\b",
+)
+
+#: A question about the result that is already on the table.
+_ABOUT_RESULT: tuple[str, ...] = (
+    r"^\s*why (?:is|are|was|were|did|does|do)\b",
+    r"^\s*what (?:does|do) (?:that|this|it|these|those) mean\b",
+    r"^\s*explain (?:that|this|it|the result)\b",
+    r"^\s*what (?:is|'s) driving\b",
+    r"^\s*how come\b",
+)
+
+#: Throwing the current population away and starting from the whole book.
+_RESET: tuple[str, ...] = (
+    r"\bforget (?:those|these|that|them|the previous|it)\b",
+    r"\bignore (?:those|these|that|them|the previous)\b",
+    r"\bstart (?:again|over|fresh)\b",
+    r"\bnever mind (?:those|these|that)\b",
+    r"\bacross the (?:whole|entire|full) (?:portfolio|book)\b",
+    r"\bfor the (?:whole|entire|full) (?:portfolio|book)\b",
+    r"\buse the (?:whole|entire|full) (?:portfolio|book)\b",
+)
+
+#: Asking for more data than the current scope holds.
+_WIDEN: tuple[tuple[str, str], ...] = (
+    (r"\b(?:now\s+)?compare all\b", "compare across the whole population"),
+    (r"\ball (?:sectors|regions|segments|customers|borrowers)\b",
+     "widen to every member of the dimension"),
+    (r"\badd (?:\w+\s+)?(?:more\s+)?(?:quarters|years|periods|months)\b",
+     "extend the period range"),
+    (r"\bgo back (?:\w+\s+)?(?:quarters|years|periods)\b",
+     "extend the period range"),
+    (r"\balso include\b", "add a domain to the analysis"),
+    (r"\bbroaden\b", "widen the analysis"),
+    (r"\bwiden\b", "widen the analysis"),
+    (r"\bexpand (?:it|this|that|the (?:scope|analysis))\b",
+     "widen the analysis"),
+)
+
 #: A question that plainly starts a new subject, even if it uses a pronoun.
 #: Checked first, because "What data do you have about ratings?" mid-thread is
 #: not a follow-up about the population.
@@ -140,8 +212,10 @@ class Reference:
     population: str = ""
     #: True when the sentence asked for the previous comparison window.
     same_period: bool = False
-    #: NEW_REQUEST | CONTINUE | MODIFY_PREVIOUS | ENRICH_PREVIOUS
+    #: One of `conversation.ACTIONS`.
     action: str = cv.NEW_REQUEST
+    #: For MODIFY_PRESENTATION: chart | table.
+    presentation: str = ""
     #: Plain-English modifications, for the Trace.
     changes: list[str] = field(default_factory=list)
     #: Why this reading. Shown when the model and this reader disagreed.
@@ -162,10 +236,58 @@ def read(question: str) -> Reference:
     """
     text = " " + " ".join((question or "").lower().split()) + " "
 
+    # Checked before everything else, including the new-subject patterns: a
+    # complaint about the previous answer is never a new question, however it
+    # is phrased, and reading it as one is precisely the failure it complains
+    # about happening twice.
+    for pattern in _INCOMPLETE:
+        if re.search(pattern, text):
+            return Reference(
+                action=cv.CORRECT_INCOMPLETE_RESPONSE,
+                changes=["answer the part of the previous request that was "
+                         "left out"],
+                because="the question says the previous answer was incomplete")
+
+    # A presentation change is next, because it must never reach the planner.
+    for pattern, kind in _PRESENTATION:
+        if re.search(pattern, text):
+            return Reference(
+                action=cv.MODIFY_PRESENTATION, presentation=kind,
+                changes=[f"show the same result as a {kind}"],
+                because="the question changes how the result is shown, not "
+                        "what it computes")
+
     for pattern in _NEW_SUBJECT:
         if re.search(pattern, text):
             return Reference(action=cv.NEW_REQUEST,
                              because="the question opens a new subject")
+
+    for pattern in _NAVIGATE:
+        if re.search(pattern, text):
+            return Reference(action=cv.NAVIGATE,
+                             changes=["open what the conversation is about"],
+                             because="the question asks to open something "
+                                     "rather than to compute anything")
+
+    for pattern in _ABOUT_RESULT:
+        if re.search(pattern, text):
+            return Reference(action=cv.ASK_ABOUT_RESULT,
+                             because="the question asks about the result that "
+                                     "is already on the table")
+
+    for pattern in _RESET:
+        if re.search(pattern, text):
+            return Reference(action=cv.RESET_SCOPE,
+                             changes=["drop the carried population and start "
+                                      "from the whole book"],
+                             because="the question deliberately discards the "
+                                     "current population")
+
+    for pattern, description in _WIDEN:
+        if re.search(pattern, text):
+            return Reference(action=cv.WIDEN_SCOPE, changes=[description],
+                             because="the question asks for more data than the "
+                                     "current scope holds")
 
     population = ""
     for pattern in _POPULATION:
@@ -211,8 +333,34 @@ def read(question: str) -> Reference:
                      action=action, changes=changes, because=because)
 
 
+def refine(reference: Reference, memory: Any) -> Reference:
+    """Sharpen a syntactic reading against what the last turn actually produced.
+
+    `read()` deliberately knows nothing about state, so it cannot tell
+    "which of those are financial ratios?" — a classification of a remembered
+    FIELD SET, answerable from the catalogue — from "which of those are Stage
+    2?", which is a filter on an entity set and needs governed data. The
+    sentences are identical in shape; only the previous result distinguishes
+    them.
+    """
+    if memory is None or getattr(memory, "empty", True):
+        return reference
+    result = getattr(memory, "result", None)
+    if result is None or result.empty:
+        return reference
+
+    # A reference back into a metadata set is answered from the catalogue.
+    if result.is_metadata and reference.action in (cv.CONTINUE, cv.NEW_REQUEST):
+        if reference.population or reference.action == cv.CONTINUE:
+            return replace(
+                reference, action=cv.METADATA_FOLLOWUP,
+                because=(f"the previous answer was a {result.result_type} and "
+                         "the question refers back to it"))
+    return reference
+
+
 def resolve(question: str, state: cv.ConversationState, *,
-            model_action: str = "") -> cv.Continuation:
+            model_action: str = "", memory: Any = None) -> cv.Continuation:
     """How this turn relates to the conversation, deciding between two readers.
 
     The model's `conversation_action` is preferred where the two agree or where
@@ -221,11 +369,20 @@ def resolve(question: str, state: cv.ConversationState, *,
     fresh request. **The deterministic reader wins that one**, because losing a
     population silently is the failure mode this exists to prevent, and carrying
     context into a genuinely new question is visible and correctable.
+
+    `memory` is the typed working memory, used to sharpen a reading that is
+    ambiguous in the sentence and unambiguous once you know what the last turn
+    produced. See `refine`.
     """
-    read_back = read(question)
-    model_action = (model_action or "").strip().upper()
-    if model_action not in cv.ACTIONS:
-        model_action = ""
+    read_back = refine(read(question), memory)
+    model_action = cv.normalise(model_action) if model_action else ""
+
+    # The deterministic reader owns the actions it can see in the sentence
+    # itself. A model that reads "show it as a graph" as a fresh ANALYSIS is
+    # not adding information, it is discarding some.
+    if read_back.action in _READER_OWNS:
+        action = read_back.action
+        return _finish(question, read_back, action, state, read_back.because)
 
     action = model_action or read_back.action
     because = read_back.because or "the model read this as a follow-up"
@@ -237,19 +394,34 @@ def resolve(question: str, state: cv.ConversationState, *,
         logger.info("Referent guardrail: keeping context for %r (%s)",
                     question[:70], read_back.because)
 
-    # A continuation with nothing behind it is a new request. This is the case
-    # where the model has decided the first question in a thread is a follow-up.
-    if action in cv.CONTINUING and state.empty:
-        return cv.Continuation(
-            action=cv.NEW_REQUEST,
-            because="nothing has been established in this investigation yet")
-
     if action == cv.NEW_REQUEST:
         return cv.Continuation(action=cv.NEW_REQUEST,
                                because=read_back.because or "a new request")
 
+    return _finish(question, read_back, action, state, because)
+
+
+#: Actions the sentence settles on its own. A model reading cannot improve on
+#: "show it as a graph", and every disagreement it can produce loses something.
+_READER_OWNS = frozenset({
+    cv.MODIFY_PRESENTATION, cv.CORRECT_INCOMPLETE_RESPONSE, cv.NAVIGATE,
+    cv.RESET_SCOPE, cv.METADATA_FOLLOWUP,
+})
+
+
+def _finish(question: str, read_back: Reference, action: str,
+            state: cv.ConversationState, because: str) -> cv.Continuation:
+    """Build the continuation, carrying whatever the action needs with it."""
+    # A continuation with nothing behind it is a new request. RESET_SCOPE is
+    # exempt: "use the whole portfolio" is a legitimate opening sentence.
+    if action in cv.CONTINUING and state.empty and action != cv.RESET_SCOPE:
+        return cv.Continuation(
+            action=cv.NEW_REQUEST,
+            because="nothing has been established in this investigation yet")
+
     continuation = cv.Continuation(
         action=action, referent=read_back.population,
+        presentation=read_back.presentation,
         changes=list(read_back.changes), because=because)
 
     # The population, when the sentence pointed at one and one exists. A
@@ -262,7 +434,7 @@ def resolve(question: str, state: cv.ConversationState, *,
         continuation.inherited["population"] = (
             f"{len(continuation.entity_ids)} {state.result.entity_key} "
             f"from the previous result")
-    elif action in (cv.ENRICH_PREVIOUS, cv.MODIFY_PREVIOUS) \
+    elif action in (cv.ENRICH_PREVIOUS, *cv.MODIFICATIONS) \
             and state.result.has_population:
         # "Add their latest internal rating" and "show me the ten largest" name
         # no referent but plainly mean the rows that are on screen. A

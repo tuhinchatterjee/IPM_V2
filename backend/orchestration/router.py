@@ -90,7 +90,7 @@ worst outcome this system can produce."""
 
 def _prompt(question: str, context: GovernedContext,
             state: cv.ConversationState | None = None,
-            *, note: str = "") -> str:
+            memory: Any = None, *, note: str = "") -> str:
     """The governed context, compact. Metadata only — never a row of data.
 
     The conversation brief goes FIRST, before the catalogue. A follow-up is
@@ -98,6 +98,13 @@ def _prompt(question: str, context: GovernedContext,
     reading a long prompt weights the opening more heavily than the middle.
     """
     lines: list[str] = []
+
+    # The typed working memory first, then what the last analysis settled. A
+    # follow-up about a field set is unreadable without the first and unhelped
+    # by the second, and the order is what a model weights.
+    if memory is not None and not getattr(memory, "empty", True):
+        lines.append(memory.brief())
+        lines.append("")
 
     if state is not None and not state.empty:
         lines.append(state.brief())
@@ -168,7 +175,8 @@ class Read:
 
 
 def read(question: str, *, context: GovernedContext | None = None,
-         state: cv.ConversationState | None = None) -> Read:
+         state: cv.ConversationState | None = None,
+         memory: Any = None) -> Read:
     """What kind of request this is, checked before it is acted on.
 
     Three stages, and each is recorded rather than inferred:
@@ -199,7 +207,7 @@ def read(question: str, *, context: GovernedContext | None = None,
     try:
         result = provider.structured(
             system=SYSTEM,
-            prompt=_prompt(question, context, state),
+            prompt=_prompt(question, context, state, memory),
             schema=cap.SCHEMA,
             tool_name=TOOL_NAME,
             tool_description=(

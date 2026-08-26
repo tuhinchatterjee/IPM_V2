@@ -415,6 +415,7 @@ def remember(thread_id: int, run: Any, answered: Any) -> None:
     from backend.db.engine import get_session
     from backend.models.platform import Investigation
     from backend.orchestration import conversation as cv
+    from backend.orchestration import memory as wm
     from backend.orchestration.orchestrator import remember as advance
 
     try:
@@ -426,7 +427,13 @@ def remember(thread_id: int, run: Any, answered: Any) -> None:
                 cv.load(row.context), answered,
                 headline=str(getattr(run.narrative, "direct_answer", "") or ""),
                 run_id=run.analysis_run_id)
-            row.context = cv.save(row.context, state)
+            context = cv.save(row.context, state)
+            # Typed memory is written on EVERY turn, including the metadata
+            # ones the analytical state deliberately ignores. That asymmetry is
+            # the point: asking what fields a dataset has must change what
+            # "those" refers to without wiping the population being worked on.
+            row.context = wm.save(
+                context, wm.observe(wm.load(row.context), answered, run))
             session.commit()
     except Exception as e:  # noqa: BLE001
         logger.warning("Could not store the conversation state for "

@@ -47,12 +47,14 @@ from backend.orchestration import conversation as cv
 from backend.orchestration import coverage as cov
 from backend.orchestration import (
     entities,
+    followups,
     handlers,
     interpretation,
     referents,
     router,
 )
 from backend.orchestration import guardrail as gr
+from backend.orchestration import memory as wm
 from backend.orchestration.context import retrieve
 from backend.semantics import ontology
 
@@ -159,6 +161,9 @@ class Answered:
     #: What the governed universe recognised in the request, when it stopped
     #: because it recognised nothing.
     coverage: dict[str, Any] = field(default_factory=dict)
+    #: True when the answer came from what the previous turn produced rather
+    #: than from a fresh read of the catalogue or a new analysis.
+    from_memory: bool = False
     #: Set when a key is configured and the live path could not be used.
     degraded_reason: str = ""
     #: Model calls made for this turn.
@@ -176,6 +181,7 @@ class Answered:
 
 def answer(question: str, *, context: Any = None,
            state: cv.ConversationState | None = None,
+           memory: wm.WorkingMemory | None = None,
            period: tuple[str, str] | None = None,
            extra_filters: dict[str, Any] | None = None,
            use_certified: bool = True) -> Answered:
@@ -194,27 +200,38 @@ def answer(question: str, *, context: Any = None,
     """
     started = time.perf_counter()
     state = state or cv.ConversationState()
+    memory = memory or wm.WorkingMemory()
 
     # The retrieval is widened by what the conversation is already about, so a
     # follow-up naming no dataset still gets the ones the thread is working in.
     context = context or retrieve(
         question,
         concepts=list(state.concepts or state.metrics),
-        datasets=list(state.datasets))
+        datasets=list(state.datasets) or list(memory.datasets))
 
-    read = router.read(question, context=context, state=state)
+    read = router.read(question, context=context, state=state, memory=memory)
     reading = read.reading
     continuation = referents.resolve(
-        question, state, model_action=reading.conversation_action)
+        question, state, model_action=reading.conversation_action,
+        memory=memory)
 
     answered = Answered(
         question=question, reading=reading, verdict=read.verdict,
         continuation=continuation, calls=read.calls,
         degraded_reason=read.degraded_reason)
 
+    # A follow-up about what the last turn produced, answered from it. Checked
+    # before the dangling-referent guard, because "those" pointing at a field
+    # set is resolved, not dangling — it just does not point at customers.
     def finish(target: Answered) -> Answered:
         target.duration_ms = int((time.perf_counter() - started) * 1000)
         return target
+
+    from_memory = followups.answer(question, continuation.action, memory, context)
+    if from_memory is not None:
+        answered.result = from_memory
+        answered.from_memory = True
+        return finish(answered)
 
     # A reference with nothing behind it. Asked rather than widened: answering
     # "which of these" against the whole book is a confident answer to a

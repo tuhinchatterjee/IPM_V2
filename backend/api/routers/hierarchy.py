@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 
 from backend.api.permissions import Principal, RequireAnalyst, RequireDataSteward
 from backend.models.platform import PROJECT_STATUS_LABEL
+from backend.orchestration import memory as wm
 from backend.services import analyses as an
 from backend.services import projects as pj
 from backend.services import threads as th
@@ -275,6 +276,7 @@ def start_thread(payload: ThreadIn, principal: Principal = RequireAnalyst) -> di
         payload.question, user_id=principal.user_id,
         project_id=payload.project_id, investigation_id=thread.id,
         persist=True, period=window, state=cv.load(thread.context),
+        memory=wm.load(thread.context),
     )
     th.remember(thread.id, result, answered)
     if result.status == "needs_clarification":

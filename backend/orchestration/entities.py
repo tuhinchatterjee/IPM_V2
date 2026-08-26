@@ -136,9 +136,16 @@ def unresolved_names(question: str, context: Any) -> list[str]:
         for word in re.findall(r"[a-z0-9]+", str(value).lower())
     }
 
+    # A name does not span a sentence. Without this, "Something seems wrong
+    # with Contracting. Investigate it." reads "Contracting. Investigate" as one
+    # proper noun and refuses a question about a sector CreditProbe knows well.
+    sentences = [part for part in re.split(r"(?<=[.!?])\s+", text) if part]
+
     candidates: list[str] = []
-    for phrase in re.findall(r"\b(?:[A-Z][a-z0-9&.'-]+)(?:\s+[A-Z][a-z0-9&.'-]+)*\b",
-                             text):
+    for phrase in [m for sentence in sentences
+                   for m in re.findall(
+                       r"\b(?:[A-Z][a-z0-9&'-]+)(?:\s+[A-Z][a-z0-9&'-]+)*\b",
+                       sentence)]:
         # "Summit Power's exposure" names Summit Power. The possessive is
         # grammar, and reporting it as part of the name makes the "we have
         # never heard of this borrower" message look like a parsing bug.
@@ -206,10 +213,20 @@ def _borrower_names() -> tuple[str, ...]:
 
 
 #: Capitalised words that are English rather than entities.
+#: Words that open a request rather than name a thing.
+#:
+#: The regex that finds proper nouns cannot tell "Only Contracting" from
+#: "Summit Power", so a follow-up narrowing the previous result to a governed
+#: sector came back as "CreditProbe could not find Only Contracting in the
+#: published data" — a refusal, on a turn where everything was recognised
+#: except the first word.
 _NOT_A_NAME = frozenset({
     "what", "which", "show", "list", "how", "why", "when", "where", "who",
     "creditprobe", "ifrs", "stage", "the", "give", "find", "identify", "tell",
     "data", "please", "real", "does", "did", "are", "is", "can", "could",
+    "only", "just", "now", "also", "add", "rank", "sort", "order", "open",
+    "and", "but", "then", "keep", "include", "exclude", "restrict", "narrow",
+    "filter", "replace", "compare", "investigate", "display", "return",
 })
 
 

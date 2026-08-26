@@ -346,16 +346,86 @@ class ConversationState:
 
 NEW_REQUEST = "NEW_REQUEST"
 CONTINUE = "CONTINUE"
-MODIFY_PREVIOUS = "MODIFY_PREVIOUS"
 ENRICH_PREVIOUS = "ENRICH_PREVIOUS"
 CLARIFY = "CLARIFY"
 
-ACTIONS: tuple[str, ...] = (NEW_REQUEST, CONTINUE, MODIFY_PREVIOUS,
-                            ENRICH_PREVIOUS, CLARIFY)
+#: A modification, in five kinds rather than one.
+#:
+#: `MODIFY_PREVIOUS` still exists and still means "change the previous plan",
+#: because everything downstream branches on it. What it did not carry was
+#: *what* was being changed, and the difference matters: replacing the measure
+#: keeps the population and rebuilds the arithmetic; changing the presentation
+#: keeps the arithmetic and rebuilds nothing at all. Answering "show it as a
+#: graph" by recomputing a portfolio aggregate is how a chart request came back
+#: as an empty analysis.
+MODIFY_PREVIOUS = "MODIFY_PREVIOUS"
+MODIFY_CALCULATION = "MODIFY_CALCULATION"
+MODIFY_FILTER = "MODIFY_FILTER"
+MODIFY_POPULATION = "MODIFY_POPULATION"
+MODIFY_PERIOD = "MODIFY_PERIOD"
+MODIFY_PRESENTATION = "MODIFY_PRESENTATION"
+
+#: Follow-ups that are not analyses.
+ASK_ABOUT_RESULT = "ASK_ABOUT_RESULT"
+METADATA_FOLLOWUP = "METADATA_FOLLOWUP"
+NAVIGATE = "NAVIGATE"
+CORRECT_INCOMPLETE_RESPONSE = "CORRECT_INCOMPLETE_RESPONSE"
+
+#: Deliberate changes of analytical scope.
+RESET_SCOPE = "RESET_SCOPE"
+WIDEN_SCOPE = "WIDEN_SCOPE"
+
+ACTIONS: tuple[str, ...] = (
+    NEW_REQUEST, CONTINUE,
+    MODIFY_PREVIOUS, MODIFY_CALCULATION, MODIFY_FILTER, MODIFY_POPULATION,
+    MODIFY_PERIOD, MODIFY_PRESENTATION,
+    ENRICH_PREVIOUS, ASK_ABOUT_RESULT, METADATA_FOLLOWUP, NAVIGATE,
+    CORRECT_INCOMPLETE_RESPONSE, RESET_SCOPE, WIDEN_SCOPE, CLARIFY,
+)
+
+#: Every kind of modification, for code that only cares that it is one.
+MODIFICATIONS = frozenset({
+    MODIFY_PREVIOUS, MODIFY_CALCULATION, MODIFY_FILTER, MODIFY_POPULATION,
+    MODIFY_PERIOD, MODIFY_PRESENTATION,
+})
+
+#: Actions answered without composing or running anything new. The previous
+#: result is already on the table; what changes is how it is shown or what is
+#: said about it.
+NON_ANALYTICAL = frozenset({
+    MODIFY_PRESENTATION, ASK_ABOUT_RESULT, METADATA_FOLLOWUP, NAVIGATE,
+})
 
 #: The actions that carry the previous turn's settled context forward. CLARIFY
 #: carries it too — a clarification is answered inside the same subject.
-CONTINUING = frozenset({CONTINUE, MODIFY_PREVIOUS, ENRICH_PREVIOUS, CLARIFY})
+#: WIDEN_SCOPE carries it deliberately: it needs the previous scope precisely so
+#: it can say what is being widened from.
+CONTINUING = frozenset(
+    {CONTINUE, ENRICH_PREVIOUS, CLARIFY, ASK_ABOUT_RESULT,
+     METADATA_FOLLOWUP, NAVIGATE, CORRECT_INCOMPLETE_RESPONSE, WIDEN_SCOPE}
+    | MODIFICATIONS)
+
+
+def normalise(action: str) -> str:
+    """A model's answer mapped onto an action CreditProbe implements.
+
+    Models produce near-misses — MODIFY, CHANGE_FILTER, FOLLOW_UP — and a
+    near-miss that falls through to NEW_REQUEST silently loses the whole
+    conversation. Mapping them is cheaper than a repair call and it fails in the
+    safe direction: an unrecognised action that mentions a known one is read as
+    that one, and anything else is a new request.
+    """
+    text = (action or "").strip().upper().replace("-", "_").replace(" ", "_")
+    if text in ACTIONS:
+        return text
+    for known in ACTIONS:
+        if known in text:
+            return known
+    if text.startswith("MODIFY") or text.startswith("CHANGE"):
+        return MODIFY_PREVIOUS
+    if "FOLLOW" in text or "CONTINU" in text:
+        return CONTINUE
+    return NEW_REQUEST
 
 
 @dataclass
@@ -371,6 +441,8 @@ class Continuation:
     action: str = NEW_REQUEST
     #: The phrase that referred back, where one did — "these", "those five".
     referent: str = ""
+    #: chart | table, for MODIFY_PRESENTATION.
+    presentation: str = ""
     entity_key: str = ""
     entity_ids: list[str] = field(default_factory=list)
     entity_labels: dict[str, str] = field(default_factory=dict)
@@ -392,6 +464,7 @@ class Continuation:
     def to_dict(self) -> dict[str, Any]:
         return {
             "action": self.action, "referent": self.referent,
+            "presentation": self.presentation,
             "entity_key": self.entity_key,
             "entity_ids": list(self.entity_ids),
             "entity_count": len(self.entity_ids),

@@ -186,6 +186,58 @@ def data_discovery(question: str, reading: cap.Reading,
 # ------------------------------------------------------ what a field means
 
 
+#: Field-name heads too generic to be a filter on their own.
+#:
+#: `data_origin` has the head `data`, and every question about a dataset says
+#: "data" — so "what fields are in the ratings data?" matched `data_origin` in
+#: four datasets and answered with four copies of one governed marker column.
+_WEAK_HEAD = frozenset({
+    "data", "total", "current", "last", "first", "is", "has", "value",
+    "amount", "count", "date", "period", "name", "id", "type", "flag",
+    "source", "record", "row", "field", "latest", "as", "of", "the", "new",
+})
+
+
+def _named_fields(lowered: str, datasets: list[Any]) -> list[tuple[Any, dict[str, Any]]]:
+    """The fields this question names, by field name or business name.
+
+    Two rules earn their place. Matching is on the whole word *or* on the first
+    token of the field name, because "which fields contain PD?" names `pd_12m`
+    and a whole-word match finds nothing — the underscore is a word character,
+    so `\bpd\b` never fires inside `pd_12m`.
+
+    And a term that is the dataset's OWN name is not a field filter. "What
+    fields are in the watchlist data?" names the watchlist dataset and wants all
+    of it; reading `watchlist` as a field narrowed a twenty-field answer to two.
+    """
+    import re
+
+    owned = {w for d in datasets
+             for w in re.findall(r"[a-z0-9]+",
+                                 f"{d.name} {getattr(d, 'business_name', '')}".lower())}
+
+    hits: list[tuple[Any, dict[str, Any]]] = []
+    seen: set[tuple[str, str]] = set()
+    for dataset in datasets:
+        for entry in dataset.fields:
+            name = str(entry["name"]).lower()
+            business = str(entry.get("business_name") or "").lower()
+            head = name.split("_", 1)[0]
+            candidates = {name, business}
+            if len(head) > 1 and head not in owned and head not in _WEAK_HEAD:
+                candidates.add(head)
+            for candidate in candidates:
+                if not candidate or candidate in owned:
+                    continue
+                if re.search(rf"\b{re.escape(candidate)}\b", lowered):
+                    key = (dataset.name, name)
+                    if key not in seen:
+                        seen.add(key)
+                        hits.append((dataset, entry))
+                    break
+    return hits
+
+
 def data_dictionary(question: str, reading: cap.Reading,
                     context: GovernedContext) -> HandlerResult:
     """What a field or a term means, and what a dataset carries."""
@@ -209,15 +261,25 @@ def data_dictionary(question: str, reading: cap.Reading,
         r"|\bfields? (?:are|is) (?:available|in|there)\b"
         r"|\blist (?:the )?(?:fields?|columns?)\b", lowered))
 
-    hits: list[tuple[Any, dict[str, Any]]] = []
-    for dataset in ([] if wants_the_list else datasets):
-        for entry in dataset.fields:
-            names = {entry["name"].lower(),
-                     (entry.get("business_name") or "").lower()}
-            if any(n and re.search(rf"\b{re.escape(n)}\b", lowered) for n in names):
-                hits.append((dataset, entry))
+    hits = _named_fields(lowered, datasets)
 
-    if hits:
+    if wants_the_list and hits:
+        # "Which fields contain PD, LGD and ECL?" wants a list, but of the
+        # three fields it named — not of all twenty-nine. Returning everything
+        # is a true answer to "what fields are there", which is a different
+        # question and one the user did not ask.
+        dataset = hits[0][0]
+        rows = [{"dataset": d.name, "field": e["name"],
+                 "business_name": e["business_name"], "unit": e.get("unit") or "",
+                 "type": e["type"], "definition": e["definition"]}
+                for d, e in hits[:40]]
+        answer = (f"{len(rows)} field"
+                  + ("s" if len(rows) != 1 else "")
+                  + f" in {dataset.business_name} ({dataset.name}) match that: "
+                  + ", ".join(f"{e['business_name']} ({e['name']})"
+                              for _, e in hits[:8])
+                  + ("…" if len(hits) > 8 else "") + ".")
+    elif hits and not wants_the_list:
         dataset, entry = hits[0]
         unit = f" Measured in {entry['unit']}." if entry.get("unit") else ""
         answer = (f"{entry['business_name']} ({dataset.name}.{entry['name']}) "

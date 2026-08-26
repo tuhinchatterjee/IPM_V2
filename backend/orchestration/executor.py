@@ -891,7 +891,8 @@ def answer_investigation(question: str, *, user_id: int | None = None,
                          persist: bool = True,
                          period: tuple[str, str] | None = None,
                          extra_filters: dict[str, Any] | None = None,
-                         state: Any = None
+                         state: Any = None,
+                         memory: Any = None
                          ) -> tuple[Investigation, Any]:
     """Answer one question end to end, and report how it was answered.
 
@@ -905,10 +906,11 @@ def answer_investigation(question: str, *, user_id: int | None = None,
       3. **Compose and run.** The reading becomes an Analytical IR, which is
          validated against the catalogue and executed as parameterised SQL.
 
-    There are exactly three outcomes, and no fourth:
+    There are exactly four outcomes, and no fifth:
 
       * an answer;
       * a clarification;
+      * "CreditProbe does not hold data about that";
       * a stated failure.
 
     **There is no fallback to a registered analysis.** The previous version of
@@ -924,7 +926,8 @@ def answer_investigation(question: str, *, user_id: int | None = None,
 
     started = time.perf_counter()
     try:
-        answered = orchestrator.answer(question, state=state, period=period,
+        answered = orchestrator.answer(question, state=state, memory=memory,
+                                       period=period,
                                        extra_filters=extra_filters)
     except Exception as e:  # noqa: BLE001 - stated, never substituted
         logger.exception("The orchestrator raised on %r", question)
@@ -946,7 +949,8 @@ def answer_investigation(question: str, *, user_id: int | None = None,
         # different certified analysis.
         logger.info("The certified route failed for %r; composing instead.",
                     question)
-        answered = orchestrator.answer(question, state=state, period=period,
+        answered = orchestrator.answer(question, state=state, memory=memory,
+                                       period=period,
                                        extra_filters=extra_filters,
                                        use_certified=False)
 
