@@ -43,3 +43,9 @@ frontend/node_modules/
 data/curated/*.parquet
 data/analytics/
 metadata/catalog.json
+
+# ---- intelligence release ----
+# Produced by `python -m intelligence_factory.certify --certify` at release
+# time and copied into the image. A build artefact, not source: committing one
+# would let a stale manifest certify code it never ran against.
+intelligence_release/

@@ -22,6 +22,7 @@ because there is no code path that has one.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 
@@ -59,6 +60,9 @@ def ai_status() -> dict:
         label = "AI POWERED"
         tone = "neutral"
 
+    from backend.intelligence_release import release
+
+    certified = release()
     return {
         "label": label,
         "tone": tone,
@@ -69,6 +73,51 @@ def ai_status() -> dict:
         "benchmark_turns": benchmarks.turn_count(),
         "history_available": store.available(),
         "can_run": True,
+        # The two things are different and the UI must not merge them.
+        #
+        # A QUICK INTELLIGENCE CHECK is three hidden benchmark threads run here
+        # and now, against this installation's data. It says whether the AI path
+        # is working today.
+        #
+        # A FULL INTELLIGENCE CERTIFICATION is the sealed holdout, and it cannot
+        # be a button: the holdout lives in `intelligence_factory`, which the
+        # product is forbidden to import — a product that can reach its own exam
+        # has no exam. So it is a build-time command, and what the UI shows is
+        # the frozen result of one.
+        "quick_check": _quick_check_plan(observed, benchmarks),
+        "certification": {
+            **certified.to_dict(),
+            "runnable_here": False,
+            "command": "python -m intelligence_factory.certify --certify",
+            "why_not_runnable": (
+                "The sealed holdout is not shipped inside the application. "
+                "Certification runs at build time, and this build reports what "
+                "that run found."),
+        },
+    }
+
+
+def _quick_check_plan(observed: dict, benchmarks: Any) -> dict:
+    """What a quick check would do, and what it would spend, before it starts.
+
+    Shown before the button is pressed. A validation run that silently makes
+    thirty model calls is a surprise on somebody's invoice, and a run that makes
+    none because no provider is configured should say so rather than producing a
+    score that looks live.
+    """
+    turns = benchmarks.turn_count()
+    live = str(observed.get("state") or "") in {"CONNECTED", "CONFIGURED"}
+    return {
+        "cases": len(benchmarks.CASES),
+        "turns": turns,
+        # One reading call and one interpretation call per turn, at most.
+        "model_calls_if_live": turns * 2 if live else 0,
+        "provider_state": observed.get("state", ""),
+        "note": (f"About {turns * 2} model calls across {turns} turns."
+                 if live else
+                 "No provider is reachable, so this exercises the deterministic "
+                 "governed reader and costs nothing. The score will be reported "
+                 "as UNVERIFIED rather than as a live result."),
     }
 
 

@@ -17,6 +17,7 @@ parameters and function version that produced it.
 | [docs/ANALYTICAL_RUNTIME.md](docs/ANALYTICAL_RUNTIME.md) | How CreditProbe composes an analysis nobody built, and why that is safe |
 | [docs/DEMO_SCOPE.md](docs/DEMO_SCOPE.md) | What is being built, in what order, and what is honestly not built yet |
 | [docs/AI_VALIDATION.md](docs/AI_VALIDATION.md) | How the AI POWERED claim is proven from inside the product, by anybody, in about a minute |
+| [docs/INTELLIGENCE_FACTORY.md](docs/INTELLIGENCE_FACTORY.md) | How CreditProbe measures its own intelligence, what its numbers mean, and what they do not prove |
 
 ---
 

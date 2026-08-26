@@ -174,6 +174,7 @@ def build() -> dict:
     answerable during a production incident, and the answer to that question
     changes where you look next.
     """
+    from backend.intelligence_release import release
     from backend.llm import health as ai_health
 
     info = build_info()
@@ -183,6 +184,10 @@ def build() -> dict:
         "started_at": started_at(),
         "build": info.to_dict(),
         "ai": ai_health(),
+        # Whether this build has been certified against the sealed holdout, and
+        # what that evidence supports. UNCERTIFIED is the honest answer for a
+        # development image, and it says so rather than staying quiet.
+        "intelligence": release().to_dict(),
     }
 
 

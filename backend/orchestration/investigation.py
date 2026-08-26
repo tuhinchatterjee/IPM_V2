@@ -277,6 +277,26 @@ def _computable(context: Any) -> set[str]:
     return out
 
 
+#: Why the last investigation produced nothing, when it produced nothing.
+#:
+#: A module-level list rather than a return value because `run()` is called
+#: from one place and its `HandlerResult | None` contract is what the executor
+#: expects. Read immediately after a None, by `why_empty()`.
+_LAST_NOTES: list[str] = []
+
+
+def why_empty() -> str:
+    """What stopped the probes, for a stated failure rather than a question."""
+    if not _LAST_NOTES:
+        return ""
+    return (
+        "CreditProbe understood the population and could not complete the "
+        "checks over it. "
+        + " ".join(_LAST_NOTES[:3])
+        + " Nothing is shown rather than a partial picture presented as a "
+        "full one.")
+
+
 def run(request: Request, question: str, *, answer_one: Any) -> Any:
     """Run every probe and assemble one answer out of them.
 
@@ -311,7 +331,15 @@ def run(request: Request, question: str, *, answer_one: Any) -> Any:
         })
 
     if not rows:
+        # Every probe failed. The caller needs to know that this is different
+        # from "the sentence named no population" — the population was named
+        # and understood, and the checks over it did not complete. Falling
+        # through to the clarification asks for something the user already
+        # gave, which reads as the product not listening.
+        _LAST_NOTES[:] = notes
         return None
+
+    _LAST_NOTES.clear()
 
     return HandlerResult(
         answer=(f"{len(rows)} governed checks over {request.subject}, each one "
@@ -392,5 +420,6 @@ def clarification(question: str) -> str:
 
 
 __all__ = [
+    "why_empty",
     "WHOLE_BOOK","MAX_PROBES", "Probe", "Request", "clarification", "read", "run",
            "wants_investigation"]

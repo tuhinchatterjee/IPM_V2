@@ -176,21 +176,14 @@ function ValidationPanel({
             <>
               <ProviderState status={status} />
 
-              <div>
-                <Button onClick={start} disabled={running}>
-                  <Activity className="size-4" aria-hidden />
-                  {running ? "Running the intelligence check…" : "Run intelligence check"}
-                </Button>
-                {running && (
-                  <p className="mt-2 text-[12px] text-text-muted">
-                    Three threads are being asked in full and every figure
-                    recomputed independently. This takes a minute or two.
-                  </p>
-                )}
-                {error && (
-                  <p className="mt-2 text-[12px] text-negative">{error}</p>
-                )}
-              </div>
+              <QuickCheck
+                plan={status?.quick_check ?? null}
+                running={running}
+                error={error}
+                onRun={start}
+              />
+
+              <Certification state={status?.certification ?? null} />
 
               {run ? (
                 <RunSummary
@@ -211,6 +204,178 @@ function ValidationPanel({
           )}
         </div>
       </aside>
+    </div>
+  );
+}
+
+/**
+ * QUICK INTELLIGENCE CHECK — what this installation can do, right now.
+ *
+ * Three hidden benchmark threads through the live path, against this bank's
+ * own data. It answers "is the AI working today", and it is the only one of
+ * the two that is a button.
+ *
+ * The cost is stated before the button, not after. A validation run that
+ * quietly makes two hundred model calls is a surprise on somebody's invoice,
+ * and one that makes none — because no provider is reachable — must say so
+ * rather than returning a score that looks live.
+ */
+function QuickCheck({
+  plan,
+  running,
+  error,
+  onRun,
+}: {
+  plan: AiStatus["quick_check"] | null;
+  running: boolean;
+  error: string | null;
+  onRun: () => void;
+}) {
+  return (
+    <section className="rounded-lg border border-border bg-surface-sunken p-3">
+      <h3 className="font-display text-[13px] font-semibold text-text-primary">
+        Quick intelligence check
+      </h3>
+      <p className="mt-1 text-[12px] text-text-secondary">
+        Three hidden benchmark threads, asked in full through the live path and
+        scored against figures recomputed independently.
+      </p>
+
+      {plan && (
+        <dl className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1 text-[11px]">
+          <Fact label="Threads" value="3 of a hidden set" />
+          <Fact label="Model calls" value={costOf(plan)} />
+        </dl>
+      )}
+      {plan?.note && (
+        <p className="mt-2 text-[11px] text-text-muted">{plan.note}</p>
+      )}
+
+      <div className="mt-3">
+        <Button onClick={onRun} disabled={running}>
+          <Activity className="size-4" aria-hidden />
+          {running ? "Running the intelligence check…" : "Run quick check"}
+        </Button>
+        {running && (
+          <p className="mt-2 text-[12px] text-text-muted">
+            Three threads are being asked in full and every figure recomputed
+            independently. This takes a minute or two.
+          </p>
+        )}
+        {error && <p className="mt-2 text-[12px] text-negative">{error}</p>}
+      </div>
+    </section>
+  );
+}
+
+function costOf(plan: AiStatus["quick_check"]): string {
+  if (!plan.model_calls_if_live) return "none — no provider reachable";
+  return `up to ${plan.model_calls_if_live}`;
+}
+
+/**
+ * FULL INTELLIGENCE CERTIFICATION — what this BUILD was proved to do.
+ *
+ * Deliberately not a button. The sealed holdout lives outside the application
+ * and the product is forbidden to import it: a product that can reach its own
+ * exam has no exam. Certification therefore happens at build time, and what is
+ * shown here is the frozen result — or, honestly, that there isn't one.
+ *
+ * UNCERTIFIED is the normal state of a development image and it says so plainly
+ * rather than leaving the space blank, which would read as certified to anyone
+ * who did not know to look.
+ */
+function Certification({ state }: { state: AiStatus["certification"] | null }) {
+  if (!state) return null;
+
+  const tone =
+    state.status === "CERTIFIED"
+      ? "text-positive"
+      : state.status === "NOT_PASSED"
+        ? "text-negative"
+        : "text-warning";
+
+  return (
+    <section className="rounded-lg border border-border bg-surface-sunken p-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="font-display text-[13px] font-semibold text-text-primary">
+          Full intelligence certification
+        </h3>
+        <span className={cn("font-mono text-[11px] font-semibold", tone)}>
+          {state.status.replace("_", " ")}
+        </span>
+      </div>
+
+      <p className="mt-1.5 text-[12px] text-text-secondary">{state.sentence}</p>
+
+      {state.status === "CERTIFIED" && (
+        <dl className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1 text-[11px]">
+          <Fact label="Release" value={state.release_id} mono />
+          <Fact label="Sealed cases" value={String(state.cases)} />
+          <Fact label="Critical" value={String(state.critical_cases)} />
+          <Fact label="Holdout" value={state.holdout_version} mono />
+        </dl>
+      )}
+
+      {state.critical_failures.length > 0 && (
+        <ul className="mt-2 space-y-1 text-[11px] text-negative">
+          {state.critical_failures.map((failure) => (
+            <li key={failure}>{failure}</li>
+          ))}
+        </ul>
+      )}
+
+      {state.corrections.length > 0 && (
+        <details className="mt-2.5">
+          <summary className="cursor-pointer text-[11px] text-text-muted hover:text-text-secondary">
+            {state.corrections.length} sealed expectation
+            {state.corrections.length === 1 ? "" : "s"} revised — see why
+          </summary>
+          <ul className="mt-1.5 space-y-1.5 border-l border-border pl-2.5">
+            {state.corrections.map((correction) => (
+              <li key={correction.case} className="text-[11px]">
+                <span className="font-mono text-text-secondary">
+                  {correction.case}
+                </span>
+                <p className="text-text-muted">{correction.why}</p>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      <p className="mt-2.5 text-[11px] text-text-muted">
+        {state.why_not_runnable} Run it with{" "}
+        <code className="rounded bg-surface px-1 py-0.5 font-mono text-[10px]">
+          {state.command}
+        </code>
+        .
+      </p>
+    </section>
+  );
+}
+
+function Fact({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  if (!value) return null;
+  return (
+    <div>
+      <dt className="text-text-muted">{label}</dt>
+      <dd
+        className={cn(
+          "text-text-primary",
+          mono && "font-mono text-[10.5px]",
+        )}
+      >
+        {value}
+      </dd>
     </div>
   );
 }

@@ -973,11 +973,33 @@ def answer_investigation(question: str, *, user_id: int | None = None,
         _check_grounding(investigation, answered.runtime)
 
     _record_conversation(investigation, answered)
+    _settle_caveats(investigation)
     if persist:
         persist_investigation(investigation, user_id=user_id,
                               project_id=project_id,
                               investigation_id=investigation_id)
     return investigation, answered
+
+
+def _settle_caveats(investigation: Investigation) -> None:
+    """One note per thing worth noting, in the order they were raised.
+
+    Caveats are appended from a dozen places — the planner's warnings, the
+    scope delta, the interpretation, the spelling correction — and a plan that
+    hops through one dataset for two measures records the same aggregation note
+    once per hop. Three identical sentences under a table read as three
+    problems, and the reader stops trusting all of them.
+
+    Run last, on every path, so no future appender has to remember.
+    """
+    seen: set[str] = set()
+    kept: list[str] = []
+    for caveat in (investigation.narrative.caveats or []):
+        text = str(caveat).strip()
+        if text and text not in seen:
+            seen.add(text)
+            kept.append(text)
+    investigation.narrative.caveats = kept
 
 
 def _run_certified(question: str, answered: Any, mode_now: dict[str, Any],

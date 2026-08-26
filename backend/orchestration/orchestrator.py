@@ -497,6 +497,14 @@ def _investigate(answered: Answered, question: str, context: Any,
 
     result = investigation.run(request, question, answer_one=one)
     if result is None:
+        # The population was identified; the checks over it did not complete.
+        # Said as a failure, not as a question about a population the user
+        # already named.
+        stopped = investigation.why_empty()
+        if stopped:
+            answered.failure = stopped
+            answered.failure_kind = "INVESTIGATION_INCOMPLETE"
+            return answered
         return None
     answered.result = result
     answered.investigation = request.to_dict()

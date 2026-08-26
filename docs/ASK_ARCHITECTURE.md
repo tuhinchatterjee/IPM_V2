@@ -74,9 +74,27 @@ ASSEMBLE        backend/orchestration/assembly.py
                 prose came from the result.
 ```
 
-## 1a. There are exactly three outcomes
+## 1a. There are exactly four outcomes
 
-An answer, a question back, or a stated failure. **There is no fourth.**
+An answer, a question back, "CreditProbe does not hold that", or a stated
+failure. **There is no fifth.**
+
+| Outcome | When | What the user sees |
+|---|---|---|
+| `EXECUTE` | The request was read, planned, run, and every invariant held | The answer |
+| `CLARIFY` | Something the request depends on is missing or ambiguous | One question, naming what is missing |
+| `UNSUPPORTED` | The governed universe has no word for the subject | One sentence saying so |
+| `CONTROLLED_FAILURE` | A plan was rejected, or a result contradicted its own heading | What could not be guaranteed, and why |
+
+`UNSUPPORTED` was split out from `CLARIFY` deliberately. *"Which borrowers had
+their CEO resign?"* answered with *"which figure should CreditProbe measure?"*
+invites the user to pick one from the menu — at which point CreditProbe answers
+a question about exposure that nobody asked.
+
+An **abstention** is not a fifth outcome. It is what `CLARIFY` and `UNSUPPORTED`
+are called when they are being counted, because they cost a slower conversation
+rather than a wrong number, and averaging the two costs together hides the one
+that matters.
 
 The version this replaced had one: when the composer could not read a question,
 whichever registered analysis best matched its wording ran instead. That is how
@@ -185,6 +203,36 @@ reported Real Estate as 100% of itself.
 
 It does **not** ask for a window when every measure is published annually: there
 is one sensible comparison, and it is stated on the answer.
+
+### When it asks, continued
+
+Four more guards were added after the sealed holdout found each of them
+answering confidently instead:
+
+**A period the data does not hold.** *"Total exposure at default in Q1 2015?"*
+used to come back as a correct portfolio figure for Q2 2026, because the period
+reader matches against periods that *exist*, so one that does not exist did not
+register as a period at all. It now names the period back and states the range
+the governed history covers.
+
+**A filter that cannot be applied.** *"Total ECL for Watch customers"* dropped
+the rating bucket — no dataset carries one — and returned the ECL of the entire
+book with a warning under the table. A warning under a number is read by nobody,
+and a credit officer who has seen the number has already believed it. It now
+stops.
+
+**A typo, corrected and reported.** One adjacent-key slip removed a concept
+match entirely, so a question that named a figure got a menu of figures back.
+A word one keystroke from exactly one governed term — and from nothing else —
+is corrected before reading, and what was changed is shown to the user. The
+words the readers themselves match on are protected by construction: the first
+version rewrote *"at least 25%"* as *"at last 25%"* and lost a threshold.
+
+**A compound question's own antecedent.** *"What columns are in the ratings
+data, and which of them are ratios?"* refers back to its own first clause. That
+is not a dangling referent, and asking what "of them" means is the product not
+listening. What one answer could not cover is remembered instead, so *"you
+didn't answer my second question"* answers it rather than restating the menu.
 
 ## 8. The Trace
 

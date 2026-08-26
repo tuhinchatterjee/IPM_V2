@@ -139,3 +139,45 @@ def test_a_filter_that_cannot_be_applied_stops_the_answer():
     assert answered.runtime is None
     assert "Watch" in answered.clarification
     assert investigation.status == "needs_clarification"
+
+
+def test_an_investigation_whose_probes_all_fail_says_so():
+    """The population was named and understood. Asking for it again is wrong.
+
+    Under load every probe once came back empty, and the investigation fell
+    through to "name a sector, a region, a segment or a named borrower" — about
+    a sentence that named one. It now states what could not be computed.
+    """
+    from backend.orchestration import investigation as iv
+    from backend.orchestration.context import retrieve
+
+    question = "Something looks off in Tabuk. Look into it."
+    request = iv.read(question, retrieve(question))
+    assert request.valid
+
+    def unavailable(_probe, **_kwargs):
+        raise RuntimeError("the analytical store is busy")
+
+    assert iv.run(request, question, answer_one=unavailable) is None
+    stopped = iv.why_empty()
+    assert "understood the population" in stopped
+    assert "the analytical store is busy" in stopped
+
+
+def test_a_successful_investigation_leaves_no_stale_reason():
+    """`why_empty` after a good run must not describe the previous bad one."""
+    from backend.orchestration import investigation as iv
+    from backend.orchestration.context import retrieve
+
+    question = "Something looks off in Tabuk. Look into it."
+    request = iv.read(question, retrieve(question))
+    iv.run(request, question, answer_one=lambda *_a, **_k: (_ for _ in ()).throw(
+        RuntimeError("busy")))
+    assert iv.why_empty()
+
+    _thread(question)
+    from backend.orchestration.orchestrator import answer
+
+    assert iv.run(request, question,
+                  answer_one=lambda q, **k: answer(q, **k)) is not None
+    assert iv.why_empty() == ""

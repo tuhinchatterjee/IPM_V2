@@ -932,6 +932,43 @@ export interface AiStatus {
   benchmark_turns: number;
   history_available: boolean;
   can_run: boolean;
+  /** What a quick check would cost, stated before the button is pressed. */
+  quick_check: {
+    cases: number;
+    turns: number;
+    model_calls_if_live: number;
+    provider_state: string;
+    note: string;
+  };
+  /**
+   * The frozen Intelligence Release, or the honest absence of one.
+   *
+   * Never runnable from the browser: the sealed holdout lives outside the
+   * application and the product may not import it. What this carries is the
+   * result of a build-time certification run.
+   */
+  certification: {
+    status: "UNCERTIFIED" | "CERTIFIED" | "NOT_PASSED" | "STALE";
+    release_id: string;
+    created_at: string;
+    certified_sha: string;
+    running_sha: string;
+    holdout_version: string;
+    curriculum_version: string;
+    ontology_version: string;
+    ontology_fingerprint: string;
+    cases: number;
+    critical_cases: number;
+    observed_precision_pct: number;
+    supported_precision_pct: number;
+    reportable: boolean;
+    critical_failures: string[];
+    corrections: { case: string; was: string; now: string; why: string }[];
+    sentence: string;
+    runnable_here: boolean;
+    command: string;
+    why_not_runnable: string;
+  };
 }
 
 export interface InvestigationResponse {

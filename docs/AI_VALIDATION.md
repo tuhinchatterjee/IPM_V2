@@ -198,3 +198,28 @@ and file nothing.
 | `tests/validation/test_isolation.py` | The proof the benchmark stays hidden |
 | `tests/llm/test_live_smoke.py` | Five real structured calls, when a key exists |
 | `tests/evals/test_multi_turn.py` | 102 conversations, one invariant |
+
+---
+
+## 10. The quick check is not the certification
+
+This document describes the **quick intelligence check**: three hidden benchmark
+threads, run from inside the product, against this installation's own data. It
+answers one question — *is the AI working today?* — and it is a button.
+
+It is deliberately **not** the thing that certifies a release. That is the
+sealed holdout, described in
+[docs/INTELLIGENCE_FACTORY.md](INTELLIGENCE_FACTORY.md), and it cannot be a
+button: the holdout lives outside the application and the product is forbidden
+to import it, because a product that can reach its own exam has no exam.
+
+| | Quick intelligence check | Full intelligence certification |
+|---|---|---|
+| **Asks** | Is the AI working today? | Did this build do what was asked, on cases it has never seen? |
+| **Cases** | 3 drawn from a hidden set | 67 sealed, 17 of them critical |
+| **Runs** | In the product, on demand | At build time, `python -m intelligence_factory.certify --certify` |
+| **Produces** | A score and an inspectable run | A frozen manifest the image carries |
+| **Shown as** | `AI POWERED · HIGH` and its relatives | `CERTIFIED` / `UNCERTIFIED` / `NOT_PASSED` / `STALE` |
+
+The validation panel shows both, side by side, and never merges them. The cost
+of a quick check is stated before the button rather than after it.

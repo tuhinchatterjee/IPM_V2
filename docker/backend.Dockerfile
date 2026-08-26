@@ -47,6 +47,18 @@ COPY backend/ ./backend/
 COPY scripts/ ./scripts/
 COPY data/raw/ ./data/raw/
 
+# The frozen Intelligence Release, when there is one.
+#
+# `intelligence_factory/` itself is deliberately NOT copied: it holds the sealed
+# holdout, and an image that carries its own exam has no exam. What ships is the
+# manifest — the versions that were measured and the rates that came out — which
+# the running application reads to report whether it is certified.
+#
+# A development build has no such directory, so the wildcard matches nothing and
+# the image reports UNCERTIFIED. That is the honest answer for a local build and
+# the reason the release script, not this file, is what refuses to tag one.
+COPY intelligence_releas[e]/ ./intelligence_release/
+
 # Which build this is, baked in at image-build time.
 #
 # `.git` is excluded from the build context (it would add tens of megabytes to

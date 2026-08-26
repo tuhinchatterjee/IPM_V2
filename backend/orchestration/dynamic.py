@@ -98,7 +98,10 @@ class Condition:
         checked, and repeating it proves nothing about how it was understood.
         A zero threshold is a floor, not a movement, and is said as one.
         """
-        unit = "%" if self.kind == "change_pct" else ""
+        # A percentage read back without its sign is a different number.
+        # "covenant headroom at or above 25" is 25 what — percent, times,
+        # notches? The field says which, and the field is governed.
+        unit = "%" if self.kind == "change_pct" else _unit_of(self.field)
         if not isinstance(self.value, (int, float)):
             return f"{self.label} is {self.value}"
         if self.kind == "order":
@@ -173,6 +176,21 @@ class DynamicRequest:
 #: What a credit officer calls each governed field, for reading a condition
 #: back. A condition described as "total_ecl" has been read correctly and
 #: communicated badly, and the user cannot tell those apart.
+#: The sign a level test reads back with, by the shape of the governed field.
+#: Deliberately keyed on the suffix rather than listed: a new `_pct` column
+#: inherits it, and a column with no recognised shape reads back bare, which is
+#: correct for a count.
+def _unit_of(field: str) -> str:
+    name = str(field or "").lower()
+    if name.endswith("_pct") or name.endswith("_percentage"):
+        return "%"
+    # No branch for days: the label already says "days past due", and
+    # "days past due above 30 days" is worse than saying nothing.
+    if name in {"dscr", "net_leverage", "interest_coverage", "current_ratio"}:
+        return "x"
+    return ""
+
+
 FIELD_LABELS = {
     "total_ecl": "ECL", "ecl_coverage_pct": "ECL coverage", "ead": "EAD",
     "exposure": "drawn exposure", "undrawn": "undrawn", "limit_amount": "limit",
@@ -180,7 +198,12 @@ FIELD_LABELS = {
     "pd_lifetime_pct": "lifetime PD", "lgd_pct": "LGD",
     "internal_grade": "internal rating", "dpd_days": "days past due",
     "collateral_value": "collateral value",
-    "covenant_headroom_pct": "covenant headroom", "dscr": "DSCR",
+    # Both spellings. The governed column on the covenant register is
+    # `headroom_pct`; a plan that reaches it through the facility position sees
+    # `covenant_headroom_pct`. A condition read back as "headroom pct at or
+    # above 25" is a correct answer that looks like a bug.
+    "covenant_headroom_pct": "covenant headroom",
+    "headroom_pct": "covenant headroom", "dscr": "DSCR",
     "raroc_pct": "RAROC", "ifrs9_stage": "IFRS 9 stage",
 }
 

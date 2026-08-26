@@ -81,19 +81,58 @@ def test_no_backend_module_imports_the_factory():
         + "\n  ".join(offenders))
 
 
-def test_no_backend_source_mentions_the_holdout():
-    """Not even in a string, a comment or a getattr.
+def _docstrings(tree: ast.AST) -> set[int]:
+    """The id() of every string node that is a docstring, so prose is exempt."""
+    out: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                                 ast.AsyncFunctionDef)):
+            continue
+        body = getattr(node, "body", None) or []
+        if (body and isinstance(body[0], ast.Expr)
+                and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)):
+            out.add(id(body[0].value))
+    return out
 
-    A dynamic import is spelled with a string, so an import-graph check alone
-    would not see it.
+
+def test_no_backend_string_names_the_factory():
+    """A dynamic import is spelled with a string, not an import statement.
+
+    `importlib.import_module("intelligence_factory.holdout")` is invisible to an
+    import-graph check, so every string constant in production source is
+    examined too.
+
+    Two things are exempt, and both for the same reason — neither can be
+    imported.
+
+    Docstrings: `backend/intelligence_release.py` exists precisely to explain
+    why the product reads a manifest rather than the holdout, and it cannot
+    explain that without naming it. Prose describing the seal is not a hole in
+    it.
+
+    Strings containing whitespace: `importlib.import_module` takes a bare
+    dotted path. The validation endpoint tells the user to run
+    "python -m intelligence_factory.certify --certify", which is a sentence for
+    a human and not something any loader will accept.
     """
-    offenders = [
-        str(path.relative_to(ROOT)) for path in _python_files(BACKEND)
-        if "holdout" in path.read_text(encoding="utf-8-sig").lower()
-    ]
+    offenders = []
+    for path in _python_files(BACKEND):
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+        exempt = _docstrings(tree)
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Constant)
+                    and isinstance(node.value, str)
+                    and id(node) not in exempt):
+                continue
+            text = node.value
+            if "intelligence_factory" in text and len(text.split()) == 1:
+                offenders.append(
+                    f"{path.relative_to(ROOT)}:{node.lineno} {text!r}")
+
     assert not offenders, (
-        "The word 'holdout' appears in production source, which is how a "
-        "dynamic import hides:\n  " + "\n  ".join(offenders))
+        "A string in production source names the Intelligence Factory, which "
+        "is how a dynamic import hides:\n  " + "\n  ".join(offenders))
 
 
 # ---------------------------------------------------------------------------
