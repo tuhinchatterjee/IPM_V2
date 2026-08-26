@@ -10,6 +10,7 @@ import {
   ComponentBreakdown,
   ValidationCaseDetail,
   toneOf,
+  verdictTone,
 } from "@/components/system/validation-case";
 import { api, ApiError } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
@@ -329,7 +330,11 @@ function RunSummary({
         </p>
       ))}
 
-      <ComponentBreakdown components={run.components} overall={run.score} />
+      <ComponentBreakdown
+        components={run.components}
+        overall={run.score}
+        verdict={graded(run) ? "PASS" : "FAIL"}
+      />
 
       <div>
         <h3 className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
@@ -357,7 +362,7 @@ function RunSummary({
                 <span
                   className={cn(
                     "w-11 shrink-0 text-right font-display text-[13px] font-semibold tabular-nums",
-                    toneOf(detail.score),
+                    verdictTone(detail.score, detail.verdict),
                   )}
                 >
                   {Math.round(detail.score)}%
@@ -428,7 +433,7 @@ function HistoryList({
             <span
               className={cn(
                 "shrink-0 font-display font-semibold tabular-nums",
-                toneOf(run.score),
+                graded(run) ? toneOf(run.score) : "text-text-muted",
               )}
             >
               {Math.round(run.score)}

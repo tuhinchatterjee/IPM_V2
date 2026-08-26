@@ -63,7 +63,11 @@ export function ValidationCaseDetail({
         <MatchDial score={detail.score} verdict={detail.verdict} />
       </div>
 
-      <ComponentBreakdown components={detail.components} overall={detail.score} />
+      <ComponentBreakdown
+        components={detail.components}
+        overall={detail.score}
+        verdict={detail.verdict}
+      />
 
       {detail.deductions.length > 0 && (
         <Section title="Why the score was not 100%">
@@ -129,7 +133,7 @@ function TurnBlock({
         <span
           className={cn(
             "font-display text-[13px] font-semibold tabular-nums",
-            toneOf(turn.score),
+            turn.live ? toneOf(turn.score) : "text-text-muted",
           )}
         >
           {Math.round(turn.score)}%
@@ -329,9 +333,11 @@ function ValueComparison({
 export function ComponentBreakdown({
   components,
   overall,
+  verdict,
 }: {
   components: Record<string, number>;
   overall: number;
+  verdict?: string;
 }) {
   const entries = Object.entries(components).filter(([name]) => COMPONENT_LABELS[name]);
   if (entries.length === 0) return null;
@@ -369,7 +375,7 @@ export function ComponentBreakdown({
           <dd
             className={cn(
               "w-12 shrink-0 text-right font-display text-[13px] font-semibold tabular-nums",
-              toneOf(overall),
+              verdict ? verdictTone(overall, verdict) : toneOf(overall),
             )}
           >
             {Math.round(overall)}%
@@ -383,7 +389,7 @@ export function ComponentBreakdown({
 function MatchDial({ score, verdict }: { score: number; verdict: string }) {
   return (
     <div className="shrink-0 text-right">
-      <p className={cn("font-display text-2xl font-semibold tabular-nums", toneOf(score))}>
+      <p className={cn("font-display text-2xl font-semibold tabular-nums", verdictTone(score, verdict))}>
         {Math.round(score)}%
       </p>
       <Badge variant={verdict === "PASS" ? "positive" : verdict === "PARTIAL" ? "warning" : "negative"}>
@@ -549,6 +555,20 @@ function findValue(values: Record<string, unknown>, name: string): number | null
     if (typeof value === "number") return value;
   }
   return null;
+}
+
+/**
+ * What colour a percentage may be printed in, given the verdict beside it.
+ *
+ * A green 100% next to a red FAIL is the exact confusion this subsystem was
+ * built to remove: the figure is true — the runtime matched the reference on
+ * every dimension it was scored on — but the case did not pass, because it
+ * never reached the live model. The number stays; only its claim is withdrawn.
+ */
+export function verdictTone(score: number, verdict: string): string {
+  if (verdict === "PASS") return toneOf(score);
+  if (verdict === "PARTIAL") return "text-warning";
+  return "text-text-muted";
 }
 
 export function toneOf(score: number): string {
