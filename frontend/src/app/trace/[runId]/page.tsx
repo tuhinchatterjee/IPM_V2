@@ -3,6 +3,10 @@
 import * as React from "react";
 import { Clock, GitBranch, Layers, Sparkles } from "lucide-react";
 
+import { AuditLedger } from "@/components/trace/audit-ledger";
+import { HealthMap } from "@/components/trace/health-map";
+import { TraceLandscape } from "@/components/trace/landscape";
+import { ModeSwitcher, useTraceMode } from "@/components/trace/modes";
 import { NodeInspector } from "@/components/trace/node-inspector";
 import { ModifyPanel, VersionSwitcher } from "@/components/trace/modify-panel";
 import { ReasoningMap, type MapHighlight } from "@/components/trace/reasoning-map";
@@ -56,6 +60,8 @@ export default function TraceDetailPage({ params }: { params: Promise<{ runId: s
 
   const [version, setVersion] = React.useState<number | undefined>(undefined);
   const [selected, setSelected] = React.useState<string | null>(null);
+  // Lineage, Landscape or Audit. Remembered, and the selection survives a switch.
+  const [view, setView] = useTraceMode();
   const [proposed, setProposed] = React.useState<ProposedChange | null>(null);
 
   const investigation = useAsync(() => api.investigation(id, version), [id, version]);
@@ -150,18 +156,47 @@ export default function TraceDetailPage({ params }: { params: Promise<{ runId: s
             )}
           </header>
 
+          {/* -------------------------------------------------- health map */}
+          {/* Before the map, because the question a Trace is opened with is
+              almost never "show me all forty steps" — it is "did anything go
+              wrong, and where". */}
+          <HealthMap
+            graph={graph}
+            selected={selected}
+            onFocus={setSelected}
+            className="pt-1"
+          />
+
           {/* ------------------------------------------------ map + inspector */}
           {/* The map gets the full width. The inspector slides over it rather
               than sitting beside it: a permanent side panel would take a third
               of the canvas from a diagram that needs every pixel it can get. */}
           <div className="relative">
-            <ReasoningMap
-              graph={graph}
-              selected={selected}
-              onSelect={setSelected}
-              highlight={highlight}
-              height={520}
-            />
+            <ModeSwitcher mode={view} onChange={setView} className="mb-3" />
+
+            {view === "lineage" && (
+              <ReasoningMap
+                graph={graph}
+                selected={selected}
+                onSelect={setSelected}
+                highlight={highlight}
+                height={520}
+              />
+            )}
+            {view === "landscape" && (
+              <TraceLandscape
+                graph={graph}
+                selected={selected}
+                onSelect={setSelected}
+              />
+            )}
+            {view === "audit" && (
+              <AuditLedger
+                graph={graph}
+                selected={selected}
+                onSelect={setSelected}
+              />
+            )}
             {node && (
               <div className="pointer-events-none absolute inset-y-0 right-0 flex w-full max-w-[26rem] p-3">
                 <Card className="pointer-events-auto flex max-h-full w-full flex-col overflow-hidden p-0 shadow-xl">
