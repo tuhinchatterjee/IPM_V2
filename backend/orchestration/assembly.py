@@ -51,6 +51,19 @@ def _numbers(text: str) -> set[str]:
     return out
 
 
+def _presented(runtime: Any, build: Any) -> list[dict[str, Any]]:
+    """The runtime's columns, with a display contract folded in."""
+    from backend.orchestration import presentation
+
+    spec = {c["name"]: c for c in presentation.contract(runtime, build)}
+    out: list[dict[str, Any]] = []
+    for column in (runtime.columns or []):
+        name = str(column.get("name"))
+        out.append({**column, **{k: v for k, v in spec.get(name, {}).items()
+                                 if k != "origin"}})
+    return out
+
+
 def grounded_values(runtime: Any, extra: dict[str, Any] | None = None,
                     *, asked: str = "") -> set[str]:
     """Every figure the answer is entitled to quote, in one normal form.
@@ -230,7 +243,13 @@ def from_analysis(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
             "input_row_count": runtime.row_count,
             "meta": {"execution": runtime.certification, "shape": build.shape,
                      "grain": build.grain},
-            "rows": runtime.rows, "columns": runtime.columns,
+            "rows": runtime.rows,
+            # Columns carry what they ARE, not only what they are called. A
+            # float printed at full precision looks like a defect, and a bare
+            # measure column in a two-period plan is the OPENING value —
+            # labelling it with the measure alone put a zero beside a claim
+            # that the figure had risen.
+            "columns": _presented(runtime, build),
             "warnings": [*runtime.warnings, *build.warnings],
             "chart": runtime.chart, "truncated": runtime.truncated,
             "certification": runtime.certification,

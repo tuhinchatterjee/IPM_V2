@@ -176,7 +176,27 @@ export interface EngineResult {
   plan?: AnalyticalPlanPayload;
   query?: { sql: string; parameters: unknown[] } | null;
   reading?: DynamicReading;
-  columns?: { name: string; type?: string }[];
+  /**
+   * What each column is, not only what it is called.
+   *
+   * The backend's presentation contract: label, semantic type, unit,
+   * decimals, alignment, and the role a derived column plays. Rendering from
+   * it is what keeps 73391.774000000012 out of a table and puts the reporting
+   * date into the heading of an opening-balance column.
+   */
+  columns?: {
+    name: string;
+    type?: string;
+    label?: string;
+    semantic?: string;
+    unit?: string;
+    currency?: string;
+    scale?: string;
+    decimals?: number;
+    align?: string;
+    is_identity?: boolean;
+    role?: string;
+  }[];
   certification?: string;
   certification_label?: string;
   truncated?: boolean;

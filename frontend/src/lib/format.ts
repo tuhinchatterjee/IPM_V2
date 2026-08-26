@@ -83,6 +83,46 @@ export function byUnit(value: unknown, unit?: string | null): string {
   }
 }
 
+/**
+ * One value, formatted the way its column's display contract says.
+ *
+ * The contract comes from the backend, where the semantic ontology knows what
+ * a concept is: money in millions, an ordinal grade, a ratio, a count of days.
+ * Guessing from the column name here produced 73391.774000000012 in a table a
+ * credit officer was reading — the right number, looking like a defect.
+ */
+export function byContract(value: unknown, column?: ColumnSpec | null): string {
+  if (!column) return byUnit(value);
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value !== "number" || Number.isNaN(value)) return String(value);
+
+  const decimals =
+    column.semantic === "money" && Math.abs(value) < 1000
+      ? Math.max(column.decimals ?? 0, 2)
+      : (column.decimals ?? 2);
+  const text = value.toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+  if (column.unit === "%") return `${text}%`;
+  return column.unit ? `${text} ${column.unit}` : text;
+}
+
+/** What a column IS, as the backend's presentation contract describes it. */
+export interface ColumnSpec {
+  name: string;
+  label?: string;
+  semantic?: string;
+  unit?: string;
+  currency?: string;
+  scale?: string;
+  decimals?: number;
+  align?: string;
+  is_identity?: boolean;
+  role?: string;
+}
+
 /** Turn a governed field name into a column heading: ead_pct -> "Ead Pct". */
 export function humanise(key: string): string {
   const overrides: Record<string, string> = {

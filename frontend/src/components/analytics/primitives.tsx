@@ -12,7 +12,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { byUnit, humanise, unitSuffix, type Direction, toneFor } from "@/lib/format";
+import {
+  byContract,
+  byUnit,
+  humanise,
+  unitSuffix,
+  type ColumnSpec,
+  type Direction,
+  toneFor,
+} from "@/lib/format";
 import type { Row } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -122,6 +130,7 @@ export function ResultTable({
   rows,
   units = {},
   columns,
+  spec,
   maxRows,
   className,
   emptyMessage = "No rows returned.",
@@ -131,6 +140,15 @@ export function ResultTable({
   units?: Record<string, string>;
   /** Restrict and order the columns. Defaults to every key on the first row. */
   columns?: string[];
+  /**
+   * What each column IS, from the backend's presentation contract: its label,
+   * its unit, how many decimals it should carry, whether it identifies the
+   * row. Falls back to guessing from the name when absent, which is what
+   * produced "Facility Delinquency Days Past Due" showing 0 beside an answer
+   * saying days past due had risen — the column is the OPENING value, and its
+   * label now says so.
+   */
+  spec?: ColumnSpec[];
   maxRows?: number;
   className?: string;
   emptyMessage?: string;
@@ -142,8 +160,12 @@ export function ResultTable({
 
   const keys = columns ?? Object.keys(rows[0]);
   const shown = maxRows ? rows.slice(0, maxRows) : rows;
-  const isNumeric = (key: string) =>
-    shown.some((r) => typeof r[key] === "number");
+  const byName = new Map((spec ?? []).map((c) => [c.name, c]));
+  const isNumeric = (key: string) => {
+    const declared = byName.get(key);
+    if (declared) return declared.align === "right";
+    return shown.some((r) => typeof r[key] === "number");
+  };
 
   return (
     <div className={className}>
@@ -151,8 +173,8 @@ export function ResultTable({
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             {keys.map((key) => (
-              <TableHead key={key} numeric={isNumeric(key)}>
-                {humanise(key)}
+              <TableHead key={key} numeric={isNumeric(key)} title={byName.get(key)?.role}>
+                {byName.get(key)?.label ?? humanise(key)}
               </TableHead>
             ))}
           </TableRow>
@@ -164,7 +186,11 @@ export function ResultTable({
                 const custom = renderCell?.(key, row[key], row);
                 return (
                   <TableCell key={key} numeric={isNumeric(key)}>
-                    {custom !== undefined ? custom : byUnit(row[key], units[key])}
+                    {custom !== undefined
+                      ? custom
+                      : byName.has(key)
+                        ? byContract(row[key], byName.get(key))
+                        : byUnit(row[key], units[key])}
                   </TableCell>
                 );
               })}

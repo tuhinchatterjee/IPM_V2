@@ -10,6 +10,7 @@ import {
   TrendChart,
 } from "@/components/analytics/charts";
 import { ResultTable, Stat } from "@/components/analytics/primitives";
+import type { ColumnSpec } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import type { AnalysisRunResponse, Row } from "@/lib/api";
 import { byUnit, money, percent } from "@/lib/format";
@@ -405,7 +406,12 @@ export function ResultView({
                 ))}
             </div>
           )}
-          <ResultTable rows={rows} units={units} maxRows={compact ? 6 : 25} />
+          <ResultTable
+            rows={rows}
+            units={units}
+            spec={result.columns as ColumnSpec[] | undefined}
+            maxRows={compact ? 6 : 25}
+          />
         </div>
       );
   }
