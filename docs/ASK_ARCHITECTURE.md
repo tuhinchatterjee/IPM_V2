@@ -3,6 +3,7 @@
 *How a question becomes an answer, and where the model is allowed to touch it.*
 
 See `ASK_ROOT_CAUSE.md` for what this replaced and why.
+See `AI_VALIDATION.md` for how the claim that any of it works is substantiated.
 
 ---
 
@@ -12,14 +13,36 @@ See `ASK_ROOT_CAUSE.md` for what this replaced and why.
 USER MESSAGE
    │
    ▼
+REMEMBER        backend/orchestration/conversation.py
+                What this Investigation has already settled — subject,
+                measures, dimension, filters, periods, datasets, join path,
+                grain, the plan that ran, and the IDENTITIES it returned.
+   │
+   ▼
 READ            backend/orchestration/router.py
-                A model when one is configured, a deterministic semantic
-                reader otherwise. Produces a structured Reading — never prose
-                that is later parsed.
+                The live model against the governed catalogue AND the
+                conversation so far, with the deterministic semantic reader as
+                the fallback. Produces a structured Reading — never prose that
+                is later parsed.
+   │
+   ▼
+GUARD           backend/orchestration/guardrail.py
+                The governed semantic reader checks that reading for a
+                cross-family contradiction. On conflict: one repair call. Still
+                conflicting: the SAFE reading of the same question, recorded on
+                the Trace as a rejection. Never a different analysis.
+   │
+   ▼
+RESOLVE         backend/orchestration/referents.py
+                "these" becomes five specific customer ids — the ones the
+                previous run RETURNED, written down, not re-derived.
    │
    ▼
 ROUTE           backend/orchestration/capability.py
                 What KIND of request is this? Only ANALYSIS computes.
+                A methodology named outright takes the certified route first —
+                backend/orchestration/certified.py — before the composer, never
+                after it.
    │
    ├── DATA_* / METHOD_* / *_ACTION ──▶ backend/orchestration/handlers.py
    │                                    answered from governed metadata.
@@ -40,10 +63,32 @@ EXECUTE         backend/runtime/executor.py
                 Parameterised DuckDB SQL, then allowlisted kernels.
    │
    ▼
+INTERPRET       backend/orchestration/interpretation.py
+                The model reads the RESULT — capped, structured, with units and
+                warnings — and never the data. Prose containing a figure the
+                result does not carry is DISCARDED, not annotated.
+   │
+   ▼
 ASSEMBLE        backend/orchestration/assembly.py
                 The answer, the Trace, and a check that every figure in the
                 prose came from the result.
 ```
+
+## 1a. There are exactly three outcomes
+
+An answer, a question back, or a stated failure. **There is no fourth.**
+
+The version this replaced had one: when the composer could not read a question,
+whichever registered analysis best matched its wording ran instead. That is how
+"show me the five largest Real Estate customers" came back as a sector
+concentration reading 100% of a book already filtered to Real Estate — certified,
+reconciled, and answering a question nobody asked.
+
+Three fallbacks were removed rather than relabelled: the registry rescue, the
+legacy planner behind a blanket exception handler, and the comprehension module
+that typed every clarification in the retired registry's voice. A confident
+answer to the wrong question is worse than no answer, so the code that could
+produce one is gone.
 
 Two properties hold at every step:
 
