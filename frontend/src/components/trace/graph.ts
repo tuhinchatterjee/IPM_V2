@@ -59,41 +59,48 @@ export const LAYER_LANE: Record<string, number> = {
   CAPABILITY: 0,
   PLAN: 0,
 
-  DATA_DOMAIN: 1,
-  DATASET_FAMILY: 1,
-  DATASET: 1,
-  GOVERNED_METADATA: 1,
-  VARIABLE: 1,
+  PRIOR_CONTEXT: 1,
+  PLAN_CHANGE: 1,
 
-  RELATIONSHIP: 2,
-  JOIN: 2,
-  FILTER: 2,
+  DATA_DOMAIN: 2,
+  DATASET_FAMILY: 2,
+  DATASET: 2,
+  GOVERNED_METADATA: 2,
+  VARIABLE: 2,
 
-  DERIVED_VARIABLE: 3,
-  TRANSFORMATION: 3,
-  AGGREGATION: 3,
-  WINDOW: 3,
-  CALCULATION: 3,
+  RELATIONSHIP: 3,
+  JOIN: 3,
+  FILTER: 3,
 
-  SQL_QUERY: 4,
-  KERNEL: 4,
-  ENGINE_FUNCTION: 4,
-  CERTIFIED_METHOD: 4,
-  MATHEMATICAL_QUERY: 4,
+  DERIVED_VARIABLE: 4,
+  TRANSFORMATION: 4,
+  AGGREGATION: 4,
+  WINDOW: 4,
+  CALCULATION: 4,
 
-  RECONCILIATION: 5,
-  FINGERPRINT: 5,
-  RESULT: 5,
+  SQL_QUERY: 5,
+  KERNEL: 5,
+  ENGINE_FUNCTION: 5,
+  CERTIFIED_METHOD: 5,
+  MATHEMATICAL_QUERY: 5,
 
-  LLM_EXPLANATION: 6,
-  VISUALIZATION: 6,
+  RECONCILIATION: 6,
+  FINGERPRINT: 6,
+  RESULT: 6,
+
+  LLM_EXPLANATION: 7,
+  VISUALIZATION: 7,
 };
 
-export const LAYER_COUNT = 7;
+export const LAYER_COUNT = 8;
 
 /** What each band is called, for the legend down the side of the canvas. */
 export const LAYER_LABELS: string[] = [
   "Request",
+  // Present only on a follow-up. A conversation lane that appeared on every
+  // answer would be an empty band on most of them; one that appears when a turn
+  // inherited something is a band that means what it says.
+  "Conversation",
   "Governed data",
   "Relationships",
   "Derivations",

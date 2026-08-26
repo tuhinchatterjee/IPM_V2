@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import * as React from "react";
 import { PanelLeft } from "lucide-react";
 
+import { AiPowerControl } from "@/components/system/ai-power";
 import { BackendStatusIndicator } from "@/components/system/backend-status";
 import { RoleSwitcher } from "@/components/system/role-switcher";
 import { ThemeMenu } from "@/components/system/theme-menu";
@@ -23,6 +24,10 @@ import { useNavState } from "./nav-state";
  * The theme switcher stays here, one click from anywhere, because the room a
  * credit committee sits in changes more often than any setting on the Settings
  * page does.
+ *
+ * The AI POWERED control is here for a different reason: a product that claims
+ * to be AI-powered should be able to prove it from wherever the claim is being
+ * read, and the proof should be one click away rather than filed under Settings.
  */
 export function Header() {
   const router = useRouter();
@@ -63,6 +68,7 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-1.5">
+        <AiPowerControl />
         <ThemeMenu />
         <RoleSwitcher />
         <BackendStatusIndicator />

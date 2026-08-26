@@ -49,6 +49,15 @@ class NodeType(StrEnum):
     #: because every field on it is a resolved fact rather than a judgement —
     #: the judgement is the intent, and the node records who made it.
     CAPABILITY = "CAPABILITY"
+    #: What the investigation had already established when this question was
+    #: asked — the population, the filters, the window, the previous plan.
+    #: Present only on a follow-up, and the thing that makes a two-word question
+    #: auditable: "which of these" has to show what "these" resolved to.
+    PRIOR_CONTEXT = "PRIOR_CONTEXT"
+    #: How this turn changed the analysis before it: a cut, a re-ordering, a
+    #: measure swapped, a filter added. Governed, because every entry on it is a
+    #: difference between two recorded plans rather than a description of one.
+    PLAN_CHANGE = "PLAN_CHANGE"
     #: The catalogue itself answering, for a question about the data rather
     #: than about the portfolio.
     GOVERNED_METADATA = "GOVERNED_METADATA"

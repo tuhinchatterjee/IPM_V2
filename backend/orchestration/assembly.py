@@ -694,6 +694,59 @@ def plain_english(build: ap.AnalysisBuild) -> str:
 # ---------------------------------------------------------------- the Trace
 
 
+def _prior_context(graph: TraceGraph, build: ap.AnalysisBuild) -> str:
+    """The conversation's contribution to this plan, as Trace nodes.
+
+    A follow-up's Trace used to start at its own sentence, which made "rank
+    those by ECL instead" look like a question about the whole book that
+    happened to return five rows. Two nodes fix that: what was carried in, and
+    what this turn changed about the plan it was carried from.
+    """
+    continuation = build.continuation
+    if continuation is None or not getattr(continuation, "carries_context", False):
+        return "intent"
+
+    carried = continuation.to_dict()
+    node = graph.add_node(TraceNode(
+        id="prior", type=NodeType.PRIOR_CONTEXT,
+        label=("Carried from the previous answer"
+               + (f": {carried['entity_count']} {carried['entity_key']}"
+                  if carried.get("entity_count") else "")),
+        config={
+            "action": carried.get("action"),
+            "referent": carried.get("referent"),
+            "population_key": carried.get("entity_key"),
+            "population_size": carried.get("entity_count"),
+            "population_sample": carried.get("entity_names"),
+            "inherited": carried.get("inherited"),
+            "because": carried.get("because"),
+            "rule": ("A reference such as \u201cthese\u201d resolves to the "
+                     "identities the previous run RETURNED, not to a "
+                     "re-derivation of the question that produced them."),
+        }))
+    node.mark_ok(rows_out=carried.get("entity_count") or None)
+    graph.connect("intent", "prior")
+    current = "prior"
+
+    changes = list(carried.get("changes") or [])
+    if build.carried_concepts:
+        changes.append("measures carried forward: "
+                       + ", ".join(build.carried_concepts))
+    if build.top_n:
+        changes.append(f"cut to {build.top_n} rows")
+    if changes:
+        change = graph.add_node(TraceNode(
+            id="plan_change", type=NodeType.PLAN_CHANGE,
+            label="What this turn changed",
+            config={"action": carried.get("action"), "changes": changes,
+                    "rule": ("This turn modified the analysis before it rather "
+                             "than composing a new one.")}))
+        change.mark_ok()
+        graph.connect("prior", "plan_change")
+        current = "plan_change"
+    return current
+
+
 def analysis_graph(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
                    runtime: Any, narrative: Narrative) -> TraceGraph:
     """The full lineage: question, reading, sources, joins, maths, result.
@@ -728,6 +781,8 @@ def analysis_graph(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
         }))
     intent.mark_ok()
     graph.connect("question", "intent")
+
+    upstream = _prior_context(graph, build)
 
     # Everything the runtime recorded, re-parented under the reading.
     recorded = runtime.graph.to_dict() if runtime.graph else {"nodes": [],
@@ -766,11 +821,14 @@ def analysis_graph(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
         if source and target:
             graph.connect(source, target)
 
-    # Roots of the recorded subgraph hang off the reading.
+    # Roots of the recorded subgraph hang off the reading — or off the
+    # conversation nodes on a follow-up, so the picture reads in the order the
+    # work happened: question, understanding, what was carried in, what changed,
+    # then the data.
     targets = {e.target for e in graph.edges}
     for new_id in mapping.values():
         if new_id not in targets:
-            graph.connect("intent", new_id)
+            graph.connect(upstream, new_id)
 
     # The mathematical query: plan, SQL, formulas and parameters as one thing a
     # reader can open. Mandatory for every dynamic analysis.

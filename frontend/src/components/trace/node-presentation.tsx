@@ -1,5 +1,7 @@
 import {
   Binary,
+  GitCompareArrows,
+  History,
   Braces,
   Fingerprint,
   Compass,
@@ -117,6 +119,23 @@ export const NODE_PRESENTATION: Record<string, NodePresentation> = {
       "What KIND of request this is, which governed concepts and entities it " +
       "names, and how sure the router was. It contains no figures — only " +
       "ANALYSIS requests reach the engine at all.",
+  },
+  PRIOR_CONTEXT: {
+    label: "Carried from the conversation",
+    icon: History,
+    governed: true,
+    blurb:
+      "What the investigation had already established when this question was " +
+      "asked. Governed, because a reference like \u201cthese\u201d resolves " +
+      "to identities the previous run returned rather than to a re-derivation.",
+  },
+  PLAN_CHANGE: {
+    label: "Change to the previous analysis",
+    icon: GitCompareArrows,
+    governed: true,
+    blurb:
+      "What this turn altered about the analysis before it — a cut, an order, " +
+      "a measure, a filter.",
   },
   GOVERNED_METADATA: {
     label: "Governed catalogue",

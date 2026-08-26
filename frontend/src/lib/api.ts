@@ -717,15 +717,79 @@ export interface Stage {
   label: string;
 }
 
-export interface PlannerMode {
-  /** "model" when a provider key is configured; "offline" when none is. */
-  mode: "offline" | "model";
+/**
+ * The four states an AI provider can be in.
+ *
+ * `configured` is NOT health: it means a key exists and a call can be attempted.
+ * Only `connected` means a real structured response has come back. The product
+ * used to conflate the two, so a key that could not authenticate reported the
+ * product's full intelligence while every question fell through to the offline
+ * reader.
+ */
+export type AiState = "offline" | "configured" | "connected" | "degraded";
+
+export interface AiCall {
+  provider: string;
+  model: string;
+  purpose: string;
+  at: string;
+  latency_ms: number;
+  ok: boolean;
+  request_id: string;
+  structured_valid: boolean;
+  attempts: number;
+  input_tokens: number;
+  output_tokens: number;
+  failure_category: string;
+  failure_detail: string;
+  failure_reason: string;
+  fallback: string;
+}
+
+export interface AiHealth {
+  provider: string;
+  model: string;
   configured: boolean;
-  /** "CreditProbe AI" or "LIMITED OFFLINE MODE". */
+  state: AiState;
+  label: string;
+  live: boolean;
+  counts: { total: number; succeeded: number; failed: number };
+  median_latency_ms: number;
+  consecutive_failures: number;
+  last_success: AiCall | null;
+  last_failure: AiCall | null;
+  recent: AiCall[];
+  detail: string;
+}
+
+export interface BuildInfo {
+  version: string;
+  sha: string;
+  short_sha: string;
+  image_sha: string;
+  image_built_at: string;
+  source_sha: string;
+  source_branch: string;
+  source_committed_at: string;
+  source_dirty: boolean;
+  stale: boolean;
+  stale_detail: string;
+  notes: string[];
+}
+
+export interface PlannerMode {
+  /** "model" once a live response has come back; "degraded" when one cannot. */
+  mode: "offline" | "model" | "degraded";
+  configured: boolean;
+  /** Whether a real structured response has actually been received. */
+  live: boolean;
+  /** "CreditProbe AI", "AI DEGRADED" or "LIMITED OFFLINE MODE". */
   label: string;
   provider: string;
   model_name: string | null;
-  state: "connected" | "no_key" | "error";
+  state: AiState;
+  ai: AiHealth;
+  build: BuildInfo;
   state_label: string;
   description: string;
   /** What is constrained when no model is answering. Empty when one is. */
@@ -737,6 +801,99 @@ export interface PlannerMode {
   latest_period: string | null;
   dimensions: Record<string, number>;
   supported_modifications: { kind: string; label: string; example: string }[];
+}
+
+// ---------------------------------------------------------------- AI checks
+
+export type Verdict = "PASS" | "PARTIAL" | "FAIL";
+export type Band = "HIGH" | "GOOD" | "LIMITED" | "DEGRADED" | "";
+
+export interface ReferenceAnswer {
+  kind: string;
+  values: Record<string, number | string>;
+  ids: string[];
+  rows: Record<string, unknown>[];
+  summary: string;
+  /** The SQL or catalogue read that produced it. Administrators only. */
+  derivation: string;
+  ordered: boolean;
+  error: string;
+}
+
+export interface ValidationTurn {
+  index: number;
+  question: string;
+  answer: string;
+  interpretation: string;
+  status: string;
+  reading: Record<string, unknown>;
+  plan: Record<string, unknown>;
+  sql: string;
+  rows: Record<string, unknown>[];
+  columns: { name: string; label?: string; unit?: string }[];
+  values: Record<string, unknown>;
+  live: boolean;
+  score: number;
+  components: Record<string, number>;
+  deductions: string[];
+  /** Computed AFTER the answer, never before. */
+  reference: ReferenceAnswer | null;
+  expected: string[];
+  error?: string;
+}
+
+export interface ValidationCase {
+  benchmark_id: string;
+  category: string;
+  title: string;
+  score: number;
+  verdict: Verdict;
+  latency_ms: number;
+  used_fallback: boolean;
+  components: Record<string, number>;
+  turns: ValidationTurn[];
+  deductions: string[];
+  reference: ReferenceAnswer | Record<string, never>;
+}
+
+export interface ValidationRun {
+  id: number | null;
+  created_at?: string;
+  score: number;
+  band: Band;
+  tone?: string;
+  label: string;
+  components: Record<string, number>;
+  cases: ValidationCase[];
+  provider: string;
+  model: string;
+  ai_state: AiState;
+  build_sha: string;
+  app_version: string;
+  benchmark_version: string;
+  data_version: string;
+  duration_ms: number;
+  case_count: number;
+  passed: number;
+  partial: number;
+  failed: number;
+  notes: string[];
+  stored?: boolean;
+  stale?: boolean;
+  stale_because?: string[];
+  stale_label?: string;
+}
+
+export interface AiStatus {
+  label: string;
+  tone: string;
+  ai: AiHealth;
+  build: BuildInfo;
+  latest: ValidationRun | null;
+  benchmark_count: number;
+  benchmark_turns: number;
+  history_available: boolean;
+  can_run: boolean;
 }
 
 export interface InvestigationResponse {
@@ -2303,6 +2460,26 @@ export const api = {
   // ---- trace ----
   trace: (runId: number, version?: number) =>
     request<StoredTrace>(`/trace/${runId}${version ? `?version=${version}` : ""}`),
+
+  // ---- AI status and the intelligence check ----
+  aiStatus: () => request<AiStatus>("/ai/status"),
+  runValidation: () =>
+    request<ValidationRun>("/ai/validate", {
+      method: "POST",
+      // Three benchmark threads, each of several turns, every one of them a
+      // real model call and a real governed run.
+      timeoutMs: 300_000,
+    }),
+  latestValidation: () =>
+    request<{ run: ValidationRun | null; message?: string }>("/ai/validation"),
+  validationHistory: (limit = 20) =>
+    request<{ runs: ValidationRun[]; available: boolean }>(
+      `/ai/validation/history?limit=${limit}`,
+    ),
+  validationCase: (runId: number, benchmarkId: string) =>
+    request<ValidationCase>(
+      `/ai/validation/${runId}/${encodeURIComponent(benchmarkId)}`,
+    ),
 
   // ---- ask CreditProbe ----
   askMode: () => request<PlannerMode>("/ask/mode"),
