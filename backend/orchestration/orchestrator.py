@@ -44,6 +44,7 @@ from backend.orchestration import analysis_planner as ap
 from backend.orchestration import capability as cap
 from backend.orchestration import certified as cert
 from backend.orchestration import conversation as cv
+from backend.orchestration import coverage as cov
 from backend.orchestration import (
     entities,
     handlers,
@@ -53,6 +54,7 @@ from backend.orchestration import (
 )
 from backend.orchestration import guardrail as gr
 from backend.orchestration.context import retrieve
+from backend.semantics import ontology
 
 logger = logging.getLogger(__name__)
 
@@ -141,10 +143,22 @@ class Answered:
     runtime: Any = None
     written: interpretation.Interpretation | None = None
     clarification: str = ""
+    #: The governed choice behind a clarification, when the reason CreditProbe
+    #: stopped is that one word means several different figures. Carries the
+    #: options so the user picks rather than rephrases.
+    ambiguity: dict[str, Any] = field(default_factory=dict)
+    #: Set when the governed universe holds nothing about what was asked. A
+    #: distinct outcome from a clarification: there is no menu that would make
+    #: this answerable, and offering one invites the user to accept an answer to
+    #: a different question.
+    unsupported: str = ""
     #: Set when CreditProbe could not answer and is saying so. Never a reason to
     #: answer something else.
     failure: str = ""
     failure_kind: str = ""
+    #: What the governed universe recognised in the request, when it stopped
+    #: because it recognised nothing.
+    coverage: dict[str, Any] = field(default_factory=dict)
     #: Set when a key is configured and the live path could not be used.
     degraded_reason: str = ""
     #: Model calls made for this turn.
@@ -214,6 +228,16 @@ def answer(question: str, *, context: Any = None,
     if unknown:
         answered.clarification = unknown
         return finish(answered)
+
+    # Nothing in the governed universe is about this. Said plainly, and BEFORE
+    # any clarification: a menu of figures invites the user to accept an answer
+    # about exposure to a question about corporate governance.
+    if not continuation.carries_context:
+        held = cov.check(question, reading)
+        if held.out_of_scope:
+            answered.unsupported = held.sentence()
+            answered.coverage = held.to_dict()
+            return finish(answered)
 
     if reading.clarification:
         answered.clarification = reading.clarification
@@ -327,6 +351,22 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
     reading = _with_overrides(reading, period, extra_filters)
     answered.reading = reading
 
+    # One word, several materially different figures. Asked rather than
+    # defaulted: "show me exposure" answered as drawn balance is wrong for an
+    # impairment question and wrong for a concentration question, and it reads
+    # exactly as confidently as the right answer would.
+    ambiguous = _ambiguous_concept(question, reading, state, continuation)
+    if ambiguous is not None:
+        found, choice = ambiguous
+        answered.clarification = choice.question
+        answered.ambiguity = {
+            "concept": found.concept_id,
+            "business_name": found.business_name,
+            "definition": found.definition,
+            **choice.to_dict(),
+        }
+        return answered
+
     try:
         build = ap.plan(reading, context, question=question, period=period,
                         state=state, continuation=continuation)
@@ -362,6 +402,30 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
     if answered.written is not None and answered.written.model:
         answered.calls += 1
     return answered
+
+
+def _ambiguous_concept(question: str, reading: cap.Reading,
+                       state: cv.ConversationState,
+                       continuation: cv.Continuation) -> Any:
+    """A governed concept this request names but does not settle.
+
+    Three things count as settling it, and all three are checked before the
+    user is asked anything:
+
+      * the request itself says which one ("exposure at default");
+      * an explicit filter or metric already names the field; or
+      * the conversation settled it earlier, and this turn is a follow-up.
+
+    A follow-up inherits the choice deliberately. Asking "which exposure?" again
+    on turn four of a thread that has been working in EAD since turn one is not
+    caution, it is amnesia.
+    """
+    if continuation.carries_context and (state.metrics or state.concepts):
+        return None
+
+    settled = " ".join([question, " ".join(reading.metrics),
+                        " ".join(f.get("field", "") for f in reading.filters)])
+    return ontology.ambiguity_for(list(reading.concepts), settled)
 
 
 def _with_overrides(reading: cap.Reading, period: tuple[str, str] | None,

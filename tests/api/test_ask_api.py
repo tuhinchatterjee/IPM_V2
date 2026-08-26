@@ -234,8 +234,9 @@ def test_an_unrecognised_question_gets_a_question_back_not_a_number(client, demo
     nobody asked. A confident answer to the wrong question is worse than no
     answer, because nothing about it looks wrong.
     """
-    body = client.post("/api/v1/ask", json={"question": "Who won the cup final?",
-                                            "persist": False}).json()
+    body = client.post("/api/v1/ask",
+                       json={"question": "How is the book doing?",
+                             "persist": False}).json()
     assert body["status"] == "needs_clarification"
     assert body["steps"] == [], "nothing may be executed for a question not understood"
 
@@ -250,6 +251,55 @@ def test_an_unrecognised_question_gets_a_question_back_not_a_number(client, demo
     for option in clarification["options"]:
         assert option["question"], "every offer must be a question that can be asked"
     assert "registered" not in (clarification["detail"] or "").lower()
+
+
+def test_a_question_about_data_creditprobe_does_not_hold_says_so(client, demo_mode):
+    """A distinct outcome from a clarification, and deliberately so.
+
+    A clarification offers a menu. Offered to somebody asking about cup finals,
+    that menu invites them to pick "exposure at default" and accept a confident
+    answer to a question they did not ask — the exact substitution the whole
+    orchestration layer exists to prevent. There is no menu here, because no
+    choice on it would make the question answerable.
+    """
+    body = client.post("/api/v1/ask", json={"question": "Who won the cup final?",
+                                            "persist": False}).json()
+
+    assert body["status"] == "unsupported"
+    assert body["steps"] == [], "nothing may be executed for a question about nothing held"
+    assert body.get("clarification") is None, "a refusal must not offer a menu"
+
+    answer = body["narrative"]["direct_answer"]
+    assert "no governed data" in answer.lower()
+    assert "published" in answer.lower(), "it must say what it does answer from"
+
+
+def test_a_bare_ambiguous_concept_is_asked_about_not_defaulted(client, demo_mode):
+    """"Exposure" is three different numbers, and the difference is material.
+
+    Drawn balance, EAD and the committed limit are all "exposure" to somebody.
+    Picking the first silently is wrong for two of the three people who could
+    have asked, and reads exactly as confidently as the right answer.
+    """
+    body = client.post("/api/v1/ask", json={"question": "Show me exposure.",
+                                            "persist": False}).json()
+
+    assert body["status"] == "needs_clarification"
+    assert body["steps"] == []
+
+    clarification = body["clarification"]
+    assert "which exposure" in clarification["question"].lower()
+    labels = " ".join(o.get("label", "") for o in clarification["options"]).lower()
+    assert "drawn" in labels and "default" in labels and "limit" in labels
+
+
+def test_naming_the_exposure_measure_answers_without_asking(client, demo_mode):
+    """The clarification must be about ambiguity, not about the word."""
+    body = client.post("/api/v1/ask",
+                       json={"question": "What is total exposure at default by sector?",
+                             "persist": False}).json()
+
+    assert body["status"] == "succeeded", body.get("clarification")
 
 
 def test_an_empty_question_is_rejected_by_the_schema(client):

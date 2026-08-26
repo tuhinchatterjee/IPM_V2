@@ -162,13 +162,30 @@ def test_every_answer_is_either_computed_or_asked(answered):
     for question, result in answered.items():
         if isinstance(result, Exception):
             continue
-        # Four legitimate outcomes and no fifth: a computed answer, a metadata
-        # answer, a certified methodology the request named, or a question back.
-        # A stated failure counts too — what must never happen is silence, and
-        # what must never happen even more is a DIFFERENT question's answer.
+        # The legitimate outcomes, and nothing outside them: a computed
+        # answer, a metadata answer, a certified methodology the request
+        # named, a question back, a plain "CreditProbe does not hold that", or
+        # a stated failure. What must never happen is silence, and what must
+        # never happen even more is a DIFFERENT question's answer.
         assert (result.computed or result.clarification or result.result
-                or result.certified or result.failure), (
+                or result.certified or result.failure or result.unsupported), (
             f"{question!r} produced neither an answer nor a question")
+
+
+def test_a_question_about_data_creditprobe_lacks_is_refused_without_a_menu(answered):
+    """Out of scope is its own outcome, and it never offers a way in.
+
+    "How do I bake sourdough?" reaching a menu of governed figures is an
+    invitation to pick one and be given a confident answer about exposure. The
+    refusal has to be a dead end, because every other shape of it is a route to
+    the wrong answer.
+    """
+    refused = [r for r in answered.values()
+               if not isinstance(r, Exception) and r.unsupported]
+    for result in refused:
+        assert not result.clarification, "a refusal must not also offer a menu"
+        assert result.runtime is None, "nothing may be executed"
+        assert "no governed data" in result.unsupported.lower()
 
 
 def test_a_forbidden_method_never_answers_its_case(answered):

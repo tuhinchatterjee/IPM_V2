@@ -950,7 +950,9 @@ def answer_investigation(question: str, *, user_id: int | None = None,
                                        extra_filters=extra_filters,
                                        use_certified=False)
 
-    if answered.clarification:
+    if answered.unsupported:
+        investigation = _unsupported(question, answered, mode_now, started)
+    elif answered.clarification:
         investigation = _asking(question, answered, mode_now, started)
     elif answered.failure:
         investigation = _controlled_failure(question, answered, mode_now, started)
@@ -1111,6 +1113,57 @@ def _apply_interpretation(investigation: Investigation, answered: Any) -> None:
         investigation.narrative.caveats.append(written.unavailable)
 
 
+def _unsupported(question: str, answered: Any, mode_now: dict[str, Any],
+                 started: float) -> Investigation:
+    """CreditProbe saying it does not hold data about this, and stopping.
+
+    Deliberately not a clarification. A clarification offers a menu, and a menu
+    offered to somebody asking about CEO resignations invites them to accept an
+    answer about exposure instead — which is the substitution this whole layer
+    exists to prevent. There is no menu here, because no choice on it would make
+    the question answerable.
+    """
+    reading = answered.reading
+    coverage = dict(answered.coverage or {})
+
+    plan = AnalysisPlan(
+        question=question, intent=reading.objective or question,
+        scope=Scope(focus=reading.label, output="level"),
+        steps=[], planner=reading.source, model_name=reading.model or None,
+        unmatched=True,
+        notes=["No analysis was composed and no figure was computed: the "
+               "governed data holds nothing about what was asked."],
+    )
+    narrative = build_narrative(question, plan.intent, [], plan=plan)
+    narrative.direct_answer = answered.unsupported
+    narrative.interpretation = ""
+    narrative.caveats = []
+
+    graph = TraceGraph()
+    graph.add_node(TraceNode(id="question", type=NodeType.USER_PROMPT,
+                             label="Question asked",
+                             config={"question": question}))
+    node = graph.add_node(TraceNode(
+        id="coverage", type=NodeType.CAPABILITY,
+        label="Outside the governed data",
+        config={"subject": coverage.get("subject", ""),
+                "recognised": coverage.get("known_terms", []),
+                "not_recognised": coverage.get("unknown_terms", []),
+                "read_by": reading.source,
+                "rule": ("CreditProbe answers only from published, "
+                         "authoritative datasets. Nothing was substituted.")}))
+    node.mark_ok()
+    graph.connect("question", "coverage")
+    graph.compute_hashes()
+
+    return Investigation(
+        question=question, plan=plan, steps=[], narrative=narrative,
+        graph=graph, node_hashes=graph.compute_hashes(),
+        duration_ms=int((time.perf_counter() - started) * 1000),
+        status="unsupported", mode=mode_now,
+    )
+
+
 def _asking(question: str, answered: Any, mode_now: dict[str, Any],
             started: float) -> Investigation:
     """CreditProbe stopping to ask rather than answering.
@@ -1127,8 +1180,9 @@ def _asking(question: str, answered: Any, mode_now: dict[str, Any],
     from backend.orchestration.schema import Clarification
 
     reading = answered.reading
-    typed = _period_clarification(question, answered) or _reading_clarification(
-        question, answered)
+    typed = (_ambiguity_clarification(answered)
+             or _period_clarification(question, answered)
+             or _reading_clarification(question, answered))
 
     scope = Scope(focus=reading.label, output="level",
                   period_requirement=reading.period_requirement,
@@ -1191,6 +1245,53 @@ _OFFER_TEMPLATES: tuple[tuple[str, str, str], ...] = (
      "Show me the ten largest customers by {label}."),
     ("ecl", "How {label} moved", "How has {label} changed over the latest year?"),
 )
+
+
+def _ambiguity_clarification(answered: Any) -> Any:
+    """One word, several governed figures — asked with the figures on offer.
+
+    Distinct from the generic "which figure?" menu, which lists what the
+    composer *can* answer. This lists what the user's own word could have
+    meant, so answering is picking a definition rather than rephrasing a
+    question that was perfectly clear apart from one term.
+    """
+    from backend.orchestration.schema import Clarification
+
+    found = dict(getattr(answered, "ambiguity", None) or {})
+    options = found.get("options") or []
+    if not options:
+        return None
+
+    return Clarification(
+        kind="ambiguity",
+        question=str(found.get("question") or ""),
+        detail=str(found.get("definition") or ""),
+        because=(f"'{found.get('business_name') or found.get('concept')}' is "
+                 f"governed as {len(options)} different measures, and they are "
+                 "materially different amounts."),
+        options=[{"label": o.get("label", ""),
+                  "field": o.get("field", ""),
+                  "detail": o.get("note", ""),
+                  "question": _restated(answered.question, o.get("label", ""))}
+                 for o in options],
+        allow_custom=True,
+    )
+
+
+def _restated(question: str, label: str) -> str:
+    """The user's own question with the ambiguous word replaced by a choice.
+
+    So the option is a question that can be asked rather than a value that has
+    to be posted back through a different endpoint.
+    """
+    import re as _re
+
+    if not label:
+        return question
+    swapped = _re.sub(r"(?i)\bexposures?\b", label.lower(), question, count=1)
+    if swapped != question:
+        return swapped
+    return f"{question.rstrip('.?! ')} — using {label.lower()}."
 
 
 def _reading_clarification(question: str, answered: Any) -> Any:
