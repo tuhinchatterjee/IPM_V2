@@ -710,6 +710,8 @@ export interface Narrative {
   caveats: string[];
   /** Why more than one analysis was needed. Empty when only one ran. */
   why_multiple?: string;
+  /** What the figures cover: population, window, measures. */
+  scope?: string;
 }
 
 export interface Stage {

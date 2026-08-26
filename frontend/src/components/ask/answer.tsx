@@ -259,16 +259,31 @@ export function Interpretation({
   answer,
   points,
   whyMultiple,
+  scope,
 }: {
   answer: string;
   points: string[];
   whyMultiple?: string;
+  /**
+   * What these figures cover: the population, the window, the measures.
+   *
+   * Above the answer rather than below it. A figure computed over five
+   * carried names and read as a portfolio total is wrong by three orders of
+   * magnitude and looks exactly like the right answer; the only thing that
+   * prevents it is seeing the scope before reading the number.
+   */
+  scope?: string;
 }) {
   if (!answer && points.length === 0) return null;
 
   return (
     <section className="max-w-[68ch]">
       <SectionLabel>CreditProbe interpretation</SectionLabel>
+      {scope && (
+        <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.08em] text-text-muted">
+          {scope}
+        </p>
+      )}
       {answer && (
         <p className="prose-ai text-[15px] leading-relaxed text-text-primary">
           {answer}
@@ -282,11 +297,6 @@ export function Interpretation({
       {whyMultiple && (
         <p className="prose-ai mt-2.5 text-xs text-text-muted">{whyMultiple}</p>
       )}
-      <p className="prose-ai mt-2.5 text-[11px] leading-relaxed text-text-muted">
-        Every figure quoted here was produced by a registered analysis. The
-        reading describes what those figures show; it does not claim a cause the
-        engine did not establish.
-      </p>
     </section>
   );
 }
@@ -299,6 +309,12 @@ export function Interpretation({
  * Behind a disclosure rather than always open: "where did this come from" is
  * the first question a committee asks, but it is not the first thing every
  * reader needs on screen. One click, and it is complete.
+ *
+ * Nothing at all for a catalogue lookup. "Which analyses produced this?" is a
+ * question about a portfolio figure; asked of "what fields does the ratings
+ * data have?" it invites a reader to look for an engine run that never
+ * happened and does not need to have happened. Provenance for a metadata
+ * answer is the catalogue, and it is on the Trace.
  */
 export function AnalysesUsed({
   steps,
@@ -307,15 +323,16 @@ export function AnalysesUsed({
   steps: ExecutedStep[];
   returnTo?: { href: string; label: string };
 }) {
-  if (steps.length === 0) return null;
+  const computed = steps.filter((step) => step.certification !== "metadata");
+  if (computed.length === 0) return null;
 
   return (
     <Disclosure
-      summary={`Analyses used (${steps.length})`}
+      summary={`Analyses used (${computed.length})`}
       hint="what produced these figures"
     >
       <Card className="divide-y divide-border">
-        {steps.map((step) => (
+        {computed.map((step) => (
           <div
             key={step.index}
             className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2"
@@ -527,6 +544,7 @@ export function AnswerBlock({
         answer={answer}
         points={reading}
         whyMultiple={narrative.why_multiple}
+        scope={narrative.scope}
       />
 
       {/* ------------------------------------------- 2. THE PRIMARY ANALYSIS */}

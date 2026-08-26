@@ -1089,6 +1089,8 @@ def _record_conversation(investigation: Investigation, answered: Any) -> None:
         "routing": (answered.decision.to_dict()
                     if getattr(answered, "decision", None) is not None
                     else None),
+        "scope": (answered.scope.to_dict()
+                  if getattr(answered, "scope", None) is not None else None),
         "investigation": dict(getattr(answered, "investigation", {}) or {}),
     }
     if answered.degraded_reason:
@@ -1491,6 +1493,7 @@ def _record_invariants(investigation: Investigation, answered: Any) -> None:
     thing they would need to notice.
     """
     _record_routing(investigation, answered)
+    _record_scope(investigation, answered)
 
     report = getattr(answered, "invariants", None)
     if report is None or not report.checks:
@@ -1523,6 +1526,42 @@ def _record_invariants(investigation: Investigation, answered: Any) -> None:
         investigation.node_hashes = graph.compute_hashes()
     except Exception as e:  # noqa: BLE001 - a Trace node must not lose an answer
         logger.warning("Could not record the invariant node: %s", e)
+
+
+def _record_scope(investigation: Investigation, answered: Any) -> None:
+    """The active scope on the answer and on the Trace.
+
+    The line goes on the narrative, not just into a payload nobody opens.
+    "5 customers carried from the previous answer · Q2 2026 · exposure at
+    default" above a table is what stops somebody reading a five-name figure
+    as a portfolio one.
+    """
+    delta = getattr(answered, "scope", None)
+    if delta is None:
+        return
+
+    line = delta.after.line()
+    if line:
+        investigation.narrative.scope = line
+    if delta.widening_note:
+        investigation.narrative.caveats.append(delta.widening_note)
+
+    graph = investigation.graph
+    if graph is None or "intent" not in graph.nodes:
+        return
+    try:
+        node = graph.add_node(TraceNode(
+            id="scope", type=NodeType.PRIOR_CONTEXT,
+            label=f"Scope — {delta.kind.replace('_', ' ').lower()}",
+            config={
+                **delta.to_dict(),
+                "rule": ("Every figure below covers exactly this population, "
+                         "period and set of filters."),
+            }))
+        node.mark_ok()
+        graph.connect("intent", "scope")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Could not record the scope node: %s", e)
 
 
 def _record_routing(investigation: Investigation, answered: Any) -> None:

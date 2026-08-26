@@ -431,6 +431,16 @@ def _finish(question: str, read_back: Reference, action: str,
         presentation=read_back.presentation,
         changes=list(read_back.changes), because=because)
 
+    # "Forget those five and use the whole portfolio" means exactly that. A
+    # reset that carried the population forward would answer a portfolio
+    # question over five names — correct arithmetic, correct-looking table,
+    # wrong by three orders of magnitude, with nothing on screen to say so.
+    if action == cv.RESET_SCOPE:
+        continuation.inherited["scope"] = (
+            "the carried population and its filters were dropped, because the "
+            "question asked for the whole book")
+        return continuation
+
     # The population, when the sentence pointed at one and one exists. A
     # reference with nothing to resolve is left unresolved rather than quietly
     # widened: the caller asks, which is the honest outcome.

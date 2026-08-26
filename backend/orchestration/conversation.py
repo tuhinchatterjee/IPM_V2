@@ -405,6 +405,10 @@ CONTINUING = frozenset(
      METADATA_FOLLOWUP, NAVIGATE, CORRECT_INCOMPLETE_RESPONSE, WIDEN_SCOPE}
     | MODIFICATIONS)
 
+#: RESET_SCOPE is deliberately NOT continuing. It is the one follow-up whose
+#: whole meaning is "stop using what we established", and treating it as a
+#: continuation would inherit the population it exists to discard.
+
 
 def normalise(action: str) -> str:
     """A model's answer mapped onto an action CreditProbe implements.

@@ -58,6 +58,7 @@ from backend.orchestration import guardrail as gr
 from backend.orchestration import invariants as inv
 from backend.orchestration import memory as wm
 from backend.orchestration import routing as rt
+from backend.orchestration import scope as sc
 from backend.orchestration.context import retrieve
 from backend.semantics import ontology
 
@@ -178,6 +179,8 @@ class Answered:
     invariants: Any = None
     #: Which route and model answered this turn.
     decision: Any = None
+    #: What this answer covers, and what this turn did to it.
+    scope: Any = None
     #: Set when a key is configured and the live path could not be used.
     degraded_reason: str = ""
     #: Model calls made for this turn.
@@ -384,6 +387,24 @@ def _roles() -> dict[str, Any]:
     return described
 
 
+def _previous_scope(state: cv.ConversationState) -> sc.ScopeFrame:
+    """The scope the last analytical turn settled on."""
+    if not state or state.empty:
+        return sc.ScopeFrame()
+    return sc.ScopeFrame(
+        entity_key=state.result.entity_key,
+        entity_ids=list(state.result.entity_ids),
+        datasets=list(state.datasets),
+        filters=[{"field": f.get("kind") or f.get("field") or "",
+                  "value": f.get("value") or ""} for f in state.filters],
+        metrics=list(state.metrics or state.concepts),
+        dimension=(state.dimensions[0] if state.dimensions else ""),
+        opening=state.opening_period, closing=state.closing_period,
+        grain=state.grain, top_n=state.top_n,
+        presentation=state.visualization,
+        fingerprint=state.plan_fingerprint)
+
+
 def demo_safe() -> bool:
     """Whether Demo Safe Mode is on.
 
@@ -560,6 +581,14 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
         answered.failure_kind = FAILED_INVARIANT
         answered.failure = answered.invariants.sentence()
         return answered
+
+    # What this answer covers, and how this turn changed it. Recorded whether
+    # or not it changed: a scope that is only mentioned when it moves is a
+    # scope nobody checks when it has not.
+    answered.scope = sc.classify(
+        _previous_scope(state),
+        sc.frame_of(build, continuation, presentation=continuation.presentation),
+        action=continuation.action)
 
     answered.written = interpretation.write(
         question, build.summary, answered.runtime,

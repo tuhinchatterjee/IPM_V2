@@ -90,6 +90,11 @@ class Narrative:
     #: One line saying why more than one analysis ran. Empty when only one did.
     #: Describes the PLAN, not the portfolio, so it introduces no figure.
     why_multiple: str = ""
+    #: What these figures cover: the population, the window, the measures.
+    #: Shown above the table rather than buried in a panel, because a
+    #: five-name figure read as a portfolio one is wrong by three orders of
+    #: magnitude and looks exactly like the right answer.
+    scope: str = ""
     metrics: list[Metric] = field(default_factory=list)
     drivers: list[dict[str, Any]] = field(default_factory=list)
     caveats: list[str] = field(default_factory=list)
@@ -102,6 +107,7 @@ class Narrative:
             "interpretation": self.interpretation,
             "interpretation_points": list(self.interpretation_points),
             "why_multiple": self.why_multiple,
+            "scope": self.scope,
             "metrics": [m.to_dict() for m in self.metrics],
             "drivers": self.drivers,
             "caveats": self.caveats,
