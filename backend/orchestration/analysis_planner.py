@@ -496,10 +496,17 @@ def _dimension(reading: Reading, context: GovernedContext, text: str) -> str:
 
     lowered = text.lower()
     for name in context.dimensions:
-        if re.search(rf"\bby {re.escape(name)}\b|\bper {re.escape(name)}\b"
-                     rf"|\bacross {re.escape(name)}s?\b|\b{re.escape(name)} "
-                     rf"(?:breakdown|split|distribution)\b", lowered):
-            return name
+        # Both spellings. A governed dimension is `ifrs9_stage`; a person
+        # writes "by IFRS 9 stage", and matching only the underscored form
+        # meant "total EAD by IFRS 9 stage" grouped by nothing and reported
+        # the number of distinct stages.
+        for spelling in {name, name.replace("_", " "),
+                         _re.sub(r"(\d)", r" \1 ", name.replace("_", " "))}:
+            written = _re.escape(spelling).replace(r"\ ", r"\s*")
+            if _re.search(rf"\bby {written}\b|\bper {written}\b"
+                          rf"|\bacross {written}s?\b|\b{written} "
+                          rf"(?:breakdown|split|distribution)\b", lowered):
+                return name
     # The dimension named as the thing being ranked: "the five largest SECTORS".
     # Without this the plural noun is read as a grain and the answer comes back
     # as five facilities, which is a different question with a similar shape.

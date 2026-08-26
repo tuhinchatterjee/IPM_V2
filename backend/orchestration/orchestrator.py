@@ -50,6 +50,7 @@ from backend.orchestration import (
     followups,
     handlers,
     interpretation,
+    investigation,
     referents,
     router,
 )
@@ -164,6 +165,8 @@ class Answered:
     #: True when the answer came from what the previous turn produced rather
     #: than from a fresh read of the catalogue or a new analysis.
     from_memory: bool = False
+    #: The probes a broad investigation ran, when this turn was one.
+    investigation: dict[str, Any] = field(default_factory=dict)
     #: Set when a key is configured and the live path could not be used.
     degraded_reason: str = ""
     #: Model calls made for this turn.
@@ -233,6 +236,14 @@ def answer(question: str, *, context: Any = None,
         answered.from_memory = True
         return finish(answered)
 
+    # "Something seems wrong with Contracting. Investigate it." — a request to
+    # look, not to compute one figure. Answered with a bounded set of governed
+    # probes over the named population, each one an ordinary analysis.
+    if investigation.wants_investigation(question):
+        looked = _investigate(answered, question, context)
+        if looked is not None:
+            return finish(looked)
+
     # A reference with nothing behind it. Asked rather than widened: answering
     # "which of these" against the whole book is a confident answer to a
     # question nobody asked.
@@ -292,6 +303,31 @@ def answer(question: str, *, context: Any = None,
 
     return finish(_analyse(answered, question, reading, context, state,
                            continuation, period, extra_filters))
+
+
+def _investigate(answered: Answered, question: str, context: Any) -> Answered | None:
+    """A broad look at a named population, or None to answer it normally.
+
+    Returns None rather than forcing an investigation when the sentence looks
+    like one but names nothing governed, or when every probe came back empty.
+    A half-empty investigation is worse than the clarification it replaced.
+    """
+    request = investigation.read(question, context)
+    if not request.valid:
+        if investigation.wants_investigation(question) and not request.subject:
+            answered.clarification = investigation.clarification(question)
+            return answered
+        return None
+
+    def one(probe: str, **kwargs: Any) -> Answered:
+        return answer(probe, **kwargs)
+
+    result = investigation.run(request, question, answer_one=one)
+    if result is None:
+        return None
+    answered.result = result
+    answered.investigation = request.to_dict()
+    return answered
 
 
 def _unknown_borrower(question: str, context: Any) -> str:
