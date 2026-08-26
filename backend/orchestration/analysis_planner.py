@@ -43,6 +43,12 @@ AGGREGATE = "aggregate"
 RANKING = "ranking"
 COHORT = "cohort"
 MOVEMENT = "movement"
+#: A conditional share of a total, per group, compared across two periods.
+#: Its own shape rather than a movement with extra columns, because the answer
+#: is read completely differently: the figure that matters is the change in the
+#: SHARE, and a narrative built for a movement reports the measure's own total
+#: and says nothing about the ratio the question asked for.
+SHARE_MOVEMENT = "share_movement"
 
 #: How many rows a ranking returns when the question did not say. Ten is what
 #: "the largest" means in a credit review; more is a report, not an answer.
@@ -279,6 +285,20 @@ def plan(reading: Reading, context: GovernedContext, *,
             continuation.inherited["comparison"] = (
                 f"{state.opening_period} → {state.closing_period}")
 
+    # A conditional share compared across two periods. Checked before the
+    # ordinary movement shape, which would report the measure's own total and
+    # quietly drop the "divided by total" the question was actually about.
+    if wants_conditional_share(text) and reading.period_requirement == "two_period":
+        try:
+            build = _conditional_share(reading, context, text, matches, filters,
+                                       dimension, catalogue, period=period)
+            if continuation is not None:
+                build.continuation = continuation
+            return build
+        except CannotPlan as e:
+            logger.info("A conditional share could not be composed (%s); "
+                        "falling back to the ordinary shapes.", e)
+
     if shape == MOVEMENT and not conditions:
         # "How has ECL changed?" wants the movement, not a list of every
         # facility that moved. Reported as the two totals and the change
@@ -504,6 +524,8 @@ def _dimension(reading: Reading, context: GovernedContext, text: str) -> str:
                          _re.sub(r"(\d)", r" \1 ", name.replace("_", " "))}:
             written = _re.escape(spelling).replace(r"\ ", r"\s*")
             if _re.search(rf"\bby {written}\b|\bper {written}\b"
+                          rf"|\bfor (?:each|every) {written}\b"
+                          rf"|\b(?:grouped|broken down) by {written}\b"
                           rf"|\bacross {written}s?\b|\b{written} "
                           rf"(?:breakdown|split|distribution)\b", lowered):
                 return name
@@ -1410,6 +1432,228 @@ def _movement(reading: Reading, context: GovernedContext, text: str,
     }
     return AnalysisBuild(
         plan=plan_doc, shape=MOVEMENT, reading=reading, matches=measures,
+        conditions=[], filters=filters, dataset=dataset,
+        grain=dimension or "portfolio", opening=opening, closing=closing,
+        dimension=dimension, warnings=warnings, summary=summary,
+    )
+
+
+# ------------------------------------------------- conditional share of a total
+
+
+#: A share of a total, asked for in the ways people ask for one.
+_SHARE_OF_TOTAL = _re.compile(
+    r"\bdivided by (?:the )?total\b|\bas a (?:share|proportion|percentage|%)"
+    r"\b|\bshare of (?:the )?total\b|\bproportion of\b|\bratio to total\b"
+    r"|\bover (?:the )?total\b|\bpercent(?:age)? of (?:the )?total\b", _re.I)
+
+
+def wants_conditional_share(text: str) -> bool:
+    return bool(_SHARE_OF_TOTAL.search(text or ""))
+
+
+def _qualifier(text: str, matches: list[cx.ConceptMatch],
+               measure: cx.ConceptMatch) -> tuple[str, Any, str] | None:
+    """The condition that narrows the numerator — "Stage 2" in Stage 2 EAD.
+
+    Read from a governed concept with a value beside it, so the numerator is a
+    field and a value the catalogue recognises rather than a phrase.
+    """
+    lowered = (text or "").lower()
+    for match in matches:
+        if match is measure or match.field == measure.field:
+            continue
+        phrase = match.phrase.lower()
+        # The value is usually inside the phrase the concept reader matched —
+        # "Stage 2" is one match, not a concept and a number beside it.
+        inside = _re.search(r"(\d+(?:\.\d+)?)", phrase)
+        found = inside or _re.search(
+            rf"{_re.escape(phrase)}\s*(?:=|is|of)?\s*(\d+(?:\.\d+)?)",
+            lowered)
+        if found is None:
+            found = _re.search(
+                rf"(\d+(?:\.\d+)?)\s*{_re.escape(phrase)}", lowered)
+        if found is None:
+            continue
+        raw = found.group(1)
+        value: Any = float(raw) if "." in raw else int(raw)
+        return match.field, value, f"{match.concept.label} {raw}"
+    return None
+
+
+def _conditional_share(reading: Reading, context: GovernedContext, text: str,
+                       matches: list[cx.ConceptMatch],
+                       filters: list[tuple[str, str]], dimension: str,
+                       catalogue: Any, *,
+                       period: tuple[str, str] | None) -> AnalysisBuild:
+    """A conditional share, per group, compared across two periods.
+
+    "For each sector, Stage 2 EAD divided by total sector EAD, compared with
+    four quarters ago, ranked by the largest increase."
+
+    Computed in ONE pass rather than as four queries stitched together. The
+    numerator and the denominator have to be taken over the same rows, and
+    every extra pass is another chance to filter one side and not the other —
+    an error that produces a share nobody can reconcile rather than a failure
+    anybody notices.
+
+        opening_qualified = SUM(measure) WHERE period = opening AND qualifier
+        opening_total     = SUM(measure) WHERE period = opening
+        opening_share     = opening_qualified / opening_total
+        ... the same at closing ...
+        change_pp         = closing_share - opening_share
+    """
+    measure = next((m for m in matches if not m.concept.is_ordinal
+                    and not m.concept.is_categorical), None)
+    if measure is None:
+        raise CannotPlan("A share needs a measure to take a share of.")
+
+    qualifier = _qualifier(text, matches, measure)
+    if qualifier is None:
+        raise CannotPlan("A conditional share needs a condition on the "
+                         "numerator.")
+    field, value, label = qualifier
+
+    dataset = measure.dataset
+    fields_of = {d.name: set(d.fields) for d in catalogue.all()}
+    available = fields_of.get(dataset, set())
+    if field not in available:
+        # The qualifier lives elsewhere. Prefer a dataset that carries both,
+        # so the share needs no join and cannot be miscounted by one.
+        both = [name for name, fields in fields_of.items()
+                if {measure.field, field} <= fields
+                and (not dimension or dimension in fields)]
+        if not both:
+            raise CannotPlan(
+                f"No governed dataset carries both {measure.field} and "
+                f"{field}, so this share cannot be computed without a join "
+                "that would change what it means.")
+        dataset = both[0]
+        available = fields_of[dataset]
+
+    if period:
+        opening, closing, assumed = period[0], period[1], False
+    else:
+        opening, closing, _why, assumed = _two_periods(reading, context, text)
+
+    if dimension and dimension not in available:
+        dimension = ""
+    # The qualifier is the NUMERATOR's condition, not the population's. Leaving
+    # it in the general filters restricted the denominator too, and every
+    # sector came back at exactly 100% — a share that is its own total.
+    filters = [(f, v) for f, v in filters if f in available and f != field]
+
+    read_fields = sorted({"period", field, measure.field,
+                          *[f for f, _ in filters],
+                          *([dimension] if dimension else [])} & available)
+    operations: list[dict[str, Any]] = [{
+        "id": "source", "op": "SCAN",
+        "params": {"dataset": dataset, "fields": read_fields, "alias": dataset},
+        "label": f"Read {dataset}",
+    }]
+    where = [{"column": "period", "op": "in", "value": [opening, closing]}]
+    where += [{"column": f, "op": "=", "value": v} for f, v in filters]
+    operations.append({
+        "id": "scoped", "op": "FILTER", "inputs": ["source"],
+        "params": {"where": where},
+        "label": f"Keep {opening} and {closing}",
+    })
+
+    def conditional(name: str, at: str, qualified: bool) -> dict[str, Any]:
+        clauses = [{"column": "period", "op": "=", "value": at}]
+        if qualified:
+            clauses.append({"column": field, "op": "=", "value": value})
+        return {"function": "sum_where", "column": measure.field,
+                "as": name, "where": clauses}
+
+    if not dimension:
+        raise CannotPlan(
+            "A share by group needs a group to break it down by.",
+            clarification=("Which breakdown should CreditProbe use for that "
+                           "share — sector, region or segment?"))
+
+    operations.append({
+        "id": "shares", "op": "GROUP", "inputs": ["scoped"],
+        "params": {
+            "by": [dimension],
+            "aggregates": [
+                conditional("opening_qualified", opening, True),
+                conditional("opening_total", opening, False),
+                conditional("closing_qualified", closing, True),
+                conditional("closing_total", closing, False),
+            ]},
+        "label": (f"{label} and total {measure.concept.label} at each date"
+                  + (f", by {dimension}" if dimension else "")),
+    })
+    def share_of(numerator: str, denominator: str) -> dict[str, Any]:
+        """numerator / NULLIF(denominator, 0) * 100, as a governed expression.
+
+        Guarded rather than divided plainly: a sector with no exposure at the
+        opening date has no share, and an unguarded division would put a
+        division-by-zero error — or an infinity that sorts to the top — in
+        front of a credit officer as a finding.
+        """
+        return {"type": "function", "function": "multiply", "args": [
+            {"type": "function", "function": "divide", "args": [
+                numerator,
+                {"type": "function", "function": "nullif",
+                 "args": [denominator, {"type": "literal", "value": 0}]},
+            ]},
+            {"type": "literal", "value": 100},
+        ]}
+
+    operations.append({
+        "id": "derived", "op": "DERIVE", "inputs": ["shares"],
+        "params": {"columns": [
+            {"as": "opening_share_pct",
+             "expression": share_of("opening_qualified", "opening_total")},
+            {"as": "closing_share_pct",
+             "expression": share_of("closing_qualified", "closing_total")},
+        ]},
+        "label": f"{label} as a percentage of the total, at each date",
+    })
+    operations.append({
+        "id": "change", "op": "DERIVE", "inputs": ["derived"],
+        "params": {"columns": [
+            {"as": "change_pp",
+             "expression": {"type": "function", "function": "subtract",
+                            "args": ["closing_share_pct",
+                                     "opening_share_pct"]}},
+        ]},
+        "label": "The change in the share, in percentage points",
+    })
+    operations.append({
+        "id": "result", "op": "SORT", "inputs": ["change"],
+        "params": {"by": [{"column": "change_pp", "direction": "desc"}]},
+        "label": "Largest increase in the share first",
+    })
+
+    summary = (f"{label} as a share of total {measure.concept.label}"
+               + (f", by {dimension}" if dimension else "")
+               + f", between {opening} and {closing}, ranked by the largest "
+               "increase.")
+    warnings: list[str] = []
+    if assumed:
+        warnings.append(
+            "The question did not say what to compare against, so CreditProbe "
+            f"compared {opening} with {closing}.")
+
+    plan_doc = {
+        "id": "dynamic_share_movement",
+        "operations": operations,
+        "meta": {
+            "kind": "dynamic_share_movement",
+            "grain": dimension or "portfolio",
+            "opening_period": opening, "closing_period": closing,
+            "dataset": dataset, "datasets": [dataset], "dimension": dimension,
+            "concepts": [measure.to_dict()],
+            "numerator": {"field": field, "value": value, "label": label},
+            "filters": [{"field": f, "value": v} for f, v in filters],
+            "conditions": [], "explanation": summary,
+        },
+    }
+    return AnalysisBuild(
+        plan=plan_doc, shape=SHARE_MOVEMENT, reading=reading, matches=[measure],
         conditions=[], filters=filters, dataset=dataset,
         grain=dimension or "portfolio", opening=opening, closing=closing,
         dimension=dimension, warnings=warnings, summary=summary,

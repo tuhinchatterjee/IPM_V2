@@ -180,7 +180,8 @@ def from_analysis(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
         focus=build.summary or reading.objective,
         dimension=build.dimension or None,
         output={"aggregate": "distribution", "ranking": "ranking",
-                "cohort": "ranking", "movement": "movement"}[build.shape],
+                "cohort": "ranking", "movement": "movement",
+            "share_movement": "ranking"}[build.shape],
         period_requirement=("two_period" if build.shape in
                             (ap.COHORT, ap.MOVEMENT) else "point_in_time"),
         period_specified=bool(reading.periods),
@@ -271,6 +272,7 @@ def _title(build: ap.AnalysisBuild) -> str:
         ap.RANKING: "Ranked from the governed book",
         ap.COHORT: "Composed across several governed sources",
         ap.MOVEMENT: "Measured between two reporting periods",
+        ap.SHARE_MOVEMENT: "A share of a total, at two reporting periods",
     }[build.shape]
 
 
@@ -437,6 +439,31 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                     tone="neutral",
                     evidence=[{"label": "share of " + scope,
                                "value": round(covered, 1), "unit": "%"}]))
+    elif build.shape == ap.SHARE_MOVEMENT:
+        numerator = dict((build.plan.get("meta") or {}).get("numerator") or {})
+        moved = [r for r in rows if r.get("change_pp") is not None]
+        top = max(moved, key=lambda r: float(r["change_pp"])) if moved else {}
+        direct = (
+            f"{numerator.get('label', 'The qualifying')} exposure as a share of "
+            f"total {label}, by {build.dimension}, between {build.opening} and "
+            f"{build.closing}."
+            + (f" {top.get(build.dimension)} rose most, from "
+               f"{float(top['opening_share_pct']):.1f}% to "
+               f"{float(top['closing_share_pct']):.1f}% — "
+               f"{float(top['change_pp']):+.2f} percentage points."
+               if top else ""))
+        if top:
+            metrics.append(Metric(
+                label=f"Largest increase — {top.get(build.dimension)}",
+                value=round(float(top["change_pp"]), 2), unit="pp",
+                direction="up-is-bad"))
+            findings.append(Finding(
+                text=(f"{top.get(build.dimension)} moved from "
+                      f"{float(top['opening_share_pct']):.1f}% to "
+                      f"{float(top['closing_share_pct']):.1f}%."),
+                tone="warning" if float(top["change_pp"]) > 0 else "neutral",
+                evidence=[{"label": "change", "unit": "pp",
+                           "value": round(float(top["change_pp"]), 2)}]))
     elif build.shape == ap.MOVEMENT and not build.conditions:
         column = measure.field if measure else ""
         opening_total = float(values.get("opening_total") or 0.0)
@@ -581,6 +608,11 @@ def _interpretation(build: ap.AnalysisBuild, runtime: Any, count: int) -> str:
                     "would return a population.")
         return "Nothing in the governed data matched."
 
+    if build.shape == ap.SHARE_MOVEMENT:
+        return ("The numerator and the denominator are taken over the same rows "
+                "in one pass, so the share cannot be built from two "
+                "differently filtered populations. The change is in percentage "
+                "points of the share, not a percentage change of it.")
     if build.shape == ap.MOVEMENT and not build.conditions:
         return ("Both figures are totals across the same population at the two "
                 "dates, so the change is a movement in the book rather than a "

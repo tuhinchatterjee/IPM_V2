@@ -675,6 +675,23 @@ class Compiler:
             inner = f"QUANTILE_CONT({quoted}, {self.bind(q)})"
         elif function == "any_value":
             inner = f"ANY_VALUE({quoted})"
+        elif function in ("sum_where", "count_where"):
+            # A conditional aggregate — "Stage 2 EAD" is SUM(ead) over the rows
+            # where the stage is 2, beside SUM(ead) over all of them. Without
+            # it a share like that has to be two queries stitched together
+            # outside the runtime, which is two chances to filter one side and
+            # not the other.
+            predicate = entry.get("where") or entry.get("when")
+            if not predicate:
+                raise PlanError(
+                    f"A '{function}' aggregate needs a `where` saying which "
+                    "rows it counts.")
+            clauses = predicate if isinstance(predicate, list) else [predicate]
+            condition = " AND ".join(f"({self._predicate(c)})" for c in clauses)
+            counted = quoted if function == "sum_where" else "1"
+            if function == "sum_where" and not quoted:
+                raise PlanError("A 'sum_where' aggregate needs a column.")
+            inner = f"SUM(CASE WHEN {condition} THEN {counted} ELSE 0 END)"
         else:
             sql_function = {
                 "sum": "SUM", "avg": "AVG", "min": "MIN", "max": "MAX",

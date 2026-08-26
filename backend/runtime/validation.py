@@ -765,8 +765,18 @@ def _aggregates(op: Operation, source: StepSchema, limits: Limits) -> dict[str, 
                 f"{', '.join(sorted(AGG_FUNCTIONS))}."
             )
         column = entry.get("column") or entry.get("field")
-        if function != "count" and not column:
+        if function not in ("count", "count_where") and not column:
             raise PlanError(f"{op.id}: '{function}' needs a column.")
+        if function in ("sum_where", "count_where"):
+            predicate = entry.get("where") or entry.get("when")
+            clauses = predicate if isinstance(predicate, list) else [predicate]
+            if not clauses or not all(isinstance(c, dict) and c.get("column")
+                                      for c in clauses):
+                raise PlanError(
+                    f"{op.id}: a '{function}' aggregate needs a `where` with a "
+                    "column, saying which rows it counts.")
+            for clause in clauses:
+                _column(op, str(clause["column"]), source)
         if column:
             _column(op, str(column), source)
         if function == "weighted_avg":

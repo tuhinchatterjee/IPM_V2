@@ -171,6 +171,12 @@ AGG_FUNCTIONS = frozenset({
     "sum", "avg", "min", "max", "count", "count_distinct", "median",
     "stddev", "variance", "first", "last", "any_value",
     "weighted_avg", "quantile",
+    # Conditional aggregates. "Stage 2 EAD as a share of total EAD" needs the
+    # numerator and the denominator computed over the SAME rows in one pass;
+    # done as two queries stitched together outside the runtime it is two
+    # chances to filter one side and not the other, and the error shows up as
+    # a share nobody can reconcile rather than as a failure.
+    "sum_where", "count_where",
 })
 
 #: Window functions.
