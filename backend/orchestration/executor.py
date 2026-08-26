@@ -1210,6 +1210,15 @@ def _asking(question: str, answered: Any, mode_now: dict[str, Any],
                "computed."],
     )
     narrative = build_narrative(question, plan.intent, [], plan=plan)
+    # Nothing ran, so the default "the analyses ran but returned no figures"
+    # is not merely unhelpful, it is untrue — and it sends a user looking for a
+    # data problem when the product is waiting for an answer from them.
+    narrative.direct_answer = str(
+        (typed.question if typed else "") or answered.clarification
+        or "CreditProbe needs one more thing before it can answer that.")
+    narrative.summary = narrative.direct_answer
+    narrative.interpretation = ""
+
     graph = TraceGraph()
     graph.add_node(TraceNode(id="question", type=NodeType.USER_PROMPT,
                              label="Question asked",
