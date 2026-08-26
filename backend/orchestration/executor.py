@@ -1493,6 +1493,22 @@ def _stated_failure(question: str, reason: str,
     )
 
 
+def _record_corrections(investigation: Investigation, answered: Any) -> None:
+    """Say so when the question answered is not quite the question typed.
+
+    A silent correction is a good answer to a question the user did not ask.
+    Shown as a caveat rather than buried on the Trace, because the one person
+    who can tell whether `Estste` meant `estate` is the person who typed it.
+    """
+    changes = list(getattr(answered, "corrections", None) or [])
+    if not changes:
+        return
+    pairs = ", ".join(f"\u2018{was}\u2019 as \u2018{now}\u2019"
+                      for was, now in changes)
+    investigation.narrative.caveats.append(
+        f"CreditProbe read {pairs}. Rephrase if that is not what you meant.")
+
+
 def _record_invariants(investigation: Investigation, answered: Any) -> None:
     """Put what was checked on the Trace, whether or not anything failed.
 
@@ -1504,6 +1520,7 @@ def _record_invariants(investigation: Investigation, answered: Any) -> None:
     _record_routing(investigation, answered)
     _record_scope(investigation, answered)
     _record_evidence(investigation, answered)
+    _record_corrections(investigation, answered)
 
     report = getattr(answered, "invariants", None)
     if report is None or not report.checks:

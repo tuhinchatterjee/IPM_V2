@@ -239,6 +239,59 @@ def _normalise(text: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9]+", " ", str(text).lower()).split())
 
 
+#: A reporting period as people write one. Matched against the question so a
+#: period the data does NOT have can be told apart from no period at all.
+#:
+#: `(pattern, exact)` — `exact` means the whole phrase has to be a period the
+#: data holds; otherwise it is enough that the data covers the year.
+_PERIOD_SHAPED: tuple[tuple[re.Pattern[str], bool], ...] = (
+    (re.compile(r"\bq[1-4]\s+(\d{4})\b", re.I), True),
+    (re.compile(r"\b(?:fy|cy)\s*(\d{4})\b", re.I), False),
+    (re.compile(r"\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|"
+                r"jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|"
+                r"oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{4})\b",
+     re.I), False),
+    (re.compile(r"\b(?:in|during|for)\s+(\d{4})\b", re.I), False),
+)
+
+
+def unavailable(question: str, periods: list[str]) -> str:
+    """A period the question names outright that the data does not hold.
+
+    The failure this prevents
+    -------------------------
+        "What was total exposure at default in Q1 2015?"
+
+    came back as a confident portfolio figure — for Q2 2026. The period reader
+    matches against the periods that EXIST, so one that does not exist did not
+    register as a period at all, and the request fell through to the governed
+    default as though no date had been mentioned. A credit officer reading a
+    2015 question above a 2026 answer has nothing on the screen to tell them
+    which quarter they are looking at.
+
+    Returns the period as the question wrote it, or "" when everything it names
+    is available. It never proposes a near miss: offering Q1 2023 to somebody
+    who asked for Q1 2015 invites them to accept a different question.
+    """
+    if not periods:
+        return ""
+    known = {_normalise(p) for p in periods}
+    years = {p.strip()[-4:] for p in periods}
+
+    for pattern, exact in _PERIOD_SHAPED:
+        for match in pattern.finditer(str(question or "")):
+            if match.group(1) in years and not exact:
+                continue
+            if exact and _normalise(match.group(0)) in known:
+                continue
+            if exact and match.group(1) not in years:
+                return match.group(0).strip()
+            if exact:
+                return match.group(0).strip()
+            return match.group(1)
+    return ""
+
+
 def read_period_intent(question: str, periods: list[str]) -> PeriodIntent:
     """Work out whether the question already settled the comparison period."""
     if not periods:
@@ -320,6 +373,7 @@ def governed_default(periods: list[str]) -> PeriodIntent:
 
 
 __all__ = [
+    "unavailable",
     "DEFAULT_SPAN",
     "Frequency",
     "PeriodChoice",

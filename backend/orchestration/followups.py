@@ -18,6 +18,11 @@ computed.
 **MODIFY_PRESENTATION** — "show it as a graph." Handled by the executor, which
 has the previous run; this module only recognises it.
 
+**CORRECT_INCOMPLETE_RESPONSE** — "you didn't answer my second question." The
+complaint names no figure. The orchestrator substitutes the clause of the
+earlier request that one result could not have covered, and it arrives here as
+an ordinary follow-up about the same field set.
+
 Why they are here rather than in `handlers`
 -------------------------------------------
 `handlers` answers a *capability* — a question about the catalogue, read fresh.
@@ -272,7 +277,8 @@ def answer(question: str, action: str, memory: wm.WorkingMemory,
         if action == cv.NAVIGATE:
             return _navigate(question, memory, context)
 
-        if action in (cv.METADATA_FOLLOWUP, cv.CONTINUE, cv.NEW_REQUEST):
+        if action in (cv.METADATA_FOLLOWUP, cv.CONTINUE, cv.NEW_REQUEST,
+                      cv.CORRECT_INCOMPLETE_RESPONSE):
             if memory.result.result_type == wm.FIELD_SET:
                 found = _classify_fields(question, memory.result)
                 if found is not None:

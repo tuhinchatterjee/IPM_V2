@@ -690,7 +690,8 @@ def method_discovery(question: str, reading: cap.Reading,
                     "figure directly."),
             graph=_graph(question, reading, consulted="Analysis Studio",
                          detail={"count": 0}))
-    rows = [{"id": m.id, "name": m.name, "category": m.category,
+    rows = [{"id": m.id, "name": m.name,
+             "category": getattr(m.category, "value", m.category),
              "certified": "yes" if m.is_certified else "no",
              "definition": m.definition, "when_to_use": m.when_to_use}
             for m in methods]

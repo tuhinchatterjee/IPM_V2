@@ -53,6 +53,7 @@ from backend.orchestration import (
     investigation,
     referents,
     router,
+    spelling,
 )
 from backend.orchestration import guardrail as gr
 from backend.orchestration import invariants as inv
@@ -173,6 +174,14 @@ class Answered:
     #: True when the answer came from what the previous turn produced rather
     #: than from a fresh read of the catalogue or a new analysis.
     from_memory: bool = False
+    #: The clause of an earlier request this turn actually answered, when the
+    #: user asked for a correction rather than asking a question. Shown, so the
+    #: answer says which of their questions it went back to.
+    restated: str = ""
+    #: The question as CreditProbe read it, when a typo was corrected before
+    #: reading, and the words it changed. Empty when it read what was typed.
+    read_as: str = ""
+    corrections: list[tuple[str, str]] = field(default_factory=list)
     #: The probes a broad investigation ran, when this turn was one.
     investigation: dict[str, Any] = field(default_factory=dict)
     #: What was checked about the result, and what did not hold.
@@ -219,6 +228,17 @@ def answer(question: str, *, context: Any = None,
     state = state or cv.ConversationState()
     memory = memory or wm.WorkingMemory()
 
+    # One adjacent-key slip used to cost the whole answer: the reader matches
+    # concepts and dimension values by pattern, so `Real Estste` does not
+    # degrade the reading, it removes it, and the user gets a menu of concepts
+    # in reply to a question that named one. Corrected against the bank's own
+    # vocabulary, conservatively, and reported.
+    #
+    # `asked` is what CreditProbe reads. `question` stays the user's own words,
+    # because the answer is shown under the sentence they typed.
+    fixed = spelling.normalise(question)
+    original, question = question, fixed.text
+
     # The retrieval is widened by what the conversation is already about, so a
     # follow-up naming no dataset still gets the ones the thread is working in.
     context = context or retrieve(
@@ -244,10 +264,12 @@ def answer(question: str, *, context: Any = None,
         memory=memory)
 
     answered = Answered(
-        question=question, reading=reading, verdict=read.verdict,
+        question=original, reading=reading, verdict=read.verdict,
         continuation=continuation, calls=read.calls,
         decision=read.decision or decision,
-        degraded_reason=read.degraded_reason)
+        degraded_reason=read.degraded_reason,
+        read_as=fixed.text if fixed.changes else "",
+        corrections=list(fixed.changes))
 
     # A follow-up about what the last turn produced, answered from it. Checked
     # before the dangling-referent guard, because "those" pointing at a field
@@ -256,7 +278,19 @@ def answer(question: str, *, context: Any = None,
         target.duration_ms = int((time.perf_counter() - started) * 1000)
         return target
 
-    from_memory = followups.answer(question, continuation.action, memory, context)
+    # "You didn't answer my second question." The complaint itself names no
+    # figure, so reading it literally produces a menu of concepts — which is
+    # what used to happen. What the user is pointing at is the clause of their
+    # PREVIOUS request that one result could not cover, and that clause is in
+    # memory. It is re-asked here, verbatim, against the same context.
+    asked = question
+    if continuation.action == cv.CORRECT_INCOMPLETE_RESPONSE:
+        left_out = _outstanding_clause(memory)
+        if left_out:
+            asked = left_out
+            answered.restated = left_out
+
+    from_memory = followups.answer(asked, continuation.action, memory, context)
     if from_memory is not None:
         answered.result = from_memory
         answered.from_memory = True
@@ -267,7 +301,7 @@ def answer(question: str, *, context: Any = None,
     # look, not to compute one figure. Answered with a bounded set of governed
     # probes over the named population, each one an ordinary analysis.
     if investigation.wants_investigation(question):
-        looked = _investigate(answered, question, context)
+        looked = _investigate(answered, question, context, memory)
         if looked is not None:
             return finish(looked)
 
@@ -282,6 +316,11 @@ def answer(question: str, *, context: Any = None,
     unknown = _unknown_borrower(question, context)
     if unknown:
         answered.clarification = unknown
+        return finish(answered)
+
+    missing = _unavailable_period(question)
+    if missing:
+        answered.clarification = missing
         return finish(answered)
 
     # Nothing in the governed universe is about this. Said plainly, and BEFORE
@@ -427,7 +466,8 @@ def demo_safe() -> bool:
         "1", "true", "yes", "on"}
 
 
-def _investigate(answered: Answered, question: str, context: Any) -> Answered | None:
+def _investigate(answered: Answered, question: str, context: Any,
+                 memory: Any = None) -> Answered | None:
     """A broad look at a named population, or None to answer it normally.
 
     Returns None rather than forcing an investigation when the sentence looks
@@ -436,10 +476,21 @@ def _investigate(answered: Answered, question: str, context: Any) -> Answered | 
     """
     request = investigation.read(question, context)
     if not request.valid:
-        if investigation.wants_investigation(question) and not request.subject:
-            answered.clarification = investigation.clarification(question)
-            return answered
-        return None
+        # "Investigate those." after a ranking. The sentence names no sector
+        # because it does not need to — the population is the rows on screen,
+        # and the whole point of typed memory is that it is still there. Only
+        # a referent with NOTHING behind it is a clarification.
+        carried = _carried_subject(memory)
+        if carried:
+            request = investigation.read(
+                question.replace("those", carried).replace("them", carried),
+                context)
+        if not request.valid:
+            if investigation.wants_investigation(question) \
+                    and not request.subject:
+                answered.clarification = investigation.clarification(question)
+                return answered
+            return None
 
     def one(probe: str, **kwargs: Any) -> Answered:
         return answer(probe, **kwargs)
@@ -450,6 +501,25 @@ def _investigate(answered: Answered, question: str, context: Any) -> Answered | 
     answered.result = result
     answered.investigation = request.to_dict()
     return answered
+
+
+def _carried_subject(memory: Any) -> str:
+    """The population the thread is already about, for a bare "those".
+
+    The remembered SUBJECT rather than the member ids: an investigation runs
+    governed probes over a dimension value, and "the five customer ids from the
+    last table" is not a dimension value. Empty when the thread has no subject,
+    which is the case that has to stay a clarification.
+    """
+    if memory is None or getattr(memory, "empty", True):
+        return ""
+    for value, _ in ((getattr(memory, "current_subject", ""), 0),):
+        text = str(value or "").strip()
+        # Only a real dimension value. A subject like "borrower_financials" is
+        # a dataset the thread looked at, not a population to investigate.
+        if text and " " not in text[:1] and "_" not in text:
+            return text
+    return ""
 
 
 def _unknown_borrower(question: str, context: Any) -> str:
@@ -607,6 +677,43 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
     if answered.written is not None and answered.written.model:
         answered.calls += 1
     return answered
+
+
+def _unavailable_period(question: str) -> str:
+    """Ask rather than answer when the question names a period nobody holds.
+
+    Falling through to the governed default put a Q2 2026 figure under a Q1
+    2015 question with nothing on the screen to say so — the most quietly wrong
+    answer the product can give, because every number in it is correct.
+    """
+    try:
+        from backend.orchestration import periods as pd
+        from backend.orchestration.vocabulary import get_vocabulary
+
+        available = sorted(get_vocabulary().to_dict().get("periods") or [])
+        named = pd.unavailable(question, available)
+        if not named:
+            return ""
+        return (
+            f"CreditProbe holds no data for {named}. The governed history runs "
+            f"from {available[0]} to {available[-1]}. Name a period inside that "
+            "range and it will compose the analysis.")
+    except Exception as e:  # noqa: BLE001
+        logger.debug("Could not check the periods a question names: %s", e)
+        return ""
+
+
+def _outstanding_clause(memory: Any) -> str:
+    """The part of the previous request that one answer could not have covered.
+
+    Empty when there is nothing on record, in which case the correction is
+    handled the ordinary way — the user is told what CreditProbe understood and
+    asked which part it missed, rather than being given a guess.
+    """
+    if memory is None:
+        return ""
+    left = [c for c in (getattr(memory, "outstanding", None) or []) if c.strip()]
+    return left[0].strip() if left else ""
 
 
 def _ambiguous_concept(question: str, reading: cap.Reading,

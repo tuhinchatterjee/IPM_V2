@@ -510,6 +510,15 @@ _SIGNALS: tuple[_Signal, ...] = (
             r"\bhow (?:do you|does creditprobe|is)\b.{0,40}\bcalculat", 8),
     _Signal(Capability.METHOD_EXPLANATION,
             r"\bwhat methodology\b|\bhow does the\b.{0,30}\bmethod\b", 7),
+    # "How does sector concentration work?" is a question about the method,
+    # not a request to run it. Without this it read as an analysis, found no
+    # measure, and answered a methodology question with a menu of concepts.
+    _Signal(Capability.METHOD_EXPLANATION,
+            r"\bhow (?:does|do)\b.{0,40}\bwork\b"
+            r"|\bexplain (?:the |how )?\b.{0,30}"
+            r"(?:method|analysis|calculation|concentration|migration)\b"
+            r"|\bwhat (?:is|are) the (?:method|methodology|approach|logic)\b",
+            7),
     _Signal(Capability.METHOD_CREATION,
             r"\b(?:create|build|make|define) (?:a |an )?(?:new )?method\b", 8),
 

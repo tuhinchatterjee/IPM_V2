@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -245,14 +245,49 @@ def _number(value: Any) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _resolve(check: Check, columns: set[str]) -> Check:
+    """The same check, against the names the result actually used.
+
+    A condition is compiled from the governed field — `headroom_pct` — while
+    the runtime emits it qualified by the dataset it came from,
+    `covenant_tests_headroom_pct`. Left unresolved, the check was quietly
+    skipped, which meant the one invariant written to catch "16.17% under a
+    heading that says below 15%" would not have caught it.
+
+    Only an UNAMBIGUOUS suffix match is accepted. Two columns ending in the
+    same field name means the check cannot tell which one the claim was about,
+    and guessing between them is how a check starts verifying the wrong number.
+    """
+    mapping: dict[str, str] = {}
+    for wanted in check.columns:
+        if not wanted or wanted in columns:
+            continue
+        matches = [c for c in columns if c.endswith(f"_{wanted}")]
+        # A movement condition is about the change, not the closing level, so a
+        # `closing_` alias never stands in for the column that was asked about.
+        matches = [c for c in matches if not c.startswith("closing_")] or matches
+        if len(matches) == 1:
+            mapping[wanted] = matches[0]
+
+    if not mapping:
+        return check
+    params = {k: mapping.get(v, v) if isinstance(v, str) else v
+              for k, v in check.params.items()}
+    return replace(check,
+                   columns=tuple(mapping.get(c, c) for c in check.columns),
+                   params=params)
+
+
 def verify(checks: list[Check], runtime: Any) -> Report:
     """Test every check against the rows the runtime actually returned."""
-    report = Report(checks=list(checks))
     rows = list(getattr(runtime, "rows", []) or [])
     columns = {str(c.get("name") if isinstance(c, dict) else getattr(c, "name", c))
                for c in (getattr(runtime, "columns", []) or [])}
 
-    for check in checks:
+    resolved = [_resolve(check, columns) for check in checks]
+    report = Report(checks=resolved)
+
+    for check in resolved:
         missing = [c for c in check.columns if c and c not in columns]
         if missing:
             report.skipped.append(
@@ -430,10 +465,53 @@ _HANDLERS: dict[str, Any] = {
 }
 
 
+def _from_result(runtime: Any) -> list[Check]:
+    """Checks the RESULT earns, whatever the plan intended.
+
+    A share is bounds-checked because it is on the screen, not because the plan
+    declared itself a share analysis. "What is total EAD by sector?" returns a
+    percentage-of-book column alongside the amount, and gating that only on the
+    `share_movement` shape left the one number a credit officer reads off the
+    table as the one number nothing verified.
+
+    Derived from the column names the runtime actually produced, so a new plan
+    shape that emits a share inherits the check without being taught to.
+    """
+    checks: list[Check] = []
+    columns = [str(c.get("name") if isinstance(c, dict) else getattr(c, "name", c))
+               for c in (getattr(runtime, "columns", []) or [])]
+    known = set(columns)
+
+    shares = [c for c in columns if c == "share_pct" or c.endswith("_share_pct")]
+    if shares:
+        checks.append(Check(
+            rule="share_bounds",
+            claim="a share lies between 0 and 100%",
+            columns=tuple(shares),
+            params={"minimum": 0.0, "maximum": 100.0}))
+
+    # `ead` beside `ead_population` is a part and its whole. The part cannot
+    # exceed it, and a join that fanned out is exactly how it would.
+    for column in columns:
+        whole = f"{column}_population"
+        if whole in known:
+            checks.append(Check(
+                rule="numerator_within_denominator",
+                claim=f"{_readable(column)} cannot exceed the population it is "
+                      "measured against",
+                columns=(column, whole),
+                params={"numerator": column, "denominator": whole}))
+    return checks
+
+
 def check_result(build: Any, runtime: Any, question: str = "") -> Report:
     """Compile and run every invariant this answer promised."""
     try:
-        return verify(compile_checks(build, question), runtime)
+        checks = compile_checks(build, question)
+        seen = {(c.rule, c.columns) for c in checks}
+        checks.extend(c for c in _from_result(runtime)
+                      if (c.rule, c.columns) not in seen)
+        return verify(checks, runtime)
     except Exception as e:  # noqa: BLE001
         logger.warning("Invariants could not be compiled: %s", e)
         return Report()

@@ -81,7 +81,11 @@ _MODIFY: tuple[tuple[str, str, str], ...] = (
      "narrow the previous result"),
     (r"^\s*only\s+(?:show|include|keep)?\b", cv.MODIFY_PREVIOUS,
      "narrow the previous result"),
-    (r"^\s*just\s+(?:show|the)\b", cv.MODIFY_PREVIOUS, "narrow the previous result"),
+    # "Just Healthcare." narrows exactly as "Only Contracting." does. The
+    # trailing group is optional for the same reason it is on `only`: people
+    # write the bare noun far more often than "just show the".
+    (r"^\s*just\s+(?:show|include|keep|the)?\b", cv.MODIFY_PREVIOUS,
+     "narrow the previous result"),
     (r"\bnarrow (?:it |this |that )?(?:down )?to\b", cv.MODIFY_PREVIOUS,
      "narrow the previous result"),
     (r"\brestrict (?:it |this |that )?to\b", cv.MODIFY_PREVIOUS,
@@ -468,6 +472,24 @@ def _finish(question: str, read_back: Reference, action: str,
     return continuation
 
 
+def _self_referential(question: str, population: str) -> bool:
+    """Whether the reference points at an earlier clause of the SAME question.
+
+        "What columns are in the ratings data, and which of them are ratios?"
+
+    "of them" is the columns the first half asks for. There is no previous
+    turn and there does not need to be one, and asking "what does 'of them'
+    refer to?" about a sentence that says so is the kind of question that makes
+    a product feel like it is not listening.
+    """
+    from backend.orchestration import memory as wm
+
+    parts = wm.objectives(question)
+    if len(parts) < 2:
+        return False
+    return any(population.lower() in part.lower() for part in parts[1:])
+
+
 def unresolved(question: str, state: cv.ConversationState) -> str:
     """The clarification to ask when a sentence referred to nothing.
 
@@ -476,6 +498,8 @@ def unresolved(question: str, state: cv.ConversationState) -> str:
     """
     read_back = read(question)
     if not read_back.population or state.result.has_population:
+        return ""
+    if _self_referential(question, read_back.population):
         return ""
     return (
         f"CreditProbe could not work out what {read_back.population!r} refers "

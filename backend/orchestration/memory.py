@@ -40,6 +40,7 @@ answer assembled from remembered numbers is not a governed figure any more.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -415,6 +416,45 @@ def observe(memory: WorkingMemory, answered: Any, run: Any = None) -> WorkingMem
         return memory
 
 
+#: Where a compound question joins its second objective to its first.
+#:
+#: Deliberately narrow: the second clause has to START with an interrogative,
+#: so "total EAD and ECL by sector" is one objective with two measures while
+#: "what fields are in the ratings data, and which of them are ratios?" is two
+#: objectives. Splitting on a bare "and" would turn every multi-measure request
+#: into a half-answered one.
+_OBJECTIVE_SPLIT = re.compile(
+    r",?\s+(?:and|&)\s+(?=(?:which|what|who|whose|whom|when|where|why|how)\b)",
+    re.I)
+
+
+def objectives(question: str) -> list[str]:
+    """The separate things a compound question asks for, in order.
+
+    One entry for an ordinary question. Two or more when the sentence asks a
+    second question that a single result cannot answer.
+    """
+    text = str(question or "").strip()
+    if not text:
+        return []
+    parts = [p.strip(" ,.?!") for p in _OBJECTIVE_SPLIT.split(text)]
+    return [p for p in parts if len(p.split()) >= 2] or [text.strip(" ,.?!")]
+
+
+def _outstanding(question: str) -> list[str]:
+    """The objectives beyond the first, which one answer cannot have covered.
+
+    Recorded optimistically: a handler returns one result, so at most one
+    objective was answered, and the trailing clauses are the candidates for
+    "you didn't answer my second question". A false positive costs nothing —
+    the only things that read this slot are a routing signal and the
+    correction path, and both do the right thing with a clause that was in
+    fact already answered.
+    """
+    parts = objectives(question)
+    return parts[1:] if len(parts) > 1 else []
+
+
 def _observe(memory: WorkingMemory, answered: Any,
              run: Any) -> WorkingMemory:
 
@@ -437,6 +477,7 @@ def _observe(memory: WorkingMemory, answered: Any,
     else:
         return memory
 
+    memory.outstanding = _outstanding(getattr(answered, "question", ""))
     memory.remember(
         subject=reference.origin or _subject_of(reading),
         subject_type=_subject_type(intent, reference),

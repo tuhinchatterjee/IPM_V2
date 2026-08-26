@@ -186,6 +186,22 @@ def _universe() -> _Universe:
         logger.debug("Catalogue unavailable to the coverage check: %s", e)
 
     try:
+        # An approved Analysis Studio method is part of the governed universe
+        # too. "What methods do you have for concentration?" names nothing in
+        # the data dictionary, but concentration is a method the bank has
+        # certified, and refusing it would be CreditProbe denying it holds its
+        # own method library.
+        from backend.orchestration.context import all_methods
+
+        for method in all_methods():
+            add(method.id.replace("_", " "))
+            add(method.name)
+            add(method.category)
+            add(" ".join(method.aliases or ()))
+    except Exception as e:  # noqa: BLE001
+        logger.debug("Method library unavailable to the coverage check: %s", e)
+
+    try:
         from backend.orchestration.vocabulary import get_vocabulary
 
         vocab = get_vocabulary()

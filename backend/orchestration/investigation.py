@@ -58,7 +58,17 @@ _INVESTIGATE = (
     r"\bwhy (?:is|are) .{0,40}(?:deteriorat|worsen|struggl|weak)",
     r"\breview\b.{0,30}\b(?:sector|portfolio|book|segment|region)\b",
     r"\btell me about\b",
-    r"\bwhat should I (?:know|worry) about\b",
+    # Lower case deliberately: `wants_investigation` lowers the question before
+    # matching, so a capital I here never matched anything at all.
+    r"\bwhat should i (?:know|worry) about\b",
+    r"\bwhat(?:'s| is) (?:worrying|concerning|the concern)\b",
+    r"\bany(?:thing) (?:concerns?|worries|red flags)\b",
+    # "What has deteriorated?" names no measure, and it is not a request for
+    # one — it is a request to go and look, across the measures that describe
+    # deterioration. Answered with the probes rather than a menu of concepts.
+    r"\bwhat (?:has|have|is|are) (?:\w+ ){0,2}"
+    r"(?:deteriorat|worsen|declin|weaken|slipp|got worse)",
+    r"\bwhere (?:is|are) (?:the |we )?(?:risk|trouble|weakness|problems?)\b",
 )
 
 
@@ -98,22 +108,46 @@ def wants_investigation(question: str) -> bool:
     return any(re.search(pattern, text) for pattern in _INVESTIGATE)
 
 
+#: The whole portfolio, as a population an investigation can run over.
+WHOLE_BOOK = "the whole book"
+
+#: A pronoun standing in for a population the sentence never named.
+_DANGLING = re.compile(
+    r"\b(?:investigate|look into|dig into|review|examine)\s+"
+    r"(?:it|this|that|them|those|these)\b", re.I)
+
+
 def read(question: str, context: Any) -> Request:
     """The population to investigate, and the probes to run over it.
 
-    Returns an empty Request when the sentence asks to investigate but names no
-    governed population. That is a clarification, not an investigation of the
-    whole book: "investigate it" with no antecedent is a question about what
-    "it" is.
+    Two different sentences name no sector, and they do not mean the same
+    thing:
+
+        "Investigate it."            — a pronoun with no antecedent. What
+                                       "it" is, is the question, and guessing
+                                       the whole book answers something nobody
+                                       asked. Returns empty, so the caller
+                                       asks.
+
+        "What has deteriorated over the latest year?"
+                                     — no referent at all, and no gap. The
+                                       population IS the book; it is the
+                                       question a CRO asks first thing on a
+                                       Monday, and replying with a menu of
+                                       governed concepts is the product
+                                       refusing to do its job.
     """
     if not wants_investigation(question):
         return Request()
 
     subject, kind = _population(question, context)
-    if not subject:
+    if subject:
+        return Request(subject=subject, subject_kind=kind,
+                       probes=_probes(subject, kind, context))
+    if _DANGLING.search(question or ""):
         return Request()
-    return Request(subject=subject, subject_kind=kind,
-                   probes=_probes(subject, kind, context))
+    return Request(subject=WHOLE_BOOK, subject_kind="portfolio",
+                   probes=_probes("", "portfolio", context))
 
 
 def _population(question: str, context: Any) -> tuple[str, str]:
@@ -143,7 +177,8 @@ def _probes(subject: str, kind: str, context: Any) -> list[Probe]:
     """
     from backend.semantics import ontology
 
-    del kind
+    portfolio = kind == "portfolio"
+    shapes = _PORTFOLIO_SHAPE if portfolio else _SHAPE
     available = _computable(context)
     out: list[Probe] = []
     for concept_id in _PRIORITY:
@@ -154,10 +189,14 @@ def _probes(subject: str, kind: str, context: Any) -> list[Probe]:
             continue
         direction = ("a rise is deterioration" if contract.higher_is_worse
                      else "a fall is deterioration")
-        shape = _SHAPE.get(concept_id, "")
-        question = (shape.format(subject=subject) if shape else
-                    f"How has {contract.business_name.lower()} moved in "
-                    f"{subject} over the latest year?")
+        shape = shapes.get(concept_id, "")
+        if shape:
+            question = shape if portfolio else shape.format(subject=subject)
+        else:
+            question = (
+                f"How has {contract.business_name.lower()} moved "
+                + ("" if portfolio else f"in {subject} ")
+                + "over the latest year?")
         out.append(Probe(
             concept_id=concept_id, label=contract.business_name,
             question=question,
@@ -172,8 +211,10 @@ def _probes(subject: str, kind: str, context: Any) -> list[Probe]:
         out.append(Probe(
             concept_id="worst",
             label="Largest deteriorating borrowers",
-            question=(f"Which {subject} customers had a rating downgrade and "
-                      "an increase in ECL over the latest year?"),
+            question=("Which "
+                      + ("" if portfolio else f"{subject} ")
+                      + "customers had a rating downgrade and an increase in "
+                        "ECL over the latest year?"),
             because=("A sector total says how much moved; this says who, which "
                      "is what a review acts on.")))
     return out[:MAX_PROBES + 1]
@@ -194,6 +235,19 @@ _SHAPE: dict[str, str] = {
     "headroom": "Which {subject} customers have covenant headroom below 15%?",
     "utilisation": "How has limit utilisation moved in {subject} over the "
                    "latest year?",
+}
+
+#: The same probes over the whole portfolio. Written separately rather than
+#: formatted with "the whole book", because "How many the whole book customers
+#: were downgraded" is the sort of sentence that costs a demo.
+_PORTFOLIO_SHAPE: dict[str, str] = {
+    "ead": "How has exposure at default moved over the latest year?",
+    "ecl": "How has expected credit loss moved over the latest year?",
+    "stage": "What is total exposure at default by IFRS 9 stage?",
+    "rating": "How many customers were downgraded over the latest year?",
+    "dpd": "How many customers had days past due rise over the latest year?",
+    "headroom": "Which customers have covenant headroom below 15%?",
+    "utilisation": "How has limit utilisation moved over the latest year?",
 }
 
 
@@ -337,5 +391,6 @@ def clarification(question: str) -> str:
         "latest year and report what moved.")
 
 
-__all__ = ["MAX_PROBES", "Probe", "Request", "clarification", "read", "run",
+__all__ = [
+    "WHOLE_BOOK","MAX_PROBES", "Probe", "Request", "clarification", "read", "run",
            "wants_investigation"]

@@ -905,10 +905,26 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     filter_fields = [f for f, _ in filters if f in available]
     dropped = sorted({f for f, _ in filters if f not in available})
     if dropped:
-        warnings.append(
-            f"{base} does not carry {', '.join(dropped)}, so that filter "
-            "could not be applied here.")
-        filters = [(f, v) for f, v in filters if f in available]
+        # A filter that cannot be applied is not a caveat, it is a different
+        # question. "Total ECL for Watch customers" dropped the rating bucket
+        # and returned the ECL of the entire book — every figure correct, the
+        # population wrong, and nothing in the headline to say so. The warning
+        # under the table was read by nobody, which is the point.
+        #
+        # So CreditProbe stops. An abstention is a slower conversation; the
+        # alternative is a number in a credit paper that answers a question
+        # nobody asked.
+        wanted = ", ".join(v for f, v in filters if f in dropped) or \
+            ", ".join(d.replace("_", " ") for d in dropped)
+        raise CannotPlan(
+            f"{base} does not carry {', '.join(dropped)}.",
+            clarification=(
+                f"CreditProbe cannot restrict this answer to {wanted}: the "
+                f"governed data behind it ({base}) does not carry "
+                f"{', '.join(d.replace('_', ' ') for d in dropped)}, and no "
+                "active relationship brings it in. Ask for the figure without "
+                "that restriction, or ask a data steward to relate the two "
+                "datasets in Data Builder."))
 
     # A breakdown the base does not carry may still be reachable. "For each
     # rating grade, show average ECL coverage" is anchored on the impairment
@@ -1081,6 +1097,21 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
         if "borrower_name" not in read_fields:
             operations[0]["params"]["fields"] = sorted(
                 set(read_fields) | {"borrower_name"})
+
+    # A filter the result cannot show is a filter nothing can check. "The five
+    # largest Real Estate customers" filtered on sector and then aggregated the
+    # sector away, so the invariant that tests the heading against the rows was
+    # skipped for want of a column — on exactly the claim it exists to prove.
+    #
+    # `any_value` is exact here rather than arbitrary: every row inside the
+    # group satisfied the equality before the aggregation ran, so they all
+    # carry the same value.
+    carried = {a["as"] for a in aggregates} | set(group_by)
+    for field_name in filter_fields:
+        if field_name not in carried and field_name in available:
+            aggregates.append({"function": "any_value", "column": field_name,
+                               "as": field_name})
+            carried.add(field_name)
 
     if group_by:
         operations.append({
