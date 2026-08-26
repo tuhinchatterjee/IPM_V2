@@ -1494,6 +1494,7 @@ def _record_invariants(investigation: Investigation, answered: Any) -> None:
     """
     _record_routing(investigation, answered)
     _record_scope(investigation, answered)
+    _record_evidence(investigation, answered)
 
     report = getattr(answered, "invariants", None)
     if report is None or not report.checks:
@@ -1526,6 +1527,42 @@ def _record_invariants(investigation: Investigation, answered: Any) -> None:
         investigation.node_hashes = graph.compute_hashes()
     except Exception as e:  # noqa: BLE001 - a Trace node must not lose an answer
         logger.warning("Could not record the invariant node: %s", e)
+
+
+def _record_evidence(investigation: Investigation, answered: Any) -> None:
+    """The boundary the written interpretation had to stay inside.
+
+    On the Trace whether the prose was kept or discarded. A reader asking
+    "could it have said that?" is answered by the package rather than by
+    trusting that something checked.
+    """
+    written = getattr(answered, "written", None)
+    graph = investigation.graph
+    if written is None or graph is None or "interpretation" not in graph.nodes:
+        return
+    package = dict(getattr(written, "evidence", {}) or {})
+    grounding = dict(getattr(written, "grounding", {}) or {})
+    if not package and not grounding:
+        return
+    try:
+        node = graph.add_node(TraceNode(
+            id="evidence", type=NodeType.RECONCILIATION,
+            label=(f"{package.get('fact_count', 0)} facts the answer could "
+                   "quote" if package else "Interpretation withheld"),
+            config={
+                "package": package,
+                "grounding": grounding,
+                "rule": ("The written interpretation may assert only what "
+                         "this result establishes. Prose that asserts more is "
+                         "discarded rather than annotated."),
+            }))
+        if grounding:
+            node.mark_failed("; ".join(grounding.get("problems") or []))
+        else:
+            node.mark_ok()
+        graph.connect("interpretation", "evidence")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Could not record the evidence node: %s", e)
 
 
 def _record_scope(investigation: Investigation, answered: Any) -> None:

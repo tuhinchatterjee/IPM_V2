@@ -119,6 +119,11 @@ class Interpretation:
     #: Figures the model wrote that the result does not carry. Non-empty means
     #: the interpretation was discarded.
     ungrounded: list[str] = field(default_factory=list)
+    #: Everything that failed grounding, when the prose was discarded.
+    grounding: dict[str, Any] = field(default_factory=dict)
+    #: What the result supported, when it was not. Shown on the Trace so a
+    #: reader can see the boundary the prose was written inside.
+    evidence: dict[str, Any] = field(default_factory=dict)
 
     @property
     def live(self) -> bool:
@@ -134,6 +139,8 @@ class Interpretation:
             "request_id": self.request_id,
             "live": self.live, "unavailable": self.unavailable,
             "ungrounded": list(self.ungrounded),
+            "grounding": dict(self.grounding),
+            "evidence": dict(self.evidence),
         }
 
 
@@ -204,7 +211,8 @@ def _prompt(question: str, summary: str, result: dict[str, Any], *,
 
 
 def write(question: str, summary: str, runtime: Any, *,
-          plan_note: str = "") -> Interpretation:
+          plan_note: str = "", build: Any = None,
+          model: str = "") -> Interpretation:
     """A live reading of the result, or a stated reason there is not one."""
     provider = get_provider()
     if not provider.configured:
@@ -222,7 +230,7 @@ def write(question: str, summary: str, runtime: Any, *,
             schema=SCHEMA, tool_name=TOOL_NAME,
             tool_description=("Write the interpretation of this result. Call "
                               "this exactly once."),
-            max_tokens=900, purpose="interpretation")
+            max_tokens=900, purpose="interpretation", model=model)
     except LLMError as e:
         from backend.llm import telemetry
 
@@ -237,18 +245,23 @@ def write(question: str, summary: str, runtime: Any, *,
                         "interpretation, so the reading below was assembled "
                         "from the result.")
 
-    return _checked(answer, runtime, result)
+    return _checked(answer, runtime, result, build)
 
 
-def _checked(answer: Any, runtime: Any,
-             result: dict[str, Any]) -> Interpretation:
-    """Every figure in the prose, checked against the result that produced it.
+def _checked(answer: Any, runtime: Any, result: dict[str, Any],
+             build: Any = None) -> Interpretation:
+    """Everything the prose asserts, checked against what the result supports.
 
-    Discarding rather than annotating is the whole point. An interpretation with
-    one invented number, shown with a warning above it, is still an
-    interpretation a reader will quote.
+    Not only the figures. A borrower named who is not in the result, a period
+    the analysis never read, a condition the rows contradict and a cause
+    nothing established all pass a numeric check and are all wrong — so the
+    prose is checked against an evidence package rather than a list of numbers.
+
+    Discarding rather than annotating is the whole point. An interpretation
+    with one invented sentence, shown under a warning, is still an
+    interpretation somebody will paste into a credit paper.
     """
-    from backend.orchestration import assembly
+    from backend.orchestration import evidence
 
     data = answer.data or {}
     written = Interpretation(
@@ -260,22 +273,28 @@ def _checked(answer: Any, runtime: Any,
         request_id=getattr(answer, "request_id", ""),
     )
 
-    allowed = assembly.grounded_values(runtime, result.get("values"))
-    loose: list[str] = []
+    package = evidence.build(runtime, build, result.get("values"))
+    failures: list[Any] = []
     for text in (written.headline, written.interpretation, *written.notable):
-        loose.extend(assembly.ungrounded(text, allowed))
+        grounding = evidence.check(text, package)
+        if not grounding.ok:
+            failures.append(grounding)
 
-    if loose:
-        logger.error("Discarding a live interpretation carrying ungrounded "
-                     "figure(s): %s", sorted(set(loose))[:6])
+    if failures:
+        merged = evidence.Grounding(ok=False)
+        for grounding in failures:
+            merged.ungrounded_figures.extend(grounding.ungrounded_figures)
+            merged.unknown_entities.extend(grounding.unknown_entities)
+            merged.wrong_periods.extend(grounding.wrong_periods)
+            merged.causal_claims.extend(grounding.causal_claims)
+        logger.error("Discarding a live interpretation: %s", merged.problems)
         return Interpretation(
-            ungrounded=sorted(set(loose)),
-            unavailable=(
-                "The written interpretation was discarded: it contained "
-                f"{'a figure' if len(set(loose)) == 1 else 'figures'} the "
-                "computed result does not carry. The reading below was "
-                "assembled directly from the result instead."),
+            ungrounded=sorted(set(merged.ungrounded_figures)),
+            grounding=merged.to_dict(),
+            unavailable=evidence.withheld(merged),
             model=answer.model, duration_ms=answer.duration_ms)
+
+    written.evidence = package.to_dict()
     return written
 
 

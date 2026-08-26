@@ -121,7 +121,7 @@ def test_every_map_node_belongs_to_a_step_or_the_interpretive_frame(investigatio
     # from the answer's shape.
     frame = {"question", "intent", "plan", "narrative", "visual",
              "mathematical_query", "interpretation", "invariants", "routing",
-             "scope"}
+             "scope", "evidence"}
     for node_id in investigation.graph.nodes:
         if node_id in frame:
             continue

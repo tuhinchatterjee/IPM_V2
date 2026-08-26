@@ -387,6 +387,16 @@ def _roles() -> dict[str, Any]:
     return described
 
 
+def _role_model(name: str) -> str:
+    """The model configured for one job, or empty for the shared default."""
+    from backend.llm import roles
+
+    try:
+        return roles.role(name).model
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def _previous_scope(state: cv.ConversationState) -> sc.ScopeFrame:
     """The scope the last analytical turn settled on."""
     if not state or state.empty:
@@ -591,8 +601,9 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
         action=continuation.action)
 
     answered.written = interpretation.write(
-        question, build.summary, answered.runtime,
-        plan_note=_plan_note(build, continuation))
+        question, build.summary, answered.runtime, build=build,
+        plan_note=_plan_note(build, continuation),
+        model=_role_model("interpretation"))
     if answered.written is not None and answered.written.model:
         answered.calls += 1
     return answered
