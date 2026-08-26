@@ -113,6 +113,13 @@ _ENRICH: tuple[tuple[str, str], ...] = (
 #: A follow-up that continues the subject without referring to the population —
 #: "Now show each one's percentage of total portfolio EAD."
 _CONTINUE: tuple[str, ...] = (
+    # "Which also had an increase in ECL?" is "which of those also…" with the
+    # referent left out, which is how people actually talk. Without this it
+    # read as a fresh question and answered about the whole book — the exact
+    # silent widening the population memory exists to prevent.
+    r"^\s*(?:and\s+)?which\s+(?:of\s+\w+\s+)?also\b",
+    r"^\s*(?:and\s+)?(?:how\s+many|who)\s+(?:of\s+\w+\s+)?also\b",
+    r"^\s*(?:and\s+)?do any (?:of them|of those|of these)\b",
     r"^\s*now\b", r"^\s*and\b", r"^\s*what about\b", r"^\s*how about\b",
     r"^\s*break (?:that|this|it|them)\b", r"\bbreak (?:that|this|it) down\b",
     r"^\s*split (?:that|this|it)\b", r"^\s*group (?:that|this|it)\b",
@@ -434,12 +441,14 @@ def _finish(question: str, read_back: Reference, action: str,
         continuation.inherited["population"] = (
             f"{len(continuation.entity_ids)} {state.result.entity_key} "
             f"from the previous result")
-    elif action in (cv.ENRICH_PREVIOUS, *cv.MODIFICATIONS) \
+    elif action in (cv.CONTINUE, cv.ENRICH_PREVIOUS, *cv.MODIFICATIONS) \
             and state.result.has_population:
-        # "Add their latest internal rating" and "show me the ten largest" name
-        # no referent but plainly mean the rows that are on screen. A
-        # modification that silently widened back to the whole book would be the
-        # same failure as losing a referent, arriving by a different route.
+        # "Add their latest internal rating", "show me the ten largest" and
+        # "which also had an increase in ECL?" name no referent but plainly
+        # mean the rows that are on screen. A continuation that silently
+        # widened back to the whole book would be the same failure as losing a
+        # referent, arriving by a different route — and it is worse, because
+        # the answer looks like a bigger version of the right one.
         continuation.entity_key = state.result.entity_key
         continuation.entity_ids = list(state.result.entity_ids)
         continuation.entity_labels = dict(state.result.entity_labels)

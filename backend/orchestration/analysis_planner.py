@@ -532,6 +532,10 @@ def _rollup_for(match: cx.ConceptMatch) -> str:
 
 
 #: The grain each identity column implies. The inverse of `_grain_key`.
+#: Keys that identify a real counterparty, as opposed to a grouping dimension.
+#: A borrower name belongs beside one of these and nowhere else.
+_ENTITY_KEYS = frozenset({"customer_id", "borrower_id", "account_id"})
+
 _GRAIN_OF_KEY: dict[str, str] = {"customer_id": "customer",
                                  "account_id": "facility",
                                  "sector": "sector"}
@@ -927,7 +931,12 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     # The readable name belongs on a row that IS a borrower. Carrying it onto a
     # row that is a sector picks one name arbitrarily out of hundreds, which
     # looks like a finding and is not one.
-    if key and key in group_by and "borrower_name" in available:
+    #
+    # The guard used to be "the key is in the grouping", which is true of a
+    # ranking OF SECTORS too — `key` is then `sector`. So a five-row sector
+    # ranking carried a Borrower column naming one arbitrary company per
+    # sector, in a table where the borrower means nothing at all.
+    if key in _ENTITY_KEYS and key in group_by and "borrower_name" in available:
         aggregates.append({"function": "any_value", "column": "borrower_name",
                            "as": "borrower_name"})
         if "borrower_name" not in read_fields:
