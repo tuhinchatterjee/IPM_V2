@@ -43,6 +43,18 @@ export function ResultView({
   run: AnalysisRunResponse;
   compact?: boolean;
 }) {
+  // The frame lives on the charts themselves, so a result renders its body
+  // and every chart inside it brings its own palette.
+  return <ResultBody run={run} compact={compact} />;
+}
+
+function ResultBody({
+  run,
+  compact = false,
+}: {
+  run: AnalysisRunResponse;
+  compact?: boolean;
+}) {
   const result = run.result;
   if (!result) return null;
   const { rows, values, units } = result;

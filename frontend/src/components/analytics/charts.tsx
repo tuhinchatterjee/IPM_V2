@@ -18,6 +18,11 @@ import {
 } from "recharts";
 
 import { byUnit, humanise } from "@/lib/format";
+import {
+  CHART_SLOTS as SLOTS,
+  ChartFrame,
+  PaletteControl,
+} from "@/components/analytics/chart-palette";
 import { cn } from "@/lib/utils";
 
 /**
@@ -42,11 +47,48 @@ import { cn } from "@/lib/utils";
  * theme switch repaints every chart with no chart-level code involved.
  */
 
-export const CHART_SLOTS = 8;
+export { CHART_SLOTS } from "@/components/analytics/chart-palette";
+
+/**
+ * Every chart is wrapped so it carries its own palette and its own control.
+ *
+ * The control belongs to the chart, not to whatever is rendering it. Putting it
+ * in the result view covered analyses and missed the ten charts on the CRO
+ * Lens, which is exactly the kind of gap that makes a control feel unreliable.
+ *
+ * It is invisible until the chart is hovered or focused. Ten visible palette
+ * rows on one page is clutter in a product whose first principle is that
+ * decoration comes last; ten that appear under your cursor are a tool.
+ */
+function Framed({
+  children,
+  className,
+  height,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  height: number;
+}) {
+  return (
+    <ChartFrame className={cn("group/chart", className)} showControl={false}>
+      <div className="w-full" style={{ height }}>
+        {children}
+      </div>
+      <div
+        className={cn(
+          "opacity-0 transition-opacity duration-[--duration-quick]",
+          "group-hover/chart:opacity-100 focus-within:opacity-100",
+        )}
+      >
+        <PaletteControl />
+      </div>
+    </ChartFrame>
+  );
+}
 
 /** Fixed-order slot colour. Never call this with an index derived from rank. */
 export function slotColor(index: number): string {
-  return `var(--ipm-chart-${(index % CHART_SLOTS) + 1})`;
+  return `var(--ipm-chart-${(index % SLOTS) + 1})`;
 }
 
 const AXIS = { fill: "var(--ipm-text-muted)", fontSize: 11 };
@@ -131,7 +173,7 @@ export function TrendChart({
 }: BaseProps & { area?: boolean }) {
   const Chart = area ? AreaChart : LineChart;
   return (
-    <div className={cn("w-full", className)} style={{ height }}>
+    <Framed className={className} height={height}>
       <ResponsiveContainer width="100%" height="100%">
         <Chart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -8 }}>
           <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
@@ -171,7 +213,7 @@ export function TrendChart({
           )}
         </Chart>
       </ResponsiveContainer>
-    </div>
+    </Framed>
   );
 }
 
@@ -186,7 +228,7 @@ export function CategoryBarChart({
   horizontal = true,
 }: BaseProps & { horizontal?: boolean }) {
   return (
-    <div className={cn("w-full", className)} style={{ height }}>
+    <Framed className={className} height={height}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={data}
@@ -231,7 +273,7 @@ export function CategoryBarChart({
           ))}
         </BarChart>
       </ResponsiveContainer>
-    </div>
+    </Framed>
   );
 }
 
@@ -246,7 +288,7 @@ export function StackedBarChart({
   horizontal = false,
 }: BaseProps & { horizontal?: boolean }) {
   return (
-    <div className={cn("w-full", className)} style={{ height }}>
+    <Framed className={className} height={height}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={data}
@@ -285,7 +327,7 @@ export function StackedBarChart({
           ))}
         </BarChart>
       </ResponsiveContainer>
-    </div>
+    </Framed>
   );
 }
 
@@ -306,7 +348,7 @@ export function DivergingBarChart({
   className?: string;
 }) {
   return (
-    <div className={cn("w-full", className)} style={{ height }}>
+    <Framed className={className} height={height}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} layout="vertical" margin={{ top: 4, right: 24, bottom: 0, left: 8 }}>
           <CartesianGrid stroke={GRID} horizontal={false} />
@@ -329,7 +371,7 @@ export function DivergingBarChart({
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-    </div>
+    </Framed>
   );
 }
 
