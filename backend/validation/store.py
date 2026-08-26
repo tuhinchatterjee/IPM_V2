@@ -189,10 +189,13 @@ def staleness(row: Any) -> dict[str, Any]:
     if str(row.data_version or "") != current_data:
         changed.append("the published data has changed")
 
+    # The stale label keeps the run's own honesty. A check that never reached
+    # the model was labelled AI OFFLINE; going stale must not promote it to
+    # AI POWERED on its way out.
     return {
         "stale": bool(changed),
         "stale_because": changed,
-        "stale_label": "AI POWERED · STALE" if changed else "",
+        "stale_label": f"{_label(row.band)} · STALE" if changed else "",
     }
 
 

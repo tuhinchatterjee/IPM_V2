@@ -53,7 +53,7 @@ def ai_status() -> dict:
         tone = _tone(str(latest.get("band") or ""),
                      float(latest.get("score") or 0))
     elif latest:
-        label = "AI POWERED · STALE"
+        label = str(latest.get("stale_label") or "AI POWERED · STALE")
         tone = "neutral"
     else:
         label = "AI POWERED"

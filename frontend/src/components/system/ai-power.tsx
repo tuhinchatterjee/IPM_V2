@@ -279,7 +279,7 @@ function RunSummary({
               graded(run) ? toneOf(run.score) : "text-text-secondary",
             )}
           >
-            {stale ? "AI POWERED · STALE" : run.label}
+            {stale ? run.stale_label || `${run.label} · STALE` : run.label}
           </p>
           <p className="mt-0.5 text-[12px] text-text-muted">
             {[

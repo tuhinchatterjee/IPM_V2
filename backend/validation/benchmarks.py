@@ -735,8 +735,18 @@ def by_family(family: str) -> list[dict[str, Any]]:
     return [c for c in CASES if c["category"] in categories]
 
 
+def family_of(case_id: str) -> str:
+    """Which of the three families a case belongs to, or "" if it is unknown."""
+    category = (BY_ID.get(case_id) or {}).get("category")
+    for family, categories in FAMILIES.items():
+        if category in categories:
+            return family
+    return ""
+
+
 def turn_count() -> int:
     return sum(len(c["turns"]) for c in CASES)
 
 
-__all__ = ["BY_ID", "CASES", "FAMILIES", "IDS", "by_family", "turn_count"]
+__all__ = ["BY_ID", "CASES", "FAMILIES", "IDS", "by_family", "family_of",
+           "turn_count"]
