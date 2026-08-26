@@ -83,17 +83,122 @@
      from the machine's record without reading any of them. That distinction is
      load-bearing in a product whose central claim is about where a number came
      from, so it is carried by the typeface rather than by a label. */
-  --font-sans: var(--font-prose), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-prose-stack: var(--font-prose), ui-sans-serif, system-ui, sans-serif;
-  --font-user-stack: var(--font-user), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
-  --font-display-stack: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-prose-raw), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-prose: var(--font-prose-raw), ui-sans-serif, system-ui, sans-serif;
+  --font-user: var(--font-user-raw), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-raw), ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display: var(--font-display-raw), ui-sans-serif, system-ui, sans-serif;
+
+  /* The aliases the plain-CSS role classes use. These resolve through the
+     real :root declarations further down, NOT through this block — see the
+     note there. */
+  --font-prose-stack: var(--stack-prose);
+  --font-user-stack: var(--stack-user);
+  --font-display-stack: var(--stack-display);
+
+  /* ---------------------------------------------------------------------
+     SEMANTIC SURFACES
+
+     Five roles the interface actually has, DERIVED from the palette above
+     rather than hand-picked per theme. Eight themes times five new colours is
+     forty values nobody can keep coherent, and every one of them would need
+     its own contrast check. Mixing from tokens that are already validated
+     means a ninth theme inherits all five for free and none of them can drift
+     away from the theme they belong to.
+     --------------------------------------------------------------------- */
+
+  /* A surface lifted off the canvas. Menus, popovers, the node inspector. */
+  --color-surface-elevated: var(--ipm-surface-raised);
+
+  /* A surface you can act on: rows, cards and controls that respond. Barely
+     tinted toward the accent — enough that the eye reads it as live. */
+  --color-surface-interactive: color-mix(in oklab, var(--ipm-surface) 96%, var(--ipm-accent));
+
+  /* The one that is currently chosen. */
+  --color-surface-selected: var(--ipm-accent-muted);
+
+  /* Something needs attention, or something is wrong. Never decorative. */
+  --color-surface-warning: var(--ipm-warning-muted);
+  --color-surface-critical: var(--ipm-negative-muted);
+
+  /* ---------------------------------------------------------------------
+     AI ACCENT
+
+     CreditProbe's own visual identity, used ONLY where the machine is doing
+     or has done something: interpretation, active reasoning, model routing.
+     It is deliberately close to the theme accent rather than a separate
+     brand colour — an AI that announces itself in a different hue on every
+     surface reads as a widget bolted onto a product rather than the product.
+     --------------------------------------------------------------------- */
+  --color-ai: var(--ipm-trace-interpretive);
+  --color-ai-muted: color-mix(in oklab, var(--ipm-surface) 92%, var(--ipm-trace-interpretive));
+  --color-ai-edge: color-mix(in oklab, var(--ipm-surface) 70%, var(--ipm-trace-interpretive));
+
+  /* ---------------------------------------------------------------------
+     ELEVATION
+
+     Three steps, and no more. Depth in this product is a hint that something
+     floats above the page, not a decoration — a shadow on a table row is a
+     table row pretending to be a button.
+     --------------------------------------------------------------------- */
+  --shadow-raised: 0 1px 2px color-mix(in oklab, var(--ipm-canvas) 70%, black);
+  --shadow-overlay: 0 8px 24px -6px color-mix(in oklab, var(--ipm-canvas) 60%, black);
+  --shadow-focus: 0 0 0 3px color-mix(in oklab, transparent 78%, var(--ipm-accent));
+
+  /* ---------------------------------------------------------------------
+     TYPE SCALE
+
+     Named by the job, sized once. The product previously set sizes inline in
+     every component, which is how ordinary page titles ended up at 40px while
+     the analysis they described was at 15.
+     --------------------------------------------------------------------- */
+  --text-eyebrow: 0.6875rem;   /* 11px — technical label above a title      */
+  --text-meta: 0.75rem;        /* 12px — metadata, table cells, captions    */
+  --text-body: 0.8125rem;      /* 13px — interface body, dense tables       */
+  --text-prose: 0.9375rem;     /* 15px — CreditProbe's prose. Read, not scanned */
+  --text-analysis: 1.0625rem;  /* 17px — an analysis title                  */
+  --text-page: 1.375rem;       /* 22px — a page title                       */
+  --text-greeting: 1.875rem;   /* 30px — the Cockpit greeting, and only that */
+
+  /* ---------------------------------------------------------------------
+     MOTION
+
+     Used while the machine is working and at almost no other time. Every
+     duration here is short enough to feel like response rather than
+     animation.
+     --------------------------------------------------------------------- */
+  --ease-out-quiet: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-instant: 90ms;
+  --duration-quick: 160ms;
+  --duration-settled: 280ms;
 
   /* Spacing and radii are theme-invariant. */
   --radius-sm: 0.25rem;
   --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
+}
+
+/* -----------------------------------------------------------------------------
+   THE FONT STACKS, AS REAL CUSTOM PROPERTIES
+
+   `@theme inline` does not emit its entries as custom properties at all — it
+   substitutes their values directly into the utilities it generates. That is
+   fine for `font-prose` the utility, and useless for `font-family:
+   var(--font-prose)` written by hand in a stylesheet, which is what every role
+   class below did. They resolved to nothing, so `.prose-ai` has never set a
+   font and the product has been rendering CreditProbe's prose, the user's
+   questions and its own display type in the browser's default sans since the
+   day the roles were introduced.
+
+   Declared here at :root, where the families are now defined, so both routes
+   work.
+   -------------------------------------------------------------------------- */
+:root {
+  --stack-prose: var(--font-prose-raw), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --stack-user: var(--font-user-raw), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --stack-display: var(--font-display-raw), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --stack-mono: var(--font-mono-raw), ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 /* -----------------------------------------------------------------------------
@@ -514,7 +619,12 @@ html {
 body {
   background-color: var(--ipm-canvas);
   color: var(--ipm-text-primary);
-  font-family: var(--font-sans);
+  /* `--font-prose`, not `--font-sans`. `@theme inline` resolves nested custom
+     properties at BUILD time, and the font families are only declared at
+     runtime by next/font on this element — so the inlined `--font-sans` had
+     already collapsed to its system fallback before the page ever loaded, and
+     the product's default text has never actually been Geist. */
+  font-family: var(--stack-prose);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* Only colours transition on a theme switch. Animating layout would make the
@@ -532,7 +642,7 @@ body {
    looser than the interface, because it is read in sentences rather than
    scanned. */
 .prose-ai {
-  font-family: var(--font-prose-stack);
+  font-family: var(--stack-prose);
   font-weight: 400;
   line-height: 1.55;
   letter-spacing: -0.005em;
@@ -541,7 +651,7 @@ body {
 /* What the person typed. Distinguished by weight and family, not by a bubble:
    a chat bubble in an analytical tool reads as a toy. */
 .prose-user {
-  font-family: var(--font-user-stack);
+  font-family: var(--stack-user);
   font-weight: 500;
   line-height: 1.4;
 }
@@ -567,13 +677,13 @@ body {
 
 /* Things you act on, and figures you read at a glance. */
 .display {
-  font-family: var(--font-display-stack);
+  font-family: var(--stack-display);
   letter-spacing: -0.02em;
 }
 
 button,
 .display-num {
-  font-family: var(--font-display-stack);
+  font-family: var(--stack-display);
 }
 
 .display-num {
