@@ -107,15 +107,37 @@ STARTER_QUESTIONS = [
 
 @router.get("/suggestions", summary="Questions CreditProbe can answer today")
 def suggestions() -> dict:
+    """What to ask when nothing has been asked yet.
+
+    Built from the catalogue that is actually loaded, so an installation with
+    different data gets different suggestions and a demonstration never opens
+    with a question about a dataset nobody has. The registered starters stand
+    behind that: they are gated on the analyses this build carries, so a
+    suggestion never names a method that is not there.
+    """
+    from backend.orchestration import suggestions as sg
+    from backend.orchestration.context import retrieve
+
     registry = get_registry()
     available = set(registry.ids())
-    return {
-        "questions": [
-            {"question": q["question"], "note": q["note"]}
-            for q in STARTER_QUESTIONS
-            if q["needs"] in available
-        ]
-    }
+    starters = [{"question": q["question"], "note": q["note"]}
+                for q in STARTER_QUESTIONS if q["needs"] in available]
+
+    try:
+        from_catalogue = [{"question": q, "note": "From the governed catalogue"}
+                          for q in sg.opening(retrieve(""))]
+    except Exception:  # noqa: BLE001 - an empty composer is not a failure
+        logger.exception("Opening suggestions could not be built")
+        from_catalogue = []
+
+    seen: set[str] = set()
+    questions: list[dict[str, str]] = []
+    for entry in [*from_catalogue, *starters]:
+        text = entry["question"].strip().lower()
+        if text and text not in seen:
+            seen.add(text)
+            questions.append(entry)
+    return {"questions": questions[:6]}
 
 
 @router.get("/recent", summary="Recently asked questions")

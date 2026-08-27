@@ -42,13 +42,18 @@ export function CertifiedMark({
 }
 
 /**
- * The certification state of one analysis, as a line of text.
+ * The certification state of one answer, as a line of text.
  *
- * Three states, and they are not decorative. "Certified" means the bank has
- * validated the method and CreditProbe recorded the run. "Custom" means someone in the
- * bank defined it and it has not been through validation. "Unvalidated" is a
- * draft. A reader must be able to tell which figure they are allowed to put in
- * front of a regulator.
+ * Four states, and they are not decorative. "Certified" means the bank has
+ * validated the method and CreditProbe recorded the run. "Dynamic analysis"
+ * was composed for one question and run through the governed runtime.
+ * "Governed metadata" read the catalogue and computed nothing. "Custom" was
+ * defined in the bank and not validated, and "Unvalidated" is a draft.
+ *
+ * A reader must be able to tell which figure they are allowed to put in front
+ * of a regulator — and, just as importantly, must not be told that a catalogue
+ * listing is an unvalidated analysis, which is what the fall-through used to
+ * say about every metadata answer in the product.
  */
 export function CertificationBadge({
   certification,
@@ -84,6 +89,25 @@ export function CertificationBadge({
       >
         <span aria-hidden className="inline-block size-1.5 rounded-full bg-accent" />
         Dynamic analysis
+      </span>
+    );
+  }
+
+  if (certification === "metadata") {
+    // A catalogue lookup. It ran no analysis, so it cannot be an unvalidated
+    // one — and labelling the governed catalogue "Unvalidated" tells a reader
+    // the dataset definitions themselves are not to be relied on, which is the
+    // opposite of true.
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5 text-[11px] font-medium text-text-muted",
+          className,
+        )}
+        title="Read from the governed catalogue in Data Builder. No analysis was run, and no figure was computed."
+      >
+        <span aria-hidden className="inline-block size-1.5 rounded-full bg-border-strong" />
+        Governed metadata
       </span>
     );
   }

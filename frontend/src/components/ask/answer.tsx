@@ -34,23 +34,30 @@ import { cn } from "@/lib/utils";
  *
  * The order is the argument:
  *
- *   1. CREDITPROBE INTERPRETATION  what the answer to YOUR question is
- *   2. PRIMARY ANALYSIS            the figures and the one chart behind it
- *   3. SUPPORTING ANALYSES         collapsed; open them if you want them
- *   4. ACTION STRIP                certified · method · trace · save · project
- *   5. FOLLOW-UPS                  three short things to ask next
+ *   1. DIRECT ANSWER          the sentence that answers the question asked
+ *   2. ANALYST INTERPRETATION what it means, written rather than computed
+ *   3. PRIMARY VISUAL / TABLE the figures and the one chart behind them
+ *   4. EXCEPTIONS AND LIMITS  only when there is something material
+ *   5. SUPPORTING ANALYSES    collapsed; open them if you want them
+ *   6. DATA AND METHOD        collapsed; plan, SQL, joins, validations
+ *   7. ACTION STRIP           certified · trace · save · project
+ *   8. SUGGESTED QUESTIONS    three or four things worth asking next
  *
- * (The composer sits between 4 and 5 and belongs to the page, because a thread
+ * (The composer sits between 7 and 8 and belongs to the page, because a thread
  * has one composer at the bottom rather than one under every answer.)
  *
- * Interpretation comes FIRST, and that is the change that matters most. An
- * answer that opens with total exposure at default when the question was about
- * sector deterioration is a portfolio review wearing the costume of an answer.
- * Leading with the reading forces the product to answer the question asked, and
- * makes it obvious on sight when it has not.
+ * The direct answer comes FIRST and ALONE, and that is the change that matters
+ * most. An answer that opens with total exposure at default when the question
+ * was about sector deterioration is a portfolio review wearing the costume of
+ * an answer. A reader who stops at the first sentence must already have what
+ * they asked for.
  *
- * The calculated figures follow immediately, so nothing is hidden — the reading
- * is a summary of what is directly beneath it, not a substitute for it.
+ * The interpretation is separate from it, and visibly so. The boundary between
+ * what was CALCULATED and what CreditProbe made of it is the most important
+ * line in the product. It was also, until now, the line that never reached the
+ * screen: the paragraph was composed, grounded figure by figure against the
+ * result, withheld when one number could not be traced — and then dropped by
+ * the layout, which rendered only the headline.
  */
 
 /* ------------------------------------------------------------------ helpers */
@@ -245,59 +252,124 @@ export function StepResult({
   );
 }
 
-/* --------------------------------------------------------- interpretation */
+/* --------------------------------------------------------- the answer text */
 
 /**
- * CreditProbe's reading, and nothing else on the page is.
+ * The sentence that answers the question, and nothing else.
  *
- * First, because the point of the product is to answer the question that was
- * asked. An answer that opens with a portfolio total when the question was
- * about sectors is a review pretending to be an answer, and putting the reading
- * at the top makes that failure obvious rather than burying it under a chart.
+ * First and alone. Everything below it is evidence for it, and a reader who
+ * stops here has the answer — which is the test the whole response architecture
+ * is built to pass.
  */
-export function Interpretation({
+export function DirectAnswer({
   answer,
-  points,
-  whyMultiple,
   scope,
 }: {
   answer: string;
-  points: string[];
-  whyMultiple?: string;
   /**
    * What these figures cover: the population, the window, the measures.
    *
-   * Above the answer rather than below it. A figure computed over five
-   * carried names and read as a portfolio total is wrong by three orders of
-   * magnitude and looks exactly like the right answer; the only thing that
-   * prevents it is seeing the scope before reading the number.
+   * Above the answer rather than below it. A figure computed over five carried
+   * names and read as a portfolio total is wrong by three orders of magnitude
+   * and looks exactly like the right answer; the only thing that prevents it is
+   * seeing the scope before reading the number.
    */
   scope?: string;
 }) {
-  if (!answer && points.length === 0) return null;
+  if (!answer) return null;
 
   return (
     <section className="max-w-[68ch]">
-      <SectionLabel>CreditProbe interpretation</SectionLabel>
       {scope && (
         <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.08em] text-text-muted">
           {scope}
         </p>
       )}
-      {answer && (
-        <p className="prose-ai text-[15px] leading-relaxed text-text-primary">
-          {answer}
+      <p className="prose-ai text-[17px] leading-[1.5] text-text-primary">
+        {answer}
+      </p>
+    </section>
+  );
+}
+
+/**
+ * What it means, written by CreditProbe rather than computed.
+ *
+ * This paragraph was being thrown away. The backend composed it, grounded every
+ * figure in it against the result, withheld it when a single number could not
+ * be traced — and the answer surface rendered only the headline, so the reading
+ * a credit officer was meant to get never reached the screen. An interpretation
+ * that is computed, checked and then discarded by the layout is worse than none:
+ * it costs a model call and the product looks incapable of analysis.
+ *
+ * Kept visually distinct from the direct answer above it. The boundary between
+ * what was CALCULATED and what CreditProbe made of it is the most important
+ * line in the product, and a reader has to be able to see it without being
+ * told.
+ */
+export function AnalystReading({
+  interpretation,
+  points,
+  whyMultiple,
+}: {
+  interpretation?: string;
+  points: string[];
+  whyMultiple?: string;
+}) {
+  const notes = points.filter(Boolean);
+  if (!interpretation && notes.length === 0 && !whyMultiple) return null;
+
+  return (
+    <section className="max-w-[68ch] border-l-2 border-accent/40 pl-4">
+      <SectionLabel>CreditProbe interpretation</SectionLabel>
+      {interpretation && (
+        <p className="prose-ai text-[15px] leading-relaxed text-text-secondary">
+          {interpretation}
         </p>
       )}
-      {points.length > 0 && (
-        <p className="prose-ai mt-2.5 text-sm text-text-secondary">
-          {points.slice(0, 2).join(" ")}
-        </p>
+      {notes.length > 0 && (
+        <ul className={cn("space-y-1.5", interpretation && "mt-2.5")}>
+          {notes.slice(0, 3).map((note) => (
+            <li
+              key={note}
+              className="prose-ai flex gap-2 text-sm text-text-secondary"
+            >
+              <span aria-hidden className="mt-[0.55em] size-1 shrink-0 rounded-full bg-accent/60" />
+              {note}
+            </li>
+          ))}
+        </ul>
       )}
       {whyMultiple && (
         <p className="prose-ai mt-2.5 text-xs text-text-muted">{whyMultiple}</p>
       )}
     </section>
+  );
+}
+
+/**
+ * What limits what may be concluded. Shown only when there is something.
+ *
+ * Between the figures and the supporting detail, which is where a reader is
+ * deciding whether to act. A limitation disclosed after the follow-up buttons
+ * is a limitation disclosed to nobody.
+ */
+export function Limitations({ caveats }: { caveats: string[] }) {
+  const material = caveats.filter(Boolean);
+  if (material.length === 0) return null;
+
+  return (
+    <ul className="max-w-[68ch] space-y-1">
+      {material.map((caveat) => (
+        <li key={caveat} className="flex gap-2 text-xs text-text-muted">
+          <TriangleAlert
+            className="mt-0.5 size-3 shrink-0 text-warning"
+            aria-hidden
+          />
+          {caveat}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -505,6 +577,13 @@ export function AnswerBlock({
   const { narrative } = run;
   const answer = narrative.direct_answer || narrative.summary;
   const reading = narrative.interpretation_points ?? [];
+  // The direct answer and the interpretation are sometimes the same sentence —
+  // the deterministic path summarises what it computed. Showing it twice reads
+  // as a stutter, so the reading is dropped when it adds nothing.
+  const interpretation =
+    narrative.interpretation && narrative.interpretation.trim() !== answer.trim()
+      ? narrative.interpretation
+      : "";
 
   // One step answers the question. The planner marked it, and the layout follows
   // that marking rather than the order things happened to run in.
@@ -539,15 +618,17 @@ export function AnswerBlock({
         </Card>
       )}
 
-      {/* ------------------------------------ 1. CREDITPROBE INTERPRETATION */}
-      <Interpretation
-        answer={answer}
+      {/* ------------------------------------------------- 1. DIRECT ANSWER */}
+      <DirectAnswer answer={answer} scope={narrative.scope} />
+
+      {/* ------------------------------------------- 2. ANALYST INTERPRETATION */}
+      <AnalystReading
+        interpretation={interpretation}
         points={reading}
         whyMultiple={narrative.why_multiple}
-        scope={narrative.scope}
       />
 
-      {/* ------------------------------------------- 2. THE PRIMARY ANALYSIS */}
+      {/* --------------------------------------- 3. THE PRIMARY VISUAL/TABLE */}
       {narrative.metrics.length > 0 && (
         <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
           {narrative.metrics.map((metric) => (
@@ -575,7 +656,10 @@ export function AnswerBlock({
         />
       )}
 
-      {/* --------------------------------------- 3. SUPPORTING, COLLAPSED */}
+      {/* ----------------------------- 4. EXCEPTIONS AND LIMITATIONS, IF ANY */}
+      <Limitations caveats={narrative.caveats} />
+
+      {/* --------------------------------------- 5. SUPPORTING, COLLAPSED */}
       {supporting.length > 0 && (
         <Disclosure
           summary={`Supporting analysis (${supporting.length})`}
@@ -655,23 +739,10 @@ export function AnswerBlock({
         </Disclosure>
       )}
 
+      {/* ---------------------------------- 6. DATA AND METHOD, COLLAPSED */}
       <AnalysesUsed steps={run.steps} returnTo={returnTo} />
 
-      {narrative.caveats.length > 0 && (
-        <ul className="space-y-1">
-          {narrative.caveats.map((caveat) => (
-            <li key={caveat} className="flex gap-2 text-xs text-text-muted">
-              <TriangleAlert
-                className="mt-0.5 size-3 shrink-0 text-warning"
-                aria-hidden
-              />
-              {caveat}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {/* -------------------------------------------------- 4. ACTION STRIP */}
+      {/* -------------------------------------------------- 7. ACTION STRIP */}
       <ActionStrip
         run={run}
         onSave={onSave}
@@ -681,7 +752,7 @@ export function AnswerBlock({
         returnTo={returnTo}
       />
 
-      {/* ---------------------------------------------------- 5. FOLLOW-UPS */}
+      {/* ------------------------------------ 8. CONTEXTUAL SUGGESTIONS */}
       {onAsk && <FollowUps questions={run.follow_ups} onAsk={onAsk} busy={busy} />}
     </div>
   );

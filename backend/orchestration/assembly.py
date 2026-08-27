@@ -282,7 +282,7 @@ def from_analysis(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
             role=StepRole.PRIMARY,
         )],
         planner=reading.source, model_name=reading.model or None,
-        follow_ups=_follow_ups(build),
+        follow_ups=_follow_ups(build, runtime),
         notes=[_composed_note(build), *_presentation_note(build)],
     )
 
@@ -445,18 +445,16 @@ def _units(build: ap.AnalysisBuild) -> dict[str, str]:
     return units
 
 
-def _follow_ups(build: ap.AnalysisBuild) -> list[str]:
-    out: list[str] = []
-    if build.shape == ap.AGGREGATE and build.dimension:
-        out.append(f"Show the largest customers in the biggest {build.dimension}.")
-    if build.shape == ap.RANKING and build.filters:
-        out.append("Show the same ranking across the whole book.")
-    if build.shape in (ap.COHORT, ap.MOVEMENT):
-        out.append("Which sectors do those customers sit in?")
-    if build.matches:
-        out.append(f"How has {build.matches[0].concept.label} moved over the "
-                   "latest year?")
-    return out[:3]
+def _follow_ups(build: ap.AnalysisBuild, runtime: Any = None) -> list[str]:
+    """What is worth asking next, derived from THIS result.
+
+    Delegated. The old version offered the same three things after every
+    answer, which is furniture rather than a suggestion — people stop reading
+    it inside four turns.
+    """
+    from backend.orchestration import suggestions
+
+    return suggestions.after_analysis(build, runtime)
 
 
 # ------------------------------------------------------------------ narrative
