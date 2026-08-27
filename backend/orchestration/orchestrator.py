@@ -42,6 +42,7 @@ from typing import Any
 from backend.llm import get_provider, is_configured, provider_status
 from backend.orchestration import analysis_planner as ap
 from backend.orchestration import (
+    analyst,
     association,
     compound,
     entities,
@@ -807,6 +808,14 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
         sc.frame_of(build, continuation, presentation=continuation.presentation),
         action=continuation.action)
 
+    # What an analyst would notice, computed from the result. Given to the
+    # model as the things worth saying rather than left to it to find, and
+    # standing on its own where there is no model. A style guide produces prose
+    # that sounds like analysis; a list of computed facts produces prose about
+    # the largest driver by name.
+    build.observations = analyst.observe(build, answered.runtime,
+                                         answered.runtime.summary or {})
+
     # A question about whether a pattern holds gets the pattern described:
     # monotonicity, rank association, and the groups that do not fit it. Never a
     # cause — the caveat that goes with it is fixed wording for that reason.
@@ -816,6 +825,7 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
 
     answered.written = interpretation.write(
         question, build.summary, answered.runtime, build=build,
+        noticed=analyst.prompt_block(build.observations),
         plan_note=_plan_note(build, continuation),
         **_role_call("interpretation"))
     if answered.written is not None and answered.written.model:

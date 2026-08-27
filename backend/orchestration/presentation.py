@@ -442,6 +442,34 @@ def render(value: Any, column: dict[str, Any] | Column,
     return figures.text(value, spec)
 
 
+def in_sentence(label: str) -> str:
+    """A column label as it reads mid-sentence.
+
+    Three rules, each of which fixed something a reader would have noticed.
+    An acronym keeps its capitals — "ECL coverage", never "ecl coverage". A
+    label carrying a period keeps the period's — "expected credit loss at Q2
+    2025", never "at q2 2025". And an ordinary word is lowered, because a
+    capitalised noun in the middle of a sentence reads as a proper name.
+    """
+    text = str(label or "").strip()
+    if not text:
+        return text
+
+    def lower_word(word: str) -> str:
+        if word.isupper() or any(c.isdigit() for c in word):
+            return word
+        return word.lower()
+
+    words = text.split()
+    first = words[0]
+    if first.isupper() or any(c.isdigit() for c in first):
+        head = first
+    else:
+        head = first[:1].lower() + first[1:]
+    return " ".join([head, *(lower_word(w) if w[:1].isupper() and not w.isupper()
+                             else w for w in words[1:])])
+
+
 def schema(runtime: Any, build: Any = None) -> list[dict[str, Any]]:
     """The columns in reading order, with lineage marked rather than removed.
 
@@ -462,4 +490,4 @@ __all__ = ["COUNT", "DAYS", "IDENTITY", "MONEY", "ORDINAL", "PERCENT",
            "PERIOD", "RANK_COMPARISON", "RANK_CONTEXT", "RANK_DERIVED",
            "RANK_LINEAGE", "RANK_PERIOD", "RANK_PRIMARY", "RANK_SUBJECT",
            "RATIO", "TEXT", "WHOLE_UNITS_ABOVE", "Column", "contract",
-           "render", "schema"]
+           "in_sentence", "render", "schema"]

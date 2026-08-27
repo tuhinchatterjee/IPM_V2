@@ -51,6 +51,33 @@ def _numbers(text: str) -> set[str]:
     return out
 
 
+def _observed_values(build: ap.AnalysisBuild) -> dict[str, float]:
+    """Every figure the analyst pass derived, as a result value.
+
+    Named by the observation that produced it, so a reviewer looking at the
+    Trace can see which sentence each one belongs to rather than finding an
+    unexplained number in the values block.
+    """
+    out: dict[str, float] = {}
+    for observation in (getattr(build, "observations", None) or []):
+        kind = str(getattr(observation, "kind", "") or "observed")
+        for name, value in (getattr(observation, "facts", None) or {}).items():
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                out[f"{kind}_{name}"] = float(value)
+    return out
+
+
+def _noticed(build: ap.AnalysisBuild) -> str:
+    """What the analyst pass found, as a short paragraph."""
+    from backend.orchestration import analyst
+
+    try:
+        return analyst.summarise(list(getattr(build, "observations", None) or []))
+    except Exception as e:  # noqa: BLE001 - a reading must not lose an answer
+        logger.warning("The analyst summary could not be assembled: %s", e)
+        return ""
+
+
 def _association_values(build: ap.AnalysisBuild) -> dict[str, float]:
     """Every coefficient the association description quotes, as result values."""
     found = dict(getattr(build, "association", None) or {})
@@ -383,12 +410,16 @@ def _composed_note(build: ap.AnalysisBuild) -> str:
 
 def _values(build: ap.AnalysisBuild, runtime: Any) -> dict[str, Any]:
     values: dict[str, Any] = {"matching": runtime.row_count}
-    # Association coefficients are RESULT values. They were computed by the
-    # governed path from the rows below them, so they belong beside the totals
-    # rather than appearing only in prose — where the grounding check, quite
-    # correctly, reported them as figures the result did not carry.
+    # Derived figures the reading quotes are RESULT values. Association
+    # coefficients, concentration shares, the gap between the leader and the
+    # runner-up: all computed by the governed path from the rows below them, so
+    # they belong beside the totals rather than appearing only in prose — where
+    # the grounding check, quite correctly, reported them as figures the result
+    # did not carry.
     for name, coefficient in _association_values(build).items():
         values[name] = coefficient
+    for name, figure in _observed_values(build).items():
+        values.setdefault(name, figure)
     if build.period:
         values["period"] = build.period
     if build.opening:
@@ -606,6 +637,15 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                     tone="negative", evidence=[]))
 
     interpretation = _interpretation(build, runtime, count)
+
+    # The observations an analyst would make, computed from the result. Without
+    # a provider these ARE the reading; the old deterministic paragraph
+    # restated the headline in longer words, which is why the interpretation
+    # read as generic however correct it was.
+    noticed = _noticed(build)
+    if noticed:
+        interpretation = " ".join(x for x in (interpretation, noticed) if x)
+
     caveats = notable(runtime.warnings) + list(build.warnings)
 
     # A question about whether a pattern holds is ANSWERED by the pattern. The
@@ -827,8 +867,12 @@ def _interpretation(build: ap.AnalysisBuild, runtime: Any, count: int) -> str:
         return (f"Shares are of {scope} exposure, not of the whole book — the "
                 "question asked about that population.")
     if build.shape == ap.AGGREGATE and build.dimension:
+        # The noun, not the column. A breakdown reached over a join lands in a
+        # prefixed column, and "in each customer_ratings_internal_grade" puts a
+        # database identifier in the first line of the answer.
         return (f"Ordered largest first. The figures are sums across every "
-                f"facility in each {build.dimension} at {build.period}.")
+                f"facility in each {_dimension_word(build)} at "
+                f"{build.period}.")
     return ""
 
 

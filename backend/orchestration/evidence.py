@@ -53,23 +53,44 @@ ROUNDINGS = (0, 1, 2, 3, 4, 5, 6)
 
 @dataclass(frozen=True)
 class Fact:
-    """One thing the result establishes, and where it came from."""
+    """One thing the result establishes, and where it came from.
+
+    Every field answers a question a reviewer asks about a sentence in a credit
+    paper. What figure. Of what. In what unit. At what date. About whom. From
+    which part of which result. Under what conditions. Ranked how. And how far
+    it may be relied on. A fact that cannot answer all nine is a number, and a
+    number with no provenance is what this package exists to replace.
+    """
 
     id: str
     kind: str          # figure | entity | period | condition | column
     description: str
     value: Any = None
+    #: The governed metric this is a value OF, where it is a value of one.
+    metric: str = ""
     unit: str = ""
     period: str = ""
     entity: str = ""
     #: Where in the result this came from: "row 3.total_ecl", "summary.change".
     source: str = ""
+    #: The plan conditions that were true of the rows this came from.
+    conditions: tuple[str, ...] = ()
+    #: What the result was ordered by, where it was ordered.
+    ranking_basis: str = ""
+    #: computed | derived | asserted. A figure the runtime returned, a figure
+    #: CreditProbe worked out from those, or something the plan promised.
+    confidence: str = "computed"
+    #: Whether the invariants that cover this fact held.
+    validated: bool = True
 
     def to_dict(self) -> dict[str, Any]:
         return {"id": self.id, "kind": self.kind,
                 "description": self.description, "value": self.value,
-                "unit": self.unit, "period": self.period,
-                "entity": self.entity, "source": self.source}
+                "metric": self.metric, "unit": self.unit,
+                "period": self.period, "entity": self.entity,
+                "source": self.source, "conditions": list(self.conditions),
+                "ranking_basis": self.ranking_basis,
+                "confidence": self.confidence, "validated": self.validated}
 
 
 @dataclass
@@ -179,13 +200,20 @@ def build(runtime: Any, build_plan: Any = None,
             for found in _NUMBER.findall(value):
                 package.figures.add(_normal(found.replace(",", "")))
 
+    # Everything every fact from this result shares: the conditions the plan
+    # applied, what it was ordered by, and whether the checks held. Carried on
+    # each fact rather than alongside them, so a fact quoted on its own still
+    # says what it was true UNDER.
+    context = _context(build_plan)
+
     index = 0
 
     def record(kind: str, description: str, **kwargs: Any) -> None:
         nonlocal index
         index += 1
         package.facts.append(Fact(id=f"f{index}", kind=kind,
-                                  description=description, **kwargs))
+                                  description=description,
+                                  **{**context, **kwargs}))
 
     for key, value in (extra or {}).items():
         figure(value)
@@ -199,8 +227,11 @@ def build(runtime: Any, build_plan: Any = None,
 
         for key, value in (getattr(runtime, "summary", None) or {}).items():
             figure(value)
-            record("figure", f"{key} = {value}", value=value,
-                   source=f"summary.{key}")
+            record("figure", f"{key} = {value}", value=value, metric=key,
+                   source=f"summary.{key}",
+                   # A summary figure CreditProbe worked out from the rows
+                   # rather than one the query returned per row.
+                   confidence="derived")
 
         for position, row in enumerate(getattr(runtime, "rows", []) or []):
             if not isinstance(row, dict):
@@ -215,7 +246,8 @@ def build(runtime: Any, build_plan: Any = None,
                 identity = _identity(row)
                 if identity:
                     record("entity", f"{identity} is in the result",
-                           entity=identity, source=f"row[{position}]")
+                           entity=identity, source=f"row[{position}]",
+                           period=str(row.get("period") or ""))
 
     if build_plan is not None:
         for name in ("period", "opening", "closing"):
@@ -235,6 +267,24 @@ def build(runtime: Any, build_plan: Any = None,
                    source="plan.filters")
 
     return package
+
+
+def _context(build_plan: Any) -> dict[str, Any]:
+    """What every fact from this result is true under."""
+    conditions: list[str] = []
+    for condition in (getattr(build_plan, "conditions", None) or []):
+        described = _describe(condition)
+        if described:
+            conditions.append(described)
+    for field_name, value in (getattr(build_plan, "filters", None) or []):
+        conditions.append(f"{str(field_name).replace('_', ' ')} = {value}")
+
+    basis = ""
+    matches = list(getattr(build_plan, "matches", None) or [])
+    if str(getattr(build_plan, "shape", "") or "") == "ranking" and matches:
+        basis = str(getattr(matches[0].concept, "label", "") or "")
+
+    return {"conditions": tuple(conditions), "ranking_basis": basis}
 
 
 def _identity(row: dict[str, Any]) -> str:

@@ -196,7 +196,7 @@ def _extract(runtime: Any, build: Any = None) -> dict[str, Any]:
 
 
 def _prompt(question: str, summary: str, result: dict[str, Any], *,
-            plan_note: str = "") -> str:
+            plan_note: str = "", noticed: str = "") -> str:
     import json
 
     lines = [f"QUESTION: {question}", "", f"WHAT WAS COMPUTED: {summary}"]
@@ -229,6 +229,9 @@ def _prompt(question: str, summary: str, result: dict[str, Any], *,
         lines.append("RECONCILIATION: the population narrowed as follows — "
                      + json.dumps(result["reconciliation"], default=str)[:1200])
 
+    if noticed:
+        lines.append(noticed)
+
     lines.append("")
     lines.append("Every figure above is ALREADY FORMATTED for a credit paper. "
                  "Copy them character for character — including the separators, "
@@ -240,7 +243,8 @@ def _prompt(question: str, summary: str, result: dict[str, Any], *,
 
 def write(question: str, summary: str, runtime: Any, *,
           plan_note: str = "", build: Any = None,
-          model: str = "", effort: str = "") -> Interpretation:
+          model: str = "", effort: str = "",
+          noticed: str = "") -> Interpretation:
     """A live reading of the result, or a stated reason there is not one."""
     provider = get_provider()
     if not provider.configured:
@@ -254,7 +258,8 @@ def write(question: str, summary: str, runtime: Any, *,
     try:
         answer = provider.structured(
             system=SYSTEM,
-            prompt=_prompt(question, summary, result, plan_note=plan_note),
+            prompt=_prompt(question, summary, result, plan_note=plan_note,
+                           noticed=noticed),
             schema=SCHEMA, tool_name=TOOL_NAME,
             tool_description=("Write the interpretation of this result. Call "
                               "this exactly once."),

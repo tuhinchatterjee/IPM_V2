@@ -112,6 +112,9 @@ class AnalysisBuild:
     #: How the measures move together, where the question asked whether a
     #: pattern holds. Never a cause — see `association`.
     association: dict[str, Any] = field(default_factory=dict)
+    #: What an analyst would notice about the result, computed from it. Feeds
+    #: both the deterministic reading and the live model's prompt.
+    observations: list[Any] = field(default_factory=list)
 
     @property
     def datasets(self) -> list[str]:
