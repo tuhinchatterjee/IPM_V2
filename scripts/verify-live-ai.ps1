@@ -50,8 +50,13 @@
     The complete live intent-recognition suite.
 
 .PARAMETER FullCertification
-    The Intelligence Factory's own certification run. The most expensive mode
-    by a wide margin.
+    The whole shipped benchmark library, scored against the live model. The
+    most expensive mode by a wide margin.
+
+    This is NOT the sealed certification. The sealed holdout lives outside the
+    application and the product may not import it — a product that can reach
+    its own exam has no exam — so certifying against it is a build-time command
+    run from the repository, not a mode of a tool that runs inside a container.
 
 .PARAMETER Yes
     Skip the confirmation prompt. For a mode that spends credit, you are saying

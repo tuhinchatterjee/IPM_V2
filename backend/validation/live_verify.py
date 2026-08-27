@@ -557,19 +557,30 @@ def full_routing() -> Report:
 
 
 def full_certification() -> Report:
-    """The Intelligence Factory's own certification run.
+    """The full shipped benchmark library, scored.
 
-    Delegated rather than reimplemented: the benchmark library, the
-    independently computed gold answers and the scoring all live there, and a
-    second implementation of the same run would eventually disagree with it
-    about what a passing score is.
+    NOT the sealed certification, and the difference matters enough to be
+    stated here rather than only in the report. The sealed holdout lives
+    outside the application and the product is forbidden to import it — a
+    product that can reach its own exam has no exam — so certification against
+    it is a build-time command run from the repository, never a mode of a tool
+    that runs inside the container.
+
+    What this does run is the shipped benchmark library, in full, against the
+    live model: the widest live exercise available from inside a running
+    installation, and honestly labelled as that.
     """
     report = Report(mode=FULL_CERTIFICATION, started_at=_now())
     _stamp(report)
     report.estimated_calls = {FULL_CERTIFICATION:
                               ESTIMATED_CALLS[FULL_CERTIFICATION]}
     report.spends_credits = True
-    report.components = ["intelligence_factory"]
+    report.components = ["benchmark_library"]
+    report.notes.append(
+        "This is the shipped benchmark library, not the sealed certification. "
+        "The sealed holdout is deliberately not present inside the "
+        "application, so it cannot be run from here; certification against it "
+        "is a build-time command run from the repository.")
 
     can, why = eligible(report)
     if not can:
@@ -583,17 +594,17 @@ def full_certification() -> Report:
         result = runner.run(user_id=None)
     except Exception as e:  # noqa: BLE001
         report.cases.append(Case(
-            name="certification", component="intelligence_factory",
+            name="benchmark_library", component="benchmark_library",
             passed=False, error_category=_category(e),
-            detail="the certification run could not complete"))
-        report.failures.append("certification")
+            detail="the benchmark run could not complete"))
+        report.failures.append("benchmark_library")
         report.passed = False
         return _finish(report)
 
     payload = result.to_dict()
     report.live_calls_made += int(payload.get("model_calls") or 0)
     report.cases.append(Case(
-        name="certification", component="intelligence_factory",
+        name="benchmark_library", component="benchmark_library",
         passed=bool(payload.get("passed")),
         detail=str(payload.get("summary") or ""),
     ))
