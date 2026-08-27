@@ -183,6 +183,7 @@ function ValidationPanel({
                 onRun={start}
               />
 
+              <LiveVerification state={status?.live_verification ?? null} />
               <Certification state={status?.certification ?? null} />
 
               {run ? (
@@ -285,6 +286,72 @@ function costOf(plan: AiStatus["quick_check"]): string {
  * rather than leaving the space blank, which would read as certified to anyone
  * who did not know to look.
  */
+/**
+ * Whether the live model path has actually been proved on this build.
+ *
+ * The distinction this exists to keep visible: a green quick check with no
+ * provider configured exercises the deterministic reader and proves nothing
+ * about the model. This panel says LIVE VERIFIED only when a recorded
+ * verification made real calls, on this commit, with this model
+ * configuration — and says NOT VERIFIED, out loud, the rest of the time.
+ *
+ * The caveat under it is not decoration. A live verification proves the path
+ * ran and conformed on the cases it exercised; it is not a measure of
+ * accuracy, and a product that lets one be read as the other has mis-sold
+ * itself.
+ */
+function LiveVerification({
+  state,
+}: {
+  state: AiStatus["live_verification"] | null;
+}) {
+  if (!state) return null;
+
+  const label = state.live_verified
+    ? "LIVE VERIFIED"
+    : state.stale
+      ? "STALE"
+      : "NOT VERIFIED";
+  const tone = state.live_verified
+    ? "text-positive"
+    : state.stale
+      ? "text-warning"
+      : "text-text-muted";
+
+  return (
+    <section className="rounded-lg border border-border bg-surface-sunken p-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="font-display text-[13px] font-semibold text-text-primary">
+          Live model verification
+        </h3>
+        <span className={cn("font-mono text-[11px] font-semibold", tone)}>
+          {label}
+        </span>
+      </div>
+
+      {state.live_verified ? (
+        <>
+          <p className="mt-1.5 text-[12px] text-text-secondary">
+            {state.calls} live provider {state.calls === 1 ? "call" : "calls"} on
+            this build, covering {state.components.join(", ") || "the live path"}.
+          </p>
+          <p className="mt-1 text-[11px] text-text-muted">{state.caveat}</p>
+        </>
+      ) : (
+        <>
+          <p className="mt-1.5 text-[12px] text-text-secondary">
+            {state.reason || "This build has not been verified against the live model."}
+          </p>
+          <p className="mt-1 text-[11px] text-text-muted">{state.why}</p>
+          <code className="mt-2 block rounded bg-surface px-2 py-1 font-mono text-[11px] text-text-secondary">
+            {state.command}
+          </code>
+        </>
+      )}
+    </section>
+  );
+}
+
 function Certification({ state }: { state: AiStatus["certification"] | null }) {
   if (!state) return null;
 

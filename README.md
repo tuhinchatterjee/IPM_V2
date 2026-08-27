@@ -364,6 +364,34 @@ worded a question can be.
 
 ---
 
+### Proving the live model path (Windows)
+
+Every automated check in this repository runs without a provider key, which is
+correct — the deterministic reader has to work on its own — but it means a green
+suite proves nothing about the live path. Your key only exists on your machine,
+so the proof has to run there:
+
+```powershell
+.\scripts\verify-live-ai.ps1 -DryRun      # costs nothing; reports what each mode would
+.\scripts\verify-live-ai.ps1 -Quick       # one tiny call per model role, then the smoke suite
+.\scripts\verify-live-ai.ps1 -Critical    # seven end-to-end conversation threads
+.\scripts\verify-live-ai.ps1 -FullRouting # the whole live intent-recognition suite
+```
+
+Docker Desktop is the only requirement — no local Python or Node.js. The
+verification runs **inside** the running backend container, which already
+receives your key at run time from `.env`. The key is never a build argument,
+never printed, and never written to the report.
+
+Start the stack first (`docker compose up -d --build`). Every mode except
+`-DryRun` makes real calls and consumes credit; each prints its estimate and
+asks before it starts. The result is written to
+`logs/live_ai_verification_<commit>.json`, and Settings shows **LIVE VERIFIED**
+only while that report matches the commit and the model configuration that are
+actually running.
+
+---
+
 ### Stopping CreditProbe
 
 Press **Ctrl + C** once in the terminal. That stops the interface and the

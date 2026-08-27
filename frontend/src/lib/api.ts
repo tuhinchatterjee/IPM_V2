@@ -941,6 +941,28 @@ export interface AiStatus {
     note: string;
   };
   /**
+   * Whether THIS build has been proved against the live model.
+   *
+   * Distinct from `ai.state`: a configured key says a call COULD be made,
+   * CONNECTED says one was, and this says a recorded verification actually
+   * ran against this exact commit and this exact model configuration. It goes
+   * stale the moment any of that changes — a badge that survives a
+   * configuration change is worse than no badge, because somebody believes it.
+   */
+  live_verification: {
+    live_verified: boolean;
+    stale: boolean;
+    reason: string;
+    verified_at: string;
+    mode: string;
+    calls: number;
+    components: string[];
+    caveat: string;
+    command: string;
+    runnable_here: boolean;
+    why: string;
+  };
+  /**
    * The frozen Intelligence Release, or the honest absence of one.
    *
    * Never runnable from the browser: the sealed holdout lives outside the

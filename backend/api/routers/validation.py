@@ -85,6 +85,16 @@ def ai_status() -> dict:
         # has no exam. So it is a build-time command, and what the UI shows is
         # the frozen result of one.
         "quick_check": _quick_check_plan(observed, benchmarks),
+        # Whether THIS build has actually been proved against the live model
+        # on somebody's machine. Distinct from both of the above and from the
+        # provider state: a key being configured says a call COULD be made,
+        # `CONNECTED` says one was, and this says a recorded verification ran
+        # against this exact commit and this exact model configuration.
+        #
+        # It goes stale the moment any of that changes, which is the point —
+        # a badge that survives a configuration change is worse than no badge,
+        # because somebody will believe it.
+        "live_verification": _live_verification(),
         "certification": {
             **certified.to_dict(),
             "runnable_here": False,
@@ -94,6 +104,27 @@ def ai_status() -> dict:
                 "Certification runs at build time, and this build reports what "
                 "that run found."),
         },
+    }
+
+
+def _live_verification() -> dict:
+    """The stored live verification for the running build, if there is one."""
+    from backend.validation import live_verify
+
+    try:
+        found = live_verify.badge()
+    except Exception as e:  # noqa: BLE001 - absence must not break the header
+        logger.warning("The live verification could not be read: %s", e)
+        return {"live_verified": False, "stale": False,
+                "reason": "the stored verification could not be read"}
+    return {
+        **found,
+        "command": ".\\scripts\\verify-live-ai.ps1 -Quick",
+        "runnable_here": found.get("live_verified") is not True,
+        "why": ("The provider key exists only in your local .env, so this can "
+                "only be proved on the machine that holds it. The script runs "
+                "the verification inside the running backend container and "
+                "writes a key-free report beside the repository."),
     }
 
 
