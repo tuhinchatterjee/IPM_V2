@@ -51,6 +51,21 @@ def _numbers(text: str) -> set[str]:
     return out
 
 
+def _association_values(build: ap.AnalysisBuild) -> dict[str, float]:
+    """Every coefficient the association description quotes, as result values."""
+    found = dict(getattr(build, "association", None) or {})
+    out: dict[str, float] = {}
+    for pair in (found.get("pairs") or []):
+        left, right = str(pair.get("a") or ""), str(pair.get("b") or "")
+        if not left or not right:
+            continue
+        for kind in ("spearman", "pearson"):
+            value = pair.get(kind)
+            if isinstance(value, (int, float)):
+                out[f"{kind}_{left}_{right}"] = float(value)
+    return out
+
+
 def _presentation_note(build: ap.AnalysisBuild) -> list[str]:
     """A record on the Trace that only the presentation changed.
 
@@ -368,6 +383,12 @@ def _composed_note(build: ap.AnalysisBuild) -> str:
 
 def _values(build: ap.AnalysisBuild, runtime: Any) -> dict[str, Any]:
     values: dict[str, Any] = {"matching": runtime.row_count}
+    # Association coefficients are RESULT values. They were computed by the
+    # governed path from the rows below them, so they belong beside the totals
+    # rather than appearing only in prose — where the grounding check, quite
+    # correctly, reported them as figures the result did not carry.
+    for name, coefficient in _association_values(build).items():
+        values[name] = coefficient
     if build.period:
         values["period"] = build.period
     if build.opening:
@@ -588,6 +609,17 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
 
     interpretation = _interpretation(build, runtime, count)
     caveats = notable(runtime.warnings) + list(build.warnings)
+
+    # A question about whether a pattern holds is ANSWERED by the pattern. The
+    # aggregate that was computed to find it is the evidence, not the answer,
+    # and leading with the total put a figure nobody asked for in the sentence
+    # that was supposed to answer the question.
+    found = dict(getattr(build, "association", None) or {})
+    if found.get("sentence"):
+        interpretation = " ".join(x for x in (direct, interpretation) if x)
+        direct = found["sentence"]
+        if found.get("caveat"):
+            caveats = [*caveats, found["caveat"]]
 
     return Narrative(
         direct_answer=direct, summary=direct, findings=findings,

@@ -109,6 +109,9 @@ class AnalysisBuild:
     #: Where the population actually sits on the attribute that excluded all of
     #: it. Set only when the result came back empty — see `partition`.
     partition: Any = None
+    #: How the measures move together, where the question asked whether a
+    #: pattern holds. Never a cause — see `association`.
+    association: dict[str, Any] = field(default_factory=dict)
 
     @property
     def datasets(self) -> list[str]:

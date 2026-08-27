@@ -271,6 +271,18 @@ class Reference:
         return bool(self.population) or self.action != cv.NEW_REQUEST
 
 
+#: A sentence that points at what is already on the table.
+_POINTS_BACK = re.compile(
+    r"\b(?:this|that|these|those|it|them|the (?:above|result|figures|numbers|"
+    r"pattern|trend|relationship))\b")
+
+
+def _asks_about_a_pattern(question: str) -> bool:
+    from backend.orchestration import association
+
+    return association.wants(question)
+
+
 def read(question: str) -> Reference:
     """What this sentence refers back to, without a model and without state.
 
@@ -301,6 +313,17 @@ def read(question: str) -> Reference:
                 changes=[f"show the same result as a {kind}"],
                 because="the question changes how the result is shown, not "
                         "what it computes")
+
+    # "Does this trend make sense?" points at the answer on the screen. Read as
+    # a new request it names no measure, and the planner quite correctly asks
+    # which figure to compute — which is the product asking the user to repeat
+    # what they just looked at.
+    if _POINTS_BACK.search(text) and _asks_about_a_pattern(question):
+        return Reference(
+            action=cv.CONTINUE,
+            changes=["describe the pattern in the result already on the table"],
+            because="the question asks whether the previous result's pattern "
+                    "holds")
 
     for pattern in _NEW_SUBJECT:
         if re.search(pattern, text):

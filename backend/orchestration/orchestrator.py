@@ -41,9 +41,8 @@ from typing import Any
 
 from backend.llm import get_provider, is_configured, provider_status
 from backend.orchestration import analysis_planner as ap
-from backend.orchestration import capability as cap
-from backend.orchestration import certified as cert
 from backend.orchestration import (
+    association,
     compound,
     entities,
     followups,
@@ -54,6 +53,8 @@ from backend.orchestration import (
     router,
     spelling,
 )
+from backend.orchestration import capability as cap
+from backend.orchestration import certified as cert
 from backend.orchestration import conversation as cv
 from backend.orchestration import coverage as cov
 from backend.orchestration import guardrail as gr
@@ -192,6 +193,9 @@ class Answered:
     #: Which extra clauses of a compound question were answered in this turn,
     #: and which were left outstanding for the correction path.
     compound: dict[str, Any] = field(default_factory=dict)
+    #: How the measures in the result move together, where the question asked
+    #: whether a pattern holds. Never a cause.
+    association: dict[str, Any] = field(default_factory=dict)
     #: What this answer covers, and what this turn did to it.
     scope: Any = None
     #: Set when a key is configured and the live path could not be used.
@@ -257,6 +261,13 @@ def answer(question: str, *, context: Any = None,
     read = router.read(question, context=context, state=state, memory=memory,
                        decision=decision)
     reading = read.reading
+
+    # "Does the relationship between grade, ECL coverage and DSCR appear
+    # consistent across grades?" was read as a question about how two datasets
+    # JOIN, because it contains the word "relationship". It is a question about
+    # a pattern in the figures, and answering it needs the runtime rather than
+    # the catalogue.
+    reading = _as_association(question, reading)
 
     # Re-scored now that the reading exists. The first pass could only see the
     # sentence; this one sees how many datasets and concepts it actually needs,
@@ -330,7 +341,12 @@ def answer(question: str, *, context: Any = None,
     # Nothing in the governed universe is about this. Said plainly, and BEFORE
     # any clarification: a menu of figures invites the user to accept an answer
     # about exposure to a question about corporate governance.
-    if not continuation.carries_context:
+    # An association question is exempt. "Does this trend make sense?" names no
+    # governed noun at all, so the coverage check found "make sense", did not
+    # recognise it, and replied that CreditProbe holds no data about it — a
+    # refusal to answer one of the most ordinary questions an analyst is asked,
+    # about figures that were already on the screen.
+    if not continuation.carries_context and not association.wants(question):
         held = cov.check(question, reading)
         if held.out_of_scope:
             answered.unsupported = held.sentence()
@@ -373,6 +389,29 @@ def answer(question: str, *, context: Any = None,
 
     return finish(_analyse(answered, question, reading, context, state,
                            continuation, period, extra_filters))
+
+
+def _as_association(question: str, reading: cap.Reading) -> cap.Reading:
+    """Route a question about a PATTERN to the runtime rather than the catalogue.
+
+    Only where the sentence asks whether a relationship holds — a narrow test,
+    because "how is ratings data connected to IFRS 9?" is a genuine catalogue
+    question about joins and must stay one. What is redirected is the family
+    that asks whether the FIGURES are consistent, which no amount of metadata
+    can answer.
+    """
+    import dataclasses
+
+    if not association.wants(question):
+        return reading
+    if reading.intent in cap.COMPUTES:
+        return reading
+    if reading.intent not in cap.FROM_DATA_BUILDER:
+        return reading
+    return dataclasses.replace(
+        reading, intent=cap.Capability.ANALYSIS,
+        objective=(reading.objective
+                   or "whether the pattern in the figures holds"))
 
 
 def _repair_plan(answered: Answered, question: str, reading: cap.Reading,
@@ -725,6 +764,13 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
         sc.frame_of(build, continuation, presentation=continuation.presentation),
         action=continuation.action)
 
+    # A question about whether a pattern holds gets the pattern described:
+    # monotonicity, rank association, and the groups that do not fit it. Never a
+    # cause — the caveat that goes with it is fixed wording for that reason.
+    if association.wants(question):
+        answered.association = _describe_association(build, answered.runtime)
+        build.association = answered.association
+
     answered.written = interpretation.write(
         question, build.summary, answered.runtime, build=build,
         plan_note=_plan_note(build, continuation),
@@ -732,6 +778,22 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
     if answered.written is not None and answered.written.model:
         answered.calls += 1
     return answered
+
+
+def _describe_association(build: Any, runtime: Any) -> dict[str, Any]:
+    """The association in this result, or an empty dict when there is none."""
+    from backend.orchestration import presentation as pr
+
+    try:
+        found = association.analyse(pr.schema(runtime, build),
+                                    list(getattr(runtime, "rows", []) or []))
+    except Exception as e:  # noqa: BLE001 - a description must not lose an answer
+        logger.warning("The association could not be described: %s", e)
+        return {}
+    if not found.usable:
+        return {**found.to_dict(), "sentence": "", "caveat": ""}
+    return {**found.to_dict(), "sentence": association.describe(found),
+            "caveat": association.CAVEAT}
 
 
 def _unavailable_period(question: str) -> str:
