@@ -145,9 +145,43 @@ _PRESENTATION: tuple[tuple[str, str], ...] = (
      r"(?:as\s+)?(?:a\s+)?(?:bar|line|pie|column)?\s*"
      r"(?:graph|chart|plot)\b", "chart"),
     (r"\b(?:graph|chart|plot)\s+(?:it|this|that|them)\b", "chart"),
-    (r"\bas a table\b", "table"),
-    (r"\b(?:show|display)\s+(?:it|this|that)\s+as a list\b", "table"),
+    (r"\bas an?\s+(?:plain\s+|simple\s+)?(?:table|grid|list)\b", "table"),
+    (r"\b(?:use|show|give me|go back to|revert to|switch to)\s+"
+     r"(?:the\s+|a\s+)?(?:table|grid)\b", "table"),
+    (r"\btable\s+instead\b", "table"),
+    (r"\b(?:no|without|drop|remove)\s+(?:the\s+)?(?:chart|graph|plot)\b", "table"),
 )
+
+#: A preference for a picture expressed inside a question that also asks for
+#: something new. "Produce a graph of internal grade and DSCR" is an analysis
+#: AND a presentation choice; treating it as only the first draws a table the
+#: user explicitly did not ask for, and treating it as only the second computes
+#: nothing.
+_WANTS_CHART: tuple[str, ...] = (
+    r"\b(?:graph|chart|plot)\b",
+    r"\bvisuali[sz]e\b", r"\bvisuali[sz]ation\b",
+)
+
+_WANTS_TABLE: tuple[str, ...] = (
+    r"\b(?:table|grid)\b",
+)
+
+
+def wants(question: str) -> str:
+    """A presentation preference stated anywhere in the sentence.
+
+    Read separately from `read`, because a preference is not an action. "Show
+    me EAD by sector as a bar chart" is a new request that happens to say how it
+    should be drawn, and the drawing instruction must survive the planning.
+    """
+    text = " " + " ".join((question or "").lower().split()) + " "
+    for pattern in _WANTS_TABLE:
+        if re.search(pattern, text):
+            return "table"
+    for pattern in _WANTS_CHART:
+        if re.search(pattern, text):
+            return "chart"
+    return ""
 
 #: Opening something rather than asking about it.
 _NAVIGATE: tuple[str, ...] = (
@@ -508,4 +542,4 @@ def unresolved(question: str, state: cv.ConversationState) -> str:
         "the analysis that produces it first.")
 
 
-__all__ = ["Reference", "read", "resolve", "unresolved"]
+__all__ = ["Reference", "read", "resolve", "unresolved", "wants"]

@@ -51,6 +51,41 @@ def _numbers(text: str) -> set[str]:
     return out
 
 
+def _presentation_note(build: ap.AnalysisBuild) -> list[str]:
+    """A record on the Trace that only the presentation changed.
+
+    A turn that produced the same figures in a different shape has to be
+    distinguishable on the Trace from one that recomputed them. Without it a
+    reviewer looking at two adjacent runs with identical numbers cannot tell
+    whether the second confirmed the first or merely redrew it.
+    """
+    continuation = getattr(build, "continuation", None)
+    kind = str(getattr(continuation, "presentation", "") or "")
+    if not kind:
+        return []
+    return [f"Only the presentation changed: the same validated result, shown "
+            f"as a {kind}. The population, filters, period and measures are "
+            f"the previous turn's."]
+
+
+def _visual(runtime: Any, build: Any, question: str = "") -> Any:
+    """The picture for this result, and the reason for it.
+
+    The preference is read from two places. A follow-up that ONLY changes the
+    presentation resolves to a continuation carrying "chart" or "table". A new
+    request can also state one — "produce a graph of internal grade and DSCR"
+    is an analysis and a drawing instruction at once — and reading only the
+    first put a table in front of somebody who had asked for a graph.
+    """
+    from backend.orchestration import referents, visualize
+
+    continuation = getattr(build, "continuation", None)
+    requested = (str(getattr(continuation, "presentation", "") or "")
+                 or referents.wants(question))
+    return visualize.choose(_presented(runtime, build), runtime.rows or [],
+                            requested=requested)
+
+
 def _presented(runtime: Any, build: Any) -> list[dict[str, Any]]:
     """The runtime's columns, with a display contract folded in, in reading order.
 
@@ -233,7 +268,7 @@ def from_analysis(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
         )],
         planner=reading.source, model_name=reading.model or None,
         follow_ups=_follow_ups(build),
-        notes=[_composed_note(build)],
+        notes=[_composed_note(build), *_presentation_note(build)],
     )
 
     # Computed once, then quoted. Anything the prose says is a figure the
@@ -267,6 +302,11 @@ def from_analysis(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
             "columns": _presented(runtime, build),
             "warnings": [*runtime.warnings, *build.warnings],
             "chart": runtime.chart, "truncated": runtime.truncated,
+            # What to DRAW, decided from the shape of the result and from what
+            # the user asked for — never from the values. Carries its own
+            # reason and always a table toggle: a chart a credit officer
+            # cannot check against its figures is one they may not act on.
+            "visual": _visual(runtime, build, question).to_dict(),
             "certification": runtime.certification,
             "certification_label": runtime.certification_label,
             "capability": reading.to_dict(),
