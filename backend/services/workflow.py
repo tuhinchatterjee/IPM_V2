@@ -103,6 +103,21 @@ STATE_LABEL: dict[str, str] = {
     WF_WITHDRAWN: "Cancelled",
 }
 
+#: What a notification about each action SAYS.
+#:
+#: Not the chip label. "Review: Q2 committee pack" is what a program writes;
+#: "Review requested: Q2 committee pack" is what a person reads, and a
+#: notification is read in a list of other people's sentences.
+ACTION_ASKED: dict[str, str] = {
+    "review": "Review requested",
+    "comment": "Comment requested",
+    "approve": "Approval requested",
+    "request_changes": "Changes requested",
+    "fyi": "For your information",
+    "sign_off": "Sign-off requested",
+    "assign_action": "Action assigned",
+}
+
 #: What is being ASKED FOR. §43's seven, in the words a sender picks from.
 ACTION_LABEL: dict[str, str] = {
     "review": "Review",
@@ -377,7 +392,7 @@ def send(*, object_type: str, object_id: str, title: str,
                 session,
                 user_id=user_id,
                 kind="assigned",
-                title=f"{ACTION_LABEL[action]}: {title}"[:300],
+                title=f"{ACTION_ASKED[action]}: {title}"[:300],
                 body=message,
                 object_type=object_type,
                 object_id=str(object_id),

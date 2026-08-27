@@ -266,7 +266,11 @@ def test_every_recipient_is_told(client, crowd, sent_to_two):
     for who in (first, second):
         notes = client.get("/api/v1/workspace/notifications",
                            headers=_as(who)).json()["notifications"]
-        assert any(n["object_id"] == "5150" for n in notes), who
+        mine = [n for n in notes if n["object_id"] == "5150"]
+        assert mine, who
+        # The notification reads as a sentence somebody wrote, not as a label
+        # a program printed: it sits in a list of other people's sentences.
+        assert any("Sign-off requested" in n["title"] for n in mine), who
 
 
 def test_an_action_the_product_cannot_perform_is_refused(client, crowd):
