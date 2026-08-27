@@ -43,6 +43,18 @@ HISTOGRAM = "histogram"
 SCATTER = "scatter"
 DOT = "dot"
 
+#: What each shape is called on screen. A reader asked for "a graph"; telling
+#: them they were given a `bar_horizontal` is the product speaking its own
+#: enum out loud.
+LABELS: dict[str, str] = {
+    TABLE: "a table", KPI: "a headline figure", BAR: "a bar chart",
+    HORIZONTAL_BAR: "a horizontal bar chart",
+    GROUPED_BAR: "a grouped bar chart", LINE: "a line chart",
+    AREA: "an area chart", SLOPE: "a slope chart",
+    WATERFALL: "a waterfall chart", HEATMAP: "a heatmap",
+    HISTOGRAM: "a histogram", SCATTER: "a scatter plot", DOT: "a dot plot",
+}
+
 #: Beyond this many categories a bar chart is a picket fence. The table is the
 #: honest primary and the chart becomes the alternative.
 MAX_CATEGORIES = 30
@@ -74,8 +86,13 @@ class Visual:
     #: Where the choice came from: "shape" or "asked".
     source: str = "shape"
 
+    def label(self) -> str:
+        """The chart kind in the words a person would use for it."""
+        return LABELS.get(self.chart, self.chart.replace("_", " "))
+
     def to_dict(self) -> dict[str, Any]:
-        return {"chart": self.chart, "x": self.x, "y": list(self.y),
+        return {"chart": self.chart, "label": self.label(),
+                "x": self.x, "y": list(self.y),
                 "series": self.series, "reason": self.reason,
                 "chart_first": self.chart_first,
                 "alternatives": list(self.alternatives),

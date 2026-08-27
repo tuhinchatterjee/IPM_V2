@@ -31,11 +31,22 @@ previous sentence.
 
 What is NOT remembered
 ----------------------
-Rows of data. The state carries identities and a handful of headline values so a
-reference can be resolved and a change described; it never becomes a cache of
-the book. A follow-up re-reads governed data through the runtime every time,
-because an answer assembled from a remembered table would not be a governed
-figure any more.
+Rows of **source data**. The state never becomes a cache of the book, and a
+follow-up that asks a new analytical question re-reads governed data through
+the runtime every time.
+
+What IS remembered, and why that is not the same thing
+------------------------------------------------------
+The previous **result** — the small, grouped table that was already computed,
+invariant-checked and shown. It is carried under its own fingerprint, capped at
+`MAX_REUSE_ROWS`.
+
+The distinction is the whole of it. "Which of these are Stage 2?" is a new
+question about the portfolio and must reach the runtime. "Does this trend make
+sense?" is a question about the ten rows already on the screen, and re-running
+the scan to answer it would not make the answer more governed — it would just
+risk answering about a *different* ten rows, computed a second apart, under a
+sentence that says "this".
 """
 
 from __future__ import annotations
@@ -63,6 +74,17 @@ MAX_TURNS = 8
 
 #: Headline rows kept from the previous result, for describing a change.
 MAX_SNAPSHOT_ROWS = 10
+
+#: How much of the previous RESULT is carried so a question about it can be
+#: answered without re-running the analysis that produced it.
+#:
+#: Two hundred, because the results these questions are asked about are grouped
+#: — rating grades, sectors, quarters, buckets — and a grouped credit result is
+#: tens of rows, not thousands. A result larger than this is a customer listing,
+#: and a listing is re-read from the stored run rather than pinned here: the
+#: conversation state is written on every turn and must stay small enough that
+#: writing it is free.
+MAX_REUSE_ROWS = 200
 
 
 # --------------------------------------------------------------- the pieces
@@ -107,6 +129,20 @@ class ResultShape:
     #: A few headline rows, for describing what changed between two turns.
     sample: list[dict[str, Any]] = field(default_factory=list)
     run_id: int | None = None
+    #: The result itself, up to `MAX_REUSE_ROWS`, so a question ABOUT it can be
+    #: answered from it. Empty when the result was too large to carry, in which
+    #: case the reuse path reads it back from the stored run instead.
+    rows: list[dict[str, Any]] = field(default_factory=list)
+    #: True when `rows` holds only the first `MAX_REUSE_ROWS` of the result.
+    #: A statistic computed over a truncated table would describe the top of a
+    #: ranking and be reported as describing the whole of it.
+    truncated: bool = False
+    #: What identifies the execution these rows came out of. A follow-up that
+    #: reuses them records it, so the answer can be tied back to the exact run
+    #: rather than to "the previous turn".
+    fingerprint: str = ""
+    #: The question that produced them, so a reused answer can restate it.
+    question: str = ""
 
     @property
     def has_population(self) -> bool:
@@ -123,6 +159,8 @@ class ResultShape:
             "entity_ids": list(self.entity_ids),
             "entity_labels": dict(self.entity_labels),
             "sample": list(self.sample), "run_id": self.run_id,
+            "rows": list(self.rows), "truncated": self.truncated,
+            "fingerprint": self.fingerprint, "question": self.question,
         }
 
     @classmethod
@@ -137,6 +175,10 @@ class ResultShape:
                            for k, v in (raw.get("entity_labels") or {}).items()},
             sample=[dict(r) for r in raw.get("sample") or []],
             run_id=raw.get("run_id"),
+            rows=[dict(r) for r in raw.get("rows") or []],
+            truncated=bool(raw.get("truncated")),
+            fingerprint=str(raw.get("fingerprint") or ""),
+            question=str(raw.get("question") or ""),
         )
 
 
@@ -367,6 +409,14 @@ MODIFY_PRESENTATION = "MODIFY_PRESENTATION"
 
 #: Follow-ups that are not analyses.
 ASK_ABOUT_RESULT = "ASK_ABOUT_RESULT"
+#: A question about the PATTERN in the result that is already on the table.
+#:
+#: Distinct from ASK_ABOUT_RESULT, which reads a value back out of it ("what
+#: was Contracting?"), and distinct from CONTINUE, which plans and runs
+#: something new. "Does this trend make sense?" asks CreditProbe to reason over
+#: rows it has already computed — so it reuses them, runs approved statistics
+#: over them in memory, and rescans no governed data at all.
+ASSESS_PREVIOUS_RESULT = "ASSESS_PREVIOUS_RESULT"
 METADATA_FOLLOWUP = "METADATA_FOLLOWUP"
 NAVIGATE = "NAVIGATE"
 CORRECT_INCOMPLETE_RESPONSE = "CORRECT_INCOMPLETE_RESPONSE"
@@ -379,7 +429,8 @@ ACTIONS: tuple[str, ...] = (
     NEW_REQUEST, CONTINUE,
     MODIFY_PREVIOUS, MODIFY_CALCULATION, MODIFY_FILTER, MODIFY_POPULATION,
     MODIFY_PERIOD, MODIFY_PRESENTATION,
-    ENRICH_PREVIOUS, ASK_ABOUT_RESULT, METADATA_FOLLOWUP, NAVIGATE,
+    ENRICH_PREVIOUS, ASK_ABOUT_RESULT, ASSESS_PREVIOUS_RESULT,
+    METADATA_FOLLOWUP, NAVIGATE,
     CORRECT_INCOMPLETE_RESPONSE, RESET_SCOPE, WIDEN_SCOPE, CLARIFY,
 )
 
@@ -393,8 +444,14 @@ MODIFICATIONS = frozenset({
 #: result is already on the table; what changes is how it is shown or what is
 #: said about it.
 NON_ANALYTICAL = frozenset({
-    MODIFY_PRESENTATION, ASK_ABOUT_RESULT, METADATA_FOLLOWUP, NAVIGATE,
+    MODIFY_PRESENTATION, ASK_ABOUT_RESULT, ASSESS_PREVIOUS_RESULT,
+    METADATA_FOLLOWUP, NAVIGATE,
 })
+
+#: The actions whose answer is computed from the PREVIOUS RESULT rather than
+#: from governed data. Everything in here must leave the data access layer,
+#: DuckDB and the Parquet lake untouched, and must say so on the Trace.
+REUSES_RESULT = frozenset({MODIFY_PRESENTATION, ASSESS_PREVIOUS_RESULT})
 
 #: The actions that carry the previous turn's settled context forward. CLARIFY
 #: carries it too — a clarification is answered inside the same subject.
@@ -402,7 +459,8 @@ NON_ANALYTICAL = frozenset({
 #: it can say what is being widened from.
 CONTINUING = frozenset(
     {CONTINUE, ENRICH_PREVIOUS, CLARIFY, ASK_ABOUT_RESULT,
-     METADATA_FOLLOWUP, NAVIGATE, CORRECT_INCOMPLETE_RESPONSE, WIDEN_SCOPE}
+     ASSESS_PREVIOUS_RESULT, METADATA_FOLLOWUP, NAVIGATE,
+     CORRECT_INCOMPLETE_RESPONSE, WIDEN_SCOPE}
     | MODIFICATIONS)
 
 #: RESET_SCOPE is deliberately NOT continuing. It is the one follow-up whose
@@ -499,9 +557,10 @@ def save(context: dict[str, Any] | None,
 
 
 __all__ = [
-    "ACTIONS", "CLARIFY", "CONTINUE", "CONTINUING", "ENRICH_PREVIOUS",
-    "MAX_ENTITY_IDS", "MAX_SNAPSHOT_ROWS", "MAX_TURNS", "MODIFY_PREVIOUS",
-    "NEW_REQUEST", "STATE_KEY",
+    "ACTIONS", "ASSESS_PREVIOUS_RESULT", "CLARIFY", "CONTINUE", "CONTINUING",
+    "ENRICH_PREVIOUS",
+    "MAX_ENTITY_IDS", "MAX_REUSE_ROWS", "MAX_SNAPSHOT_ROWS", "MAX_TURNS",
+    "MODIFY_PREVIOUS", "NEW_REQUEST", "REUSES_RESULT", "STATE_KEY",
     "ConversationState", "Continuation", "ResultShape", "Turn",
     "load", "save",
 ]

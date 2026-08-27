@@ -102,6 +102,15 @@ class NodeType(StrEnum):
     SQL_QUERY = "SQL_QUERY"
     #: An allowlisted numerical operation run on the query's result.
     KERNEL = "KERNEL"
+    #: The recorded result of an EARLIER run, named so a follow-up that reasons
+    #: over it can be tied back to the exact execution that produced it —
+    #: question, periods, scope, fingerprint.
+    PREVIOUS_RESULT = "PREVIOUS_RESULT"
+    #: The moment those rows were taken as this turn's input instead of the
+    #: analytical runtime. Carries the count and the fact that no governed data
+    #: was rescanned, which is the claim the answer makes on screen and
+    #: therefore the claim the Trace has to be able to show.
+    REUSED_RESULT = "REUSED_RESULT"
     CALCULATION = "CALCULATION"
     RESULT = "RESULT"
     LLM_EXPLANATION = "LLM_EXPLANATION"
@@ -132,6 +141,8 @@ GOVERNED_NODE_TYPES = frozenset(
         NodeType.CERTIFIED_METHOD,
         NodeType.SQL_QUERY,
         NodeType.KERNEL,
+        NodeType.PREVIOUS_RESULT,
+        NodeType.REUSED_RESULT,
         NodeType.CALCULATION,
         NodeType.BUSINESS_INVARIANT,
         NodeType.RESULT,
@@ -227,11 +238,30 @@ class TraceNode:
         self.status = NodeStatus.RUNNING
         self.started_at = datetime.now(UTC)
 
-    def mark_ok(self, *, rows_out: int | None = None) -> None:
+    def mark_ok(self, *, rows_in: int | None = None,
+                rows_out: int | None = None) -> None:
         self.status = NodeStatus.OK
         self.finished_at = datetime.now(UTC)
         if self.started_at:
             self.duration_ms = int((self.finished_at - self.started_at).total_seconds() * 1000)
+        if rows_in is not None:
+            self.rows_in = rows_in
+        if rows_out is not None:
+            self.rows_out = rows_out
+
+    def mark_cached(self, *, rows_in: int | None = None,
+                    rows_out: int | None = None) -> None:
+        """This step produced its output without doing its work again.
+
+        Distinct from OK on purpose. A reader auditing a Trace needs to see at
+        a glance which steps executed and which handed back a recorded result —
+        that difference is the whole claim a reused answer makes, and a node
+        that merely says "ok" hides it.
+        """
+        self.status = NodeStatus.CACHED
+        self.finished_at = datetime.now(UTC)
+        if rows_in is not None:
+            self.rows_in = rows_in
         if rows_out is not None:
             self.rows_out = rows_out
 

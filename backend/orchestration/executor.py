@@ -960,6 +960,24 @@ def answer_investigation(question: str, *, user_id: int | None = None,
         investigation = _asking(question, answered, mode_now, started)
     elif answered.failure:
         investigation = _controlled_failure(question, answered, mode_now, started)
+    elif answered.result is not None and answered.assessment is not None:
+        # A question about the result already on the table, answered from it.
+        # Routed before the metadata assembly because that one stamps every
+        # answer with "no analytical engine ran and no figure was computed",
+        # and both halves of that are wrong here.
+        investigation = assembly.from_reuse(
+            question, answered.reading, answered.result,
+            cached=answered.cached, found=answered.assessment,
+            provenance=answered.provenance,
+            duration_ms=answered.duration_ms, mode=mode_now)
+        _record_reuse(investigation, answered)
+    elif answered.result is not None and answered.provenance is not None:
+        # "Show it as a graph" — the previous result, drawn differently.
+        investigation = assembly.from_redraw(
+            question, answered.reading, answered.result,
+            cached=answered.cached, provenance=answered.provenance,
+            duration_ms=answered.duration_ms, mode=mode_now)
+        _record_reuse(investigation, answered)
     elif answered.result is not None:
         investigation = assembly.from_handler(
             question, answered.reading, answered.result,
@@ -1693,6 +1711,26 @@ def _record_evidence(investigation: Investigation, answered: Any) -> None:
         graph.connect("interpretation", "evidence")
     except Exception as e:  # noqa: BLE001
         logger.warning("Could not record the evidence node: %s", e)
+
+
+def _record_reuse(investigation: Investigation, answered: Any) -> None:
+    """The reuse facts onto the investigation, where the API can read them.
+
+    Duplicated deliberately onto `mode` as well as onto the step: the answer
+    surface reads `mode`, the audit reads the step, and a claim this specific
+    should be visible from both without either having to know about the other.
+    """
+    provenance = getattr(answered, "provenance", None)
+    if provenance is None:
+        return
+    investigation.mode.update({
+        "reused_result": True,
+        "data_rescan": False,
+        "derived_from_run_id": provenance.derived_from_run_id,
+        "derived_from_result_fingerprint":
+            provenance.derived_from_result_fingerprint,
+        "reuse": provenance.to_dict(),
+    })
 
 
 def _record_scope(investigation: Investigation, answered: Any) -> None:

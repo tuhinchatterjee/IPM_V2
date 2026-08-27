@@ -283,6 +283,18 @@ def _asks_about_a_pattern(question: str) -> bool:
     return association.wants(question)
 
 
+def _asks_about_the_result(question: str) -> bool:
+    """Whether the sentence is about the previous RESULT rather than the book.
+
+    Wider than the pattern test above, and checked without requiring a pointing
+    word: "are there exceptions?" and "is this monotonic?" are questions about
+    the table on the screen whether or not they contain "this".
+    """
+    from backend.orchestration import reuse
+
+    return reuse.wants(question)
+
+
 def read(question: str) -> Reference:
     """What this sentence refers back to, without a model and without state.
 
@@ -318,10 +330,12 @@ def read(question: str) -> Reference:
     # a new request it names no measure, and the planner quite correctly asks
     # which figure to compute — which is the product asking the user to repeat
     # what they just looked at.
-    if _POINTS_BACK.search(text) and _asks_about_a_pattern(question):
+    if _asks_about_the_result(question) or (
+            _POINTS_BACK.search(text) and _asks_about_a_pattern(question)):
         return Reference(
-            action=cv.CONTINUE,
-            changes=["describe the pattern in the result already on the table"],
+            action=cv.ASSESS_PREVIOUS_RESULT,
+            changes=["assess the pattern in the result already on the table, "
+                     "without re-running the analysis that produced it"],
             because="the question asks whether the previous result's pattern "
                     "holds")
 
@@ -473,7 +487,7 @@ def resolve(question: str, state: cv.ConversationState, *,
 #: "show it as a graph", and every disagreement it can produce loses something.
 _READER_OWNS = frozenset({
     cv.MODIFY_PRESENTATION, cv.CORRECT_INCOMPLETE_RESPONSE, cv.NAVIGATE,
-    cv.RESET_SCOPE, cv.METADATA_FOLLOWUP,
+    cv.RESET_SCOPE, cv.METADATA_FOLLOWUP, cv.ASSESS_PREVIOUS_RESULT,
 })
 
 

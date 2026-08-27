@@ -39,10 +39,11 @@ could write.
 from __future__ import annotations
 
 import logging
-import math
 import re
 from dataclasses import dataclass, field
 from typing import Any
+
+from backend.orchestration import kernels
 
 logger = logging.getLogger(__name__)
 
@@ -193,37 +194,16 @@ class Analysis:
 
 
 def _ranks(values: list[float]) -> list[float]:
-    """Average ranks, so ties do not distort the coefficient."""
-    order = sorted(range(len(values)), key=lambda i: values[i])
-    ranks = [0.0] * len(values)
-    position = 0
-    while position < len(order):
-        end = position
-        while end + 1 < len(order) and values[order[end + 1]] == values[order[position]]:
-            end += 1
-        average = (position + end) / 2.0 + 1.0
-        for index in range(position, end + 1):
-            ranks[order[index]] = average
-        position = end + 1
-    return ranks
+    """Average ranks. The implementation lives in the approved kernels."""
+    return kernels.ranks(values)
 
 
 def _pearson(left: list[float], right: list[float]) -> float | None:
-    n = len(left)
-    if n < 2 or n != len(right):
-        return None
-    mean_left = sum(left) / n
-    mean_right = sum(right) / n
-    covariance = sum((a - mean_left) * (b - mean_right) for a, b in zip(left, right, strict=True))
-    spread_left = math.sqrt(sum((a - mean_left) ** 2 for a in left))
-    spread_right = math.sqrt(sum((b - mean_right) ** 2 for b in right))
-    if not spread_left or not spread_right:
-        return None
-    return round(covariance / (spread_left * spread_right), 3)
+    return kernels.pearson(left, right).value
 
 
 def _spearman(left: list[float], right: list[float]) -> float | None:
-    return _pearson(_ranks(left), _ranks(right))
+    return kernels.spearman(left, right).value
 
 
 def _trend(labels: list[str], values: list[float], measure: str,
@@ -250,28 +230,14 @@ def _exceptions(labels: list[str], left: list[float], right: list[float],
                 rho: float | None) -> list[str]:
     """Groups that do not fit the association the other groups describe.
 
-    Measured against the direction the association actually has. An earlier
-    version compared the two ranks directly, which reported every group as an
-    exception whenever the relationship was inverse — a perfect Spearman of
-    -1.00 came back with three names that did not fit it, which is a
-    contradiction rather than a finding.
-
-    "Does not fit" is a residual of a third of the groups. Tighter and every
-    result has exceptions; looser and none does.
+    The arithmetic is `kernels.exceptions`, which is the same operation this
+    module used to own privately. It moved because "does this trend make
+    sense?" answers itself from a STORED result and may run only approved
+    kernels — and two implementations of the same statistic would eventually
+    disagree about which grades are exceptions depending on how the question
+    was phrased.
     """
-    n = len(labels)
-    if n < MIN_GROUPS or rho is None:
-        return []
-    left_ranks, right_ranks = _ranks(left), _ranks(right)
-    # Where the association is inverse, the rank a group is EXPECTED to hold on
-    # the second measure is its mirror on the first.
-    expected = (left_ranks if rho >= 0
-                else [(n + 1.0) - rank for rank in left_ranks])
-    tolerance = max(2.0, n / 3.0)
-    gaps = sorted(
-        ((abs(expected[i] - right_ranks[i]), labels[i]) for i in range(n)),
-        reverse=True)
-    return [name for gap, name in gaps if gap >= tolerance][:MAX_EXCEPTIONS]
+    return kernels.exceptions(left, right, labels, rho).labels
 
 
 # ---------------------------------------------------------------------------

@@ -244,6 +244,10 @@ _BY_ACTION: dict[str, str] = {
     "WIDEN_SCOPE": WIDEN,
     "ENRICH_PREVIOUS": ENRICH,
     "MODIFY_PRESENTATION": PRESENTATION_ONLY,
+    # An assessment reads the result that is already on the table. The scope
+    # it covers is, by construction, exactly the scope of the turn before it —
+    # which is the property the answer states and the Trace has to show.
+    "ASSESS_PREVIOUS_RESULT": UNCHANGED,
     "MODIFY_PERIOD": CHANGE_PERIOD,
     "MODIFY_CALCULATION": CHANGE_MEASURE,
     "MODIFY_FILTER": NARROW,

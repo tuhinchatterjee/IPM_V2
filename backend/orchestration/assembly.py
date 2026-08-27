@@ -274,6 +274,175 @@ def from_handler(question: str, reading: cap.Reading,
     )
 
 
+def from_redraw(question: str, reading: cap.Reading, result: Any, *,
+                cached: Any, provenance: Any, duration_ms: int,
+                mode: dict[str, Any]) -> Investigation:
+    """An Investigation for "show it as a graph" — the same rows, drawn again.
+
+    Its own assembly rather than the metadata one, for the same reason
+    `from_reuse` is: the metadata plan says "answered from the governed
+    catalogue", and this was answered from a governed RESULT. One inaccurate
+    sentence under an accurate answer is how a Trace stops being worth reading.
+    """
+    visual = dict((result.detail or {}).get("presentation") or {})
+    scope = Scope(
+        focus=cached.plan_summary or question, dimension=cached.dimension or None,
+        output="distribution", period_requirement="none",
+        period_specified=bool(cached.periods),
+        to_period=(cached.periods[-1] if cached.periods else None),
+        period_source="inherited from the result being redrawn",
+        filters={str(f.get("kind") or ""): str(f.get("value") or "")
+                 for f in cached.filters if f.get("kind")},
+    )
+    plan = AnalysisPlan(
+        question=question, intent="Show the previous result differently",
+        scope=scope, steps=[], planner="reuse",
+        notes=["This changed how the previous result is shown, not what it "
+               "contains. " + orchestrator_no_rescan()],
+    )
+    narrative = Narrative(
+        direct_answer=result.answer, summary=result.answer,
+        findings=[], interpretation="", interpretation_points=[],
+        scope=_reuse_scope_line(cached), caveats=[],
+    )
+    step = ExecutedStep(
+        index=0, analysis_id="show_previous_result",
+        title="The previous result, redrawn",
+        rationale=("A change of presentation is applied to the result already "
+                   "on the table; nothing is recomputed."),
+        params={"derived_from_run_id": provenance.derived_from_run_id},
+        filters={}, period=(cached.periods[-1] if cached.periods else ""),
+        status="succeeded", certification="derived", analysis_version="",
+        duration_ms=duration_ms,
+        result={
+            "values": {}, "units": {}, "input_row_count": cached.row_count,
+            "meta": {"execution": "reused_result",
+                     "reuse": provenance.to_dict()},
+            "rows": result.rows, "columns": result.columns,
+            "warnings": [], "chart": {}, "truncated": False,
+            "certification": "derived",
+            "certification_label": "Derived from a governed result",
+            "capability": reading.to_dict(), "detail": result.detail,
+            "visual": visual,
+        },
+        error=None,
+        trace=result.graph.to_dict() if result.graph else None,
+        node_hashes={}, role="primary",
+    )
+    graph = result.graph or TraceGraph()
+    return Investigation(
+        question=question, plan=plan, steps=[step], narrative=narrative,
+        graph=graph, node_hashes=graph.compute_hashes(),
+        duration_ms=duration_ms, status="succeeded",
+        mode={**mode, "execution": "reused_result",
+              "execution_label": "Reused governed result",
+              "intent": reading.intent},
+    )
+
+
+def from_reuse(question: str, reading: cap.Reading, result: Any, *,
+               cached: Any, found: Any, provenance: Any,
+               duration_ms: int, mode: dict[str, Any]) -> Investigation:
+    """An Investigation for a question answered from the previous result.
+
+    Deliberately not `from_handler`. A metadata answer's plan says "answered
+    from the governed catalogue, no analytical engine ran and no figure was
+    computed" — and that is wrong here twice over: figures WERE computed, by
+    approved kernels, and the source was a governed result rather than the
+    catalogue. Reusing the metadata assembly would have put an inaccurate
+    sentence under an accurate answer, which is the specific kind of small
+    dishonesty that makes a Trace stop being worth reading.
+    """
+    scope = Scope(
+        focus=cached.plan_summary or reading.objective or question,
+        dimension=cached.dimension or None,
+        output="distribution",
+        period_requirement="none",
+        period_specified=bool(cached.periods),
+        from_period=(cached.periods[0] if len(cached.periods) > 1 else None),
+        to_period=(cached.periods[-1] if cached.periods else None),
+        period_source="inherited from the result being assessed",
+        filters={str(f.get("kind") or ""): str(f.get("value") or "")
+                 for f in cached.filters if f.get("kind")},
+    )
+    plan = AnalysisPlan(
+        question=question,
+        intent=(f"Assess the pattern in the result of: {cached.question}"
+                if cached.question else "Assess the previous result"),
+        scope=scope, steps=[], planner="reuse",
+        follow_ups=list(result.follow_ups),
+        notes=[
+            "This question was answered from the result already on the table. "
+            + orchestrator_no_rescan(),
+            "Only allowlisted numerical kernels ran over those rows: "
+            + ", ".join(sorted({str(k.get("kernel") or "")
+                                for k in found.kernels})) + ".",
+        ],
+    )
+    narrative = Narrative(
+        direct_answer=found.conclusion,
+        summary=found.conclusion,
+        findings=[Finding(text=line, tone="neutral", step=0)
+                  for line in found.evidence],
+        interpretation=found.credit_interpretation,
+        interpretation_points=list(found.evidence),
+        scope=_reuse_scope_line(cached),
+        caveats=[*found.limitations, found.caveat],
+    )
+    step = ExecutedStep(
+        index=0, analysis_id="assess_previous_result",
+        title="Assessment of the previous result",
+        rationale=("The question asks whether the pattern in the result "
+                   "already on the table holds, so that result was reused "
+                   "rather than recomputed."),
+        params={"derived_from_run_id": provenance.derived_from_run_id,
+                "result_fingerprint":
+                    provenance.derived_from_result_fingerprint},
+        filters={}, period=(cached.periods[-1] if cached.periods else ""),
+        status="succeeded", certification="derived", analysis_version="",
+        duration_ms=duration_ms,
+        result={
+            "values": dict(result.values), "units": {},
+            "input_row_count": cached.row_count,
+            "meta": {"execution": "reused_result",
+                     "reuse": provenance.to_dict()},
+            "rows": result.rows, "columns": result.columns,
+            "warnings": list(result.warnings), "chart": {},
+            "truncated": False, "certification": "derived",
+            "certification_label": "Derived from a governed result",
+            "capability": reading.to_dict(),
+            "detail": result.detail,
+        },
+        error=None,
+        trace=result.graph.to_dict() if result.graph else None,
+        node_hashes={}, role="primary",
+    )
+    graph = result.graph or TraceGraph()
+    return Investigation(
+        question=question, plan=plan, steps=[step], narrative=narrative,
+        graph=graph, node_hashes=graph.compute_hashes(),
+        duration_ms=duration_ms, status="succeeded",
+        mode={**mode, "execution": "reused_result",
+              "execution_label": "Reused governed result",
+              "intent": reading.intent},
+    )
+
+
+def orchestrator_no_rescan() -> str:
+    from backend.orchestration.orchestrator import NO_RESCAN
+
+    return NO_RESCAN
+
+
+def _reuse_scope_line(cached: Any) -> str:
+    """What the assessed result covered, said before anything is claimed."""
+    said = cached.scope_sentence()
+    if cached.question:
+        return (f"The result of \u201c{cached.question}\u201d"
+                + (f" \u2014 {said}" if said else ""))
+    return said or "The previous result in this investigation"
+
+
 # ------------------------------------------------------------ analytical answers
 
 

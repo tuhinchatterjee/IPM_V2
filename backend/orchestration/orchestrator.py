@@ -54,6 +54,9 @@ from backend.orchestration import (
     router,
     spelling,
 )
+from backend.orchestration import (
+    assessment as az,
+)
 from backend.orchestration import capability as cap
 from backend.orchestration import certified as cert
 from backend.orchestration import conversation as cv
@@ -61,6 +64,7 @@ from backend.orchestration import coverage as cov
 from backend.orchestration import guardrail as gr
 from backend.orchestration import invariants as inv
 from backend.orchestration import memory as wm
+from backend.orchestration import reuse as ru
 from backend.orchestration import routing as rt
 from backend.orchestration import scope as sc
 from backend.orchestration.context import retrieve
@@ -197,6 +201,13 @@ class Answered:
     #: How the measures in the result move together, where the question asked
     #: whether a pattern holds. Never a cause.
     association: dict[str, Any] = field(default_factory=dict)
+    #: The analyst-grade reading of a result that was already on the table,
+    #: when this turn reused one instead of computing anything.
+    assessment: Any = None
+    #: Where those rows came from, and the fact that nothing was rescanned.
+    provenance: Any = None
+    #: The reused result itself, for the answer and the Trace.
+    cached: Any = None
     #: What this answer covers, and what this turn did to it.
     scope: Any = None
     #: Set when a key is configured and the live path could not be used.
@@ -312,6 +323,32 @@ def answer(question: str, *, context: Any = None,
         answered.from_memory = True
         answered.decision = rt.decide(question, deterministic=True)
         return finish(answered)
+
+    # "Does this trend make sense?" — a question about the rows that are
+    # already on the screen. Answered from them.
+    #
+    # This must come before every path that composes or executes anything. The
+    # previous behaviour re-planned and re-executed to reproduce the table the
+    # user was looking at while they typed: full analytical cost for a question
+    # that needed none, a re-guess of a sentence that names no measure, and —
+    # the part that actually matters — a SECOND result. Two executions a second
+    # apart are two results, and describing the second one under a sentence
+    # that says "this" is wrong even when the figures agree.
+    if ru.wants(question) and not ru.asks_to_expand(question):
+        return finish(_assess_previous(answered, question, state))
+
+    # "Show it as a graph." The same rows, drawn differently.
+    #
+    # This never reached the runtime in the sense of producing different
+    # figures — the row counts matched, which is what the test asserted — but
+    # it re-planned and re-executed to get them. Paying the full analytical
+    # cost of a question to change a chart type is not merely wasteful: two
+    # executions are two results, and "show IT as a graph" promises the one
+    # already on the screen.
+    if continuation.action == cv.MODIFY_PRESENTATION:
+        redrawn = _redraw_previous(answered, question, state, continuation)
+        if redrawn is not None:
+            return finish(redrawn)
 
     # "Something seems wrong with Contracting. Investigate it." — a request to
     # look, not to compute one figure. Answered with a bounded set of governed
@@ -855,6 +892,326 @@ def _nothing_to_measure(question: str, continuation: Any) -> bool:
     return held.out_of_scope or len(held.unknown_terms) >= cov.MIN_UNKNOWN_TERMS
 
 
+def _assess_previous(answered: Answered, question: str,
+                     state: cv.ConversationState) -> Answered:
+    """Answer a question about the previous result, from the previous result.
+
+    Three outcomes, and no fourth:
+
+      * an assessment, computed by approved kernels over the stored rows;
+      * a statement of what the stored result cannot establish, with the
+        analysis that would — §18, and the reason this path exists: silently
+        widening the scope to make a question answerable produces a confident
+        answer about a population the user never asked about;
+      * a fall-through to the ordinary planner, when there is no previous
+        result at all and the sentence is somebody's opening question.
+
+    Nothing here can reach governed data. `assessment.assess` is handed a
+    `Cached` and nothing else, and `Cached` holds rows rather than a
+    connection, so "no governed data was rescanned" is a property of what this
+    function is able to call rather than a claim about what it chose to.
+    """
+    cached = ru.cached_result(state)
+    if cached is None:
+        # No previous result. Left to the ordinary path, which will read the
+        # sentence, find no measure in it, and ask — which is right, because
+        # from a standing start "does this trend make sense?" genuinely is
+        # unanswerable.
+        answered.continuation.action = cv.NEW_REQUEST
+        answered.clarification = (
+            "There is no previous result in this investigation to assess. Ask "
+            "an analytical question first, and CreditProbe will describe the "
+            "pattern in what it returns.")
+        return answered
+
+    answered.continuation.action = cv.ASSESS_PREVIOUS_RESULT
+    answered.cached = cached
+    found = az.assess(cached, question)
+    answered.assessment = found
+    answered.provenance = ru.provenance_of(
+        cached, kernels_run=[k.get("kernel", "") for k in found.kernels])
+
+    if not found.usable:
+        answered.clarification = _cannot_assess(found)
+        return answered
+
+    answered.result = _assessment_result(question, cached, found,
+                                         answered.provenance)
+    answered.from_memory = True
+    answered.decision = rt.decide(question, deterministic=True)
+    answered.association = {
+        **found.association, "sentence": found.conclusion,
+        "caveat": found.caveat}
+    return answered
+
+
+def _redraw_previous(answered: Answered, question: str,
+                     state: cv.ConversationState,
+                     continuation: cv.Continuation) -> Answered | None:
+    """Draw the previous result differently, without recomputing it.
+
+    Returns None when there is no previous result to redraw, in which case the
+    ordinary path runs and — correctly — asks what to draw.
+    """
+    from backend.orchestration import handlers, visualize
+
+    cached = ru.cached_result(state)
+    if cached is None or not cached.usable:
+        return None
+
+    requested = str(continuation.presentation or "")
+    visual = visualize.choose(cached.columns, cached.rows, requested=requested)
+    provenance = ru.provenance_of(cached)
+    answered.cached = cached
+    answered.provenance = provenance
+    answered.from_memory = True
+    answered.decision = rt.decide(question, deterministic=True)
+
+    said = cached.question or "the previous result"
+    answered.result = handlers.HandlerResult(
+        answer=f"The same result, shown as {visual.label()}.",
+        rows=[dict(r) for r in cached.rows],
+        columns=[dict(c) for c in cached.columns],
+        values={},
+        detail={"reuse": provenance.to_dict(), "previous": cached.to_dict(),
+                "presentation": visual.to_dict(), "of": said},
+        graph=_redraw_graph(question, cached, visual, provenance),
+        follow_ups=[],
+        warnings=[],
+    )
+    return answered
+
+
+def _redraw_graph(question: str, cached: Any, visual: Any,
+                  provenance: Any) -> Any:
+    """Four nodes: asked, the result it refers to, reused, drawn."""
+    from backend.trace.model import NodeType, TraceGraph, TraceNode
+
+    graph = TraceGraph()
+    graph.add_node(TraceNode(id="question", type=NodeType.USER_PROMPT,
+                             label="Question asked",
+                             config={"question": question}))
+    read = graph.add_node(TraceNode(
+        id="intent", type=NodeType.CAPABILITY,
+        label="Read as: a change of presentation",
+        config={"conversation_action": cv.MODIFY_PRESENTATION,
+                "computation_required": False,
+                "rule": ("This changes how the result is shown, not what it "
+                         "contains. " + NO_RESCAN)}))
+    read.mark_ok()
+    graph.connect("question", "intent")
+
+    previous = graph.add_node(TraceNode(
+        id="previous_result", type=NodeType.PREVIOUS_RESULT,
+        label=(f"Previous result — {cached.scope_sentence()}"
+               if cached.scope_sentence() else "Previous result"),
+        config={"source_run_id": cached.run_id,
+                "result_fingerprint": cached.fingerprint,
+                "original_question": cached.question,
+                "original_periods": list(cached.periods)}))
+    previous.mark_ok(rows_out=cached.row_count)
+    graph.connect("intent", "previous_result")
+
+    reused = graph.add_node(TraceNode(
+        id="reused_result", type=NodeType.REUSED_RESULT,
+        label=f"{len(cached.rows)} rows reused — nothing recomputed",
+        config={**provenance.to_dict(), "statement": NO_RESCAN}))
+    reused.mark_cached(rows_in=cached.row_count, rows_out=len(cached.rows))
+    graph.connect("previous_result", "reused_result")
+
+    drawn = graph.add_node(TraceNode(
+        id="visualisation", type=NodeType.VISUALIZATION,
+        label=visual.label() or "Table",
+        config=visual.to_dict()))
+    drawn.mark_ok(rows_in=len(cached.rows), rows_out=len(cached.rows))
+    graph.connect("reused_result", "visualisation")
+
+    answer = graph.add_node(TraceNode(
+        id="result", type=NodeType.RESULT, label="The same result, redrawn",
+        config={"from": "the previous result", "statement": NO_RESCAN}))
+    answer.mark_ok(rows_out=len(cached.rows))
+    graph.connect("visualisation", "result")
+    graph.compute_hashes()
+    return graph
+
+
+def _cannot_assess(found: Any) -> str:
+    """What the stored result cannot establish, and what would.
+
+    Both halves matter. Saying only what is missing leaves the user to design
+    the follow-up CreditProbe just declined to guess at; saying only the offer
+    hides the reason the question was not simply answered.
+    """
+    said = str(found.unavailable or "").strip()
+    said = said[:1].upper() + said[1:] if said else "This cannot be assessed."
+    offer = str(found.offer or "").strip()
+    return f"{said}. {offer}".strip() if offer else f"{said}."
+
+
+def _assessment_result(question: str, cached: Any, found: Any,
+                       provenance: Any) -> Any:
+    """The assessment as the shape the answer surface already renders.
+
+    A `HandlerResult`, because the alternative is a second result shape and a
+    second renderer, and the second renderer is the one that drifts.
+    """
+    from backend.orchestration import handlers, suggestions
+
+    rows = [dict(r) for r in cached.rows]
+    warnings = [*found.limitations, found.caveat]
+    graph = _reuse_graph(question, cached, found, provenance)
+    return handlers.HandlerResult(
+        answer=found.conclusion,
+        rows=rows,
+        columns=[dict(c) for c in cached.columns],
+        values={},
+        detail={
+            "assessment": found.to_dict(),
+            "reuse": provenance.to_dict(),
+            "previous": cached.to_dict(),
+            "kernels_available": kernels_module().approved(),
+        },
+        graph=graph,
+        follow_ups=list(found.next_analysis)[:suggestions.MAX_SUGGESTIONS],
+        warnings=warnings,
+    )
+
+
+#: The one sentence a reused answer's Trace must be able to state. Fixed
+#: wording: it is a claim about what the product did, and a claim of that kind
+#: cannot be paraphrased differently on different screens.
+NO_RESCAN = "No governed data was rescanned for this follow-up."
+
+
+def _reuse_graph(question: str, cached: Any, found: Any,
+                 provenance: Any) -> Any:
+    """The Trace for an answer computed from a result that already existed.
+
+    Five nodes, and deliberately no others. There is no dataset node, no join
+    node and no SQL node, because none of those ran — and inventing one so the
+    picture looks as full as an analytical Trace would make every genuine
+    Trace in the product less believable.
+    """
+    from backend.trace.model import NodeType, TraceGraph, TraceNode
+
+    graph = TraceGraph()
+    graph.add_node(TraceNode(
+        id="question", type=NodeType.USER_PROMPT,
+        label="Question asked", config={"question": question}))
+
+    read = graph.add_node(TraceNode(
+        id="intent", type=NodeType.CAPABILITY,
+        label="Read as: a question about the previous result",
+        config={
+            "conversation_action": cv.ASSESS_PREVIOUS_RESULT,
+            "computation_required": False,
+            "rule": ("This question asks whether the pattern in the result "
+                     "already on the table holds. It is answered from that "
+                     "result. " + NO_RESCAN),
+        }))
+    read.mark_ok()
+    graph.connect("question", "intent")
+
+    previous = graph.add_node(TraceNode(
+        id="previous_result", type=NodeType.PREVIOUS_RESULT,
+        label=(f"Previous result — {cached.scope_sentence()}"
+               if cached.scope_sentence() else "Previous result"),
+        config={
+            "source_run_id": cached.run_id,
+            "result_fingerprint": cached.fingerprint,
+            "original_question": cached.question,
+            "original_periods": list(cached.periods),
+            "original_scope": cached.scope_sentence(),
+            "original_filters": [dict(f) for f in cached.filters],
+            "datasets": list(cached.datasets),
+            "plan_summary": cached.plan_summary,
+        }))
+    previous.mark_ok(rows_out=cached.row_count)
+    graph.connect("intent", "previous_result")
+
+    reused = graph.add_node(TraceNode(
+        id="reused_result", type=NodeType.REUSED_RESULT,
+        label=f"{len(cached.rows)} rows reused — nothing rescanned",
+        config={
+            **provenance.to_dict(),
+            "read_from": cached.source,
+            "statement": NO_RESCAN,
+            "rule": ("A question about a result is answered from that result. "
+                     "Re-executing the analysis would produce a SECOND result, "
+                     "and describing it under a sentence that says \"this\" "
+                     "would be wrong even where the figures agreed."),
+        }))
+    reused.mark_cached(rows_in=cached.row_count, rows_out=len(cached.rows))
+    graph.connect("previous_result", "reused_result")
+
+    statistic = graph.add_node(TraceNode(
+        id="derived_statistic", type=NodeType.KERNEL,
+        label=_kernel_label(found),
+        config={
+            "kernels": [dict(k) for k in found.kernels],
+            "approved": kernels_module().approved(),
+            "limitations": list(found.limitations),
+            "rule": ("Only allowlisted numerical kernels may run over a "
+                     "reused result. A kernel is a named function in "
+                     "backend/orchestration/kernels.py; there is no generated "
+                     "expression and no arbitrary code path."),
+        }))
+    statistic.mark_ok(rows_in=len(cached.rows),
+                      rows_out=len(found.kernels))
+    graph.connect("reused_result", "derived_statistic")
+
+    check = graph.add_node(TraceNode(
+        id="evidence", type=NodeType.RECONCILIATION,
+        label=f"{len(found.evidence_values)} figures the answer could quote",
+        config={
+            "values": dict(found.evidence_values),
+            "entities": _assessed_entities(found),
+            "causal_claim": False,
+            "caveat": found.caveat,
+            "rule": ("The assessment may quote only figures a kernel "
+                     "computed and only groups the previous result named. It "
+                     "may describe how the measures move together; it may not "
+                     "assert that one causes the other."),
+        }))
+    check.mark_ok()
+    graph.connect("derived_statistic", "evidence")
+
+    answer = graph.add_node(TraceNode(
+        id="result", type=NodeType.RESULT,
+        label=found.conclusion or "Assessment",
+        config={"from": "the previous result", "statement": NO_RESCAN,
+                "next_analysis": list(found.next_analysis)}))
+    answer.mark_ok(rows_out=len(cached.rows))
+    graph.connect("evidence", "result")
+    graph.compute_hashes()
+    return graph
+
+
+def _kernel_label(found: Any) -> str:
+    names = sorted({str(k.get("kernel") or "") for k in found.kernels})
+    names = [n for n in names if n]
+    if not names:
+        return "No statistic could be derived"
+    shown = ", ".join(n.replace("_", " ") for n in names[:4])
+    return f"{len(found.kernels)} approved kernels — {shown}"
+
+
+def _assessed_entities(found: Any) -> list[str]:
+    """Every group the assessment is allowed to name."""
+    out: list[str] = []
+    for pair in (found.association.get("pairs") or []):
+        out.extend(str(x) for x in (pair.get("exceptions") or []))
+    for trend in (found.association.get("trends") or []):
+        out.extend(str(x) for x in (trend.get("breaks") or []))
+    return sorted({x for x in out if x})
+
+
+def kernels_module() -> Any:
+    from backend.orchestration import kernels
+
+    return kernels
+
+
 def _describe_association(build: Any, runtime: Any) -> dict[str, Any]:
     """The association in this result, or an empty dict when there is none."""
     from backend.orchestration import presentation as pr
@@ -1071,7 +1428,8 @@ def remember(state: cv.ConversationState, answered: Answered, *,
         state.opening_period, state.closing_period = "", ""
         state.periods = [build.period]
 
-    fresh = _snapshot(answered.runtime, build, run_id=run_id)
+    fresh = _snapshot(answered.runtime, build, run_id=run_id,
+                      question=answered.question)
     if not fresh.has_population and answered.continuation.has_population:
         # A follow-up that matched nothing does not erase what "these" refers
         # to. "None of the five are Stage 2" leaves the five on the table, and
@@ -1085,25 +1443,63 @@ def remember(state: cv.ConversationState, answered: Answered, *,
     return state
 
 
+def _result_fingerprint(runtime: Any) -> str:
+    """One short string identifying the execution that produced these rows.
+
+    The runtime's fingerprint is a dict of five component hashes plus the
+    dataset versions, which is exactly right on the Trace and useless as an
+    identifier: stringifying it puts eight hundred characters into the
+    conversation state and into every reused answer's provenance. The run hash
+    is the single value that changes whenever any component does, so that is
+    what is carried; anything without one is digested instead of truncated,
+    because a truncated hash is a hash that collides.
+    """
+    import hashlib
+    import json
+
+    found = getattr(runtime, "fingerprint", None)
+    if isinstance(found, dict):
+        run = str(found.get("run") or "").strip()
+        if run:
+            return run
+        digest = json.dumps(found, sort_keys=True, separators=(",", ":"),
+                            default=str)
+        return hashlib.sha256(digest.encode()).hexdigest()[:16]
+    return str(found or "")
+
+
 #: Columns that identify a row, most specific first. The first one present in
 #: the result is what a referent resolves against.
 _IDENTITY_COLUMNS = ("customer_id", "account_id", "borrower_id")
 
 
 def _snapshot(runtime: Any, build: ap.AnalysisBuild, *,
-              run_id: int | None) -> cv.ResultShape:
+              run_id: int | None, question: str = "") -> cv.ResultShape:
     """What the result was, in the shape a follow-up needs it.
 
     Identities and a handful of headline rows — never the table. A follow-up
     re-reads governed data through the runtime; carrying rows forward would turn
     the next answer into a report about a cached copy of the book.
     """
+    from backend.orchestration import presentation as pr
+
     rows = list(getattr(runtime, "rows", []) or [])
-    columns = [{"name": str(c.get("name")), "label": str(c.get("label")
-                                                         or c.get("name")),
-                "unit": str(c.get("unit") or "")}
-               for c in (getattr(runtime, "columns", []) or [])]
-    names = {c["name"] for c in columns}
+    # The FULL presentation schema, not a three-key summary of it.
+    #
+    # A follow-up that reasons about this result needs to know which column is
+    # the subject and which are measures, and that lives in `rank` and
+    # `semantic`. Carrying only name/label/unit meant "does this trend make
+    # sense?" could not tell a rating grade stored as an integer from a third
+    # measure to correlate against the other two.
+    try:
+        columns = [dict(c) for c in pr.schema(runtime, build)]
+    except Exception as e:  # noqa: BLE001 - a snapshot must not lose an answer
+        logger.warning("Could not snapshot the presentation schema: %s", e)
+        columns = [{"name": str(c.get("name")),
+                    "label": str(c.get("label") or c.get("name")),
+                    "unit": str(c.get("unit") or "")}
+                   for c in (getattr(runtime, "columns", []) or [])]
+    names = {str(c.get("name")) for c in columns}
 
     key = next((c for c in _IDENTITY_COLUMNS if c in names), "")
     if not key and build.dimension and build.dimension in names:
@@ -1123,9 +1519,19 @@ def _snapshot(runtime: Any, build: ap.AnalysisBuild, *,
             if label_column and row.get(label_column):
                 labels[str(value)] = str(row[label_column])
 
+    # The result itself, so a question ABOUT it does not have to re-run the
+    # analysis that produced it. Capped: past `MAX_REUSE_ROWS` this is a
+    # listing rather than a grouped result, and the reuse path reads those
+    # back out of the stored run instead of pinning them to every turn.
+    carried = [{k: v for k, v in row.items() if k in names}
+               for row in rows[:cv.MAX_REUSE_ROWS]]
+
     return cv.ResultShape(
         columns=columns, row_count=len(rows), entity_key=key if ids else "",
         entity_ids=ids, entity_labels=labels,
+        rows=carried, truncated=len(rows) > cv.MAX_REUSE_ROWS,
+        fingerprint=_result_fingerprint(runtime),
+        question=question,
         sample=[{k: v for k, v in row.items() if k in names}
                 for row in rows[:cv.MAX_SNAPSHOT_ROWS]],
         run_id=run_id,
