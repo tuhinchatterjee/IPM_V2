@@ -1058,7 +1058,6 @@ def _assessment_result(question: str, cached: Any, found: Any,
     from backend.orchestration import handlers, suggestions
 
     rows = [dict(r) for r in cached.rows]
-    warnings = [*found.limitations, found.caveat]
     graph = _reuse_graph(question, cached, found, provenance)
     return handlers.HandlerResult(
         answer=found.conclusion,
@@ -1073,7 +1072,11 @@ def _assessment_result(question: str, cached: Any, found: Any,
         },
         graph=graph,
         follow_ups=list(found.next_analysis)[:suggestions.MAX_SUGGESTIONS],
-        warnings=warnings,
+        # Deliberately empty. The limitations and the causation caveat belong
+        # to the narrative, which renders them once under Limitations; putting
+        # the same sentences on the step as well showed the reader the caveat
+        # twice, and three identical sentences read as three problems.
+        warnings=[],
     )
 
 

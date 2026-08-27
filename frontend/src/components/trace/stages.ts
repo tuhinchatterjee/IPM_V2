@@ -59,6 +59,13 @@ const STAGE_OF: Record<string, StageId> = {
   MODEL_ROUTING: "understood",
   PLAN: "understood",
 
+  // A reused result IS where this answer's figures came from. Putting it in
+  // "calculated" — which is where an unmapped type lands — hid the whole
+  // claim: Story reported "the arithmetic behind the answer" for a turn whose
+  // point was that no governed data was read at all.
+  PREVIOUS_RESULT: "data",
+  REUSED_RESULT: "data",
+
   DATA_DOMAIN: "data",
   DATASET_FAMILY: "data",
   DATASET: "data",
@@ -151,6 +158,11 @@ function countFor(id: StageId, nodes: TraceNode[]): { count: number; counts: str
   const of = (type: string) => nodes.filter((n) => n.type === type).length;
 
   if (id === "data") {
+    const reused = nodes.find((n) => n.type === "REUSED_RESULT");
+    if (reused && typeof reused.rows_out === "number") {
+      return { count: reused.rows_out,
+               counts: reused.rows_out === 1 ? "row reused" : "rows reused" };
+    }
     const datasets = of("DATASET");
     if (datasets) return { count: datasets, counts: datasets === 1 ? "source" : "sources" };
     return { count: nodes.length, counts: nodes.length === 1 ? "entry" : "entries" };
@@ -224,6 +236,13 @@ function understood(nodes: TraceNode[]): string {
 }
 
 function data(nodes: TraceNode[]): string {
+  // Said first, because it is the whole finding for this kind of turn.
+  const reused = nodes.find((n) => n.type === "REUSED_RESULT");
+  if (reused) {
+    const previous = nodes.find((n) => n.type === "PREVIOUS_RESULT");
+    return previous ? `${trimStop(reused.label)} · ${previous.label}` : reused.label;
+  }
+
   const datasets = nodes.filter((n) => n.type === "DATASET").map((n) => n.label);
   const fields = unique(nodes.flatMap((n) => n.fields_used ?? []));
   const filters = nodes.filter((n) => n.type === "FILTER").map((n) => n.label);

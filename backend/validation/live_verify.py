@@ -785,7 +785,13 @@ def is_stale(report: dict[str, Any]) -> tuple[bool, str]:
 
 
 def stored(directory: Path | None = None) -> dict[str, Any]:
-    """The verification for the build that is running, if there is one."""
+    """The verification for the build that is running, if there is one.
+
+    A dry run is deliberately not one. It is a survey of what WOULD be
+    verified and it costs nothing, so it is the report most likely to be
+    sitting on disk — and treating it as a verification made the badge read
+    STALE on a build that had simply never been verified at all.
+    """
     current = Report()
     _stamp(current)
     short = (current.git_sha or "unknown")[:12]
@@ -793,10 +799,11 @@ def stored(directory: Path | None = None) -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        found = json.loads(path.read_text(encoding="utf-8"))
     except Exception as e:  # noqa: BLE001 - an unreadable report is no report
         logger.warning("The stored verification could not be read: %s", e)
         return {}
+    return {} if str(found.get("mode") or "") == DRYRUN else found
 
 
 def badge(directory: Path | None = None) -> dict[str, Any]:
@@ -808,9 +815,13 @@ def badge(directory: Path | None = None) -> dict[str, Any]:
     """
     found = stored(directory)
     stale, why = is_stale(found)
+    # STALE means "was verified, and something has since moved". A build that
+    # has never been verified is NOT VERIFIED, and calling it stale would
+    # imply a verification once existed.
+    was_verified = bool(found) and bool(found.get("live_verified"))
     return {
         "live_verified": bool(found) and not stale,
-        "stale": bool(found) and stale,
+        "stale": was_verified and stale,
         "reason": why,
         "verified_at": str(found.get("finished_at") or ""),
         "mode": str(found.get("mode") or ""),

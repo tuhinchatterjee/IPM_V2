@@ -242,6 +242,7 @@ def test_the_badge_reads_a_stored_verification(tmp_path):
 def test_the_badge_goes_stale_when_the_configuration_moves(tmp_path):
     current = lv.Report()
     lv._stamp(current)
+    current.mode = lv.QUICK
     current.live_verified = True
     current.live_calls_made = 12
     current.configuration_fingerprint = "not-the-current-one"
@@ -250,6 +251,22 @@ def test_the_badge_goes_stale_when_the_configuration_moves(tmp_path):
     found = lv.badge(tmp_path)
     assert found["live_verified"] is False
     assert found["stale"] is True
+
+
+def test_a_dry_run_on_disk_does_not_make_the_badge_stale(tmp_path):
+    """The commonest report on disk is the one that costs nothing.
+
+    A dry run is a survey of what WOULD be verified. Filing it as a
+    verification made the badge read STALE on a build that had simply never
+    been verified — and "stale" implies a verification once existed.
+    """
+    lv.write(lv.dry_run(), tmp_path)
+
+    found = lv.badge(tmp_path)
+    assert found["live_verified"] is False
+    assert found["stale"] is False, (
+        "a build that was never verified is NOT VERIFIED, not STALE")
+    assert "no stored verification" in found["reason"]
 
 
 # ------------------------------------------------------------- the threads

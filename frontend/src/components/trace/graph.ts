@@ -61,6 +61,8 @@ export const LAYER_LANE: Record<string, number> = {
 
   PRIOR_CONTEXT: 1,
   PLAN_CHANGE: 1,
+  PREVIOUS_RESULT: 1,
+  REUSED_RESULT: 1,
 
   DATA_DOMAIN: 2,
   DATASET_FAMILY: 2,
