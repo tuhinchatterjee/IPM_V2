@@ -188,7 +188,13 @@ def _from_condition(condition: Any) -> list[Check]:
         moved = "the change in " + _readable(getattr(condition, "field", column))
         claim = f"{moved} is {word} {_number(value)}"
     return [Check(rule="condition", claim=claim, columns=(column,),
-                  params={"column": column, "op": op, "value": float(value)})]
+                  params={"column": column, "op": op, "value": float(value),
+                          # Carried so the resolver can tell a LEVEL from a
+                          # MOVEMENT. In a two-period result the bare column
+                          # holds the opening value and `closing_` holds the
+                          # present one, and "have headroom below 15%" is a
+                          # claim about the present.
+                          "kind": kind})]
 
 
 def _from_ontology(build: Any) -> list[Check]:
@@ -307,15 +313,26 @@ def _resolve(check: Check, columns: set[str]) -> Check:
     Only an UNAMBIGUOUS suffix match is accepted. Two columns ending in the
     same field name means the check cannot tell which one the claim was about,
     and guessing between them is how a check starts verifying the wrong number.
+
+    A LEVEL condition is the exception, and it is the exception that matters. A
+    two-period result carries the opening value under the bare name and the
+    present one under `closing_`. "Customers who HAVE headroom below 15%" is a
+    claim about the present, and checking it against the opening column passed
+    while the answer contained a customer sitting at 17.41% today.
     """
+    at_close = str(check.params.get("kind") or "") == "level"
+
     mapping: dict[str, str] = {}
     for wanted in check.columns:
-        if not wanted or wanted in columns:
+        if not wanted or (wanted in columns and not at_close):
             continue
-        matches = [c for c in columns if c.endswith(f"_{wanted}")]
-        # A movement condition is about the change, not the closing level, so a
-        # `closing_` alias never stands in for the column that was asked about.
-        matches = [c for c in matches if not c.startswith("closing_")] or matches
+        matches = [c for c in columns if c.endswith(f"_{wanted}") or c == wanted]
+        preferred = [c for c in matches if c.startswith("closing_")]
+        rest = [c for c in matches if not c.startswith("closing_")]
+        # A movement condition is about the change, so a `closing_` alias never
+        # stands in for the column it asked about; a level condition wants
+        # exactly that alias where the result has one.
+        matches = (preferred or rest) if at_close else (rest or preferred)
         if len(matches) == 1:
             mapping[wanted] = matches[0]
 

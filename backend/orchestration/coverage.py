@@ -273,4 +273,51 @@ def check(question: str, reading: Any = None) -> Coverage:
                     subject=_subject_of(unknown, text))
 
 
-__all__ = ["Coverage", "check"]
+def _measure_words() -> set[str]:
+    """The governed vocabulary of MEASURES, and nothing else.
+
+    Narrower than `_universe` on purpose. That one includes every column name
+    and business name in the catalogue, which is right for "could this question
+    be about our data at all" and far too permissive for "did this question
+    name something we can compute". "Tenure" is a word in some column's
+    description, so a question about a chief executive's tenure looked covered;
+    no concept in the ontology measures it, so nothing could be computed, and
+    the reader got a menu of unrelated figures instead of an answer.
+    """
+    words: set[str] = set()
+    try:
+        from backend.orchestration import concepts as cx
+
+        for concept in cx.CONCEPTS:
+            for text in (concept.id.replace("_", " "), concept.label,
+                         re.sub(r"[\\^$.|?*+()\[\]{}]|\\b", " ", concept.pattern)):
+                for token in _TOKEN.findall(str(text or "").lower()):
+                    if len(token) > 1 and not _structural(token):
+                        words.add(token)
+    except Exception as e:  # noqa: BLE001
+        logger.debug("Concepts unavailable to the measure check: %s", e)
+    return words
+
+
+def names_a_measure(question: str) -> bool:
+    """Whether this sentence names something CreditProbe can compute.
+
+    Used to tell two failures apart that look identical from inside the
+    planner. "Rank those by ECL" with no population names a measure and needs a
+    clarification; "what is the CEO's tenure?" names none, and offering it a
+    menu of exposure, expected credit loss and rating invites the reader to
+    accept an answer to a question they did not ask.
+
+    Errs toward TRUE. An empty vocabulary — a catalogue that failed to load —
+    must not turn every question into "we do not hold that", which is a far
+    more damaging sentence than an unnecessary clarification.
+    """
+    words = _measure_words()
+    if not words:
+        return True
+    return any(token in words
+               for token in _TOKEN.findall(str(question or "").lower())
+               if len(token) > 1 and not _structural(token))
+
+
+__all__ = ["Coverage", "check", "names_a_measure"]

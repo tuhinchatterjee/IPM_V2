@@ -142,7 +142,10 @@ def test_case_3_reads_a_level_and_a_movement_together(relationships, vocabulary)
 
     assert result.row_count >= 1
     for row in result.rows:
-        assert row["ifrs9_staging_ifrs9_stage"] == 2
+        # Stage 2 NOW, not a year ago. The bare column carries the opening
+        # position in a two-period plan; a level condition is a statement about
+        # where the population sits at the closing date.
+        assert row["closing_ifrs9_staging_ifrs9_stage"] == 2
         assert row["facility_delinquency_days_past_due_change"] > 0
 
 

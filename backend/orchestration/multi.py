@@ -764,7 +764,8 @@ def build_plan(request: MultiRequest, *, catalogue: Any) -> PlanBuild:
     if request.population and request.population.get("ids"):
         standing.append({"column": str(request.population["key"]), "op": "in",
                          "values": [str(v) for v in request.population["ids"]]})
-    standing += [{"column": _condition_column(b, column_for),
+    standing += [{"column": _condition_column(b, column_for,
+                                              two_period=_two_period(request)),
                   "op": _OPS[b.condition.op], "value": b.condition.value}
                  for b in request.bindings if b.condition.kind == "level"]
 
@@ -801,12 +802,20 @@ def build_plan(request: MultiRequest, *, catalogue: Any) -> PlanBuild:
 
 
 
+def _two_period(request: Any) -> bool:
+    """Whether the plan joined a closing position onto an opening one."""
+    opening = str(getattr(request, "opening", "") or "")
+    closing = str(getattr(request, "closing", "") or "")
+    return bool(opening and closing and opening != closing)
+
+
 def _cohort(operations: list[dict[str, Any]], request: MultiRequest,
             column_for: dict[tuple[str, str], str],
             standing: list[dict[str, Any]], movement: list[Binding]) -> None:
     """Everything meeting every condition, worst first."""
     where = standing + [
-        {"column": _condition_column(b, column_for),
+        {"column": _condition_column(b, column_for,
+                                     two_period=_two_period(request)),
          "op": _OPS[b.condition.op], "value": b.condition.value}
         for b in movement]
     operations.append({
@@ -819,7 +828,8 @@ def _cohort(operations: list[dict[str, Any]], request: MultiRequest,
     first = (movement or request.bindings)[0]
     operations.append({
         "id": "ranked", "op": "SORT", "inputs": ["cohort"],
-        "params": {"by": [{"column": _condition_column(first, column_for),
+        "params": {"by": [{"column": _condition_column(
+            first, column_for, two_period=_two_period(request)),
                            "direction": ("desc" if first.condition.op in
                                          ("gt", "gte", "eq") else "asc")}]},
         "label": "Largest movement first",
@@ -851,7 +861,8 @@ def _ranking(operations: list[dict[str, Any]], request: MultiRequest,
 
     ordering = []
     for binding in (movement or request.bindings):
-        column = _condition_column(binding, column_for)
+        column = _condition_column(binding, column_for,
+                                   two_period=_two_period(request))
         # Worst first: for a measure where higher is worse, descending.
         ordering.append({
             "column": column,
@@ -887,8 +898,10 @@ def _association(operations: list[dict[str, Any]], request: MultiRequest,
         "label": "The population the association is measured over",
     })
     first, second = movement[0], movement[1]
-    left = _condition_column(first, column_for)
-    right = _condition_column(second, column_for)
+    left = _condition_column(first, column_for,
+                             two_period=_two_period(request))
+    right = _condition_column(second, column_for,
+                              two_period=_two_period(request))
     operations.append({
         "id": "result", "op": "CORRELATION", "inputs": ["cohort"],
         "params": {"x": left, "y": right, "columns": [left, right],
@@ -899,15 +912,29 @@ def _association(operations: list[dict[str, Any]], request: MultiRequest,
 
 
 def _condition_column(binding: Binding,
-                      column_for: dict[tuple[str, str], str]) -> str:
-    """The column a condition actually tests, after the joins renamed things."""
+                      column_for: dict[tuple[str, str], str],
+                      *, two_period: bool = False) -> str:
+    """The column a condition actually tests, after the joins renamed things.
+
+    The two-period case is where this went wrong, and the failure was silent.
+    A movement plan joins the closing position on under a `closing_` prefix,
+    which leaves the BARE column holding the OPENING value. A level condition —
+    "customers who have covenant headroom below 15%" — was compiled against the
+    bare column, so it selected customers whose headroom was below 15% a year
+    ago, and the answer contained a customer sitting at 17.41% today under a
+    heading that said below 15%.
+
+    "Have" is the present tense. A level is tested at the closing position; a
+    movement is tested on the change, which is what it was always about.
+    """
     measure = column_for[(binding.dataset, binding.field)]
+    at_close = f"closing_{measure}" if two_period else measure
     return {"change_pct": f"{measure}_change_pct",
             "change_abs": f"{measure}_change",
-            "level": measure,
+            "level": at_close,
             # An ordering binding filters on nothing; it names the column the
-            # answer is sorted by.
-            "order": measure}[binding.condition.kind]
+            # answer is sorted by — and "closest to breach" means closest now.
+            "order": at_close}[binding.condition.kind]
 
 
 def _join_edge(operations: list[dict[str, Any]], joins: list[dict[str, Any]],

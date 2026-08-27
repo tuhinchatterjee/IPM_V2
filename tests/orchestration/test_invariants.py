@@ -265,7 +265,12 @@ def test_the_covenant_thread_now_satisfies_its_own_threshold(require_data):
     rows = (investigation.steps[0].result or {}).get("rows") or []
     assert rows, "the case is only meaningful if it returns rows"
     for row in rows:
-        assert float(row["covenant_tests_headroom_pct"]) < 15.0
+        # The CLOSING position. A two-period plan joins the closing values on
+        # under a `closing_` prefix, which leaves the bare column holding the
+        # OPENING one — and "customers who HAVE headroom below 15%" is a claim
+        # about the present. Testing the bare column passed while the answer
+        # contained a customer sitting at 17.41% today.
+        assert float(row["closing_covenant_tests_headroom_pct"]) < 15.0
         assert row["sector"] == "Real Estate"
 
     report = answered.invariants

@@ -328,19 +328,16 @@ def answer(question: str, *, context: Any = None,
         answered.clarification = dangling
         return finish(answered)
 
-    unknown = _unknown_borrower(question, context)
-    if unknown:
-        answered.clarification = unknown
-        return finish(answered)
-
-    missing = _unavailable_period(question)
-    if missing:
-        answered.clarification = missing
-        return finish(answered)
-
     # Nothing in the governed universe is about this. Said plainly, and BEFORE
     # any clarification: a menu of figures invites the user to accept an answer
     # about exposure to a question about corporate governance.
+    #
+    # Checked before the unknown-borrower guard, because both can be true and
+    # only one of them is the point. "Did the CEO of Al Rajhi Contracting
+    # resign?" was answered "CreditProbe could not find Al Rajhi Contracting" —
+    # accurate, and it implies that naming a borrower CreditProbe DOES hold
+    # would produce an answer about a resignation. It would not.
+    #
     # An association question is exempt. "Does this trend make sense?" names no
     # governed noun at all, so the coverage check found "make sense", did not
     # recognise it, and replied that CreditProbe holds no data about it — a
@@ -352,6 +349,23 @@ def answer(question: str, *, context: Any = None,
             answered.unsupported = held.sentence()
             answered.coverage = held.to_dict()
             return finish(answered)
+
+    # A borrower CreditProbe does not hold is only the reason a question cannot
+    # be answered when the question was otherwise answerable. "Did the CEO of
+    # Al Rajhi Contracting resign?" was answered "CreditProbe could not find Al
+    # Rajhi Contracting" — accurate, and it implies that naming a borrower it
+    # DOES hold would produce an answer about a resignation. It would not.
+    if cov.names_a_measure(question) or continuation.carries_context:
+        unknown = _unknown_borrower(question, context)
+        if unknown:
+            answered.clarification = unknown
+            return finish(answered)
+
+    missing = _unavailable_period(question)
+    if missing:
+        answered.clarification = missing
+        return finish(answered)
+
 
     if reading.clarification:
         answered.clarification = reading.clarification
@@ -714,6 +728,23 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
         build = ap.plan(reading, context, question=question, period=period,
                         state=state, continuation=continuation)
     except ap.CannotPlan as e:
+        # A clarification offers a menu, and a menu is only useful to somebody
+        # who named something on it. Asked "what is the CEO's tenure?",
+        # CreditProbe listed exposure at default, expected credit loss, rating
+        # and days past due — inviting the reader to accept an answer to a
+        # question they did not ask. Where the sentence names no governed
+        # measure at all, the honest answer is that there is nothing to
+        # measure, and it is said instead of the menu.
+        if _nothing_to_measure(question, continuation):
+            held = cov.check(question)
+            answered.unsupported = held.sentence() if held.out_of_scope else (
+                "CreditProbe has no governed data about what that asks for. It "
+                "answers from the figures a steward has published — exposure, "
+                "impairment, ratings, delinquency, covenants — and it holds "
+                "nothing that measures this. It has NOT answered a different "
+                "question instead.")
+            answered.coverage = held.to_dict()
+            return answered
         answered.clarification = e.clarification
         return answered
     except Exception as e:  # noqa: BLE001
@@ -790,6 +821,28 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
     if answered.written is not None and answered.written.model:
         answered.calls += 1
     return answered
+
+
+def _nothing_to_measure(question: str, continuation: Any) -> bool:
+    """Whether the honest answer is "we hold nothing about that" rather than a menu.
+
+    Two conditions, and both are needed. The sentence must name no governed
+    measure — otherwise it is a question CreditProbe could answer if it knew
+    which figure was meant, and a menu is exactly right. And it must be ABOUT
+    something the catalogue does not recognise, which is what the unknown terms
+    say.
+
+    Without the second condition this swallowed "how is the book doing?" — a
+    vague question about the portfolio, which deserves a menu and got a refusal.
+    Without the first it swallowed nothing at all, and "did the CEO resign?"
+    was answered with a list of governed figures to choose between.
+    """
+    if getattr(continuation, "carries_context", False):
+        return False
+    if cov.names_a_measure(question):
+        return False
+    held = cov.check(question)
+    return held.out_of_scope or len(held.unknown_terms) >= cov.MIN_UNKNOWN_TERMS
 
 
 def _describe_association(build: Any, runtime: Any) -> dict[str, Any]:
