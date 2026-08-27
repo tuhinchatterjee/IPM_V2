@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDown, ArrowUp, Check, Copy, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Copy, ShieldCheck, X } from "lucide-react";
 
 import { ResultTable } from "@/components/analytics/primitives";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,58 @@ import type { TraceGraph, TraceNode } from "@/lib/api";
 import { humanise } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+import { descendantsOf, provenanceChain, type PlacedEdge } from "./cluster-layout";
 import { nodeSubtitle, nodeTitle, presentationFor } from "./node-presentation";
+
+/**
+ * The graph's own edges, in the shape the lineage walkers take.
+ *
+ * They walk a laid-out graph on the canvas, where an edge may have been
+ * summarised through a collapsed cluster. The inspector walks the RECORDED
+ * graph, where none of that has happened — so the extra fields are filled with
+ * what they mean for an unsummarised edge and the same walk serves both.
+ */
+function asPlacedEdge(edge: { source: string; target: string }): PlacedEdge {
+  return {
+    id: `${edge.source}->${edge.target}`,
+    source: edge.source,
+    target: edge.target,
+    kind: "feeds",
+    warning: false,
+    weight: 1,
+    crossesClusters: false,
+  };
+}
+
+/**
+ * The step types that answer "where did this figure come from?".
+ *
+ * A chain that included every ancestor would include the user's prompt and the
+ * model's reading of it, which are true and are not provenance: a reader
+ * following a number back wants the arithmetic and the data, and putting the
+ * question at the end of that list buries them.
+ */
+const PROVENANCE_TYPES = new Set([
+  "MATHEMATICAL_QUERY",
+  "SQL_QUERY",
+  "DERIVED_VARIABLE",
+  "TRANSFORMATION",
+  "AGGREGATION",
+  "WINDOW",
+  "CALCULATION",
+  "ENGINE_FUNCTION",
+  "CERTIFIED_METHOD",
+  "KERNEL",
+  "JOIN",
+  "RELATIONSHIP",
+  "FILTER",
+  "VARIABLE",
+  "DATASET",
+  "DATASET_FAMILY",
+  "DATA_DOMAIN",
+  "PREVIOUS_RESULT",
+  "REUSED_RESULT",
+]);
 
 /**
  * The node inspector.
@@ -89,6 +140,47 @@ export function NodeInspector({
 }) {
   const [tab, setTab] = React.useState<InspectorTab>("summary");
 
+  // Computed before the empty-panel branch below, because hooks run in the
+  // same order on every render or React loses track of which state is whose.
+  const nodeId = node?.id ?? "";
+  const walkable = React.useMemo(
+    () => (graph.edges ?? []).map(asPlacedEdge),
+    [graph.edges],
+  );
+  // The whole chain back to the datasets, not just the step immediately
+  // before. "Where did this figure come from?" is answered by
+  // formula → operation → fields → dataset → relationship, and a panel that
+  // shows only the previous hop makes the reader click their way down it.
+  const chain = React.useMemo(
+    () => (nodeId ? provenanceChain(graph, walkable, nodeId) : []),
+    [graph, walkable, nodeId],
+  );
+  const below = React.useMemo(
+    () => (nodeId ? descendantsOf(walkable, nodeId) : new Set<string>()),
+    [walkable, nodeId],
+  );
+  // Which checks were applied to this step, so "was this validated?" is
+  // answered on the step itself rather than by scanning the validation
+  // cluster — and which statements of the answer would change if it did.
+  const checkedBy = React.useMemo(
+    () =>
+      (graph.nodes ?? []).filter(
+        (n) =>
+          below.has(n.id) &&
+          (n.type === "BUSINESS_INVARIANT" || n.type === "RECONCILIATION"),
+      ),
+    [graph.nodes, below],
+  );
+  const affects = React.useMemo(
+    () =>
+      (graph.nodes ?? []).filter(
+        (n) =>
+          below.has(n.id) &&
+          (n.type === "RESULT" || n.type === "LLM_EXPLANATION" || n.type === "VISUALIZATION"),
+      ),
+    [graph.nodes, below],
+  );
+
   // Selecting a different step keeps the tab where the reader left it — which
   // is what somebody comparing the same tab across two steps wants — and falls
   // back to the summary where the new step has nothing behind that tab. Derived
@@ -113,6 +205,8 @@ export function NodeInspector({
   const parents = graph.edges.filter((e) => e.target === node.id).map((e) => e.source);
   const children = graph.edges.filter((e) => e.source === node.id).map((e) => e.target);
   const labelOf = (id: string) => graph.nodes.find((n) => n.id === id)?.label ?? id;
+
+  const restsOn = chain.filter((n) => PROVENANCE_TYPES.has(n.type));
 
   // The execution stamps each governed field with its business name, unit and
   // definition. Older traces carry only a definitions map, so both are read.
@@ -154,7 +248,8 @@ export function NodeInspector({
     (node.output_preview?.length ?? 0) > 0;
   const hasValidation =
     isFingerprint || node.warnings.length > 0 || Boolean(node.error);
-  const hasImpact = parents.length > 0 || children.length > 0;
+  const hasImpact =
+    parents.length > 0 || children.length > 0 || restsOn.length > 0 || affects.length > 0;
 
   const tabs: { id: InspectorTab; label: string; enabled: boolean }[] = [
     { id: "summary", label: "Summary", enabled: true },
@@ -366,6 +461,54 @@ export function NodeInspector({
             <div className="overflow-x-auto rounded-md border border-border">
               <ResultTable rows={node.output_preview} maxRows={5} />
             </div>
+          </Section>
+        )}
+
+        {shown === "impact" && restsOn.length > 0 && (
+          <Section title="What this figure rests on">
+            {/* The full chain, in the order it happened: the formula, the
+                operation that ran it, the fields it read, the datasets they
+                came from, and the relationship that aligned them. */}
+            <ol className="space-y-1">
+              {restsOn.map((step) => (
+                <li key={step.id} className="flex items-baseline gap-2">
+                  <span className="shrink-0 text-[10px] uppercase tracking-[0.11em] text-text-muted">
+                    {presentationFor(step.type).label}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(step.id)}
+                    className="truncate text-left text-[12px] text-text-secondary transition-colors hover:text-accent"
+                  >
+                    {step.label}
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </Section>
+        )}
+
+        {shown === "impact" && checkedBy.length > 0 && (
+          <Section title="What checked it">
+            <Lineage
+              icon={ShieldCheck}
+              title="Validated by"
+              ids={checkedBy.map((n) => n.id)}
+              labelOf={labelOf}
+              onSelect={onSelect}
+            />
+          </Section>
+        )}
+
+        {shown === "impact" && affects.length > 0 && (
+          <Section title="What would change if this did">
+            <Lineage
+              icon={ArrowDown}
+              title="Statements that depend on it"
+              ids={affects.map((n) => n.id)}
+              labelOf={labelOf}
+              onSelect={onSelect}
+            />
           </Section>
         )}
 

@@ -9,7 +9,7 @@ import { TraceLandscape } from "@/components/trace/landscape";
 import { ModeSwitcher, useTraceMode } from "@/components/trace/modes";
 import { NodeInspector } from "@/components/trace/node-inspector";
 import { ModifyPanel, VersionSwitcher } from "@/components/trace/modify-panel";
-import { ReasoningMap, type MapHighlight } from "@/components/trace/reasoning-map";
+import { ClusterList, ReasoningMap, type MapHighlight } from "@/components/trace/reasoning-map";
 import { TraceStory } from "@/components/trace/story";
 import { traceActions } from "@/components/trace/actions";
 import { Badge } from "@/components/ui/badge";
@@ -181,13 +181,32 @@ export default function TraceDetailPage({ params }: { params: Promise<{ runId: s
               <TraceStory graph={graph} selected={selected} onSelect={setSelected} />
             )}
             {view === "lineage" && (
-              <ReasoningMap
-                graph={graph}
-                selected={selected}
-                onSelect={setSelected}
-                highlight={highlight}
-                height={520}
-              />
+              <>
+                <ReasoningMap
+                  graph={graph}
+                  selected={selected}
+                  onSelect={setSelected}
+                  highlight={highlight}
+                  height={560}
+                />
+                {/* The same eight clusters, without the canvas.
+                    A spatial diagram is unusable with a screen reader and
+                    awkward with a keyboard, and "use the Audit tab instead"
+                    sends that reader to a different view of a different thing.
+                    This is the Lineage view's own content, in a list that
+                    tabs — closed by default so it costs a sighted reader
+                    nothing. */}
+                <details className="mt-3 rounded-lg border border-border bg-surface">
+                  <summary className="cursor-pointer px-4 py-2.5 text-[12px] font-medium text-text-secondary">
+                    The same clusters as a list
+                  </summary>
+                  <ClusterList
+                    graph={graph}
+                    onSelect={setSelected}
+                    className="border-t border-border p-4"
+                  />
+                </details>
+              </>
             )}
             {view === "landscape" && (
               <TraceLandscape
