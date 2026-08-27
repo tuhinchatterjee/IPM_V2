@@ -373,7 +373,7 @@ so the proof has to run there:
 
 ```powershell
 .\scripts\verify-live-ai.ps1 -DryRun      # costs nothing; reports what each mode would
-.\scripts\verify-live-ai.ps1 -Quick       # one tiny call per model role, then the smoke suite
+.\scripts\verify-live-ai.ps1 -Quick       # 4 model roles + 8 live smoke checks, ~12 calls
 .\scripts\verify-live-ai.ps1 -Critical    # seven end-to-end conversation threads
 .\scripts\verify-live-ai.ps1 -FullRouting # the whole live intent-recognition suite
 ```
@@ -401,6 +401,12 @@ verification:
 | 2 | `PASSED_NOT_STORED` | The calls passed and the report could not be stored. Nothing is bound to the commit, the panel will **not** show LIVE VERIFIED, and the run cannot be audited later. |
 | 1 | `FAILED` | At least one case did not pass. |
 | 3 | `NOT_ELIGIBLE` | No key in `.env`, or the image was built from a different commit. |
+
+`-DryRun`, `-Quick` and `-Critical` are **production-safe**: they use only
+what the running image ships. `-FullRouting` and `-FullCertification` need the
+pytest suite, which a deployed image deliberately does not carry, so in a
+container they report `NOT_ELIGIBLE` rather than blaming the provider for a
+missing harness. Run those from a development checkout.
 
 If PowerShell refuses to run the script, check it first:
 

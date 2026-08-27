@@ -90,13 +90,32 @@ REPORT_DIR = Path(os.environ.get("IPM_LOG_DIR", "logs"))
 #: runs. Approximate by design — a thread that clarifies makes fewer calls than
 #: one that answers — and the DIRECTION is what matters: nobody should discover
 #: the size of a run after paying for it.
+def _quick_estimate() -> int:
+    """Four role pings plus whatever the smoke catalogue says it costs.
+
+    Derived rather than written down, so adding a check cannot leave the
+    estimate quietly wrong.
+    """
+    from backend.llm import roles as role_config
+    from backend.validation import live_smoke
+
+    return len(role_config.ROLES) + live_smoke.ESTIMATED_CALLS
+
+
 ESTIMATED_CALLS: dict[str, int] = {
     DRYRUN: 0,
-    QUICK: 12,
+    QUICK: 12,   # replaced below by the derived figure
     CRITICAL: 30,
     FULL_ROUTING: 14,
     FULL_CERTIFICATION: 120,
 }
+
+# Derived from the catalogue rather than left as the literal above, which is
+# kept only so the dict reads completely at a glance.
+try:
+    ESTIMATED_CALLS[QUICK] = _quick_estimate()
+except Exception:  # noqa: BLE001 - an estimate must not break the import
+    pass
 
 
 # ---------------------------------------------------------------------------
@@ -126,6 +145,10 @@ class Case:
     request_id: str = ""
     #: A sanitised category, never a raw provider message.
     error_category: str = ""
+    #: Provider calls this case actually made. Summed into the run's total, so
+    #: "how many calls did this cost" is answered from the cases rather than
+    #: from a counter somebody has to remember to increment.
+    calls: int = 0
 
 
 @dataclass
@@ -368,12 +391,50 @@ def quick() -> Report:
             report.passed = False
             return _finish(report)
 
-    report.cases.extend(_run_pytest(
-        "tests/llm/test_live_smoke.py", ["-m", "live"], "live_smoke", report))
+    # The eight live smoke checks, run IN PROCESS.
+    #
+    # This used to shell out to `pytest tests/llm/test_live_smoke.py`, inside
+    # the production backend container, which ships neither tests/ nor pytest.
+    # The subprocess died in 45ms before reaching an assertion and the verifier
+    # recorded that as the model failing — a healthy provider reported FAILED.
+    # A production verification tool may only depend on what production ships.
+    report.cases.extend(_smoke_cases())
+
     report.failures.extend(c.name for c in report.cases if not c.passed)
     report.passed = not report.failures
+    # Counted from the cases, so the total and the per-case numbers can never
+    # disagree about what this run cost.
+    report.live_calls_made = sum(c.calls for c in report.cases)
     report.live_verified = report.passed and report.live_calls_made > 0
     return _finish(report)
+
+
+def _smoke_cases() -> list[Case]:
+    """Every production-safe smoke check, as its own reported case.
+
+    One case per check rather than one opaque result for the suite. When a
+    single check fails, the report has to say WHICH — "live_smoke: failed" sent
+    somebody looking at the model when the harness was the thing that was
+    broken.
+    """
+    from backend.validation import live_smoke
+
+    out: list[Case] = []
+    for outcome in live_smoke.run_all().outcomes:
+        out.append(Case(
+            name=f"smoke:{outcome.check}",
+            component="live_smoke",
+            passed=outcome.passed,
+            detail=outcome.detail,
+            role=outcome.role,
+            served_model=outcome.model,
+            latency_ms=outcome.latency_ms,
+            input_tokens=outcome.input_tokens,
+            output_tokens=outcome.output_tokens,
+            error_category=outcome.error_category,
+            calls=outcome.calls,
+        ))
+    return out
 
 
 def _ping(provider: Any, role: Any, report: Report) -> Case:
@@ -404,6 +465,7 @@ def _ping(provider: Any, role: Any, report: Report) -> Case:
 
     report.live_calls_made += 1
     data = result.data or {}
+    made = 1
     conforms = (data.get("ok") is True
                 and str(data.get("role") or "").strip().lower()
                 == role.name.lower())
@@ -422,6 +484,7 @@ def _ping(provider: Any, role: Any, report: Report) -> Case:
         input_tokens=result.input_tokens,
         output_tokens=result.output_tokens,
         request_id=result.request_id,
+        calls=made,
         detail=("a different model answered than the one configured for this "
                 "role" if substituted else
                 "" if conforms else "the response did not conform"),
@@ -596,6 +659,16 @@ def full_routing() -> Report:
     report.failures = [c.name for c in report.cases if not c.passed]
     report.passed = not report.failures
     report.live_verified = report.passed and report.live_calls_made > 0
+
+    # A harness that is not present proves nothing about the provider, so it
+    # is reported as this build being unable to run the mode rather than as
+    # the model having failed.
+    if any(c.error_category == "harness_unavailable" for c in report.cases):
+        report.status = STATUS_NOT_ELIGIBLE
+        report.notes.append(
+            "This mode needs the pytest suite, which production images do not "
+            "ship. Run it from a development checkout, or use -Quick, which "
+            "is production-safe.")
     return _finish(report)
 
 
@@ -675,6 +748,19 @@ def _run_pytest(target: str, extra: list[str], component: str,
     import subprocess
 
     started = time.perf_counter()
+
+    # Preflight, because the alternative is what already happened once: the
+    # subprocess died in 45ms without reaching an assertion, and the verifier
+    # recorded the MODEL as having failed. A missing harness is a different
+    # fact from a failing provider, and the two must never be reported with
+    # the same word.
+    missing = _harness_missing(target)
+    if missing:
+        return [Case(name=target, component=component, passed=False,
+                     latency_ms=int((time.perf_counter() - started) * 1000),
+                     error_category="harness_unavailable",
+                     detail=missing)]
+
     command = [sys.executable, "-m", "pytest", target, "-q", "--no-header",
                "-p", "no:randomly", *extra]
     try:
@@ -699,6 +785,29 @@ def _run_pytest(target: str, extra: list[str], component: str,
         latency_ms=int((time.perf_counter() - started) * 1000),
         detail=_sanitise(summary),
     )]
+
+
+def _harness_missing(target: str) -> str:
+    """Why this suite cannot run here, or an empty string.
+
+    Two ways, and the production image has both: pytest is not installed, and
+    `tests/` is not shipped. Neither is an accident — a deployed image has no
+    business carrying its own test suite, still less the sealed holdout beside
+    it — so a mode that needs them is unavailable in production rather than
+    broken.
+    """
+    import importlib.util
+    from pathlib import Path as _Path
+
+    if importlib.util.find_spec("pytest") is None:
+        return ("pytest is not installed in this image, so this mode cannot "
+                "run here. Production images do not ship a test runner. Run "
+                "this mode from a development checkout.")
+    if not _Path(target).exists():
+        return (f"{target} is not present in this image, so this mode cannot "
+                "run here. Production images do not ship tests/. Run this "
+                "mode from a development checkout.")
+    return ""
 
 
 def _passed_count(summary: str) -> int:

@@ -7,16 +7,32 @@ A release went out where 1,334 tests passed and the product was broken for
 everybody who had configured a key. The suite had pinned itself offline, so the
 live path — the one the product ships in — had never executed once.
 
-These tests exercise it. They are skipped where no key is configured, which is
-CI, and they run for a developer or a deployment that has one. Nothing here
-asserts what the model *said*; it asserts that a real structured response came
-back, that the telemetry recorded it, and that the state the product reports is
-earned rather than assumed.
+Why it is now a thin file
+--------------------------
+The eight checks used to be defined here, and `verify-live-ai.ps1 -Quick`
+exercised them by shelling out to pytest **inside the production backend
+container** — which ships neither `tests/` nor pytest, on purpose. The
+subprocess died in 45ms without reaching an assertion and the verifier recorded
+that as the model failing, so a perfectly healthy provider reported FAILED.
+
+The definitions therefore moved into production code, at
+`backend/validation/live_smoke.py`, where the running application can reach
+them. This file drives the same functions. Neither copy can drift from the
+other because there is only one copy: what pytest asserts here and what the
+production verifier reports are the same eight outcomes.
+
+These are skipped where no key is configured, which is CI, and they run for a
+developer or a deployment that has one. Nothing here asserts what the model
+*said*; it asserts that a real structured response came back, that the
+telemetry recorded it, and that the state the product reports is earned rather
+than assumed.
 """
 
 from __future__ import annotations
 
 import pytest
+
+from backend.validation import live_smoke
 
 pytestmark = pytest.mark.live
 
@@ -29,71 +45,47 @@ def _require_a_key():
         pytest.skip("no AI provider key is configured")
 
 
-#: Five requests, chosen to exercise five different routing decisions rather
-#: than five phrasings of the same one.
-REQUESTS = [
-    ("What data do you have about borrower ratings?", "DATA_DISCOVERY"),
-    ("What fields are available in the ratings data?", "DATA_DICTIONARY"),
-    ("How is the ratings data connected to IFRS 9 data?", "DATA_RELATIONSHIP"),
-    ("What is total EAD by sector in the latest quarter?", "ANALYSIS"),
-    ("Show me the five largest Real Estate customers by EAD.", "ANALYSIS"),
-]
+def _assert(outcome: live_smoke.Outcome) -> None:
+    """One outcome, as a pytest failure that says what went wrong.
+
+    The check already carries a sanitised detail and an error category, so the
+    assertion message is built from them rather than re-derived — a developer
+    reading a red test and an operator reading a stored report should be
+    looking at the same sentence.
+    """
+    assert outcome.passed, (
+        f"{outcome.check}: {outcome.detail or 'failed'}"
+        + (f" [{outcome.error_category}]" if outcome.error_category else ""))
 
 
-@pytest.mark.parametrize(("question", "expected"), REQUESTS,
-                         ids=lambda v: str(v)[:34])
-def test_a_real_structured_response_comes_back(question, expected):
-    from backend.orchestration.context import retrieve
-    from backend.orchestration.router import read
+# ------------------------------------------------------------------- routing
 
-    result = read(question, context=retrieve(question))
-    assert not result.degraded_reason, (
-        f"the live path failed: {result.degraded_reason}")
-    assert result.calls >= 1, "no model call was made"
-    assert result.reading.source in ("llm", "guardrail")
-    assert result.reading.model, "the response did not report which model answered"
-    assert result.reading.intent == expected, (
-        f"{question!r} was read as {result.reading.intent}, not {expected}")
+
+@pytest.mark.parametrize("routing", live_smoke.ROUTING,
+                         ids=lambda r: r.id)
+def test_a_real_structured_response_comes_back(routing):
+    """Five requests, five different routing decisions."""
+    outcome = live_smoke.routing_check(routing)
+    _assert(outcome)
+    assert outcome.calls >= 1, "no model call was recorded"
+    assert outcome.model, "the response did not report which model answered"
+
+
+# ------------------------------------------------------------------ the rest
 
 
 def test_the_provider_reports_connected_only_after_a_real_response():
     """The whole point of the telemetry: CONNECTED has to be earned."""
-    from backend.llm import health, telemetry
-    from backend.orchestration.context import retrieve
-    from backend.orchestration.router import read
-
-    telemetry.ledger().reset()
-    assert health()["state"] == telemetry.CONFIGURED, (
-        "a key with no calls behind it must not report CONNECTED")
-
-    read("What data do you have about arrears?", context=retrieve("arrears"))
-
-    observed = health()
-    assert observed["state"] == telemetry.CONNECTED
-    assert observed["counts"]["succeeded"] >= 1
-    assert observed["last_success"]["latency_ms"] > 0
-    assert observed["last_success"]["model"]
+    _assert(live_smoke.provider_connected())
 
 
 def test_no_recorded_call_carries_anything_key_shaped():
     """Safe metadata only — asserted rather than trusted."""
-    from backend.config import settings
-    from backend.llm import health
-
-    key = (settings.anthropic_api_key or "").strip()
-    blob = repr(health())
-    assert key, "this test is meaningless without a key"
-    assert key not in blob
-    assert key[:12] not in blob
+    _assert(live_smoke.telemetry_secret_safety())
 
 
 def test_an_answer_end_to_end_is_computed_by_the_runtime_not_the_model():
     """The live path still runs every figure through the governed runtime."""
-    from backend.orchestration.executor import answer_investigation
-
-    investigation, answered = answer_investigation(
-        "What is total EAD by sector in the latest quarter?", persist=False)
-    assert investigation.status == "succeeded", investigation.rejected
-    assert answered.runtime is not None
-    assert investigation.steps[0].result["rows"], "no rows were computed"
-    assert (investigation.conversation or {}).get("model_calls", 0) >= 1
+    outcome = live_smoke.runtime_computes_result()
+    _assert(outcome)
+    assert outcome.calls >= 1, "the live path was not exercised"

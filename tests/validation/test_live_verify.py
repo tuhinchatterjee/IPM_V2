@@ -503,18 +503,27 @@ def offline_quick(monkeypatch):
     are all replaced, so what is exercised is this module's own logic.
     """
     import backend.llm as llm
+    from backend.validation import live_smoke
 
     provider = _FakeProvider()
     monkeypatch.setattr(llm, "get_provider", lambda *a, **k: provider)
     monkeypatch.setattr(lv, "_provider_status",
                         lambda: {"configured": True, "state": "connected"})
 
-    def _smoke(target, extra, component, report, env=None):
-        report.live_calls_made += 8
-        return [lv.Case(name=target, component=component, passed=True,
-                        latency_ms=120, detail="8 passed")]
+    # The eight smoke checks, stood in for at the seam Quick actually uses.
+    # This fixture used to patch `_run_pytest`, because Quick used to shell out
+    # to pytest — which the production image does not ship, and which is why a
+    # healthy provider once reported FAILED.
+    def _suite(stop_early: bool = False) -> live_smoke.Suite:
+        return live_smoke.Suite(outcomes=[
+            live_smoke.Outcome(
+                check=check.id, passed=True, detail="held",
+                calls=check.calls, model="claude-fake-1", latency_ms=210,
+                input_tokens=400, output_tokens=30)
+            for check in live_smoke.CHECKS
+        ])
 
-    monkeypatch.setattr(lv, "_run_pytest", _smoke)
+    monkeypatch.setattr(live_smoke, "run_all", _suite)
     return provider
 
 
@@ -522,7 +531,7 @@ def test_a_mocked_quick_run_passes_and_stores(offline_quick, tmp_path):
     report = lv.quick()
     assert report.passed is True, report.failures
     assert report.live_verified is True
-    assert report.live_calls_made == 12, "4 role pings plus 8 smoke tests"
+    assert report.live_calls_made == 12, "4 role pings plus 8 smoke checks"
     assert offline_quick.calls == 4
 
     path = lv.store_result(report, tmp_path)
@@ -586,11 +595,14 @@ def test_an_unwritable_directory_is_also_not_live_verified(
 
 def test_a_failing_run_is_failed_not_unstored(offline_quick, tmp_path,
                                               monkeypatch):
-    def _broken(target, extra, component, report, env=None):
-        return [lv.Case(name=target, component=component, passed=False,
-                        detail="1 failed")]
+    from backend.validation import live_smoke
 
-    monkeypatch.setattr(lv, "_run_pytest", _broken)
+    def _broken(stop_early: bool = False) -> live_smoke.Suite:
+        return live_smoke.Suite(outcomes=[
+            live_smoke.Outcome(check=c.id, passed=False, detail="did not hold")
+            for c in live_smoke.CHECKS])
+
+    monkeypatch.setattr(live_smoke, "run_all", _broken)
     report = lv.quick()
     lv.store_result(report, tmp_path)
 
