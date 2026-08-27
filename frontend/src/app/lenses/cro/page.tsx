@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { AnalysisRunResponse, Row } from "@/lib/api";
 import { byUnit, money, percent } from "@/lib/format";
 import { useAnalysis } from "@/lib/hooks";
+import { fromLens, linkBack } from "@/lib/return-to";
 import { cn } from "@/lib/utils";
 
 /**
@@ -517,7 +518,13 @@ function Panel({
         </div>
         {run?.analysis_run_id && (
           <Button variant="ghost" size="sm" asChild>
-            <Link href={`/trace/${run.analysis_run_id}`} title="How this was produced">
+            <Link
+              href={linkBack(
+                `/trace/${run.analysis_run_id}`,
+                fromLens("cro", "CRO Lens"),
+              )}
+              title="How this was produced"
+            >
               <GitBranch aria-hidden />
               Trace
             </Link>

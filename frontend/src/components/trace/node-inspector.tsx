@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import * as React from "react";
 import { ArrowDown, ArrowUp, Check, Copy, ShieldCheck, X } from "lucide-react";
 
@@ -7,6 +8,7 @@ import { ResultTable } from "@/components/analytics/primitives";
 import { Badge } from "@/components/ui/badge";
 import type { TraceGraph, TraceNode } from "@/lib/api";
 import { humanise } from "@/lib/format";
+import { linkBack, type ReturnContext } from "@/lib/return-to";
 import { cn } from "@/lib/utils";
 
 import { descendantsOf, provenanceChain, type PlacedEdge } from "./cluster-layout";
@@ -132,11 +134,18 @@ export function NodeInspector({
   graph,
   onClose,
   onSelect,
+  from,
 }: {
   node: TraceNode | null;
   graph: TraceGraph;
   onClose: () => void;
   onSelect: (id: string) => void;
+  /**
+   * This Trace, this mode, this node — carried by the link out to Data Builder
+   * so that coming back lands on the step the reader left from rather than on
+   * the top of the Trace with nothing selected (§5).
+   */
+  from?: ReturnContext;
 }) {
   const [tab, setTab] = React.useState<InspectorTab>("summary");
 
@@ -374,7 +383,19 @@ export function NodeInspector({
         {shown === "summary" && (
         <dl className="divide-y divide-border">
           <Row label="Status" value={node.status} />
-          {node.dataset && <Row label="Dataset" value={node.dataset} mono />}
+          {node.dataset &&
+            (from ? (
+              <LinkRow
+                label="Dataset"
+                value={node.dataset}
+                href={linkBack(
+                  `/data-builder/dataset/${encodeURIComponent(node.dataset)}`,
+                  from,
+                )}
+              />
+            ) : (
+              <Row label="Dataset" value={node.dataset} mono />
+            ))}
           {node.function_id && (
             <Row label="Function" value={`${node.function_id} v${node.function_version}`} mono />
           )}
@@ -874,6 +895,39 @@ function ConfigRow({ label, value }: { label: string; value: unknown }) {
   }
 
   return <Row label={label} value={String(value)} wrap />;
+}
+
+/**
+ * A metadata row whose value opens the thing it names.
+ *
+ * The dataset a step read is the one piece of the inspector that has somewhere
+ * to go: "which data was this?" is almost always followed by "let me look at
+ * it". It was previously text, so the answer was to memorise the name, leave
+ * the Trace and find it in Data Builder by hand.
+ */
+function LinkRow({
+  label,
+  value,
+  href,
+}: {
+  label: string;
+  value: string;
+  href: string;
+}) {
+  return (
+    <div className="grid grid-cols-[minmax(90px,40%)_1fr] items-start gap-3 py-1.5">
+      <dt className="text-xs text-text-muted">{label}</dt>
+      <dd className="truncate text-right">
+        <Link
+          href={href}
+          className="font-mono text-xs text-accent hover:underline"
+          title={`Open ${value} in Data Builder`}
+        >
+          {value}
+        </Link>
+      </dd>
+    </div>
+  );
 }
 
 function Row({

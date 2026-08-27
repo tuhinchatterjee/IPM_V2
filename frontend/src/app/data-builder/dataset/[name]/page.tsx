@@ -1,7 +1,16 @@
 "use client";
 
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import * as React from "react";
-import { AlertTriangle, CheckCircle2, Loader2, Rocket, ShieldCheck } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
+  Rocket,
+  ShieldCheck,
+  Waypoints,
+} from "lucide-react";
 
 import { LifecycleBadge } from "@/app/data-builder/page";
 import { ResultTable } from "@/components/analytics/primitives";
@@ -16,15 +25,53 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
 import { ApiError, api, type Lifecycle, type ValidationReport } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { fromDataset, linkBack } from "@/lib/return-to";
 import { cn } from "@/lib/utils";
 
 /** The lifecycle a dataset walks through, shown as a progression. */
 const LIFECYCLE: Lifecycle[] = ["draft", "mapped", "validated", "published"];
 
+/** Tab ids a URL may ask for. Anything else falls back to the overview. */
+const TABS = new Set([
+  "overview",
+  "dictionary",
+  "mappings",
+  "relationships",
+  "quality",
+  "versions",
+]);
+
 export default function DatasetPage({ params }: { params: Promise<{ name: string }> }) {
   const { name } = React.use(params);
+  return (
+    <React.Suspense fallback={<Skeleton className="h-64 w-full" />}>
+      <DatasetView name={name} />
+    </React.Suspense>
+  );
+}
+
+/**
+ * The tab and the period are in the address, not only in state.
+ *
+ * §5: "Data Builder → Dataset → Relationship → Back to exact Dataset/period".
+ * A Back that returns a reader to the Overview tab of the dataset they were
+ * reading the Relationships tab of has moved them without telling them, and a
+ * Back that drops the period they had selected has moved them a quarter.
+ */
+function DatasetView({ name }: { name: string }) {
   const canEdit = useCanEditData();
-  const [tab, setTab] = React.useState("overview");
+  const query = useSearchParams();
+  const period = query.get("period");
+  const [tab, setTab] = React.useState(
+    () => (TABS.has(query.get("tab") ?? "") ? query.get("tab")! : "overview"),
+  );
+
+  const chooseTab = React.useCallback((next: string) => {
+    setTab(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", next);
+    window.history.replaceState(window.history.state, "", url);
+  }, []);
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -140,7 +187,7 @@ export default function DatasetPage({ params }: { params: Promise<{ name: string
 
           <Tabs
             active={tab}
-            onChange={setTab}
+            onChange={chooseTab}
             tabs={[
               { id: "overview", label: "Overview" },
               { id: "dictionary", label: "Dictionary", count: dataset.fields.length },
@@ -235,14 +282,29 @@ export default function DatasetPage({ params }: { params: Promise<{ name: string
                   className="border-0"
                 />
               ) : (
-                <ResultTable
-                  rows={dataset.relationships.map((r) => ({
-                    from: `${r.from_dataset}.${r.from_field}`,
-                    to: `${r.to_dataset}.${r.to_field}`,
-                    cardinality: r.cardinality,
-                    kind: r.kind,
-                  }))}
-                />
+                <>
+                  <ResultTable
+                    rows={dataset.relationships.map((r) => ({
+                      from: `${r.from_dataset}.${r.from_field}`,
+                      to: `${r.to_dataset}.${r.to_field}`,
+                      cardinality: r.cardinality,
+                      kind: r.kind,
+                    }))}
+                  />
+                  <div className="border-t border-border px-5 py-3">
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link
+                        href={linkBack(
+                          "/data-builder/relationships",
+                          fromDataset(dataset.name, period),
+                        )}
+                      >
+                        <Waypoints aria-hidden />
+                        Open the relationship map
+                      </Link>
+                    </Button>
+                  </div>
+                </>
               )}
             </Card>
           )}

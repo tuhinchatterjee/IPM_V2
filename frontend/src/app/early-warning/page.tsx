@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import * as React from "react";
 import {
   ChevronDown,
   FlaskConical,
   Radar,
+  Sparkles,
   TriangleAlert,
 } from "lucide-react";
 
@@ -24,6 +26,12 @@ import {
   type ScoredFacility,
 } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import {
+  facilityAnchor,
+  fromBorrower,
+  linkBack,
+  useAnchorScroll,
+} from "@/lib/return-to";
 import { cn } from "@/lib/utils";
 
 /**
@@ -45,7 +53,25 @@ import { cn } from "@/lib/utils";
  * score it accounts for — and those contributions add up to the score.
  */
 export default function EarlyWarningPage() {
+  return (
+    <React.Suspense fallback={<Skeleton className="h-64 w-full" />}>
+      <EarlyWarning />
+    </React.Suspense>
+  );
+}
+
+/**
+ * The opened borrower lives in the address.
+ *
+ * §5: "Early Warning → Borrower → Trace → Back to Borrower". A borrower here is
+ * an expanded row rather than a page, so the only way a return link can name
+ * one is for the selection to be part of the URL. Without it, "Back to Al Rajhi
+ * Contracting" returns a reader to a hundred collapsed rows and leaves them to
+ * find it again.
+ */
+function EarlyWarning() {
   const overview = useAsync(() => api.earlyWarning(), []);
+  const query = useSearchParams();
   const [targetId, setTargetId] = React.useState<string | null>(null);
 
   const targets = overview.data?.targets ?? [];
@@ -107,6 +133,7 @@ export default function EarlyWarningPage() {
                   families={overview.data?.families ?? []}
                   modelName={target.active.display_name}
                   version={target.active.version}
+                  opened={query.get("facility")}
                 />
               ) : (
                 <EmptyState
@@ -148,16 +175,21 @@ function TargetScores({
   families,
   modelName,
   version,
+  opened,
 }: {
   targetId: string;
   families: FactorFamilyDef[];
   modelName: string;
   version: number;
+  /** The facility a return link asked to be shown, if any. */
+  opened: string | null;
 }) {
   const scores = useAsync(
     () => api.earlyWarningScores(targetId, { limit: 100 }),
     [targetId],
   );
+  // Land on the borrower a return link names, once the rows exist to land on.
+  useAnchorScroll(Boolean(scores.data));
 
   if (scores.loading) return <Skeleton className="h-72 w-full" />;
   if (scores.error) {
@@ -179,7 +211,11 @@ function TargetScores({
       </div>
 
       <BandSummary bands={scores.data.bands} total={scores.data.facilities} />
-      <ScoreTable scores={scores.data} families={families} />
+      <ScoreTable
+        scores={scores.data}
+        families={families}
+        opened={opened}
+      />
     </div>
   );
 }
@@ -228,11 +264,24 @@ function BandSummary({
 function ScoreTable({
   scores,
   families,
+  opened,
 }: {
   scores: EarlyWarningScores;
   families: FactorFamilyDef[];
+  /** The account a return link asked to be shown, if any. */
+  opened: string | null;
 }) {
-  const [open, setOpen] = React.useState<string | null>(null);
+  const [open, setOpen] = React.useState<string | null>(opened);
+
+  // Opening a borrower rewrites the address without a navigation, so a link
+  // taken from inside the expansion carries the borrower it came from.
+  const choose = React.useCallback((accountId: string | null) => {
+    setOpen(accountId);
+    const url = new URL(window.location.href);
+    if (accountId) url.searchParams.set("facility", accountId);
+    else url.searchParams.delete("facility");
+    window.history.replaceState(window.history.state, "", url);
+  }, []);
 
   if (scores.scored.length === 0) {
     return (
@@ -256,11 +305,15 @@ function ScoreTable({
       </div>
 
       {scores.scored.map((facility) => (
-        <div key={facility.account_id}>
+        <div
+          key={facility.account_id}
+          id={facilityAnchor(facility.account_id)}
+          className="scroll-mt-24"
+        >
           <button
             type="button"
             onClick={() =>
-              setOpen(open === facility.account_id ? null : facility.account_id)
+              choose(open === facility.account_id ? null : facility.account_id)
             }
             className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface-hover"
           >
@@ -299,7 +352,11 @@ function ScoreTable({
           </button>
 
           {open === facility.account_id && (
-            <Decomposition facility={facility} families={families} />
+            <Decomposition
+              facility={facility}
+              families={families}
+              period={scores.period}
+            />
           )}
         </div>
       ))}
@@ -317,13 +374,27 @@ function ScoreTable({
 function Decomposition({
   facility,
   families,
+  period,
 }: {
   facility: ScoredFacility;
   families: FactorFamilyDef[];
+  period: string;
 }) {
   const largest = Math.max(
     ...facility.contributions.map((c) => Math.abs(c.contribution)),
     0.0001,
+  );
+
+  // §5 asks for Early Warning → Borrower → Trace → Back to Borrower. A signal
+  // score is a fitted model rather than a governed engine run, so it has no
+  // Trace of its own to open — what it has is a borrower worth investigating.
+  // Asking opens an Investigation, which produces the certified analyses and
+  // the Trace, and carries this exact row as its Back.
+  const investigate = linkBack(
+    `/?focus=ask&q=${encodeURIComponent(
+      `What has changed for ${facility.borrower_name} over the last four quarters?`,
+    )}`,
+    fromBorrower(facility.account_id, facility.borrower_name),
   );
 
   return (
@@ -349,6 +420,13 @@ function Decomposition({
         <span className="text-text-muted">
           → {facility.probability_pct.toFixed(2)}% over the next quarter
         </span>
+        <span className="text-text-muted">{period}</span>
+        <Button variant="ghost" size="sm" asChild className="ml-auto">
+          <Link href={investigate}>
+            <Sparkles aria-hidden />
+            Investigate this borrower
+          </Link>
+        </Button>
       </div>
 
       <div>

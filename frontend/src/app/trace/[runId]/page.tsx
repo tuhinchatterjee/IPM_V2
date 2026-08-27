@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import * as React from "react";
 import { Clock, GitBranch, Layers, Sparkles } from "lucide-react";
 
@@ -16,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/layout/back-link";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { fromTraceNode } from "@/lib/return-to";
 import {
   api,
   type Narrative,
@@ -58,13 +60,34 @@ function readBy(mode: RunMode | undefined): string {
 
 export default function TraceDetailPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = React.use(params);
+  return (
+    <React.Suspense fallback={<Skeleton className="h-[32rem] w-full" />}>
+      <TraceDetail runId={runId} />
+    </React.Suspense>
+  );
+}
+
+/**
+ * The Trace, with its mode and its selected step in the address.
+ *
+ * §5 asks that opening a dataset in Data Builder from a Trace node and coming
+ * back land on THAT node, in the mode it was being read in. A Back that returns
+ * a reader to Story with nothing selected, after they had drilled into a join
+ * in Lineage, has technically returned them and practically thrown away the
+ * thing they were looking at. Both therefore live in the URL, so the link out
+ * can carry them and the link back can restore them.
+ */
+function TraceDetail({ runId }: { runId: string }) {
   const id = Number(runId);
+  const query = useSearchParams();
 
   const [version, setVersion] = React.useState<number | undefined>(undefined);
-  const [selected, setSelected] = React.useState<string | null>(null);
+  const [selected, setSelected] = React.useState<string | null>(
+    () => query.get("node"),
+  );
   // Story, Lineage, Landscape or Audit. Remembered, and the selection survives
   // a switch — following a node from the story into the graph keeps it chosen.
-  const [view, setView] = useTraceMode();
+  const [view, setView] = useTraceMode(query.get("mode"));
   const [proposed, setProposed] = React.useState<ProposedChange | null>(null);
 
   const investigation = useAsync(() => api.investigation(id, version), [id, version]);
@@ -78,6 +101,18 @@ export default function TraceDetailPage({ params }: { params: Promise<{ runId: s
     () => (selected ? (graph?.nodes.find((n) => n.id === selected) ?? null) : null),
     [graph, selected],
   );
+
+  // Rewrite the address as the reader moves, so a link taken from here carries
+  // exactly what is on screen. `replaceState` rather than a router push: the
+  // mode and the selection are a view, not a place, and thirty entries in the
+  // history stack for one Trace would break the browser's own Back.
+  React.useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("mode", view);
+    if (selected) url.searchParams.set("node", selected);
+    else url.searchParams.delete("node");
+    window.history.replaceState(window.history.state, "", url);
+  }, [view, selected]);
 
   const highlight: MapHighlight | undefined = React.useMemo(() => {
     if (!proposed?.understood) return undefined;
@@ -230,6 +265,7 @@ export default function TraceDetailPage({ params }: { params: Promise<{ runId: s
                     graph={graph}
                     onClose={() => setSelected(null)}
                     onSelect={setSelected}
+                    from={fromTraceNode(id, view, node.id)}
                   />
                 </Card>
               </div>
@@ -246,6 +282,7 @@ export default function TraceDetailPage({ params }: { params: Promise<{ runId: s
                 graph={graph}
                 onClose={() => setSelected(null)}
                 onSelect={setSelected}
+                from={fromTraceNode(id, view, node.id)}
               />
             </Card>
           )}

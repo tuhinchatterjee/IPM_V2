@@ -27,6 +27,7 @@ import {
 } from "@/lib/api";
 import { byUnit } from "@/lib/format";
 import { useAsync } from "@/lib/hooks";
+import { linkBack } from "@/lib/return-to";
 import { cn } from "@/lib/utils";
 
 /**
@@ -104,7 +105,13 @@ export default function SavedInvestigationPage() {
             )}
             {data.analysis_run_id && (
               <Button variant="ghost" size="sm" asChild>
-                <Link href={`/trace/${data.analysis_run_id}`}>
+                <Link
+                  href={linkBack(`/trace/${data.analysis_run_id}`, {
+                    href: `/investigations/saved/${id}`,
+                    label: data.title || "this investigation",
+                    type: "investigation",
+                  })}
+                >
                   <GitBranch aria-hidden />
                   Trace
                 </Link>

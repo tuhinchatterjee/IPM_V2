@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { ArrowLeft, Loader2, Pencil, Sparkles } from "lucide-react";
+import { Loader2, Pencil, Sparkles } from "lucide-react";
 
 import { AnswerBlock, FollowUps } from "@/components/ask/answer";
+import { BackLink } from "@/components/layout/back-link";
 import { ClarificationCard } from "@/components/ask/clarification";
 import { Composer } from "@/components/ask/composer";
 import { ProjectMenu } from "@/components/ask/project-picker";
@@ -20,7 +21,14 @@ import {
   type ThreadMessage,
 } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
-import { useReturnTo, withReturnTo } from "@/lib/return-to";
+import {
+  fromInvestigation,
+  linkBack,
+  turnAnchor,
+  useAnchorScroll,
+  useReturnTo,
+  type ReturnContext,
+} from "@/lib/return-to";
 
 /**
  * An Investigation: the conversation.
@@ -82,6 +90,11 @@ function Thread({ threadId }: { threadId: number }) {
   );
 
   const projectId = thread?.project_id ?? null;
+
+  // §6: a Back that returns you to turn nine of a fourteen-turn thread has to
+  // land ON turn nine. The thread is fetched after the navigation completes, so
+  // the anchor cannot be honoured until the turns are in the document.
+  useAnchorScroll(Boolean(thread));
 
   const endRef = React.useRef<HTMLDivElement>(null);
   // Scroll to the newest turn when one ARRIVES — not when the conversation is
@@ -157,12 +170,7 @@ function Thread({ threadId }: { threadId: number }) {
 
   return (
     <div className="space-y-7">
-      <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link href={back.href}>
-          <ArrowLeft aria-hidden />
-          {back.label}
-        </Link>
-      </Button>
+      <BackLink href={back.href} label={back.label} />
 
       <ThreadHeader
         thread={thread}
@@ -189,10 +197,11 @@ function Thread({ threadId }: { threadId: number }) {
               onAnswerClarification={(from, to) =>
                 ask(previousQuestion(thread.messages, message.sequence), { from, to })
               }
-              returnTo={{
-                href: `/investigations/${thread.id}#${turnAnchor(message.sequence)}`,
-                label: thread.title,
-              }}
+              returnTo={fromInvestigation(
+                thread.id,
+                thread.title,
+                message.sequence,
+              )}
               onAddToProject={projectId === null ? addToProject : undefined}
             />
           </div>
@@ -305,10 +314,9 @@ function ThreadHeader({
       <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
         {project && (
           <Link
-            href={withReturnTo(
+            href={linkBack(
               `/projects/${project.id}`,
-              `/investigations/${thread.id}`,
-              thread.title,
+              fromInvestigation(thread.id, thread.title),
             )}
             className="hover:text-accent"
           >
@@ -350,7 +358,7 @@ function Exchange({
   mode: PlannerMode | null;
   onAnswerClarification: (from: string, to: string) => void;
   /** Where Method, Trace and Analysis links come back to — this exact turn. */
-  returnTo: { href: string; label: string };
+  returnTo: ReturnContext;
   onAddToProject?: () => void;
 }) {
   if (message.role === "user") return <UserTurn content={message.content} />;
@@ -409,17 +417,6 @@ function UserTurn({ content }: { content: string }) {
 /* ------------------------------------------------------------------ helpers */
 
 /** The question a clarification is asking about: the message just before it. */
-/**
- * The id of one turn in the thread.
- *
- * Used both as the anchor on the rendered turn and in the `returnTo` handed to
- * Method, Trace and Analysis, so coming back lands on the question that was
- * asked rather than the top of the conversation.
- */
-function turnAnchor(sequence: number): string {
-  return `turn-${sequence}`;
-}
-
 function previousQuestion(messages: ThreadMessage[], sequence: number): string {
   for (let i = sequence - 1; i >= 0; i -= 1) {
     const message = messages.find((m) => m.sequence === i);

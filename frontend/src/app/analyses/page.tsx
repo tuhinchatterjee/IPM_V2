@@ -13,7 +13,12 @@ import { EmptyState } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type SavedAnalysis } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
-import { withReturnTo } from "@/lib/return-to";
+import {
+  analysisAnchor,
+  fromSavedAnalysis,
+  linkBack,
+  useAnchorScroll,
+} from "@/lib/return-to";
 
 /**
  * Analyses: the evidence.
@@ -30,6 +35,9 @@ import { withReturnTo } from "@/lib/return-to";
  */
 export default function AnalysesPage() {
   const saved = useAsync(() => api.savedAnalyses(), []);
+  // A Trace opened from a row returns here; land on the row rather than the
+  // top of a list that may run to a hundred entries.
+  useAnchorScroll(Boolean(saved.data));
   const projects = useAsync(() => api.projects(), []);
   const [removed, setRemoved] = React.useState<Set<number>>(() => new Set());
 
@@ -108,13 +116,19 @@ function Row({
   const period = periodLabel(analysis.period);
 
   return (
-    <div className="flex items-start gap-3 px-5 py-4">
+    <div
+      id={analysisAnchor(analysis.id)}
+      className="flex scroll-mt-24 items-start gap-3 px-5 py-4"
+    >
       <BarChart3 className="mt-0.5 size-4 shrink-0 text-text-muted" aria-hidden />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           {target ? (
             <Link
-              href={target}
+              href={linkBack(
+                target,
+                fromSavedAnalysis(analysis.id, analysis.title),
+              )}
               className="truncate text-sm font-medium text-text-primary hover:text-accent"
             >
               {analysis.title}
@@ -132,7 +146,10 @@ function Row({
           {period && <span>{period}</span>}
           {projectName && analysis.project_id !== null && (
             <Link
-              href={`/projects/${analysis.project_id}`}
+              href={linkBack(
+                `/projects/${analysis.project_id}`,
+                fromSavedAnalysis(analysis.id, analysis.title),
+              )}
               className="hover:text-accent"
             >
               {projectName}
@@ -140,10 +157,9 @@ function Row({
           )}
           {analysis.investigation_id !== null && (
             <Link
-              href={withReturnTo(
+              href={linkBack(
                 `/investigations/${analysis.investigation_id}`,
-                "/analyses",
-                "Analyses",
+                fromSavedAnalysis(analysis.id, analysis.title),
               )}
               className="hover:text-accent"
             >
@@ -156,7 +172,14 @@ function Row({
       <div className="flex shrink-0 items-center gap-0.5">
         {analysis.analysis_run_id !== null && (
           <Button variant="ghost" size="sm" asChild>
-            <Link href={`/trace/${analysis.analysis_run_id}`}>Trace</Link>
+            <Link
+              href={linkBack(
+                `/trace/${analysis.analysis_run_id}`,
+                fromSavedAnalysis(analysis.id, analysis.title),
+              )}
+            >
+              Trace
+            </Link>
           </Button>
         )}
         <Button

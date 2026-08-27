@@ -27,6 +27,7 @@ import {
   type RenderedPanel,
 } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { fromLens, linkBack, type ReturnContext } from "@/lib/return-to";
 
 /**
  * One Lens, live.
@@ -120,7 +121,11 @@ function LensView({ id }: { id: number }) {
 
       <div className="space-y-6">
         {rendered.data.panels.map((panel, index) => (
-          <PanelView key={`${panel.analysis_id}-${index}`} panel={panel} />
+          <PanelView
+            key={`${panel.analysis_id}-${index}`}
+            panel={panel}
+            from={fromLens(String(lens.id), lens.name)}
+          />
         ))}
       </div>
 
@@ -241,7 +246,14 @@ function Header({ lens, rendered }: { lens: Lens; rendered: RenderedLens }) {
   );
 }
 
-function PanelView({ panel }: { panel: RenderedPanel }) {
+function PanelView({
+  panel,
+  from,
+}: {
+  panel: RenderedPanel;
+  /** §5: Lens → Analysis → Trace → Back to Lens. */
+  from: ReturnContext;
+}) {
   if (panel.status !== "succeeded" || !panel.result) {
     return (
       <Card className="border-warning/30 p-4">
@@ -299,11 +311,13 @@ function PanelView({ panel }: { panel: RenderedPanel }) {
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           <Button variant="ghost" size="sm" asChild>
-            <Link href={`/engine-builder/${panel.analysis_id}`}>Method</Link>
+            <Link href={linkBack(`/engine-builder/${panel.analysis_id}`, from)}>
+              Method
+            </Link>
           </Button>
           {panel.analysis_run_id ? (
             <Button variant="ghost" size="sm" asChild>
-              <Link href={`/trace/${panel.analysis_run_id}`}>
+              <Link href={linkBack(`/trace/${panel.analysis_run_id}`, from)}>
                 <GitBranch aria-hidden />
                 Trace
               </Link>

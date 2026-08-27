@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import * as React from "react";
 import {
   BarChart3,
@@ -19,7 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
 import { api, type ProjectContents, type ProjectStatus } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
-import { withReturnTo } from "@/lib/return-to";
+import { fromProject, linkBack } from "@/lib/return-to";
 
 import { StatusBadge } from "../page";
 
@@ -38,7 +39,25 @@ export default function ProjectPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = React.use(params);
+  return (
+    <React.Suspense fallback={<Skeleton className="h-96 w-full" />}>
+      <ProjectView id={id} />
+    </React.Suspense>
+  );
+}
+
+/**
+ * The tab lives in the URL rather than only in state.
+ *
+ * §6 asks that a Back control restore the selected tab. It can only do that if
+ * the tab is part of the address — otherwise "Back to Contracting review"
+ * returns a reader who was reading the Analyses tab to the Investigations one,
+ * which looks like the project lost their work.
+ */
+function ProjectView({ id }: { id: string }) {
   const projectId = Number(id);
+  const params = useSearchParams();
+  const requested = params.get("tab");
 
   const loaded = useAsync(
     () => api.projectContents(projectId),
@@ -47,8 +66,21 @@ export default function ProjectPage({
   );
   const [local, setLocal] = React.useState<ProjectContents | null>(null);
   const contents = local ?? loaded.data;
-  const [tab, setTab] = React.useState("investigations");
+  const [tab, setTab] = React.useState(
+    requested === "analyses" || requested === "history"
+      ? requested
+      : "investigations",
+  );
   const [error, setError] = React.useState<string | null>(null);
+
+  // Changing tab rewrites the address without a navigation, so a link taken
+  // from here carries the tab the reader was actually on and Back restores it.
+  const chooseTab = React.useCallback((next: string) => {
+    setTab(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", next);
+    window.history.replaceState(window.history.state, "", url);
+  }, []);
 
   if (!Number.isFinite(projectId)) {
     return (
@@ -164,7 +196,7 @@ export default function ProjectPage({
 
       <Tabs
         active={tab}
-        onChange={setTab}
+        onChange={chooseTab}
         tabs={[
           {
             id: "investigations",
@@ -186,10 +218,9 @@ export default function ProjectPage({
             {contents.investigations.map((thread) => (
               <Link
                 key={thread.id}
-                href={withReturnTo(
+                href={linkBack(
                   `/investigations/${thread.id}`,
-                  `/projects/${project.id}`,
-                  project.name,
+                  fromProject(project.id, project.name, "investigations"),
                 )}
                 className="flex items-start gap-3 px-5 py-3.5 transition-colors hover:bg-surface-hover"
               >
@@ -251,10 +282,9 @@ export default function ProjectPage({
                 {analysis.investigation_id !== null && (
                   <Button variant="ghost" size="sm" asChild>
                     <Link
-                      href={withReturnTo(
+                      href={linkBack(
                         `/investigations/${analysis.investigation_id}`,
-                        `/projects/${project.id}`,
-                        project.name,
+                        fromProject(project.id, project.name, "analyses"),
                       )}
                     >
                       Open

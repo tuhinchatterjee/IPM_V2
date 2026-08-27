@@ -60,20 +60,35 @@ const MODES: { id: TraceMode; label: string; hint: string; icon: typeof Layers }
 
 const STORAGE_KEY = "creditprobe.trace.mode";
 
+/** Whether a string that arrived in a URL names one of the four modes. */
+export function isTraceMode(value: string | null | undefined): value is TraceMode {
+  return MODES.some((mode) => mode.id === value);
+}
+
 /**
- * The chosen mode, remembered.
+ * The chosen mode, remembered — or the one the address asks for.
  *
  * An auditor who works in Audit mode should not have to choose it on every
  * Trace they open. Read once on mount rather than during render, so the server
  * and the client agree on the first paint.
+ *
+ * `requested` wins over the remembered preference for exactly one reason: it
+ * only arrives when a return link is bringing somebody BACK to a Trace they
+ * were already reading, and returning them to a different view than the one
+ * they left is the failure §5 is about. It is a starting value rather than a
+ * lock, so switching mode afterwards still works.
  */
-export function useTraceMode(): [TraceMode, (mode: TraceMode) => void] {
+export function useTraceMode(
+  requested?: string | null,
+): [TraceMode, (mode: TraceMode) => void] {
   // The stored choice is external state the server cannot know, so it is read
   // through useSyncExternalStore rather than assigned from an effect: the
   // server renders "lineage", the client swaps to the remembered mode on
   // hydration, and neither ever renders markup the other disagrees with.
   const stored = React.useSyncExternalStore(subscribe, readStored, () => "story" as TraceMode);
-  const [override, setOverride] = React.useState<TraceMode | null>(null);
+  const [override, setOverride] = React.useState<TraceMode | null>(
+    () => (isTraceMode(requested) ? requested : null),
+  );
 
   const choose = React.useCallback((next: TraceMode) => {
     setOverride(next);

@@ -30,7 +30,7 @@ import {
   type PlaybookRun,
 } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
-import { withReturnTo } from "@/lib/return-to";
+import { fromPlaybook, linkBack } from "@/lib/return-to";
 import { cn } from "@/lib/utils";
 
 /**
@@ -326,7 +326,10 @@ function RunReport({ run }: { run: PlaybookRun }) {
             result.analysis_run_id ? (
               <Link
                 key={result.analysis_id}
-                href={`/trace/${result.analysis_run_id}`}
+                href={linkBack(
+                  `/trace/${result.analysis_run_id}`,
+                  fromPlaybook(),
+                )}
                 className="hover:text-accent"
               >
                 {result.analysis_id} · Trace
@@ -341,10 +344,9 @@ function RunReport({ run }: { run: PlaybookRun }) {
       {run.investigation_id && (
         <p className="text-xs">
           <Link
-            href={withReturnTo(
+            href={linkBack(
               `/investigations/${run.investigation_id}`,
-              "/playbooks",
-              "Playbooks",
+              fromPlaybook(),
             )}
             className="text-accent hover:underline"
           >

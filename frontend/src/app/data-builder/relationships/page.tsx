@@ -7,6 +7,7 @@ import { ArrowLeft, Loader2, Search, Share2 } from "lucide-react";
 import { RelationshipCanvas } from "@/components/data-builder/relationship-canvas";
 import { RelationshipInspector } from "@/components/data-builder/relationship-inspector";
 import { RelationshipProposalsPanel } from "@/components/data-builder/relationship-proposals";
+import { BackLink } from "@/components/layout/back-link";
 import { PageHeader } from "@/components/layout/page-header";
 import { useCanEditData } from "@/components/system/role-switcher";
 import { Badge } from "@/components/ui/badge";
@@ -86,6 +87,8 @@ export default function RelationshipMapPage() {
 
   return (
     <div className="space-y-6">
+      <BackLink href="/data-builder" label="Data Builder" />
+
       <PageHeader
         title="Relationship Map"
         eyebrow="Data Builder"

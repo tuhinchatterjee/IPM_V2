@@ -6,6 +6,7 @@ import * as React from "react";
 import { GitBranch, Loader2, TriangleAlert } from "lucide-react";
 
 import { Composer, useGreeting } from "@/components/ask/composer";
+import { BackLink } from "@/components/layout/back-link";
 import { useGreetingName } from "@/components/system/auth";
 import { useCanRunAnalysis } from "@/components/system/role-switcher";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, api, type Row } from "@/lib/api";
 import { byUnit, delta, money } from "@/lib/format";
 import { useAsync } from "@/lib/hooks";
+import { fromCockpit, linkBack, useReturnTo } from "@/lib/return-to";
 
 /**
  * The Cockpit.
@@ -55,6 +57,15 @@ function Cockpit() {
   const [opening, setOpening] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  // The Cockpit is itself reachable with a return context — "Investigate this
+  // borrower" on Early Warning lands here. When it is, the investigation that
+  // opens inherits that context rather than the Cockpit, so Back from the
+  // answer returns to the borrower the reader started from rather than to a
+  // Cockpit they only passed through.
+  const arrivedFrom = useReturnTo(fromCockpit());
+  const cameFromElsewhere = arrivedFrom.href !== "/";
+  const openFrom = cameFromElsewhere ? arrivedFrom : fromCockpit();
+
   const greeting = useGreeting();
   // The real first name of whoever is signed in. Empty when nobody is, and the
   // greeting reads correctly without it rather than falling back to "there".
@@ -78,7 +89,10 @@ function Cockpit() {
       setError(null);
       try {
         const turn = await api.startThread({ question: trimmed });
-        router.push(`/investigations/${turn.thread.id}`);
+        // The investigation opens with Back pointing at the Cockpit, because
+        // that is where the reader came from. Without it, Back lands on the
+        // Investigations index — a screen they never visited.
+        router.push(linkBack(`/investigations/${turn.thread.id}`, openFrom));
       } catch (e) {
         setError(
           e instanceof ApiError
@@ -88,7 +102,7 @@ function Cockpit() {
         setOpening(false);
       }
     },
-    [router, opening],
+    [router, opening, openFrom],
   );
 
   const period = briefing.data?.period ?? "";
@@ -96,6 +110,14 @@ function Cockpit() {
 
   return (
     <div className="space-y-10">
+      {/* A Back control only where there is somewhere to go back to. The
+          Cockpit is the root of the product, so a permanent Back on it would
+          be a lie; one that appears only when a link brought the reader here
+          is the whole return-context contract in one control. */}
+      {cameFromElsewhere && (
+        <BackLink href={arrivedFrom.href} label={arrivedFrom.label} />
+      )}
+
       {/* ------------------------------------------------------------ asking */}
       <section>
         <h1 className="text-[30px] font-semibold leading-[1.15] tracking-tight text-text-primary">
@@ -175,7 +197,12 @@ function Cockpit() {
           action={
             attention?.analysis_run_id ? (
               <Button variant="ghost" size="sm" asChild>
-                <Link href={`/trace/${attention.analysis_run_id}`}>
+                <Link
+                  href={linkBack(
+                    `/trace/${attention.analysis_run_id}`,
+                    fromCockpit(),
+                  )}
+                >
                   <GitBranch aria-hidden />
                   Trace
                 </Link>
