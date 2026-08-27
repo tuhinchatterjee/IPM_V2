@@ -293,3 +293,105 @@ def test_every_answer_records_what_it_checked(require_data):
     recorded = investigation.conversation.get("invariants") or {}
     assert recorded.get("ok") is True
     assert recorded.get("checked")
+
+
+# ---------------------------------------------------------------------------
+# The checks a sentence has to pass, not only the rows
+# ---------------------------------------------------------------------------
+
+
+def _threshold_check(column: str = "headroom_pct", op: str = "lt",
+                     value: float = 15.0):
+    from backend.orchestration.invariants import Check
+
+    return Check(rule="condition",
+                 claim=f"covenant headroom is below {value:g}",
+                 columns=(column,),
+                 params={"column": column, "op": op, "value": value})
+
+
+def test_a_sentence_that_contradicts_the_threshold_is_caught():
+    """The failure this exists for: correct rows, contradictory prose.
+
+    A screen for headroom below 15% returned rows that all satisfied it, and
+    the paragraph above the table named a borrower at 16.17%.
+    """
+    from backend.orchestration.invariants import check_prose
+
+    failures = check_prose(
+        [_threshold_check()],
+        ["Three customers have covenant headroom below 15%. "
+         "Ghat Holding 1771 has headroom of 16.17%."],
+        labels={"headroom_pct": "Covenant headroom"})
+
+    assert failures, "a figure above the stated threshold must be caught"
+    assert "16.17" in failures[0].detail
+
+
+def test_a_borrower_name_is_not_read_as_a_headroom_figure():
+    """The demonstration book numbers its borrowers.
+
+    Without the unit rule "Al Rajhi Contracting 4471" is a headroom of 4,471%,
+    and a check that flags correct answers is a check somebody turns off.
+    """
+    from backend.orchestration.invariants import check_prose
+
+    assert not check_prose(
+        [_threshold_check()],
+        ["Three customers have covenant headroom below 15%. "
+         "Al Rajhi Contracting 4471 is tightest at 3.20% headroom."],
+        labels={"headroom_pct": "Covenant headroom"})
+
+
+def test_restating_the_threshold_is_not_violating_it():
+    from backend.orchestration.invariants import check_prose
+
+    assert not check_prose(
+        [_threshold_check()],
+        ["Every customer shown has covenant headroom below 15%."],
+        labels={"headroom_pct": "Covenant headroom"})
+
+
+def test_a_measure_with_no_knowable_unit_is_not_checked():
+    """A bare number beside a bare measure cannot be told from an account code."""
+    from backend.orchestration.invariants import check_prose
+
+    assert not check_prose(
+        [_threshold_check(column="days_past_due", value=90.0)],
+        ["Two customers are past due. Account 4471 is the largest."],
+        labels={"days_past_due": "Days past due"})
+
+
+def test_a_year_comparison_that_is_not_a_year_is_caught():
+    from backend.orchestration.invariants import Check, verify
+
+    class _Runtime:
+        rows: list = []
+        row_count = 0
+        columns: list = []
+
+    report = verify([Check(rule="period_span",
+                           claim="the two periods compared are a year apart",
+                           params={"opening": "Q1 2026", "closing": "Q2 2026",
+                                   "quarters": 4})], _Runtime())
+
+    assert not report.ok
+    assert "1 quarter" in report.failures[0].detail
+
+
+def test_a_ranking_that_is_not_ranked_is_caught():
+    from backend.orchestration.invariants import Check, verify
+
+    class _Runtime:
+        rows = [{"ead": 100.0}, {"ead": 250.0}, {"ead": 50.0}]
+        row_count = 3
+        columns = [{"name": "ead"}]
+
+    report = verify([Check(rule="ordering",
+                           claim="ranked by ead, largest first",
+                           columns=("ead",),
+                           params={"column": "ead", "direction": "desc"})],
+                    _Runtime())
+
+    assert not report.ok
+    assert "row 2" in report.failures[0].detail

@@ -218,6 +218,18 @@ _UNIQUE = re.compile(r"\b(?:each|per|one row per|distinct|unique)\s+"
                      r"(customer|borrower|facility|account)\b", re.I)
 
 
+#: "over the latest year", "in the past twelve months". A window the question
+#: named, which the plan is free to satisfy with any two periods it likes
+#: unless somebody checks.
+_A_YEAR = re.compile(
+    r"\b(?:latest|last|past|previous|trailing)\s+"
+    r"(?:one\s+)?(?:year|12\s*months|twelve\s*months)\b"
+    r"|\byear[- ]on[- ]year\b|\byoy\b", re.I)
+
+#: A quarter label, so a window can be measured rather than trusted.
+_QUARTER = re.compile(r"^\s*Q([1-4])\s+((?:19|20)\d{2})\s*$")
+
+
 def _from_question(question: str, build: Any) -> list[Check]:
     """Checks the sentence itself promises, beyond what the plan recorded."""
     checks: list[Check] = []
@@ -228,7 +240,45 @@ def _from_question(question: str, build: Any) -> list[Check]:
             rule="unique_key",
             claim=f"one row per {grain}",
             columns=(key,), params={"column": key}))
+
+    # "Over the latest year" is a promise about the window, and the window is
+    # chosen by the planner. A two-quarter comparison presented under a
+    # year-on-year heading is wrong by three quarters and looks identical to
+    # the right answer.
+    opening = str(getattr(build, "opening", "") or "")
+    closing = str(getattr(build, "closing", "") or "")
+    if opening and closing and _A_YEAR.search(question or ""):
+        checks.append(Check(
+            rule="period_span",
+            claim="the two periods compared are a year apart",
+            params={"opening": opening, "closing": closing, "quarters": 4}))
+
+    # "Rank by EAD" promises an order. A ranking whose rows are not in that
+    # order is a list, and the reader will still read the first row as the
+    # largest.
+    ranked = _ranking_column(build)
+    if ranked:
+        checks.append(Check(
+            rule="ordering",
+            claim=f"ranked by {_readable(ranked)}, largest first",
+            columns=(ranked,),
+            params={"column": ranked, "direction": "desc"}))
     return checks
+
+
+def _ranking_column(build: Any) -> str:
+    """The measure a ranking promised to be ordered by, if it promised one."""
+    if str(getattr(build, "shape", "") or "") != "ranking":
+        return ""
+    matches = list(getattr(build, "matches", None) or [])
+    if not matches:
+        return ""
+    # An explicit ordering condition wins over the first measure: "show the
+    # five largest by EAD, with their ECL" names two and orders by one.
+    for condition in (getattr(build, "conditions", None) or []):
+        if str(getattr(condition, "kind", "")) == "order":
+            return str(getattr(condition, "column", "") or "")
+    return str(getattr(matches[0], "field", "") or "")
 
 
 def _readable(column: str) -> str:
@@ -453,8 +503,61 @@ def _unique_key(check: Check, rows: list[dict[str, Any]],
                 "the question asked for."))
 
 
+def _period_span(check: Check, rows: list[dict[str, Any]],
+                 runtime: Any) -> Failure | None:
+    """Whether the two periods compared are as far apart as the question said."""
+    del rows, runtime
+    opening = _quarter_index(str(check.params.get("opening") or ""))
+    closing = _quarter_index(str(check.params.get("closing") or ""))
+    wanted = int(check.params.get("quarters") or 0)
+    if opening is None or closing is None or not wanted:
+        return None
+    apart = closing - opening
+    if apart == wanted:
+        return None
+    return Failure(
+        check=check, offending=1,
+        detail=(f"The question asked for a comparison a year apart and the "
+                f"analysis compared {check.params.get('opening')} with "
+                f"{check.params.get('closing')}, which is {apart} "
+                f"{'quarter' if abs(apart) == 1 else 'quarters'}."))
+
+
+def _quarter_index(label: str) -> int | None:
+    """A quarter as a number of quarters, so two of them can be subtracted."""
+    found = _QUARTER.match(label or "")
+    if not found:
+        return None
+    return int(found.group(2)) * 4 + int(found.group(1)) - 1
+
+
+def _ordering(check: Check, rows: list[dict[str, Any]],
+              runtime: Any) -> Failure | None:
+    """Whether a ranking is actually in the order it claims."""
+    del runtime
+    column = str(check.params.get("column") or "")
+    descending = str(check.params.get("direction") or "desc") == "desc"
+    values = [row.get(column) for row in rows]
+    numbers = [float(v) for v in values
+               if isinstance(v, (int, float)) and not isinstance(v, bool)]
+    if len(numbers) < 2 or len(numbers) != len(values):
+        return None
+    for index in range(len(numbers) - 1):
+        left, right = numbers[index], numbers[index + 1]
+        if (left < right - TOLERANCE) if descending else (left > right + TOLERANCE):
+            return Failure(
+                check=check, offending=1,
+                example={"row": index + 2, column: right},
+                detail=(f"The answer claims to be ranked by "
+                        f"{_readable(column)} and row {index + 2} is larger "
+                        f"than row {index + 1}."))
+    return None
+
+
 _HANDLERS: dict[str, Any] = {
     "row_limit": _row_limit,
+    "period_span": _period_span,
+    "ordering": _ordering,
     "filter_equality": _filter_equality,
     "condition": _condition,
     "numerator_within_denominator": _numerator_within,
@@ -517,5 +620,143 @@ def check_result(build: Any, runtime: Any, question: str = "") -> Report:
         return Report()
 
 
-__all__ = ["Check", "Failure", "Report", "check_result", "compile_checks",
-           "verify"]
+# ---------------------------------------------------------------------------
+# The same checks, against the sentence rather than the rows
+# ---------------------------------------------------------------------------
+#
+# The row checks above would not have caught the failure that made this
+# necessary. A screen for covenant headroom below 15% returned rows that all
+# satisfied it, and the PROSE above the table named a borrower at 16.17%. Every
+# figure was real, every row was correct, and the answer contradicted its own
+# heading — which is the single most damaging thing this product can do,
+# because it is the sentence a credit officer quotes.
+
+#: How close a figure has to be to the measure's name to be read as a claim
+#: about it. Within one clause, in practice.
+PROSE_WINDOW = 70
+
+_PROSE_NUMBER = re.compile(r"(-?\d[\d,]*(?:\.\d+)?)\s*(%|pp|x)?")
+
+
+def check_prose(checks: list[Check], texts: list[str], *,
+                labels: dict[str, str] | None = None,
+                units: dict[str, str] | None = None) -> list[Failure]:
+    """Every threshold the question set, tested against what the answer SAYS.
+
+    Only threshold checks on a level — "headroom below 15%", "ECL coverage
+    above 20%". A movement condition is about a change and is not something a
+    sentence quotes as a level, so testing prose against it would flag correct
+    writing.
+
+    Deliberately conservative, in three ways that each removed a whole class of
+    false positive:
+
+    * The figure must sit within `PROSE_WINDOW` characters of the measure's own
+      name, in the same sentence.
+    * It must carry the measure's UNIT. Without that rule the demonstration
+      book's borrower names — "Al Rajhi Contracting 4471" — were read as
+      headroom figures of 4,471%, and a check that flags correct answers is a
+      check that gets turned off.
+    * A figure equal to the threshold is the threshold being restated, not a
+      value violating it.
+
+    A measure whose unit cannot be established is not checked at all. A bare
+    number beside a bare measure cannot be told apart from an account code, and
+    guessing is how this stops being trustworthy.
+    """
+    out: list[Failure] = []
+    for check in checks:
+        if check.rule != "condition":
+            continue
+        column = str(check.params.get("column") or "")
+        op = str(check.params.get("op") or "")
+        bound = check.params.get("value")
+        if not column or op not in _OPS or not isinstance(bound, (int, float)):
+            continue
+        # A change is not a level. "ECL rose by 22%" under "ECL rose more than
+        # 20%" is correct writing and must not be flagged.
+        if column.endswith(("_change", "_change_pct")):
+            continue
+
+        unit = _unit_for(column, (units or {}).get(column, ""))
+        if not unit:
+            continue
+
+        vocabulary = _vocabulary(column, (labels or {}).get(column, ""))
+        satisfies = _OPS[op][1]
+        for text in texts:
+            found = _violating(text, vocabulary, satisfies, float(bound), unit)
+            if found is None:
+                continue
+            value, sentence = found
+            out.append(Failure(
+                check=check, offending=1,
+                example={"value": value, "sentence": sentence[:200]},
+                detail=(f"The answer promises {check.claim} and the text says "
+                        f"{_number(value)} — a figure that does not satisfy "
+                        "the question's own threshold.")))
+            break
+    return out
+
+
+def _vocabulary(column: str, label: str) -> tuple[str, ...]:
+    """The words a sentence uses for this measure.
+
+    The column name broken into words, plus the concept's business label. Words
+    shorter than four characters are dropped: "pct" and "ecl" would match
+    almost anything, and a proximity test on a word that appears everywhere is
+    no test at all.
+    """
+    words = set()
+    for source in (column, label):
+        for word in re.split(r"[^a-z0-9]+", str(source or "").lower()):
+            if len(word) >= 4 and word not in ("value", "total", "amount"):
+                words.add(word)
+    return tuple(sorted(words))
+
+
+#: What a column's name says its unit is, where the ontology did not.
+_UNIT_SUFFIX = (("_pct", "%"), ("_percent", "%"), ("_pp", "pp"),
+                ("_ratio", "x"), ("_times", "x"), ("_multiple", "x"))
+
+
+def _unit_for(column: str, declared: str) -> str:
+    unit = str(declared or "").strip()
+    if unit in ("%", "pp", "x"):
+        return unit
+    lowered = str(column or "").lower()
+    for suffix, found in _UNIT_SUFFIX:
+        if lowered.endswith(suffix):
+            return found
+    return ""
+
+
+def _violating(text: str, vocabulary: tuple[str, ...], satisfies: Any,
+               bound: float, unit: str) -> tuple[float, str] | None:
+    if not text or not vocabulary:
+        return None
+    for sentence in re.split(r"(?<=[.!?])\s+", text):
+        lowered = sentence.lower()
+        anchors = [m.start() for word in vocabulary
+                   for m in re.finditer(re.escape(word), lowered)]
+        if not anchors:
+            continue
+        for match in _PROSE_NUMBER.finditer(sentence):
+            if (match.group(2) or "") != unit:
+                continue
+            raw = match.group(1).replace(",", "")
+            try:
+                value = float(raw)
+            except ValueError:
+                continue
+            # The threshold restated is not a violation of itself.
+            if abs(value - bound) <= TOLERANCE:
+                continue
+            if any(abs(match.start() - anchor) <= PROSE_WINDOW
+                   for anchor in anchors) and not satisfies(value, bound):
+                return value, sentence.strip()
+    return None
+
+
+__all__ = ["PROSE_WINDOW", "Check", "Failure", "Report", "check_prose",
+           "check_result", "compile_checks", "verify"]

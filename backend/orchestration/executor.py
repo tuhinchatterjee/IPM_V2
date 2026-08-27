@@ -969,6 +969,7 @@ def answer_investigation(question: str, *, user_id: int | None = None,
             question, answered.reading, answered.build, answered.runtime,
             duration_ms=answered.duration_ms, mode=mode_now)
         _apply_interpretation(investigation, answered)
+        _check_stated_thresholds(investigation, answered)
         _record_invariants(investigation, answered)
         _check_grounding(investigation, answered.runtime)
 
@@ -1147,6 +1148,66 @@ def _apply_interpretation(investigation: Investigation, answered: Any) -> None:
         investigation.narrative.caveats.extend(written.caveats)
     elif written.unavailable:
         investigation.narrative.caveats.append(written.unavailable)
+
+
+def _check_stated_thresholds(investigation: Investigation,
+                             answered: Any) -> None:
+    """Test the question's own thresholds against what the answer SAYS.
+
+    The row checks pass and the sentence contradicts them. That happened: a
+    screen for covenant headroom below 15% returned rows that all satisfied it,
+    and the prose above the table named a borrower at 16.17%. Every figure was
+    real, every row was correct, and the answer contradicted its own heading —
+    the single most damaging thing this product can produce, because the
+    sentence is what a credit officer quotes into a paper.
+
+    Where the offending text is the model's interpretation, the interpretation
+    is discarded and the deterministic reading stands. Where it is the direct
+    answer or a finding — CreditProbe's own arithmetic — the answer is not
+    shown at all. A contradictory headline is not something to annotate.
+    """
+    from backend.orchestration import invariants as inv
+
+    report = getattr(answered, "invariants", None)
+    narrative = investigation.narrative
+    if report is None or not report.checks or narrative is None:
+        return
+
+    step = investigation.steps[0] if investigation.steps else None
+    columns = ((step.result or {}).get("columns") or []) if step else []
+    labels = {str(c.get("name")): str(c.get("label") or "") for c in columns}
+    units = {str(c.get("name")): str(c.get("unit") or "") for c in columns}
+
+    def failing(texts: list[str]) -> list[Any]:
+        return inv.check_prose([c for c in report.checks if c.claim],
+                               [t for t in texts if t],
+                               labels=labels, units=units)
+
+    written = failing([narrative.interpretation,
+                       *(narrative.interpretation_points or [])])
+    if written:
+        logger.error("Discarding an interpretation that contradicts the "
+                     "question's threshold: %s", written[0].detail)
+        narrative.interpretation = ""
+        narrative.interpretation_points = []
+        narrative.caveats.append(
+            "CreditProbe withheld the written interpretation of this result: "
+            + written[0].detail
+            + " The figures below are unaffected — they were computed by the "
+              "governed runtime and every row satisfies the threshold.")
+
+    computed = failing([narrative.direct_answer,
+                        *[f.text for f in (narrative.findings or [])]])
+    if computed:
+        logger.error("Blocking an answer that contradicts its own heading: %s",
+                     computed[0].detail)
+        investigation.status = "failed"
+        investigation.rejected.append(
+            "CreditProbe computed an answer and then found that what it said "
+            "about the result contradicted the question. "
+            + computed[0].detail
+            + " Rather than show a heading its own rows disprove, CreditProbe "
+              "has stopped.")
 
 
 def _unsupported(question: str, answered: Any, mode_now: dict[str, Any],
