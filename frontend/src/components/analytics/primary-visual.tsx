@@ -73,7 +73,14 @@ export function PrimaryVisual({
     choice.kind === "table" || choice.kind === "kpi" ? "table" : "chart",
   );
 
-  const chart = renderChart(choice, rows, spec, units ?? {});
+  // The registry names the right form; this build draws six of them. When the
+  // right form has no renderer here, the next form the shape genuinely
+  // supports is drawn instead — silently falling all the way back to a table
+  // loses the toggle as well as the chart, and the reader is told neither.
+  const { chart, drawn } = React.useMemo(
+    () => firstDrawable(choice, rows, spec, units ?? {}),
+    [choice, rows, spec, units],
+  );
 
   if (!chart) {
     return (
@@ -110,12 +117,25 @@ export function PrimaryVisual({
       </div>
 
       {showing === "chart" ? (
-        chart
+        <>
+          {chart}
+          {drawn !== null && drawn !== choice.kind && (
+            <p className="text-[11px] text-text-muted">
+              Drawn as a {label(drawn)}; this result would read best as a{" "}
+              {label(choice.kind)}, which this build does not draw yet.
+            </p>
+          )}
+        </>
       ) : (
         <ResultTable rows={rows} units={units} spec={spec} maxRows={maxRows} />
       )}
     </div>
   );
+}
+
+/** A chart kind in the words a reader uses. */
+function label(kind: ChartKind): string {
+  return kind.replace(/-/g, " ");
 }
 
 function Toggle({
@@ -149,14 +169,31 @@ function Toggle({
 }
 
 /**
- * The registry's chosen form, as a component — or null where this build has no
- * renderer for it.
+ * The chosen form, or the first alternative this build can actually draw.
  *
- * Returning null rather than substituting something is deliberate. §21 lists
- * two dozen forms and this build draws six of them well; a Sankey rendered as
- * a bar chart would be a lie about the shape of the data, and a table is not.
- * The registry still records the right answer, so adding a renderer later
- * changes nothing else.
+ * §21 lists two dozen forms and this build draws six of them well. The registry
+ * still records the right answer — adding a renderer later changes nothing
+ * else — but a result whose ideal form is a Sankey should not lose its chart
+ * toggle entirely when a stacked bar would have shown the same movement
+ * honestly. Only the ALTERNATIVES the registry itself listed are tried, so
+ * nothing is ever drawn in a form the shape does not support.
+ */
+function firstDrawable(
+  choice: Choice,
+  rows: Row[],
+  spec: ColumnSpec[],
+  units: Record<string, string>,
+): { chart: React.ReactNode | null; drawn: ChartKind | null } {
+  for (const kind of [choice.kind, ...choice.alternatives]) {
+    if (kind === "table") break;
+    const chart = renderChart({ ...choice, kind }, rows, spec, units);
+    if (chart) return { chart, drawn: kind };
+  }
+  return { chart: null, drawn: null };
+}
+
+/**
+ * One form, as a component — or null where this build has no renderer for it.
  */
 function renderChart(
   choice: Choice,
@@ -198,8 +235,17 @@ function renderChart(
         />
       );
     case "horizontal-bar":
+      // The height follows the row count. A fixed 260px split fifteen ways
+      // gives each bar a hairline, and a chart whose bars cannot be compared
+      // by thickness is a table that has lost its numbers.
       return (
-        <CategoryBarChart data={data} xKey={choice.x} series={series} units={unitMap} />
+        <CategoryBarChart
+          data={data}
+          xKey={choice.x}
+          series={series}
+          units={unitMap}
+          height={Math.min(560, Math.max(240, data.length * 26 + 40))}
+        />
       );
     case "grouped-bar":
       return (

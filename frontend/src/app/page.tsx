@@ -262,6 +262,19 @@ function Cockpit() {
               </p>
             </>
           )}
+          {/* Found in the browser review: with no deterioration to report, the
+              card rendered as an empty grey rectangle under a heading, which
+              is what a generic admin dashboard looks like and tells the reader
+              nothing. Nothing to attend to is a finding, and it is said. */}
+          {!briefing.loading && !briefing.error && !attention?.result && (
+            <p className="px-4 py-6 text-center text-sm text-text-secondary">
+              Nothing is flagged this period.
+              <span className="mt-1 block text-xs text-text-muted">
+                No borrower&rsquo;s expected credit loss rose materially against
+                the prior period.
+              </span>
+            </p>
+          )}
         </Card>
       </section>
 

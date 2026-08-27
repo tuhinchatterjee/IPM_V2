@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDown, ArrowUp, Minus } from "lucide-react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 
 import {
   describeMeaning,
@@ -103,9 +103,10 @@ export function EvidenceToken({
  * greyscale print.
  */
 function Arrow({ meaning, rising }: { meaning: Meaning; rising: boolean }) {
-  if (meaning === "neutral") {
-    return <Minus className="size-3 shrink-0 self-center opacity-50" aria-hidden />;
-  }
+  // Nothing at all for a neutral figure. A dash beside a level reads as a
+  // missing value, which is the one thing a figure that IS present must never
+  // look like — and a level has no direction of travel to draw anyway.
+  if (meaning === "neutral") return null;
   const Icon = rising ? ArrowUp : ArrowDown;
   return <Icon className="size-3 shrink-0 self-center" aria-hidden />;
 }

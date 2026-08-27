@@ -111,6 +111,9 @@ function ShareDialog({
   const [priority, setPriority] = React.useState<WorkflowPriority>("normal");
   const [due, setDue] = React.useState("");
   const [note, setNote] = React.useState("");
+  // A bank with two hundred accounts renders two hundred chips, which pushes
+  // everything else off the dialog and is unusable however correct it is.
+  const [filter, setFilter] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [sent, setSent] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -189,8 +192,15 @@ function ShareDialog({
               {directory.error && (
                 <p className="text-xs text-negative">{directory.error}</p>
               )}
-              <div className="flex flex-wrap gap-1.5">
-                {(directory.data?.people ?? []).map((person) => (
+              <input
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="Find a person or a team"
+                aria-label="Filter recipients"
+                className="mb-2 w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              />
+              <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
+                {matching(directory.data?.people ?? [], filter, chosen(people)).map((person) => (
                   <Chip
                     key={`u${person.id}`}
                     active={people.includes(person.id)}
@@ -200,7 +210,7 @@ function ShareDialog({
                     {person.name}
                   </Chip>
                 ))}
-                {(directory.data?.teams ?? []).map((team) => (
+                {matching(directory.data?.teams ?? [], filter, chosen(teams)).map((team) => (
                   <Chip
                     key={`t${team.id}`}
                     active={teams.includes(team.id)}
@@ -279,6 +289,30 @@ function ShareDialog({
       </Card>
     </div>
   );
+}
+
+/**
+ * The entries worth showing: those that match what is typed, plus anything
+ * already chosen.
+ *
+ * Keeping the chosen ones visible is the point. Typing a name to find the
+ * second recipient must not hide the first — a picker that appears to have
+ * forgotten a selection is one people re-click, and then send twice.
+ */
+function matching<T extends { id: number; name: string }>(
+  entries: T[],
+  filter: string,
+  selected: Set<number>,
+): T[] {
+  const wanted = filter.trim().toLowerCase();
+  if (!wanted) return entries;
+  return entries.filter(
+    (entry) => selected.has(entry.id) || entry.name.toLowerCase().includes(wanted),
+  );
+}
+
+function chosen(ids: number[]): Set<number> {
+  return new Set(ids);
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

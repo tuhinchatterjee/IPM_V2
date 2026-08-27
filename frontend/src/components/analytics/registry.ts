@@ -78,6 +78,16 @@ const PERIOD_HINT = /(^|_)(period|quarter|month|year|as_of|date)($|_)/i;
 /** A column holding a signed change rather than a level. */
 const CHANGE_HINT = /(change|movement|delta|_pp$|_diff)/i;
 
+/**
+ * A column that is a SHARE OF the measure beside it rather than a measure.
+ *
+ * `exposure_at_default_share_pct` is not a second thing that was measured; it
+ * is the first thing expressed as a proportion. Treating it as an independent
+ * measure produced a scatter plot of exposure against its own share — a
+ * perfect straight line, drawn as though it meant something.
+ */
+const DERIVED_SHARE_HINT = /(_share(_pct)?$|_pct_of_|^share_)/i;
+
 /** A from/to pair, which is what a transition or a flow is made of. */
 const FROM_HINT = /(^|_)(from|opening|source)($|_)/i;
 const TO_HINT = /(^|_)(to|closing|target|destination)($|_)/i;
@@ -88,6 +98,8 @@ interface Shaped {
   numeric: ColumnSpec[];
   categorical: ColumnSpec[];
   change: ColumnSpec[];
+  /** Numeric columns that restate another column rather than measure a thing. */
+  derived: ColumnSpec[];
 }
 
 /** What the columns are, before any decision is taken about them. */
@@ -110,8 +122,11 @@ export function shapeOf(columns: ColumnSpec[], rows: Row[]): Shaped {
   const change = numeric.filter(
     (c) => CHANGE_HINT.test(c.name) || c.role === "change",
   );
+  const derived = numeric.filter(
+    (c) => DERIVED_SHARE_HINT.test(c.name) || c.role === "share",
+  );
 
-  return { identity, period, numeric, categorical, change };
+  return { identity, period, numeric, categorical, change, derived };
 }
 
 function isNumericSemantic(column: ColumnSpec): boolean {
@@ -134,7 +149,13 @@ export function chooseVisualization(
 ): Choice {
   const shape = shapeOf(columns, rows);
   const dimension = shape.identity[0] ?? shape.categorical[0] ?? null;
-  const measures = shape.numeric.filter((c) => !shape.change.includes(c));
+  // A share of the measure is not a second measure. Counting it as one turned
+  // "exposure by sector, with each sector's share" into a scatter plot of a
+  // quantity against its own proportion, which is a straight line drawn as
+  // though it were a finding.
+  const measures = shape.numeric.filter(
+    (c) => !shape.change.includes(c) && !shape.derived.includes(c),
+  );
   const measure = measures[0] ?? shape.numeric[0] ?? null;
 
   // Nothing to draw.
@@ -207,6 +228,19 @@ export function chooseVisualization(
       because: "The figures are signed changes, so the zero line is the point.",
       alternatives: ["waterfall", "bar", "table"],
     };
+  }
+
+  // More than one identity column, over more rows than a chart can label, is a
+  // LISTING rather than a measurement: each row names an account AND the
+  // borrower it belongs to, which is the shape of "show me the facilities"
+  // rather than "how does PD relate to coverage". §22 calls that record-level
+  // and asks for a table, and it is right — the reader is here to find two
+  // specific rows, not to see a cloud.
+  if (shape.identity.length > 1 && rows.length > HORIZONTAL_BARS_MAX) {
+    return table(
+      `${rows.length} records with ${shape.identity.length} identifying ` +
+        `columns: this is a listing, where precision beats pattern.`,
+    );
   }
 
   // Two measures against each other, per named thing, is a scatter — and three
