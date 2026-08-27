@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { Loader2, Pencil, Sparkles } from "lucide-react";
+import { Globe, Loader2, Pencil, Share2, Sparkles } from "lucide-react";
 
 import { AnswerBlock, FollowUps } from "@/components/ask/answer";
+import { ShareButton } from "@/components/collaboration/share";
 import { BackLink } from "@/components/layout/back-link";
 import { ClarificationCard } from "@/components/ask/clarification";
 import { Composer } from "@/components/ask/composer";
@@ -301,6 +302,13 @@ function ThreadHeader({
             <Pencil aria-hidden />
             Rename
           </Button>
+          <ShareButton
+            objectType="investigation"
+            objectId={String(thread.id)}
+            title={thread.title}
+            label="Share"
+          />
+          <PublishToGlobal thread={thread} onChange={onChange} />
           <ProjectMenu
             thread={thread}
             projects={projects}
@@ -334,6 +342,59 @@ function ThreadHeader({
         )}
       </p>
     </header>
+  );
+}
+
+/**
+ * Publish a project's investigation to the global list — or take it back out.
+ *
+ * §4: a thread started inside a Project is that Project's, and does not appear
+ * in Work → Investigations unless somebody explicitly puts it there. The only
+ * route to the global list before this was Move, which is a different
+ * operation: moving a thread out takes the project's own record of what was
+ * explored with it.
+ *
+ * Not offered on a standalone thread, which is already global. A control that
+ * publishes something already published is a control that teaches people the
+ * product does not know its own state.
+ */
+function PublishToGlobal({
+  thread,
+  onChange,
+}: {
+  thread: Thread;
+  onChange: (thread: Thread) => void;
+}) {
+  const [busy, setBusy] = React.useState(false);
+  if (thread.project_id === null) return null;
+
+  const published = thread.published_globally;
+
+  async function toggle() {
+    setBusy(true);
+    try {
+      const updated = await api.publishThread(thread.id, !published);
+      onChange({ ...thread, published_globally: updated.published_globally });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={toggle}
+      disabled={busy}
+      title={
+        published
+          ? "Remove it from Work → Investigations. It stays in the project."
+          : "List it in Work → Investigations as well. It stays in the project."
+      }
+    >
+      {published ? <Globe aria-hidden /> : <Share2 aria-hidden />}
+      {published ? "Published globally" : "Publish to global"}
+    </Button>
   );
 }
 

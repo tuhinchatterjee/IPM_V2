@@ -353,6 +353,31 @@ def move_thread(thread_id: int, payload: MoveIn,
         raise _unavailable(e) from e
 
 
+class PublishIn(BaseModel):
+    """Whether this investigation appears in the global list as well. §4."""
+
+    published: bool = True
+
+
+@threads_router.post("/{thread_id}/publish",
+                     summary="Publish a project investigation to the global list")
+def publish_thread(thread_id: int, payload: PublishIn,
+                   principal: Principal = RequireAnalyst) -> dict:
+    """Add a project's investigation to Work → Investigations, or remove it.
+
+    Deliberately not Move. Moving a project thread out takes it out of the
+    project, and the project's record of what was explored goes with it;
+    publishing leaves the thread where it is and lists it in both places.
+    """
+    try:
+        return th.publish(thread_id, published=payload.published,
+                          user_id=principal.user_id).to_dict()
+    except th.ThreadNotFound as e:
+        raise _not_found(e) from e
+    except th.StorageUnavailable as e:
+        raise _unavailable(e) from e
+
+
 class CopyIn(BaseModel):
     """Duplicate a thread. `project_id` null means the standalone list."""
 

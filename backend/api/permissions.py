@@ -48,6 +48,14 @@ RUN_ANALYSIS = frozenset({Role.ADMIN, Role.DATA_STEWARD, Role.ANALYST})
 #: run anything, but neither may decide what "high risk" means.
 MANAGE_MODELS = frozenset({Role.ADMIN})
 READ_ONLY = frozenset({Role.ADMIN, Role.DATA_STEWARD, Role.ANALYST, Role.VIEWER})
+#: Saying something about something. §50: a VIEWER may "read approved/shared
+#: objects and comment where permitted", and that is the one write a viewer has.
+#:
+#: It is a separate set from RUN_ANALYSIS on purpose. Sending a viewer an object
+#: and asking them to comment on it, then refusing their reply, is the failure
+#: this prevents — and it would have been invisible, because the request would
+#: have looked as though it had simply not been answered.
+COMMENT = frozenset({Role.ADMIN, Role.DATA_STEWARD, Role.ANALYST, Role.VIEWER})
 
 
 @dataclass(frozen=True)
@@ -157,3 +165,5 @@ RequireDataSteward = Depends(require(WRITE_DATA_BUILDER))
 RequirePublisher = Depends(require(PUBLISH_DATASET))
 RequireAnalyst = Depends(require(RUN_ANALYSIS))
 RequireAdmin = Depends(require(MANAGE_MODELS))
+#: Everybody signed in, including a Viewer. Comments and workflow replies only.
+RequireCommenter = Depends(require(COMMENT))

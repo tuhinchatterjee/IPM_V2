@@ -708,6 +708,34 @@ def _follow_ups(build: ap.AnalysisBuild, runtime: Any = None) -> list[str]:
     return suggestions.after_analysis(build, runtime)
 
 
+def _evidence(label: str, value: Any, unit: str, *,
+              direction: str = "neutral", period: str = "") -> dict[str, Any]:
+    """One figure behind a finding, with what it MEANS for credit risk.
+
+    `direction` is presentation metadata, not a calculation: it says which way
+    is bad for this measure so a reader sees "+1.8pp adverse" rather than a
+    green plus sign. It comes from the ontology's `higher_is_worse`, which is
+    the governed answer to that question — a rising ECL and a rising cure rate
+    are both increases and only one of them is bad news.
+
+    "neutral" is the default and is used wherever the meaning is not governed.
+    A wrongly coloured risk figure is worse than an uncoloured one: it tells a
+    credit officer the opposite of the truth in the register they trust most.
+    """
+    entry: dict[str, Any] = {"label": label, "value": value, "unit": unit,
+                             "direction": direction}
+    if period:
+        entry["period"] = period
+    return entry
+
+
+def _direction_of(measure: Any) -> str:
+    """Which way is bad for this measure, as the ontology governs it."""
+    if measure is None:
+        return "neutral"
+    return "up-is-bad" if measure.concept.higher_is_worse else "up-is-good"
+
+
 # ------------------------------------------------------------------ narrative
 
 
@@ -774,8 +802,9 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                 text=(f"{top.get(build.dimension)} is the largest at "
                       f"{_fmt(top[column])} {unit}{share_text}."),
                 tone="neutral",
-                evidence=[{"label": str(top.get(build.dimension)),
-                           "value": round(float(top[column]), 2), "unit": unit}]))
+                evidence=[_evidence(str(top.get(build.dimension)),
+                                    round(float(top[column]), 2), unit,
+                                    period=build.period or "")]))
     elif build.shape == ap.RANKING:
         direct = (f"The {count} largest {_subject(build, count)} by {label} "
                   f"at {build.period}."
@@ -797,8 +826,9 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                     text=(f"Together these {count} hold "
                           f"{figures.percent(covered)} of {scope} {label}."),
                     tone="neutral",
-                    evidence=[{"label": "share of " + scope,
-                               "value": round(covered, 1), "unit": "%"}]))
+                    evidence=[_evidence("share of " + scope,
+                                        round(covered, 1), "%",
+                                        period=build.period or "")]))
     elif build.shape == ap.SHARE_MOVEMENT:
         numerator = dict((build.plan.get("meta") or {}).get("numerator") or {})
         moved = [r for r in rows if r.get("change_pp") is not None]
@@ -822,8 +852,13 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                       f"{figures.percent(top['opening_share_pct'])} to "
                       f"{figures.percent(top['closing_share_pct'])}."),
                 tone="warning" if float(top["change_pp"]) > 0 else "neutral",
-                evidence=[{"label": "change", "unit": "pp",
-                           "value": round(float(top["change_pp"]), 2)}]))
+                evidence=[_evidence(
+                    "change", round(float(top["change_pp"]), 2), "pp",
+                    # A rising share of qualifying — Stage 2, past due,
+                    # watchlist — is the deterioration the question asked
+                    # about. That is what makes an increase adverse here.
+                    direction="up-is-bad",
+                    period=f"{build.opening} → {build.closing}")]))
     elif build.shape == ap.MOVEMENT and not build.conditions:
         column = measure.field if measure else ""
         opening_total = float(values.get("opening_total") or 0.0)
@@ -849,7 +884,11 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
             findings.append(Finding(
                 text=(f"{biggest.get(build.dimension)} carries the largest "
                       f"{label} at {_fmt(biggest.get(column))} {unit}."),
-                tone="neutral", evidence=[]))
+                tone="neutral",
+                evidence=[_evidence(str(biggest.get(build.dimension)),
+                                    biggest.get(column), unit,
+                                    direction=_direction_of(measure),
+                                    period=build.closing or "")]))
     elif count == 0:
         # An empty cohort is a finding, not a row count. Said the same way an
         # empty ranking is, because the reader's question is the same one.

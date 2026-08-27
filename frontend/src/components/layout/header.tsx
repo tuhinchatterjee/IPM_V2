@@ -6,6 +6,7 @@ import * as React from "react";
 import { PanelLeft } from "lucide-react";
 
 import { AiPowerControl } from "@/components/system/ai-power";
+import { NotificationCentre } from "@/components/collaboration/notifications";
 import { BackendStatusIndicator } from "@/components/system/backend-status";
 import { RoleSwitcher } from "@/components/system/role-switcher";
 import { ThemeMenu } from "@/components/system/theme-menu";
@@ -28,6 +29,10 @@ import { useNavState } from "./nav-state";
  * The AI POWERED control is here for a different reason: a product that claims
  * to be AI-powered should be able to prove it from wherever the claim is being
  * read, and the proof should be one click away rather than filed under Settings.
+ *
+ * The notification bell is here for the same reason: work assigned to somebody
+ * has to be visible from wherever they are, and each notification opens the
+ * exact object rather than the list it lives in.
  */
 export function Header() {
   const router = useRouter();
@@ -69,6 +74,10 @@ export function Header() {
 
       <div className="flex items-center gap-1.5">
         <AiPowerControl />
+        {/* §48: reachable from the screen you are on, not from a screen you
+            have to go to — and deliberately out of the Cockpit, whose whole
+            claim is that it opens on a question rather than on everything. */}
+        <NotificationCentre />
         <ThemeMenu />
         <RoleSwitcher />
         <BackendStatusIndicator />

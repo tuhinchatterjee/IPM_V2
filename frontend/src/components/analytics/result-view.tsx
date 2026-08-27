@@ -9,6 +9,7 @@ import {
   StackedBarChart,
   TrendChart,
 } from "@/components/analytics/charts";
+import { PrimaryVisual } from "@/components/analytics/primary-visual";
 import { ResultTable, Stat } from "@/components/analytics/primitives";
 import type { ColumnSpec } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -424,10 +425,15 @@ function ResultBody({
                 ))}
             </div>
           )}
-          <ResultTable
+          {/* §22: chart first where a chart is clearer, table always one
+              click away, and a table by default where a chart would mislead.
+              Composed analyses used to land here as a table and nothing else —
+              which meant every certified engine had a bespoke chart and every
+              question a reader actually asked produced a wall of numbers. */}
+          <PrimaryVisual
             rows={rows}
+            columns={result.columns as ColumnSpec[] | undefined}
             units={units}
-            spec={result.columns as ColumnSpec[] | undefined}
             maxRows={compact ? 6 : 25}
           />
         </div>

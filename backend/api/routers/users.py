@@ -17,7 +17,12 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 
 from backend.api.auth import Account, normalise_role
-from backend.api.permissions import Principal, RequireAdmin, Role
+from backend.api.permissions import (
+    Principal,
+    RequireAdmin,
+    RequireCommenter,
+    Role,
+)
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
@@ -117,6 +122,60 @@ def list_users(principal: Principal = RequireAdmin) -> dict:
             "roles": [
                 {"role": r.value, "label": ROLE_LABEL[r], "can": ROLE_SUMMARY[r]}
                 for r in Role
+            ],
+        }
+
+
+@router.get("/directory", summary="Who work can be sent to")
+def directory(principal: Principal = RequireCommenter) -> dict:
+    """The recipient picker's source: people and teams, and nothing else. §47.
+
+    Deliberately NOT the admin listing. Choosing who to send an analysis to is
+    something every analyst does and nobody needs an email address, a last-login
+    time or an activity flag to do it — so this returns a name, a role label and
+    a team, and no more. A picker that leaked the user table would be a picker
+    that could not be shown to an analyst.
+
+    Inactive accounts are left out: sending work to somebody who cannot sign in
+    is a request that will never be answered and will look like an unanswered
+    one rather than an impossible one.
+    """
+    if not settings.has_database:
+        raise _unavailable()
+    from backend.db.engine import get_session
+    from backend.db.models import User
+    from backend.models.platform import Team, TeamMember
+
+    with get_session() as session:
+        people = session.query(User).order_by(User.username).all()
+        teams = session.query(Team).order_by(Team.name).all()
+        membership: dict[int, list[int]] = {}
+        for row in session.query(TeamMember).all():
+            membership.setdefault(row.team_id, []).append(row.user_id)
+
+        return {
+            "people": [
+                {
+                    "id": row.id,
+                    "username": row.username,
+                    "name": (f"{row.first_name or ''} {row.last_name or ''}".strip()
+                             or row.username),
+                    "role": normalise_role(row.role),
+                    "role_label": ROLE_LABEL.get(
+                        normalise_role(row.role), normalise_role(row.role)),
+                    "team": row.team or "",
+                }
+                for row in people
+                if bool(row.is_active)
+            ],
+            "teams": [
+                {
+                    "id": team.id,
+                    "name": team.name,
+                    "description": team.description or "",
+                    "members": len(membership.get(team.id, [])),
+                }
+                for team in teams
             ],
         }
 

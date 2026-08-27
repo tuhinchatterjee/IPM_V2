@@ -589,3 +589,93 @@ def test_a_project_can_be_started_from_a_standalone_investigation(client, people
     # Moved, so it is no longer standalone.
     standalone = client.get("/api/v1/investigations").json()["investigations"]
     assert all(t["id"] != thread["id"] for t in standalone)
+
+
+# ------------------------------------------- §4: global vs project threads
+
+
+@pytest.fixture
+def project_thread(client, people, project) -> dict:
+    """An investigation started inside a project."""
+    author, _ = people
+    response = client.post(
+        "/api/v1/investigations",
+        json={"question": "How has Contracting moved?", "title": "Contracting",
+              "project_id": project["id"]},
+        headers=_as(author),
+    )
+    assert response.status_code in (200, 201), response.text
+    return response.json()["thread"]
+
+
+def _global_ids(client, author: int) -> set[int]:
+    listed = client.get("/api/v1/investigations", headers=_as(author))
+    assert listed.status_code == 200, listed.text
+    body = listed.json()
+    rows = body["investigations"] if isinstance(body, dict) else body
+    return {row["id"] for row in rows}
+
+
+def test_a_project_thread_is_not_in_the_global_list(client, people, project_thread):
+    """The rule that makes a project a container rather than a tag.
+
+    Without it, Work > Investigations becomes an undifferentiated pile of
+    everything anybody has ever asked anywhere.
+    """
+    author, _ = people
+    assert project_thread["project_id"] is not None
+    assert project_thread["published_globally"] is False
+    assert project_thread["id"] not in _global_ids(client, author)
+
+
+def test_publishing_puts_it_in_both_places(client, people, project, project_thread):
+    """Publishing adds it to the global list and leaves it in the project.
+
+    That is the whole difference from Move, which is what people reached for
+    when they wanted this: moving a thread out takes the project's own record
+    of what was explored with it.
+    """
+    author, _ = people
+    published = client.post(
+        f"/api/v1/investigations/{project_thread['id']}/publish",
+        json={"published": True}, headers=_as(author),
+    )
+    assert published.status_code == 200, published.text
+    assert published.json()["published_globally"] is True
+    # Still the project's.
+    assert published.json()["project_id"] == project["id"]
+
+    assert project_thread["id"] in _global_ids(client, author)
+
+    contents = client.get(f"/api/v1/projects/{project['id']}/contents",
+                          headers=_as(author))
+    assert project_thread["id"] in {
+        row["id"] for row in contents.json()["investigations"]
+    }
+
+
+def test_unpublishing_takes_it_back_out(client, people, project_thread):
+    author, _ = people
+    client.post(f"/api/v1/investigations/{project_thread['id']}/publish",
+                json={"published": True}, headers=_as(author))
+    withdrawn = client.post(
+        f"/api/v1/investigations/{project_thread['id']}/publish",
+        json={"published": False}, headers=_as(author),
+    )
+    assert withdrawn.status_code == 200, withdrawn.text
+    assert withdrawn.json()["published_globally"] is False
+    assert project_thread["id"] not in _global_ids(client, author)
+
+
+def test_a_standalone_thread_is_already_global(client, people):
+    """Publishing one is a no-op rather than an error: it asked for a state
+    the thread is already in."""
+    author, _ = people
+    started = client.post(
+        "/api/v1/investigations",
+        json={"question": "What is total exposure?", "title": "Exposure"},
+        headers=_as(author),
+    )
+    thread = started.json()["thread"]
+    assert thread["project_id"] is None
+    assert thread["id"] in _global_ids(client, author)

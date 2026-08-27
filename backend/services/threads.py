@@ -111,6 +111,8 @@ class ThreadView:
     status: str
     project_id: int | None
     owner_id: int | None
+    #: Whether a project thread has been published to the global list. §4.
+    published_globally: bool = False
     context: dict[str, Any] = field(default_factory=dict)
     message_count: int = 0
     last_message_at: str | None = None
@@ -126,6 +128,7 @@ class ThreadView:
             "status": self.status,
             "project_id": self.project_id,
             "owner_id": self.owner_id,
+            "published_globally": self.published_globally,
             "context": self.context,
             "message_count": self.message_count,
             "last_message_at": self.last_message_at,
@@ -168,6 +171,7 @@ def _thread_view(session: Any, row: Any, *, with_messages: bool = True) -> Threa
         question=row.question,
         status=row.status,
         project_id=row.project_id,
+        published_globally=bool(row.published_globally),
         owner_id=row.owner_id,
         context=dict(row.context or {}),
         message_count=row.message_count,
@@ -585,6 +589,36 @@ def load(thread_id: int) -> ThreadView:
         return _thread_view(session, row)
 
 
+def publish(thread_id: int, *, published: bool,
+            user_id: int | None = None) -> ThreadView:
+    """Put a project's investigation into the global list, or take it out.
+
+    Distinct from Move, which is the operation people reached for when they
+    wanted this and which does something else: moving a thread out of a project
+    takes the project's own record of what was explored with it. Publishing
+    leaves the thread exactly where it is and adds it to Work >
+    Investigations as well.
+
+    A standalone thread is already global, so publishing one is a no-op rather
+    than an error — the caller asked for a state the thread is already in.
+    """
+    _require_db()
+    from datetime import UTC, datetime
+
+    from backend.db.engine import get_session
+    from backend.models.platform import Investigation
+
+    with get_session() as session:
+        row = session.get(Investigation, thread_id)
+        if row is None:
+            raise ThreadNotFound(f"Investigation {thread_id} does not exist.")
+        row.published_globally = bool(published)
+        row.published_at = datetime.now(UTC) if published else None
+        row.published_by = user_id if published else None
+        session.flush()
+        return _thread_view(session, row)
+
+
 def listing(*, project_id: int | None = None, owner_id: int | None = None,
             include_archived: bool = False, scope: str = "standalone",
             limit: int = 50) -> list[dict[str, Any]]:
@@ -593,11 +627,13 @@ def listing(*, project_id: int | None = None, owner_id: int | None = None,
     `scope` decides which world you are looking at, and it is the whole reason
     this argument exists:
 
-        "standalone"  threads that belong to no project. This is Work >
-                      Investigations, and it must NOT contain a project's
-                      threads — otherwise a project is not a container, it is a
-                      tag, and the global list becomes an undifferentiated pile
-                      of everything anyone has ever asked.
+        "standalone"  the GLOBAL list: threads that belong to no project, plus
+                      the project threads somebody has explicitly published to
+                      it. This is Work > Investigations, and a project's
+                      unpublished threads must NOT appear in it — otherwise a
+                      project is not a container, it is a tag, and the global
+                      list becomes an undifferentiated pile of everything
+                      anyone has ever asked (§4).
         "project"     the threads of one project. `project_id` is required.
         "all"         everything, for administration and search.
 
@@ -607,6 +643,7 @@ def listing(*, project_id: int | None = None, owner_id: int | None = None,
     """
     if not settings.has_database:
         return []
+    from sqlalchemy import or_ as sa_or
     from sqlalchemy import select
 
     from backend.db.engine import get_session
@@ -630,8 +667,14 @@ def listing(*, project_id: int | None = None, owner_id: int | None = None,
             query = query.where(Investigation.project_id == project_id)
         elif scope == "standalone":
             # The point of the rule: a thread started inside a project is that
-            # project's, and does not also appear in the global list.
-            query = query.where(Investigation.project_id.is_(None))
+            # project's, and does not also appear in the global list — unless
+            # somebody deliberately published it there.
+            query = query.where(
+                sa_or(
+                    Investigation.project_id.is_(None),
+                    Investigation.published_globally.is_(True),
+                )
+            )
         elif project_id is not None:
             query = query.where(Investigation.project_id == project_id)
 
@@ -658,6 +701,7 @@ def listing(*, project_id: int | None = None, owner_id: int | None = None,
                 "status": row.status,
                 "project_id": row.project_id,
                 "owner_id": row.owner_id,
+                "published_globally": bool(row.published_globally),
                 "context": dict(row.context or {}),
                 "message_count": row.message_count,
                 "last_answer": last.content if last else "",
@@ -683,6 +727,7 @@ __all__ = [
     "listing",
     "load",
     "move",
+    "publish",
     "record_answer",
     "rename",
     "set_context",

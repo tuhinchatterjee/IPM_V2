@@ -13,6 +13,15 @@ import {
 } from "lucide-react";
 
 import { DataAndMethod } from "@/components/ask/data-and-method";
+import {
+  foundNothing,
+  implications,
+  keyInsight,
+  sentences,
+  type KeyInsight as Insight,
+} from "@/components/ask/insight";
+import { EvidenceRow } from "@/components/analytics/evidence";
+import { HighlightProvider } from "@/components/analytics/highlight";
 import { DynamicAnalysisPanel } from "@/components/ask/dynamic-analysis";
 import { KpiTile } from "@/components/analytics/primitives";
 import { ResultView } from "@/components/analytics/result-view";
@@ -35,17 +44,25 @@ import { cn } from "@/lib/utils";
  *
  * The order is the argument:
  *
- *   1. DIRECT ANSWER          the sentence that answers the question asked
- *   2. ANALYST INTERPRETATION what it means, written rather than computed
- *   3. PRIMARY VISUAL / TABLE the figures and the one chart behind them
- *   4. EXCEPTIONS AND LIMITS  only when there is something material
- *   5. SUPPORTING ANALYSES    collapsed; open them if you want them
- *   6. DATA AND METHOD        collapsed; plan, SQL, joins, validations
- *   7. ACTION STRIP           certified · trace · save · project
- *   8. SUGGESTED QUESTIONS    three or four things worth asking next
+ *    1. USER QUESTION        rendered by the thread, above this block
+ *    2. BOTTOM LINE          the sentence that answers the question asked
+ *    3. KEY INSIGHT          the one observation worth reading if nothing else
+ *    4. ANALYST'S READING    what it means, written rather than computed
+ *    5. PRIMARY VISUAL       the figures and the one chart behind them
+ *    6. SUPPORTING EVIDENCE  collapsed; open them if you want them
+ *    7. WHAT DESERVES ATTENTION  what follows from the figures
+ *    8. LIMITATIONS          what stops you concluding more than that
+ *    9. DEEP ANALYSIS        the whole evidence chain, on request
+ *   10. TECHNICAL DETAIL     collapsed; analyses used, plan, SQL, joins
+ *   11. SUGGESTED QUESTIONS  three or four things worth asking next
  *
- * (The composer sits between 7 and 8 and belongs to the page, because a thread
- * has one composer at the bottom rather than one under every answer.)
+ * (The composer belongs to the page, because a thread has one composer at the
+ * bottom rather than one under every answer.)
+ *
+ * Sections 3 and 7 are SELECTED, never composed — `insight.ts` ranks findings
+ * the backend already wrote and returns one of them unchanged. A highlighted
+ * box containing the one sentence nobody verified would undo the grounding
+ * rules in the most prominent place on the screen.
  *
  * The direct answer comes FIRST and ALONE, and that is the change that matters
  * most. An answer that opens with total exposure at default when the question
@@ -324,12 +341,23 @@ export function AnalystReading({
   const notes = points.filter(Boolean);
   if (!interpretation && notes.length === 0 && !whyMultiple) return null;
 
+  // §52: one to three sentences may be marked, and the primary conclusion is
+  // the first. Marking it rather than classifying every sentence is the
+  // restrained version deliberately: bolding a whole paragraph highlights
+  // nothing, and a model deciding which sentences matter would be an
+  // ungrounded judgement inside a grounded reading.
+  const lines = sentences(interpretation ?? "");
+  const conclusion = lines[0] ?? "";
+  const rest = lines.slice(1).join(" ");
+
   return (
     <section className="max-w-[68ch] border-l-2 border-accent/40 pl-4">
       <SectionLabel>CreditProbe interpretation</SectionLabel>
       {interpretation && (
         <p className="prose-ai text-[15px] leading-relaxed text-text-secondary">
-          {interpretation}
+          <span className="bg-accent-muted/50 text-text-primary">{conclusion}</span>
+          {rest && " "}
+          {rest}
         </p>
       )}
       {notes.length > 0 && (
@@ -349,6 +377,86 @@ export function AnalystReading({
         <p className="prose-ai mt-2.5 text-xs text-text-muted">{whyMultiple}</p>
       )}
     </section>
+  );
+}
+
+/**
+ * The one observation worth reading if you read nothing else.
+ *
+ * Selected, never composed. `keyInsight` ranks findings the backend already
+ * wrote and returns one of them unchanged — because every figure in a
+ * CreditProbe answer is quoted from an engine result and checked against the
+ * grounding rules, and a highlighted box containing the one sentence nobody
+ * verified would undo that in the most prominent place on the screen.
+ *
+ * A restrained accent surface rather than a marketing callout: this sits
+ * between the answer and the reading, and a coloured banner there would
+ * separate two things that belong together.
+ */
+export function KeyInsight({ insight }: { insight: Insight | null }) {
+  if (!insight) return null;
+
+  return (
+    <section
+      className={cn(
+        "max-w-[68ch] rounded-md border-l-2 bg-surface-sunken px-4 py-3",
+        TONE_CLASS[insight.tone] ?? TONE_CLASS.neutral,
+      )}
+    >
+      <p className="meta mb-1.5 text-text-muted">{insight.because}</p>
+      <p className="prose-ai text-[15px] leading-relaxed text-text-primary">
+        {insight.text}
+      </p>
+      {insight.evidence.length > 0 && (
+        <EvidenceRow className="mt-2" items={insight.evidence} />
+      )}
+    </section>
+  );
+}
+
+/**
+ * What deserves attention, once the figures have been read.
+ *
+ * Between the evidence and the limitations, which is the order a credit
+ * officer actually thinks in: here is the number, here is what it implies,
+ * here is what stops you concluding more than that.
+ */
+export function Implications({ points }: { points: string[] }) {
+  if (points.length === 0) return null;
+
+  return (
+    <section className="max-w-[68ch]">
+      <SectionLabel>What deserves attention</SectionLabel>
+      <ul className="space-y-1.5">
+        {points.map((point) => (
+          <li key={point} className="prose-ai flex gap-2 text-sm text-text-secondary">
+            <ArrowRight
+              className="mt-[0.3em] size-3 shrink-0 text-text-muted"
+              aria-hidden
+            />
+            {point}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * Nothing matched — said as a conclusion rather than shown as an empty table.
+ *
+ * §15. An analysis that returns no rows has answered the question; rendering
+ * its empty table underneath makes it look as though the product failed to
+ * produce one, and a reader who concludes that goes and asks somebody else.
+ */
+export function NoneMatched({ answer }: { answer: string }) {
+  return (
+    <Card className="flex items-start gap-2.5 border-border p-4">
+      <Check className="mt-0.5 size-4 shrink-0 text-positive" aria-hidden />
+      <p className="prose-ai text-sm text-text-primary">
+        {answer || "Nothing in the governed data matched what was asked."}
+      </p>
+    </Card>
   );
 }
 
@@ -375,6 +483,129 @@ export function Limitations({ caveats }: { caveats: string[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/* ------------------------------------------------------------ deep analysis */
+
+/**
+ * The whole evidence chain, for a reader who wants all of it.
+ *
+ * §14 asks that the default reading stay short enough to scan and that the
+ * depth live behind an expandable. §53 lists what belongs in it: the evidence
+ * chain, the driver ranking, exceptions, limitations, what to analyse next.
+ *
+ * Everything below is already in the response. Nothing here computes, ranks or
+ * infers: the drivers appear in the engine's order, the findings in the order
+ * they were composed, and a section with nothing in it does not render. An
+ * expandable that opens on "no further detail available" is worse than one
+ * that is not offered.
+ */
+export function DeepAnalysis({ run }: { run: InvestigationResponse }) {
+  const { narrative } = run;
+  const findings = narrative.findings ?? [];
+  const drivers = narrative.drivers ?? [];
+  const points = (narrative.interpretation_points ?? []).filter(Boolean);
+  const next = run.follow_ups ?? [];
+
+  if (findings.length === 0 && drivers.length === 0 && points.length === 0) {
+    return null;
+  }
+
+  return (
+    <Disclosure summary="Deep analysis" hint="the whole evidence chain">
+      <div className="space-y-5">
+        {findings.length > 0 && (
+          <section>
+            <SectionLabel>Evidence chain</SectionLabel>
+            <ul className="space-y-2.5">
+              {findings.map((finding, i) => (
+                <li
+                  key={i}
+                  className={cn(
+                    "border-l-2 py-0.5 pl-3.5",
+                    TONE_CLASS[finding.tone] ?? TONE_CLASS.neutral,
+                  )}
+                >
+                  <p className="prose-ai text-sm text-text-primary">{finding.text}</p>
+                  {finding.evidence.length > 0 && (
+                    <EvidenceRow className="mt-1" items={finding.evidence} />
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {points.length > 0 && (
+          <section>
+            <SectionLabel>Observations</SectionLabel>
+            <ul className="space-y-1.5">
+              {points.map((point) => (
+                <li key={point} className="prose-ai text-sm text-text-secondary">
+                  {point}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {drivers.length > 0 && (
+          <section>
+            <SectionLabel>
+              {drivers[0]?.measure
+                ? `${drivers[0].measure} by contributor`
+                : "Contributors"}
+            </SectionLabel>
+            <Card className="divide-y divide-border">
+              {drivers.map((driver) => (
+                <div key={driver.name} className="flex items-baseline gap-3 px-4 py-2">
+                  <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
+                    {driver.name}
+                  </span>
+                  {driver.detail && (
+                    <span className="hidden max-w-[26rem] truncate text-xs text-text-muted lg:block">
+                      {driver.detail}
+                    </span>
+                  )}
+                  <span
+                    className={cn(
+                      "display-num shrink-0 text-sm font-medium",
+                      (driver.value ?? 0) > 0 ? "text-negative" : "text-positive",
+                    )}
+                  >
+                    {byUnit(driver.value, driver.unit)}
+                  </span>
+                </div>
+              ))}
+              <p className="px-4 py-2 text-[11px] text-text-muted">
+                Ranked by the engine, not re-ordered here.
+              </p>
+            </Card>
+          </section>
+        )}
+
+        {narrative.caveats.length > 0 && (
+          <section>
+            <SectionLabel>What this does not prove</SectionLabel>
+            <Limitations caveats={narrative.caveats} />
+          </section>
+        )}
+
+        {next.length > 0 && (
+          <section>
+            <SectionLabel>Recommended next analysis</SectionLabel>
+            <ul className="space-y-1">
+              {next.map((question) => (
+                <li key={question} className="text-sm text-text-secondary">
+                  {question}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+    </Disclosure>
   );
 }
 
@@ -617,7 +848,15 @@ export function AnswerBlock({
     run.steps.find((s) => s.role === "primary") ?? run.steps[0] ?? null;
   const supporting = run.steps.filter((s) => s !== primary);
 
+  // Selected from what the backend already established. Neither of these
+  // computes or composes anything — see `insight.ts` for why that boundary is
+  // absolute.
+  const insight = React.useMemo(() => keyInsight(run), [run]);
+  const attention = React.useMemo(() => implications(run), [run]);
+  const nothingMatched = React.useMemo(() => foundNothing(run), [run]);
+
   return (
+    <HighlightProvider>
     <div className={cn(compact ? "space-y-5" : "space-y-6")}>
       {run.rejected.length > 0 && (
         <Card className="border-negative/40 p-4">
@@ -644,17 +883,20 @@ export function AnswerBlock({
         </Card>
       )}
 
-      {/* ------------------------------------------------- 1. DIRECT ANSWER */}
+      {/* ---------------------------------------------------- 2. BOTTOM LINE */}
       <DirectAnswer answer={answer} scope={narrative.scope} />
 
-      {/* ------------------------------------------- 2. ANALYST INTERPRETATION */}
+      {/* ----------------------------------------------------- 3. KEY INSIGHT */}
+      <KeyInsight insight={insight} />
+
+      {/* ------------------------------------------------ 4. ANALYST'S READING */}
       <AnalystReading
         interpretation={interpretation}
         points={reading}
         whyMultiple={narrative.why_multiple}
       />
 
-      {/* --------------------------------------- 3. THE PRIMARY VISUAL/TABLE */}
+      {/* --------------------------------------------------- 5. PRIMARY VISUAL */}
       {narrative.metrics.length > 0 && (
         <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
           {narrative.metrics.map((metric) => (
@@ -672,20 +914,22 @@ export function AnswerBlock({
         </div>
       )}
 
-      {primary && (
-        <StepResult
-          step={primary}
-          runId={runId}
-          compact={compact}
-          returnTo={returnTo}
-          question={run.question}
-        />
-      )}
+      {/* §15: an analysis that returned nothing has answered the question. The
+          empty table under it reads as a failure to produce one. */}
+      {primary &&
+        (nothingMatched ? (
+          <NoneMatched answer={answer} />
+        ) : (
+          <StepResult
+            step={primary}
+            runId={runId}
+            compact={compact}
+            returnTo={returnTo}
+            question={run.question}
+          />
+        ))}
 
-      {/* ----------------------------- 4. EXCEPTIONS AND LIMITATIONS, IF ANY */}
-      <Limitations caveats={narrative.caveats} />
-
-      {/* --------------------------------------- 5. SUPPORTING, COLLAPSED */}
+      {/* ----------------------------------------------- 6. SUPPORTING EVIDENCE */}
       {supporting.length > 0 && (
         <Disclosure
           summary={`Supporting analysis (${supporting.length})`}
@@ -705,70 +949,18 @@ export function AnswerBlock({
         </Disclosure>
       )}
 
-      {narrative.findings.length > 1 && (
-        <Disclosure summary={`Findings in full (${narrative.findings.length})`}>
-          <ul className="space-y-2.5">
-            {narrative.findings.map((finding, i) => (
-              <li
-                key={i}
-                className={cn(
-                  "border-l-2 py-0.5 pl-3.5",
-                  TONE_CLASS[finding.tone] ?? TONE_CLASS.neutral,
-                )}
-              >
-                <p className="prose-ai text-sm text-text-primary">{finding.text}</p>
-                {finding.evidence.length > 0 && (
-                  <p className="mono mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-text-muted">
-                    {finding.evidence.map((e) => (
-                      <span key={e.label}>
-                        {e.label} {byUnit(e.value, e.unit)}
-                      </span>
-                    ))}
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
-        </Disclosure>
-      )}
+      {/* ------------------------------------------------- 7. WHAT DESERVES ATTENTION */}
+      <Implications points={attention} />
 
-      {narrative.drivers.length > 0 && (
-        <Disclosure summary={`${narrative.drivers[0]?.measure} by contributor`}>
-          <Card className="divide-y divide-border">
-            {narrative.drivers.map((driver) => (
-              <div
-                key={driver.name}
-                className="flex items-baseline gap-3 px-4 py-2"
-              >
-                <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
-                  {driver.name}
-                </span>
-                {driver.detail && (
-                  <span className="hidden max-w-[26rem] truncate text-xs text-text-muted lg:block">
-                    {driver.detail}
-                  </span>
-                )}
-                <span
-                  className={cn(
-                    "display-num shrink-0 text-sm font-medium",
-                    (driver.value ?? 0) > 0 ? "text-negative" : "text-positive",
-                  )}
-                >
-                  {byUnit(driver.value, driver.unit)}
-                </span>
-              </div>
-            ))}
-            <p className="px-4 py-2 text-[11px] text-text-muted">
-              Ranked by the engine, not re-ordered here.
-            </p>
-          </Card>
-        </Disclosure>
-      )}
+      {/* ----------------------------------------------------- 8. LIMITATIONS */}
+      <Limitations caveats={narrative.caveats} />
 
-      {/* ---------------------------------- 6. DATA AND METHOD, COLLAPSED */}
+      {/* ------------------------------------- 9. DEEP ANALYSIS, ON REQUEST */}
+      <DeepAnalysis run={run} />
+
+      {/* --------------------------------- 11. PROVENANCE / TECHNICAL DETAIL */}
       <AnalysesUsed steps={run.steps} runId={runId} returnTo={returnTo} />
 
-      {/* -------------------------------------------------- 7. ACTION STRIP */}
       <ActionStrip
         run={run}
         onSave={onSave}
@@ -778,8 +970,9 @@ export function AnswerBlock({
         returnTo={returnTo}
       />
 
-      {/* ------------------------------------ 8. CONTEXTUAL SUGGESTIONS */}
+      {/* ------------------------------ 10. SUGGESTED NEXT QUESTIONS */}
       {onAsk && <FollowUps questions={run.follow_ups} onAsk={onAsk} busy={busy} />}
     </div>
+    </HighlightProvider>
   );
 }

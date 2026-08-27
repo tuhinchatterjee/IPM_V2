@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from "lucide-react";
 
+import { ShareButton } from "@/components/collaboration/share";
 import { BackLink } from "@/components/layout/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -169,6 +170,12 @@ function ProjectView({ id }: { id: string }) {
                 {option.label}
               </Button>
             ))}
+            <ShareButton
+              objectType="project"
+              objectId={String(project.id)}
+              title={project.name}
+              label="Send"
+            />
             {!project.review_open && project.status === "active" && (
               <Button variant="ghost" size="sm" onClick={sendForReview}>
                 <Send aria-hidden />

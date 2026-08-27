@@ -8,6 +8,8 @@ import { columnUnit, figure, humanise, type ColumnSpec } from "@/lib/format";
 import type { Row } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
+import { isPointedAt, useHighlight } from "./highlight";
+
 /**
  * The analytical table.
  *
@@ -39,6 +41,14 @@ import { cn } from "@/lib/utils";
  */
 
 const IDENTITY_HINT = /^(customer|borrower|account|facility|obligor|sector|region|segment|name|id)/i;
+
+/** The values in a row that name what it is about, for highlight matching. */
+function identityValues(row: Row, keys: string[]): (string | number | null)[] {
+  return keys.map((key) => {
+    const value = row[key];
+    return typeof value === "string" || typeof value === "number" ? value : null;
+  });
+}
 
 export interface DataTableProps {
   rows: Row[];
@@ -91,6 +101,23 @@ export function DataTable({
     () => new Set((spec ?? []).filter((c) => c.hidden).map((c) => c.name)),
   );
   const [sort, setSort] = React.useState<SortState>(null);
+  const { active } = useHighlight();
+
+  // Which columns name the thing each row is about. Only these are matched
+  // against a token's label: a highlight that fired on a numeric cell would
+  // point at whichever row happened to hold that value.
+  const identityKeys = React.useMemo(
+    () =>
+      (spec ?? [])
+        .filter((c) => c.is_identity)
+        .map((c) => c.name)
+        .concat(
+          (columns ?? spec?.map((c) => c.name) ?? []).filter((k) =>
+            IDENTITY_HINT.test(k),
+          ),
+        ),
+    [spec, columns],
+  );
 
   const keys = React.useMemo(
     () => allKeys.filter((k) => !hidden.has(k)),
@@ -231,6 +258,12 @@ export function DataTable({
                 className={cn(
                   "border-b border-border/60 last:border-0",
                   "transition-colors duration-100 hover:bg-surface-interactive",
+                  // §51: clicking an evidence token in the prose points at the
+                  // row it came from. The reader used to reconstruct that by
+                  // scanning twenty-eight rows for the sector the sentence
+                  // named.
+                  isPointedAt(active, identityValues(row, identityKeys)) &&
+                    "bg-accent-muted/40 ring-1 ring-inset ring-accent/30",
                 )}
               >
                 {keys.map((key) => {

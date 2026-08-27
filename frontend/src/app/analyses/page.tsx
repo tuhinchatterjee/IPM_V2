@@ -4,6 +4,7 @@ import Link from "next/link";
 import * as React from "react";
 import { BarChart3, Trash2 } from "lucide-react";
 
+import { ShareButton } from "@/components/collaboration/share";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -182,6 +183,12 @@ function Row({
             </Link>
           </Button>
         )}
+        <ShareButton
+          objectType="analysis"
+          objectId={String(analysis.analysis_id)}
+          objectVersion={analysis.analysis_version || null}
+          title={analysis.title}
+        />
         <Button
           variant="ghost"
           size="sm"

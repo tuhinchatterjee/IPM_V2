@@ -15,6 +15,7 @@ investigation removes it from what people rely on, so it needs a steward.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -22,6 +23,7 @@ from pydantic import BaseModel, Field
 from backend.api.permissions import (
     Principal,
     RequireAnalyst,
+    RequireCommenter,
     RequireDataSteward,
     current_principal,
 )
@@ -156,11 +158,42 @@ def archive_investigation(investigation_id: int,
 
 
 class SubmitIn(BaseModel):
+    """Send an object to people and/or teams, for a named action. §43, §44.
+
+    `assigned_to` is kept for callers written before multi-recipient; when both
+    it and `recipients` are given, it is folded in rather than ignored, because
+    silently dropping a recipient is the failure that would go unnoticed.
+    """
+
     object_type: str = Field(max_length=48)
     object_id: str = Field(max_length=120)
+    object_version: str | None = Field(default=None, max_length=64)
     title: str = Field(min_length=1, max_length=300)
     assigned_to: int | None = None
+    recipients: list[int] = Field(default_factory=list)
+    teams: list[int] = Field(default_factory=list)
+    action: str = Field(default="review", max_length=24)
+    priority: str = Field(default="normal", max_length=12)
+    due_at: datetime | None = None
     note: str = Field(default="", max_length=MAX_TEXT)
+
+    def people(self) -> list[int]:
+        return ([self.assigned_to] if self.assigned_to else []) + list(self.recipients)
+
+
+class MessageIn(BaseModel):
+    """One message in a workflow conversation. §45."""
+
+    body: str = Field(min_length=1, max_length=MAX_TEXT)
+    parent_id: int | None = None
+    #: `[{"user_id": 4}, {"team_id": 2}]` — who is being named.
+    mentions: list[dict] = Field(default_factory=list)
+    #: `[{"type": "investigation", "id": "12", "label": "Contracting"}]`
+    attachments: list[dict] = Field(default_factory=list)
+
+
+class ResolveIn(BaseModel):
+    resolved: bool = True
 
 
 class TransitionIn(BaseModel):
@@ -168,11 +201,12 @@ class TransitionIn(BaseModel):
     comment: str = Field(default="", max_length=MAX_TEXT)
 
 
-@router.get("/workflow/inbox", summary="My work, what I sent, and what is done")
-def workflow_inbox(principal: Principal = RequireAnalyst) -> dict:
+@router.get("/workflow/inbox", summary="Assigned, sent, mentions, due soon, done")
+def workflow_inbox(principal: Principal = RequireCommenter) -> dict:
     return {
         **wf.inbox(principal.user_id),
         "states": wf.STATE_LABEL,
+        "actions": wf.ACTION_LABEL,
         "reviewable": wf.REVIEWABLE,
     }
 
@@ -180,10 +214,13 @@ def workflow_inbox(principal: Principal = RequireAnalyst) -> dict:
 @router.post("/workflow", status_code=201, summary="Send something for review")
 def submit_for_review(payload: SubmitIn, principal: Principal = RequireAnalyst) -> dict:
     try:
-        return wf.submit(
+        return wf.send(
             object_type=payload.object_type, object_id=payload.object_id,
-            title=payload.title, assigned_to=payload.assigned_to,
-            requested_by=principal.user_id, note=payload.note,
+            object_version=payload.object_version,
+            title=payload.title, recipients=payload.people(),
+            teams=payload.teams, requested_by=principal.user_id,
+            action=payload.action, message=payload.note,
+            priority=payload.priority, due_at=payload.due_at,
         ).to_dict()
     except wf.InvalidTransition as e:
         raise HTTPException(
@@ -221,6 +258,61 @@ def move_workflow(item_id: int, payload: TransitionIn,
         raise _unavailable(e) from e
 
 
+@router.post("/workflow/{item_id}/opened",
+             summary="Record that a recipient has looked at it")
+def open_workflow(item_id: int, principal: Principal = RequireCommenter) -> dict:
+    """§44's OPENED, as an observation rather than a claim.
+
+    Called by the screen that shows the item. Idempotent: opening twice stamps
+    once, and an item already in review does not go backwards because somebody
+    reloaded the page.
+    """
+    try:
+        return wf.opened(item_id, user_id=principal.user_id).to_dict()
+    except wf.WorkflowNotFound as e:
+        raise _not_found(e) from e
+    except wf.WorkflowUnavailable as e:
+        raise _unavailable(e) from e
+
+
+@router.post("/workflow/{item_id}/messages", status_code=201,
+             summary="Say something about this item")
+def add_workflow_message(item_id: int, payload: MessageIn,
+                         principal: Principal = RequireCommenter) -> dict:
+    """§45. Internal only — no external email is sent, by design.
+
+    Open to a Viewer for the same reason commenting is: an object sent to
+    somebody for comment has to be answerable by them.
+    """
+    try:
+        return wf.say(
+            item_id, body=payload.body, author_id=principal.user_id,
+            parent_id=payload.parent_id, mentions=payload.mentions,
+            attachments=payload.attachments,
+        )
+    except wf.WorkflowNotFound as e:
+        raise _not_found(e) from e
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error": "empty_message", "message": str(e)},
+        ) from e
+    except wf.WorkflowUnavailable as e:
+        raise _unavailable(e) from e
+
+
+@router.post("/workflow/messages/{message_id}/resolve",
+             summary="Mark a workflow message resolved")
+def resolve_workflow_message(message_id: int, payload: ResolveIn,
+                             principal: Principal = RequireCommenter) -> dict:
+    try:
+        return wf.resolve_message(message_id, resolved=payload.resolved)
+    except wf.WorkflowNotFound as e:
+        raise _not_found(e) from e
+    except wf.WorkflowUnavailable as e:
+        raise _unavailable(e) from e
+
+
 @router.get("/workflow/for/{object_type}/{object_id}",
             summary="Every review this object has been through")
 def workflow_for_object(object_type: str, object_id: str) -> dict:
@@ -243,7 +335,13 @@ def list_comments(object_type: str, object_id: str) -> dict:
 
 @router.post("/comments/{object_type}/{object_id}", status_code=201, summary="Comment")
 def add_comment(object_type: str, object_id: str, payload: CommentIn,
-                principal: Principal = RequireAnalyst) -> dict:
+                principal: Principal = RequireCommenter) -> dict:
+    """§50: a Viewer may comment. It is the one write a Viewer has.
+
+    Sending somebody an object and asking them to comment on it, and then
+    refusing their reply, is the failure this prevents — and it would have gone
+    unnoticed, because the request would simply have looked unanswered.
+    """
     try:
         return wf.comment(
             object_type=object_type, object_id=object_id, body=payload.body,

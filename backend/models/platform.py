@@ -37,6 +37,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -117,13 +118,42 @@ PROJECT_MANUAL_TRANSITIONS: dict[str, tuple[str, ...]] = {
 }
 
 # Workflow states, as one vocabulary rather than three copies of the strings.
+#
+# Nine states, which are §44's nine. Two of the ids read differently from the
+# brief's names — `submitted` is SENT and `withdrawn` is CANCELLED — and are
+# deliberately NOT renamed: they are the state machine that projects, tests and
+# every stored decision depend on, and rewriting them would edit history that
+# exists precisely so it cannot be edited. The words people read are §44's.
 WF_DRAFT = "draft"
 WF_SUBMITTED = "submitted"
+#: A recipient has opened it. An observation, recorded when it happens.
+WF_OPENED = "opened"
 WF_IN_REVIEW = "in_review"
+#: Somebody has said something but has not yet decided.
+WF_COMMENTED = "commented"
 WF_APPROVED = "approved"
 WF_REJECTED = "rejected"
+#: The work asked for is done. Distinct from APPROVED, which is a judgement:
+#: "assign action" and "FYI" are completed rather than approved.
+WF_COMPLETED = "completed"
 WF_WITHDRAWN = "withdrawn"
-WF_OPEN_STATES = (WF_SUBMITTED, WF_IN_REVIEW)
+WF_OPEN_STATES = (WF_SUBMITTED, WF_OPENED, WF_IN_REVIEW, WF_COMMENTED)
+WF_CLOSED_STATES = (WF_APPROVED, WF_REJECTED, WF_COMPLETED, WF_WITHDRAWN)
+
+#: What is being ASKED FOR, as distinct from where the request has got to. §43.
+WF_REVIEW = "review"
+WF_COMMENT = "comment"
+WF_APPROVE = "approve"
+WF_REQUEST_CHANGES = "request_changes"
+WF_FYI = "fyi"
+WF_SIGN_OFF = "sign_off"
+WF_ASSIGN_ACTION = "assign_action"
+WF_ACTIONS = (
+    WF_REVIEW, WF_COMMENT, WF_APPROVE, WF_REQUEST_CHANGES,
+    WF_FYI, WF_SIGN_OFF, WF_ASSIGN_ACTION,
+)
+
+WF_PRIORITIES = ("low", "normal", "high", "urgent")
 
 CERT_CERTIFIED = "certified"
 CERT_USER_DEFINED = "user_defined"
@@ -838,10 +868,30 @@ class WorkflowItem(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     object_type: Mapped[str] = mapped_column(String(48), nullable=False)
     object_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    #: The object AS IT WAS when it was sent, where the object is versioned.
+    #: A decision recorded against version 3 must not silently become a
+    #: decision about version 7.
+    object_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
     title: Mapped[str] = mapped_column(String(300), nullable=False)
-    # draft | submitted | in_review | approved | rejected | withdrawn
+    #: One of the nine WF_* states.
     state: Mapped[str] = mapped_column(String(24), nullable=False, default="draft")
+    #: What is being asked for: review, comment, approve, sign off, FYI…
+    #: Distinct from `state`, which is where the asking has got to.
+    action: Mapped[str] = mapped_column(
+        String(24), nullable=False, default=WF_REVIEW, server_default=WF_REVIEW
+    )
+    #: What the sender said when they sent it.
+    message: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
+    priority: Mapped[str] = mapped_column(
+        String(12), nullable=False, default="normal", server_default="normal"
+    )
     requested_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    #: The FIRST recipient, kept so every caller written before multi-recipient
+    #: still works and so "my work" has an index to use. The full set is in
+    #: `recipients`; this is a denormalised head of it, never the truth on its
+    #: own.
     assigned_to: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -849,7 +899,91 @@ class WorkflowItem(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
+    recipients: Mapped[list[WorkflowRecipient]] = relationship(
+        back_populates="item", cascade="all, delete-orphan",
+    )
+    thread: Mapped[list[WorkflowMessage]] = relationship(
+        back_populates="item", cascade="all, delete-orphan",
+        order_by="WorkflowMessage.created_at",
+    )
+
     __table_args__ = (Index("ix_workflow_object", "object_type", "object_id"),)
+
+
+class WorkflowRecipient(Base):
+    """One person or team a workflow item was sent to.
+
+    A join table rather than a second nullable column on the item, because
+    "three people and a team" is a set, and a set modelled as columns is how a
+    schema ends up with `assigned_to_2`.
+
+    `opened_at` is what makes §44's OPENED status an observation rather than a
+    guess: the item has been opened when somebody it was sent to has opened it.
+    """
+
+    __tablename__ = "workflow_recipients"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    workflow_item_id: Mapped[int] = mapped_column(
+        ForeignKey("workflow_items.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id"), nullable=True)
+    opened_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    item: Mapped[WorkflowItem] = relationship(back_populates="recipients")
+
+    __table_args__ = (
+        UniqueConstraint("workflow_item_id", "user_id", "team_id",
+                         name="uq_workflow_recipient"),
+        Index("ix_workflow_recipients_user", "user_id"),
+    )
+
+
+class WorkflowMessage(Base):
+    """One message in the conversation about a workflow item. §45.
+
+    Internal only, on purpose: the brief says not to build external email, and
+    what the product owes a user is that work addressed to them is visible the
+    moment they open CreditProbe.
+
+    `mentions` and `attachments` are documents rather than columns because both
+    are written and read whole, belong to exactly one message, and are never
+    queried across threads.
+    """
+
+    __tablename__ = "workflow_messages"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    workflow_item_id: Mapped[int] = mapped_column(
+        ForeignKey("workflow_items.id", ondelete="CASCADE"), nullable=False
+    )
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("workflow_messages.id", ondelete="CASCADE"), nullable=True
+    )
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    author_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    resolved: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    #: `[{"user_id": 4}, {"team_id": 2}]` — who was named in the body.
+    mentions: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    #: `[{"type": "investigation", "id": "12", "label": "Contracting"}]`
+    attachments: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    item: Mapped[WorkflowItem] = relationship(back_populates="thread")
+
+    __table_args__ = (
+        Index("ix_workflow_messages_item", "workflow_item_id", "created_at"),
+    )
 
 
 class WorkflowEvent(Base):
@@ -931,6 +1065,26 @@ class Investigation(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=INV_LIVE)
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
+    #: Whether a PROJECT thread has been published to the global list.
+    #:
+    #: A thread started inside a project belongs to that project, and appearing
+    #: in Work → Investigations as well is a decision somebody takes rather than
+    #: a side effect of asking a question there. Without this the only route
+    #: from a project thread to the global list was to move it OUT of the
+    #: project, which removes the project's own record of what was explored.
+    #:
+    #: Meaningless for a standalone thread, which is already global; the
+    #: listing treats a null project as global whatever this says.
+    published_globally: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    published_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+
     #: Kept from the earlier model so existing rows and their history survive.
     current_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     #: Turns in the thread, denormalised so a listing does not count rows.
@@ -956,6 +1110,7 @@ class Investigation(Base):
     __table_args__ = (
         Index("ix_investigations_project", "project_id", "updated_at"),
         Index("ix_investigations_owner", "owner_id", "updated_at"),
+        Index("ix_investigations_published", "published_globally", "updated_at"),
     )
 
 

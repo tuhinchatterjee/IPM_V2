@@ -699,10 +699,29 @@ export interface NarrativeMetric {
   step: number;
 }
 
+/**
+ * One figure behind a finding.
+ *
+ * `direction` is which way is BAD for this measure, taken from the semantic
+ * ontology's `higher_is_worse` rather than from the sign of the number. A
+ * rising ECL and a rising cure rate are both increases and only one of them is
+ * bad news, so the sign alone cannot colour a figure honestly. "neutral" where
+ * the meaning is not governed — an uncoloured figure is a smaller failure than
+ * one coloured the wrong way.
+ */
+export interface NarrativeEvidence {
+  label: string;
+  value: number | string | null;
+  unit: string;
+  direction?: Direction;
+  /** The period the figure covers, where the result stamped one. */
+  period?: string;
+}
+
 export interface NarrativeFinding {
   text: string;
   tone: "negative" | "warning" | "positive" | "neutral";
-  evidence: { label: string; value: number | string | null; unit: string }[];
+  evidence: NarrativeEvidence[];
   step: number;
 }
 
@@ -1665,32 +1684,88 @@ export interface WorkflowEventRow {
   created_at: string | null;
 }
 
+/**
+ * What is being ASKED FOR, as distinct from where the asking has got to. §43.
+ *
+ * The distinction matters: "approve" is the request and "Approved" is the
+ * outcome, and a list that conflates them cannot tell an approval nobody has
+ * looked at from one that has been granted.
+ */
+export type WorkflowAction =
+  | "review"
+  | "comment"
+  | "approve"
+  | "request_changes"
+  | "fyi"
+  | "sign_off"
+  | "assign_action";
+
+export type WorkflowPriority = "low" | "normal" | "high" | "urgent";
+
 export interface WorkflowItemRow {
   id: number;
   object_type: string;
   object_type_label?: string;
   object_id: string;
+  /** The object as it was when it was sent, where the object is versioned. */
+  object_version?: string | null;
   title: string;
   state: string;
   state_label: string;
+  action?: WorkflowAction;
+  action_label?: string;
+  /** What the sender said when they sent it. */
+  message?: string;
+  priority?: WorkflowPriority;
   requested_by: number | null;
   assigned_to: number | null;
   due_at: string | null;
   updated_at: string | null;
+  /** How many messages are on the item's thread. */
+  messages?: number;
+}
+
+/** One person or team a workflow item was sent to. */
+export interface WorkflowRecipientRow {
+  id: number;
+  user_id: number | null;
+  team_id: number | null;
+  /** When this recipient first opened it — §44's OPENED, as an observation. */
+  opened_at: string | null;
+}
+
+/** One message in the conversation about a workflow item. §45. */
+export interface WorkflowMessageRow {
+  id: number;
+  parent_id: number | null;
+  body: string;
+  author_id: number | null;
+  resolved: boolean;
+  mentions: { user_id?: number; team_id?: number }[];
+  attachments: { type: string; id: string; label?: string }[];
+  created_at: string | null;
 }
 
 export interface WorkflowDetail extends WorkflowItemRow {
   created_at: string | null;
+  recipients: WorkflowRecipientRow[];
+  thread: WorkflowMessageRow[];
   events: WorkflowEventRow[];
   next_states: string[];
   next_state_labels: Record<string, string>;
 }
 
 export interface WorkflowInbox {
-  my_work: WorkflowItemRow[];
+  /** §46's five views. */
+  assigned_to_me: WorkflowItemRow[];
   sent_by_me: WorkflowItemRow[];
+  mentions: WorkflowItemRow[];
+  due_soon: WorkflowItemRow[];
   completed: WorkflowItemRow[];
+  /** The names the first Workflow screen used, kept so it still works. */
+  my_work: WorkflowItemRow[];
   states: Record<string, string>;
+  actions: Record<string, string>;
   reviewable: Record<string, string>;
 }
 
@@ -1880,6 +1955,14 @@ export interface Thread {
   status: string;
   project_id: number | null;
   owner_id: number | null;
+  /**
+   * Whether a PROJECT thread also appears in the global Investigations list.
+   *
+   * §4: work done inside a project belongs to that project until somebody
+   * deliberately publishes it. Meaningless for a standalone thread, which is
+   * already global.
+   */
+  published_globally: boolean;
   /** Domain, period and filters the thread has agreed. Asked once, not again. */
   context: Record<string, unknown>;
   message_count: number;
@@ -1896,6 +1979,8 @@ export interface ThreadSummary {
   status: string;
   project_id: number | null;
   owner_id: number | null;
+  /** A project thread that has been published to the global list. §4. */
+  published_globally: boolean;
   context: Record<string, unknown>;
   message_count: number;
   last_answer: string;
@@ -2450,6 +2535,29 @@ export interface UserRecord extends SignedInUser {
   created_at: string | null;
 }
 
+/** One person work can be sent to. §47. */
+export interface DirectoryPerson {
+  id: number;
+  username: string;
+  name: string;
+  role: Role;
+  role_label: string;
+  team: string;
+}
+
+/** One team work can be sent to. */
+export interface DirectoryTeam {
+  id: number;
+  name: string;
+  description: string;
+  members: number;
+}
+
+export interface Directory {
+  people: DirectoryPerson[];
+  teams: DirectoryTeam[];
+}
+
 export interface RoleDescription {
   role: Role;
   label: string;
@@ -2479,6 +2587,14 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
   signOut: () => request<{ signed_out: boolean }>("/auth/logout", { method: "POST" }),
+
+  /**
+   * Who work can be sent to. §47's one recipient picker.
+   *
+   * Deliberately not the admin user listing: choosing a reviewer needs a name
+   * and a team, not an email address or a last-login time.
+   */
+  directory: () => request<Directory>("/users/directory"),
 
   // ---- user administration (administrators only) ----
   users: () =>
@@ -3066,6 +3182,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ title }),
     }),
+  /** Add a project's investigation to the global list, or take it out. §4. */
+  publishThread: (id: number, published: boolean) =>
+    request<Thread>(`/investigations/${id}/publish`, {
+      method: "POST",
+      body: JSON.stringify({ published }),
+    }),
   moveThread: (id: number, projectId: number | null) =>
     request<Thread>(`/investigations/${id}/move`, {
       method: "POST",
@@ -3214,11 +3336,18 @@ export const api = {
 
   // ---- workspace: review, comments, notifications ----
   workflowInbox: () => request<WorkflowInbox>("/workspace/workflow/inbox"),
+  /** Send an object to people and/or teams, for a named action. §43, §44. */
   submitForReview: (payload: {
     objectType: string;
     objectId: string;
+    objectVersion?: string | null;
     title: string;
     assignedTo?: number;
+    recipients?: number[];
+    teams?: number[];
+    action?: WorkflowAction;
+    priority?: WorkflowPriority;
+    dueAt?: string | null;
     note?: string;
   }) =>
     request<WorkflowDetail>("/workspace/workflow", {
@@ -3226,11 +3355,44 @@ export const api = {
       body: JSON.stringify({
         object_type: payload.objectType,
         object_id: payload.objectId,
+        object_version: payload.objectVersion ?? null,
         title: payload.title,
         assigned_to: payload.assignedTo ?? null,
+        recipients: payload.recipients ?? [],
+        teams: payload.teams ?? [],
+        action: payload.action ?? "review",
+        priority: payload.priority ?? "normal",
+        due_at: payload.dueAt ?? null,
         note: payload.note ?? "",
       }),
     }),
+  /** Record that a recipient has looked at it. Idempotent. §44. */
+  openWorkflow: (id: number) =>
+    request<WorkflowDetail>(`/workspace/workflow/${id}/opened`, { method: "POST" }),
+  /** Say something on a workflow item's thread. §45. */
+  sayOnWorkflow: (
+    id: number,
+    payload: {
+      body: string;
+      parentId?: number | null;
+      mentions?: { user_id?: number; team_id?: number }[];
+      attachments?: { type: string; id: string; label?: string }[];
+    },
+  ) =>
+    request<WorkflowMessageRow>(`/workspace/workflow/${id}/messages`, {
+      method: "POST",
+      body: JSON.stringify({
+        body: payload.body,
+        parent_id: payload.parentId ?? null,
+        mentions: payload.mentions ?? [],
+        attachments: payload.attachments ?? [],
+      }),
+    }),
+  resolveWorkflowMessage: (messageId: number, resolved = true) =>
+    request<WorkflowMessageRow>(
+      `/workspace/workflow/messages/${messageId}/resolve`,
+      { method: "POST", body: JSON.stringify({ resolved }) },
+    ),
   workflowItem: (id: number) => request<WorkflowDetail>(`/workspace/workflow/${id}`),
   moveWorkflow: (id: number, toState: string, comment = "") =>
     request<WorkflowDetail>(`/workspace/workflow/${id}/transition`, {

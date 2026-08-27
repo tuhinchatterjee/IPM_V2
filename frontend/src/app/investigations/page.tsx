@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
-import { MessageSquare, Sparkles } from "lucide-react";
+import { Globe, MessageSquare, Sparkles } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { linkBack } from "@/lib/return-to";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 
@@ -59,7 +60,15 @@ export default function InvestigationsPage() {
               <button
                 key={thread.id}
                 type="button"
-                onClick={() => router.push(`/investigations/${thread.id}`)}
+                onClick={() =>
+                  router.push(
+                    linkBack(`/investigations/${thread.id}`, {
+                      href: "/investigations",
+                      label: "Investigations",
+                      type: "investigation",
+                    }),
+                  )
+                }
                 className="flex w-full items-start gap-3 px-5 py-4 text-left transition-colors hover:bg-surface-hover"
               >
                 <MessageSquare
@@ -67,8 +76,20 @@ export default function InvestigationsPage() {
                   aria-hidden
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-text-primary">
-                    {thread.title}
+                  <span className="flex items-center gap-2">
+                    <span className="min-w-0 truncate text-sm font-medium text-text-primary">
+                      {thread.title}
+                    </span>
+                    {/* §4: a thread that reached this list from a project is
+                        here because somebody published it, and the reader
+                        should be able to see that rather than assume every
+                        entry started here. */}
+                    {thread.project_id !== null && thread.published_globally && (
+                      <Globe
+                        className="size-3 shrink-0 text-text-muted"
+                        aria-label="Published here from a project"
+                      />
+                    )}
                   </span>
                   <span className="mt-0.5 line-clamp-1 block text-xs text-text-muted">
                     {thread.last_answer || thread.question}
