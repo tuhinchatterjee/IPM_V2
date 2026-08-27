@@ -9,7 +9,7 @@ in §0.
 
 ## 2. Final commit
 
-The commit that adds this file. All five, in order:
+`7bd8168`. All five, in order:
 
 | Commit | |
 |---|---|
@@ -17,11 +17,13 @@ The commit that adds this file. All five, in order:
 | `88f434b` | An answer with no reading, and a workflow with one reviewer |
 | `8411154` | Three things the browser found that the tests could not |
 | `7692961` | Two documents for the two things that changed shape |
-| *(this file)* | The §68 report |
+| `7bd8168` | A notification that read like a label, and the §68 report |
 
-Across the phase: 51 files changed, 6,270 insertions, 406 deletions
-before this report. 19 new files, two
-Alembic migrations (`0014`, `0015`), no new npm or Python dependencies.
+Across the phase: 52 files changed, 6,845 insertions, 406 deletions.
+20 new files, two
+Alembic migrations (`0014`, `0015`), and **no new npm or Python
+dependencies** — `package.json` and `package-lock.json` are byte-identical
+to the starting commit.
 
 ## 3. Local/remote match
 
@@ -353,8 +355,11 @@ cannot decide, and cannot create an analysis — asserted in three tests.
 
 ## 24. Backend test count
 
-**1,880 collected, all passing** (`pytest tests --ignore=tests/llm`,
-exit 0). 20 are new in this phase:
+**1,880 collected, all passing** — `pytest tests --ignore=tests/llm`
+exits 0 with no `F` in the progress output. (This project's pytest
+configuration suppresses the trailing "N passed" line behind the
+warnings summary, so the count is the collected total and the pass is
+the exit code.) 20 tests are new in this phase:
 
 - `tests/api/test_hierarchy_api.py` — 4 tests for §4: a project thread
   is not in the global list, publishing puts it in both places,
@@ -544,7 +549,7 @@ phase, and no credits were consumed.**
 | Gate | |
 |---|---|
 | `ruff check backend tests scripts alembic` | ✅ clean |
-| `pytest tests --ignore=tests/llm` | ✅ 1,880 passed |
+| `pytest tests --ignore=tests/llm` | ✅ exit 0, 1,880 collected |
 | `python scripts/check_powershell.py` | ✅ all scripts |
 | `tsc --noEmit` | ✅ clean |
 | `eslint` | ✅ clean, 0 warnings |
