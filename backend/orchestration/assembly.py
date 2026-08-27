@@ -52,15 +52,30 @@ def _numbers(text: str) -> set[str]:
 
 
 def _presented(runtime: Any, build: Any) -> list[dict[str, Any]]:
-    """The runtime's columns, with a display contract folded in."""
+    """The runtime's columns, with a display contract folded in, in reading order.
+
+    Order matters as much as format. A table whose first column is not what the
+    rows are about cannot be scanned, and "for each rating grade, show average
+    ECL coverage, leverage and DSCR" put the grade fourth because that is where
+    the GROUP emitted it. The presentation schema decides the order; the rows
+    are keyed by name, so nothing downstream has to change.
+    """
     from backend.orchestration import presentation
 
-    spec = {c["name"]: c for c in presentation.contract(runtime, build)}
+    by_name = {str(c.get("name")): c for c in (runtime.columns or [])}
     out: list[dict[str, Any]] = []
-    for column in (runtime.columns or []):
-        name = str(column.get("name"))
-        out.append({**column, **{k: v for k, v in spec.get(name, {}).items()
-                                 if k != "origin"}})
+    seen: set[str] = set()
+    for spec in presentation.schema(runtime, build):
+        name = str(spec.get("name"))
+        if name not in by_name:
+            continue
+        seen.add(name)
+        out.append({**by_name[name],
+                    **{k: v for k, v in spec.items() if k != "origin"}})
+    # Anything the schema could not place still has to appear. A column that
+    # vanished from a table because a ranking rule did not recognise it is a
+    # figure the reader cannot see and cannot ask about.
+    out.extend(c for name, c in by_name.items() if name not in seen)
     return out
 
 
@@ -394,6 +409,8 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
     and every figure in it is quoted from a returned value. `from_analysis`
     checks that before returning.
     """
+    from backend.orchestration import figures
+
     rows = runtime.rows
     count = runtime.row_count
     measure = build.matches[0] if build.matches else None
@@ -427,7 +444,7 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                 rows[0].get(column), (int, float)):
             top = rows[0]
             share = top.get(f"{column}_share_pct")
-            share_text = (f", {float(share):.1f}% of the total"
+            share_text = (f", {figures.percent(share)} of the total"
                           if isinstance(share, (int, float)) else "")
             findings.append(Finding(
                 text=(f"{top.get(build.dimension)} is the largest at "
@@ -453,8 +470,8 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                 scope = (", ".join(v for _, v in build.filters)
                          or "the whole book")
                 findings.append(Finding(
-                    text=(f"Together these {count} hold {covered:.1f}% of "
-                          f"{scope} {label}."),
+                    text=(f"Together these {count} hold "
+                          f"{figures.percent(covered)} of {scope} {label}."),
                     tone="neutral",
                     evidence=[{"label": "share of " + scope,
                                "value": round(covered, 1), "unit": "%"}]))
@@ -467,9 +484,9 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
             f"total {label}, by {build.dimension}, between {build.opening} and "
             f"{build.closing}."
             + (f" {top.get(build.dimension)} rose most, from "
-               f"{float(top['opening_share_pct']):.1f}% to "
-               f"{float(top['closing_share_pct']):.1f}% — "
-               f"{float(top['change_pp']):+.2f} percentage points."
+               f"{figures.percent(top['opening_share_pct'])} to "
+               f"{figures.percent(top['closing_share_pct'])} — "
+               f"{figures.points(top['change_pp'])}."
                if top else ""))
         if top:
             metrics.append(Metric(
@@ -478,8 +495,8 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                 direction="up-is-bad"))
             findings.append(Finding(
                 text=(f"{top.get(build.dimension)} moved from "
-                      f"{float(top['opening_share_pct']):.1f}% to "
-                      f"{float(top['closing_share_pct']):.1f}%."),
+                      f"{figures.percent(top['opening_share_pct'])} to "
+                      f"{figures.percent(top['closing_share_pct'])}."),
                 tone="warning" if float(top["change_pp"]) > 0 else "neutral",
                 evidence=[{"label": "change", "unit": "pp",
                            "value": round(float(top["change_pp"]), 2)}]))
@@ -490,7 +507,7 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
         change = float(values.get("change") or 0.0)
         change_pct = values.get("change_pct")
         moved = "rose" if change > 0 else "fell" if change < 0 else "was unchanged"
-        pct = (f" ({abs(float(change_pct)):.1f}%)"
+        pct = (f" ({figures.percent(abs(float(change_pct)))})"
                if isinstance(change_pct, (int, float)) and change else "")
         direct = (f"{label.capitalize()} {moved} from {_fmt(opening_total)} to "
                   f"{_fmt(closing_total)} {unit} between {build.opening} and "
@@ -509,6 +526,12 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                 text=(f"{biggest.get(build.dimension)} carries the largest "
                       f"{label} at {_fmt(biggest.get(column))} {unit}."),
                 tone="neutral", evidence=[]))
+    elif count == 0:
+        # An empty cohort is a finding, not a row count. Said the same way an
+        # empty ranking is, because the reader's question is the same one.
+        direct = _nothing_matched(build)
+        metrics.append(Metric(label=f"{build.grain.title()}s matching",
+                              value=0, unit="count", direction="up-is-bad"))
     else:
         stated = ", ".join(c.describe() for c in build.conditions)
         direct = (f"{count} {_subject(build, count)} where {stated}, between "
@@ -574,26 +597,113 @@ def _scope_phrase(filters: list[tuple[str, str]]) -> str:
     return ", ".join(parts)
 
 
+#: Small counts read as words. "None of the 5 customers" is a sentence written
+#: by a program; "None of the five customers" is one written by a person, and
+#: the difference is the whole distance between a report and a readout.
+_WORDS = {0: "none", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five",
+          6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
+
+
+def _spelled(count: int) -> str:
+    return _WORDS.get(count, f"{count:,}")
+
+
 def _nothing_matched(build: ap.AnalysisBuild) -> str:
     """"Nothing matched" said in the terms of the question that asked.
 
     "The 0 largest customers" is a sentence a program writes. What a credit
-    officer needs to read is which population was looked at and what was not
-    found in it — an empty result is a finding, and it should be phrased as one.
+    officer needs to read is which population was looked at, what was not found
+    in it, and — the part that was missing — **where the population actually
+    sits instead**. An empty result is a finding, and a finding that leaves the
+    reader still not knowing the answer is half a finding.
     """
     population = (build.plan.get("meta") or {}).get("population") or {}
     where = _scope_phrase(build.filters)
-    if population.get("count"):
-        subject = (f"the {population['count']} "
-                   f"{build.grain}s carried forward from the previous answer")
+    carried = int(population.get("count") or 0)
+    if carried:
+        subject = (f"the {_spelled(carried)} "
+                   f"{_plural(build.grain, carried)} carried forward from the "
+                   "previous answer")
     elif where:
-        subject = f"{where} {build.grain}s"
+        subject = f"{where} {_plural(build.grain, 2)}"
     else:
-        subject = f"{build.grain}s in the book"
-    conditions = ", ".join(c.describe() for c in build.conditions)
-    test = conditions or where or "the conditions asked for"
-    return (f"None of {subject} match {test} at "
-            f"{build.closing or build.period}.")
+        subject = f"{_plural(build.grain, 2)} in the book"
+
+    at = build.closing or build.period
+    found = getattr(build, "partition", None)
+    usable = found is not None and getattr(found, "usable", False)
+
+    # Where the probe knows which values were asked for, the sentence is
+    # phrased in them. It reads as an answer rather than as a rejected filter.
+    if usable and found.wanted:
+        lead = (f"None of {subject} is in {_lower(found.label)} "
+                f"{_or_list(found.wanted)}")
+    else:
+        conditions = ", ".join(c.describe() for c in build.conditions)
+        lead = f"None of {subject} match {conditions or where or 'the conditions asked for'}"
+
+    instead = _where_they_sit(build) if usable else ""
+    if not instead:
+        return f"{lead} at {at}."
+    return f"{lead}; {instead} at {at}."
+
+
+def _where_they_sit(build: ap.AnalysisBuild) -> str:
+    """The second half of an empty answer: what the population IS.
+
+    Built from the partition probe, which re-ran the same governed plan with
+    the excluding predicate removed. Where there is no partition — because the
+    attribute has too many values to characterise, or the probe did not run —
+    this is empty and the answer stops after saying nothing matched, which is
+    still true.
+    """
+    found = build.partition
+    total = found.total
+    members = _plural(found.grain or build.grain, total)
+    label = _lower(found.label or "value")
+
+    if found.unanimous:
+        value, _ = found.counts[0]
+        if total == 1:
+            return f"the one {members} is in {label} {value}"
+        return f"all {_spelled(total)} are in {label} {value}"
+
+    spread = ", ".join(f"{_spelled(n)} in {label} {value}"
+                       for value, n in found.counts[:MAX_CLASSES_IN_PROSE])
+    remaining = len(found.counts) - MAX_CLASSES_IN_PROSE
+    more = (f" and {_spelled(remaining)} further {label} "
+            f"{'value' if remaining == 1 else 'values'}" if remaining > 0 else "")
+    return f"the {_spelled(total)} {members} are {spread}{more}"
+
+
+def _lower(label: str) -> str:
+    """A concept label as it appears mid-sentence.
+
+    Acronyms keep their capitals — "IFRS 9 stage", not "ifrs 9 stage" — so only
+    a leading word that is ordinary English is lowered.
+    """
+    text = str(label or "").strip()
+    if not text:
+        return text
+    first = text.split()[0]
+    if first.isupper() or any(c.isdigit() for c in first):
+        return text
+    return text[:1].lower() + text[1:]
+
+
+def _or_list(values: list[str]) -> str:
+    """"2 or 3", "2, 3 or 4" — the values the question named, as it named them."""
+    cleaned = [str(v) for v in values if str(v).strip()]
+    if not cleaned:
+        return ""
+    if len(cleaned) == 1:
+        return cleaned[0]
+    return ", ".join(cleaned[:-1]) + f" or {cleaned[-1]}"
+
+
+#: How many classes an empty answer names before it stops listing them. A
+#: sentence with nine clauses in it is a table nobody asked for.
+MAX_CLASSES_IN_PROSE = 4
 
 
 def _subject(build: ap.AnalysisBuild, count: int) -> str:
@@ -676,13 +786,16 @@ def _dimension_word(build: ap.AnalysisBuild) -> str:
 
 
 def _fmt(value: Any) -> str:
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return str(value)
-    if abs(number) >= 1000:
-        return f"{number:,.0f}"
-    return f"{number:,.2f}".rstrip("0").rstrip(".")
+    """A figure in a sentence, written the way the whole product writes them.
+
+    Delegates rather than deciding. The deterministic narrative used to round
+    by hand, the table used a display contract and the model was handed raw
+    floats — three rules for one number, which is how a reader ends up seeing
+    73,392 in a table above 73,391.774000000012 in the paragraph explaining it.
+    """
+    from backend.orchestration import figures
+
+    return figures.text(value)
 
 
 # ------------------------------------------------------- formulas and English

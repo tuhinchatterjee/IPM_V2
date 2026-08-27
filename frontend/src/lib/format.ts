@@ -86,27 +86,80 @@ export function byUnit(value: unknown, unit?: string | null): string {
 /**
  * One value, formatted the way its column's display contract says.
  *
- * The contract comes from the backend, where the semantic ontology knows what
- * a concept is: money in millions, an ordinal grade, a ratio, a count of days.
- * Guessing from the column name here produced 73391.774000000012 in a table a
- * credit officer was reading — the right number, looking like a defect.
+ * A deliberate mirror of `backend/orchestration/figures.py`. The two have to
+ * agree character for character: the same figure appears in a table rendered
+ * here and in a sentence written there, and a reader who sees 73,392 above
+ * 73,391.77 concludes the product cannot add up.
+ *
+ * The rules, in one place:
+ *   money      magnitude decides — whole units at a thousand and above, one
+ *              decimal down to a unit, two below that
+ *   percent    two decimals
+ *   pp         two decimals, written as a suffix
+ *   ratio      two decimals with an x
+ *   count      whole, days whole, an ordinal grade whole
  */
 export function byContract(value: unknown, column?: ColumnSpec | null): string {
   if (!column) return byUnit(value);
   if (value === null || value === undefined) return "—";
   if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value !== "number" || Number.isNaN(value)) return String(value);
+  if (typeof value !== "number" || !Number.isFinite(value)) return String(value);
 
-  const decimals =
-    column.semantic === "money" && Math.abs(value) < 1000
-      ? Math.max(column.decimals ?? 0, 2)
-      : (column.decimals ?? 2);
-  const text = value.toLocaleString(undefined, {
+  const semantic = column.semantic ?? "";
+  const unit = column.unit ?? "";
+  const magnitude = Math.abs(value);
+
+  let decimals: number;
+  if (semantic === "money") {
+    // The column cannot know the magnitude of an individual cell, so its
+    // decimals hint is ignored here exactly as it is in the backend.
+    decimals = magnitude >= 1000 ? 0 : magnitude >= 1 ? 1 : 2;
+  } else if (semantic === "count" || semantic === "days" || semantic === "ordinal") {
+    decimals = 0;
+  } else if (column.decimals !== undefined && column.decimals !== null) {
+    decimals = Math.max(0, column.decimals);
+  } else if (semantic === "percent" || semantic === "ratio") {
+    decimals = 2;
+  } else {
+    decimals = magnitude >= 1000 ? 0 : magnitude >= 100 ? 1 : 2;
+  }
+
+  let text = value.toLocaleString("en-US", {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
-  if (column.unit === "%") return `${text}%`;
-  return column.unit ? `${text} ${column.unit}` : text;
+  // -0.00 is arithmetically true and reads as a mistake.
+  if (text.startsWith("-") && Number(text.replace(/,/g, "")) === 0) text = text.slice(1);
+
+  if (unit === "%") return `${text}%`;
+  if (unit === "pp") return `${text} pp`;
+  if (unit === "x") return `${text}x`;
+  if (unit === "days") return `${text} days`;
+  if (semantic === "money") {
+    return [text, column.currency, column.scale].filter(Boolean).join(" ");
+  }
+  return unit ? `${text} ${unit}` : text;
+}
+
+/**
+ * Rewrite binary floating-point debris in a finished sentence.
+ *
+ * The backend formats every figure before anything reads it, so this should
+ * never fire. It is here because "should never" is not "cannot", and one
+ * 2.6246841182876173% on screen costs more trust than this costs to run.
+ */
+export function scrubDebris(prose: string): string {
+  if (!prose) return prose;
+  return prose.replace(/(?<![\w.])(-?\d[\d,]*\.\d{4,})/g, (raw) => {
+    const value = Number(raw.replace(/,/g, ""));
+    if (!Number.isFinite(value)) return raw;
+    const magnitude = Math.abs(value);
+    const decimals = magnitude >= 1000 ? 0 : magnitude >= 100 ? 1 : 2;
+    return value.toLocaleString("en-US", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+  });
 }
 
 /** What a column IS, as the backend's presentation contract describes it. */

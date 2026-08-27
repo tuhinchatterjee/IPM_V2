@@ -659,6 +659,15 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
             f"not complete it: {e}")
         return answered
 
+    # Nothing matched. "0 customers where IFRS 9 stage is in 2, 3" is true and
+    # useless; what an analyst says is where the population actually sits. That
+    # needs a second question of the data, and it is asked only here — an empty
+    # result is the one case where no working answer can be disturbed.
+    if getattr(answered.runtime, "row_count", 0) == 0:
+        from backend.orchestration import partition as pt
+
+        build.partition = pt.explain(build, question)
+
     # The answer exists. Before anybody sees it, check that it matches the
     # question that was asked — every threshold, every filter, every promised
     # row count, tested against the rows themselves.

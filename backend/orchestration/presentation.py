@@ -66,6 +66,12 @@ class Column:
     #: denominator, a derived change.
     role: str = ""
     origin: str = ""
+    #: Where this column belongs in the answer, lowest first. See `RANK_*`.
+    rank: int = 40
+    #: True where the column is lineage or plumbing rather than an answer.
+    #: Not removed — a hidden column is one a reader can turn on, and a
+    #: deleted one is a question they cannot ask.
+    hidden: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {"name": self.name, "label": self.label,
@@ -73,7 +79,8 @@ class Column:
                 "currency": self.currency, "scale": self.scale,
                 "decimals": self.decimals, "align": self.align,
                 "is_identity": self.is_identity, "role": self.role,
-                "origin": self.origin}
+                "origin": self.origin, "rank": self.rank,
+                "hidden": self.hidden}
 
 
 # ---------------------------------------------------------------------------
@@ -103,6 +110,30 @@ _KNOWN_LABELS = {
     "closing_total": "Total at closing",
 }
 
+# ---------------------------------------------------------------------------
+# Where a column belongs in the answer
+# ---------------------------------------------------------------------------
+#
+# A result's column order comes out of the compiler, which orders by how the
+# query was built. That is the wrong order for reading. "For each rating grade,
+# show average ECL coverage, average leverage and average DSCR" put the grade
+# fourth, because the grade was the last thing the plan grouped by — and a
+# table whose first column is not what the rows are about is a table nobody can
+# scan.
+#
+# The presentation schema is therefore separate from the computational one. The
+# question decides: what the rows are ABOUT comes first, then what was ASKED
+# for, then what it is being compared with, then what was derived from those,
+# then context, and lineage last and hidden.
+
+RANK_SUBJECT = 0      # what each row is about: the grouping or the entity
+RANK_PERIOD = 5       # the period, where the rows are a time series
+RANK_PRIMARY = 10     # the measure the question asked for
+RANK_COMPARISON = 20  # a second measure, or the same one at another date
+RANK_DERIVED = 30     # changes, shares, ranks computed from the above
+RANK_CONTEXT = 40     # attributes that qualify a row without answering it
+RANK_LINEAGE = 90     # plumbing: as-of stamps, denominators, carried keys
+
 _CHANGE = re.compile(r"^(?P<base>.+?)_change(?P<pct>_pct)?$")
 _CLOSING = re.compile(r"^closing_(?P<base>.+)$")
 _SHARE = re.compile(r"^(?P<base>.+?)_share_pct$")
@@ -113,6 +144,22 @@ _COUNT = re.compile(r"^(?P<base>.+?)_count$")
 def _humanise(name: str) -> str:
     cleaned = str(name or "").replace("_", " ").strip()
     return cleaned[:1].upper() + cleaned[1:] if cleaned else ""
+
+
+#: Dataset prefixes stripped before a column is named, set for the duration of
+#: one contract build. A joined column arrives as `customer_ratings_internal_grade`
+#: because that is what keeps it unique across two sources; "Customer ratings
+#: internal grade" is not what anybody calls it, and the prefix is noise in
+#: every row of every table.
+_PREFIXES: list[str] = []
+
+
+def _unprefixed(name: str) -> str:
+    lowered = str(name or "").lower()
+    for prefix in _PREFIXES:
+        if lowered.startswith(prefix) and len(lowered) > len(prefix):
+            return lowered[len(prefix):]
+    return lowered
 
 
 def contract(runtime: Any, build: Any = None) -> list[dict[str, Any]]:
@@ -130,13 +177,83 @@ def _columns(runtime: Any, build: Any) -> list[Column]:
     by_field = _concepts(build)
     two_period = bool(opening and closing)
 
-    out: list[Column] = []
-    for entry in (getattr(runtime, "columns", []) or []):
-        name = str(entry.get("name") if isinstance(entry, dict)
-                   else getattr(entry, "name", entry))
-        origin = str(entry.get("origin", "") if isinstance(entry, dict) else "")
-        out.append(_column(name, origin, by_field, opening, closing, two_period))
-    return out
+    _PREFIXES[:] = sorted(
+        (f"{str(d).lower()}_" for d in (getattr(build, "datasets", None) or [])),
+        key=len, reverse=True)
+    try:
+        out: list[Column] = []
+        for entry in (getattr(runtime, "columns", []) or []):
+            name = str(entry.get("name") if isinstance(entry, dict)
+                       else getattr(entry, "name", entry))
+            origin = str(entry.get("origin", "") if isinstance(entry, dict) else "")
+            out.append(_column(name, origin, by_field, opening, closing,
+                               two_period))
+        _place(out, build)
+        return out
+    finally:
+        _PREFIXES.clear()
+
+
+def _place(columns: list[Column], build: Any) -> None:
+    """Rank each column by what the QUESTION made it, not by how it was built.
+
+    Three things the compiler's order gets wrong, in the order they annoy a
+    reader:
+
+    **The subject is not first.** A result grouped by rating grade puts the
+    grade wherever the GROUP happened to emit it. What the rows are about
+    belongs in column one, always.
+
+    **The measure that was asked for is not distinguished** from the two that
+    were asked for alongside it. The first concept the question named is the
+    one the answer is about.
+
+    **Plumbing looks like an answer.** A borrower name carried through an
+    aggregate so a filter could be applied is not a column in a sector-level
+    table; it is one value out of thousands, and showing it invites a reader to
+    conclude the sector total belongs to that borrower.
+    """
+    dimension = str(getattr(build, "dimension", "") or "").lower()
+    grain = str(getattr(build, "grain", "") or "").lower()
+    matches = list(getattr(build, "matches", None) or [])
+    measures = [str(getattr(m, "field", "")).lower() for m in matches]
+    primary = measures[0] if measures else ""
+    aggregated = bool(dimension) and dimension not in _IDENTITY_COLUMNS
+
+    for column in columns:
+        lowered = column.name.lower()
+
+        if dimension and lowered == dimension:
+            column.rank = RANK_SUBJECT
+            column.is_identity = True
+            continue
+
+        if lowered in _IDENTITY_COLUMNS:
+            # An identity column in a result grouped by something else is a
+            # carried value, not a subject. Kept, so a reader can turn it on and
+            # see what it is; hidden, so nobody reads it as the answer.
+            if aggregated:
+                column.rank = RANK_LINEAGE
+                column.hidden = True
+                column.is_identity = False
+                column.role = column.role or ("carried through the aggregate so "
+                                              "a filter could be applied")
+            elif grain and not lowered.startswith(grain[:4]) and any(
+                    c.is_identity and c.name.lower() != lowered
+                    for c in columns):
+                column.rank = RANK_SUBJECT + 1
+            continue
+
+        if column.rank != RANK_CONTEXT:
+            # Already placed by its shape — a change, a share, a closing value.
+            continue
+
+        if primary and lowered == primary:
+            column.rank = RANK_PRIMARY
+        elif lowered in measures:
+            column.rank = RANK_COMPARISON
+        elif column.semantic in (MONEY, PERCENT, RATIO, COUNT, DAYS, ORDINAL):
+            column.rank = RANK_COMPARISON + 1
 
 
 def _column(name: str, origin: str, by_field: dict[str, Any],
@@ -146,11 +263,13 @@ def _column(name: str, origin: str, by_field: dict[str, Any],
     if lowered in _IDENTITY_COLUMNS:
         return Column(name=name, label=_KNOWN_LABELS.get(lowered, _humanise(name)),
                       semantic=IDENTITY, is_identity=True, origin=origin,
-                      decimals=0)
+                      decimals=0, rank=RANK_SUBJECT)
 
     if lowered in ("period", "_asof_period") or lowered.endswith("_period"):
         return Column(name=name, label=_KNOWN_LABELS.get(lowered, _humanise(name)),
-                      semantic=PERIOD, origin=origin, decimals=0)
+                      semantic=PERIOD, origin=origin, decimals=0,
+                      rank=RANK_LINEAGE if lowered.startswith("_") else RANK_PERIOD,
+                      hidden=lowered.startswith("_"))
 
     change = _CHANGE.match(lowered)
     if change:
@@ -158,12 +277,13 @@ def _column(name: str, origin: str, by_field: dict[str, Any],
         measure = _label_of(base, by_field)
         if change.group("pct"):
             return Column(name=name, label=f"Change in {measure} (%)",
-                          semantic=PERCENT, unit="%", decimals=1,
+                          semantic=PERCENT, unit="%", decimals=2,
                           align="right", role="the change, as a percentage",
-                          origin=origin)
+                          origin=origin, rank=RANK_DERIVED)
         return Column(name=name, label=f"Change in {measure}",
                       **_numeric(base, by_field),
-                      role="closing minus opening", origin=origin)
+                      role="closing minus opening", origin=origin,
+                      rank=RANK_DERIVED)
 
     closing_match = _CLOSING.match(lowered)
     if closing_match:
@@ -173,15 +293,16 @@ def _column(name: str, origin: str, by_field: dict[str, Any],
                       label=(f"{measure} at {closing}" if closing
                              else f"{measure} (closing)"),
                       **_numeric(base, by_field),
-                      role="the closing position", origin=origin)
+                      role="the closing position", origin=origin,
+                      rank=RANK_COMPARISON)
 
     share = _SHARE.match(lowered)
     if share:
         return Column(name=name,
                       label=f"{_label_of(share.group('base'), by_field)} share",
-                      semantic=PERCENT, unit="%", decimals=1, align="right",
+                      semantic=PERCENT, unit="%", decimals=2, align="right",
                       role="this row as a percentage of the population",
-                      origin=origin)
+                      origin=origin, rank=RANK_DERIVED)
 
     population = _POPULATION.match(lowered)
     if population:
@@ -190,14 +311,15 @@ def _column(name: str, origin: str, by_field: dict[str, Any],
                       label=f"{_label_of(base, by_field)} — population total",
                       **_numeric(base, by_field),
                       role="the denominator the share is taken over",
-                      origin=origin)
+                      origin=origin, rank=RANK_LINEAGE, hidden=True)
 
     counted = _COUNT.match(lowered)
     if counted:
         return Column(name=name,
                       label=f"{_humanise(counted.group('base'))}s",
                       semantic=COUNT, decimals=0, align="right",
-                      role="a distinct count", origin=origin)
+                      role="a distinct count", origin=origin,
+                      rank=RANK_PRIMARY)
 
     if lowered in _KNOWN_LABELS:
         column = Column(name=name, label=_KNOWN_LABELS[lowered], origin=origin,
@@ -209,11 +331,12 @@ def _column(name: str, origin: str, by_field: dict[str, Any],
     # A bare measure in a two-period plan is the OPENING value. Labelling it
     # with the measure alone is what put a zero beside a claim that the figure
     # had risen, and left a reader with no honest conclusion available.
-    label = _label_of(lowered, by_field)
+    label = _label_of(_unprefixed(lowered), by_field)
     if two_period and _is_measure(lowered, by_field):
         return Column(name=name, label=f"{label} at {opening}",
                       **_numeric(lowered, by_field),
-                      role="the opening position", origin=origin)
+                      role="the opening position", origin=origin,
+                      rank=RANK_COMPARISON)
 
     return Column(name=name, label=label, origin=origin,
                   **_numeric(lowered, by_field))
@@ -251,7 +374,9 @@ def _label_of(base: str, by_field: dict[str, Any]) -> str:
         label = str(getattr(concept, "label", "") or "")
         if label:
             return label[:1].upper() + label[1:]
-    return _humanise(base)
+    unprefixed = _unprefixed(base)
+    return (_KNOWN_LABELS.get(unprefixed)
+            or _humanise(unprefixed))
 
 
 def _is_measure(base: str, by_field: dict[str, Any]) -> bool:
@@ -277,14 +402,18 @@ def _numeric(base: str, by_field: dict[str, Any]) -> dict[str, Any]:
         return {"semantic": DAYS, "unit": "days", "decimals": 0,
                 "align": "right"}
     if unit in ("%", "pp"):
-        return {"semantic": PERCENT, "unit": unit, "decimals": 1,
+        return {"semantic": PERCENT, "unit": unit, "decimals": 2,
                 "align": "right"}
     if unit == "x":
         return {"semantic": RATIO, "unit": "x", "decimals": 2, "align": "right"}
     if "mn" in unit or "USD" in unit or "SAR" in unit:
         currency = "USD" if "USD" in unit else ("SAR" if "SAR" in unit else "")
+        # One decimal is the hint, not the rule: money precision depends on
+        # the magnitude of the individual figure, which a column contract
+        # cannot know. `figures` decides per value; this is what a renderer
+        # falls back to when it has nothing else.
         return {"semantic": MONEY, "unit": unit, "currency": currency,
-                "scale": "mn" if "mn" in unit else "", "decimals": 0,
+                "scale": "mn" if "mn" in unit else "", "decimals": 1,
                 "align": "right"}
     return {"semantic": TEXT, "unit": unit, "decimals": 2, "align": "left"}
 
@@ -294,35 +423,43 @@ def _numeric(base: str, by_field: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def render(value: Any, column: dict[str, Any] | Column) -> str:
+def render(value: Any, column: dict[str, Any] | Column,
+           *, threshold: float | None = None, side: str = "") -> str:
     """One value, formatted the way its column says it should be.
 
-    Used by the deterministic narrative and by anything that has to produce a
-    figure as text. The browser renders from the same contract, so a number in
-    a sentence and the same number in the table agree.
+    A thin adapter now. Every rule about decimals, separators, suffixes and
+    thresholds lives in `figures`, so a number in a sentence, the same number
+    in the table and the same number in a tooltip cannot disagree.
     """
-    spec = column.to_dict() if isinstance(column, Column) else dict(column or {})
-    if value is None:
-        return "—"
-    if isinstance(value, bool):
-        return "Yes" if value else "No"
-    if not isinstance(value, (int, float)):
-        return str(value)
+    from backend.orchestration import figures
 
-    number = float(value)
-    decimals = int(spec.get("decimals", 2))
-    if spec.get("semantic") == MONEY and abs(number) < WHOLE_UNITS_ABOVE:
-        decimals = max(decimals, 2)
+    spec = figures.Spec.from_column(column)
+    if threshold is not None:
+        spec = figures.Spec(semantic=spec.semantic, unit=spec.unit,
+                            currency=spec.currency, scale=spec.scale,
+                            decimals=spec.decimals, threshold=threshold,
+                            side=side)
+    return figures.text(value, spec)
 
-    text = f"{number:,.{decimals}f}"
-    unit = str(spec.get("unit") or "")
-    if unit == "%":
-        return f"{text}%"
-    if unit:
-        return f"{text} {unit}"
-    return text
+
+def schema(runtime: Any, build: Any = None) -> list[dict[str, Any]]:
+    """The columns in reading order, with lineage marked rather than removed.
+
+    What the table renders from. `contract` still returns them in the order the
+    runtime produced, because the rows are keyed by name and nothing downstream
+    should have to care; this is the order a person reads them in.
+    """
+    try:
+        ordered = sorted(_columns(runtime, build),
+                         key=lambda c: (c.rank, c.hidden))
+        return [c.to_dict() for c in ordered]
+    except Exception as e:  # noqa: BLE001 - an ordering hint must not lose an answer
+        logger.warning("Could not order the presentation schema: %s", e)
+        return contract(runtime, build)
 
 
 __all__ = ["COUNT", "DAYS", "IDENTITY", "MONEY", "ORDINAL", "PERCENT",
-           "PERIOD", "RATIO", "TEXT", "WHOLE_UNITS_ABOVE", "Column",
-           "contract", "render"]
+           "PERIOD", "RANK_COMPARISON", "RANK_CONTEXT", "RANK_DERIVED",
+           "RANK_LINEAGE", "RANK_PERIOD", "RANK_PRIMARY", "RANK_SUBJECT",
+           "RATIO", "TEXT", "WHOLE_UNITS_ABOVE", "Column", "contract",
+           "render", "schema"]

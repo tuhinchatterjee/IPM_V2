@@ -106,6 +106,9 @@ class AnalysisBuild:
     #: Measures inherited from the conversation rather than named in the
     #: question. Shown on the Trace so an unasked-for column is explained.
     carried_concepts: list[str] = field(default_factory=list)
+    #: Where the population actually sits on the attribute that excluded all of
+    #: it. Set only when the result came back empty — see `partition`.
+    partition: Any = None
 
     @property
     def datasets(self) -> list[str]:

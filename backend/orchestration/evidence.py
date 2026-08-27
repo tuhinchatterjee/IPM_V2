@@ -42,7 +42,13 @@ logger = logging.getLogger(__name__)
 MAX_ENTITIES = 200
 
 #: Figures are quoted rounded. "18,475" is the same fact as 18475.294.
-ROUNDINGS = (0, 1, 2, 3)
+#:
+#: The range runs to six because a figure sitting against a covenant boundary
+#: is written with as many decimals as it takes to stay on the right side of
+#: it — see `figures._respecting`. A grounding check that rejected 14.9996%
+#: because it only knew about 15.0 would discard the one sentence in the answer
+#: that was being careful.
+ROUNDINGS = (0, 1, 2, 3, 4, 5, 6)
 
 
 @dataclass(frozen=True)
@@ -252,7 +258,7 @@ def _describe(condition: Any) -> str:
 
 def _normal(value: Any) -> str:
     try:
-        return f"{float(value):.4f}".rstrip("0").rstrip(".")
+        return f"{float(value):.6f}".rstrip("0").rstrip(".")
     except (TypeError, ValueError):
         return str(value)
 

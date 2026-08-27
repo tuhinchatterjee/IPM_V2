@@ -144,27 +144,52 @@ class Interpretation:
         }
 
 
-def _extract(runtime: Any) -> dict[str, Any]:
+def _extract(runtime: Any, build: Any = None) -> dict[str, Any]:
     """The result, in the compact shape the model is shown.
 
     Deliberately built here rather than passing the runtime object through: this
     function is the boundary, and it is easier to be sure nothing leaks out of a
     place that constructs what goes in than out of one that filters what does
     not.
+
+    Figures are **formatted before the model sees them**. Handing a model
+    2.6246841182876173 and telling it to quote figures exactly is an instruction
+    it follows perfectly, and the result was a credit paper containing sixteen
+    decimal places of binary debris. It is shown 2.62% instead, which is the
+    same fact and the one a person would write. The full-precision values never
+    leave the runtime, so every invariant and threshold test is unaffected.
     """
+    from backend.orchestration import figures, presentation
+
     rows = list(getattr(runtime, "rows", []) or [])
     columns = list(getattr(runtime, "columns", []) or [])[:MAX_COLUMNS]
     keep = [str(c.get("name")) for c in columns if c.get("name")]
+
+    spec = {c["name"]: c for c in presentation.contract(runtime, build)}
+
+    def shown(name: str, value: Any) -> Any:
+        if value is None or isinstance(value, (str, bool)):
+            return value
+        contract_of = spec.get(name)
+        if contract_of is None:
+            return figures.text(value)
+        return presentation.render(value, contract_of)
+
     return {
         "columns": [
-            {"name": c.get("name"), "label": c.get("label") or c.get("name"),
-             "unit": c.get("unit") or ""}
+            {"name": c.get("name"),
+             "label": (spec.get(str(c.get("name"))) or {}).get("label")
+                      or c.get("label") or c.get("name"),
+             "unit": (spec.get(str(c.get("name"))) or {}).get("unit")
+                     or c.get("unit") or ""}
             for c in columns
         ],
         "row_count": len(rows),
-        "rows": [{k: r.get(k) for k in keep} for r in rows[:MAX_ROWS]],
+        "rows": [{k: shown(k, r.get(k)) for k in keep} for r in rows[:MAX_ROWS]],
         "truncated": max(0, len(rows) - MAX_ROWS),
-        "values": dict(getattr(runtime, "values", {}) or {}),
+        "values": {k: figures.text(v) if isinstance(v, (int, float))
+                      and not isinstance(v, bool) else v
+                   for k, v in (getattr(runtime, "values", {}) or {}).items()},
         "warnings": list(getattr(runtime, "warnings", []) or []),
         "reconciliation": getattr(runtime, "reconciliation", None),
     }
@@ -205,8 +230,11 @@ def _prompt(question: str, summary: str, result: dict[str, Any], *,
                      + json.dumps(result["reconciliation"], default=str)[:1200])
 
     lines.append("")
-    lines.append("Write the interpretation. Every figure you use must appear "
-                 "above, exactly as it appears above.")
+    lines.append("Every figure above is ALREADY FORMATTED for a credit paper. "
+                 "Copy them character for character — including the separators, "
+                 "the decimals and the unit. Do not re-round them, do not strip "
+                 "a unit, and do not compute a figure that is not written above.")
+    lines.append("Write the interpretation.")
     return "\n".join(lines)
 
 
@@ -222,7 +250,7 @@ def write(question: str, summary: str, runtime: Any, *,
     if runtime is None:
         return Interpretation(unavailable="Nothing was computed to interpret.")
 
-    result = _extract(runtime)
+    result = _extract(runtime, build)
     try:
         answer = provider.structured(
             system=SYSTEM,
@@ -261,14 +289,25 @@ def _checked(answer: Any, runtime: Any, result: dict[str, Any],
     with one invented sentence, shown under a warning, is still an
     interpretation somebody will paste into a credit paper.
     """
-    from backend.orchestration import evidence
+    from backend.orchestration import evidence, figures
 
     data = answer.data or {}
+
+    # The model was shown formatted figures and told to copy them. Anything it
+    # wrote to sixteen decimal places therefore did not come from the result,
+    # and is rewritten before a reader ever sees it. Figures the formatter
+    # itself produced are protected, so a covenant answer that deliberately
+    # writes 14.9996% is not "tidied" into contradicting itself.
+    protected = _shown_figures(result)
+
+    def clean(value: Any) -> str:
+        return figures.scrub(str(value or "").strip(), keep=protected)
+
     written = Interpretation(
-        headline=str(data.get("headline") or "").strip(),
-        interpretation=str(data.get("interpretation") or "").strip(),
-        notable=[str(v).strip() for v in (data.get("notable") or [])][:3],
-        caveats=[str(v).strip() for v in (data.get("caveats") or [])][:4],
+        headline=clean(data.get("headline")),
+        interpretation=clean(data.get("interpretation")),
+        notable=[clean(v) for v in (data.get("notable") or [])][:3],
+        caveats=[clean(v) for v in (data.get("caveats") or [])][:4],
         model=answer.model, duration_ms=answer.duration_ms,
         request_id=getattr(answer, "request_id", ""),
     )
@@ -296,6 +335,30 @@ def _checked(answer: Any, runtime: Any, result: dict[str, Any],
 
     written.evidence = package.to_dict()
     return written
+
+
+def _shown_figures(result: dict[str, Any]) -> set[str]:
+    """Every figure exactly as the model was shown it.
+
+    What makes the prose scrub safe. A number in the answer that matches one of
+    these was copied from the formatted result and is left alone whatever its
+    precision; a number that matches none of them was not.
+    """
+    import re as _re
+
+    out: set[str] = set()
+    number = _re.compile(r"-?\d[\d,]*(?:\.\d+)?")
+
+    def harvest(value: Any) -> None:
+        if isinstance(value, str):
+            out.update(number.findall(value))
+
+    for row in result.get("rows") or []:
+        for value in (row or {}).values():
+            harvest(value)
+    for value in (result.get("values") or {}).values():
+        harvest(value)
+    return out
 
 
 __all__ = ["MAX_ROWS", "SCHEMA", "SYSTEM", "TOOL_NAME", "Interpretation", "write"]
