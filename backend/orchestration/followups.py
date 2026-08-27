@@ -223,9 +223,27 @@ def _dataset(name: str, context: Any) -> Any:
 # ---------------------------------------------------------------------------
 
 
+#: How many governed rows an inline preview carries. Enough to see what the
+#: data looks like and to spot a column that is empty; not so many that a chat
+#: answer becomes an export.
+PREVIEW_ROWS = 50
+
+#: Columns beyond this are not shown inline. A 29-field table rendered in a
+#: conversation is unreadable; the full viewer is one click away and shows all
+#: of them.
+PREVIEW_COLUMNS = 12
+
+
 def _navigate(question: str, memory: wm.WorkingMemory,
               context: Any) -> HandlerResult | None:
-    """Open what the conversation is about, rather than answering about it."""
+    """Open what the conversation is about, rather than answering about it.
+
+    "Open the latest dataset" used to return a single row of metadata labelled
+    as an analysis action — the dataset's name, its grain and a field count.
+    That is a description of the thing the user asked to see, which is the one
+    answer that cannot be right. This returns **governed rows**, with the total
+    the preview came out of and a link to the full viewer.
+    """
     subject = memory.current_subject or memory.result.origin
     if not subject:
         return None
@@ -233,25 +251,97 @@ def _navigate(question: str, memory: wm.WorkingMemory,
     if dataset is None:
         return None
 
-    latest = getattr(dataset, "latest_period", "")
+    latest = str(getattr(dataset, "latest_period", "") or "")
     business = getattr(dataset, "business_name", subject)
+    href = f"/data-builder/{subject}" + (f"?period={latest}" if latest else "")
+
+    preview = _preview(subject, latest)
+    if preview is None:
+        # The catalogue knows the dataset and the lake could not be read. Say
+        # what is being opened and where, rather than inventing rows.
+        return HandlerResult(
+            answer=(f"Opening {business} ({subject})"
+                    + (f" at {latest}." if latest else ".")
+                    + " The row preview could not be read here — the full "
+                      "viewer has it."),
+            detail={"open": {"kind": "dataset", "name": subject,
+                             "period": latest},
+                    "href": href},
+            follow_ups=[f"What fields are in {subject}?"])
+
+    rows, columns, total = preview
+    shown = len(rows)
+    answer = (
+        f"{business} ({subject})"
+        + (f" at {latest}" if latest else "")
+        + f" — showing {shown} of {total:,} governed "
+          f"{'row' if total == 1 else 'rows'}"
+        + (f" for {latest}" if latest else "")
+        + f", {len(getattr(dataset, 'fields', ()) or ())} fields in total."
+    )
+
     return HandlerResult(
-        answer=(f"Opening {business} ({subject})"
-                + (f" at {latest}." if latest else ".")),
-        rows=[{"dataset": subject, "business_name": business,
-               "period": latest, "grain": getattr(dataset, "grain", ""),
-               "fields": len(getattr(dataset, "fields", ()) or ())}],
-        columns=[{"name": "dataset", "label": "Dataset"},
-                 {"name": "business_name", "label": "Business name"},
-                 {"name": "period", "label": "Period"},
-                 {"name": "grain", "label": "Grain"},
-                 {"name": "fields", "label": "Fields"}],
-        values={"dataset": subject, "period": latest},
-        detail={"open": {"kind": "dataset", "name": subject, "period": latest},
-                "href": f"/data-builder/{subject}"
-                        + (f"?period={latest}" if latest else "")},
+        answer=answer,
+        rows=rows,
+        columns=columns,
+        values={"dataset": subject, "period": latest, "rows": total,
+                "shown": shown},
+        detail={"open": {"kind": "dataset", "name": subject, "period": latest,
+                         "rows": total, "shown": shown},
+                "preview": {"rows": shown, "of": total, "period": latest,
+                            "columns": len(columns),
+                            "of_columns": len(getattr(dataset, "fields", ())
+                                              or ())},
+                "href": href},
         follow_ups=[f"What fields are in {subject}?",
-                    f"How is {subject} connected to other data?"])
+                    f"How is {subject} connected to other data?",
+                    f"How many periods of {subject} are there?"])
+
+
+def _preview(dataset: str, period: str,
+             ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int] | None:
+    """The first rows of a governed dataset, with the total they came from.
+
+    Returns None rather than raising. A preview that cannot be read is a
+    smaller failure than an answer that is lost, and the caller says so.
+    """
+    try:
+        from backend.data_access import get_data_source
+        from backend.data_access.context import AnalysisContext
+
+        source = get_data_source()
+        total = int(source.row_count(dataset, period or None))
+        frame = source.fetch(dataset, context=AnalysisContext(period=period),
+                             period=period or None)
+        if frame is None:
+            return None
+        head = frame.head(PREVIEW_ROWS)
+        names = [str(c) for c in head.columns][:PREVIEW_COLUMNS]
+        rows = [{name: _plain(row.get(name)) for name in names}
+                for row in head.to_dict(orient="records")]
+        columns = [{"name": n, "label": n.replace("_", " ").capitalize()}
+                   for n in names]
+        return rows, columns, total or len(frame)
+    except Exception as e:  # noqa: BLE001 - a preview must not lose an answer
+        logger.info("No preview for %s at %r: %s", dataset, period, e)
+        return None
+
+
+def _plain(value: Any) -> Any:
+    """A pandas value as something JSON can carry."""
+    try:
+        import pandas as pd
+
+        if value is None or (not isinstance(value, str) and pd.isna(value)):
+            return None
+    except Exception:  # noqa: BLE001
+        pass
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except Exception:  # noqa: BLE001
+            return str(value)
+    return value
 
 
 # ---------------------------------------------------------------------------

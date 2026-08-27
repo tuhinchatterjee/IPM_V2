@@ -43,9 +43,8 @@ from backend.llm import get_provider, is_configured, provider_status
 from backend.orchestration import analysis_planner as ap
 from backend.orchestration import capability as cap
 from backend.orchestration import certified as cert
-from backend.orchestration import conversation as cv
-from backend.orchestration import coverage as cov
 from backend.orchestration import (
+    compound,
     entities,
     followups,
     handlers,
@@ -55,6 +54,8 @@ from backend.orchestration import (
     router,
     spelling,
 )
+from backend.orchestration import conversation as cv
+from backend.orchestration import coverage as cov
 from backend.orchestration import guardrail as gr
 from backend.orchestration import invariants as inv
 from backend.orchestration import memory as wm
@@ -188,6 +189,9 @@ class Answered:
     invariants: Any = None
     #: Which route and model answered this turn.
     decision: Any = None
+    #: Which extra clauses of a compound question were answered in this turn,
+    #: and which were left outstanding for the correction path.
+    compound: dict[str, Any] = field(default_factory=dict)
     #: What this answer covers, and what this turn did to it.
     scope: Any = None
     #: Set when a key is configured and the live path could not be used.
@@ -559,6 +563,26 @@ def referents_unresolved(question: str, context: Any) -> list[str]:
         return []
 
 
+def _first_clause(question: str, context: Any) -> tuple[str, Any]:
+    """The first thing a compound sentence asks, with its own retrieval.
+
+    Returns the question and context unchanged when the sentence asks one
+    thing, which is nearly always. Retrieval is deterministic and costs no
+    model call, so narrowing it for a compound question is free.
+    """
+    parts = compound.clauses(question)
+    if len(parts) < 2:
+        return question, context
+    try:
+        from backend.orchestration.context import retrieve
+
+        return parts[0], retrieve(parts[0])
+    except Exception as e:  # noqa: BLE001 - fall back to the whole sentence
+        logger.info("Could not retrieve for the first clause of %r: %s",
+                    question, e)
+        return question, context
+
+
 def _from_metadata(answered: Answered, question: str, reading: cap.Reading,
                    context: Any) -> Answered:
     """Answer a non-analytical capability, or say plainly that it cannot be."""
@@ -569,8 +593,15 @@ def _from_metadata(answered: Answered, question: str, reading: cap.Reading,
                "Name the figure or the dataset you mean.")
         return answered
 
+    # A compound question is retrieved for clause by clause. "What fields are
+    # available in the ratings data, and which are financial ratios?" scored
+    # the borrower financials table top on the strength of the SECOND clause,
+    # and then answered the first one about the wrong dataset. The first clause
+    # decides what the first answer is about.
+    asked, context = _first_clause(question, context)
+
     try:
-        handled = handlers.handle(question, reading, context)
+        handled = handlers.handle(asked, reading, context)
     except Exception as e:  # noqa: BLE001 - a stated failure, not a substitution
         logger.exception("The %s handler failed for %r", reading.intent, question)
         answered.failure_kind = FAILED_ROUTE
@@ -590,6 +621,13 @@ def _from_metadata(answered: Answered, question: str, reading: cap.Reading,
         return answered
 
     answered.result = handled
+
+    # "What fields are available in the ratings data, AND which are financial
+    # ratios?" is two questions. Answering the first and silently dropping the
+    # second produces something that looks complete, which is why the next
+    # message was "you didn't answer my second question". The remaining clauses
+    # are put through the follow-up path against the answer just produced.
+    answered.compound = compound.complete(answered, question, context).to_dict()
     return answered
 
 

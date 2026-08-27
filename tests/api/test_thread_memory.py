@@ -116,7 +116,21 @@ def test_open_the_latest_dataset_navigates(client):
     assert action_of(turns[1]) == "NAVIGATE"
     answer = run_of(turns[1])
     assert answer["status"] == "succeeded", answer.get("clarification")
-    assert "opening" in answer["narrative"]["direct_answer"].lower()
+
+    # Opening a dataset means showing its rows. Returning a single row of
+    # metadata about the dataset the user asked to see is the one answer that
+    # cannot be right, and it is what this used to do.
+    said = answer["narrative"]["direct_answer"].lower()
+    assert "ifrs9_staging" in said, said
+    rows = rows_of(turns[1])
+    assert len(rows) > 1, "the preview must carry governed rows, not a summary"
+
+    opened = (answer["steps"][0]["result"].get("detail") or {}).get("open") or {}
+    assert opened.get("kind") == "dataset"
+    assert opened.get("name") == "ifrs9_staging"
+    assert opened.get("period"), "the preview must say which period it read"
+    assert opened.get("rows", 0) > len(rows), (
+        "the answer must say how many rows the preview came out of")
 
 
 # --------------------------------------------------------------- analytical

@@ -123,10 +123,83 @@ def _relevant(reading: cap.Reading, context: GovernedContext,
     return named or list(context.datasets)
 
 
+#: How many datasets a discovery answer describes. The primary and enough
+#: neighbours to see the shape of what is held; the rest are counted, not
+#: listed, because a list of twenty is a list nobody reads.
+MAX_DISCOVERED = 6
+
+
+def _rows_in(name: str) -> int:
+    """How many governed rows this dataset holds.
+
+    Counted in DuckDB from the Parquet footers, so it costs milliseconds. It is
+    here because "we have a ratings dataset" and "we have 32,800 rows of
+    ratings" are different answers, and only the second one tells a credit
+    officer whether it is worth asking about.
+    """
+    try:
+        from backend.data_access import get_data_source
+
+        return int(get_data_source().row_count(name))
+    except Exception as e:  # noqa: BLE001 - a size is not worth losing an answer
+        logger.debug("No row count for %s: %s", name, e)
+        return 0
+
+
+def _catalogue_row(dataset: Any) -> dict[str, Any]:
+    """One dataset, described the way somebody deciding whether to use it needs.
+
+    Everything here answers a question a data steward or a credit officer
+    actually asks before trusting a source: how much of it is there, how far
+    back does it go, who says it is right, and is it real client data or the
+    demonstration book.
+    """
+    return {
+        "business_name": dataset.business_name,
+        "dataset": dataset.name,
+        "domain": dataset.domain,
+        "grain": dataset.grain,
+        "rows": _rows_in(dataset.name),
+        "fields": len(dataset.fields),
+        "periods": dataset.period_count,
+        "from": dataset.periods[0] if dataset.periods else "",
+        "to": dataset.latest_period,
+        "origin": dataset.origin,
+        "authoritative_for": ", ".join(dataset.authoritative_for),
+        "state": ("Demonstration data" if dataset.is_synthetic
+                  else "Client data"),
+    }
+
+
+_DISCOVERY_COLUMNS = [
+    {"name": "business_name", "label": "Dataset", "semantic": "text"},
+    {"name": "dataset", "label": "Technical id", "semantic": "text"},
+    {"name": "domain", "label": "Domain", "semantic": "text"},
+    {"name": "grain", "label": "One row per", "semantic": "text"},
+    {"name": "rows", "label": "Rows", "semantic": "count", "decimals": 0,
+     "align": "right"},
+    {"name": "fields", "label": "Fields", "semantic": "count", "decimals": 0,
+     "align": "right"},
+    {"name": "periods", "label": "Periods", "semantic": "count", "decimals": 0,
+     "align": "right"},
+    {"name": "from", "label": "First period", "semantic": "period"},
+    {"name": "to", "label": "Latest period", "semantic": "period"},
+    {"name": "origin", "label": "Origin", "semantic": "text"},
+    {"name": "authoritative_for", "label": "Authoritative for",
+     "semantic": "text"},
+    {"name": "state", "label": "State", "semantic": "text"},
+]
+
+
 def data_discovery(question: str, reading: cap.Reading,
                    context: GovernedContext) -> HandlerResult:
-    """What CreditProbe holds on a subject."""
-    datasets = _relevant(reading, context, question)[:6]
+    """What CreditProbe holds on a subject.
+
+    One dataset is the answer and the others are context. Presenting all six as
+    equal matches is what made an IFRS 9 question look like it could be
+    answered from six places, when five of them were merely adjacent.
+    """
+    datasets = _relevant(reading, context, question)[:MAX_DISCOVERED]
     if not datasets:
         return HandlerResult(
             answer=("Nothing in the governed catalogue matches that. The "
@@ -136,49 +209,49 @@ def data_discovery(question: str, reading: cap.Reading,
             graph=_graph(question, reading, consulted="Data Builder catalogue",
                          detail={"count": 0}))
 
-    rows = [{
-        "dataset": d.name,
-        "business_name": d.business_name,
-        "domain": d.domain,
-        "grain": d.grain,
-        "periods": d.period_count,
-        "from": d.periods[0] if d.periods else "",
-        "to": d.latest_period,
-        "fields": len(d.fields),
-        "origin": d.origin,
-        "authoritative_for": ", ".join(d.authoritative_for),
-    } for d in datasets]
+    rows = [_catalogue_row(d) for d in datasets]
+    lead, related = rows[0], rows[1:]
 
-    lead = datasets[0]
-    span = (f" covering {lead.period_count} periods from {lead.periods[0]} to "
-            f"{lead.latest_period}" if lead.period_count > 1 else "")
+    span = (f", {lead['periods']} periods from {lead['from']} to {lead['to']}"
+            if lead["periods"] > 1 else
+            (f" at {lead['to']}" if lead["to"] else ""))
+    size = f"{lead['rows']:,} rows" if lead["rows"] else "no rows yet"
     answer = (
-        f"{len(datasets)} governed "
-        f"{'dataset' if len(datasets) == 1 else 'datasets'} "
-        f"{'is' if len(datasets) == 1 else 'are'} available. "
-        f"{lead.business_name} ({lead.name}) is the closest match: "
-        f"{lead.grain.rstrip('.')}, {len(lead.fields)} governed fields{span}."
+        f"{datasets[0].business_name} ({lead['dataset']}) is the governed "
+        f"source for that: {size}, {lead['fields']} fields, "
+        f"{str(lead['grain']).rstrip('.').lower()}{span}."
     )
-    if lead.authoritative_for:
+    if lead["authoritative_for"]:
         answer += (f" It is the authoritative source for "
-                   f"{', '.join(lead.authoritative_for)}.")
+                   f"{lead['authoritative_for']}.")
+    if related:
+        answer += (f" {len(related)} further governed "
+                   f"{'dataset is' if len(related) == 1 else 'datasets are'} "
+                   "related.")
 
     return HandlerResult(
         answer=answer,
         rows=rows,
-        columns=[{"name": k, "type": "text"} for k in rows[0]],
-        values={"datasets": len(datasets)},
+        columns=list(_DISCOVERY_COLUMNS),
+        values={"datasets": len(datasets), "rows_in_primary": lead["rows"]},
         detail={"count": len(datasets),
+                # The primary and the rest, kept apart. The surface collapses
+                # the second group under "Related governed data" so a reader is
+                # not asked to judge six equal-looking candidates.
+                "primary": lead,
+                "related": related,
                 "datasets": [d.to_dict() for d in datasets],
                 "domains": context.domains},
         graph=_graph(question, reading, consulted="Data Builder catalogue",
                      detail={"count": len(datasets),
+                             "primary": lead["dataset"],
                              "datasets": [d.name for d in datasets],
                              "domains": sorted({d.domain for d in datasets})}),
         follow_ups=[
-            f"What fields are in {lead.name}?",
-            f"How is {lead.name} connected to the facility book?",
-            f"How many periods of {lead.name} are there?",
+            f"What fields are in {lead['dataset']}?",
+            f"Open {lead['dataset']} at {lead['to']}." if lead["to"]
+            else f"Open {lead['dataset']}.",
+            f"How is {lead['dataset']} connected to the facility book?",
         ],
     )
 
