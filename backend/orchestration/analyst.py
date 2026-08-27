@@ -162,7 +162,12 @@ def _observe(build: Any, runtime: Any,
         return pr.render(value, measure)
 
     out: list[Observation] = []
-    out.extend(_concentration(series, label, shown))
+    # Concentration is a statement about a SHARE OF A TOTAL, so it needs a
+    # measure that adds up. Ten per-grade coverage ratios have no total, and
+    # "grade 10 accounts for 44.75% of ECL coverage" is a sentence about a
+    # quantity that does not exist.
+    if str(measure.get("semantic") or "") in _ADDITIVE:
+        out.extend(_concentration(series, label, shown))
     out.extend(_drivers(series, label, shown))
     out.extend(_exceptions(series, label, shown))
     out.extend(_movement(build, rows, schema, values, figures))
@@ -171,6 +176,11 @@ def _observe(build: Any, runtime: Any,
 
 
 _NUMERIC = frozenset({"money", "percent", "ratio", "count", "days"})
+
+#: Measures whose values sum to something meaningful. A percentage and a
+#: multiple do not: adding ten coverage ratios produces a number that is
+#: neither a ratio nor a total.
+_ADDITIVE = frozenset({"money", "count", "days"})
 
 
 def _is_bare_number(text: str) -> bool:
@@ -381,6 +391,14 @@ def _limitations(build: Any, runtime: Any) -> list[Observation]:
 # ---------------------------------------------------------------------------
 
 
+def _opening(text: str) -> str:
+    """A sentence starting with a capital, without mangling an acronym."""
+    stripped = str(text or "").strip()
+    if not stripped:
+        return stripped
+    return stripped[:1].upper() + stripped[1:]
+
+
 def summarise(observations: list[Observation], *, limit: int = 3) -> str:
     """The observations as a paragraph, in the order an analyst would say them.
 
@@ -389,7 +407,7 @@ def summarise(observations: list[Observation], *, limit: int = 3) -> str:
     of hedging, and the figures are directly beneath.
     """
     chosen = rank(observations)[:limit]
-    return " ".join(o.text for o in chosen)
+    return " ".join(_opening(o.text) for o in chosen)
 
 
 def rank(observations: list[Observation]) -> list[Observation]:

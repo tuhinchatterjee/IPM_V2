@@ -935,7 +935,13 @@ def _interpretation(build: ap.AnalysisBuild, runtime: Any, count: int) -> str:
         # The noun, not the column. A breakdown reached over a join lands in a
         # prefixed column, and "in each customer_ratings_internal_grade" puts a
         # database identifier in the first line of the answer.
-        return (f"Ordered largest first. The figures are sums across every "
+        #
+        # And the arithmetic that was actually done. Calling an average a sum
+        # is a smaller error than computing the wrong one and a more damaging
+        # one, because it is the sentence a reader checks the figures against.
+        how = ("averages" if _aggregation_of(build, _primary_column(build, runtime))
+               == "avg" else "sums")
+        return (f"Ordered largest first. The figures are {how} across every "
                 f"facility in each {_dimension_word(build)} at "
                 f"{build.period}.")
     return ""

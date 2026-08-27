@@ -435,3 +435,18 @@ def test_a_summed_measure_still_reports_a_total():
     values = (investigation.steps[0].result or {}).get("values") or {}
     assert "total" in values
     assert "average" not in values
+
+
+def test_a_share_of_a_ratio_is_never_claimed():
+    """Ten per-grade coverage ratios have no total to hold a share of.
+
+    "Grade 10 accounts for 44.75% of ECL coverage" is a sentence about a
+    quantity that does not exist.
+    """
+    investigation, _ = Thread().ask(
+        "For each rating grade, show average ECL coverage and average DSCR.")
+
+    reading = (investigation.narrative.interpretation or "").lower()
+    assert "accounts for" not in reading, reading
+    # And the reading says which arithmetic was done.
+    assert "averages across" in reading, reading
