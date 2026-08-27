@@ -982,6 +982,21 @@ def answer_investigation(question: str, *, user_id: int | None = None,
     return investigation, answered
 
 
+def _typed_state(answered: Any) -> dict[str, Any]:
+    """The conversation's typed state as one readable block, or nothing."""
+    from backend.orchestration import memory as wm
+
+    found = getattr(answered, "memory", None)
+    if found is None:
+        return {}
+    try:
+        return wm.typed_state(found, getattr(answered, "state", None),
+                              getattr(answered, "scope", None))
+    except Exception as e:  # noqa: BLE001 - a Trace block must not lose an answer
+        logger.warning("The typed state could not be assembled: %s", e)
+        return {}
+
+
 def _settle_caveats(investigation: Investigation) -> None:
     """One note per thing worth noting, in the order they were raised.
 
@@ -1115,6 +1130,12 @@ def _record_conversation(investigation: Investigation, answered: Any) -> None:
         "scope": (answered.scope.to_dict()
                   if getattr(answered, "scope", None) is not None else None),
         "investigation": dict(getattr(answered, "investigation", {}) or {}),
+        "compound": dict(getattr(answered, "compound", {}) or {}),
+        "association": dict(getattr(answered, "association", {}) or {}),
+        # Every typed slot the conversation carries, in one place. The state is
+        # split between what the last TURN produced and what the last ANALYSIS
+        # settled — right, and hard to see. This is the view of it.
+        "memory": _typed_state(answered),
     }
     if answered.degraded_reason:
         investigation.narrative.caveats.append(

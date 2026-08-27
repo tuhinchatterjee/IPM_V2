@@ -256,6 +256,10 @@ class WorkingMemory:
     #: What the previous turn asked, in full. Kept so a correction can re-read
     #: the compound request rather than the fragment that followed it.
     last_question: str = ""
+    #: The display contract of the last result — what each column IS. Carried
+    #: so "show that as a chart" and "put the grade first" know what they are
+    #: rearranging without recomputing anything.
+    result_schema: list[dict[str, Any]] = field(default_factory=list)
 
     # ---- reading ----------------------------------------------------------
 
@@ -281,7 +285,8 @@ class WorkingMemory:
                  domains: list[str] | None = None,
                  periods: list[str] | None = None,
                  period: str = "", presentation: str = "",
-                 question: str = "") -> None:
+                 question: str = "",
+                 result_schema: list[dict[str, Any]] | None = None) -> None:
         """Fold one turn in. Absent fields leave what was there alone.
 
         Deliberately additive. A metadata question mid-investigation should
@@ -313,6 +318,8 @@ class WorkingMemory:
             self.presentation = presentation
         if question:
             self.last_question = question
+        if result_schema:
+            self.result_schema = [dict(c) for c in result_schema]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -329,6 +336,7 @@ class WorkingMemory:
             "presentation": self.presentation,
             "outstanding": list(self.outstanding),
             "last_question": self.last_question,
+            "result_schema": [dict(c) for c in self.result_schema],
         }
 
     @classmethod
@@ -348,6 +356,7 @@ class WorkingMemory:
             presentation=str(raw.get("presentation") or ""),
             outstanding=[str(q) for q in (raw.get("outstanding") or [])],
             last_question=str(raw.get("last_question") or ""),
+            result_schema=[dict(c) for c in (raw.get("result_schema") or [])],
         )
 
     def brief(self) -> str:
@@ -455,6 +464,73 @@ def _outstanding(question: str) -> list[str]:
     return parts[1:] if len(parts) > 1 else []
 
 
+#: Every typed slot the conversation carries, and where it is kept.
+#:
+#: The state is deliberately split in two — `WorkingMemory` holds what the last
+#: TURN produced and `ConversationState` holds what the last ANALYSIS settled,
+#: because a metadata question mid-investigation must change what "those"
+#: points at without wiping the population. That split is right and it makes
+#: the whole typed state hard to see, so this assembles one view of it for the
+#: Trace and for anything that needs to reason about the conversation rather
+#: than continue it.
+def typed_state(memory: WorkingMemory, state: Any = None,
+                scope: Any = None) -> dict[str, Any]:
+    """The conversation's typed state, in one place, read-only."""
+    result = memory.result
+    return {
+        "current_subject": memory.current_subject,
+        "current_subject_type": memory.current_subject_type,
+        "current_object": memory.current_object,
+        "current_object_type": memory.current_object_type,
+        "current_capability": memory.current_capability,
+        "current_result_type": result.result_type,
+        "current_result_reference": result.to_dict(),
+        # The four typed sets, each populated only when the last turn produced
+        # that kind of thing. A follow-up resolves against whichever is filled.
+        "current_dataset_set": (result.ids() if result.result_type == DATASET_SET
+                                else list(memory.datasets)),
+        "current_field_set": result.ids() if result.result_type == FIELD_SET else [],
+        "current_relationship_set": (result.ids()
+                                     if result.result_type == RELATIONSHIP_SET
+                                     else []),
+        "current_entity_set": result.ids() if result.result_type == ENTITY_SET else [],
+        "current_metric_set": (result.ids() if result.result_type == METRIC_SET
+                               else list(getattr(state, "metrics", None) or [])),
+        "current_period": memory.current_period or str(
+            getattr(state, "closing_period", "") or ""),
+        "current_filters": list(getattr(state, "filters", None) or []),
+        "current_dimensions": list(getattr(state, "dimensions", None) or []),
+        "current_grain": str(getattr(state, "grain", "") or ""),
+        "current_sort": str(getattr(state, "shape", "") or ""),
+        "current_limit": int(getattr(state, "top_n", 0) or 0),
+        "current_presentation": memory.presentation,
+        "current_plan": dict(getattr(state, "ir", None) or {}).get("id", ""),
+        "current_result_schema": [dict(c) for c in memory.result_schema],
+        "prior_scope_stack": [dict(t) for t in _scope_stack(state, scope)],
+        "outstanding": list(memory.outstanding),
+    }
+
+
+def _scope_stack(state: Any, scope: Any) -> list[dict[str, Any]]:
+    """What the scope was before this turn, most recent first."""
+    out: list[dict[str, Any]] = []
+    if scope is not None:
+        try:
+            frames = scope.to_dict()
+            for key in ("before", "after"):
+                found = frames.get(key)
+                if isinstance(found, dict):
+                    out.append({"when": key, **found})
+        except Exception:  # noqa: BLE001
+            pass
+    for turn in list(getattr(state, "turns", None) or [])[-3:]:
+        try:
+            out.append({"when": "turn", **turn.to_dict()})
+        except Exception:  # noqa: BLE001
+            continue
+    return out
+
+
 def _observe(memory: WorkingMemory, answered: Any,
              run: Any) -> WorkingMemory:
 
@@ -486,8 +562,21 @@ def _observe(memory: WorkingMemory, answered: Any,
         datasets=_datasets(answered, runtime),
         period=reference.period,
         presentation=_presentation(answered),
-        question=getattr(answered, "question", ""))
+        question=getattr(answered, "question", ""),
+        result_schema=_result_schema(run))
     return memory
+
+
+def _result_schema(run: Any) -> list[dict[str, Any]]:
+    """What each column of the last result IS, carried for the next turn.
+
+    So "show that as a chart" and "put the grade first" know what they are
+    rearranging without recomputing the analysis to find out.
+    """
+    steps = list(getattr(run, "steps", None) or [])
+    if not steps:
+        return []
+    return [dict(c) for c in ((steps[0].result or {}).get("columns") or [])]
 
 
 def _from_handler(intent: str, result: Any) -> ResultReference:
@@ -651,6 +740,7 @@ def _presentation(answered: Any) -> str:
 
 
 __all__ = [
+    "typed_state",
     "CHART_RESULT",
     "DATASET_SET",
     "ENTITY_SET",

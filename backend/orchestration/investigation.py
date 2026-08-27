@@ -342,10 +342,7 @@ def run(request: Request, question: str, *, answer_one: Any) -> Any:
     _LAST_NOTES.clear()
 
     return HandlerResult(
-        answer=(f"{len(rows)} governed checks over {request.subject}, each one "
-                "an analysis you can open: "
-                + "; ".join(r["finding"] for r in rows[:3])
-                + ("…" if len(rows) > 3 else "")),
+        answer=_synthesis(request, rows, notes),
         rows=rows,
         columns=[{"name": "measure", "label": "What was checked"},
                  {"name": "finding", "label": "What it found"},
@@ -358,6 +355,57 @@ def run(request: Request, question: str, *, answer_one: Any) -> Any:
         warnings=notes,
         follow_ups=[r["question"] for r in rows[:4]],
     )
+
+
+#: Words that mark a finding as deterioration rather than movement. Read off
+#: the probe headline, which CreditProbe wrote from its own result — never
+#: inferred and never a judgement about the sector.
+_WORSE = ("rose", "increased", "worsened", "downgraded", "deteriorat",
+          "breach", "past due", "higher", "widened")
+_BETTER = ("fell", "declined", "improved", "upgraded", "lower", "narrowed")
+
+
+def _synthesis(request: Any, rows: list[dict[str, Any]],
+               notes: list[str]) -> str:
+    """An executive summary of what the checks found, then the checks.
+
+    A list of six findings joined by semicolons is a list, and a reader has to
+    do the synthesis themselves — which is the work they opened the product to
+    avoid. The first sentence says how many checks ran, how many of them point
+    the wrong way, and which one is worst; the lines are underneath, each still
+    an analysis they can open.
+
+    Nothing here asserts a cause. The direction of each check is read off the
+    sentence CreditProbe itself wrote about that check's result.
+    """
+    worse = [r for r in rows if _points_down(str(r.get("finding") or ""))]
+    steady = len(rows) - len(worse)
+
+    lead = (f"{len(rows)} governed checks over {request.subject}. ")
+    if not worse:
+        lead += ("None of them points to deterioration over the window "
+                 "checked.")
+    elif len(worse) == len(rows):
+        lead += "Every one of them points the wrong way."
+    else:
+        lead += (f"{len(worse)} point the wrong way and {steady} do not.")
+
+    if worse:
+        lead += f" The clearest is: {worse[0]['finding']}"
+    if notes:
+        lead += (f" {len(notes)} further "
+                 f"{'check' if len(notes) == 1 else 'checks'} could not be "
+                 "completed and {0} not included."
+                 .format("is" if len(notes) == 1 else "are"))
+    return lead.strip()
+
+
+def _points_down(finding: str) -> bool:
+    """Whether this check's own sentence describes a worsening."""
+    lowered = finding.lower()
+    if any(word in lowered for word in _BETTER):
+        return False
+    return any(word in lowered for word in _WORSE)
 
 
 def _finding(answered: Any) -> tuple[str, int]:
