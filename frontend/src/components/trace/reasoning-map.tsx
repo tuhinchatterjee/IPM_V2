@@ -79,6 +79,17 @@ import "@xyflow/react/dist/base.css";
  */
 const COLLAPSE_COLUMNS = 9;
 
+/**
+ * And above this many nodes, whatever its shape.
+ *
+ * Width was the only trigger, and it missed the case a reviewer complained
+ * about: a map that is shallow and very broad. Forty rectangles of equal
+ * weight side by side is unreadable for the same reason fourteen columns is,
+ * and the reader's first request — "show me the shape, then let me open what I
+ * want" — is the same in both.
+ */
+const COLLAPSE_NODES = 18;
+
 export interface MapHighlight {
   /** Nodes a proposed or applied change affects — drawn as changed. */
   changed?: string[];
@@ -242,16 +253,15 @@ interface ReasoningMapProps {
 function MapCanvas({ graph, selected, onSelect, highlight, height = 520 }: ReasoningMapProps) {
   const steps = React.useMemo(() => stepsIn(graph), [graph]);
 
-  // A map wider than the canvas can show legibly opens collapsed to one node
+  // A map bigger than the canvas can show legibly opens collapsed to one node
   // per analysis, which is the level a reader actually starts at, and expands
-  // from there. The width is measured from the graph's own layers rather than
-  // guessed from the node count.
-  const [collapsed, setCollapsed] = React.useState<Set<number>>(
-    () =>
-      new Set(
-        (graph.layers?.length ?? 0) > COLLAPSE_COLUMNS ? steps.map((s) => s.step) : [],
-      ),
-  );
+  // from there. Both dimensions count: too deep and the labels shrink to
+  // decoration, too broad and it is a wall of identical rectangles.
+  const [collapsed, setCollapsed] = React.useState<Set<number>>(() => {
+    const tooDeep = (graph.layers?.length ?? 0) > COLLAPSE_COLUMNS;
+    const tooMany = (graph.nodes?.length ?? 0) > COLLAPSE_NODES;
+    return new Set(tooDeep || tooMany ? steps.map((s) => s.step) : []);
+  });
 
   const toggleStep = React.useCallback((step: number) => {
     setCollapsed((current) => {

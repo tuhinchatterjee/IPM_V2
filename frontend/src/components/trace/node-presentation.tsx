@@ -210,3 +210,47 @@ export function presentationFor(type: string): NodePresentation {
     }
   );
 }
+
+/**
+ * What this particular step IS, rather than what kind of step it is.
+ *
+ * A node labelled "DERIVED_VARIABLE" tells a reader nothing they did not
+ * already know from its position on the map. "Stage 2 EAD share" tells them
+ * what the analysis actually did, and it was stamped on the node by the run —
+ * the label was there all along, and the map was showing the type instead.
+ */
+export function nodeTitle(node: {
+  type: string;
+  label?: string | null;
+}): string {
+  const label = (node.label ?? "").trim();
+  if (label && label.toUpperCase() !== node.type) return label;
+  return presentationFor(node.type).label;
+}
+
+/**
+ * The line underneath: how the step was computed, or what kind it is.
+ *
+ * A formula where one was recorded — "Stage 2 EAD ÷ total sector EAD" is the
+ * single most useful thing a Trace can say about a derived column. Otherwise
+ * the kind, so the title is free to be specific without leaving a reader
+ * guessing what sort of thing they are looking at.
+ */
+export function nodeSubtitle(node: {
+  type: string;
+  label?: string | null;
+  config?: Record<string, unknown> | null;
+  dataset?: string | null;
+}): string {
+  const config = node.config ?? {};
+  for (const key of ["formula", "expression", "definition", "rule", "sql_preview"]) {
+    const found = config[key];
+    if (typeof found === "string" && found.trim() && found.length < 160) {
+      return found.trim();
+    }
+  }
+  const kind = presentationFor(node.type).label;
+  const dataset = (node.dataset ?? "").trim();
+  if (dataset && dataset !== nodeTitle(node)) return `${kind} · ${dataset}`;
+  return kind === nodeTitle(node) ? "" : kind;
+}

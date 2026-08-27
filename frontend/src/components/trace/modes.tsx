@@ -1,17 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { GitBranch, Layers, List } from "lucide-react";
+import { BookOpen, GitBranch, Layers, List } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 /**
- * The three ways to read a Trace.
+ * The four ways to read a Trace.
  *
- * One dataset, three shapes — because "how was this produced?" is asked by
- * three different people for three different reasons, and no single view serves
- * all of them.
+ * One dataset, four shapes — because "how was this produced?" is asked by four
+ * different people for four different reasons, and no single view serves all
+ * of them.
  *
+ *   STORY      anybody, opening a Trace for the first time. Six stages, each
+ *              one sentence. The DEFAULT, because the graph was not one.
  *   LINEAGE    an analyst asking how the answer was assembled. A graph, which
  *              is the right shape for structure and dependency.
  *   LANDSCAPE  a CRO asking how far this travelled from the data and where it
@@ -19,13 +21,23 @@ import { cn } from "@/lib/utils";
  *   AUDIT      an auditor recording that they checked it. A list, in order,
  *              quotable line by line — and the view that works without sight.
  *
+ * Story is first and default. The graph opened on forty rectangles of equal
+ * weight, every one of them accurate and none of them legible without a click,
+ * and a Trace a reviewer closes without reading is the same as no Trace.
+ *
  * Switching is instant and preserves the selection, so following a node from
- * the graph into the ledger keeps it selected in both.
+ * the story into the graph keeps it selected in both.
  */
 
-export type TraceMode = "lineage" | "landscape" | "audit";
+export type TraceMode = "story" | "lineage" | "landscape" | "audit";
 
 const MODES: { id: TraceMode; label: string; hint: string; icon: typeof Layers }[] = [
+  {
+    id: "story",
+    label: "Story",
+    hint: "What the analysis did, in six stages",
+    icon: BookOpen,
+  },
   {
     id: "lineage",
     label: "Lineage",
@@ -60,7 +72,7 @@ export function useTraceMode(): [TraceMode, (mode: TraceMode) => void] {
   // through useSyncExternalStore rather than assigned from an effect: the
   // server renders "lineage", the client swaps to the remembered mode on
   // hydration, and neither ever renders markup the other disagrees with.
-  const stored = React.useSyncExternalStore(subscribe, readStored, () => "lineage" as TraceMode);
+  const stored = React.useSyncExternalStore(subscribe, readStored, () => "story" as TraceMode);
   const [override, setOverride] = React.useState<TraceMode | null>(null);
 
   const choose = React.useCallback((next: TraceMode) => {
@@ -92,13 +104,18 @@ function subscribe(onChange: () => void): () => void {
 function readStored(): TraceMode {
   try {
     const value = window.localStorage.getItem(STORAGE_KEY);
-    if (value === "lineage" || value === "landscape" || value === "audit") {
+    if (
+      value === "story" ||
+      value === "lineage" ||
+      value === "landscape" ||
+      value === "audit"
+    ) {
       return value;
     }
   } catch {
     // Fall through to the default.
   }
-  return "lineage";
+  return "story";
 }
 
 export function ModeSwitcher({

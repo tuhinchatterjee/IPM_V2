@@ -10,6 +10,8 @@ import { ModeSwitcher, useTraceMode } from "@/components/trace/modes";
 import { NodeInspector } from "@/components/trace/node-inspector";
 import { ModifyPanel, VersionSwitcher } from "@/components/trace/modify-panel";
 import { ReasoningMap, type MapHighlight } from "@/components/trace/reasoning-map";
+import { TraceStory } from "@/components/trace/story";
+import { traceActions } from "@/components/trace/actions";
 import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/layout/back-link";
 import { Card } from "@/components/ui/card";
@@ -60,7 +62,8 @@ export default function TraceDetailPage({ params }: { params: Promise<{ runId: s
 
   const [version, setVersion] = React.useState<number | undefined>(undefined);
   const [selected, setSelected] = React.useState<string | null>(null);
-  // Lineage, Landscape or Audit. Remembered, and the selection survives a switch.
+  // Story, Lineage, Landscape or Audit. Remembered, and the selection survives
+  // a switch — following a node from the story into the graph keeps it chosen.
   const [view, setView] = useTraceMode();
   const [proposed, setProposed] = React.useState<ProposedChange | null>(null);
 
@@ -174,6 +177,9 @@ export default function TraceDetailPage({ params }: { params: Promise<{ runId: s
           <div className="relative">
             <ModeSwitcher mode={view} onChange={setView} className="mb-3" />
 
+            {view === "story" && (
+              <TraceStory graph={graph} selected={selected} onSelect={setSelected} />
+            )}
             {view === "lineage" && (
               <ReasoningMap
                 graph={graph}
@@ -197,7 +203,7 @@ export default function TraceDetailPage({ params }: { params: Promise<{ runId: s
                 onSelect={setSelected}
               />
             )}
-            {node && (
+            {node && view !== "story" && (
               <div className="pointer-events-none absolute inset-y-0 right-0 flex w-full max-w-[26rem] p-3">
                 <Card className="pointer-events-auto flex max-h-full w-full flex-col overflow-hidden p-0 shadow-xl">
                   <NodeInspector
@@ -211,11 +217,30 @@ export default function TraceDetailPage({ params }: { params: Promise<{ runId: s
             )}
           </div>
 
+          {/* In Story the inspector sits BELOW rather than over the text. The
+              story is a column somebody is reading; a panel sliding across it
+              hides the sentence that made them click. */}
+          {node && view === "story" && (
+            <Card className="overflow-hidden p-0">
+              <NodeInspector
+                node={node}
+                graph={graph}
+                onClose={() => setSelected(null)}
+                onSelect={setSelected}
+              />
+            </Card>
+          )}
+
           {/* --------------------------------------------------------- modify */}
           <ModifyPanel
             runId={id}
             version={data.version}
             supported={mode.data?.supported_modifications ?? []}
+            actions={traceActions(
+              graph,
+              data.mode,
+              mode.data?.supported_modifications ?? [],
+            )}
             onPreview={setProposed}
             onApplied={(newVersion) => {
               setVersion(newVersion);

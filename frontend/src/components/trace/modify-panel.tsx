@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { ApiError, api, type ProposedChange, type StepChange, type SupportedModification } from "@/lib/api";
 import { humanise } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import type { TraceAction } from "@/components/trace/actions";
 
 /**
  * Ask / Modify Trace.
@@ -43,6 +44,7 @@ export function ModifyPanel({
   runId,
   version,
   supported,
+  actions,
   onPreview,
   onApplied,
   disabled,
@@ -51,6 +53,8 @@ export function ModifyPanel({
   runId: number;
   version: number;
   supported: SupportedModification[];
+  /** What is worth changing about THIS Trace, in its own terms. */
+  actions?: TraceAction[];
   /** Called whenever the proposed change changes, so the map can highlight it. */
   onPreview: (change: ProposedChange | null) => void;
   onApplied: (newVersion: number) => void;
@@ -157,7 +161,11 @@ export function ModifyPanel({
               <span className="mr-0.5 text-[10px] font-semibold uppercase tracking-[0.11em] text-text-muted">
                 Try
               </span>
-              {supported.slice(0, 6).map((option) => (
+              {/* This Trace's own terms where they are known, the general list
+                  otherwise. "Exclude Real Estate" under a Contracting analysis
+                  is a chip that changes the subject, and under a catalogue
+                  lookup it is a chip that means nothing at all. */}
+              {(actions?.length ? actions : supported).slice(0, 6).map((option) => (
                 <button
                   key={option.kind}
                   type="button"

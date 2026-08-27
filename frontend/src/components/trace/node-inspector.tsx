@@ -9,7 +9,7 @@ import type { TraceGraph, TraceNode } from "@/lib/api";
 import { humanise } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-import { presentationFor } from "./node-presentation";
+import { nodeSubtitle, nodeTitle, presentationFor } from "./node-presentation";
 
 /**
  * The node inspector.
@@ -60,6 +60,22 @@ const HIDDEN_CONFIG_KEYS = new Set([
   "variables",
 ]);
 
+/**
+ * What a reader is looking for when they open a step.
+ *
+ * Six questions, and they are asked one at a time. A single scrolling column
+ * containing all of them is complete and unusable: the auditor checking a
+ * hash, the analyst reading a formula and the reviewer tracing what a change
+ * would break are three people who each need one sixth of it.
+ */
+export type InspectorTab =
+  | "summary"
+  | "inputs"
+  | "outputs"
+  | "formula"
+  | "validation"
+  | "impact";
+
 export function NodeInspector({
   node,
   graph,
@@ -71,6 +87,14 @@ export function NodeInspector({
   onClose: () => void;
   onSelect: (id: string) => void;
 }) {
+  const [tab, setTab] = React.useState<InspectorTab>("summary");
+
+  // Selecting a different step keeps the tab where the reader left it — which
+  // is what somebody comparing the same tab across two steps wants — and falls
+  // back to the summary where the new step has nothing behind that tab. Derived
+  // at render rather than reset in an effect, so there is no frame in which the
+  // panel shows a tab that is not there.
+
   if (!node) {
     return (
       <div className="flex h-full flex-col justify-center gap-2 px-5 py-8">
@@ -110,6 +134,9 @@ export function NodeInspector({
   // one covers reads as a statement about the run, not as a config dump.
   const isFingerprint = node.type === "FINGERPRINT";
   const isMaths = node.type === "MATHEMATICAL_QUERY";
+  // What the inspector can show for THIS node. A tab with nothing behind it is
+  // a tab that teaches a reader the panel is mostly empty, so tabs appear only
+  // where there is something to read.
   const config = Object.fromEntries(
     Object.entries(node.config ?? {}).filter(
       ([k]) =>
@@ -120,9 +147,28 @@ export function NodeInspector({
     ),
   );
 
+  const hasInputs = variables.length > 0 || node.fields_used.length > 0;
+  const hasFormula = isMaths || Object.keys(config).length > 0;
+  const hasOutputs =
+    (node.output_summary && Object.keys(node.output_summary).length > 0) ||
+    (node.output_preview?.length ?? 0) > 0;
+  const hasValidation =
+    isFingerprint || node.warnings.length > 0 || Boolean(node.error);
+  const hasImpact = parents.length > 0 || children.length > 0;
+
+  const tabs: { id: InspectorTab; label: string; enabled: boolean }[] = [
+    { id: "summary", label: "Summary", enabled: true },
+    { id: "inputs", label: "Inputs", enabled: hasInputs },
+    { id: "outputs", label: "Outputs", enabled: hasOutputs },
+    { id: "formula", label: isMaths ? "Formula / SQL" : "Configuration", enabled: hasFormula },
+    { id: "validation", label: "Validation", enabled: hasValidation },
+    { id: "impact", label: "Impact", enabled: hasImpact },
+  ];
+  const shown = tabs.find((t) => t.id === tab && t.enabled) ? tab : "summary";
+
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-3.5">
+      <div className="flex items-start justify-between gap-3 border-b border-border px-5 pb-2 pt-3.5">
         <div className="min-w-0">
           <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.11em] text-text-muted">
             <Icon
@@ -139,9 +185,18 @@ export function NodeInspector({
               {presentation.governed ? "Governed" : "Interpretive"}
             </Badge>
           </span>
+          {/* What this step IS, not what kind of step it is. "DERIVED_VARIABLE"
+              told a reader nothing they could not see from its position; "Stage
+              2 EAD share" tells them what the analysis did, and the label was
+              stamped on the node all along. */}
           <p className="mt-1.5 text-sm font-medium leading-snug text-text-primary">
-            {node.label}
+            {nodeTitle(node)}
           </p>
+          {nodeSubtitle(node) && (
+            <p className="mt-0.5 font-mono text-[11px] leading-relaxed text-text-secondary">
+              {nodeSubtitle(node)}
+            </p>
+          )}
           <p className="mt-1 text-xs leading-relaxed text-text-muted">{presentation.blurb}</p>
         </div>
         <button
@@ -154,15 +209,41 @@ export function NodeInspector({
         </button>
       </div>
 
+      <div
+        role="tablist"
+        aria-label="What to look at on this step"
+        className="flex flex-wrap gap-0.5 border-b border-border px-4 pb-2"
+      >
+        {tabs
+          .filter((entry) => entry.enabled)
+          .map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              role="tab"
+              aria-selected={shown === entry.id}
+              onClick={() => setTab(entry.id)}
+              className={cn(
+                "rounded-md px-2 py-1 text-[11px] font-medium transition-colors",
+                shown === entry.id
+                  ? "bg-surface-raised text-text-primary"
+                  : "text-text-muted hover:text-text-secondary",
+              )}
+            >
+              {entry.label}
+            </button>
+          ))}
+      </div>
+
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
-        {isDemo && (
+        {shown === "summary" && isDemo && (
           <p className="rounded-md border border-warning/30 bg-warning-muted px-3 py-2 text-xs leading-relaxed text-warning">
             This is CreditProbe&rsquo;s demonstration data. It is not your bank&rsquo;s book.
             Onboard client data in Data Builder to replace it.
           </p>
         )}
 
-        {stage && (
+        {shown === "summary" && stage && (
           <div className="space-y-3">
             <p className="text-[10px] font-semibold uppercase tracking-[0.11em] text-text-muted">
               {stageLabel || "Interpretation"}
@@ -195,6 +276,7 @@ export function NodeInspector({
           </div>
         )}
 
+        {shown === "summary" && (
         <dl className="divide-y divide-border">
           <Row label="Status" value={node.status} />
           {node.dataset && <Row label="Dataset" value={node.dataset} mono />}
@@ -208,8 +290,9 @@ export function NodeInspector({
           {node.duration_ms !== null && <Row label="Duration" value={`${node.duration_ms}ms`} />}
           {node.content_hash && <Row label="Content hash" value={node.content_hash} mono />}
         </dl>
+        )}
 
-        {variables.length > 0 ? (
+        {shown === "inputs" && (variables.length > 0 ? (
           <Section title={`Governed variables (${variables.length})`}>
             <ul className="space-y-2">
               {variables.map((variable) => (
@@ -245,13 +328,17 @@ export function NodeInspector({
               ))}
             </ul>
           </Section>
-        ) : null}
+        ) : null)}
 
-        {isMaths && <MathematicalQueryBlock config={node.config ?? {}} />}
+        {shown === "formula" && isMaths && (
+          <MathematicalQueryBlock config={node.config ?? {}} />
+        )}
 
-        {isFingerprint && <FingerprintBlock config={node.config ?? {}} />}
+        {shown === "validation" && isFingerprint && (
+          <FingerprintBlock config={node.config ?? {}} />
+        )}
 
-        {Object.keys(config).length > 0 && (
+        {shown === "formula" && Object.keys(config).length > 0 && (
           <Section title="What this step was configured to do">
             <dl className="divide-y divide-border">
               {Object.entries(config).map(([key, value]) => (
@@ -261,7 +348,8 @@ export function NodeInspector({
           </Section>
         )}
 
-        {node.output_summary && Object.keys(node.output_summary).length > 0 && (
+        {shown === "outputs" && node.output_summary &&
+          Object.keys(node.output_summary).length > 0 && (
           <Section title="Recorded output">
             <dl className="divide-y divide-border">
               {Object.entries(node.output_summary)
@@ -273,7 +361,7 @@ export function NodeInspector({
           </Section>
         )}
 
-        {node.output_preview && node.output_preview.length > 0 && (
+        {shown === "outputs" && node.output_preview && node.output_preview.length > 0 && (
           <Section title="Output preview">
             <div className="overflow-x-auto rounded-md border border-border">
               <ResultTable rows={node.output_preview} maxRows={5} />
@@ -281,8 +369,8 @@ export function NodeInspector({
           </Section>
         )}
 
-        {(parents.length > 0 || children.length > 0) && (
-          <Section title="Dependencies">
+        {shown === "impact" && (parents.length > 0 || children.length > 0) && (
+          <Section title="What this step depends on, and what depends on it">
             <div className="space-y-2">
               {parents.length > 0 && (
                 <Lineage
@@ -306,7 +394,7 @@ export function NodeInspector({
           </Section>
         )}
 
-        {node.warnings.length > 0 && (
+        {(shown === "summary" || shown === "validation") && node.warnings.length > 0 && (
           <div className="rounded-md border border-warning/30 bg-warning-muted p-3">
             {node.warnings.map((warning) => (
               <p key={warning} className="text-xs text-warning">
@@ -316,7 +404,7 @@ export function NodeInspector({
           </div>
         )}
 
-        {node.error && (
+        {(shown === "summary" || shown === "validation") && node.error && (
           <div className="rounded-md border border-negative/30 bg-negative-muted p-3 text-xs text-negative">
             {node.error}
           </div>
