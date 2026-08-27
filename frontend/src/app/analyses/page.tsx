@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CertificationBadge } from "@/components/ui/certified-mark";
+import { stepHref } from "@/lib/analysis-links";
 import { EmptyState } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type SavedAnalysis } from "@/lib/api";
@@ -99,6 +100,11 @@ function Row({
   projectName: string | null;
   onDelete: () => void;
 }) {
+  const target = stepHref(
+    analysis.analysis_id,
+    analysis.certification,
+    analysis.analysis_run_id ?? null,
+  );
   const period = periodLabel(analysis.period);
 
   return (
@@ -106,12 +112,18 @@ function Row({
       <BarChart3 className="mt-0.5 size-4 shrink-0 text-text-muted" aria-hidden />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/engine-builder/${analysis.analysis_id}`}
-            className="truncate text-sm font-medium text-text-primary hover:text-accent"
-          >
-            {analysis.title}
-          </Link>
+          {target ? (
+            <Link
+              href={target}
+              className="truncate text-sm font-medium text-text-primary hover:text-accent"
+            >
+              {analysis.title}
+            </Link>
+          ) : (
+            <span className="truncate text-sm font-medium text-text-primary">
+              {analysis.title}
+            </span>
+          )}
           <CertificationBadge certification={analysis.certification} />
         </div>
         <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-text-muted">

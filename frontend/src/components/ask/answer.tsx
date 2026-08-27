@@ -26,6 +26,7 @@ import type {
   InvestigationResponse,
 } from "@/lib/api";
 import { byUnit } from "@/lib/format";
+import { isRegisteredMethod, stepHref } from "@/lib/analysis-links";
 import { withReturnTo } from "@/lib/return-to";
 import { cn } from "@/lib/utils";
 
@@ -158,9 +159,13 @@ export function StepResult({
   // A composed analysis has no definition in the library to open — it did not
   // exist until the question was asked. It carries its own working instead.
   const dynamic = step.certification === "dynamic";
-  const method = returnTo
-    ? withReturnTo(`/engine-builder/${step.analysis_id}`, returnTo.href, returnTo.label)
-    : `/engine-builder/${step.analysis_id}`;
+  const definition = isRegisteredMethod(step.analysis_id, step.certification)
+    ? `/engine-builder/${step.analysis_id}`
+    : null;
+  const method =
+    definition && returnTo
+      ? withReturnTo(definition, returnTo.href, returnTo.label)
+      : definition;
   const trace =
     runId && returnTo
       ? withReturnTo(`/trace/${runId}`, returnTo.href, returnTo.label)
@@ -193,7 +198,7 @@ export function StepResult({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
-          {!dynamic && (
+          {method && (
             <Button variant="ghost" size="sm" asChild>
               <Link href={method} title="Open the analysis definition">
                 Method
@@ -388,11 +393,45 @@ export function Limitations({ caveats }: { caveats: string[] }) {
  * happened and does not need to have happened. Provenance for a metadata
  * answer is the catalogue, and it is on the Trace.
  */
+/**
+ * A step's name, linked to whichever of the three things it actually is.
+ *
+ * A composed analysis has no library entry — clicking one used to land on
+ * "'dynamic_analysis' is not a registered CreditProbe analysis", which reads
+ * as a broken product rather than as an absent page. It links to its run
+ * instead, which is what a reader wanted anyway: how was THIS produced.
+ */
+function StepLink({
+  step,
+  runId,
+  returnTo,
+}: {
+  step: ExecutedStep;
+  runId: number | null;
+  returnTo?: { href: string; label: string };
+}) {
+  const label = step.title || step.analysis_id;
+  const target = stepHref(step.analysis_id, step.certification, runId);
+  if (!target) {
+    return <span className="text-sm font-medium text-text-primary">{label}</span>;
+  }
+  const href = returnTo
+    ? withReturnTo(target, returnTo.href, returnTo.label)
+    : target;
+  return (
+    <Link href={href} className="text-sm font-medium text-text-primary hover:text-accent">
+      {label}
+    </Link>
+  );
+}
+
 export function AnalysesUsed({
   steps,
+  runId,
   returnTo,
 }: {
   steps: ExecutedStep[];
+  runId?: number | null;
   returnTo?: { href: string; label: string };
 }) {
   const computed = steps.filter((step) => step.certification !== "metadata");
@@ -409,20 +448,7 @@ export function AnalysesUsed({
             key={step.index}
             className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2"
           >
-            <Link
-              href={
-                returnTo
-                  ? withReturnTo(
-                      `/engine-builder/${step.analysis_id}`,
-                      returnTo.href,
-                      returnTo.label,
-                    )
-                  : `/engine-builder/${step.analysis_id}`
-              }
-              className="text-sm font-medium text-text-primary hover:text-accent"
-            >
-              {step.title || step.analysis_id}
-            </Link>
+            <StepLink step={step} runId={runId ?? null} returnTo={returnTo} />
             <CertificationBadge certification={step.certification} />
             <span className="mono text-[11px] text-text-muted">
               {step.analysis_version && `v${step.analysis_version}`}
@@ -740,7 +766,7 @@ export function AnswerBlock({
       )}
 
       {/* ---------------------------------- 6. DATA AND METHOD, COLLAPSED */}
-      <AnalysesUsed steps={run.steps} returnTo={returnTo} />
+      <AnalysesUsed steps={run.steps} runId={runId} returnTo={returnTo} />
 
       {/* -------------------------------------------------- 7. ACTION STRIP */}
       <ActionStrip

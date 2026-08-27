@@ -17,6 +17,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { AnalysisRunResponse } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { isRegisteredMethod } from "@/lib/analysis-links";
 
 /**
  * The standard container for an analytical result.
@@ -146,11 +147,16 @@ export function AnalyticalCard({
         <div className="flex shrink-0 items-center gap-0.5">
           {actions && analysisId && (
             <>
-              <Button variant="ghost" size="sm" asChild>
-                <Link href={`/engine-builder/${analysisId}`} title="Open the analysis definition">
-                  View
-                </Link>
-              </Button>
+              {/* Only where a definition exists. A composed plan has none, and
+                  a link that lands on "not a registered analysis" reads as a
+                  broken product rather than as an absent page. */}
+              {isRegisteredMethod(analysisId) && (
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href={`/engine-builder/${analysisId}`} title="Open the analysis definition">
+                    View
+                  </Link>
+                </Button>
+              )}
               <Button variant="ghost" size="sm" asChild>
                 <Link
                   href={`/investigations/new?analysis=${analysisId}`}
