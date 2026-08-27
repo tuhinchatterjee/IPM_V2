@@ -57,6 +57,10 @@ LABELS: dict[str, str] = {
 # ------------------------------------------------------------- categories
 
 AUTH = "auth"
+#: The key is valid and the account cannot pay for the call. Kept apart from
+#: AUTH because the two send an administrator to completely different places:
+#: one is a wrong key, the other is a purchase.
+CREDIT = "credit"
 MODEL_NOT_FOUND = "model_not_found"
 RATE_LIMIT = "rate_limit"
 TIMEOUT = "timeout"
@@ -71,6 +75,8 @@ UNKNOWN = "unknown"
 #: settings page rather than a log aggregator.
 CATEGORY_DETAIL: dict[str, str] = {
     AUTH: "The provider rejected the API key.",
+    CREDIT: "The provider accepted the key and refused the call for billing "
+            "reasons — the account is out of credit or its limit is reached.",
     MODEL_NOT_FOUND: "The provider does not recognise the configured model.",
     RATE_LIMIT: "The provider is rate-limiting this key.",
     TIMEOUT: "The provider did not answer in time.",
@@ -127,6 +133,7 @@ def classify(error: Exception) -> str:
     name = type(error).__name__
     by_type = {
         "AuthenticationError": AUTH,
+        "BillingError": CREDIT,
         "PermissionDeniedError": AUTH,
         "NotFoundError": MODEL_NOT_FOUND,
         "RateLimitError": RATE_LIMIT,
@@ -142,6 +149,12 @@ def classify(error: Exception) -> str:
 
     text = str(error).lower()
     status = getattr(error, "status_code", None)
+    # Checked before AUTH: a credit failure arrives as a 400 whose message
+    # mentions billing, and reading it as a bad key sends an administrator to
+    # rotate a key that is working perfectly.
+    if ("credit balance" in text or "billing" in text or "quota" in text
+            or "insufficient_quota" in text or "payment" in text):
+        return CREDIT
     if status in (401, 403) or "authentication" in text or "invalid x-api-key" in text:
         return AUTH
     if status == 404 or "not_found_error" in text or "model:" in text and "not found" in text:
@@ -172,9 +185,16 @@ class Call:
     #: What the call was for — "reading", "repair", "interpretation",
     #: "validation". Lets Settings say which stage is failing.
     purpose: str
-    at: float
-    latency_ms: int
-    ok: bool
+    #: Which configured role served it, and how hard it was asked to think.
+    #: Recorded per call rather than inferred from the purpose: an
+    #: administrator who configured four models needs to see which one actually
+    #: answered, and a product that reports differentiated routing it is not
+    #: doing is a product whose certification means nothing.
+    role: str = ""
+    effort: str = ""
+    at: float = 0.0
+    latency_ms: int = 0
+    ok: bool = False
     request_id: str = ""
     structured_valid: bool = False
     attempts: int = 1
@@ -188,7 +208,7 @@ class Call:
     def to_dict(self) -> dict[str, Any]:
         return {
             "provider": self.provider, "model": self.model,
-            "purpose": self.purpose,
+            "purpose": self.purpose, "role": self.role, "effort": self.effort,
             "at": _iso(self.at), "latency_ms": self.latency_ms,
             "ok": self.ok, "request_id": self.request_id,
             "structured_valid": self.structured_valid,
@@ -314,9 +334,11 @@ def record_success(*, provider: str, model: str, purpose: str,
                    latency_ms: int, request_id: str = "",
                    attempts: int = 1, input_tokens: int = 0,
                    output_tokens: int = 0,
-                   structured_valid: bool = True) -> Call:
+                   structured_valid: bool = True,
+                   role: str = "", effort: str = "") -> Call:
     return _ledger.record(Call(
         provider=provider, model=model, purpose=purpose, at=time.time(),
+        role=role, effort=effort,
         latency_ms=latency_ms, ok=True, request_id=request_id,
         structured_valid=structured_valid, attempts=attempts,
         input_tokens=input_tokens, output_tokens=output_tokens))
@@ -326,10 +348,11 @@ def record_failure(*, provider: str, model: str, purpose: str,
                    latency_ms: int, error: Exception | None = None,
                    category: str = "", reason: str = "",
                    request_id: str = "", attempts: int = 1,
-                   fallback: str = "") -> Call:
+                   fallback: str = "", role: str = "", effort: str = "") -> Call:
     resolved = category or (classify(error) if error else UNKNOWN)
     return _ledger.record(Call(
         provider=provider, model=model, purpose=purpose, at=time.time(),
+        role=role, effort=effort,
         latency_ms=latency_ms, ok=False, request_id=request_id,
         structured_valid=False, attempts=attempts,
         failure_category=resolved,
@@ -381,7 +404,7 @@ def _detail(state: str, provider: str, model: str,
 
 
 __all__ = [
-    "AUTH", "CONFIGURED", "CONNECTED", "CONNECTION", "DEGRADED",
+    "AUTH", "CONFIGURED", "CONNECTED", "CONNECTION", "CREDIT", "DEGRADED",
     "MODEL_NOT_FOUND", "NOT_STRUCTURED", "OFFLINE", "OVERLOADED", "RATE_LIMIT",
     "SCHEMA_INVALID", "SERVER", "TIMEOUT", "UNKNOWN",
     "Call", "Ledger", "classify", "health", "ledger", "record_failure",

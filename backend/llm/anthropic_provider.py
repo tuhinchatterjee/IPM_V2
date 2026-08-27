@@ -75,7 +75,8 @@ class AnthropicProvider:
                    tool_name: str, tool_description: str,
                    max_tokens: int = 2000,
                    purpose: str = "reading",
-                   model: str = "") -> LLMResult:
+                   model: str = "",
+                   role: str = "", effort: str = "") -> LLMResult:
         """One structured answer.
 
         `model` overrides the configured default for this call, so a role can
@@ -110,6 +111,7 @@ class AnthropicProvider:
                 elapsed = int((time.perf_counter() - started) * 1000)
                 telemetry.record_success(
                     provider=self.name, model=chosen, purpose=purpose,
+                    role=role, effort=effort,
                     latency_ms=elapsed, request_id=_request_id(message),
                     attempts=attempt,
                     input_tokens=getattr(usage, "input_tokens", 0) or 0,
@@ -133,6 +135,7 @@ class AnthropicProvider:
         # though the caller degrades quietly to the offline reader.
         telemetry.record_failure(
             provider=self.name, model=chosen, purpose=purpose,
+            role=role, effort=effort,
             latency_ms=int((time.perf_counter() - started) * 1000),
             error=last, request_id=_error_request_id(last),
             attempts=min(attempt, MAX_ATTEMPTS))

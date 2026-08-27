@@ -224,7 +224,12 @@ def read(question: str, *, context: GovernedContext | None = None,
                 "once. Do not compute anything."),
             max_tokens=1600,
             purpose="reading",
+            # The route chose the role AND its model. Both travel with the
+            # call, so the telemetry records which configured role actually
+            # answered rather than leaving it to be inferred later.
             model=getattr(decision, "model", "") or "",
+            role=getattr(decision, "role", "") or "",
+            effort=getattr(decision, "effort", "") or "",
         )
     except LLMError as e:
         return _degraded(question, context, started, str(e))
@@ -270,6 +275,7 @@ def _repair(question: str, context: GovernedContext,
                               "exactly once."),
             max_tokens=1600,
             purpose="repair",
+            role="critic",
         )
     except Exception as e:  # noqa: BLE001 - a failed repair just means "reject"
         logger.info("The repair call failed for %r: %s", question[:70], e)

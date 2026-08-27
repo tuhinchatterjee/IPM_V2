@@ -471,12 +471,24 @@ def _roles() -> dict[str, Any]:
 
 def _role_model(name: str) -> str:
     """The model configured for one job, or empty for the shared default."""
+    return _role_call(name)["model"]
+
+
+def _role_call(name: str) -> dict[str, str]:
+    """The model and effort for one job, in the shape a provider call takes.
+
+    Both travel with the call so the telemetry records what actually served it.
+    Inferring the role from the purpose afterwards worked until two stages
+    shared a purpose, and a settings page that reports the wrong model is worse
+    than one that reports none.
+    """
     from backend.llm import roles
 
     try:
-        return roles.role(name).model
+        configured = roles.role(name)
+        return {"model": configured.model, "effort": configured.effort}
     except Exception:  # noqa: BLE001
-        return ""
+        return {"model": "", "effort": ""}
 
 
 def _previous_scope(state: cv.ConversationState) -> sc.ScopeFrame:
@@ -774,7 +786,7 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
     answered.written = interpretation.write(
         question, build.summary, answered.runtime, build=build,
         plan_note=_plan_note(build, continuation),
-        model=_role_model("interpretation"))
+        **_role_call("interpretation"))
     if answered.written is not None and answered.written.model:
         answered.calls += 1
     return answered

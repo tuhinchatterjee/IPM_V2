@@ -240,7 +240,7 @@ def _prompt(question: str, summary: str, result: dict[str, Any], *,
 
 def write(question: str, summary: str, runtime: Any, *,
           plan_note: str = "", build: Any = None,
-          model: str = "") -> Interpretation:
+          model: str = "", effort: str = "") -> Interpretation:
     """A live reading of the result, or a stated reason there is not one."""
     provider = get_provider()
     if not provider.configured:
@@ -258,7 +258,8 @@ def write(question: str, summary: str, runtime: Any, *,
             schema=SCHEMA, tool_name=TOOL_NAME,
             tool_description=("Write the interpretation of this result. Call "
                               "this exactly once."),
-            max_tokens=900, purpose="interpretation", model=model)
+            max_tokens=900, purpose="interpretation", model=model,
+            role="interpretation", effort=effort)
     except LLMError as e:
         from backend.llm import telemetry
 

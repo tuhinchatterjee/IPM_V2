@@ -116,8 +116,14 @@ class LLMProvider(Protocol):
                    tool_name: str, tool_description: str,
                    max_tokens: int = 2000,
                    purpose: str = "reading",
-                   model: str = "") -> LLMResult:
+                   model: str = "",
+                   role: str = "", effort: str = "") -> LLMResult:
         """Return a document conforming to `schema`, or raise LLMError.
+
+        `role` and `effort` are recorded on the call rather than inferred from
+        `purpose`. An administrator who configured four models needs to see
+        which one actually answered, and a product that reports differentiated
+        routing it is not performing is one whose certification means nothing.
 
         `model` names the model to serve THIS call, so a configured role can be
         answered by the model an administrator chose for it. Empty means the

@@ -122,13 +122,45 @@ def describe() -> dict[str, Any]:
     from backend.config import settings
 
     configured = all_roles()
+    distinct = sorted({r.model for r in configured if r.model})
+    inherited = all(r.inherited for r in configured)
     return {
         "provider": (settings.ai_provider or "").strip().lower(),
         "shared_model": (settings.ai_model or "").strip(),
         "roles": [r.to_dict() for r in configured],
-        "distinct_models": sorted({r.model for r in configured if r.model}),
-        "all_inherited": all(r.inherited for r in configured),
+        "distinct_models": distinct,
+        "all_inherited": inherited,
+        "differentiated": len(distinct) > 1,
+        "summary": _summary(configured, distinct, inherited),
     }
+
+
+def _summary(configured: list[Role], distinct: list[str],
+             inherited: bool) -> str:
+    """Whether the roles are actually differentiated, said plainly.
+
+    Four role names in a settings page imply four models. Where they all
+    resolve to the same one — which is the ordinary case, because three of the
+    four variables are usually blank — saying so is the difference between an
+    honest report and an architecture diagram.
+    """
+    named = [r for r in configured if not r.inherited]
+    if len(distinct) > 1:
+        return (f"{len(distinct)} different models serve the "
+                f"{len(configured)} roles: " + ", ".join(distinct) + ".")
+    if distinct:
+        one = distinct[0]
+        if named:
+            return (f"All {len(configured)} roles resolve to {one}. "
+                    f"{len(named)} of them name it explicitly and the rest "
+                    "inherit it; the routing is recorded but the model is the "
+                    "same for every stage.")
+        return (f"All {len(configured)} roles inherit {one}. The routing "
+                "decision is still made and recorded, and the same model "
+                "serves every stage.")
+    return ("No model id is configured for any role, so every stage is served "
+            "by the provider's own default. The routing decision is still made "
+            "and recorded.")
 
 
 def verify(provider: Any) -> list[str]:

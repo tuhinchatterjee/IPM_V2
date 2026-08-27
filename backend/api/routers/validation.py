@@ -139,19 +139,43 @@ def validate(principal: Principal = RequireAnalyst) -> dict:
     conversation — and randomly chosen within each, so a score cannot be earned
     by tuning the product to three known questions.
     """
+    from backend.llm import telemetry
     from backend.validation import runner, store
 
     try:
         result = runner.run(user_id=principal.user_id)
     except Exception as e:  # noqa: BLE001
+        # Never an unexplained 500. A check that fails with a stack trace tells
+        # the person who pressed the button nothing about whether the product
+        # is broken, the key has expired, or the account is out of credit —
+        # three problems with three completely different owners.
         logger.exception("The intelligence check failed")
+        category = telemetry.classify(e)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"error": "validation_failed", "message": str(e)}) from e
+            detail={
+                "error": "validation_failed",
+                "category": category,
+                "message": telemetry.CATEGORY_DETAIL.get(
+                    category, telemetry.CATEGORY_DETAIL[telemetry.UNKNOWN]),
+                "detail": telemetry.sanitise(str(e))[:300],
+            }) from e
 
-    result.run_id = store.save(result, user_id=principal.user_id)
     payload = result.to_dict()
-    payload["stored"] = result.run_id is not None
+
+    # A run that completed and could not be filed is still a run. Losing the
+    # result to a database problem — and reporting it as a validation failure —
+    # would be the check lying about itself.
+    try:
+        result.run_id = store.save(result, user_id=principal.user_id)
+        payload["stored"] = result.run_id is not None
+        payload["run_id"] = result.run_id
+    except Exception as e:  # noqa: BLE001
+        logger.exception("The intelligence check could not be stored")
+        payload["stored"] = False
+        payload["storage_error"] = (
+            "This check ran and its result could not be saved, so it will not "
+            "appear in the history: " + telemetry.sanitise(str(e))[:200])
     return payload
 
 
