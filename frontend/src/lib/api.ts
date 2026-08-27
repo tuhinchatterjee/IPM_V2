@@ -953,10 +953,22 @@ export interface AiStatus {
     live_verified: boolean;
     stale: boolean;
     reason: string;
+    /** LIVE_VERIFIED | PASSED_NOT_STORED | FAILED | NOT_ELIGIBLE | DRY_RUN */
+    status: string;
     verified_at: string;
     mode: string;
     calls: number;
     components: string[];
+    /** What the stored report was made against... */
+    verified_sha: string;
+    verified_short_sha: string;
+    verified_fingerprint: string;
+    /** ...and what is running now, so STALE can show its own reason. */
+    running_sha: string;
+    running_short_sha: string;
+    running_fingerprint: string;
+    role_models: Record<string, string>;
+    role_efforts: Record<string, string>;
     caveat: string;
     command: string;
     runnable_here: boolean;

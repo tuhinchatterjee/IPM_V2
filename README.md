@@ -386,9 +386,34 @@ never printed, and never written to the report.
 Start the stack first (`docker compose up -d --build`). Every mode except
 `-DryRun` makes real calls and consumes credit; each prints its estimate and
 asks before it starts. The result is written to
-`logs/live_ai_verification_<commit>.json`, and Settings shows **LIVE VERIFIED**
-only while that report matches the commit and the model configuration that are
-actually running.
+`logs/live_ai_verification_<commit>.json`, and the AI panel shows
+**LIVE VERIFIED** only while that report matches the commit and the model
+configuration that are actually running.
+
+**Every run ends with a STATUS line and a matching exit code.** Passing calls
+and a stored report are two different things, and only both together are a
+verification:
+
+| Exit | Status | What it means |
+|------|--------|---------------|
+| 0 | `DRY_RUN` | Nothing was spent and nothing was verified. |
+| 0 | `LIVE_VERIFIED` | The calls passed **and** the report was stored. The AI panel will show LIVE VERIFIED. |
+| 2 | `PASSED_NOT_STORED` | The calls passed and the report could not be stored. Nothing is bound to the commit, the panel will **not** show LIVE VERIFIED, and the run cannot be audited later. |
+| 1 | `FAILED` | At least one case did not pass. |
+| 3 | `NOT_ELIGIBLE` | No key in `.env`, or the image was built from a different commit. |
+
+If PowerShell refuses to run the script, check it first:
+
+```powershell
+powershell -ExecutionPolicy Bypass -Command "$e=$null;[void][System.Management.Automation.Language.Parser]::ParseFile('scripts\verify-live-ai.ps1',[ref]$null,[ref]$e);$e"
+```
+
+That prints nothing when the file parses. All the `.ps1` files here are kept
+pure ASCII on purpose: Windows PowerShell 5.1 reads a script without a byte
+order mark using the system ANSI code page, so a single typographic dash can
+decode into a character PowerShell treats as a quotation mark and break the
+whole file. `python scripts/check_powershell.py` enforces that, and
+`pytest tests/scripts` runs it.
 
 ---
 

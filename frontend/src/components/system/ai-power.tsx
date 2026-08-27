@@ -335,14 +335,33 @@ function LiveVerification({
             {state.calls} live provider {state.calls === 1 ? "call" : "calls"} on
             this build, covering {state.components.join(", ") || "the live path"}.
           </p>
-          <p className="mt-1 text-[11px] text-text-muted">{state.caveat}</p>
+          {/* What it was measured against. A badge whose subject cannot be
+              named is a badge nobody can check. */}
+          <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[11px]">
+            <Fact label="Commit" value={state.verified_short_sha} mono />
+            <Fact label="Configuration" value={state.verified_fingerprint} mono />
+            <Fact label="Mode" value={state.mode} />
+            <Fact label="Verified" value={state.verified_at.slice(0, 16).replace("T", " ")} />
+          </dl>
+          <p className="mt-1.5 text-[11px] text-text-muted">{state.caveat}</p>
         </>
       ) : (
         <>
           <p className="mt-1.5 text-[12px] text-text-secondary">
             {state.reason || "This build has not been verified against the live model."}
           </p>
-          <p className="mt-1 text-[11px] text-text-muted">{state.why}</p>
+          {/* Stale means a verification once existed and something moved.
+              Showing both sides answers "moved how?" without a second click. */}
+          {state.stale && (
+            <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[11px]">
+              <Fact label="Verified on" value={state.verified_short_sha} mono />
+              <Fact label="Running" value={state.running_short_sha} mono />
+              {state.verified_fingerprint !== state.running_fingerprint && (
+                <Fact label="Model configuration" value="changed" />
+              )}
+            </dl>
+          )}
+          <p className="mt-1.5 text-[11px] text-text-muted">{state.why}</p>
           <code className="mt-2 block rounded bg-surface px-2 py-1 font-mono text-[11px] text-text-secondary">
             {state.command}
           </code>

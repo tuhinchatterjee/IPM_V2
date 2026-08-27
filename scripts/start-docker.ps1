@@ -1,4 +1,4 @@
-# Start CreditProbe on Windows using Docker — one command.
+# Start CreditProbe on Windows using Docker - one command.
 #
 #     .\scripts\start-docker.ps1
 #
@@ -50,7 +50,7 @@ Ok "Docker Desktop is running"
 # .env is optional: docker-compose.yml carries development defaults for
 # everything CreditProbe needs. It is only mentioned so the choice is visible.
 if (Test-Path ".env") { Ok "Using the settings in your .env file" }
-else { Warn "No .env file — using the built-in development defaults (this is fine)" }
+else { Warn "No .env file - using the built-in development defaults (this is fine)" }
 
 # --------------------------------------------------------------- start it
 

@@ -1,4 +1,4 @@
-# Start CreditProbe for local development — one command, on Windows.
+# Start CreditProbe for local development - one command, on Windows.
 #
 #     .\scripts\dev.ps1
 #
@@ -72,7 +72,7 @@ if (Test-Path ".venv\Scripts\python.exe") {
 } else {
     $Python = (Get-Command python -ErrorAction SilentlyContinue).Source
     if (-not $Python) { Die "Python is not installed." "Install Python 3.11 or newer from https://www.python.org/downloads/" }
-    Warn "No .venv found — using $Python. Create one with:  python -m venv .venv"
+    Warn "No .venv found - using $Python. Create one with:  python -m venv .venv"
 }
 Ok "Python found"
 
@@ -120,7 +120,7 @@ $analyticsDir = if ($env:DATA_ANALYTICS_DIR) { $env:DATA_ANALYTICS_DIR } else { 
 if (Test-Path (Join-Path $analyticsDir "portfolio_facility")) {
     Ok "Analytical layer already built"
 } else {
-    Warn "Not built yet — building it now (this takes a few seconds)"
+    Warn "Not built yet - building it now (this takes a few seconds)"
     & $Python scripts/generate_saudi_universe.py
 }
 

@@ -54,6 +54,34 @@ FULL_CERTIFICATION = "fullcertification"
 MODES: tuple[str, ...] = (DRYRUN, QUICK, CRITICAL, FULL_ROUTING,
                           FULL_CERTIFICATION)
 
+#: What a run amounted to. Four outcomes, and no fifth.
+#:
+#: The distinction that matters is between the middle two. A run whose live
+#: calls all passed but whose report could not be stored is NOT a verification:
+#: nothing is bound to the commit or to the model configuration, the product
+#: cannot show durable verification, and nobody can audit it later. Reporting
+#: that as success — which is what "live verified yes" beside "REPORT NOT
+#: WRITTEN" did — tells the operator the opposite of the truth.
+STATUS_DRY_RUN = "DRY_RUN"
+STATUS_LIVE_VERIFIED = "LIVE_VERIFIED"
+STATUS_PASSED_NOT_STORED = "PASSED_NOT_STORED"
+STATUS_FAILED = "FAILED"
+STATUS_NOT_ELIGIBLE = "NOT_ELIGIBLE"
+
+#: The exit-code contract, shared verbatim with scripts/verify-live-ai.ps1.
+EXIT_OK = 0
+EXIT_FAILED = 1
+EXIT_PASSED_NOT_STORED = 2
+EXIT_NOT_ELIGIBLE = 3
+
+EXIT_FOR: dict[str, int] = {
+    STATUS_DRY_RUN: EXIT_OK,
+    STATUS_LIVE_VERIFIED: EXIT_OK,
+    STATUS_FAILED: EXIT_FAILED,
+    STATUS_PASSED_NOT_STORED: EXIT_PASSED_NOT_STORED,
+    STATUS_NOT_ELIGIBLE: EXIT_NOT_ELIGIBLE,
+}
+
 #: Where reports are written. Mounted from the host in docker-compose, so a
 #: report produced inside the container lands beside the repository.
 REPORT_DIR = Path(os.environ.get("IPM_LOG_DIR", "logs"))
@@ -144,10 +172,21 @@ class Report:
     notes: list[str] = field(default_factory=list)
 
     #: True only when real provider calls actually happened AND all of them
-    #: conformed. This is the field the product reads before it may display
-    #: LIVE VERIFIED, and it is deliberately impossible to set from a run that
-    #: made no calls.
+    #: conformed. Necessary for LIVE VERIFIED and, on its own, not sufficient:
+    #: a result nobody could store cannot be bound to this build.
     live_verified: bool = False
+
+    #: The outcome as one word. See the STATUS_* constants.
+    #:
+    #: Empty until a runner settles it. Defaulting it to DRY_RUN read as a
+    #: sensible starting value and was not one: `_finish` deliberately leaves
+    #: DRY_RUN alone, so a Quick run that passed every case kept the default
+    #: and reported itself as a dry run.
+    status: str = ""
+    #: Where the report was filed, when it could be.
+    stored_path: str = ""
+    #: Why it could not be, when it could not.
+    storage_error: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {**asdict(self), "cases": [asdict(c) for c in self.cases]}
@@ -263,6 +302,7 @@ def dry_run() -> Report:
 
     report.passed = True
     report.live_verified = False
+    report.status = STATUS_DRY_RUN
     return _finish(report)
 
 
@@ -309,6 +349,7 @@ def quick() -> Report:
     if not can:
         report.failures.append(why)
         report.passed = False
+        report.status = STATUS_NOT_ELIGIBLE
         return _finish(report)
 
     from backend.llm import get_provider
@@ -492,6 +533,7 @@ def critical() -> Report:
     if not can:
         report.failures.append(why)
         report.passed = False
+        report.status = STATUS_NOT_ELIGIBLE
         return _finish(report)
 
     from backend.validation import threads as thread_runner
@@ -545,6 +587,7 @@ def full_routing() -> Report:
     if not can:
         report.failures.append(why)
         report.passed = False
+        report.status = STATUS_NOT_ELIGIBLE
         return _finish(report)
 
     report.cases.extend(_run_pytest(
@@ -586,6 +629,7 @@ def full_certification() -> Report:
     if not can:
         report.failures.append(why)
         report.passed = False
+        report.status = STATUS_NOT_ELIGIBLE
         return _finish(report)
 
     try:
@@ -690,6 +734,15 @@ def _now() -> str:
 
 
 def _finish(report: Report) -> Report:
+    """Stamp the duration, and settle the status the run has earned so far.
+
+    "So far" because storage has not been attempted yet: `main` upgrades a
+    passing run to LIVE_VERIFIED only once the report is actually on disk, and
+    downgrades it to PASSED_NOT_STORED when it is not.
+    """
+    if report.status not in (STATUS_NOT_ELIGIBLE, STATUS_DRY_RUN):
+        report.status = (STATUS_LIVE_VERIFIED if report.live_verified
+                         else STATUS_FAILED)
     report.finished_at = _now()
     try:
         from datetime import datetime
@@ -705,30 +758,134 @@ def _finish(report: Report) -> Report:
 #: Keys that must never appear in a written report, whatever produced them.
 #: Checked rather than trusted: this file is the last thing between a live run
 #: and a JSON document a user may attach to an email.
-_FORBIDDEN = ("api_key", "apikey", "authorization", "anthropic_api_key",
-              "secret", "token", "password", "bearer")
+#: Field names that carry a CREDENTIAL. Matched on the whole normalised key,
+#: not as a substring of it.
+#:
+#: The substring rule this replaces refused a Quick run that had passed: every
+#: role case carries `input_tokens` and `output_tokens`, "token" was on the
+#: list, and so a verification that had made twelve successful live calls could
+#: not be filed. A scanner that blocks the evidence it exists to protect is a
+#: scanner people turn off.
+CREDENTIAL_FIELDS: frozenset[str] = frozenset({
+    "api_key", "apikey", "anthropic_api_key", "openai_api_key",
+    "x_api_key", "auth", "authorization", "authorization_header",
+    "auth_header", "auth_token", "access_token", "refresh_token",
+    "bearer_token", "id_token", "session_token", "csrf_token",
+    "token",           # bare, it is a credential; the counts below are named
+    "secret", "secrets", "client_secret", "secret_key", "signing_key",
+    "password", "passwd", "pwd", "passphrase",
+    "credential", "credentials", "private_key", "cookie", "set_cookie",
+})
+
+#: Numerical telemetry that merely COUNTS tokens. Explicitly permitted, and
+#: required to be a number: a string under `input_tokens` is not a count.
+TOKEN_TELEMETRY: frozenset[str] = frozenset({
+    "input_tokens", "output_tokens", "total_tokens",
+    "cached_input_tokens", "cache_creation_input_tokens",
+    "cache_read_input_tokens", "prompt_tokens", "completion_tokens",
+    "max_tokens", "token_count", "tokens", "tokens_used",
+})
+
+#: Content that is not a credential and still must never be filed: the raw
+#: material of a request, the client's own rows, or a benchmark's answers.
+#: These are the §4 prohibitions that a key scanner alone would not catch.
+CONFIDENTIAL_FIELDS: frozenset[str] = frozenset({
+    "prompt", "raw_prompt", "system", "system_prompt", "messages",
+    "request_body", "raw_request", "body", "payload_body",
+    "rows", "raw_rows", "data_rows", "records", "sample_rows",
+    "gold", "gold_answer", "gold_answers", "expected_answer", "answer_key",
+})
+
+#: Suffixes that make a field a credential whatever it is prefixed with, so
+#: `provider_access_token` is caught without listing every provider.
+CREDENTIAL_SUFFIXES: tuple[str, ...] = (
+    "_api_key", "_access_token", "_refresh_token", "_bearer_token",
+    "_id_token", "_session_token", "_auth_token", "_secret", "_password",
+    "_credential", "_private_key", "_passphrase",
+)
+
+#: Values that are a credential on sight.
+CREDENTIAL_VALUES: tuple[tuple[str, str], ...] = (
+    (r"sk-ant[-\w]", "an Anthropic API key"),
+    (r"sk_live[-\w]", "a live secret key"),
+    (r"sk-proj[-\w]", "a project API key"),
+    (r"(?i)\bBearer\s+[A-Za-z0-9._\-]{16,}", "a bearer credential"),
+    (r"(?i)\bBasic\s+[A-Za-z0-9+/]{16,}={0,2}", "a basic-auth credential"),
+    (r"(?i)\bx-api-key\s*[:=]", "an API-key header"),
+)
+
+
+def _normalised(key: str) -> str:
+    """A field name in the one form the rules are written against."""
+    out = []
+    for ch in str(key).lower():
+        out.append(ch if ch.isalnum() else "_")
+    return "_".join(part for part in "".join(out).split("_") if part)
+
+
+def _field_problem(key: str, value: Any) -> str:
+    """Why this field may not be written, or an empty string.
+
+    Order matters. Token telemetry is checked FIRST, because it is the case
+    that was wrongly refused and because `input_tokens` would otherwise be
+    caught by the bare `token` rule the moment anybody re-broadened it.
+    """
+    name = _normalised(key)
+
+    if name in TOKEN_TELEMETRY:
+        if value is None or isinstance(value, bool):
+            return ""
+        if isinstance(value, (int, float)):
+            return ""
+        return (f"{key!r} is token-usage telemetry and must be a number; "
+                "this one holds a string")
+
+    if name in CREDENTIAL_FIELDS:
+        return f"{key!r} is a credential field"
+    if name in CONFIDENTIAL_FIELDS:
+        return (f"{key!r} carries raw request or client content, which a "
+                "verification report may not record")
+    for suffix in CREDENTIAL_SUFFIXES:
+        if name.endswith(suffix.strip("_")) and name != suffix.strip("_"):
+            return f"{key!r} ends in a credential suffix"
+        if ("_" + name).endswith(suffix):
+            return f"{key!r} ends in a credential suffix"
+    return ""
+
+
+def _value_problem(value: str) -> str:
+    """Why this value may not be written, or an empty string."""
+    import re as _re
+
+    for pattern, what in CREDENTIAL_VALUES:
+        if _re.search(pattern, value):
+            return f"the value looks like {what}"
+    return ""
 
 
 def _key_free(payload: dict[str, Any]) -> list[str]:
-    """Anything in the report that must not be written. Empty is the pass."""
+    """Everything in the report that must not be written. Empty is the pass.
+
+    Returns the PATH and the reason together, so a refusal tells whoever ran
+    the verification which field to look at rather than making them guess.
+    """
     found: list[str] = []
 
     def walk(value: Any, path: str) -> None:
         if isinstance(value, dict):
             for key, item in value.items():
-                lowered = str(key).lower()
-                if any(bad in lowered for bad in _FORBIDDEN):
-                    found.append(f"{path}.{key}")
-                walk(item, f"{path}.{key}")
+                where = f"{path}.{key}"
+                problem = _field_problem(key, item)
+                if problem:
+                    found.append(f"{where} ({problem})")
+                walk(item, where)
         elif isinstance(value, list):
             for index, item in enumerate(value):
                 walk(item, f"{path}[{index}]")
         elif isinstance(value, str):
-            # An Anthropic key is `sk-ant-` followed by a long opaque string.
-            # Matching the prefix rather than the length: a truncated key is
-            # still a key, and a report is not the place to be clever.
-            if "sk-ant" in value or "sk_live" in value:
-                found.append(path)
+            problem = _value_problem(value)
+            if problem:
+                found.append(f"{path} ({problem})")
 
     walk(payload, "report")
     return found
@@ -819,14 +976,29 @@ def badge(directory: Path | None = None) -> dict[str, Any]:
     # has never been verified is NOT VERIFIED, and calling it stale would
     # imply a verification once existed.
     was_verified = bool(found) and bool(found.get("live_verified"))
+    current = Report()
+    _stamp(current)
     return {
         "live_verified": bool(found) and not stale,
         "stale": was_verified and stale,
         "reason": why,
+        "status": str(found.get("status") or ""),
         "verified_at": str(found.get("finished_at") or ""),
         "mode": str(found.get("mode") or ""),
         "calls": int(found.get("live_calls_made") or 0),
         "components": list(found.get("components") or []),
+        # What the stored verification was made against, and what is running
+        # now. Both, so a reader can see WHY it is stale rather than being
+        # told that it is.
+        "verified_sha": str(found.get("git_sha") or ""),
+        "verified_short_sha": str(found.get("git_sha") or "")[:12],
+        "verified_fingerprint":
+            str(found.get("configuration_fingerprint") or ""),
+        "running_sha": current.git_sha,
+        "running_short_sha": current.git_sha[:12],
+        "running_fingerprint": current.configuration_fingerprint,
+        "role_models": dict(found.get("role_models") or {}),
+        "role_efforts": dict(found.get("role_efforts") or {}),
         # Said on every surface that shows the badge. A live verification
         # proves the path works on the cases it exercised; it is not a
         # statistical claim about accuracy, and a product that lets one be read
@@ -867,21 +1039,69 @@ def main(argv: list[str] | None = None) -> int:
     report = RUNNERS[args.mode]()
 
     directory = Path(args.out) if args.out else None
-    try:
-        path = write(report, directory)
-    except Exception as e:  # noqa: BLE001 - refusing to write is a result
-        print(f"REPORT NOT WRITTEN: {e}", file=sys.stderr)
-        path = None
+    path = store_result(report, directory)
 
     if args.json:
         print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
     else:
         _print_summary(report, path)
-    return 0 if report.passed else 1
+    return EXIT_FOR.get(report.status, EXIT_FAILED)
+
+
+def store_result(report: Report, directory: Path | None = None) -> Path | None:
+    """File the report, and settle what the run is actually worth.
+
+    A run whose calls passed and whose report could not be stored is downgraded
+    here, not glossed over. The previous behaviour printed the refusal to
+    stderr and then announced "live verified yes" three lines later, which is
+    the one thing an operator cannot be told: the calls did work, and nothing
+    about them was kept, so the product will show nothing and nobody can audit
+    it. Both halves are true and only the second one governs what happens next.
+    """
+    if report.status == STATUS_FAILED or report.status == STATUS_NOT_ELIGIBLE:
+        # Still filed where it can be: a failed verification is evidence too.
+        # But its status does not change, and a refusal to write one is not
+        # worth escalating over.
+        try:
+            return write(report, directory)
+        except Exception as e:  # noqa: BLE001
+            report.storage_error = str(e)
+            return None
+
+    try:
+        path = write(report, directory)
+    except Exception as e:  # noqa: BLE001 - refusing to write IS the result
+        report.storage_error = str(e)
+        if report.status == STATUS_LIVE_VERIFIED:
+            report.status = STATUS_PASSED_NOT_STORED
+        print(f"REPORT NOT WRITTEN: {e}", file=sys.stderr)
+        return None
+
+    report.stored_path = str(path)
+    return path
+
+
+#: What each status means, in the words the operator needs. Printed rather
+#: than left to be inferred from an exit code nobody reads.
+STATUS_DETAIL: dict[str, str] = {
+    STATUS_DRY_RUN:
+        "Nothing was spent and nothing was verified.",
+    STATUS_LIVE_VERIFIED:
+        "The live calls passed AND the report was stored against this commit. "
+        "The AI panel will show LIVE VERIFIED.",
+    STATUS_PASSED_NOT_STORED:
+        "The live calls PASSED, but the report could not be stored. Nothing "
+        "is bound to this commit or model configuration, the AI panel will "
+        "NOT show LIVE VERIFIED, and the result cannot be audited later.",
+    STATUS_FAILED:
+        "At least one case did not pass.",
+    STATUS_NOT_ELIGIBLE:
+        "This build cannot be live verified: see the reason above.",
+}
 
 
 def _print_summary(report: Report, path: Path | None) -> None:
-    print(f"CreditProbe live verification — {report.mode}")
+    print(f"CreditProbe live verification - {report.mode}")
     print(f"  commit            {report.git_sha[:12] or 'unknown'}"
           f"{' (dirty)' if report.git_dirty else ''}")
     print(f"  branch            {report.git_branch or 'unknown'}")
@@ -899,7 +1119,8 @@ def _print_summary(report: Report, path: Path | None) -> None:
             spend = "spends credit" if calls else "free"
             print(f"    {mode:<20}{calls:>4}   {spend}")
         can, why = eligible(report)
-        print(f"  eligible          {'yes' if can else 'no' + (f' — {why}' if why else '')}")
+        print(f"  eligible          "
+              f"{'yes' if can else 'no' + (f' - {why}' if why else '')}")
     else:
         print(f"  live calls        {report.live_calls_made}")
         for case in report.cases:
@@ -911,9 +1132,18 @@ def _print_summary(report: Report, path: Path | None) -> None:
         print(f"  note: {note}")
     for failure in report.failures:
         print(f"  FAILED: {failure}")
-    print(f"  live verified     {'yes' if report.live_verified else 'no'}")
+
+    # Three separate facts, never collapsed into one. The middle one is the
+    # whole point of this block: calls can pass and still leave nothing behind.
+    print(f"  live calls passed {'yes' if report.live_verified else 'no'}")
+    print(f"  report stored     {'yes' if path else 'NO'}")
+    if report.storage_error:
+        print(f"    reason          {report.storage_error}")
+    print(f"  STATUS            {report.status}")
+    print(f"    {STATUS_DETAIL.get(report.status, '')}")
     if path:
         print(f"  report            {path}")
+    print(f"  exit code         {EXIT_FOR.get(report.status, EXIT_FAILED)}")
 
 
 if __name__ == "__main__":  # pragma: no cover - the entry point

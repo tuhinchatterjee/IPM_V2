@@ -6,7 +6,7 @@
 
 .DESCRIPTION
     Every automated gate in this repository runs without a provider key. That
-    is correct — the deterministic governed reader has to work on its own — but
+    is correct - the deterministic governed reader has to work on its own - but
     it means a green suite proves nothing whatever about the live path. A
     product that shows "AI POWERED" on the strength of a test that never called
     a model is making a claim it has not earned.
@@ -19,19 +19,47 @@
     Nothing needs to be installed except Docker Desktop. No Python, no Node.js.
 
 .NOTES
+    THIS FILE IS DELIBERATELY PURE ASCII
+    ------------------------------------
+    Windows PowerShell 5.1 reads a .ps1 with no byte order mark using the
+    system ANSI code page, not UTF-8. On a Western install that is CP1252, so
+    the three UTF-8 bytes of an em dash (E2 80 94) decode as "a-circumflex",
+    "euro sign", and U+201D RIGHT DOUBLE QUOTATION MARK. PowerShell's tokenizer
+    accepts U+201D as a closing double quote, so one em dash inside a
+    double-quoted string ended that string early, the real quote then opened a
+    new one, and the parser ran to the end of the file before reporting
+
+        The string is missing the terminator: ".
+
+    at a line hundreds of lines below the actual fault. Keeping this file to
+    ASCII removes the whole class: every code page agrees on bytes 0x00-0x7F.
+    tests/scripts/test_powershell_script.py enforces it.
+
     THE KEY
     -------
     This script never reads, prints, logs or writes your API key. It does not
-    pass it as a Docker build argument — a build argument is baked into an image
-    layer and travels with the image. It is injected at RUN time by
-    docker-compose from .env, which is gitignored, and the verification asks the
-    provider only whether a key is *present*.
+    pass it as a Docker build argument - a build argument is baked into an
+    image layer and travels with the image. It is injected at RUN time by
+    docker-compose from .env, which is gitignored, and the verification asks
+    the provider only whether a key is *present*.
 
     COST
     ----
     -DryRun spends nothing. Every other mode makes real provider calls and
     consumes credit; each prints its estimate before it runs and, unless you
     pass -Yes, asks you to confirm.
+
+    EXIT CODES
+    ----------
+    These are a contract shared with backend/validation/live_verify.py. A run
+    whose calls passed but whose report could not be stored is NOT a success:
+    nothing can be bound to the build, and the product will not show durable
+    verification.
+
+        0   LIVE_VERIFIED or DRY_RUN
+        1   FAILED               a case did not pass
+        2   PASSED_NOT_STORED    calls passed, report refused or unwritable
+        3   NOT_ELIGIBLE         no key, or the image is not this commit
 
 .PARAMETER DryRun
     Report what would be verified, and what each mode would cost. Zero credits.
@@ -54,8 +82,8 @@
     most expensive mode by a wide margin.
 
     This is NOT the sealed certification. The sealed holdout lives outside the
-    application and the product may not import it — a product that can reach
-    its own exam has no exam — so certifying against it is a build-time command
+    application and the product may not import it - a product that can reach
+    its own exam has no exam - so certifying against it is a build-time command
     run from the repository, not a mode of a tool that runs inside a container.
 
 .PARAMETER Yes
@@ -90,15 +118,23 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-Set-StrictMode -Version Latest
+
+# Version 2.0 rather than Latest: Latest means different things on Windows
+# PowerShell 5.1 and on PowerShell 7, and a script that behaves differently on
+# the two is exactly what this file exists to avoid.
+Set-StrictMode -Version 2.0
+
+# Defined before anything can read it. Under StrictMode an unset variable
+# throws, and $LASTEXITCODE does not exist until a native command has run.
+$LASTEXITCODE = 0
 
 # The repository root, from this script's own location, so the script works
 # from any working directory.
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-Push-Location $RepoRoot
+Push-Location -Path $RepoRoot
 
 # What each mode roughly costs. Repeated here as well as in the Python module
-# so the number is on screen BEFORE anything is started — a tool that tells you
+# so the number is on screen BEFORE anything is started. A tool that tells you
 # what a run cost afterwards is a tool people stop running.
 $EstimatedCalls = @{
     'dryrun'            = 0
@@ -108,35 +144,48 @@ $EstimatedCalls = @{
     'fullcertification' = 120
 }
 
-function Write-Head([string]$Text) {
+# The exit-code contract, shared with backend/validation/live_verify.py.
+$ExitLiveVerified   = 0
+$ExitFailed         = 1
+$ExitPassedNotStored = 2
+$ExitNotEligible    = 3
+
+function Write-Head {
+    param([string]$Text)
     Write-Host ''
     Write-Host $Text -ForegroundColor Cyan
     Write-Host ('-' * $Text.Length) -ForegroundColor DarkGray
 }
 
-function Write-Field([string]$Label, [string]$Value, [string]$Colour = 'Gray') {
+function Write-Field {
+    param(
+        [string]$Label,
+        [string]$Value,
+        [string]$Colour = 'Gray'
+    )
     Write-Host ('  {0,-22}' -f $Label) -NoNewline
     Write-Host $Value -ForegroundColor $Colour
 }
 
-function Fail([string]$Message) {
+function Stop-With {
+    param([string]$Message, [int]$Code)
     Write-Host ''
-    Write-Host "  $Message" -ForegroundColor Red
+    Write-Host ('  {0}' -f $Message) -ForegroundColor Red
     Pop-Location
-    exit 1
+    exit $Code
 }
 
 # --------------------------------------------------------------- which mode
 
-$Mode = switch ($PSCmdlet.ParameterSetName) {
-    'Quick'             { 'quick' }
-    'Critical'          { 'critical' }
-    'FullRouting'       { 'fullrouting' }
-    'FullCertification' { 'fullcertification' }
-    default             { 'dryrun' }
+$Mode = 'dryrun'
+switch ($PSCmdlet.ParameterSetName) {
+    'Quick'             { $Mode = 'quick' }
+    'Critical'          { $Mode = 'critical' }
+    'FullRouting'       { $Mode = 'fullrouting' }
+    'FullCertification' { $Mode = 'fullcertification' }
 }
 
-Write-Head "CreditProbe live AI verification — $Mode"
+Write-Head ('CreditProbe live AI verification - {0}' -f $Mode)
 
 # ------------------------------------------------------------ the local repo
 #
@@ -144,21 +193,44 @@ Write-Head "CreditProbe live AI verification — $Mode"
 # image was built from the commit you are looking at, and only the host can
 # answer half of that.
 
-$Sha = 'unknown'; $Branch = 'unknown'; $Dirty = $false
-if (Get-Command git -ErrorAction SilentlyContinue) {
+$Sha = 'unknown'
+$Branch = 'unknown'
+$Dirty = $false
+
+$GitCommand = Get-Command git -ErrorAction SilentlyContinue
+if ($null -ne $GitCommand) {
     try {
-        $Sha = (git rev-parse HEAD 2>$null).Trim()
-        $Branch = (git rev-parse --abbrev-ref HEAD 2>$null).Trim()
-        $Dirty = -not [string]::IsNullOrWhiteSpace((git status --porcelain 2>$null))
-    } catch {
+        $RawSha = & git rev-parse HEAD 2>$null
+        if ($LASTEXITCODE -eq 0 -and $null -ne $RawSha) {
+            $Sha = ([string]$RawSha).Trim()
+        }
+        $RawBranch = & git rev-parse --abbrev-ref HEAD 2>$null
+        if ($LASTEXITCODE -eq 0 -and $null -ne $RawBranch) {
+            $Branch = ([string]$RawBranch).Trim()
+        }
+        $RawStatus = & git status --porcelain 2>$null
+        $Dirty = -not [string]::IsNullOrWhiteSpace(($RawStatus | Out-String))
+    }
+    catch {
         Write-Host '  (git is present but this is not a repository)' -ForegroundColor DarkYellow
     }
 }
 
+$ShortSha = 'unknown'
+if ($Sha -ne 'unknown' -and $Sha.Length -ge 12) {
+    $ShortSha = $Sha.Substring(0, 12)
+}
+
+$TreeState = 'clean'
+$TreeColour = 'Gray'
+if ($Dirty) {
+    $TreeState = 'DIRTY - uncommitted changes'
+    $TreeColour = 'Yellow'
+}
+
 Write-Field 'branch' $Branch
-Write-Field 'commit' $(if ($Sha -ne 'unknown') { $Sha.Substring(0, 12) } else { $Sha })
-Write-Field 'working tree' $(if ($Dirty) { 'DIRTY — uncommitted changes' } else { 'clean' }) `
-    $(if ($Dirty) { 'Yellow' } else { 'Gray' })
+Write-Field 'commit' $ShortSha
+Write-Field 'working tree' $TreeState $TreeColour
 
 # ---------------------------------------------------------------- the .env
 #
@@ -166,53 +238,71 @@ Write-Field 'working tree' $(if ($Dirty) { 'DIRTY — uncommitted changes' } els
 # one. Absence is worth saying out loud because it is the commonest reason a
 # live mode cannot run.
 
-$EnvPath = Join-Path $RepoRoot '.env'
-if (Test-Path $EnvPath) {
-    # Whether the file MENTIONS the variable. The value is never read.
-    $Mentions = Select-String -Path $EnvPath -Pattern '^\s*ANTHROPIC_API_KEY\s*=' -Quiet
-    Write-Field '.env' $(if ($Mentions) { 'present, names ANTHROPIC_API_KEY' } else { 'present, does not name ANTHROPIC_API_KEY' }) `
-        $(if ($Mentions) { 'Gray' } else { 'Yellow' })
-} else {
-    Write-Field '.env' 'not found — copy .env.example and add your key' 'Yellow'
+$EnvPath = Join-Path -Path $RepoRoot -ChildPath '.env'
+if (Test-Path -LiteralPath $EnvPath) {
+    # Whether the file NAMES the variable. The value is never read.
+    $Names = Select-String -LiteralPath $EnvPath -Pattern '^\s*ANTHROPIC_API_KEY\s*=' -Quiet
+    if ($Names) {
+        Write-Field '.env' 'present, names ANTHROPIC_API_KEY'
+    }
+    else {
+        Write-Field '.env' 'present, does not name ANTHROPIC_API_KEY' 'Yellow'
+    }
+}
+else {
+    Write-Field '.env' 'not found - copy .env.example and add your key' 'Yellow'
 }
 
 # ----------------------------------------------------------------- Docker
 
-if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-    Fail 'Docker was not found. Install Docker Desktop and start it, then run this again.'
+$DockerCommand = Get-Command docker -ErrorAction SilentlyContinue
+if ($null -eq $DockerCommand) {
+    Stop-With 'Docker was not found. Install Docker Desktop and start it, then run this again.' $ExitNotEligible
 }
 
-try {
-    docker version --format '{{.Server.Version}}' *> $null
-    if ($LASTEXITCODE -ne 0) { throw 'no daemon' }
-} catch {
-    Fail 'Docker is installed but not running. Start Docker Desktop and run this again.'
+$null = & docker version --format '{{.Server.Version}}' 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Stop-With 'Docker is installed but not running. Start Docker Desktop and run this again.' $ExitNotEligible
 }
 Write-Field 'docker' 'running'
 
 # The backend container has to be up: the key is injected into it at run time,
 # so verification happens inside it and nowhere else.
-$Running = (docker compose ps --status running --format '{{.Service}}' 2>$null) -split "`n" |
-    ForEach-Object { $_.Trim() } | Where-Object { $_ }
+$RunningRaw = & docker compose ps --status running --format '{{.Service}}' 2>&1
+$Running = @()
+if ($LASTEXITCODE -eq 0 -and $null -ne $RunningRaw) {
+    $Running = @(($RunningRaw | Out-String) -split "`r?`n" |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { $_.Length -gt 0 })
+}
+
 if ($Running -notcontains 'backend') {
     Write-Host ''
     Write-Host '  The backend container is not running.' -ForegroundColor Yellow
     Write-Host '  Start the stack first:' -ForegroundColor Gray
     Write-Host '      docker compose up -d --build' -ForegroundColor White
     Pop-Location
-    exit 1
+    exit $ExitNotEligible
 }
 Write-Field 'backend container' 'running'
 
 # ---------------------------------------------------- cost, and consent
 
-$Calls = $EstimatedCalls[$Mode]
-Write-Field 'estimated calls' $(if ($Calls -eq 0) { '0 — this mode spends nothing' } else { "$Calls (approximate)" }) `
-    $(if ($Calls -eq 0) { 'Green' } else { 'Yellow' })
+$Calls = 0
+if ($EstimatedCalls.ContainsKey($Mode)) {
+    $Calls = $EstimatedCalls[$Mode]
+}
+
+if ($Calls -eq 0) {
+    Write-Field 'estimated calls' '0 - this mode spends nothing' 'Green'
+}
+else {
+    Write-Field 'estimated calls' ('{0} (approximate)' -f $Calls) 'Yellow'
+}
 
 if ($Calls -gt 0 -and -not $Yes) {
     Write-Host ''
-    Write-Host "  This mode makes real Anthropic calls and consumes credit." -ForegroundColor Yellow
+    Write-Host '  This mode makes real Anthropic calls and consumes credit.' -ForegroundColor Yellow
     $Answer = Read-Host '  Continue? [y/N]'
     if ($Answer -notmatch '^(y|yes)$') {
         Write-Host '  Nothing was run.' -ForegroundColor Gray
@@ -230,9 +320,11 @@ $Arguments = @(
     'python', '-m', 'backend.validation.live_verify',
     '--mode', $Mode
 )
-if ($Json) { $Arguments += '--json' }
+if ($Json) {
+    $Arguments += '--json'
+}
 
-# `docker compose exec` with -T keeps stdin closed, which is what makes this
+# "docker compose exec" with -T keeps stdin closed, which is what makes this
 # usable from a script and from CI. The container already holds the key; it is
 # never passed on this command line, where it would land in the shell history
 # and in the process table.
@@ -243,30 +335,70 @@ $Code = $LASTEXITCODE
 
 Write-Head 'Report'
 
-$Short = if ($Sha -ne 'unknown') { $Sha.Substring(0, 12) } else { 'unknown' }
-$ReportPath = Join-Path $RepoRoot "logs\live_ai_verification_$Short.json"
+$ReportName = 'live_ai_verification_{0}.json' -f $ShortSha
+$LogDirectory = Join-Path -Path $RepoRoot -ChildPath 'logs'
+$ReportPath = Join-Path -Path $LogDirectory -ChildPath $ReportName
 
-if (Test-Path $ReportPath) {
+$ReportExists = Test-Path -LiteralPath $ReportPath
+if ($ReportExists) {
     Write-Field 'written to' $ReportPath
     Write-Host '  The report contains no key, no authorization header, no raw' -ForegroundColor DarkGray
     Write-Host '  prompt, no benchmark answers and no client data rows.' -ForegroundColor DarkGray
-} else {
+}
+else {
     Write-Field 'written to' 'no report file was produced' 'Yellow'
 }
 
-if ($Code -eq 0) {
-    if ($Mode -eq 'dryrun') {
-        Write-Host ''
-        Write-Host '  Dry run complete. Nothing was spent.' -ForegroundColor Green
-        Write-Host '  To verify for real:' -ForegroundColor Gray
-        Write-Host '      .\scripts\verify-live-ai.ps1 -Quick' -ForegroundColor White
-    } else {
-        Write-Host ''
-        Write-Host '  Verification passed.' -ForegroundColor Green
-        Write-Host '  This confirms the live model path ran and conformed on the' -ForegroundColor DarkGray
-        Write-Host '  cases listed. It is not a measure of accuracy.' -ForegroundColor DarkGray
-    }
-} else {
+# ------------------------------------------------------------- the verdict
+#
+# The exit code from the container is the authority. It already distinguishes
+# "the calls passed and the report was stored" from "the calls passed and the
+# report was refused", and the second is not a success: nothing can be bound to
+# the build, and the product will not show durable verification.
+
+$Status = 'UNKNOWN'
+switch ($Code) {
+    0 { $Status = 'LIVE_VERIFIED' }
+    1 { $Status = 'FAILED' }
+    2 { $Status = 'PASSED_NOT_STORED' }
+    3 { $Status = 'NOT_ELIGIBLE' }
+}
+if ($Mode -eq 'dryrun' -and $Code -eq 0) {
+    $Status = 'DRY_RUN'
+}
+
+Write-Field 'status' $Status $(if ($Code -eq 0) { 'Green' } else { 'Red' })
+
+if ($Status -eq 'DRY_RUN') {
+    Write-Host ''
+    Write-Host '  Dry run complete. Nothing was spent.' -ForegroundColor Green
+    Write-Host '  To verify for real:' -ForegroundColor Gray
+    Write-Host '      .\scripts\verify-live-ai.ps1 -Quick' -ForegroundColor White
+}
+elseif ($Status -eq 'LIVE_VERIFIED') {
+    Write-Host ''
+    Write-Host '  Verification passed and the report was stored.' -ForegroundColor Green
+    Write-Host '  The AI panel will now show LIVE VERIFIED for this commit.' -ForegroundColor Gray
+    Write-Host '  This confirms the live model path ran and conformed on the' -ForegroundColor DarkGray
+    Write-Host '  cases listed. It is not a measure of accuracy.' -ForegroundColor DarkGray
+}
+elseif ($Status -eq 'PASSED_NOT_STORED') {
+    Write-Host ''
+    Write-Host '  The live calls PASSED, but the report could not be stored.' -ForegroundColor Yellow
+    Write-Host '  This is not a complete verification:' -ForegroundColor Yellow
+    Write-Host '    - nothing is bound to this commit or model configuration' -ForegroundColor Gray
+    Write-Host '    - the AI panel will NOT show LIVE VERIFIED' -ForegroundColor Gray
+    Write-Host '    - the result cannot be audited later' -ForegroundColor Gray
+    Write-Host '  The reason is printed above. Fix it and run this again.' -ForegroundColor Gray
+}
+elseif ($Status -eq 'NOT_ELIGIBLE') {
+    Write-Host ''
+    Write-Host '  This build cannot be live verified yet. The reason is above.' -ForegroundColor Yellow
+    Write-Host '  Usually: no key in .env, or the image was built from a' -ForegroundColor Gray
+    Write-Host '  different commit than the one checked out. Rebuild with:' -ForegroundColor Gray
+    Write-Host '      docker compose up -d --build' -ForegroundColor White
+}
+else {
     Write-Host ''
     Write-Host '  Verification did not pass. See the cases above.' -ForegroundColor Red
 }
