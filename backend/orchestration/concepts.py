@@ -522,6 +522,7 @@ def read_concepts(question: str, *, known: dict[str, set[str]],
     reading = Reading()
     text = " ".join(str(question).split())
     seen: set[str] = set()
+    spans: list[tuple[int, int, Any]] = []
 
     for concept in _ORDERED:
         match = re.search(concept.pattern, text, re.IGNORECASE)
@@ -535,9 +536,39 @@ def read_concepts(question: str, *, known: dict[str, set[str]],
                 "dataset in this installation carries.")
             continue
         seen.add(concept.id)
-        reading.matches.append(resolved)
+        spans.append((*match.span(), resolved))
 
+    reading.matches.extend(m for _, _, m in _widest(spans))
     return reading
+
+
+def _widest(spans: list[tuple[int, int, Any]]) -> list[tuple[int, int, Any]]:
+    """Drop every match that is only part of a longer one.
+
+    "Average ECL coverage by grade" names one measure and matched two: the
+    `ecl` concept on the three letters inside "ECL coverage", and
+    `ecl_coverage` on the whole phrase. Both are governed and only one was
+    asked for, and the spurious one came first — so the answer led with a SUM
+    of expected credit loss under a question about coverage ratios.
+
+    The concepts are already ordered longest-pattern-first so a specific phrase
+    wins over a general one. That is the right intention applied to the wrong
+    thing: what has to win is the longer MATCH, and a pattern's length only
+    approximates that.
+
+    Two matches that merely overlap are both kept. "ECL coverage and DPD" is
+    two measures whichever way the spans fall; only containment means one
+    phrase WAS the other.
+    """
+    kept: list[tuple[int, int, Any]] = []
+    for start, end, match in sorted(spans, key=lambda s: (s[0], -(s[1] - s[0]))):
+        if any(other_start <= start and end <= other_end
+               for other_start, other_end, _ in spans
+               if (other_start, other_end) != (start, end)
+               and other_end - other_start > end - start):
+            continue
+        kept.append((start, end, match))
+    return kept
 
 
 def catalogue_fields(catalogue: Any) -> dict[str, set[str]]:

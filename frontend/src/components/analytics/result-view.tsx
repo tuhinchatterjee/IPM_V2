@@ -411,6 +411,12 @@ function ResultBody({
           {Object.keys(values).length > 0 && (
             <div className="flex flex-wrap gap-6">
               {Object.entries(values)
+                // A leading underscore marks a figure that exists so the
+                // grounding check can see it — a concentration share, a rank
+                // correlation. Real, derived, and not a headline: nobody
+                // opened this to read CONCENTRATION TOP THREE SHARE PCT beside
+                // the total.
+                .filter(([k]) => !k.startsWith("_"))
                 .filter(([, v]) => typeof v === "number" || typeof v === "string")
                 .slice(0, 6)
                 .map(([k, v]) => (

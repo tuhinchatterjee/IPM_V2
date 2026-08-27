@@ -408,6 +408,46 @@ def _composed_note(build: ap.AnalysisBuild) -> str:
             "certified analysis uses. It is not a certified method.")
 
 
+def _opening(label: str) -> str:
+    """A concept label starting a sentence.
+
+    `str.capitalize` lowers every character after the first, which turns "ECL
+    coverage" into "Ecl coverage" — the product mangling a term of art in the
+    first three letters of its own answer.
+    """
+    text = str(label or "").strip()
+    if not text:
+        return text
+    return text[:1].upper() + text[1:]
+
+
+def _primary_column(build: ap.AnalysisBuild, runtime: Any) -> str:
+    """The measure column as the result actually named it.
+
+    A joined measure lands prefixed by the dataset it came from, so the plan's
+    field name is not always the column name.
+    """
+    field_name = build.matches[0].field if build.matches else ""
+    if not field_name:
+        return ""
+    names = [str(c.get("name")) for c in (runtime.columns or [])]
+    if field_name in names:
+        return field_name
+    matches = [n for n in names if n.endswith(f"_{field_name}")]
+    return matches[0] if len(matches) == 1 else ""
+
+
+def _aggregation_of(build: ap.AnalysisBuild, column: str) -> str:
+    """How the plan rolled this column up: sum, avg, count."""
+    for operation in (build.plan.get("operations") or []):
+        if str(operation.get("op") or "") != "GROUP":
+            continue
+        for aggregate in ((operation.get("params") or {}).get("aggregates") or []):
+            if str(aggregate.get("as") or aggregate.get("column")) == column:
+                return str(aggregate.get("function") or "")
+    return ""
+
+
 def _values(build: ap.AnalysisBuild, runtime: Any) -> dict[str, Any]:
     values: dict[str, Any] = {"matching": runtime.row_count}
     # Derived figures the reading quotes are RESULT values. Association
@@ -416,10 +456,13 @@ def _values(build: ap.AnalysisBuild, runtime: Any) -> dict[str, Any]:
     # they belong beside the totals rather than appearing only in prose — where
     # the grounding check, quite correctly, reported them as figures the result
     # did not carry.
+    # Named with a leading underscore: they are there so the grounding check
+    # can see them, not so a reader sees "CONCENTRATION TOP THREE SHARE PCT"
+    # in the headline strip beside the total. The surface skips them.
     for name, coefficient in _association_values(build).items():
-        values[name] = coefficient
+        values[f"_{name}"] = coefficient
     for name, figure in _observed_values(build).items():
-        values.setdefault(name, figure)
+        values.setdefault(f"_{name}", figure)
     if build.period:
         values["period"] = build.period
     if build.opening:
@@ -429,10 +472,18 @@ def _values(build: ap.AnalysisBuild, runtime: Any) -> dict[str, Any]:
     # the returned rows rather than be recomputed here — a second computation
     # is a second thing that can disagree with the answer.
     if build.shape == ap.AGGREGATE and build.matches and runtime.rows:
-        column = build.matches[0].field
-        if all(isinstance(r.get(column), (int, float)) for r in runtime.rows):
-            values["total"] = round(
-                sum(float(r[column]) for r in runtime.rows), 4)
+        column = _primary_column(build, runtime)
+        if column and all(isinstance(r.get(column), (int, float))
+                          for r in runtime.rows):
+            numbers = [float(r[column]) for r in runtime.rows]
+            # A total is only a total when the groups were SUMMED. Adding up
+            # ten per-grade AVERAGES produces a number that is not a coverage
+            # ratio, is not a total, and reads as both.
+            if _aggregation_of(build, column) == "avg":
+                values["average"] = round(sum(numbers) / len(numbers), 4)
+                values["groups"] = len(numbers)
+            else:
+                values["total"] = round(sum(numbers), 4)
     # How much of the population the returned rows account for. A ranking that
     # does not say this invites the reader to assume the top five are the book.
     # A movement's totals are the answer, so they are result values rather than
@@ -499,7 +550,7 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
     and every figure in it is quoted from a returned value. `from_analysis`
     checks that before returning.
     """
-    from backend.orchestration import figures
+    from backend.orchestration import figures, presentation
 
     rows = runtime.rows
     count = runtime.row_count
@@ -510,7 +561,21 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
     metrics: list[Metric] = []
     findings: list[Finding] = []
 
-    if build.shape == ap.AGGREGATE:
+    if build.shape == ap.AGGREGATE and "average" in values:
+        # An averaged measure has no total. Said as what it is: the mean across
+        # the groups on the screen, which is the only figure the rows support.
+        mean = float(values["average"])
+        column = _primary_column(build, runtime)
+        spec = {c["name"]: c for c in _presented(runtime, build)}
+        shown = (presentation.render(mean, spec[column]) if column in spec
+                 else figures.text(mean))
+        where = (" in " + _scope_phrase(build.filters)) if build.filters else ""
+        direct = (f"{_opening(label)} averages {shown} across the {count} "
+                  f"{_dimension_word(build)}"
+                  f"{'s' if count != 1 else ''}{where} at {build.period}.")
+        metrics.append(Metric(label=f"Average {label}", value=round(mean, 4),
+                              unit=unit, direction="neutral"))
+    elif build.shape == ap.AGGREGATE:
         column = measure.field if measure else ""
         total = float(values.get("total") or 0.0)
         # "125,259 USD mn of exposure at default" reads correctly; a count has
@@ -599,12 +664,12 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
         moved = "rose" if change > 0 else "fell" if change < 0 else "was unchanged"
         pct = (f" ({figures.percent(abs(float(change_pct)))})"
                if isinstance(change_pct, (int, float)) and change else "")
-        direct = (f"{label.capitalize()} {moved} from {_fmt(opening_total)} to "
+        direct = (f"{_opening(label)} {moved} from {_fmt(opening_total)} to "
                   f"{_fmt(closing_total)} {unit} between {build.opening} and "
                   f"{build.closing} — a change of {_fmt(abs(change))} {unit}"
                   f"{pct}.")
         metrics.append(Metric(
-            label=f"{label.capitalize()} at {build.closing}",
+            label=f"{_opening(label)} at {build.closing}",
             value=round(closing_total, 2), unit=unit,
             change=round(change, 2), change_unit=unit,
             direction="up-is-bad" if (measure and measure.concept.higher_is_worse)

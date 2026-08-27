@@ -288,6 +288,11 @@ function trimStop(text: string): string {
 
 function lower(text: string): string {
   const first = text.trim().split(" ")[0] ?? "";
-  if (first === first.toUpperCase() && first.length > 1) return text;
+  // An acronym keeps its capitals, and so does a name with a capital inside
+  // it: lowering the C of CreditProbe produced "creditProbe interpretation",
+  // which is the product misspelling its own name in its own audit trail.
+  if (first.length > 1 && (first === first.toUpperCase() || /[a-z][A-Z]/.test(first))) {
+    return text;
+  }
   return text.charAt(0).toLowerCase() + text.slice(1);
 }

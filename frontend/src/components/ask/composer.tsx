@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CornerDownLeft, Loader2, TriangleAlert } from "lucide-react";
+import { CornerDownLeft, Loader2, TriangleAlert, X } from "lucide-react";
 
 import { AiSpectralLine } from "@/components/system/ai-activity";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,49 @@ const MAX_HEIGHT = 168;
  * moves. See `ai-activity.tsx`: motion here means the machine is doing
  * something, and stops the moment it is not.
  */
+const HIDDEN_KEY = "creditprobe.cockpit.suggestions-hidden";
+const HIDDEN_CHANGED = "creditprobe:suggestions-hidden";
+
+/**
+ * Whether the reader has put the suggestions away, remembered.
+ *
+ * Read through `useSyncExternalStore` rather than assigned from an effect: the
+ * server renders them shown, the client hides them on hydration, and neither
+ * ever renders markup the other disagrees with.
+ */
+function useHiddenSuggestions(): [boolean, () => void] {
+  const stored = React.useSyncExternalStore(
+    (onChange) => {
+      window.addEventListener(HIDDEN_CHANGED, onChange);
+      window.addEventListener("storage", onChange);
+      return () => {
+        window.removeEventListener(HIDDEN_CHANGED, onChange);
+        window.removeEventListener("storage", onChange);
+      };
+    },
+    () => {
+      try {
+        return window.localStorage.getItem(HIDDEN_KEY) === "1";
+      } catch {
+        return false;
+      }
+    },
+    () => false,
+  );
+
+  const hide = React.useCallback(() => {
+    try {
+      window.localStorage.setItem(HIDDEN_KEY, "1");
+      window.dispatchEvent(new Event(HIDDEN_CHANGED));
+    } catch {
+      // A browser with site data blocked still gets a working composer; the
+      // suggestions simply come back next time.
+    }
+  }, []);
+
+  return [stored, hide];
+}
+
 export function Composer({
   value,
   onChange,
@@ -54,6 +97,7 @@ export function Composer({
   readOnlyNote?: string;
   placeholder?: string;
 }) {
+  const [hidden, hide] = useHiddenSuggestions();
   const ref = React.useRef<HTMLTextAreaElement>(null);
 
   React.useEffect(() => {
@@ -123,7 +167,7 @@ export function Composer({
           </div>
         </div>
 
-        {suggestions.length > 0 && (
+        {suggestions.length > 0 && !hidden && (
           <div className="flex flex-wrap items-center gap-1.5 border-t border-border bg-surface-sunken px-4 py-3">
             {suggestions.slice(0, 4).map((s) => (
               <button
@@ -140,6 +184,17 @@ export function Composer({
                 {s.question}
               </button>
             ))}
+            {/* Somebody who knows what they want should not have to read three
+                questions they did not ask, on every visit. */}
+            <button
+              type="button"
+              onClick={hide}
+              title="Hide suggested questions"
+              aria-label="Hide suggested questions"
+              className="ml-auto rounded p-1 text-text-muted transition-colors hover:text-text-primary"
+            >
+              <X className="size-3" aria-hidden />
+            </button>
           </div>
         )}
       </div>

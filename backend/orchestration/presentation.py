@@ -462,7 +462,12 @@ def in_sentence(label: str) -> str:
 
     words = text.split()
     first = words[0]
-    if first.isupper() or any(c.isdigit() for c in first):
+    # An acronym keeps its capitals, and so does a name with a capital inside
+    # it — lowering the C of CreditProbe makes the product misspell its own
+    # name mid-sentence.
+    if (first.isupper() or any(c.isdigit() for c in first)
+            or any(a.islower() and b.isupper()
+                   for a, b in zip(first, first[1:], strict=False))):
         head = first
     else:
         head = first[:1].lower() + first[1:]

@@ -174,6 +174,10 @@ export interface ColumnSpec {
   align?: string;
   is_identity?: boolean;
   role?: string;
+  /** Where this column belongs in the answer, lowest first. */
+  rank?: number;
+  /** True where the column is lineage or plumbing rather than an answer. */
+  hidden?: boolean;
 }
 
 /** Turn a governed field name into a column heading: ead_pct -> "Ead Pct". */

@@ -139,15 +139,34 @@ export function ResultTable({
   emptyMessage?: string;
   renderCell?: (column: string, value: unknown, row: Row) => React.ReactNode | undefined;
 }) {
-  // A contract entry per column, whichever source described it. Without this
-  // the older analyses — the ones that only ever declared a unit — would lose
-  // their formatting the moment they went through the new table.
+  // A contract entry per column, whichever source described it, IN THE ORDER
+  // THE CONTRACT GIVES.
+  //
+  // The order used to come from the row object's keys, which is the order the
+  // compiler emitted them — so "for each rating grade, show average ECL
+  // coverage, leverage and DSCR" put the grade fourth, because that is where
+  // the GROUP happened to produce it. The backend ranks the columns by what
+  // the question made them; discarding that here made the ranking invisible.
+  //
+  // An explicit `columns` list still wins: a caller naming five columns means
+  // those five, in that order. And any key the contract does not mention is
+  // appended rather than dropped — a figure that vanished from a table is one
+  // the reader cannot see and cannot ask about.
   const contract = React.useMemo<ColumnSpec[]>(() => {
+    const present = new Set(rows.length ? Object.keys(rows[0]) : []);
     const declared = new Map((spec ?? []).map((c) => [c.name, c]));
-    const keys = columns ?? (rows.length ? Object.keys(rows[0]) : []);
-    return keys.map(
-      (name) => declared.get(name) ?? { name, unit: units[name] },
-    );
+
+    if (columns) {
+      return columns.map((name) => declared.get(name) ?? { name, unit: units[name] });
+    }
+
+    const ordered = (spec ?? []).filter((c) => present.has(c.name));
+    const extra = [...present]
+      .filter((name) => !declared.has(name))
+      .map((name) => ({ name, unit: units[name] }) as ColumnSpec);
+    if (ordered.length || extra.length) return [...ordered, ...extra];
+
+    return [...present].map((name) => ({ name, unit: units[name] }) as ColumnSpec);
   }, [spec, units, columns, rows]);
 
   return (

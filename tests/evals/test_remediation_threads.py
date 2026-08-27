@@ -385,3 +385,53 @@ def test_no_answer_contains_binary_floating_point_debris(question):
                  *[f.text for f in (investigation.narrative.findings or [])],
                  *(investigation.narrative.caveats or [])]:
         assert not figures.has_debris(text or ""), text
+
+
+# ---------------------------------------------------------------------------
+# The measure the question named, and the arithmetic it asked for
+# ---------------------------------------------------------------------------
+
+
+def test_a_phrase_is_not_read_as_two_measures():
+    """"Average ECL coverage" names one measure and matched two.
+
+    The `ecl` concept matched the three letters inside "ECL coverage" and the
+    `ecl_coverage` concept matched the whole phrase. Both are governed, only
+    one was asked for, and the spurious one came first — so the answer led with
+    a SUM of expected credit loss under a question about coverage ratios.
+    """
+    _, answered = Thread().ask(
+        "For each rating grade, show average ECL coverage and average DSCR.")
+
+    fields = [m.field for m in (answered.build.matches or [])]
+    assert "total_ecl" not in fields, fields
+    assert "ecl_coverage_pct" in fields, fields
+
+
+def test_an_averaged_measure_is_never_reported_as_a_total():
+    """Ten per-grade averages added together is not a coverage ratio.
+
+    It is not a total either, and it reads as both.
+    """
+    investigation, _ = Thread().ask(
+        "For each rating grade, show average ECL coverage and average DSCR.")
+
+    assert investigation.status == "succeeded", investigation.rejected
+    said = investigation.narrative.direct_answer
+    assert "averages" in said.lower(), said
+
+    values = (investigation.steps[0].result or {}).get("values") or {}
+    assert "total" not in values, "an averaged measure has no total"
+    assert "average" in values
+
+    # And the term of art survives the sentence it opens.
+    assert "Ecl" not in said, said
+
+
+def test_a_summed_measure_still_reports_a_total():
+    investigation, _ = Thread().ask(
+        "What is total EAD by sector in the latest quarter?")
+
+    values = (investigation.steps[0].result or {}).get("values") or {}
+    assert "total" in values
+    assert "average" not in values

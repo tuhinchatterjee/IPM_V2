@@ -64,6 +64,7 @@ function Cockpit() {
   // question is typed rather than after it is submitted.
   const canRun = useCanRunAnalysis();
 
+  const suggestions = useAsync(() => api.askSuggestions(), []);
   const mode = useAsync(() => api.askMode(), []);
   const briefing = useAsync(() => api.briefing(), []);
   const threads = useAsync(() => api.threads(), []);
@@ -121,10 +122,16 @@ function Cockpit() {
                 ? undefined
                 : "You are acting as a Viewer. Running an analysis needs the Analyst role or above."
             }
-            // Deliberately none. A row of suggested questions teaches people
-            // that CreditProbe answers a fixed list, which is the opposite of
-            // what it does — and it is the first thing the eye lands on.
-            suggestions={[]}
+            // Three, from the governed catalogue that is actually loaded.
+            //
+            // These were deliberately absent, on the grounds that a row of
+            // suggested questions teaches people CreditProbe answers a fixed
+            // list. That objection was right about a fixed list and these are
+            // not one: an installation with different data gets different
+            // suggestions, and a question about a dataset nobody has is never
+            // offered. An empty composer is its own lesson, and it is the
+            // wrong one.
+            suggestions={(suggestions.data?.questions ?? []).slice(0, 3)}
             autoFocus={focusAsk}
             // Subtle, but not absent. A user must not believe full
             // natural-language understanding is running when it is not — but

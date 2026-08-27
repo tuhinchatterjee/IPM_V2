@@ -77,11 +77,19 @@ export function DataTable({
   );
 
   const allKeys = React.useMemo(
-    () => columns ?? (rows.length ? Object.keys(rows[0]) : []),
-    [columns, rows],
+    () => columns ?? spec?.map((c) => c.name)
+      ?? (rows.length ? Object.keys(rows[0]) : []),
+    [columns, spec, rows],
   );
 
-  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  // Lineage starts hidden. An as-of stamp, a denominator, a key carried
+  // through an aggregate so a filter could be applied — each is a real column
+  // and none of them is an answer, and a borrower name beside a sector total
+  // invites a reader to conclude the total belongs to that borrower. Hidden,
+  // never removed: the column picker turns every one of them back on.
+  const [hidden, setHidden] = React.useState<Set<string>>(
+    () => new Set((spec ?? []).filter((c) => c.hidden).map((c) => c.name)),
+  );
   const [sort, setSort] = React.useState<SortState>(null);
 
   const keys = React.useMemo(
