@@ -65,6 +65,40 @@ _OUTCOMES = {"EXECUTE": fam.EXECUTE, "CLARIFY": fam.CLARIFY,
              "UNSUPPORTED": fam.UNSUPPORTED}
 
 
+def _vocabulary() -> tuple[dict[str, str], str]:
+    """The ontology's own names, and the version they came from.
+
+    The Phase 0 corpora record concepts by their internal ids — "ecl",
+    "pd_12m" — while the ontology's business names are what a question and a
+    reading actually use. A migrated case keeping the id scores zero against a
+    need expressed in business names, which is how an explicit ECL
+    decomposition question came back with a PD analysis at the top: the
+    highest-signal feature in §16's list silently matched nothing.
+    """
+    from backend.semantics import ontology as on
+
+    names: dict[str, str] = {}
+    for contract in on.contracts():
+        canonical = contract.business_name.lower()
+        names[contract.concept_id.lower()] = canonical
+        names[canonical] = canonical
+    return names, on.ONTOLOGY_VERSION
+
+
+_NAMES, ONTOLOGY_VERSION = _vocabulary()
+
+
+def concept(name: str) -> str:
+    """One concept, in the ontology's vocabulary.
+
+    An unrecognised name is kept rather than dropped: it is a case referring to
+    something the ontology does not carry, which is worth seeing in a coverage
+    report rather than losing on the way in.
+    """
+    text = str(name or "").strip().lower()
+    return _NAMES.get(text, text)
+
+
 def _outcome(turns: list[Any]) -> str:
     """A thread's outcome is its LAST turn's.
 
@@ -97,7 +131,8 @@ def _turn(index: int, turn: Any) -> sc.Turn:
         action = "NEW_REQUEST" if index == 0 else "CONTINUE"
     reading = {
         "capability": str(getattr(turn, "capability", "") or ""),
-        "concepts": list(getattr(turn, "concepts", ()) or ()),
+        "concepts": [concept(c)
+                     for c in (getattr(turn, "concepts", ()) or ())],
         "datasets": list(getattr(turn, "datasets", ()) or ()),
     }
     period = _period_contract(getattr(turn, "period", ""))
@@ -221,7 +256,8 @@ def _base(case_id: str, *, title: str, family_id: str, turns: list[Any],
     invariants: list[str] = []
     forbidden: list[str] = []
     for turn in turns:
-        concepts += [c for c in (getattr(turn, "concepts", ()) or ())
+        concepts += [c for c in map(concept,
+                                    getattr(turn, "concepts", ()) or ())
                      if c not in concepts]
         datasets += [d for d in (getattr(turn, "datasets", ()) or ())
                      if d not in datasets]
@@ -253,6 +289,7 @@ def _base(case_id: str, *, title: str, family_id: str, turns: list[Any],
         data_sensitivity=st.PUBLIC,
         source_provenance=provenance,
         cluster_id=_cluster(question),
+        ontology_version=ONTOLOGY_VERSION,
         tags=[source],
     )
     # Where a refusal lands. §4 gives no general "forbidden behaviours" field —
@@ -654,7 +691,8 @@ def from_certified_methods() -> list[sc.TeachingCase]:
             objectives=[sc.Objective(id="o1",
                                      text=f"compute {method.name.lower()}",
                                      kind="CALCULATION")],
-            concepts=list(getattr(method, "required_concepts", []) or []),
+            concepts=[concept(c) for c in
+                      (getattr(method, "required_concepts", []) or [])],
             metrics=[method.name.lower()],
             candidate_domains=domains,
             grain=str(getattr(method, "required_grain", "") or ""),
@@ -678,6 +716,8 @@ def from_certified_methods() -> list[sc.TeachingCase]:
             data_sensitivity=st.PUBLIC,
             source_provenance=provenance,
             cluster_id=_cluster(_method_question(method)),
+            ontology_version=ONTOLOGY_VERSION,
+            method_version=str(getattr(method, "version", 1)),
             tags=[STUDIO, "certified"],
         )
         out.append(enrich(selection))
@@ -709,6 +749,8 @@ def from_certified_methods() -> list[sc.TeachingCase]:
             data_sensitivity=st.PUBLIC,
             source_provenance=provenance,
             cluster_id=_cluster(asked),
+            ontology_version=ONTOLOGY_VERSION,
+            method_version=str(getattr(method, "version", 1)),
             tags=[STUDIO, "certified", "definition"],
         )
         out.append(enrich(definition))
@@ -758,5 +800,6 @@ def report() -> dict[str, Any]:
 
 
 __all__ = ["COMPLEX", "CURRICULUM", "MIGRATION_VERSION", "SOURCES", "STUDIO",
-           "cases", "enrich", "family_for_method", "from_certified_methods",
+           "ONTOLOGY_VERSION", "cases", "concept", "enrich",
+           "family_for_method", "from_certified_methods",
            "from_complex", "from_curriculum", "report"]

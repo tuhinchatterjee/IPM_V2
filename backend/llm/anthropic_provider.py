@@ -20,7 +20,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from backend.llm import telemetry
+from backend.llm import caching, telemetry
 from backend.llm.base import LLMError, LLMResult, ProviderStatus, register
 
 logger = logging.getLogger(__name__)
@@ -76,12 +76,21 @@ class AnthropicProvider:
                    max_tokens: int = 2000,
                    purpose: str = "reading",
                    model: str = "",
-                   role: str = "", effort: str = "") -> LLMResult:
+                   role: str = "", effort: str = "",
+                   system_blocks: list[dict[str, Any]] | None = None,
+                   cache_prefix: str = "") -> LLMResult:
         """One structured answer.
 
         `model` overrides the configured default for this call, so a role can
         be served by the model an administrator chose for it. Empty means the
         configured one — never a substitution, and never a guess.
+
+        `system_blocks` is §19's prompt caching: the same system prompt, split
+        into content blocks with a cache breakpoint at the end of the stable
+        prefix. Composed by `backend.llm.caching`, which owns the rule that a
+        client-sensitive block is never inside the cached span. When it is
+        absent the plain `system` string is sent and nothing about the call
+        changes — caching is an optimisation, never a different prompt.
         """
         if not self.configured:
             raise LLMError("No Anthropic API key is configured.")
@@ -98,7 +107,7 @@ class AnthropicProvider:
                 message = client.messages.create(
                     model=chosen,
                     max_tokens=max_tokens,
-                    system=system,
+                    system=system_blocks if system_blocks else system,
                     tools=[tool],
                     # The model must answer through the tool. Left to choose, it
                     # sometimes explains its plan in prose instead of emitting
@@ -108,6 +117,7 @@ class AnthropicProvider:
                 )
                 data = _tool_input(message, tool_name)
                 usage = getattr(message, "usage", None)
+                cached = caching.usage(usage)
                 elapsed = int((time.perf_counter() - started) * 1000)
                 telemetry.record_success(
                     provider=self.name, model=chosen, purpose=purpose,
@@ -115,7 +125,10 @@ class AnthropicProvider:
                     latency_ms=elapsed, request_id=_request_id(message),
                     attempts=attempt,
                     input_tokens=getattr(usage, "input_tokens", 0) or 0,
-                    output_tokens=getattr(usage, "output_tokens", 0) or 0)
+                    output_tokens=getattr(usage, "output_tokens", 0) or 0,
+                    cache_write_tokens=cached["cache_creation_input_tokens"],
+                    cache_read_tokens=cached["cache_read_input_tokens"],
+                    cache_prefix=cache_prefix)
                 return LLMResult(
                     data=data, model=chosen, duration_ms=elapsed,
                     input_tokens=getattr(usage, "input_tokens", 0) or 0,

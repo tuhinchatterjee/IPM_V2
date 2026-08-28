@@ -200,6 +200,15 @@ class Call:
     attempts: int = 1
     input_tokens: int = 0
     output_tokens: int = 0
+    #: §19's cache telemetry. Two numbers rather than a hit flag: a request
+    #: that WROTE the cache and one that READ it both look like a hit if you
+    #: only record a boolean, and they cost very different amounts.
+    cache_write_tokens: int = 0
+    cache_read_tokens: int = 0
+    #: Which stable prefix served it. A cache hit rate that collapsed because
+    #: a prompt was edited is a different fact from one that collapsed because
+    #: traffic changed, and without this they are indistinguishable.
+    cache_prefix: str = ""
     failure_category: str = ""
     failure_reason: str = ""
     #: What the orchestrator did instead, when it did something instead.
@@ -215,6 +224,9 @@ class Call:
             "attempts": self.attempts,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
+            "cache_write_tokens": self.cache_write_tokens,
+            "cache_read_tokens": self.cache_read_tokens,
+            "cache_prefix": self.cache_prefix,
             "failure_category": self.failure_category,
             "failure_detail": CATEGORY_DETAIL.get(self.failure_category, ""),
             "failure_reason": self.failure_reason,
@@ -335,13 +347,17 @@ def record_success(*, provider: str, model: str, purpose: str,
                    attempts: int = 1, input_tokens: int = 0,
                    output_tokens: int = 0,
                    structured_valid: bool = True,
-                   role: str = "", effort: str = "") -> Call:
+                   role: str = "", effort: str = "",
+                   cache_write_tokens: int = 0, cache_read_tokens: int = 0,
+                   cache_prefix: str = "") -> Call:
     return _ledger.record(Call(
         provider=provider, model=model, purpose=purpose, at=time.time(),
         role=role, effort=effort,
         latency_ms=latency_ms, ok=True, request_id=request_id,
         structured_valid=structured_valid, attempts=attempts,
-        input_tokens=input_tokens, output_tokens=output_tokens))
+        input_tokens=input_tokens, output_tokens=output_tokens,
+        cache_write_tokens=cache_write_tokens,
+        cache_read_tokens=cache_read_tokens, cache_prefix=cache_prefix))
 
 
 def record_failure(*, provider: str, model: str, purpose: str,
@@ -358,6 +374,31 @@ def record_failure(*, provider: str, model: str, purpose: str,
         failure_category=resolved,
         failure_reason=sanitise(reason or (str(error) if error else "")),
         fallback=fallback))
+
+
+def cache_summary(window: int = 50) -> dict[str, Any]:
+    """§19's cache telemetry, safely.
+
+    Token counts and a rate — never prompt content. The whole point of caching
+    is that a long prefix is reused, and a telemetry surface that showed which
+    prefix would be showing the prompt.
+
+    `served_by_cache` is read tokens over all prompt tokens, which is the
+    number that answers the question anybody actually asks: how much of what
+    we send are we paying full price for.
+    """
+    calls = [c for c in _ledger.recent(window) if c.ok]
+    read = sum(c.cache_read_tokens for c in calls)
+    written = sum(c.cache_write_tokens for c in calls)
+    prompt = sum(c.input_tokens for c in calls) + read + written
+    return {
+        "calls": len(calls),
+        "cache_read_tokens": read,
+        "cache_write_tokens": written,
+        "prompt_tokens": prompt,
+        "served_by_cache": round(read / prompt, 4) if prompt else 0.0,
+        "prefixes": sorted({c.cache_prefix for c in calls if c.cache_prefix}),
+    }
 
 
 def health(*, provider: str, model: str, configured: bool) -> dict[str, Any]:
@@ -378,6 +419,7 @@ def health(*, provider: str, model: str, configured: bool) -> dict[str, Any]:
         "last_success": success.to_dict() if success else None,
         "last_failure": failure.to_dict() if failure else None,
         "recent": [c.to_dict() for c in _ledger.recent(10)],
+        "cache": cache_summary(),
         "detail": _detail(state, provider, model, failure),
     }
 
@@ -407,6 +449,6 @@ __all__ = [
     "AUTH", "CONFIGURED", "CONNECTED", "CONNECTION", "CREDIT", "DEGRADED",
     "MODEL_NOT_FOUND", "NOT_STRUCTURED", "OFFLINE", "OVERLOADED", "RATE_LIMIT",
     "SCHEMA_INVALID", "SERVER", "TIMEOUT", "UNKNOWN",
-    "Call", "Ledger", "classify", "health", "ledger", "record_failure",
-    "record_success", "sanitise",
+    "Call", "Ledger", "cache_summary", "classify", "health", "ledger",
+    "record_failure", "record_success", "sanitise",
 ]

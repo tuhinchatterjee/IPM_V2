@@ -208,9 +208,13 @@ def build(*, family: str, title: str, turns: list[Turn],
         risk_level=risk,
         authoring_method=st.HUMAN,
         data_sensitivity=st.PUBLIC,
+        ontology_version=migrate.ONTOLOGY_VERSION,
     )
     for name, value in fields.items():
         setattr(case, name, value)
+    # Concepts go in the ontology's own vocabulary, so a need expressed in
+    # business names matches them — §16's highest-weighted feature.
+    case.concepts = [migrate.concept(c) for c in case.concepts]
     return case
 
 
