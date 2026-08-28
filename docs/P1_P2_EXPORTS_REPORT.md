@@ -15,8 +15,7 @@ clean tree, local and remote in step.
 
 ## 2. Final commit
 
-`1449990` and the report commit that follows it, on
-`claude/vigilant-darwin-eohyi1`. Five commits in this phase:
+`4eae6f3`, on `claude/vigilant-darwin-eohyi1`. Six commits in this phase:
 
 | Commit | What it delivered |
 |---|---|
@@ -25,6 +24,7 @@ clean tree, local and remote in step.
 | `057dd65` | P1 chart interactions, period playback, scatter and bubble renderers |
 | `0667f11` | The five-view query workspace, version comparison, and the Sector-Period Terrain |
 | `1449990` | Theme coverage tests and the download history in the audit view |
+| `4eae6f3` | Export shape tests, the acceptance scripts and this report |
 
 ## 3. Local/remote match
 
