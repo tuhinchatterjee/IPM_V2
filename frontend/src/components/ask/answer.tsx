@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { DataAndMethod } from "@/components/ask/data-and-method";
+import { DownloadResults } from "@/components/exports/download";
 import {
   foundNothing,
   implications,
@@ -881,6 +882,17 @@ export function AnswerBlock({
           />
           <p className="prose-ai text-xs text-warning">{run.notes[0]}</p>
         </Card>
+      )}
+
+      {/* --------------------------------------------------- 1. THE HEADER */}
+      {/* §3/§45: DOWNLOAD RESULTS in the top right of every analysis header,
+          which is here — one component renders every answer the product
+          shows, so wiring it once puts it on the Cockpit, in a thread, on a
+          project analysis, on a saved analysis and on a lens panel alike. */}
+      {runId !== null && runId !== undefined && (
+        <div className="flex justify-end">
+          <DownloadResults runId={runId} version={run.version} />
+        </div>
       )}
 
       {/* ---------------------------------------------------- 2. BOTTOM LINE */}

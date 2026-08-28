@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { ResultView } from "@/components/analytics/result-view";
+import { DownloadResults } from "@/components/exports/download";
 import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/layout/back-link";
 import { Button } from "@/components/ui/button";
@@ -315,6 +316,14 @@ function PanelView({
               Method
             </Link>
           </Button>
+          {/* §4: a lens panel showing a real run offers its results workbook. */}
+          {panel.analysis_run_id ? (
+            <DownloadResults
+              runId={panel.analysis_run_id}
+              variant="ghost"
+              compact
+            />
+          ) : null}
           {panel.analysis_run_id ? (
             <Button variant="ghost" size="sm" asChild>
               <Link href={linkBack(`/trace/${panel.analysis_run_id}`, from)}>

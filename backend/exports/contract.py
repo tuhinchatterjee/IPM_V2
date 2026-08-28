@@ -145,13 +145,14 @@ def filename_for(kind: str, *, analysis: str, period: str, run_id: int,
     """
     short = (fingerprint or "")[:6] or f"{run_id}"
     suffix = "results" if kind == RESULTS else "calculation_pack"
-    parts = [
-        "CreditProbe",
-        slug(analysis, limit=48),
-        slug(period, limit=16) if period else "",
-        slug(short, limit=12),
-        suffix,
-    ]
+    named = slug(analysis, limit=48)
+    stamp = slug(period, limit=16) if period else ""
+    # An analysis is usually titled by its own scope — "…by sector at Q2 2026" —
+    # so appending the period again produces "..._at_q2_2026_q2_2026_", which
+    # reads as a mistake in a folder even though the file is correct.
+    if stamp and named.endswith(f"_{stamp}"):
+        named = named[: -len(stamp) - 1].removesuffix("_at")
+    parts = ["CreditProbe", named, stamp, slug(short, limit=12), suffix]
     return "_".join(p for p in parts if p) + ".xlsx"
 
 

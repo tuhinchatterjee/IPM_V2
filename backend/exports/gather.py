@@ -260,7 +260,7 @@ def pack_for(run_id: int, *, version: int | None = None,
     pack = Pack(
         run_id=run_id,
         question=str(stored.get("question") or ""),
-        title=str(primary.get("title") or stored.get("intent") or "Analysis"),
+        title=_title(primary, stored),
         status=status,
         created_at=str(stored.get("created_at") or ""),
         duration_ms=stored.get("duration_ms"),
@@ -310,6 +310,36 @@ def pack_for(run_id: int, *, version: int | None = None,
     pack.build_sha, pack.app_version = _build()
     _attach_origin(pack)
     return pack
+
+
+#: Step titles the planner writes for a whole class of analyses rather than for
+#: this one. Perfectly good as a heading above a table that already has its own
+#: context; useless as the name of a file in a downloads folder, where
+#: "aggregated_across_the_governed_book" describes every aggregate ever run.
+_GENERIC_TITLES = {
+    "aggregated across the governed book",
+    "ranked from the governed book",
+    "analysis",
+    "result",
+}
+
+
+def _title(primary: dict[str, Any], stored: dict[str, Any]) -> str:
+    """What to call this analysis, on a cover and in a filename.
+
+    The plan's own one-line explanation first, because it names the measure,
+    the breakdown and the period — which is exactly what distinguishes one
+    download from the next in a folder of twelve. The step title is used where
+    the planner wrote a specific one, and the question is the last resort.
+    """
+    explanation = str((primary.get("result") or {}).get("plan", {})
+                      .get("meta", {}).get("explanation") or "").strip().rstrip(".")
+    title = str(primary.get("title") or "").strip()
+    if title and title.lower() not in _GENERIC_TITLES:
+        return title
+    if explanation:
+        return explanation[:1].upper() + explanation[1:]
+    return title or str(stored.get("intent") or "Analysis")
 
 
 def _primary_step(steps: list[dict[str, Any]]) -> dict[str, Any] | None:

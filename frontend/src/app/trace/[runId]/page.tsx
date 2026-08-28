@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import * as React from "react";
 import { Clock, GitBranch, Layers, Sparkles } from "lucide-react";
 
+import { DownloadCalculation } from "@/components/exports/download";
 import { AuditLedger } from "@/components/trace/audit-ledger";
 import { HealthMap } from "@/components/trace/health-map";
 import { TraceLandscape } from "@/components/trace/landscape";
@@ -140,15 +141,27 @@ function TraceDetail({ runId }: { runId: string }) {
         <>
           {/* --------------------------------------------------------- header */}
           <header className="border-b border-border pb-5">
-            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-text-muted">
-              Analytical Reasoning Map
-            </p>
-            <h1 className="mt-2 max-w-3xl text-2xl font-semibold leading-tight tracking-tight text-text-primary">
-              {data.question || data.intent || `Analysis run ${id}`}
-            </h1>
-            {data.intent && data.question && (
-              <p className="mt-1.5 max-w-3xl text-sm text-text-secondary">{data.intent}</p>
-            )}
+            {/* §46: the pack download lives in the Trace header itself, so it
+                is present in Story, Lineage, Landscape and Audit alike — the
+                mode is a way of reading this analysis, not four analyses. */}
+            <div className="flex items-start justify-between gap-6">
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-text-muted">
+                  Analytical Reasoning Map
+                </p>
+                <h1 className="mt-2 max-w-3xl text-2xl font-semibold leading-tight tracking-tight text-text-primary">
+                  {data.question || data.intent || `Analysis run ${id}`}
+                </h1>
+                {data.intent && data.question && (
+                  <p className="mt-1.5 max-w-3xl text-sm text-text-secondary">{data.intent}</p>
+                )}
+              </div>
+              <DownloadCalculation
+                runId={id}
+                version={data.version}
+                className="shrink-0"
+              />
+            </div>
 
             <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-text-muted">
               <span className="flex items-center gap-1.5">

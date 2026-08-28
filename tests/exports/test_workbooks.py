@@ -110,6 +110,15 @@ class TestResultsWorkbook:
     def test_the_row_count_matches_the_analysis(self, results_book, rating_pack):
         assert results_book.manifest["row_count"] == len(rating_pack.rows)
 
+    def test_the_filename_names_the_analysis_not_its_shape(self, results_book):
+        """A folder of "aggregated_across_the_governed_book" files is a folder
+        nobody can search. The plan's own explanation names the measure, the
+        breakdown and the period, which is what tells two downloads apart."""
+        name = results_book.filename
+        assert "aggregated_across_the_governed_book" not in name
+        assert name.startswith("CreditProbe_")
+        assert name.endswith("_results.xlsx")
+
     def test_it_records_what_it_represents(self, results_book, rating_pack):
         manifest = results_book.manifest
         assert manifest["run_id"] == rating_pack.run_id

@@ -11,6 +11,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
+import { DownloadResults } from "@/components/exports/download";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -168,6 +169,16 @@ export function AnalyticalCard({
               </Button>
             </>
           )}
+          {/* §4: DOWNLOAD RESULTS wherever a real Analysis Run is displayed.
+              Guarded on the run id, so a metadata-only catalogue answer — which
+              is not an Analysis Run — does not offer a results workbook. */}
+          {run?.analysis_run_id ? (
+            <DownloadResults
+              runId={run.analysis_run_id}
+              variant="ghost"
+              compact
+            />
+          ) : null}
           <TraceButton runId={run?.analysis_run_id} />
         </div>
       </div>

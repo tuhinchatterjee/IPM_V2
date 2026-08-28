@@ -10,6 +10,8 @@
  * obvious in review.
  */
 
+import { filenameFrom } from "@/lib/downloads";
+
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
@@ -1679,8 +1681,6 @@ export interface DownloadedFile {
   filename: string;
 }
 
-const FILENAME = /filename="([^"]+)"/;
-
 async function download(path: string, fallback: string,
                         timeoutMs = 180_000): Promise<DownloadedFile> {
   const controller = new AbortController();
@@ -1722,9 +1722,10 @@ async function download(path: string, fallback: string,
     throw new ApiError(message, response.status, code, detail);
   }
 
-  const disposition = response.headers.get("content-disposition") ?? "";
-  const named = FILENAME.exec(disposition);
-  return { blob: await response.blob(), filename: named?.[1] ?? fallback };
+  return {
+    blob: await response.blob(),
+    filename: filenameFrom(response.headers.get("content-disposition"), fallback),
+  };
 }
 
 // ---------------------------------------------------------------------------

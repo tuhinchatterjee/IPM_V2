@@ -5,6 +5,7 @@ import * as React from "react";
 import { ArrowRight, GitBranch, Printer } from "lucide-react";
 
 import { TraceButton } from "@/components/analytics/analytical-card";
+import { DownloadResults } from "@/components/exports/download";
 import {
   CategoryBarChart,
   DivergingBarChart,
@@ -483,6 +484,9 @@ function Chapter({
             </p>
           )}
         </div>
+        {run?.analysis_run_id ? (
+          <DownloadResults runId={run.analysis_run_id} variant="ghost" compact />
+        ) : null}
         <TraceButton runId={run?.analysis_run_id} />
       </div>
       {error ? (

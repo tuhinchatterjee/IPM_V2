@@ -74,6 +74,20 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        # A browser hides every response header from cross-origin JavaScript
+        # unless the server names it here — `allow_headers` governs the REQUEST,
+        # not the response. Without this the workbook downloads reach the
+        # browser with the right bytes and no name: `Content-Disposition` is
+        # unreadable, so the interface falls back to a generic filename and the
+        # governed one the server carefully sanitised never lands on the laptop.
+        expose_headers=[
+            "Content-Disposition",
+            "Content-Length",
+            "X-CreditProbe-Run",
+            "X-CreditProbe-Trace-Version",
+            "X-CreditProbe-Rows",
+            "X-Request-ID",
+        ],
     )
 
     @app.middleware("http")

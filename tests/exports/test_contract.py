@@ -32,6 +32,20 @@ class TestFilenames:
         assert "01bd86" in name
         assert "calculation_pack" in name
 
+    def test_the_period_is_not_repeated(self):
+        """An analysis is usually titled by its own scope, period included."""
+        name = contract.filename_for(
+            contract.RESULTS, analysis="Exposure at default by sector at Q2 2026",
+            period="Q2 2026", run_id=3, fingerprint="01bd86cdd285ffa5")
+        assert name.count("q2_2026") == 1, name
+        assert "_at_q2_2026_q2_2026" not in name
+
+    def test_a_title_that_does_not_carry_the_period_still_gets_one(self):
+        name = contract.filename_for(
+            contract.RESULTS, analysis="Exposure by sector",
+            period="Q2 2026", run_id=3, fingerprint="01bd86cdd285ffa5")
+        assert "q2_2026" in name
+
     def test_two_runs_of_the_same_question_get_different_filenames(self):
         """Otherwise a reviewer's downloads folder silently overwrites itself."""
         first = contract.filename_for(contract.RESULTS, analysis="Same question",

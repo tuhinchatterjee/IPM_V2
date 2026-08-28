@@ -4,6 +4,7 @@ import Link from "next/link";
 import * as React from "react";
 import { BarChart3, Trash2 } from "lucide-react";
 
+import { DownloadResults } from "@/components/exports/download";
 import { ShareButton } from "@/components/collaboration/share";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -171,6 +172,15 @@ function Row({
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5">
+        {/* §4: a saved Analysis is a persisted Analysis Run, so its results
+            workbook is available from the list without opening it first. */}
+        {analysis.analysis_run_id !== null && (
+          <DownloadResults
+            runId={analysis.analysis_run_id}
+            variant="ghost"
+            compact
+          />
+        )}
         {analysis.analysis_run_id !== null && (
           <Button variant="ghost" size="sm" asChild>
             <Link
