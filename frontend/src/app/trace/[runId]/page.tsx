@@ -13,6 +13,7 @@ import { NodeInspector } from "@/components/trace/node-inspector";
 import { ModifyPanel, VersionSwitcher } from "@/components/trace/modify-panel";
 import { ClusterList, ReasoningMap, type MapHighlight } from "@/components/trace/reasoning-map";
 import { TraceStory } from "@/components/trace/story";
+import { VersionCompare } from "@/components/trace/version-compare";
 import { traceActions } from "@/components/trace/actions";
 import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/layout/back-link";
@@ -206,6 +207,18 @@ function TraceDetail({ runId }: { runId: string }) {
               </div>
             )}
           </header>
+
+          {/* §49: version comparison. The switcher moves between versions; the
+              question a reader actually has is what a modification DID, and
+              reading two graphs side by side is not an answer to it. */}
+          {data.available_versions.length > 1 && (
+            <VersionCompare
+              runId={id}
+              current={data}
+              currentVersion={data.version}
+              versions={data.available_versions}
+            />
+          )}
 
           {/* -------------------------------------------------- health map */}
           {/* Before the map, because the question a Trace is opened with is

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 
 import { InteractiveChart } from "@/components/analytics/chart-frame";
 import { PeriodPlayback } from "@/components/analytics/period-playback";
@@ -23,6 +24,16 @@ import {
   TrendChart,
   type SeriesDef,
 } from "./charts";
+/**
+ * §54 asks for the dimensional views to be lazy-loaded, and the terrain is the
+ * only renderer heavy enough for that to matter: a grid component nothing on
+ * the Cockpit draws should not sit in the bundle every reader downloads.
+ */
+const Terrain = dynamic(
+  () => import("./terrain").then((m) => m.Terrain),
+  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-md bg-surface-sunken" /> },
+);
+
 import * as playback from "./playback";
 import { chooseVisualization, type ChartKind, type Choice } from "./registry";
 import * as selection from "./selection";
@@ -360,6 +371,28 @@ function renderChart(
           emphasis={emphasise}
         />
       );
+    // §54's Sector-Period Terrain. The registry names heatmap, matrix and
+    // small-multiples for the same shape — many groups across many periods —
+    // and until now drew none of them.
+    case "heatmap":
+    case "matrix":
+    case "small-multiples": {
+      const down = dimensionColumn(spec, choice.x);
+      if (!down) return null;
+      return (
+        <Terrain
+          rows={data}
+          xKey={choice.x}
+          yKey={down}
+          valueKey={series[0].key}
+          units={unitMap}
+          xLabel={byName.get(choice.x)?.label ?? choice.x}
+          yLabel={byName.get(down)?.label ?? down}
+          valueLabel={series[0].label}
+          onPick={onCategory}
+        />
+      );
+    }
     case "scatter":
       return (
         <ScatterPlot
@@ -383,8 +416,7 @@ function renderChart(
         />
       );
     default:
-      // kpi, table, transition-matrix, sankey, treemap, histogram, heatmap,
-      // matrix, small-multiples.
+      // kpi, table, transition-matrix, sankey, treemap, histogram.
       return null;
   }
 }
@@ -405,6 +437,23 @@ function bandColumn(spec: ColumnSpec[]): string | undefined {
       /stage|band|bucket|grade|rating|segment|tier/i.test(c.name),
   );
   return found?.name;
+}
+
+/**
+ * The column running down the side of a terrain: the breakdown that is NOT the
+ * axis along the top.
+ */
+function dimensionColumn(spec: ColumnSpec[], across: string): string {
+  const found = spec.find(
+    (c) =>
+      !c.hidden &&
+      c.name !== across &&
+      (c.is_identity === true ||
+        c.semantic === "text" ||
+        c.semantic === "identity" ||
+        c.semantic === "ordinal"),
+  );
+  return found?.name ?? "";
 }
 
 /** The column naming each point, so a tooltip can say which borrower it is. */

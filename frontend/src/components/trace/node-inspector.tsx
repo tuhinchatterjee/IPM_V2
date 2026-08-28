@@ -590,14 +590,25 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 /**
- * The mathematical query.
+ * The mathematical query workspace.
  *
- * Everything a reviewer needs to check the arithmetic, in one place they can
- * open from the map: what the query does in English, the formula behind every
- * derived column, the analytical plan, and the SQL that actually ran with its
- * parameters shown separately. Sending somebody to another screen for the SQL
- * is how "fully auditable" stops being true in practice.
+ * §49 names its five views, and they are five views rather than five sections
+ * of one scroll for a practical reason: a reviewer checking the bound values
+ * should not have to scroll past sixty lines of SQL to reach them, and a
+ * reviewer reading the SQL should not have the plan pushing it off the screen.
+ *
+ *   Plain English   what the query does, in a sentence a credit officer checks
+ *   Formula         every derived column and what it means
+ *   Plan            the Analytical IR, step by step
+ *   SQL             exactly what ran, with Copy Query
+ *   Parameters      the bound values, each one beside its placeholder
+ *
+ * The whole of it is on this panel and reachable from the map. Sending
+ * somebody to another screen for the SQL is how "fully auditable" quietly
+ * stops being true.
  */
+type QueryView = "english" | "formula" | "plan" | "sql" | "parameters";
+
 function MathematicalQueryBlock({ config }: { config: Record<string, unknown> }) {
   const sql = String(config.sql ?? "");
   const parameters = (config.parameters ?? []) as unknown[];
@@ -605,6 +616,7 @@ function MathematicalQueryBlock({ config }: { config: Record<string, unknown> })
     id: string;
     op: string;
     label?: string;
+    params?: Record<string, unknown>;
   }[];
   const formulas = (config.formulas ?? []) as {
     name: string;
@@ -614,6 +626,19 @@ function MathematicalQueryBlock({ config }: { config: Record<string, unknown> })
   }[];
   const plainEnglish = String(config.plain_english ?? "");
   const [copied, setCopied] = React.useState(false);
+
+  // Only the views this node has something behind. A tab that opens on nothing
+  // teaches a reader that the panel is mostly empty.
+  const views: { id: QueryView; label: string; enabled: boolean }[] = [
+    { id: "english", label: "Plain English", enabled: Boolean(plainEnglish) },
+    { id: "formula", label: "Formula", enabled: formulas.length > 0 },
+    { id: "plan", label: "Plan", enabled: operations.length > 0 },
+    { id: "sql", label: "SQL", enabled: Boolean(sql) },
+    { id: "parameters", label: "Parameters", enabled: parameters.length > 0 },
+  ];
+  const first = views.find((v) => v.enabled)?.id ?? "english";
+  const [view, setView] = React.useState<QueryView>(first);
+  const shown = views.find((v) => v.id === view && v.enabled) ? view : first;
 
   async function copy() {
     try {
@@ -628,51 +653,72 @@ function MathematicalQueryBlock({ config }: { config: Record<string, unknown> })
   }
 
   return (
-    <>
-      {plainEnglish && (
-        <Section title="What this query does">
-          <p className="text-xs leading-relaxed text-text-secondary">{plainEnglish}</p>
-        </Section>
+    <section className="space-y-2.5">
+      <div
+        role="tablist"
+        aria-label="Mathematical query"
+        className="flex flex-wrap items-center gap-0.5 border-b border-border pb-1.5"
+      >
+        {views
+          .filter((v) => v.enabled)
+          .map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              role="tab"
+              aria-selected={shown === v.id}
+              onClick={() => setView(v.id)}
+              className={cn(
+                "rounded px-2 py-1 text-[11px] transition-colors",
+                shown === v.id
+                  ? "bg-surface-sunken text-text-primary"
+                  : "text-text-muted hover:text-text-secondary",
+              )}
+            >
+              {v.label}
+            </button>
+          ))}
+      </div>
+
+      {shown === "english" && (
+        <p className="text-xs leading-relaxed text-text-secondary">
+          {plainEnglish || "This step recorded no plain-English description."}
+        </p>
       )}
 
-      {formulas.length > 0 && (
-        <Section title={`Formulas (${formulas.length})`}>
-          <ul className="space-y-2.5">
-            {formulas.map((f) => (
-              <li key={f.column}>
-                <p className="text-xs font-medium text-text-primary">{f.name}</p>
-                <p className="mt-0.5 font-mono text-[11px] leading-relaxed text-accent">
-                  {f.formula}
-                </p>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-text-muted">
-                  {f.means}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </Section>
+      {shown === "formula" && (
+        <ul className="space-y-2.5">
+          {formulas.map((f) => (
+            <li key={f.column}>
+              <p className="text-xs font-medium text-text-primary">{f.name}</p>
+              <p className="mt-0.5 font-mono text-[11px] leading-relaxed text-accent">
+                {f.formula}
+              </p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-text-muted">
+                {f.means}
+              </p>
+            </li>
+          ))}
+        </ul>
       )}
 
-      {operations.length > 0 && (
-        <Section title={`Analytical plan (${operations.length} steps)`}>
-          <ol className="space-y-1">
-            {operations.map((o, index) => (
-              <li key={o.id} className="flex gap-2 text-[11px] leading-relaxed">
-                <span className="tabular w-4 shrink-0 text-text-muted">{index + 1}</span>
-                <span className="w-32 shrink-0 font-mono text-[10px] text-accent">
-                  {o.op}
-                </span>
-                <span className="text-text-secondary">{o.label || o.id}</span>
-              </li>
-            ))}
-          </ol>
-        </Section>
+      {shown === "plan" && (
+        <ol className="space-y-1">
+          {operations.map((o, index) => (
+            <li key={o.id} className="flex gap-2 text-[11px] leading-relaxed">
+              <span className="tabular w-4 shrink-0 text-text-muted">{index + 1}</span>
+              <span className="w-32 shrink-0 font-mono text-[10px] text-accent">
+                {o.op}
+              </span>
+              <span className="text-text-secondary">{o.label || o.id}</span>
+            </li>
+          ))}
+        </ol>
       )}
 
-      {sql && (
-        <section>
+      {shown === "sql" && (
+        <div>
           <div className="mb-1.5 flex items-center gap-2">
-            <h3 className="meta text-text-muted">SQL</h3>
             <button
               type="button"
               onClick={copy}
@@ -686,22 +732,48 @@ function MathematicalQueryBlock({ config }: { config: Record<string, unknown> })
               {copied ? "Copied" : "Copy query"}
             </button>
           </div>
-          <pre className="max-h-80 overflow-auto rounded-md border border-border bg-surface-sunken p-2.5 font-mono text-[10px] leading-relaxed text-text-secondary">
+          <pre className="max-h-96 overflow-auto rounded-md border border-border bg-surface-sunken p-2.5 font-mono text-[10px] leading-relaxed text-text-secondary">
             <code>{highlightSql(sql)}</code>
           </pre>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-text-muted">
-            {parameters.length} bound parameter
-            {parameters.length === 1 ? "" : "s"}:{" "}
-            <span className="font-mono text-text-secondary">
-              {JSON.stringify(parameters)}
-            </span>
-            . Every value is a placeholder in the statement and a parameter beside
-            it — nothing was concatenated into the SQL.
-          </p>
-        </section>
+        </div>
       )}
-    </>
+
+      {shown === "parameters" && (
+        <div className="space-y-1.5">
+          <ol className="space-y-1">
+            {parameters.map((value, index) => (
+              <li key={index} className="flex gap-2 text-[11px] leading-relaxed">
+                <span className="tabular w-8 shrink-0 font-mono text-text-muted">
+                  ?{index + 1}
+                </span>
+                <span className="break-all font-mono text-text-secondary">
+                  {readable(value)}
+                </span>
+              </li>
+            ))}
+          </ol>
+          <p className="text-[11px] leading-relaxed text-text-muted">
+            Every value above is a placeholder in the statement and a parameter
+            beside it — nothing was concatenated into the SQL.
+          </p>
+        </div>
+      )}
+    </section>
   );
+}
+
+/**
+ * One bound parameter, in a form a reviewer can read.
+ *
+ * A parquet path identifies a partition; the deployment's directory layout
+ * around it has no audit value and is a small infrastructure disclosure, so
+ * the path is shown from the dataset onwards.
+ */
+function readable(value: unknown): string {
+  const text = typeof value === "string" ? value : JSON.stringify(value);
+  const marker = "/data/analytics/";
+  const at = text.indexOf(marker);
+  return at >= 0 ? text.slice(at + marker.length) : text;
 }
 
 /**
