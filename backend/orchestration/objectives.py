@@ -96,15 +96,23 @@ PARTIAL = "PARTIAL"
 UNAVAILABLE = "UNAVAILABLE"
 NEEDS_CLARIFICATION = "NEEDS_CLARIFICATION"
 PLANNED = "PLANNED"
+#: §21. An objective that was attempted and broke — the analysis errored, an
+#: invariant failed, a kernel refused. Distinct from UNAVAILABLE, which means
+#: the data cannot answer it, and from PARTIAL, which means it was answered
+#: incompletely. Without FAILED a broken objective is recorded as one of those
+#: two, and both read to a user as "we looked and this is what there is".
+FAILED = "FAILED"
 
 STATUSES: tuple[str, ...] = (COMPLETE, PARTIAL, UNAVAILABLE,
-                             NEEDS_CLARIFICATION, PLANNED)
+                             NEEDS_CLARIFICATION, FAILED, PLANNED)
 
 #: Statuses a finished answer may carry. PLANNED is not one of them: an
 #: objective still marked PLANNED when the answer is assembled was never
 #: executed and never reported, which is the silent omission P0.3 forbids.
+#: FAILED is one of them — a failure that has been reported is not a silent
+#: omission, and hiding it would be.
 SETTLED: frozenset[str] = frozenset(
-    {COMPLETE, PARTIAL, UNAVAILABLE, NEEDS_CLARIFICATION})
+    {COMPLETE, PARTIAL, UNAVAILABLE, NEEDS_CLARIFICATION, FAILED})
 
 
 @dataclass
@@ -362,17 +370,34 @@ class Coverage:
                 PARTIAL: "partly answered",
                 UNAVAILABLE: "could not be answered",
                 NEEDS_CLARIFICATION: "needs more detail",
+                FAILED: "could not be completed",
                 PLANNED: "was not answered",
             }.get(objective.status, objective.status.lower())
             reason = f" — {objective.note}" if objective.note else ""
             parts.append(f"“{label}” {said}{reason}")
         return "; ".join(parts) + "."
 
+    @property
+    def failed(self) -> list[Objective]:
+        return [o for o in self.objectives if o.status == FAILED]
+
+    def by_status(self) -> dict[str, int]:
+        """§21 and §45: the coverage table the Trace and the Calculation Pack
+        show. Counted by status rather than by "how many are complete",
+        because the difference between an objective that failed and one the
+        data cannot answer is the difference a reader needs."""
+        counts = {status: 0 for status in STATUSES}
+        for objective in self.objectives:
+            counts[objective.status] = counts.get(objective.status, 0) + 1
+        return counts
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "total": self.total,
             "complete": self.complete,
             "presentable": self.presentable,
+            "by_status": self.by_status(),
+            "failed": [o.objective_id for o in self.failed],
             "unmet": [o.objective_id for o in self.unmet],
             "unsettled": [o.objective_id for o in self.unsettled],
             "sentence": self.sentence(),
@@ -394,6 +419,7 @@ __all__ = [
     "Coverage",
     "DECOMPOSE",
     "DESCRIBE",
+    "FAILED",
     "NEEDS_CLARIFICATION",
     "Objective",
     "PARTIAL",

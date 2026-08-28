@@ -147,8 +147,27 @@ _CLAUSE = re.compile(
     r"|calculate|compute|decompose|attribute|break\s+down|split|group"
     r"|tell|give|display|highlight|explain|summarise|summarize|assess"
     r"|quantify|reconcile|rate|score|flag|check|evaluate|analyse|analyze"
-    r"|investigate|review|report"
+    r"|investigate|review|report|say|state|provide|name|return"
     r")\b)",
+    re.I)
+
+#: The imperative verbs a request is built out of. Used to tell a SERIAL
+#: instruction from a fronted adverbial, which is the one distinction a comma
+#: cannot make on its own:
+#:
+#:   "For every sector, calculate the Stage 2 share"       one request
+#:   "Calculate total EAD, rank the borrowers by ECL"      two
+#:
+#: Both are "<something>, <verb>". The difference is whether a predicate has
+#: already happened: the first comma follows a prepositional phrase, the second
+#: follows a complete instruction. So a comma is a boundary exactly when the
+#: text before it already contains an imperative.
+_IMPERATIVE = re.compile(
+    r"\b(?:rank|sort|order|list|show|compare|contrast|determine|identify"
+    r"|find|calculate|compute|decompose|attribute|break\s+down|split|group"
+    r"|tell|give|display|highlight|explain|summarise|summarize|assess"
+    r"|quantify|reconcile|score|flag|check|evaluate|analyse|analyze"
+    r"|investigate|review|report|say|state|provide|name|return)\b",
     re.I)
 
 #: A boundary is real only when a COORDINATOR is actually there. A bare comma
@@ -223,9 +242,22 @@ def _inner_clauses(sentence: str) -> list[tuple[str, int]]:
         wh = head.split(" ")[0].rstrip("?,.") in {
             "which", "what", "who", "whose", "whom", "when", "where",
             "why", "how"}
-        if _NEEDS_COORDINATOR.search(before) or (wh and match.group(0).strip()):
-            if match.start() > 0:
-                cuts.append(match.start())
+        separator = match.group(0)
+        preceding = sentence[:match.start()]
+        real = (
+            _NEEDS_COORDINATOR.search(before)
+            or (wh and separator.strip())
+            # A semicolon separates independent clauses by definition. §11's
+            # own example depends on it: "Decompose ECL change into exposure,
+            # Stage, PD, LGD and mix; show sector and customer contributors"
+            # is two objectives, and read as one it can never be reported as
+            # partially answered.
+            or ";" in separator
+            # A serial instruction. See _IMPERATIVE.
+            or ("," in separator and _IMPERATIVE.search(preceding))
+        )
+        if real and match.start() > 0:
+            cuts.append(match.start())
     if not cuts:
         return [(sentence, 0)]
 
