@@ -162,9 +162,12 @@ export function StepResult({
   compact,
   returnTo,
   question,
+  onAsk,
 }: {
   step: ExecutedStep;
   runId: number | null;
+  /** §47: "Ask about this" from a chart, carrying what the reader was seeing. */
+  onAsk?: (question: string) => void;
   /** Inside a thread, a result sits closer to the text around it. */
   compact?: boolean;
   /** Where Method and Trace should come back to. */
@@ -241,7 +244,7 @@ export function StepResult({
 
       <div className="px-5 py-4">
         {step.status === "succeeded" && step.result ? (
-          <ResultView run={run} />
+          <ResultView run={run} onAsk={onAsk} />
         ) : (
           <p className="text-sm text-negative">
             {step.error ?? "This analysis returned nothing."}
@@ -938,6 +941,7 @@ export function AnswerBlock({
             compact={compact}
             returnTo={returnTo}
             question={run.question}
+            onAsk={onAsk}
           />
         ))}
 
@@ -955,6 +959,7 @@ export function AnswerBlock({
                 runId={runId}
                 compact
                 returnTo={returnTo}
+                onAsk={onAsk}
               />
             ))}
           </div>

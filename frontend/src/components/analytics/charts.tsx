@@ -12,9 +12,12 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
+  ZAxis,
 } from "recharts";
 
 import { byUnit, humanise } from "@/lib/format";
@@ -450,6 +453,268 @@ export function MatrixHeatmap({
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+
+/* ------------------------------------------------------- relationships */
+
+/**
+ * Two measures against each other, one point per named thing.
+ *
+ * The form the registry chooses when a result is a RELATIONSHIP rather than a
+ * ranking: EAD against coverage, leverage against DSCR. Until now the registry
+ * named it and this module could not draw it, so those results silently fell
+ * back to a table and the reader was told nothing about why.
+ *
+ * A point is a row of the result and nothing else. No regression line is drawn
+ * and no correlation is quoted: a trend line through a scatter is a claim, and
+ * a claim belongs to the analysis, not to the picture of it.
+ */
+export function ScatterPlot({
+  data,
+  xKey,
+  yKey,
+  labelKey,
+  units,
+  height = 320,
+  className,
+  onPick,
+  emphasis,
+}: {
+  data: Record<string, string | number | null>[];
+  xKey: string;
+  yKey: string;
+  /** The column naming each point, shown in the tooltip. */
+  labelKey?: string;
+  units?: Record<string, string>;
+  height?: number;
+  className?: string;
+  /** Clicking a point picks it out. */
+  onPick?: (value: string) => void;
+  /** How strongly to draw each point, by its label. */
+  emphasis?: (value: string) => number;
+}) {
+  return (
+    <Framed className={className} height={height}>
+      <ResponsiveContainer width="100%" height="100%">
+        <ScatterChart margin={{ top: 12, right: 16, bottom: 8, left: -4 }}>
+          <CartesianGrid stroke={GRID} strokeDasharray="0" />
+          <XAxis
+            type="number"
+            dataKey={xKey}
+            name={humanise(xKey)}
+            tick={AXIS}
+            tickLine={false}
+            axisLine={{ stroke: GRID }}
+          />
+          <YAxis
+            type="number"
+            dataKey={yKey}
+            name={humanise(yKey)}
+            tick={AXIS}
+            tickLine={false}
+            axisLine={false}
+            width={64}
+          />
+          <Tooltip
+            content={<PointTooltip units={units} labelKey={labelKey} />}
+            cursor={{ strokeDasharray: "3 3", stroke: "var(--ipm-border-strong)" }}
+          />
+          <Scatter
+            data={data}
+            fill={slotColor(0)}
+            onClick={(point) => onPick?.(named(point, labelKey ?? xKey))}
+          >
+            {data.map((row, index) => (
+              <Cell
+                key={index}
+                fill={slotColor(0)}
+                fillOpacity={
+                  emphasis?.(String(row[labelKey ?? xKey] ?? "")) ?? 0.75
+                }
+              />
+            ))}
+          </Scatter>
+        </ScatterChart>
+      </ResponsiveContainer>
+    </Framed>
+  );
+}
+
+/**
+ * The Risk Landscape: three measures at once, and a governed band as colour.
+ *
+ * §54's first renderer. Position carries two measures, the point's AREA carries
+ * a third, and colour carries a category — a stage, a rating band — so four
+ * dimensions are readable at a glance without a rotating cube nobody can read
+ * a value off.
+ *
+ * Area rather than radius, deliberately. Doubling a radius quadruples the ink,
+ * and a reader comparing two bubbles reads the ink. Recharts's ZAxis maps the
+ * value to area, which is the honest encoding.
+ */
+export function BubbleChart({
+  data,
+  xKey,
+  yKey,
+  sizeKey,
+  bandKey,
+  labelKey,
+  units,
+  height = 380,
+  className,
+  onPick,
+  emphasis,
+}: {
+  data: Record<string, string | number | null>[];
+  xKey: string;
+  yKey: string;
+  sizeKey: string;
+  /** The governed category that colours each point — Stage, rating band. */
+  bandKey?: string;
+  labelKey?: string;
+  units?: Record<string, string>;
+  height?: number;
+  className?: string;
+  onPick?: (value: string) => void;
+  emphasis?: (value: string) => number;
+}) {
+  // One colour per band, assigned in the order the bands first appear so a
+  // band keeps its colour when a filter changes how many are on screen.
+  const bands = React.useMemo(() => {
+    if (!bandKey) return [];
+    const seen: string[] = [];
+    for (const row of data) {
+      const value = String(row[bandKey] ?? "");
+      if (value && !seen.includes(value)) seen.push(value);
+    }
+    return seen;
+  }, [data, bandKey]);
+
+  return (
+    <Framed className={className} height={height}>
+      <ResponsiveContainer width="100%" height="100%">
+        <ScatterChart margin={{ top: 12, right: 16, bottom: 8, left: -4 }}>
+          <CartesianGrid stroke={GRID} strokeDasharray="0" />
+          <XAxis
+            type="number"
+            dataKey={xKey}
+            name={humanise(xKey)}
+            tick={AXIS}
+            tickLine={false}
+            axisLine={{ stroke: GRID }}
+          />
+          <YAxis
+            type="number"
+            dataKey={yKey}
+            name={humanise(yKey)}
+            tick={AXIS}
+            tickLine={false}
+            axisLine={false}
+            width={64}
+          />
+          <ZAxis type="number" dataKey={sizeKey} range={[40, 720]} name={humanise(sizeKey)} />
+          <Tooltip
+            content={<PointTooltip units={units} labelKey={labelKey} bandKey={bandKey} />}
+            cursor={{ strokeDasharray: "3 3", stroke: "var(--ipm-border-strong)" }}
+          />
+          {bands.length > 1 && ChartLegend()}
+          {bands.length > 0 ? (
+            bands.map((band, slot) => (
+              <Scatter
+                key={band}
+                name={band}
+                data={data.filter((row) => String(row[bandKey as string] ?? "") === band)}
+                fill={slotColor(slot)}
+                fillOpacity={0.7}
+                onClick={(point) => onPick?.(named(point, labelKey ?? xKey))}
+              />
+            ))
+          ) : (
+            <Scatter
+              data={data}
+              fill={slotColor(0)}
+              fillOpacity={0.7}
+              onClick={(point) => onPick?.(named(point, labelKey ?? xKey))}
+            >
+              {data.map((row, index) => (
+                <Cell
+                  key={index}
+                  fill={slotColor(0)}
+                  fillOpacity={
+                    emphasis?.(String(row[labelKey ?? xKey] ?? "")) ?? 0.7
+                  }
+                />
+              ))}
+            </Scatter>
+          )}
+        </ScatterChart>
+      </ResponsiveContainer>
+    </Framed>
+  );
+}
+
+/**
+ * What a clicked point is called.
+ *
+ * Recharts hands the click a point descriptor whose shape it does not promise
+ * to keep, and whose type has no index signature. Reading it in one guarded
+ * place keeps that fact from spreading through three chart components.
+ */
+function named(point: unknown, key: string): string {
+  const record = point as Record<string, unknown> | null;
+  const payload = record?.payload as Record<string, unknown> | undefined;
+  return String(payload?.[key] ?? record?.[key] ?? "");
+}
+
+/**
+ * A tooltip for a point, which needs the thing's NAME as well as its figures.
+ *
+ * The category tooltip labels a point by its x value, which for a scatter is a
+ * number — "18.4" tells a reader nothing about which borrower they are hovering.
+ */
+function PointTooltip({
+  active,
+  payload,
+  units,
+  labelKey,
+  bandKey,
+}: {
+  active?: boolean;
+  payload?: { payload?: Record<string, unknown>; name?: string; dataKey?: string;
+              value?: number; color?: string }[];
+  units?: Record<string, string>;
+  labelKey?: string;
+  bandKey?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload ?? {};
+  const name = labelKey ? String(row[labelKey] ?? "") : "";
+  const band = bandKey ? String(row[bandKey] ?? "") : "";
+
+  return (
+    <div className="rounded-md border border-border bg-surface-raised px-3 py-2 shadow-lg">
+      {name && (
+        <p className="mb-1 text-xs font-medium text-text-primary">{name}</p>
+      )}
+      {band && <p className="mb-1 text-[11px] text-text-muted">{band}</p>}
+      <div className="space-y-0.5">
+        {payload.map((entry, i) => {
+          const key = String(entry.dataKey ?? entry.name ?? i);
+          return (
+            <div key={key} className="flex items-center gap-2 text-xs">
+              <span className="text-text-secondary">
+                {humanise(String(entry.name ?? key))}
+              </span>
+              <span className="ml-auto font-medium text-text-primary tabular">
+                {byUnit(entry.value, units?.[key])}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -40,21 +40,26 @@ function num(values: Record<string, unknown>, key: string): number | null {
 export function ResultView({
   run,
   compact = false,
+  onAsk,
 }: {
   run: AnalysisRunResponse;
   compact?: boolean;
+  /** Carries "Ask about this" from a chart back to the composer. */
+  onAsk?: (question: string) => void;
 }) {
   // The frame lives on the charts themselves, so a result renders its body
   // and every chart inside it brings its own palette.
-  return <ResultBody run={run} compact={compact} />;
+  return <ResultBody run={run} compact={compact} onAsk={onAsk} />;
 }
 
 function ResultBody({
   run,
   compact = false,
+  onAsk,
 }: {
   run: AnalysisRunResponse;
   compact?: boolean;
+  onAsk?: (question: string) => void;
 }) {
   const result = run.result;
   if (!result) return null;
@@ -435,6 +440,8 @@ function ResultBody({
             columns={result.columns as ColumnSpec[] | undefined}
             units={units}
             maxRows={compact ? 6 : 25}
+            runId={run.analysis_run_id}
+            onAsk={onAsk}
           />
         </div>
       );

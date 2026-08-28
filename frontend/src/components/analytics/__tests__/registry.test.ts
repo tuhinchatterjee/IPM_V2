@@ -323,3 +323,90 @@ test("a genuine second measure still makes it a relationship", () => {
   );
   assert.equal(choice.kind, "scatter");
 });
+
+/* ------------------------------------------------------------ the two fixes */
+
+test("a governed code column is a dimension, not a measure", () => {
+  // An internal rating grade arrives as semantic "text" carrying 1 to 10.
+  // Reading its VALUES made it a measure, which left the breakdown with no
+  // dimension and sent every "for each rating grade…" question to a table.
+  const choice = chooseVisualization(
+    [
+      { name: "internal_grade", semantic: "text" },
+      { name: "ecl_coverage_pct", semantic: "percent" },
+      { name: "dscr", semantic: "ratio" },
+    ],
+    Array.from({ length: 10 }, (_, i) => ({
+      internal_grade: i + 1,
+      ecl_coverage_pct: 5 + i,
+      dscr: 1.5,
+    })),
+  );
+  assert.equal(choice.kind, "grouped-bar");
+  assert.equal(choice.x, "internal_grade");
+  assert.deepEqual(choice.series, ["ecl_coverage_pct", "dscr"]);
+});
+
+test("a column with no declared semantic is still read from its data", () => {
+  const choice = chooseVisualization(
+    [{ name: "sector" }, { name: "ead" }],
+    [
+      { sector: "Contracting", ead: 100 },
+      { sector: "Real Estate", ead: 80 },
+    ],
+  );
+  assert.notEqual(choice.kind, "table");
+  assert.equal(choice.x, "sector");
+});
+
+test("two measures across a small governed scale is a comparison, not a scatter", () => {
+  // Scattering ten rating grades throws away the ordering, which is the one
+  // property of a rating scale that carries meaning.
+  const choice = chooseVisualization(
+    [
+      { name: "rating_bucket", semantic: "text" },
+      { name: "ead", semantic: "money" },
+      { name: "total_ecl", semantic: "money" },
+    ],
+    Array.from({ length: 8 }, (_, i) => ({
+      rating_bucket: `CP-${i + 1}`,
+      ead: 100 - i,
+      total_ecl: 5 + i,
+    })),
+  );
+  assert.equal(choice.kind, "grouped-bar");
+});
+
+test("two measures per named thing is still a scatter", () => {
+  const choice = chooseVisualization(
+    [
+      { name: "customer_id", semantic: "identity", is_identity: true },
+      { name: "ead", semantic: "money" },
+      { name: "ecl_coverage_pct", semantic: "percent" },
+    ],
+    Array.from({ length: 20 }, (_, i) => ({
+      customer_id: `SA-${i}`,
+      ead: 10 + i,
+      ecl_coverage_pct: 2 + i,
+    })),
+  );
+  assert.equal(choice.kind, "scatter");
+});
+
+test("three measures per named thing is a bubble", () => {
+  const choice = chooseVisualization(
+    [
+      { name: "customer_id", semantic: "identity", is_identity: true },
+      { name: "ead", semantic: "money" },
+      { name: "ecl_coverage_pct", semantic: "percent" },
+      { name: "dscr", semantic: "ratio" },
+    ],
+    Array.from({ length: 20 }, (_, i) => ({
+      customer_id: `SA-${i}`,
+      ead: 10 + i,
+      ecl_coverage_pct: 2 + i,
+      dscr: 1 + i / 10,
+    })),
+  );
+  assert.equal(choice.kind, "bubble");
+});

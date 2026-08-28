@@ -113,8 +113,18 @@ export function shapeOf(columns: ColumnSpec[], rows: Row[]): Shaped {
   );
   const rest = visible.filter((c) => !period.includes(c));
   const identity = rest.filter((c) => c.is_identity);
+  // The DECLARED semantic decides. Looking at the data only settles a column
+  // the contract said nothing about.
+  //
+  // An internal rating grade arrives as semantic "text" carrying the numbers 1
+  // to 10. Reading its values made it a measure, which left the breakdown with
+  // no dimension at all, and every "for each rating grade…" question fell
+  // through every rule to "record-level — precision beats pattern" and was
+  // drawn as a table. The contract had said it was text the whole time.
   const numeric = rest.filter(
-    (c) => !c.is_identity && (numericByData(c) || isNumericSemantic(c)),
+    (c) =>
+      !c.is_identity &&
+      (isNumericSemantic(c) || (!c.semantic && numericByData(c))),
   );
   const categorical = rest.filter(
     (c) => !c.is_identity && !numeric.includes(c),
@@ -243,9 +253,27 @@ export function chooseVisualization(
     );
   }
 
-  // Two measures against each other, per named thing, is a scatter — and three
+  // Two measures against each other, PER NAMED THING, is a scatter — and three
   // is a bubble, with the third as size.
-  if (dimension && measures.length >= 2 && rows.length > 6) {
+  //
+  // "Named thing" is the whole condition, and it used to be missing. Ten rating
+  // grades with average coverage and average DSCR is an ordered breakdown, and
+  // scattering it threw the ordering away — the one property of a rating scale
+  // that carries meaning — to draw ten unlabelled points. A relationship
+  // between two measures is worth a scatter when the rows are customers or
+  // facilities; across a small governed scale it is a grouped comparison, and
+  // the rule below draws it as one.
+  // A NAME is a column the contract typed as an identity — a customer, a
+  // facility. The `is_identity` flag alone is not enough: the backend also sets
+  // it on whatever a result is grouped BY, so that the subject sorts into
+  // column one. Reading that as "a named thing" turned every rating-grade
+  // breakdown into a scatter of ten unlabelled points, and threw away the
+  // ordering that is the only reason a rating scale exists.
+  const named =
+    dimension !== null &&
+    dimension.is_identity === true &&
+    (dimension.semantic === undefined || dimension.semantic === "identity");
+  if (named && measures.length >= 2 && rows.length > 6) {
     return {
       kind: measures.length >= 3 ? "bubble" : "scatter",
       x: measures[0].name,
