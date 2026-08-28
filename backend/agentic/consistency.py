@@ -287,10 +287,18 @@ def _ceiling(stages: list[Stage], evidence: Evidence) -> tuple[str, str]:
 
 
 def _rank(status: str) -> int:
+    """Where a claim sits on the assurance scale.
+
+    An UNRECOGNISED status ranks as the strongest, so the ceiling always brings
+    it down to what the evidence supports. The other way round — ranking an
+    unknown claim as the weakest — meant it compared as already-lower than any
+    ceiling and passed through untouched, which is the exact opposite of safe:
+    a caller who invents a label would have bypassed the check entirely.
+    """
     try:
         return _ASSURANCE_ORDER.index(str(status or "").strip().upper())
     except ValueError:
-        return 0
+        return len(_ASSURANCE_ORDER)
 
 
 # ---------------------------------------------------------------------------
