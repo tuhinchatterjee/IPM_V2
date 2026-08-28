@@ -84,6 +84,9 @@ ORDER: tuple[str, ...] = (
     "evidence_grounding",
     "model_agreement",
     "known_limitations",
+    # P0.9. Added last because it is a statement about the OTHER components:
+    # whether the run left behind the evidence they claim to have assessed.
+    "trace_consistency",
 )
 
 LABELS: dict[str, str] = {
@@ -96,6 +99,7 @@ LABELS: dict[str, str] = {
     "evidence_grounding": "Evidence grounding",
     "model_agreement": "Agreement and repair",
     "known_limitations": "Known limitations",
+    "trace_consistency": "Trace consistency",
 }
 
 #: Which components must be checked for an answer to be more than LIMITED. A

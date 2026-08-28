@@ -9,6 +9,21 @@
  */
 
 /** Money in USD millions — the unit the whole portfolio is denominated in. */
+/**
+ * The most decimal places any user-facing figure may carry. P0.12.
+ *
+ * One number, in one place, used by every formatter here. The underlying
+ * result keeps full precision — this is a DISPLAY contract — but nothing a
+ * reader sees exceeds it: not a chart axis, a tooltip, a table cell, a KPI, a
+ * prose token or a workbook cell.
+ *
+ * Two, because a credit officer reads basis points as 0.01 and nothing in this
+ * product is decided on the third decimal place. A value that would round
+ * across a governed threshold is handled by the threshold, not by widening
+ * this.
+ */
+export const MAX_DECIMALS = 2;
+
 export function money(value: number | null | undefined, decimals = 0): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return value.toLocaleString("en-US", {
@@ -117,7 +132,11 @@ export function byContract(value: unknown, column?: ColumnSpec | null): string {
   } else if (semantic === "count" || semantic === "days" || semantic === "ordinal") {
     decimals = 0;
   } else if (column.decimals !== undefined && column.decimals !== null) {
-    decimals = Math.max(0, column.decimals);
+    // Capped at the contract's ceiling. A column that declares four decimals
+    // is a column whose metadata is wrong, and honouring it would put
+    // 59.3520 on screen — P0.12 sets ONE maximum and it is not negotiable
+    // per column.
+    decimals = Math.min(MAX_DECIMALS, Math.max(0, column.decimals));
   } else if (semantic === "percent" || semantic === "ratio") {
     decimals = 2;
   } else {
@@ -150,7 +169,14 @@ export function byContract(value: unknown, column?: ColumnSpec | null): string {
  */
 export function scrubDebris(prose: string): string {
   if (!prose) return prose;
-  return prose.replace(/(?<![\w.])(-?\d[\d,]*\.\d{4,})/g, (raw) => {
+  // Three decimals, not four. P0.12's ceiling is two, so a three-decimal value
+  // is already over it — and 2.625% reads as deliberate precision in a way
+  // 2.6246841182876173% does not, which is exactly why it needs catching.
+  //
+  // The lookbehind excludes a colon, which is what makes a timestamp's
+  // fractional seconds safe: "12:57:14.932382" is not a figure, and rewriting
+  // it to "12:57:14.93" corrupts a time under the guise of tidying a number.
+  return prose.replace(/(?<![\w.:])(-?\d[\d,]*\.\d{3,})/g, (raw) => {
     const value = Number(raw.replace(/,/g, ""));
     if (!Number.isFinite(value)) return raw;
     const magnitude = Math.abs(value);
@@ -278,10 +304,16 @@ export function scaleMoney(
   const abs = Math.abs(value);
   if (scale === "mn" && abs >= 1000) {
     const billions = value / 1000;
+    // At a hundred billion the decimal stops earning its place. Both bounds
+    // move together: `minimumFractionDigits: 1` with `maximumFractionDigits: 0`
+    // is a RangeError, and it threw for every figure at or above 100bn — so a
+    // portfolio total large enough to need scaling was the one that crashed
+    // the formatter rendering it.
+    const decimals = abs >= 100_000 ? 0 : 1;
     return {
       text: billions.toLocaleString("en-US", {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: abs >= 100_000 ? 0 : 1,
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
       }),
       unit: `${currency} bn`,
       scaled: true,
@@ -318,23 +350,24 @@ export function figure(value: unknown, column?: ColumnSpec | null): Figure {
 
   const semantic = column?.semantic ?? "";
   const unit = column?.unit ?? "";
+  // A column's declared precision, capped at the contract's ceiling. Honoured
+  // uncapped, a column carrying `decimals: 6` rendered "0.000000" into a KPI
+  // tile and a chart label — raw precision of exactly the kind P0.12 forbids,
+  // and it reached the interface because this formatter trusted the metadata.
+  const declared = Math.min(MAX_DECIMALS, Math.max(0, column?.decimals ?? 2));
 
   if (semantic === "money" || unit === "USD mn" || unit === "SAR mn") {
     const [currency, scale] = unit.split(" ");
     return scaleMoney(value, column?.currency ?? currency ?? "USD", scale ?? "mn");
   }
   if (unit === "%" || semantic === "percent" || semantic === "share") {
-    return {
-      text: value.toFixed(column?.decimals ?? 2),
-      unit: "%",
-      scaled: false,
-    };
+    return { text: value.toFixed(declared), unit: "%", scaled: false };
   }
   if (unit === "pp") {
-    return { text: value.toFixed(column?.decimals ?? 2), unit: "pp", scaled: false };
+    return { text: value.toFixed(declared), unit: "pp", scaled: false };
   }
   if (unit === "x" || semantic === "ratio") {
-    return { text: value.toFixed(column?.decimals ?? 2), unit: "x", scaled: false };
+    return { text: value.toFixed(declared), unit: "x", scaled: false };
   }
   if (unit === "days" || semantic === "days") {
     return { text: count(value), unit: "days", scaled: false };
@@ -344,8 +377,8 @@ export function figure(value: unknown, column?: ColumnSpec | null): Figure {
   }
   return {
     text: value.toLocaleString("en-US", {
-      minimumFractionDigits: column?.decimals ?? 2,
-      maximumFractionDigits: column?.decimals ?? 2,
+      minimumFractionDigits: declared,
+      maximumFractionDigits: declared,
     }),
     unit,
     scaled: false,

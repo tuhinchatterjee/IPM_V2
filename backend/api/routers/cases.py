@@ -86,15 +86,29 @@ def listing(level: str = "ALL", period: str = "", limit: int = 50,
     `level` is one of §40's filter tabs. The counts come back with the list,
     from one grouped query, so the badge and the rows can never disagree.
     """
+    from backend.agentic import attention
+
     with get_session() as session:
         wanted = cases.FILTER_LEVEL.get((level or "ALL").upper(), "")
         rows = cases.listing(
             session, level=wanted, period=period, limit=min(limit, 200),
             owner_id=principal.user_id if mine else None)
         visible = principals.visible_to(principal, rows)
+        counts = cases.counts(session, period=period)
+
+        # P0.13. The summary used to be built from the case count alone, so
+        # zero cases read as "CreditProbe reviewed Q2 2026 and found nothing
+        # that requires attention" — on a book nothing had ever reviewed. The
+        # review STATE is what separates "we looked and found nothing" from
+        # "nothing has looked", and only the first may reassure anybody.
+        review = attention.state(
+            session, period=period, open_cases=counts.get("ALL", 0),
+            can_run=principals.may_operate_agents(principal))
+
         return {
-            "summary": cases.summary_sentence(session, period=period),
-            "counts": cases.counts(session, period=period),
+            "summary": attention.summary_sentence(session, review),
+            "review": review.to_dict(),
+            "counts": counts,
             "filters": [
                 {"id": f, "label": f.title() if f != "ALL" else "All"}
                 for f in cases.FILTERS],

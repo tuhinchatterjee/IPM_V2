@@ -122,28 +122,32 @@ class Answered:
         if self.outcome is not None and self.coordinated:
             return (f"Coordinated by {title} — "
                     f"{dag.summarise(self.outcome.plan)}")
-        parts = _investigation_parts(self.investigation)
+        parts = _investigation_parts(self.investigation, self.answered)
         return (f"Completed by {title}" + (f" — {' · '.join(parts)}"
                                            if parts else ""))
 
 
-def _investigation_parts(investigation: Any) -> list[str]:
-    """The counts behind a single-specialist completion line."""
+def _investigation_parts(investigation: Any, answered: Any = None
+                         ) -> list[str]:
+    """The counts behind a single-specialist completion line.
+
+    Derived from what the run left behind (P0.9), not from its status word.
+    This line used to end with "all checks passed" whenever the run finished —
+    `if status == "succeeded"` — so a catalogue lookup that succeeded at
+    computing nothing reported that its checks had passed. There were no
+    checks, and the same line called the lookup "1 calculation".
+    """
     if investigation is None:
         return []
+    from backend.agentic import consistency as cy
+
     plan = getattr(investigation, "plan", None)
     datasets = sorted({str(d) for d in (getattr(plan, "datasets", ()) or ())})
-    steps = list(getattr(investigation, "steps", ()) or ())
     found: list[str] = []
     if datasets:
         found.append(f"{len(datasets)} "
                      f"{'dataset' if len(datasets) == 1 else 'datasets'}")
-    if steps:
-        found.append(f"{len(steps)} "
-                     f"{'calculation' if len(steps) == 1 else 'calculations'}")
-    status = str(getattr(investigation, "status", "") or "")
-    if status == "succeeded":
-        found.append("all checks passed")
+    found.extend(cy.parts(cy.of_investigation(investigation, answered)))
     return found
 
 
@@ -315,26 +319,42 @@ def _assurance(found: Answered, investigation: Any) -> Any:
     if found.outcome is not None:
         return orchestrator.assess(found.outcome)
 
-    narrative = getattr(investigation, "narrative", None)
     status = str(getattr(investigation, "status", "") or "")
     plan = getattr(investigation, "plan", None)
     datasets = list(getattr(plan, "datasets", ()) or ())
 
-    class _Invariants:
-        checks = tuple(getattr(narrative, "checks", ()) or ()) if narrative else ()
-        failures = tuple(getattr(narrative, "warnings", ()) or ()) if narrative else ()
-
-    class _Grounding:
-        ungrounded = tuple(getattr(narrative, "ungrounded", ()) or ()) if narrative else ()
-
-    return au.assess(
+    # The invariant and grounding reports live on the ANSWERED object, which is
+    # where the runtime records them. They were being read off the narrative,
+    # which has no such fields and never had — so `checks` was always empty and
+    # the single-analysis path counted no invariant it had actually run.
+    answered = found.answered
+    invariants = getattr(answered, "invariants", None)
+    # Grounding is recorded on the written interpretation — what the prose
+    # claimed and whether every figure in it came from the result.
+    grounding = getattr(answered, "written", None)
+    assessed = au.assess(
         plan=plan, tasks=[],
-        invariants=_Invariants() if narrative else None,
-        grounding=_Grounding() if narrative else None,
+        invariants=invariants,
+        grounding=grounding,
         relationships_used=max(0, len(datasets) - 1),
         relationships_governed=max(0, len(datasets) - 1),
         limitations=([] if status == "succeeded"
                      else [f"The analysis finished as '{status}'."]))
+
+    # P0.9. The assurance status is a claim about evidence, so the evidence
+    # gets the last word. A run that computed nothing and checked nothing was
+    # reporting VALIDATED; `permit` is a ceiling and can only lower a status,
+    # so a run that genuinely validated is unaffected.
+    from backend.agentic import consistency as cy
+
+    evidence = cy.of_investigation(investigation)
+    allowed, because = cy.permit(assessed.status, evidence)
+    if allowed != assessed.status:
+        assessed.status = allowed
+        assessed.components.append(au.Component(
+            "trace_consistency", au.NOT_CHECKED, because))
+        assessed.weakest = assessed.weakest or "trace_consistency"
+    return assessed
 
 
 # ---------------------------------------------------------------------------
