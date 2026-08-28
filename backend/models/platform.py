@@ -2550,3 +2550,224 @@ class ReviewQueueItem(Base):
         Index("ix_review_queue_layer", "failure_layer"),
         Index("ix_review_queue_regression", "regression_status"),
     )
+
+
+class TeachingCase(Base):
+    """A governed teaching case. §4.
+
+    Why the schema is here twice
+    ----------------------------
+    `backend/teaching/schema.py` is the contract: seventy-two fields, the
+    validation rules, the fingerprint. This is storage, and it carries a
+    deliberate subset as real columns — the ones retrieval filters on, the ones
+    the Studio lists by, and the ones §13 counts by family. Everything else
+    lives in ``body``, which is the case's own ``to_dict()``.
+
+    The alternative was seventy-two columns. That reads as thorough and behaves
+    badly: every schema change becomes a migration, most of the columns are
+    never filtered on, and the JSONB half would exist anyway for the contracts.
+    The split is chosen so a query the product actually runs — "approved
+    ECL_CHANGE_DECOMPOSITION cases, not stale, in this cluster" — is an index
+    scan and not a JSONB traversal.
+
+    Versions are rows, not updates
+    ------------------------------
+    ``(case_id, case_version)`` is unique. Editing an approved case writes a
+    new version rather than overwriting the reviewed one, because a retrieval
+    that happened last week must stay explicable: an approved case whose
+    content can change underneath its approval is an approval that means
+    nothing.
+    """
+
+    __tablename__ = "teaching_cases"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+
+    # ---- identity ----------------------------------------------------------
+    case_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    case_version: Mapped[int] = mapped_column(Integer, nullable=False,
+                                              default=1)
+    title: Mapped[str] = mapped_column(String(240), nullable=False, default="")
+    family_id: Mapped[str] = mapped_column(String(48), nullable=False,
+                                           default="")
+    subfamily: Mapped[str] = mapped_column(String(64), nullable=False,
+                                           default="")
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    language: Mapped[str] = mapped_column(String(8), nullable=False,
+                                          default="en")
+    locale: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    #: CORPORATE | RETAIL | NONE
+    portfolio_scope: Mapped[str] = mapped_column(String(16), nullable=False,
+                                                 default="NONE")
+    industry_or_product_scope: Mapped[str] = mapped_column(
+        String(96), nullable=False, default="")
+    difficulty: Mapped[str] = mapped_column(String(16), nullable=False,
+                                            default="INTERMEDIATE")
+    risk_level: Mapped[str] = mapped_column(String(16), nullable=False,
+                                            default="MEDIUM")
+
+    # ---- what was asked ----------------------------------------------------
+    question: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: Counted rather than derived from ``body`` so §13's "at least 100 must be
+    #: multi-turn" is a query and not a scan.
+    turn_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # ---- what should happen ------------------------------------------------
+    expected_capability: Mapped[str] = mapped_column(String(48),
+                                                     nullable=False,
+                                                     default="")
+    expected_conversation_action: Mapped[str] = mapped_column(
+        String(48), nullable=False, default="")
+    #: EXECUTE | CLARIFY | UNSUPPORTED | FAIL
+    expected_outcome: Mapped[str] = mapped_column(String(16), nullable=False,
+                                                  default="EXECUTE")
+    expected_officer_level: Mapped[int] = mapped_column(Integer,
+                                                        nullable=False,
+                                                        default=0)
+    #: A model ROLE — never a provider model ID (§23).
+    expected_model_route: Mapped[str] = mapped_column(String(24),
+                                                      nullable=False,
+                                                      default="")
+    expected_effort: Mapped[str] = mapped_column(String(16), nullable=False,
+                                                 default="")
+    grain: Mapped[str] = mapped_column(String(48), nullable=False, default="")
+
+    # ---- filterable content ------------------------------------------------
+    #: Denormalised out of ``body`` for retrieval. The full lists stay in the
+    #: body; these are what a candidate query filters on.
+    concepts: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    required_datasets: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                    default=list)
+    operations: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                             default=list)
+    tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
+    # ---- the whole case ----------------------------------------------------
+    #: ``TeachingCase.to_dict()``. The contracts, the turns, the discourse, the
+    #: objectives — everything the columns above do not carry.
+    body: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    # ---- governance --------------------------------------------------------
+    #: DRAFT | AUTO_VALIDATED | SME_REVIEW_REQUIRED | APPROVED | REJECTED |
+    #: RETIRED | STALE | SYSTEM_VALIDATED
+    review_status: Mapped[str] = mapped_column(String(24), nullable=False,
+                                               default="DRAFT")
+    authoring_method: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                  default="HUMAN")
+    #: STRUCTURE_ONLY | DIAGNOSTIC | CLIENT
+    data_sensitivity: Mapped[str] = mapped_column(String(24), nullable=False,
+                                                  default="STRUCTURE_ONLY")
+    source_provenance: Mapped[str] = mapped_column(Text, nullable=False,
+                                                   default="")
+    #: For SYSTEM_VALIDATED cases: which §6 source it was derived from.
+    system_source: Mapped[str] = mapped_column(String(32), nullable=False,
+                                               default="")
+    reviewer: Mapped[str] = mapped_column(String(120), nullable=False,
+                                          default="")
+    reviewed_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    last_validated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+
+    # ---- the staleness axes (§5) -------------------------------------------
+    ontology_version: Mapped[str] = mapped_column(String(24), nullable=False,
+                                                  default="")
+    method_version: Mapped[str] = mapped_column(String(24), nullable=False,
+                                                default="")
+    relationship_version: Mapped[str] = mapped_column(String(24),
+                                                      nullable=False,
+                                                      default="")
+    dataset_contract_version: Mapped[str] = mapped_column(String(24),
+                                                          nullable=False,
+                                                          default="")
+    planner_schema_version: Mapped[str] = mapped_column(String(24),
+                                                        nullable=False,
+                                                        default="")
+    prompt_schema_version: Mapped[str] = mapped_column(String(24),
+                                                       nullable=False,
+                                                       default="")
+    model_family: Mapped[str] = mapped_column(String(48), nullable=False,
+                                              default="")
+    prompt_compatibility: Mapped[str] = mapped_column(String(48),
+                                                      nullable=False,
+                                                      default="")
+    family_version: Mapped[str] = mapped_column(String(24), nullable=False,
+                                                default="")
+    #: Why it went STALE, as a comma-joined list of axes. Written when the
+    #: status changes so the reason survives the revalidation that clears it.
+    stale_axes: Mapped[str] = mapped_column(String(240), nullable=False,
+                                            default="")
+
+    # ---- identity of content -----------------------------------------------
+    #: What the case teaches, hashed. Two cases with one fingerprint are
+    #: duplicates however differently they are worded.
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+    #: §15's paraphrase cluster. Variants share one, and an evaluation split
+    #: cuts on this rather than on individual questions.
+    cluster_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+
+    cost_budget: Mapped[float] = mapped_column(Float, nullable=False,
+                                               default=0.0)
+    latency_budget: Mapped[float] = mapped_column(Float, nullable=False,
+                                                  default=0.0)
+    notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+        onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("case_id", "case_version",
+                         name="uq_teaching_case_version"),
+        Index("ix_teaching_case_family", "family_id", "review_status"),
+        Index("ix_teaching_case_status", "review_status", "difficulty"),
+        Index("ix_teaching_case_fingerprint", "fingerprint"),
+        Index("ix_teaching_case_cluster", "cluster_id"),
+        Index("ix_teaching_case_scope", "portfolio_scope", "language"),
+    )
+
+
+class TeachingCaseEvent(Base):
+    """Every status change a teaching case went through, and who made it.
+
+    A review workflow with no audit trail is a workflow that cannot answer the
+    only question anyone asks of it afterwards: who approved this, when, and
+    what did they say. Kept as its own table rather than a JSONB column on the
+    case so an approval survives the case being superseded by a new version.
+    """
+
+    __tablename__ = "teaching_case_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    case_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    case_version: Mapped[int] = mapped_column(Integer, nullable=False,
+                                              default=1)
+    from_status: Mapped[str] = mapped_column(String(24), nullable=False,
+                                             default="")
+    to_status: Mapped[str] = mapped_column(String(24), nullable=False,
+                                           default="")
+    #: The person, by name as recorded at the time. A user row can be renamed
+    #: or removed; what an audit trail says must not change when it is.
+    actor: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    actor_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    #: Why. Required for an approval or a rejection.
+    note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: Whatever the transition needs recorded: the validation problems, the
+    #: staleness axes, the source a system validation rested on.
+    detail: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                         server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_teaching_event_case", "case_id", "case_version", "at"),
+        Index("ix_teaching_event_status", "to_status", "at"),
+    )
