@@ -47,6 +47,16 @@ CHECKS: list[tuple[str, str, float, str]] = [
     ("ipm-negative", "ipm-negative-muted", 3.5, "negative on its own tint"),
     ("ipm-trace-governed", "ipm-surface", 3.0, "a governed Trace node"),
     ("ipm-trace-interpretive", "ipm-surface", 3.0, "an interpretive Trace node"),
+    # A separator that vanishes takes the structure with it. Every table in the
+    # product is rows divided by this one token, and a theme where it fades
+    # into the surface turns a table into a paragraph of numbers. 1.3 is not a
+    # text ratio and is not meant to be: it is the floor at which a hairline
+    # stays a line.
+    ("ipm-border", "ipm-surface", 1.3, "a table rule and a panel edge"),
+    ("ipm-border-strong", "ipm-surface", 1.6, "an input outline and a strong edge"),
+    ("ipm-trace-edge", "ipm-canvas", 1.3, "a Trace edge on the map"),
+    # A badge sits on the accent and carries a word.
+    ("ipm-text-inverse", "ipm-accent", 4.5, "a label on the accent"),
 ]
 
 #: A chart series must be visible against the surface it is drawn on.

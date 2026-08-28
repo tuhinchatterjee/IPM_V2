@@ -16,6 +16,24 @@
  * The swatches below are for the Theme Gallery preview only. The values that
  * actually render the application live in globals.css; these mirror three of
  * them so the gallery can show a card without mounting the theme.
+ *
+ * WHAT A THEME REACHES, AND WHAT IT DELIBERATELY DOES NOT
+ * ------------------------------------------------------
+ * Every surface in the product is drawn from these tokens: charts (eight
+ * slots), the Trace map (governed, interpretive and edge), highlighted SQL,
+ * tables and their rules, workflow states, focus rings, warnings, and the
+ * semantic risk colours that say whether a movement was adverse. Nothing in
+ * the interface carries a colour literal, which is what makes a ninth theme a
+ * block of tokens rather than a search through the components.
+ *
+ * Exports are the exception, and it is a decision rather than an omission. A
+ * workbook leaves the product: it is forwarded, printed, and read in a room
+ * nobody here chose. Rendering it in Midnight Boardroom would produce a black
+ * page that costs somebody a toner cartridge and reads as a fault; rendering
+ * it in whatever the downloader happened to be using would mean two people
+ * exporting the same analysis get files that look like different documents.
+ * So both workbooks use one restrained institutional palette (see
+ * backend/exports/style.py) on every theme, and always will.
  */
 
 /**

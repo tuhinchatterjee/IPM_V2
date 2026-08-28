@@ -5,6 +5,7 @@ import * as React from "react";
 import { Clock, GitBranch, Layers, Sparkles } from "lucide-react";
 
 import { DownloadCalculation } from "@/components/exports/download";
+import { ExportHistory } from "@/components/exports/history";
 import { AuditLedger } from "@/components/trace/audit-ledger";
 import { HealthMap } from "@/components/trace/health-map";
 import { TraceLandscape } from "@/components/trace/landscape";
@@ -277,11 +278,18 @@ function TraceDetail({ runId }: { runId: string }) {
               />
             )}
             {view === "audit" && (
-              <AuditLedger
-                graph={graph}
-                selected={selected}
-                onSelect={setSelected}
-              />
+              <div className="space-y-4">
+                <AuditLedger
+                  graph={graph}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
+                {/* §41: the export activity belongs in the analysis's audit
+                    history. A workbook leaves the product, so "who has a copy
+                    of this, and which version" is a question somebody
+                    eventually has to answer. */}
+                <ExportHistory runId={id} />
+              </div>
             )}
             {node && view !== "story" && (
               <div className="pointer-events-none absolute inset-y-0 right-0 flex w-full max-w-[26rem] p-3">
