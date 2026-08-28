@@ -177,6 +177,75 @@ services:
     networks: [ipm]
     restart: unless-stopped
 
+  # ------------------------------------------------------------ agent worker
+  #
+  # §18 — the governed agentic layer's background worker.
+  #
+  # A separate service rather than a thread inside the API, because a proactive
+  # portfolio review takes minutes and scans millions of rows. Run inside the
+  # API process it occupies a request worker for the duration and every user
+  # asking a question waits behind it. Run beside it, sharing the same image
+  # and the same database, and the API stays responsive.
+  #
+  # It has NO published port and NO volume it can write to beyond the shared
+  # data mount. It claims jobs from Postgres, works, and heartbeats; there is
+  # nothing to connect to and nothing for it to serve.
+  #
+  # Secrets arrive at RUN time only, from the same environment as the backend.
+  # Nothing is baked into a layer — the image is `ipm-backend`, built once.
+  agent-worker:
+    image: ipm-backend
+    container_name: ipm-agent-worker
+    # Depends on the backend having been BUILT (they share the image) and on
+    # the database being ready. Not on the backend being healthy: the worker
+    # does not call the API, it reads the same database, and making it wait
+    # would mean a slow first migration delayed the worker for no reason.
+    depends_on:
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    command: ["python", "-m", "backend.agentic.worker"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ipm_app}:${POSTGRES_PASSWORD:-ipm_local_dev}@db:5432/${POSTGRES_DB:-ipm}
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-ipm_app}
+      ENV: ${ENV:-dev}
+      # Runtime only, never in an image layer. With no key the worker runs the
+      # deterministic pre-screen and the governed runtime exactly as the API
+      # does — a proactive review needs no model at all to produce its cases.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_PROVIDER: ${AI_PROVIDER:-anthropic}
+      AI_MODEL: ${AI_MODEL:-}
+      SECRET_KEY: ${SECRET_KEY:-local-dev-not-a-real-secret}
+      # The worker never serves a request, so it never authenticates one.
+      REQUIRE_LOGIN: "false"
+      BUILD_SHA: ${GIT_SHA:-}
+    volumes:
+      # The same analytical data the backend reads. Read-write because a
+      # review's own analyses write results through the same runtime.
+      - ./data:/app/data
+      - ./metadata:/app/metadata
+      - ./logs:/app/logs
+      - ./.git:/app/.git:ro
+    healthcheck:
+      # §18 asks the worker to expose health. It has no HTTP surface, so the
+      # check is the thing that actually matters: is this worker's row in
+      # `agent_workers` beating? A process that is running but has stopped
+      # claiming jobs is not healthy, and a port check would call it healthy.
+      test: ["CMD", "python", "-m", "backend.agentic.worker_health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    # SIGTERM sets `draining`: the worker finishes the job it is in the middle
+    # of and exits. 60 seconds is long enough for a specialist analysis to
+    # complete; a job that outlives it is recovered by the next worker's
+    # stale-lease sweep, so nothing is lost either way.
+    stop_grace_period: 60s
+    networks: [ipm]
+    restart: unless-stopped
+
   # ------------------------------------------------- optional database browser
   pgadmin:
     image: dpage/pgadmin4:latest

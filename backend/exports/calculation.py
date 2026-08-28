@@ -239,6 +239,8 @@ def _cover(ws: Worksheet, pack: Pack, view: planning.PlanView,
         ("Downloaded by", pack.generated_by),
     ], row)
 
+    row = _coordination(ws, pack, row)
+
     row = style.section(ws, "Status", row)
     failed = [c for c in checks if c.status == "FAIL"]
     row = style.facts(ws, [
@@ -269,6 +271,86 @@ def _cover(ws: Worksheet, pack: Pack, view: planning.PlanView,
         "was generated and are labelled where they appear.",
         row,
     )
+
+
+def _coordination(ws: Worksheet, pack: Pack, row: int) -> int:
+    """§67 — the agentic metadata, where a coordinated run produced this.
+
+    Optional and additive. §67 is explicit that the existing workbooks stay
+    unchanged semantically: no figure, no reconciliation, no sheet moves. What
+    is added is a provenance block on the cover saying WHO coordinated the
+    analysis, because a reader holding a workbook produced by a proactive
+    review should be able to tell that from the workbook.
+
+    Absent for an ordinary analysis, which is most of them — an empty
+    "Coordination" heading would imply the product does this every time.
+
+    §67's last line: "Do not expose hidden reasoning." Every field here is a
+    structured value the run recorded — a title, a count, an action id.
+    """
+    found = _agentic(pack)
+    if not found:
+        return row
+
+    row = style.section(ws, "Coordination", row)
+    return style.facts(ws, [
+        ("Agentic run", found.get("run_id", "—")),
+        ("Trigger", found.get("trigger", "—")),
+        ("Officer level", found.get("officer", "—")),
+        ("Orchestrator", found.get("orchestrator", "—")),
+        ("Specialists", found.get("specialists", "—")),
+        ("Delegated tasks", found.get("tasks", "—")),
+        ("Handoffs", found.get("handoffs", "—")),
+        ("Approval gates", found.get("approvals", "—")),
+        ("Risk cases raised", found.get("cases", "—")),
+        ("Answer assurance", found.get("assurance", "—")),
+        ("Agent registry", found.get("registry", "—")),
+    ], row)
+
+
+def _agentic(pack: Pack) -> dict[str, Any]:
+    """Read the coordination record for this analysis, or nothing.
+
+    Best-effort and self-contained: an export must never fail because the
+    agentic layer could not be read. A workbook without the coordination block
+    is a complete workbook; a workbook that could not be produced is not.
+    """
+    run_id = getattr(pack, "run_id", None)
+    if not run_id:
+        return {}
+    try:
+        from backend.agentic import approvals as gates
+        from backend.agentic import registry, runs
+        from backend.db.engine import get_session
+
+        with get_session() as session:
+            row = runs.for_analysis(session, int(run_id))
+            if row is None:
+                return {}
+            names = [registry.agent(a).business_name
+                     for a in (row.specialists or []) if registry.agent(a)]
+            decided = gates.for_run(session, row.id)
+            cases = list((row.plan or {}).get("cases_created") or [])
+            return {
+                "run_id": row.id,
+                "trigger": runs.TRIGGER_LABELS.get(row.trigger, row.trigger),
+                "officer": (f"{row.officer_level} — {row.officer_title}"
+                            if row.officer_title else "—"),
+                "orchestrator": row.orchestrator or "—",
+                "specialists": " · ".join(names) or "none",
+                "tasks": row.planned_task_count,
+                "handoffs": len(row.handoffs or []),
+                "approvals": (f"{len(decided)} "
+                              f"({sum(1 for a in decided if a.status == 'approved')} "
+                              f"approved)" if decided else "none required"),
+                "cases": len(cases),
+                "assurance": (row.assurance or {}).get("status", "—"),
+                "registry": row.config_fingerprint or "—",
+            }
+    except Exception:  # noqa: BLE001 - an export never fails for this
+        logger.debug("agentic metadata unavailable for run %s", run_id,
+                     exc_info=True)
+        return {}
 
 
 def _certification(pack: Pack) -> str:

@@ -266,19 +266,29 @@ def start_thread(payload: ThreadIn, principal: Principal = RequireAnalyst) -> di
 
     # The opening question is already message 0, so the answer is recorded
     # directly rather than through ask(), which would store it twice.
+    #
+    # Through `agentic.run`, exactly as `threads.ask` does. §4 asks for an
+    # officer on every user-requested analysis, and this endpoint answers the
+    # FIRST question of every thread — the one a user sees most. Calling
+    # `answer_investigation` directly here gave the officer record to
+    # follow-ups only, so the Cockpit's own question arrived with no officer,
+    # no completion line and no assurance status.
+    from backend.agentic import interactive as agentic
+    from backend.db.engine import get_session
     from backend.orchestration import conversation as cv
-    from backend.orchestration.executor import answer_investigation
 
     window = _window(payload.from_period, payload.to_period) or th.settled_period(
         thread.context
     )
-    result, answered = answer_investigation(
-        payload.question, user_id=principal.user_id,
-        project_id=payload.project_id, investigation_id=thread.id,
-        persist=True, period=window, state=cv.load(thread.context),
-        memory=wm.load(thread.context),
-    )
-    th.remember(thread.id, result, answered)
+    with get_session() as session:
+        officer = agentic.run(
+            session, question=payload.question, user_id=principal.user_id,
+            project_id=payload.project_id, investigation_id=thread.id,
+            period=window, state=cv.load(thread.context),
+            memory=wm.load(thread.context),
+        )
+    result = officer.investigation
+    th.remember(thread.id, result, officer.answered)
     if result.status == "needs_clarification":
         run = result.to_dict()
         clarification = run.get("clarification") or {}
@@ -286,10 +296,13 @@ def start_thread(payload: ThreadIn, principal: Principal = RequireAnalyst) -> di
                   content=str(clarification.get("question") or "One thing first."),
                   payload=run, user_id=principal.user_id)
         return {"status": "needs_clarification", "run": run,
+                "agentic": officer.agentic(),
                 "thread": th.load(thread.id).to_dict()}
 
-    th.record_answer(thread.id, result, user_id=principal.user_id)
+    th.record_answer(thread.id, result, user_id=principal.user_id,
+                     agentic=officer.agentic())
     return {"status": result.status, "run": result.to_dict(),
+            "agentic": officer.agentic(),
             "thread": th.load(thread.id).to_dict()}
 
 

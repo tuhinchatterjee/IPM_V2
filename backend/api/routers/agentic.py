@@ -186,6 +186,34 @@ def detail(run_id: int, principal: Principal = Caller) -> dict[str, Any]:
         return found
 
 
+@router.get("/for-analysis/{analysis_run_id}",
+            summary="The agentic run behind an analysis")
+def for_analysis(analysis_run_id: int,
+                 principal: Principal = Caller) -> dict[str, Any]:
+    """§26, §27 — the coordination layer of a Trace.
+
+    Returns nothing (200 with `found: false`) when an analysis was asked for
+    directly rather than produced by a coordinated run. That is the ordinary
+    case, and it is not an error: most analyses are one person's question.
+    """
+    with get_session() as session:
+        row = runs.for_analysis(session, analysis_run_id)
+        if row is None:
+            return {"found": False, "analysis_run_id": analysis_run_id}
+        if row.user_id != principal.user_id and not (
+                principals.may_operate_agents(principal)):
+            # Somebody else's run produced this analysis. The analysis itself
+            # is governed by its own permissions; the coordination behind it
+            # is not theirs to read.
+            return {"found": False, "analysis_run_id": analysis_run_id}
+        found = runs.detail(session, row)
+        found["found"] = True
+        found["story"] = runs.story(session, row)
+        found["approvals"] = [approvals.view(a)
+                              for a in approvals.for_run(session, row.id)]
+        return found
+
+
 class CancelIn(BaseModel):
     reason: str = Field(default="", max_length=500)
 

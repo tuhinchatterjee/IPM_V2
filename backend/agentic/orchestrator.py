@@ -316,8 +316,19 @@ def execute(plan: dag.Plan, *, answer_one: Callable[..., Any],
             except bg.Exhausted as exhausted:
                 return _stop_on_budget(outcome, plan, exhausted)
 
-            _run_task(task, plan, answer_one=answer_one, budget=budget,
-                      actor=actor, outcome=outcome)
+            try:
+                _run_task(task, plan, answer_one=answer_one, budget=budget,
+                          actor=actor, outcome=outcome)
+            except bg.Exhausted as exhausted:
+                # A meter charged inside the task itself — a scan, a model
+                # call. Without this the exception leaves `execute` entirely,
+                # and §20's "stop, say what was completed, say what remains"
+                # becomes an uncaught error in whatever called us, with this
+                # task still marked RUNNING forever.
+                task.status = dag.CANCELLED
+                task.error_category = "budget"
+                task.error = exhausted.sentence()
+                return _stop_on_budget(outcome, plan, exhausted)
             if on_task is not None:
                 on_task(task)
 
@@ -365,7 +376,11 @@ def _run_task(task: dag.Task, plan: dag.Plan, *,
 
     question = str(task.parameters.get("question") or "")
     try:
-        budget.spend(bg.SCANS)
+        # Carries the same two lines the task meter does: a run that stops
+        # here has to be able to say what it finished and what it owes, and
+        # §20 makes no exception for the meters charged inside a task.
+        budget.spend(bg.SCANS, completed=_completed_line(plan),
+                     remaining=_remaining_line(plan))
         answered = answer_one(
             question, user_id=getattr(actor, "user_id", None))
     except bg.Exhausted:
@@ -475,6 +490,13 @@ def _evidence_of(answered: Any) -> dict[str, Any]:
     if plan is not None:
         found["datasets"] = sorted({
             str(d) for d in (getattr(plan, "datasets", ()) or ())})
+    # Nothing measured and nothing to open. The empty document rather than a
+    # dict of empty keys, because §24's output-contract check reads this for
+    # truth: `{"analysis_run_id": None, "figures": []}` is a truthy dict, and a
+    # contract requiring evidence would be satisfied by a specialist that
+    # produced a sentence and no analysis at all.
+    if found["analysis_run_id"] is None and not found["figures"]:
+        return {}
     return found
 
 

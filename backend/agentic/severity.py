@@ -99,8 +99,9 @@ LABELS: dict[str, str] = {
 }
 
 #: Which components describe the RISK, and which describe how well the risk is
-#: EVIDENCED. Kept apart because the quality components score high when things
-#: are missing, and mixing the two produces explanations that read backwards.
+#: EVIDENCED. Kept apart because a quality component says how established a
+#: finding is rather than how bad it is, and mixing the two produces
+#: explanations that read backwards.
 RISK_COMPONENTS: frozenset[str] = frozenset(
     {MATERIALITY, MAGNITUDE, SIGNALS, PERSISTENCE, CONCENTRATION, APPETITE})
 QUALITY_COMPONENTS: frozenset[str] = frozenset(
@@ -176,11 +177,11 @@ class Score:
         cannot disagree with the number beside it.
 
         Risk and quality are described separately, and that separation is not
-        cosmetic. `evidence_completeness` scores HIGH when evidence is MISSING,
-        so a low-severity case with thin evidence has "evidence completeness"
-        as its largest single contributor — and "low severity, driven by
-        evidence completeness" reads as though completeness caused the risk,
-        which is the opposite of what the component measures.
+        cosmetic. A quality component describes how well a finding is
+        ESTABLISHED, not how bad it is, so naming one alongside the risk
+        drivers — "driven by evidence completeness" — reads as though the
+        completeness caused the risk. Quality is therefore named only when it
+        is WEAK, and named as a caveat: "Thin on ...".
         """
         risk = [c for c in self.components if c.key in RISK_COMPONENTS
                 and c.contribution > 0.01]

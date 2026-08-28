@@ -5,6 +5,7 @@ import * as React from "react";
 import { Clock, GitBranch, Layers, Sparkles } from "lucide-react";
 
 import { DownloadCalculation } from "@/components/exports/download";
+import { AgenticTrace } from "@/components/agentic/trace-panel";
 import { ExportHistory } from "@/components/exports/history";
 import { AuditLedger } from "@/components/trace/audit-ledger";
 import { HealthMap } from "@/components/trace/health-map";
@@ -220,6 +221,13 @@ function TraceDetail({ runId }: { runId: string }) {
               versions={data.available_versions}
             />
           )}
+
+          {/* §26, §27 — the coordination behind this analysis, where a
+              coordinated run produced it. Above the graph because the question
+              "who decided to run this, and what else did they run" comes
+              before "what were the forty steps". Absent for an ordinary
+              analysis, which is most of them. */}
+          <AgenticTrace analysisRunId={id} />
 
           {/* -------------------------------------------------- health map */}
           {/* Before the map, because the question a Trace is opened with is

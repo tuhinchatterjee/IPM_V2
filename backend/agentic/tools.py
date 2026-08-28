@@ -255,15 +255,23 @@ _BY_ID: dict[str, Tool] = {t.tool_id: t for t in TOOLS}
 #: registry entry an agent could call, so the prohibition does not depend on a
 #: permission check being written correctly.
 NO_TOOL_EXISTS: tuple[str, ...] = (
+    # Every Level 4 action in `autonomy.ACTIONS`, named with the SAME id. The
+    # correspondence is deliberate and tested: an auditor reading §21's action
+    # list must be able to check each entry against this one by name, and a
+    # future Level 4 action added under a name absent here fails that test
+    # rather than quietly acquiring a tool.
+    "send_workflow",
+    "assign_owner",
+    "close_case",
     "publish_data",
     "certify_method",
     "approve_workflow",
-    "send_workflow",
-    "send_external_communication",
     "change_limits",
     "change_risk_appetite",
-    "close_risk_case",
+    "external_communication",
     "modify_client_data",
+    # Not actions in §21's list, but the same prohibition: capabilities that
+    # would make every other permission in this file decorative.
     "alter_certified_method",
     "execute_sql",
     "execute_python",

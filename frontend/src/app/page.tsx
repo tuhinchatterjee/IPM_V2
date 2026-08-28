@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
-import { Loader2 } from "lucide-react";
-
 import { Composer, useGreeting } from "@/components/ask/composer";
+import { PendingOfficer } from "@/components/agentic/pending";
 import { RequiresAttention } from "@/components/attention/requires-attention";
 import { BackLink } from "@/components/layout/back-link";
 import { useGreetingName } from "@/components/system/auth";
@@ -53,6 +52,10 @@ function Cockpit() {
   // keyboard shortcut. It is offered in the composer rather than run
   // automatically: the user still presses Ask.
   const [question, setQuestion] = React.useState(searchParams.get("q") ?? "");
+  // The question actually submitted, kept separately from what is in the
+  // composer: `start` is also called with a suggestion, and the officer
+  // indicator has to name the officer for the question that is RUNNING.
+  const [asked, setAsked] = React.useState("");
   const [opening, setOpening] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -84,6 +87,7 @@ function Cockpit() {
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || opening) return;
+      setAsked(trimmed);
       setOpening(true);
       setError(null);
       try {
@@ -170,12 +174,14 @@ function Cockpit() {
           />
         </div>
 
-        {opening && (
-          <p className="mt-3 flex items-center gap-2 text-sm text-text-muted">
-            <Loader2 className="size-3.5 animate-spin text-accent" aria-hidden />
-            Opening the investigation and running the analyses…
-          </p>
-        )}
+        {/* §6, §8: an officer, named, directly below the composer — not a
+            spinner. What was here was `Loader2` and the sentence "Opening the
+            investigation and running the analyses…", which is the gaming
+            spinner §6 forbids and says the same thing for a metadata lookup
+            and for a whole-book review. `PendingOfficer` previews the SAME
+            deterministic selection the run is created with, so the title a
+            reader sees first is never contradicted by the one they see next. */}
+        {opening && <PendingOfficer question={asked} className="mt-3" />}
         {error && (
           <Card className="mt-4 border-negative/40 p-4 text-sm text-negative">
             {error}

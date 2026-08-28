@@ -391,7 +391,12 @@ function Actions({
   return (
     <div className="flex flex-wrap gap-1.5">
       {(has("investigate") || has("open_investigation")) && (
-        <Button size="sm" onClick={() => void investigate()} disabled={opening}>
+        <Button
+          size="sm"
+          data-testid="case-investigate"
+          onClick={() => void investigate()}
+          disabled={opening}
+        >
           <Search aria-hidden />
           {found.investigation_id ? "Open investigation" : "Investigate"}
         </Button>

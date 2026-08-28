@@ -235,8 +235,12 @@ class Budget:
         """
         elapsed = int(self.elapsed_seconds)
         self.spent[RUNTIME] = elapsed
+        # `>=`, not `>`, and for the same reason `spend` uses `now + amount >
+        # limit`: having already used the whole limit, the next second is one
+        # too many. It also makes a limit of zero mean zero here as it does
+        # everywhere else — with `>`, a runtime budget of 0 granted forever.
         if (self.limits.runtime_seconds >= 0
-                and elapsed > self.limits.runtime_seconds):
+                and elapsed >= self.limits.runtime_seconds):
             self.exhausted = Exhausted(
                 RUNTIME, elapsed, self.limits.runtime_seconds,
                 completed=completed, remaining=remaining)

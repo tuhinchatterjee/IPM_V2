@@ -391,6 +391,114 @@ def tasks_of(session: Any, run_id: int) -> list[AgentTask]:
     ).scalars().all())
 
 
+def for_analysis(session: Any, analysis_run_id: int) -> AgentRun | None:
+    """The agentic run behind an analysis, if one produced it.
+
+    Looked up two ways because an agentic run relates to an analysis in two
+    ways: it may have recorded that analysis as its own primary result, or one
+    of its delegated tasks may have produced it. The Trace has to find the
+    coordination from either end.
+    """
+    from backend.models.platform import AgentTask
+
+    found = session.execute(
+        select(AgentRun).where(AgentRun.analysis_run_id == analysis_run_id)
+        .order_by(AgentRun.created_at.desc()).limit(1)
+    ).scalar_one_or_none()
+    if found is not None:
+        return found
+
+    run_id = session.execute(
+        select(AgentTask.run_id)
+        .where(AgentTask.analysis_run_id == analysis_run_id)
+        .order_by(AgentTask.id.desc()).limit(1)
+    ).scalar()
+    return session.get(AgentRun, run_id) if run_id else None
+
+
+def story(session: Any, run: AgentRun) -> list[dict[str, Any]]:
+    """§27's Trace Story for an agentic run.
+
+    Six stages, each a paragraph a reader can take in without clicking a node:
+
+        TRIGGERED     why CreditProbe acted
+        ORCHESTRATED  which officer, and which specialists
+        INVESTIGATED  what was actually run
+        VALIDATED     what Assurance checked
+        DECIDED       what was concluded
+        ACTIONED      what was created
+
+    Assembled from the run's own record — the stage history, the task rows, the
+    validation document — rather than written, so a story and the graph beside
+    it cannot disagree.
+    """
+    from backend.agentic import registry
+
+    tasks = tasks_of(session, run.id)
+    done = [t for t in tasks if t.status == "complete"]
+    checked = [t for t in tasks if t.validation_state != "not_required"]
+    specialists = [registry.agent(a).business_name
+                   for a in (run.specialists or []) if registry.agent(a)]
+    cases = list((run.plan or {}).get("cases_created") or [])
+
+    found: list[dict[str, Any]] = [
+        {
+            "stage": "TRIGGERED",
+            "title": TRIGGER_LABELS.get(run.trigger, run.trigger),
+            "body": (run.question or
+                     f"A review of {run.period}." if run.period else
+                     "CreditProbe was asked to act."),
+            "detail": (f"Service identity {run.service_identity}."
+                       if run.service_identity else ""),
+        },
+        {
+            "stage": "ORCHESTRATED",
+            "title": f"{run.officer_title or 'CreditProbe'} took the request",
+            "body": run.selection_reason
+                    or "No structural reason was recorded.",
+            "detail": (f"{len(specialists)} specialists: "
+                       f"{' · '.join(specialists)}." if specialists else ""),
+        },
+        {
+            "stage": "INVESTIGATED",
+            "title": (f"{len(done)} governed "
+                      f"{'analysis' if len(done) == 1 else 'analyses'}"),
+            "body": "; ".join(t.finding for t in done if t.finding)
+                    or "Nothing was computed.",
+            "detail": "; ".join(
+                f"{t.agent_id}: {t.purpose}" for t in done[:4]),
+        },
+        {
+            "stage": "VALIDATED",
+            "title": ("Checked by Validation & Assurance" if checked
+                      else "Nothing required checking"),
+            "body": next((t.finding for t in tasks
+                          if t.agent_id == registry.VALIDATION.agent_id
+                          and t.finding), "No assurance pass was recorded."),
+            "detail": (run.assurance or {}).get("status", ""),
+        },
+        {
+            "stage": "DECIDED",
+            "title": "What CreditProbe concluded",
+            "body": run.synthesis or run.failure
+                    or "No conclusion was recorded.",
+            "detail": "; ".join(
+                str(c.get("sentence") or "") for c in (run.conflicts or [])),
+        },
+        {
+            "stage": "ACTIONED",
+            "title": (f"{len(cases)} Risk "
+                      f"{'Case' if len(cases) == 1 else 'Cases'} raised"
+                      if cases else "An answer, and nothing else"),
+            "body": (f"Cases {', '.join(str(c) for c in cases)} were created "
+                     f"as drafts for a person to triage." if cases else
+                     "Nothing was created; the answer is the outcome."),
+            "detail": "",
+        },
+    ]
+    return found
+
+
 def listing(session: Any, *, limit: int = 40, status: str = "",
             trigger: str = "", user_id: int | None = None
             ) -> list[dict[str, Any]]:

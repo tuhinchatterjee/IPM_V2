@@ -283,7 +283,13 @@ export function useLiveRun(
     };
   }, [runId]);
 
-  if (!runId) return null;
+  // No run to poll, but a caller may still have something real to show: that
+  // is `PendingOfficer`, which has the previewed officer and the stage but no
+  // agent run yet, because the request has not reached the server. Returning
+  // null here made `Working` render nothing for it, so the indicator §6 and §8
+  // ask for — an officer named the moment work starts — never appeared, and
+  // the Cockpit kept its spinner.
+  if (!runId) return initial ?? null;
   if (loaded && loaded.runId === runId) return loaded.live;
   return initial ?? null;
 }

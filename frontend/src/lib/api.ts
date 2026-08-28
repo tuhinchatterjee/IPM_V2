@@ -4162,6 +4162,13 @@ export const api = {
   agentEvents: (limit = 50) =>
     request<{ events: AgentEvent[]; kinds: { id: string; label: string }[] }>(
       `/agentic/events?limit=${limit}`),
+  // §26, §27 — the coordination behind an analysis, where one produced it.
+  // Returns `found: false` for the ordinary case: most analyses are one
+  // person's question, answered by one specialist.
+  agenticForAnalysis: (analysisRunId: number) =>
+    request<AgentRunDetail & { found: boolean }>(
+      `/agentic/for-analysis/${analysisRunId}`,
+    ),
   agentEvaluations: (tier = "certification") =>
     request<AgentEvaluation>(`/agentic/evaluations?tier=${tier}`, {
       timeoutMs: 60_000,
