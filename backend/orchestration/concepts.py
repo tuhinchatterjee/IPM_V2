@@ -45,6 +45,12 @@ COVENANTS = "covenant_tests"
 MACRO = "macro_saudi"
 MEMOS = "credit_memo_signals"
 FINANCIALS = "borrower_financials"
+LIMITS = "facility_limits"
+COLLATERAL = "collateral_register"
+RECOVERIES = "recoveries"
+APPETITE = "risk_appetite_limits"
+PD_MODEL = "pd_model_performance"
+TRANSITIONS = "rating_transitions"
 
 
 @dataclass(frozen=True)
@@ -311,6 +317,259 @@ CONCEPTS: tuple[Concept, ...] = (
                        "How strong the structured signal from the credit file "
                        "is.", default=True),)),
 )
+
+
+# ------------------------------------------------- credit-risk ontology v2
+#
+# P0.5. Each of these is a thing a credit officer says out loud and CreditProbe
+# previously had no governed meaning for. Every one is backed by a real field in
+# the governed lake — a concept with no data behind it is a definition wearing
+# the clothes of an implementation, and it makes the catalogue look richer than
+# the product is.
+
+CONCEPTS_V2: tuple[Concept, ...] = (
+    Concept(
+        id="pd_12m", label="twelve-month PD",
+        pattern=r"12[- ]?month pd|twelve[- ]?month pd|one[- ]?year pd|\bpd12\b",
+        unit="%",
+        candidates=(
+            _c(IFRS9, "pd_12m_pct",
+               "The probability of default over the next twelve months, as the "
+               "impairment calculation used it.", "ifrs9", "impairment",
+               default=True),
+            _c(FACILITY, "pd_12m_pct",
+               "The twelve-month PD carried on the facility position.",
+               "facility", "portfolio"),
+        )),
+    Concept(
+        id="pd_lifetime", label="lifetime PD",
+        pattern=r"lifetime pd|life[- ]?time probability|full[- ]?life pd",
+        unit="%",
+        candidates=(
+            _c(IFRS9, "pd_lifetime_pct",
+               "The probability of default over the remaining life of the "
+               "exposure. Used once SICR has moved an account to a lifetime "
+               "horizon.", default=True),
+            _c(FACILITY, "pd_lifetime_pct",
+               "Lifetime PD as carried on the facility position.",
+               "facility"),
+        )),
+    Concept(
+        id="pd_origination", label="PD at origination",
+        pattern=r"pd at origination|origination pd|initial pd|pd since origination",
+        unit="%",
+        candidates=(_c(IFRS9, "pd_at_origination_pct",
+                       "The PD recorded when the exposure was first "
+                       "recognised. The reference point SICR is measured "
+                       "against.", default=True),)),
+    Concept(
+        id="sicr", label="significant increase in credit risk",
+        pattern=r"\bsicr\b|significant increase in credit risk|"
+                r"stage 2 trigger|staging trigger",
+        is_categorical=True,
+        candidates=(
+            _c(IFRS9, "sicr_any_trigger",
+               "Whether any significant-increase trigger is firing.",
+               default=True),
+            _c(IFRS9, "sicr_pd_trigger", "The PD-deterioration trigger.", "pd"),
+            _c(IFRS9, "sicr_dpd_trigger", "The days-past-due trigger.", "dpd",
+               "past due"),
+            _c(IFRS9, "sicr_covenant_trigger", "The covenant-breach trigger.",
+               "covenant"),
+            _c(IFRS9, "sicr_rating_trigger", "The rating-downgrade trigger.",
+               "rating", "downgrade"),
+            _c(IFRS9, "sicr_watchlist_trigger", "The watchlist trigger.",
+               "watchlist"),
+        )),
+    Concept(
+        id="overlay", label="management and macro overlay",
+        pattern=r"overlay|management adjustment|post[- ]?model adjustment|\bpma\b",
+        unit="USD mn",
+        candidates=(
+            _c(IFRS9, "macro_overlay",
+               "The overlay added on top of modelled ECL. A judgement, not a "
+               "model output.", default=True),
+            _c(FACILITY, "macro_overlay",
+               "The overlay as carried on the facility position.", "facility"),
+        )),
+    Concept(
+        id="model_ecl", label="modelled ECL",
+        pattern=r"model(?:led|ed)? ecl|modelled impairment|pre[- ]?overlay ecl",
+        unit="USD mn",
+        candidates=(_c(IFRS9, "model_ecl",
+                       "ECL as the impairment model computed it, before any "
+                       "overlay.", default=True),)),
+    Concept(
+        id="external_rating", label="external rating",
+        pattern=r"external rating|agency rating|\bs&p\b|moody|fitch",
+        is_categorical=True,
+        candidates=(
+            _c(RATINGS, "external_rating",
+               "The agency rating recorded at the customer's rating cycle.",
+               "customer", "cycle", default=True),
+            _c(FINANCIALS, "external_rating",
+               "The agency rating on the borrower's financial record.",
+               "financials"),
+        )),
+    Concept(
+        id="npl", label="non-performing",
+        pattern=r"\bnpl\b|non[- ]?performing|\bnpe\b|bad book",
+        is_categorical=True,
+        candidates=(
+            _c(FACILITY, "npl",
+               "Whether the facility is non-performing at the reporting date.",
+               default=True),
+            _c(DELINQUENCY, "npl",
+               "Non-performing status on the delinquency record.",
+               "delinquen", "arrears"),
+        )),
+    Concept(
+        id="arrears", label="arrears amount",
+        # Deliberately NOT the bare word. "Accounts in arrears" and "worsening
+        # arrears" are about the delinquency state, which `dpd` already owns and
+        # measures in days; only a qualified phrase means the overdue AMOUNT.
+        # One phrase claimed by two concepts resolves by pattern length, which
+        # is to say arbitrarily.
+        pattern=r"arrears (?:amount|balance)|amount (?:in arrears|overdue)|"
+                r"past[- ]?due amount|overdue amount|missed instalments?",
+        unit="USD mn",
+        candidates=(
+            _c(DELINQUENCY, "arrears_amount",
+               "The amount currently overdue.", default=True),
+            _c(DELINQUENCY, "exposure_at_risk",
+               "The exposure of accounts carrying arrears.", "exposure",
+               "at risk"),
+        )),
+    Concept(
+        id="dpd_bucket", label="delinquency bucket",
+        pattern=r"dpd bucket|delinquency bucket|ageing bucket|arrears bucket|"
+                r"bucket",
+        is_ordinal=True,
+        candidates=(_c(DELINQUENCY, "dpd_bucket",
+                       "The ordered days-past-due band the account sits in.",
+                       default=True),)),
+    Concept(
+        id="cure", label="cure",
+        pattern=r"\bcure[ds]?\b|returned to performing|rehabilitat\w*|"
+                r"back to stage 1",
+        higher_is_worse=False, is_categorical=True,
+        candidates=(
+            _c(DELINQUENCY, "cured_this_period",
+               "Whether the account returned to performing in this period.",
+               default=True),
+            _c(IFRS9, "quarters_clean",
+               "How many consecutive quarters the account has been clean.",
+               "clean", "consecutive"),
+        )),
+    Concept(
+        id="forbearance", label="forbearance",
+        pattern=r"forbear\w*|restructur\w*|concession|reschedul\w*",
+        is_categorical=True,
+        candidates=(
+            _c(DELINQUENCY, "forbearance_type",
+               "The kind of concession granted, where one was.", default=True),
+            _c(DELINQUENCY, "restructured_flag",
+               "Whether the facility has been restructured.", "restructur"),
+        )),
+    Concept(
+        id="collateral", label="collateral value",
+        pattern=r"collateral|security(?! interest)|\bltv\b|"
+                r"net realisable value",
+        higher_is_worse=False, unit="USD mn",
+        candidates=(
+            _c(FACILITY, "collateral_value",
+               "The collateral value carried on the facility position.",
+               "facility", "portfolio", default=True),
+            _c(COLLATERAL, "net_realisable_value",
+               "Market value less the governed haircut — what the bank would "
+               "expect to realise.", "realisable", "haircut", "net"),
+            _c(COLLATERAL, "market_value",
+               "The valuer's market value, before any haircut.", "market",
+               "valuation", "gross"),
+        )),
+    Concept(
+        id="limit", label="approved limit",
+        pattern=r"\blimits?\b|approved (?:limit|facility)|facility size|"
+                r"committed amount",
+        unit="USD mn",
+        candidates=(
+            _c(FACILITY, "limit_amount",
+               "The approved limit on the facility position.", default=True),
+            _c(LIMITS, "limit_amount",
+               "The approved limit on the limits record.", "limits",
+               "approval"),
+        )),
+    Concept(
+        id="undrawn", label="undrawn commitment",
+        pattern=r"undrawn|unutilised|unused (?:limit|commitment)|headroom on the limit",
+        unit="USD mn",
+        candidates=(_c(FACILITY, "undrawn",
+                       "The committed amount not yet drawn.", default=True),)),
+    Concept(
+        id="realised_lgd", label="realised loss given default",
+        pattern=r"realis\w+ lgd|actual lgd|realised loss|recovery rate",
+        unit="%",
+        candidates=(
+            _c(RECOVERIES, "realised_lgd_pct",
+               "The loss actually realised on a defaulted exposure, once "
+               "recoveries are in.", default=True),
+            _c(RECOVERIES, "recovery_rate_pct",
+               "Cash and collateral recovered as a share of exposure at "
+               "default.", "recovery", "recovered"),
+        )),
+    Concept(
+        id="default_rate", label="observed default rate",
+        pattern=r"observed default rate|\bodr\b|default rate|realised defaults?",
+        unit="%",
+        candidates=(_c(PD_MODEL, "observed_default_rate_pct",
+                       "The default rate actually observed for a segment, "
+                       "against which the predicted PD is calibrated.",
+                       default=True),)),
+    Concept(
+        id="notches_moved", label="rating migration",
+        pattern=r"notches? moved|rating migration|migrat\w+ (?:by|of) notch|"
+                r"transition matrix",
+        candidates=(
+            _c(RATINGS, "notches_moved",
+               "How many notches the customer's grade moved at its rating "
+               "cycle.", default=True),
+            _c(TRANSITIONS, "notches_moved",
+               "Notches moved on the rating transition record.", "transition",
+               "matrix"),
+        )),
+    Concept(
+        id="stage_moved", label="stage migration",
+        pattern=r"stage migration|stage move\w*|moved (?:in)?to stage|"
+                r"staging movement",
+        is_categorical=True,
+        candidates=(_c(IFRS9, "stage_moved",
+                       "Whether the account changed IFRS 9 stage this period, "
+                       "and in which direction.", default=True),)),
+    Concept(
+        id="appetite", label="risk appetite utilisation",
+        pattern=r"risk appetite|appetite (?:limit|breach|utilisation)|"
+                r"concentration limit",
+        unit="%",
+        candidates=(
+            _c(APPETITE, "utilisation_of_limit_pct",
+               "How much of a sector's appetite limit is used.", default=True),
+            _c(FACILITY, "appetite_breach",
+               "Whether the facility sits in a sector breaching appetite.",
+               "breach", "facility"),
+        )),
+    Concept(
+        id="raroc", label="risk-adjusted return on capital",
+        pattern=r"\braroc\b|risk[- ]?adjusted return|return on capital",
+        higher_is_worse=False, unit="%",
+        candidates=(_c(FACILITY, "raroc_pct",
+                       "Risk-adjusted return on regulatory capital for the "
+                       "facility.", default=True),)),
+)
+
+#: The whole vocabulary. Built here rather than in two places so the match
+#: index below cannot see a different set of concepts from the one the rest of
+#: the product reads.
+CONCEPTS = CONCEPTS + CONCEPTS_V2
 
 #: Sorted longest-pattern-first so a specific phrase wins over a general one.
 _ORDERED = tuple(sorted(CONCEPTS, key=lambda c: -len(c.pattern)))
