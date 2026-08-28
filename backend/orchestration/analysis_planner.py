@@ -273,7 +273,14 @@ def plan(reading: Reading, context: GovernedContext, *,
     # is a sector; read as a verb it asserts that something contracted, and a
     # ranking of Contracting customers was planned as a cohort of shrinking
     # ones — a different question with no obvious symptom.
-    conditions = _conditions(_without_values(text, filters), matches)
+    # P0.3: a measure named in order to RANK the answer is not a condition on
+    # membership. "Which customers ...? Rank them by EAD" used to read EAD's
+    # movement as a fifth condition and quietly answered a narrower question,
+    # with the requested ordering never performed. Conditions are therefore read
+    # from the clauses that DEFINE the population; the ranking clause is read
+    # separately, below, as an ordering.
+    condition_text = _defining_clauses(text)
+    conditions = _conditions(_without_values(condition_text, filters), matches)
     if carrying and not resolved.matches and state.conditions:
         # The question named no measure of its own — "only show Contracting" —
         # so it is narrowing the analysis that just ran rather than starting a
@@ -488,6 +495,27 @@ def _without_values(text: str, filters: list[tuple[str, str]]) -> str:
             continue
         out = re.sub(rf"\b{re.escape(value)}\b", " ", out, flags=re.I)
     return out
+
+
+def _defining_clauses(text: str) -> str:
+    """The part of the message that DEFINES the population.
+
+    Everything except the clauses whose verb says what to do WITH the
+    population — rank it, compare it, describe it. Falls back to the whole
+    message when the decomposition finds nothing to remove, so a plain question
+    is read exactly as it was before P0.3.
+    """
+    try:
+        from backend.orchestration import objectives as ob
+
+        reading = ob.read(text)
+    except Exception:  # noqa: BLE001 - reading must never break a question
+        return text
+    kept = [o.description for o in reading.objectives
+            if o.action not in (ob.RANK, ob.COMPARE, ob.DESCRIBE)]
+    if not kept or len(kept) == len(reading.objectives):
+        return text
+    return ". ".join(kept)
 
 
 def _conditions(text: str, matches: list[cx.ConceptMatch]) -> list[Condition]:

@@ -156,6 +156,15 @@ class DynamicRequest:
     conditions: list[Condition] = field(default_factory=list)
     columns: list[str] = field(default_factory=list)
     summary: str = ""
+    #: The governed field the answer is ORDERED by, where the request asks for
+    #: an ordering. Separate from `conditions` because "Rank them by EAD" says
+    #: what order to present the cohort in, not what has to be true of it —
+    #: and reading it as a condition silently narrows the population to those
+    #: whose EAD also moved. That was P0.1's defect A.
+    order_by: str = ""
+    order_direction: str = "desc"
+    #: The measure phrase behind `order_by`, as the user wrote it.
+    order_phrase: str = ""
     #: Why it could not be read, when it could not. Every reason, not the first.
     reasons: list[str] = field(default_factory=list)
 
@@ -167,6 +176,9 @@ class DynamicRequest:
             "filters": [{"field": f, "value": v} for f, v in self.filters],
             "conditions": [c.to_dict() for c in self.conditions],
             "columns": list(self.columns), "summary": self.summary,
+            "order_by": self.order_by,
+            "order_direction": self.order_direction,
+            "order_phrase": self.order_phrase,
             "reasons": list(self.reasons),
         }
 
@@ -489,16 +501,29 @@ _HORIZONS = [
 
 def read_question(question: str, *, periods: list[str],
                   dimensions: dict[str, list[str]] | None = None,
-                  dataset: str = DEFAULT_DATASET) -> DynamicRequest:
+                  dataset: str = DEFAULT_DATASET,
+                  reading: Any = None) -> DynamicRequest:
     """Read a cohort question into an explicit request, or refuse.
 
     Deterministic. The reading decides what will be computed, and a reading that
     varies between two identical questions makes every answer unreproducible —
     which is the opposite of what this product sells.
+
+    `reading` is the P0.3 objective decomposition. With one, conditions are read
+    ONLY from the clauses that define the population, and a ranking clause
+    becomes an ordering instead of another condition. Without one the whole
+    message is read for conditions, which is what this did before P0.3 and what
+    made "Rank them by EAD" narrow the cohort to customers whose EAD had risen.
     """
     request = DynamicRequest(dataset=dataset)
     text = " ".join(str(question).split())
     lowered = text.lower()
+
+    # The text conditions are read from. With an objective reading this is the
+    # defining clause alone; without one it is the whole message.
+    condition_text = text
+    if reading is not None:
+        condition_text = _defining_text(reading) or text
 
     if not periods:
         request.reasons.append("No reporting periods are published.")
@@ -534,7 +559,10 @@ def read_question(question: str, *, periods: list[str],
                 request.filters.append((dimension, str(value)))
                 break
 
-    conditions, unread = read_conditions(text)
+    if reading is not None:
+        _read_ordering(request, reading, governed=None)
+
+    conditions, unread = read_conditions(condition_text)
     if unread:
         request.reasons.append(
             "CreditProbe could not read: " + "; ".join(f"'{u}'" for u in unread))
@@ -574,6 +602,46 @@ def read_question(question: str, *, periods: list[str],
     return request
 
 
+def _defining_text(reading: Any) -> str:
+    """The clauses that DEFINE the population, joined.
+
+    A cohort is defined by the clause that introduces it and by any clause that
+    restricts it further. A clause that ranks, compares or describes the cohort
+    says what to do WITH it, and its measures are not conditions on membership.
+    """
+    from backend.orchestration import objectives as ob
+
+    wanted = (ob.SELECT, ob.ASSESS)
+    parts = [o.description for o in getattr(reading, "objectives", [])
+             if o.action in wanted]
+    return ". ".join(parts)
+
+
+def _read_ordering(request: DynamicRequest, reading: Any,
+                   governed: Any = None) -> None:
+    """Turn a RANK objective into an ordering on the request."""
+    from backend.orchestration import objectives as ob
+
+    ranking = getattr(reading, "ranking", None)
+    if ranking is None or not ranking.measure_phrase:
+        return
+    found = _measure_for(ranking.measure_phrase)
+    if not found:
+        # The phrase names something this dataset cannot order by. Recorded as
+        # a reason rather than dropped: an ordering the user asked for and did
+        # not get is exactly the silent omission P0.3 forbids.
+        request.reasons.append(
+            f"CreditProbe could not order by '{ranking.measure_phrase}' — it "
+            f"names no governed measure of {request.dataset}.")
+        return
+    request.order_by = found[0]
+    request.order_phrase = ranking.measure_phrase
+    # Largest first for a ranking: "rank them by EAD" means the biggest
+    # exposure at the top, whichever direction is the risky one.
+    request.order_direction = "desc"
+    del ob
+
+
 def _plural(grain: str) -> str:
     """"facilities", not "facilitys". A small thing that reads as carelessness."""
     return {"facility": "facilities", "customer": "customers"}.get(grain, f"{grain}s")
@@ -606,7 +674,12 @@ def build_plan(request: DynamicRequest) -> dict[str, Any]:
     if not request.understood:
         raise ValueError("; ".join(request.reasons) or "The question was not read.")
 
-    measures = sorted({c.field for c in request.conditions})
+    # The measures the plan has to read: everything a condition tests, plus
+    # whatever the answer is ORDERED by. A ranking measure that no condition
+    # mentions is still needed — "rank them by EAD" has to read EAD — and
+    # leaving it out was why the ordering silently did not happen.
+    measures = sorted({c.field for c in request.conditions}
+                      | ({request.order_by} if request.order_by else set()))
     dimensions = sorted({f for f, _ in request.filters})
     label = {"customer": "customer_id", "facility": "account_id"}[request.grain]
 
@@ -705,13 +778,25 @@ def build_plan(request: DynamicRequest) -> dict[str, Any]:
         "label": "Keep only those meeting every condition",
     })
 
-    sort_by = request.conditions[0].column
+    # The ordering the request ASKED for, where it asked for one. Falling back
+    # to the first condition's movement is right only when nobody said how to
+    # order the answer.
+    if request.order_by:
+        # The CLOSING level, which is what "rank them by EAD" means: the
+        # exposure they carry now, not how much it moved.
+        sort_by = f"closing_{request.order_by}"
+        direction = request.order_direction
+        label = f"Ranked by {request.order_phrase or request.order_by}"
+    else:
+        sort_by = request.conditions[0].column
+        direction = ("desc" if request.conditions[0].op in ("gt", "gte")
+                     else "asc")
+        label = "Largest movement first"
+
     operations.append({
         "id": "ranked", "op": "SORT", "inputs": ["cohort"],
-        "params": {"by": [{"column": sort_by,
-                           "direction": "desc" if request.conditions[0].op in
-                                        ("gt", "gte") else "asc"}]},
-        "label": "Largest movement first",
+        "params": {"by": [{"column": sort_by, "direction": direction}]},
+        "label": label,
     })
     operations.append({
         "id": "result", "op": "LIMIT", "inputs": ["ranked"],

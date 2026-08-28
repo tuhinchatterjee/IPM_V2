@@ -292,15 +292,51 @@ def _periods(question: str, available: list[str]) -> tuple[str, str, str]:
     return available[index], available[-1], ""
 
 
+def _bind_ordering(request: Any, reading: Any, *, resolver: Any,
+                   conditions: list[Condition]) -> None:
+    """Turn a RANK objective into an `order` condition.
+
+    An `order` binding filters nothing — it names the column the answer is
+    sorted by. That distinction already existed in `Condition.kind`; what P0.3
+    adds is reading the RANKING CLAUSE for it instead of letting every measure
+    in the message become a movement condition.
+    """
+    ranking = getattr(reading, "ranking", None)
+    if ranking is None or not ranking.measure_phrase:
+        return
+    if any(c.kind == "order" for c in conditions):
+        return
+    found = resolver(ranking.measure_phrase, request.question)
+    if not found:
+        request.reasons.append(
+            f"CreditProbe could not order by '{ranking.measure_phrase}' — it "
+            f"names no governed measure.")
+        return
+    field, higher_is_worse = found
+    conditions.append(Condition(
+        field=field, kind="order", op="gte", value=0.0,
+        phrase=ranking.measure_phrase, higher_is_worse=higher_is_worse))
+    # The SHAPE is left alone. "Which customers ...? Rank them by EAD" is a
+    # cohort question that also asks for an ordering, not a ranking question:
+    # turning it into one would drop the conditions that define the cohort.
+
+
 def read_question(question: str, *, catalogue: Any, periods: list[str],
                   dimensions: dict[str, list[str]] | None = None,
                   relationships: list[dict[str, Any]] | None = None,
-                  base: str = DEFAULT_BASE) -> MultiRequest:
+                  base: str = DEFAULT_BASE,
+                  reading: Any = None) -> MultiRequest:
     """Read a question into an explicit multi-dataset request, or refuse.
 
     Deterministic throughout. The reading decides which datasets are joined and
     therefore what is computed; a reading that varies between two identical
     questions makes every answer unreproducible.
+
+    `reading` is the P0.3 objective decomposition. With one, movement
+    conditions are read only from the clauses that DEFINE the population, and
+    the measure a ranking clause names becomes an ordering rather than a fifth
+    condition. Without it, "Rank them by EAD" contributed a condition on EAD
+    and the answer was quietly about a narrower cohort than the one asked for.
     """
     request = MultiRequest(question=" ".join(str(question).split()), base=base)
     known = cx.catalogue_fields(catalogue)
@@ -351,10 +387,23 @@ def read_question(question: str, *, catalogue: Any, periods: list[str],
         by_phrase[chosen.field] = chosen
         return chosen.field, chosen.concept.higher_is_worse
 
-    conditions, unread = read_conditions(request.question, resolver=resolver)
+    # Movement conditions come from the clauses that DEFINE the population.
+    # With no objective reading that is the whole message, which is what this
+    # did before P0.3.
+    condition_text = request.question
+    if reading is not None:
+        from backend.orchestration.dynamic import _defining_text
+
+        condition_text = _defining_text(reading) or request.question
+
+    conditions, unread = read_conditions(condition_text, resolver=resolver)
     if unread:
         request.reasons.append(
             "CreditProbe could not read: " + "; ".join(f"'{u}'" for u in unread))
+
+    # The ranking the request asked for, as an ordering rather than a filter.
+    if reading is not None:
+        _bind_ordering(request, reading, resolver=resolver, conditions=conditions)
 
     # A level stated outright — "Stage 2 accounts" — is a filter on where the
     # population IS, not on how it moved. Read separately because the movement
@@ -825,14 +874,33 @@ def _cohort(operations: list[dict[str, Any]], request: MultiRequest,
         "label": "Keep only those meeting every condition",
     })
 
-    first = (movement or request.bindings)[0]
+    # The ordering the request ASKED for, where a clause asked for one. An
+    # `order` binding is a measure named to rank by rather than to filter on
+    # (P0.3), and it takes precedence over the fallback below — otherwise
+    # "Rank them by EAD" produced a cohort ordered by whichever condition
+    # happened to be read first, and the requested ranking never happened.
+    ordering = next((b for b in request.bindings
+                     if b.condition.kind == "order"), None)
+    if ordering is not None:
+        # `_condition_column` already resolves an `order` binding to the
+        # CLOSING position, which is what "rank them by EAD" means: the
+        # exposure they carry now, not how much it moved.
+        sort_column = _condition_column(ordering, column_for,
+                                        two_period=_two_period(request))
+        sort_label = f"Ranked by {ordering.match.concept.label}, largest first"
+        direction = "desc"
+    else:
+        first = (movement or request.bindings)[0]
+        sort_column = _condition_column(first, column_for,
+                                        two_period=_two_period(request))
+        direction = ("desc" if first.condition.op in ("gt", "gte", "eq")
+                     else "asc")
+        sort_label = "Largest movement first"
+
     operations.append({
         "id": "ranked", "op": "SORT", "inputs": ["cohort"],
-        "params": {"by": [{"column": _condition_column(
-            first, column_for, two_period=_two_period(request)),
-                           "direction": ("desc" if first.condition.op in
-                                         ("gt", "gte", "eq") else "asc")}]},
-        "label": "Largest movement first",
+        "params": {"by": [{"column": sort_column, "direction": direction}]},
+        "label": sort_label,
     })
     operations.append({
         "id": "result", "op": "LIMIT", "inputs": ["ranked"],

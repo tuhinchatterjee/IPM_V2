@@ -552,13 +552,20 @@ def _self_referential(question: str, population: str) -> bool:
     turn and there does not need to be one, and asking "what does 'of them'
     refer to?" about a sentence that says so is the kind of question that makes
     a product feel like it is not listening.
-    """
-    from backend.orchestration import memory as wm
 
-    parts = wm.objectives(question)
-    if len(parts) < 2:
-        return False
-    return any(population.lower() in part.lower() for part in parts[1:])
+    Answered by `discourse`, which segments the message and binds each anaphor
+    to the cohort an earlier clause defines. This used to be answered by
+    `wm.objectives`, a splitter that only cuts on "and <wh-word>" — so
+
+        "Which customers experienced ...? Rank them by EAD."
+
+    came back as ONE objective, the check could not see that "them" was
+    introduced in the same message, and the product refused a question that
+    answers itself. That was P0.1's defect A.
+    """
+    from backend.orchestration import discourse as dsc
+
+    return dsc.resolves_locally(question)
 
 
 def unresolved(question: str, state: cv.ConversationState) -> str:

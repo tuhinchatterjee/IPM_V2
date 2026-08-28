@@ -264,6 +264,42 @@ def clauses(question: str) -> list[str]:
     return [p for p in parts if p]
 
 
+def _pattern_for(phrase: str) -> re.Pattern[str]:
+    """A phrase matched on WORD BOUNDARIES, with flexible internal spacing.
+
+    Substring matching was a real defect and a subtle one. "EAD" occurs inside
+    "h-EAD-room", so in
+
+        "... worsening DPD and declining covenant headroom over the latest
+         year? Rank them by EAD."
+
+    the concept EAD was found in the covenant clause, inherited that clause's
+    "declining", and became a fifth cohort condition — "EAD rose" — on a
+    question that only asked for the answer to be ordered by it. The cohort was
+    silently narrower than the one requested. Any short measure abbreviation
+    can collide this way; the boundary is what makes it impossible.
+    """
+    spaced = re.escape(" ".join(str(phrase).split())).replace(r"\ ", r"\s+")
+    # \b does not fire next to a digit-adjacent boundary like "IFRS 9", so the
+    # boundaries are asserted as "not a word character" lookarounds instead.
+    return re.compile(rf"(?<!\w){spaced}(?!\w)", re.I)
+
+
+def _mentions(text: str, phrase: str) -> bool:
+    """Whether `text` names this concept, as a word rather than as letters."""
+    if not phrase:
+        return False
+    return bool(_pattern_for(phrase).search(str(text or "")))
+
+
+def _where(text: str, phrase: str) -> int:
+    """Where `text` names this concept, or -1."""
+    if not phrase:
+        return -1
+    found = _pattern_for(phrase).search(str(text or ""))
+    return found.start() if found else -1
+
+
 def movement_near(question: str, phrase: str, *,
                   window: int = 60) -> Movement | None:
     """The movement word attached to one concept's phrase.
@@ -275,7 +311,7 @@ def movement_near(question: str, phrase: str, *,
     if not phrase:
         return None
     for clause in clauses(question):
-        if phrase.lower() in clause.lower():
+        if _mentions(clause, phrase):
             # The clause the phrase sits in is FINAL, including when its
             # verdict is "no movement". Falling through to a window search
             # here let a neighbouring clause lend its verb: in "…a rating
@@ -286,7 +322,7 @@ def movement_near(question: str, phrase: str, *,
             return find_movement(clause)
 
     text = str(question or "")
-    at = text.lower().find(phrase.lower())
+    at = _where(text, phrase)
     if at < 0:
         return None
     start = max(0, at - window)
@@ -366,7 +402,7 @@ def threshold_near(question: str, phrase: str) -> Threshold | None:
     if not phrase:
         return None
     for clause in clauses(question):
-        if phrase.lower() in clause.lower():
+        if _mentions(clause, phrase):
             return find_threshold(clause)
     return None
 

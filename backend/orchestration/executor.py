@@ -495,9 +495,22 @@ def dynamic_candidate(question: str, vocab: Any) -> DynamicRequest | None:
     library. A reading that is not fully understood also returns None: the
     ordinary path's own refusal is better than a half-composed analysis.
     """
+    # The P0.3 objective decomposition, so conditions are read from the clause
+    # that DEFINES the cohort and a ranking clause becomes an ordering. Without
+    # it "Rank them by EAD" contributed "EAD rose" as a fifth condition and
+    # quietly answered a narrower question.
+    try:
+        from backend.orchestration import objectives as ob
+
+        reading = ob.read(question)
+    except Exception as e:  # pragma: no cover - reading must never break a question
+        logger.warning("Objective reading failed: %s", e)
+        reading = None
+
     try:
         request = read_question(question, periods=list(vocab.periods),
-                               dimensions=dict(vocab.dimensions))
+                               dimensions=dict(vocab.dimensions),
+                               reading=reading)
     except Exception as e:  # pragma: no cover - reading must never break a question
         logger.warning("Dynamic reading failed: %s", e)
         return None
@@ -612,10 +625,13 @@ def multi_candidate(question: str, vocab: Any) -> multi.MultiRequest | None:
     from backend.data_access.catalog import get_catalog
 
     try:
+        from backend.orchestration import objectives as ob
+
         request = multi.read_question(
             question, catalogue=get_catalog(), periods=list(vocab.periods),
             dimensions=dict(vocab.dimensions),
-            relationships=_active_relationships())
+            relationships=_active_relationships(),
+            reading=ob.read(question))
     except Exception as e:  # pragma: no cover - reading must never break a question
         logger.warning("Multi-dataset reading failed: %s", e)
         return None
