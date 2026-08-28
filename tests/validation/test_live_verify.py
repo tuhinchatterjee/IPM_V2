@@ -20,6 +20,7 @@ import json
 
 import pytest
 
+from backend.llm import roles
 from backend.validation import live_verify as lv
 
 # --------------------------------------------------------------- the dry run
@@ -46,8 +47,9 @@ def test_a_dry_run_states_what_every_other_mode_costs():
 def test_a_dry_run_reports_the_build_and_the_roles():
     report = lv.dry_run()
     assert report.configuration_fingerprint
-    assert set(report.role_models) == {"router", "planner", "interpretation",
-                                       "critic"}
+    # §29 asks quick verification to cover the complex planner as well as the
+    # routine one, so the five active roles are all pinged.
+    assert set(report.role_models) == set(roles.ACTIVE_ROLES)
     assert set(report.role_efforts) == set(report.role_models)
     assert report.roles_summary, "the roles must be described in words"
 
@@ -531,8 +533,8 @@ def test_a_mocked_quick_run_passes_and_stores(offline_quick, tmp_path):
     report = lv.quick()
     assert report.passed is True, report.failures
     assert report.live_verified is True
-    assert report.live_calls_made == 12, "4 role pings plus 8 smoke checks"
-    assert offline_quick.calls == 4
+    assert report.live_calls_made == 13, "5 role pings plus 8 smoke checks"
+    assert offline_quick.calls == len(roles.ACTIVE_ROLES)
 
     path = lv.store_result(report, tmp_path)
     assert path is not None
@@ -543,9 +545,9 @@ def test_a_mocked_quick_run_passes_and_stores(offline_quick, tmp_path):
 
 def test_a_quick_run_records_the_model_that_actually_served(offline_quick):
     report = lv.quick()
-    roles = [c for c in report.cases if c.component == "model_roles"]
-    assert len(roles) == 4
-    for case in roles:
+    role_cases = [c for c in report.cases if c.component == "model_roles"]
+    assert len(role_cases) == len(roles.ACTIVE_ROLES)
+    for case in role_cases:
         assert case.served_model == "claude-fake-1"
         assert case.schema_valid is True
         assert case.input_tokens == 412
@@ -679,9 +681,8 @@ def test_the_badge_reports_the_commit_and_configuration_it_was_made_on(
     assert found["running_sha"] == current.git_sha
     assert found["mode"] == lv.QUICK
     assert found["verified_at"], "the report timestamp must be shown"
-    assert found["calls"] == 12
-    assert set(found["role_models"]) == {"router", "planner",
-                                         "interpretation", "critic"}
+    assert found["calls"] == 13
+    assert set(found["role_models"]) == set(roles.ACTIVE_ROLES)
 
 
 @pytest.mark.parametrize("field,value,expected", [

@@ -62,7 +62,9 @@ def test_a_compound_multi_domain_request_escalates():
             period_requirement="two_period"))
 
     assert decision.route == rt.COMPLEX
-    assert decision.role == "planner"
+    # §22 splits the routine planner from the complex one, so the complex
+    # route is served by its own configured role rather than by AI_PLANNER.
+    assert decision.role == roles.COMPLEX_PLANNER
     assert decision.score >= rt.COMPLEX_AT
     assert any(s.id == "nested" for s in decision.signals)
 

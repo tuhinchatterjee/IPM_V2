@@ -138,7 +138,7 @@ Push-Location -Path $RepoRoot
 # what a run cost afterwards is a tool people stop running.
 $EstimatedCalls = @{
     'dryrun'            = 0
-    'quick'             = 12
+    'quick'             = 13
     'critical'          = 30
     'fullrouting'       = 14
     'fullcertification' = 120

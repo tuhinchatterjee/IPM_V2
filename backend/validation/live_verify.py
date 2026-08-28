@@ -91,15 +91,17 @@ REPORT_DIR = Path(os.environ.get("IPM_LOG_DIR", "logs"))
 #: one that answers — and the DIRECTION is what matters: nobody should discover
 #: the size of a run after paying for it.
 def _quick_estimate() -> int:
-    """Four role pings plus whatever the smoke catalogue says it costs.
+    """One ping per ACTIVE role, plus whatever the smoke catalogue costs.
 
     Derived rather than written down, so adding a check cannot leave the
-    estimate quietly wrong.
+    estimate quietly wrong. Active rather than every declared role: §22's
+    translation role is unused until Arabic exists, and pinging it would spend
+    a call verifying something nothing calls.
     """
     from backend.llm import roles as role_config
     from backend.validation import live_smoke
 
-    return len(role_config.ROLES) + live_smoke.ESTIMATED_CALLS
+    return len(role_config.ACTIVE_ROLES) + live_smoke.ESTIMATED_CALLS
 
 
 ESTIMATED_CALLS: dict[str, int] = {

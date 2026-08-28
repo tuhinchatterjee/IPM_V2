@@ -40,26 +40,58 @@ logger = logging.getLogger(__name__)
 
 ROUTER = "router"
 PLANNER = "planner"
+#: §22. The routine planner and the complex planner are separate roles because
+#: they are separate decisions: an administrator who wants a stronger model for
+#: a forensic ECL decomposition should not have to pay for it on every "what is
+#: total EAD by sector". Splitting the variable is what makes that possible;
+#: leaving one AI_PLANNER_MODEL forces the choice to be all or nothing.
+COMPLEX_PLANNER = "complex_planner"
 INTERPRETATION = "interpretation"
 CRITIC = "critic"
+#: §22 lists this as optional, and it stays optional: nothing calls it until
+#: Arabic exists (§49). Declared now so the configuration surface does not have
+#: to change on the day it does.
+TRANSLATION = "translation"
 
-ROLES: tuple[str, ...] = (ROUTER, PLANNER, INTERPRETATION, CRITIC)
+ROLES: tuple[str, ...] = (ROUTER, PLANNER, COMPLEX_PLANNER, INTERPRETATION,
+                          CRITIC, TRANSLATION)
+
+#: Roles the product calls today. TRANSLATION is declared but unused, and a
+#: report that counted it as unconfigured would be reporting a gap that is not
+#: one.
+ACTIVE_ROLES: tuple[str, ...] = (ROUTER, PLANNER, COMPLEX_PLANNER,
+                                 INTERPRETATION, CRITIC)
 
 #: Which environment variable names each role's model, and how hard it should
 #: think. Effort is passed through only where the provider supports it.
 _ENV: dict[str, tuple[str, str]] = {
     ROUTER: ("AI_ROUTER_MODEL", "AI_ROUTER_EFFORT"),
     PLANNER: ("AI_PLANNER_MODEL", "AI_PLANNER_EFFORT"),
+    COMPLEX_PLANNER: ("AI_COMPLEX_PLANNER_MODEL",
+                      "AI_COMPLEX_PLANNER_EFFORT"),
     INTERPRETATION: ("AI_INTERPRETATION_MODEL", "AI_INTERPRETATION_EFFORT"),
     CRITIC: ("AI_CRITIC_MODEL", "AI_CRITIC_EFFORT"),
+    TRANSLATION: ("AI_TRANSLATION_MODEL", "AI_TRANSLATION_EFFORT"),
 }
+
+#: §22 asks for backward compatibility. A deployment that set only
+#: AI_PLANNER_MODEL before this change still gets a working complex planner:
+#: the complex role falls back to the routine planner's id before it falls back
+#: to AI_MODEL. Without this the upgrade would silently move complex planning
+#: onto the shared default, which §23 forbids in the other direction and would
+#: be no better here.
+_FALLBACK_ROLE: dict[str, str] = {COMPLEX_PLANNER: PLANNER}
 
 #: What each role is for, shown in Settings so an administrator configuring
 #: four model ids knows which is which.
 PURPOSE: dict[str, str] = {
     ROUTER: "Reads what kind of request this is. Short and structured.",
-    PLANNER: "Turns a request into a governed analytical plan. The hardest "
-             "job, and the one where an error is most expensive.",
+    PLANNER: "Turns an ordinary request into a governed analytical plan.",
+    COMPLEX_PLANNER: "Plans the hard ones — broad investigations, "
+                     "decompositions, multi-domain forensics. The job where "
+                     "an error is most expensive.",
+    TRANSLATION: "Reads a question asked in another language. Unused until "
+                 "Arabic is implemented.",
     INTERPRETATION: "Says what a computed result means, without adding a "
                     "figure to it.",
     CRITIC: "Repairs a plan the validator rejected, told what was wrong.",
@@ -109,12 +141,22 @@ def role(name: str) -> Role:
     if configured:
         return Role(name=name, model=configured, effort=effort, inherited=False)
 
+    fallback = _FALLBACK_ROLE.get(name)
+    if fallback:
+        inherited_var, inherited_effort_var = _ENV[fallback]
+        borrowed = _env(inherited_var)
+        if borrowed:
+            return Role(name=name, model=borrowed,
+                        effort=effort or _env(inherited_effort_var).lower(),
+                        inherited=True)
+
     shared = (settings.ai_model or "").strip()
     return Role(name=name, model=shared, effort=effort, inherited=True)
 
 
-def all_roles() -> list[Role]:
-    return [role(name) for name in ROLES]
+def all_roles(*, include_inactive: bool = False) -> list[Role]:
+    names = ROLES if include_inactive else ACTIVE_ROLES
+    return [role(name) for name in names]
 
 
 def describe() -> dict[str, Any]:
@@ -185,9 +227,97 @@ def verify(provider: Any) -> list[str]:
     return problems
 
 
+# ---------------------------------------------------------------------------
+# §29 — provider model validation
+# ---------------------------------------------------------------------------
+
+#: What a preflight can say about a role.
+OK = "OK"
+INHERITED = "INHERITED"
+UNAVAILABLE = "UNAVAILABLE"
+UNVERIFIED = "UNVERIFIED"
+#: Nothing is set for this role and nothing is set to inherit. Not a failure:
+#: CreditProbe runs offline by design, with the deterministic reader doing the
+#: reading, and a preflight that refuses an unconfigured deployment would be
+#: refusing the supported way to run it. §29 validates the ids that ARE
+#: configured; it does not require any.
+UNCONFIGURED = "UNCONFIGURED"
+
+
+def preflight(provider: Any) -> dict[str, Any]:
+    """What each role is configured to use, and whether the provider can serve
+    it. §29.
+
+    Spends nothing. Every answer here comes from configuration and from
+    whatever the provider can say about itself without a call — §29 is
+    explicit that startup validation must not spend large credits, and a
+    preflight that costs a call per role is one an administrator learns to
+    skip.
+
+    UNVERIFIED is not a failure. A provider that cannot enumerate its models
+    leaves every configured id unverified, and reporting that honestly is
+    better than either guessing they are fine or refusing to start.
+    """
+    supported = set(getattr(provider, "supported_models", None) or ())
+    efforts = set(getattr(provider, "supported_efforts", None) or EFFORTS)
+    structured = bool(getattr(provider, "supports_structured_output", True))
+    context = int(getattr(provider, "context_tokens", 0) or 0)
+
+    rows: list[dict[str, Any]] = []
+    for configured in all_roles(include_inactive=True):
+        if not configured.model:
+            state = UNCONFIGURED
+            note = ("Nothing is configured for this role, so the provider's "
+                    "own default serves it.")
+        elif configured.inherited:
+            state = INHERITED
+            note = f"Inherits {configured.model}."
+        elif not supported:
+            state = UNVERIFIED
+            note = (f"{getattr(provider, 'name', 'The provider')} does not "
+                    "publish a model list, so the id cannot be checked here.")
+        elif configured.model in supported:
+            state = OK
+            note = ""
+        else:
+            state = UNAVAILABLE
+            note = (f"{configured.model!r} is not one the provider lists. "
+                    "CreditProbe will not silently use a different model.")
+
+        rows.append({
+            **configured.to_dict(),
+            "active": configured.name in ACTIVE_ROLES,
+            "state": state,
+            "note": note,
+            "effort_supported": (not configured.effort
+                                 or configured.effort in efforts),
+            "structured_output": structured,
+            "context_tokens": context,
+        })
+
+    blocking = [r for r in rows if r["active"] and r["state"] == UNAVAILABLE]
+    return {
+        "roles": rows,
+        "structured_output": structured,
+        "context_tokens": context,
+        "efforts": sorted(efforts),
+        "ok": not blocking,
+        "problems": [f"{r['role']}: {r['note']}" for r in blocking],
+    }
+
+
 __all__ = [
+    "ACTIVE_ROLES",
+    "INHERITED",
+    "OK",
+    "UNAVAILABLE",
+    "UNCONFIGURED",
+    "UNVERIFIED",
+    "preflight",
+    "COMPLEX_PLANNER",
     "CRITIC",
     "EFFORTS",
+    "TRANSLATION",
     "INTERPRETATION",
     "PLANNER",
     "PURPOSE",

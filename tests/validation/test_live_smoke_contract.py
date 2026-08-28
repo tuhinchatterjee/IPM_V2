@@ -309,9 +309,14 @@ def test_the_estimate_is_derived_from_the_catalogue():
     assert ls.ESTIMATED_CALLS == sum(c.calls for c in ls.CHECKS)
     from backend.llm import roles as role_config
 
+    # ACTIVE roles, not every declared one: §22's translation role is unused
+    # until Arabic exists, and pinging it would spend a call verifying
+    # something nothing calls.
     assert lv.ESTIMATED_CALLS[lv.QUICK] == (
-        len(role_config.ROLES) + ls.ESTIMATED_CALLS)
-    assert lv.ESTIMATED_CALLS[lv.QUICK] == 12
+        len(role_config.ACTIVE_ROLES) + ls.ESTIMATED_CALLS)
+    # Five role pings now, because §29 asks quick verification to cover the
+    # complex planner as well as the routine one.
+    assert lv.ESTIMATED_CALLS[lv.QUICK] == 13
 
 
 # ===========================================================================
@@ -324,7 +329,8 @@ def test_quick_records_every_smoke_check_individually(offline_quick):
     names = [c.name for c in report.cases]
 
     assert names == [
-        "role:router", "role:planner", "role:interpretation", "role:critic",
+        "role:router", "role:planner", "role:complex_planner",
+        "role:interpretation", "role:critic",
         "smoke:data_discovery", "smoke:data_dictionary",
         "smoke:data_relationship", "smoke:dynamic_analysis",
         "smoke:entity_ranking", "smoke:provider_connected",
@@ -352,7 +358,7 @@ def test_each_smoke_case_carries_its_own_evidence(offline_quick):
 def test_the_call_total_is_the_sum_of_the_cases(offline_quick):
     report = lv.quick()
     assert report.live_calls_made == sum(c.calls for c in report.cases)
-    assert report.live_calls_made == 12
+    assert report.live_calls_made == 13
 
 
 def test_one_failed_smoke_case_fails_the_whole_run(monkeypatch,
@@ -369,7 +375,7 @@ def test_one_failed_smoke_case_fails_the_whole_run(monkeypatch,
     assert "smoke:entity_ranking" in report.failures
     # And the seven that passed are still reported as passing.
     passing = [c for c in report.cases if c.passed]
-    assert len(passing) == 11
+    assert len(passing) == 12
 
 
 def test_a_failed_smoke_case_names_the_case_not_the_suite(monkeypatch,

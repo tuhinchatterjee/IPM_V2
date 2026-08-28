@@ -42,7 +42,10 @@ def test_every_role_is_configurable_by_its_own_variable():
 def test_a_complex_request_routes_to_the_planner_and_a_repair_to_the_critic():
     """P0.14: complex multi-domain / multi-objective requests must use the
     complex planner and critic routes where configured."""
-    assert rt.ROLE_OF[rt.COMPLEX] == roles.PLANNER
+    # §22: the complex planner is a role of its own. An administrator who
+    # wants a stronger model for forensic work should not have to pay for it
+    # on every "what is total EAD by sector".
+    assert rt.ROLE_OF[rt.COMPLEX] == roles.COMPLEX_PLANNER
     assert rt.ROLE_OF[rt.CRITIC] == roles.CRITIC
 
     decision = rt.decide(
@@ -108,7 +111,10 @@ def test_the_roles_report_says_plainly_when_they_all_resolve_to_one_model():
     described = roles.describe()
     assert set(described) >= {"roles", "all_inherited", "distinct_models",
                               "differentiated", "summary"}
-    assert len(described["roles"]) == len(roles.ROLES)
+    # The active roles, not every declared one: TRANSLATION is declared for
+    # §49 and unused until Arabic exists, and reporting it as unconfigured
+    # would report a gap that is not one.
+    assert len(described["roles"]) == len(roles.ACTIVE_ROLES)
     if described["all_inherited"]:
         assert described["differentiated"] is False
         # Whatever the wording, the summary must say the roles are not
