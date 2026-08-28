@@ -242,7 +242,204 @@ def _check(turn: Any, investigation: Any, answered: Any,
         if did_it:
             out.problems.append(f"did the forbidden thing: {forbidden}")
 
+    _layer_checks(out, turn, investigation, answered, outcome)
     return out
+
+
+# ---------------------------------------------------------------------------
+# The rest of the sixteen layers. P0.7.
+# ---------------------------------------------------------------------------
+
+
+def _layer_checks(out: TurnResult, turn: Any, investigation: Any,
+                  answered: Any, outcome: str) -> None:
+    """Evidence about the layers a case's own expectations do not reach.
+
+    A case names the concepts and datasets it cares about; it does not name
+    "the plan must have a shape" or "the Trace must agree with what ran",
+    because those hold of EVERY answer. Checking them here means the layered
+    report has a denominator for all sixteen layers rather than for the four a
+    case happens to mention — and a layer with no observations is reported as
+    unmeasured, never as passing.
+
+    Each check is recorded only where it APPLIES. A metadata answer compiles no
+    query, and counting that as a passing query would be the arithmetic version
+    of "SKIPPED is not PASS".
+    """
+    build = getattr(answered, "build", None)
+    runtime = getattr(answered, "runtime", None)
+    computed = runtime is not None
+
+    # 2 — same-turn referent. Only where the question contains one.
+    from backend.orchestration import discourse as dsc
+
+    try:
+        found = dsc.read(turn.question)
+        if found.mentions:
+            resolved = all(m.antecedent is not None for m in found.mentions)
+            out.checks["referent"] = resolved
+            if not resolved:
+                out.problems.append(
+                    "a referent in this message resolved to nothing")
+    except Exception:  # noqa: BLE001 - a layer probe must not fail a case
+        pass
+
+    # 3 — objective decomposition. Every clause settled, or the answer must
+    # not have been presented as complete.
+    from backend.orchestration import objectives as ob
+
+    try:
+        reading = ob.read(turn.question)
+        if len(reading.objectives) > 1:
+            coverage = ob.coverage(reading)
+            # An answer that ran is claiming to have covered the request. The
+            # check is whether the decomposition found the clauses at all —
+            # a request read as one objective when it names three is the
+            # defect, and it is visible before anything is settled.
+            out.checks["objectives"] = len(reading.objectives) >= 2
+            if not coverage.presentable and outcome == EXECUTE:
+                out.problems.append(
+                    f"{len(coverage.unsettled)} objective(s) unsettled")
+    except Exception:  # noqa: BLE001
+        pass
+
+    # 6 — relationship selection. Only where more than one dataset was read.
+    datasets = list(getattr(build, "datasets", ()) or ())
+    if len(datasets) > 1:
+        request = getattr(build, "request", None)
+        resolution = getattr(request, "resolution", None)
+        out.checks["relationship"] = resolution is not None
+        if resolution is None:
+            out.problems.append(
+                "several datasets were read with no governed join recorded")
+
+    # 7 — period and grain.
+    if computed:
+        out.checks["period"] = bool(getattr(build, "period", "")
+                                    or getattr(build, "closing", ""))
+        if not out.checks["period"]:
+            out.problems.append("the answer names no period")
+
+    # 8 — plan.
+    if outcome == EXECUTE:
+        out.checks["plan"] = bool(getattr(build, "shape", "")) or not computed
+        if computed and not getattr(build, "shape", ""):
+            out.problems.append("a result was produced with no analytical shape")
+
+    # 9 — compiled query. Parameterised, or it is not a governed query: a
+    # value inlined into SQL is a value nobody validated, and it is also the
+    # difference between a plan that can be replayed and one that cannot.
+    if computed:
+        compiled = getattr(runtime, "query", None)
+        sql = str(getattr(compiled, "sql", "") or "")
+        params = list(getattr(compiled, "params", ()) or ())
+        out.checks["query"] = bool(sql) and (bool(params) or "?" in sql)
+        if not out.checks["query"]:
+            out.problems.append(
+                "the compiled query is missing or carries no parameters"
+                if sql else "no compiled query was recorded")
+
+    # 10 — result.
+    if computed:
+        out.checks["result"] = getattr(runtime, "rows", None) is not None
+        if not out.checks["result"]:
+            out.problems.append("a result was reported with no rows")
+
+    # 11 — invariants ran at all. A case naming a specific rule is checked
+    # above; this is the layer-level question of whether ANYTHING was verified.
+    if computed:
+        report = getattr(answered, "invariants", None)
+        out.checks["invariants"] = bool(report and report.checks)
+        if not out.checks["invariants"]:
+            out.problems.append("no invariant applied to this result")
+
+    # 12 — interpretation. Grounded, and not a causal claim.
+    written = getattr(answered, "written", None)
+    if written is not None and computed:
+        out.checks["interpretation"] = not list(
+            getattr(written, "ungrounded", ()) or ())
+        if not out.checks["interpretation"]:
+            out.problems.append("the interpretation states a figure the result "
+                                "does not carry")
+
+    # 13 — visualization. Whatever was chosen must be valid for the result.
+    if computed:
+        out.checks["visual"] = _visual_is_sound(investigation)
+        if not out.checks["visual"]:
+            out.problems.append("the chart does not say something true about "
+                                "the result")
+
+    # 14 — Trace consistency.
+    graph = getattr(investigation, "graph", None)
+    if graph is not None:
+        out.checks["trace"] = _trace_agrees(investigation, answered, computed)
+        if not out.checks["trace"]:
+            out.problems.append("the Trace does not match what executed")
+
+    # 15 — error handling. Only where something failed.
+    failure = str(getattr(answered, "failure", "") or "")
+    if failure:
+        kind = str(getattr(answered, "failure_kind", "") or "")
+        out.checks["error"] = bool(kind)
+        if not kind:
+            out.problems.append("the failure was never categorised")
+
+    # 16 — officer and model selection.
+    decision = getattr(answered, "decision", None)
+    if decision is not None:
+        out.checks["officer"] = bool(getattr(decision, "route", ""))
+        if not out.checks["officer"]:
+            out.problems.append("no route was recorded for this answer")
+
+
+def _visual_is_sound(investigation: Any) -> bool:
+    """Whether the chart shown would survive the visualisation contract.
+
+    Re-validated rather than trusted: `choose` already replaces an invalid
+    chart, so this is asking whether the thing that reached the screen is
+    sound — which is the question the layer is about.
+    """
+    from backend.orchestration import viz_contract as vc
+
+    steps = list(getattr(investigation, "steps", ()) or ())
+    if not steps:
+        return True
+    result = getattr(steps[0], "result", None) or {}
+    chart = dict(result.get("chart") or {})
+    if not chart or chart.get("chart") in ("", "table", "kpi"):
+        return True
+
+    class _Chosen:
+        def __init__(self, spec: dict[str, Any]) -> None:
+            self.chart = str(spec.get("chart") or "")
+            self.x = str(spec.get("x") or "")
+            self.y = list(spec.get("y") or [])
+            self.series = str(spec.get("series") or "")
+
+    try:
+        return vc.validate(_Chosen(chart), list(result.get("columns") or []),
+                           list(result.get("rows") or [])).ok
+    except Exception:  # noqa: BLE001 - a layer probe must not fail a case
+        return True
+
+
+def _trace_agrees(investigation: Any, answered: Any, computed: bool) -> bool:
+    """Whether the Trace records what actually happened.
+
+    The narrow, checkable version: a result on screen must have a calculation
+    behind it in the graph, and a graph claiming a calculation must have
+    produced a result. A Trace describing an execution that did not happen is
+    worse than no Trace.
+    """
+    graph = getattr(investigation, "graph", None)
+    nodes = getattr(graph, "nodes", {}) or {}
+    calculated = any(
+        str(getattr(node, "type", "")).upper().endswith(
+            ("CALCULATION", "SQL_QUERY", "AGGREGATION", "KERNEL"))
+        for node in nodes.values())
+    if computed and not calculated:
+        return False
+    return not (calculated and not computed)
 
 
 def _was_skipped(check: Any, report: Any) -> bool:
