@@ -97,6 +97,43 @@ def live(run_id: int, principal: Principal = Caller) -> dict[str, Any]:
         return found
 
 
+class PreviewIn(BaseModel):
+    question: str = Field(min_length=1, max_length=4000)
+
+
+@router.post("/officer", summary="Which officer this request looks like")
+def preview_officer(payload: PreviewIn,
+                    principal: Principal = Caller) -> dict[str, Any]:
+    """§9's first reading, from the sentence alone.
+
+    The indicator has to appear the instant the user presses Ask, and the run
+    does not exist until the analysis has started. This is the same
+    deterministic selection `interactive.run` makes as its first pass — the
+    routing signals counted off the sentence — so the title the user sees
+    immediately is the title the run is created with, not a guess that will be
+    contradicted.
+
+    Costs nothing: no model, no database, no scan. It is regular expressions
+    and arithmetic over one sentence, which is why it can be called on every
+    keystroke-completed submit without anybody noticing.
+
+    It can only be WRONG downward: the second reading, once the analysis knows
+    how many domains it needed, may escalate (§9). It never demotes, so the
+    title shown here is never withdrawn.
+    """
+    from backend.agentic import officers
+    from backend.orchestration import routing as rt
+
+    _ = principal
+    chosen = officers.select(payload.question,
+                             decision=rt.decide(payload.question))
+    found = chosen.to_dict()
+    found["provisional"] = True
+    found["stage"] = stages.QUEUED
+    found["caption"] = stages.CAPTIONS[stages.QUEUED]
+    return found
+
+
 @router.get("/stages", summary="The structured stage vocabulary")
 def stage_vocabulary() -> dict[str, Any]:
     """§7's eleven states, with the sentence each one shows.

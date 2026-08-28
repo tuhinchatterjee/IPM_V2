@@ -2,18 +2,25 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { Globe, Loader2, Pencil, Share2, Sparkles } from "lucide-react";
+import { Globe, Pencil, Share2, Sparkles } from "lucide-react";
 
 import { AnswerBlock, FollowUps } from "@/components/ask/answer";
 import { ShareButton } from "@/components/collaboration/share";
 import { BackLink } from "@/components/layout/back-link";
 import { ClarificationCard } from "@/components/ask/clarification";
+import {
+  Assurance,
+  CoordinatedReview,
+} from "@/components/agentic/assurance";
+import { PendingOfficer } from "@/components/agentic/pending";
+import { CompletionLine } from "@/components/agentic/working";
 import { Composer } from "@/components/ask/composer";
 import { ProjectMenu } from "@/components/ask/project-picker";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  type AgenticBlock,
   api,
   type InvestigationResponse,
   type PlannerMode,
@@ -208,13 +215,15 @@ function Thread({ threadId }: { threadId: number }) {
           </div>
         ))}
 
+        {/* §6 — the officer indicator, not a spinner.
+            What was here was `<Loader2 className="animate-spin" />` and one
+            sentence used for every question, from a field lookup to a
+            whole-book review. §6 forbids a gaming spinner; §4 asks for the
+            officer level on every user-requested analysis. */}
         {asking && (
           <div className="space-y-3">
             <UserTurn content={pendingQuestion} />
-            <p className="flex items-center gap-2 text-sm text-text-muted">
-              <Loader2 className="size-3.5 animate-spin text-accent" aria-hidden />
-              Choosing analyses and running them against published data…
-            </p>
+            <PendingOfficer question={pendingQuestion} />
           </div>
         )}
 
@@ -448,6 +457,11 @@ function Exchange({
     );
   }
 
+  // §11, §53, §54 — who worked on this, and how far it can be relied on.
+  // Stored with the answer rather than fetched, so re-opening the thread
+  // tomorrow shows the same officer it showed today.
+  const officer = (run as { agentic?: AgenticBlock }).agentic;
+
   return (
     <div className="space-y-5">
       <AnswerBlock
@@ -460,6 +474,40 @@ function Exchange({
         returnTo={returnTo}
         compact
       />
+
+      {/* §53's Coordinated Review appears only where work was actually
+          coordinated. On an ordinary question it would say "one specialist did
+          one thing", which every answer already implies. */}
+      {officer?.coordinated && officer.specialists?.length ? (
+        <CoordinatedReview
+          officer={officer.officer_title}
+          specialists={officer.specialists}
+          summary={officer.summary}
+          assurance={officer.assurance}
+          findings={officer.findings}
+          conflicts={officer.conflicts}
+          limitations={officer.limitations}
+          className="max-w-3xl"
+        />
+      ) : null}
+
+      {/* §11 — the compact completion line. One line, under the answer, with
+          the assurance beside it and a link to the Trace. */}
+      {officer?.completion_line ? (
+        <div className="flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-1">
+          <CompletionLine
+            line={officer.completion_line}
+            traceHref={
+              run.analysis_run_id
+                ? linkBack(`/trace/${run.analysis_run_id}`, returnTo)
+                : undefined
+            }
+          />
+          {!officer.coordinated && officer.assurance ? (
+            <Assurance assurance={officer.assurance} />
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

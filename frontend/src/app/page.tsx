@@ -3,18 +3,17 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
-import { GitBranch, Loader2, TriangleAlert } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 import { Composer, useGreeting } from "@/components/ask/composer";
+import { RequiresAttention } from "@/components/attention/requires-attention";
 import { BackLink } from "@/components/layout/back-link";
 import { useGreetingName } from "@/components/system/auth";
 import { useCanRunAnalysis } from "@/components/system/role-switcher";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { InfoPopover } from "@/components/ui/info-popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiError, api, type Row } from "@/lib/api";
-import { byUnit, delta, money } from "@/lib/format";
+import { ApiError, api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import { fromCockpit, linkBack, useReturnTo } from "@/lib/return-to";
 
@@ -105,8 +104,10 @@ function Cockpit() {
     [router, opening, openFrom],
   );
 
+  // The reporting period the Cockpit is about. Still read from the briefing,
+  // which is where the governed calendar lives; the attention LIST no longer
+  // comes from it — Risk Cases do.
   const period = briefing.data?.period ?? "";
-  const attention = briefing.data?.attention;
 
   return (
     <div className="space-y-10">
@@ -183,99 +184,34 @@ function Cockpit() {
       </section>
 
       {/* -------------------------------------------------- requires attention */}
+      {/* Rebuilt for §40–§47. What used to be here was one hard-coded list —
+          the five borrowers whose ECL rose most — produced by one registered
+          analysis. It is now the Risk Case list: four levels, governed
+          severity, a grounded summary sentence, and a drawer carrying the
+          evidence and the actions.
+
+          The section stays the same SIZE. §40 asks the Cockpit to remain calm
+          and §63 asks this to fit above the fold at 1440×900, so the filters
+          are chips rather than tabs and the rows are one line each. */}
       <section>
         <SectionHeading
           title="Requires attention"
           meta={period ? `Reporting period ${period}` : undefined}
           info={
             <p>
-              Borrowers whose expected credit loss rose most against the prior
-              period, ranked by the engine. Selecting one opens an investigation
-              on the full question.
+              Risk Cases raised by CreditProbe&rsquo;s governed review of each
+              published period: portfolio movements, segments moving more than
+              the book, the borrowers driving them, and data that is missing.
+              Severity is computed by a published formula, never by a model.
             </p>
-          }
-          action={
-            attention?.analysis_run_id ? (
-              <Button variant="ghost" size="sm" asChild>
-                <Link
-                  href={linkBack(
-                    `/trace/${attention.analysis_run_id}`,
-                    fromCockpit(),
-                  )}
-                >
-                  <GitBranch aria-hidden />
-                  Trace
-                </Link>
-              </Button>
-            ) : undefined
           }
         />
-        <Card className="overflow-hidden">
-          {briefing.loading && <Skeleton className="h-40 w-full" />}
-          {briefing.error && (
-            <p className="px-4 py-4 text-sm text-negative">{briefing.error}</p>
-          )}
-          {!briefing.loading && attention?.result && (
-            <>
-              <ul className="divide-y divide-border">
-                {(attention.result.rows as Row[]).slice(0, 5).map((row, i) => (
-                  <li key={i}>
-                    <button
-                      type="button"
-                      disabled={opening}
-                      onClick={() =>
-                        void start("Show me the top ten deteriorating borrowers.")
-                      }
-                      className="flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface-hover disabled:opacity-60"
-                    >
-                      <TriangleAlert
-                        className="mt-0.5 size-3.5 shrink-0 text-warning"
-                        aria-hidden
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-baseline justify-between gap-3">
-                          <span className="truncate text-sm font-medium text-text-primary">
-                            {String(row.borrower_name ?? "—")}
-                          </span>
-                          <span className="shrink-0 text-sm font-medium text-negative tabular">
-                            {delta(Number(row.ecl_change), 1, " USD mn")}
-                          </span>
-                        </span>
-                        <span className="mt-0.5 block truncate text-xs text-text-muted">
-                          {String(row.sector ?? "")} ·{" "}
-                          {money(Number(row.ead ?? 0), 0)}mn exposure
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <p className="border-t border-border bg-surface-sunken px-4 py-2 text-xs text-text-muted">
-                {String(attention.result.values.deteriorated_count ?? "—")} of{" "}
-                {String(attention.result.values.borrowers_compared ?? "—")}{" "}
-                borrowers deteriorated, adding{" "}
-                {byUnit(
-                  attention.result.values.total_ecl_increase as number,
-                  "USD mn",
-                )}{" "}
-                USD mn of expected credit loss.
-              </p>
-            </>
-          )}
-          {/* Found in the browser review: with no deterioration to report, the
-              card rendered as an empty grey rectangle under a heading, which
-              is what a generic admin dashboard looks like and tells the reader
-              nothing. Nothing to attend to is a finding, and it is said. */}
-          {!briefing.loading && !briefing.error && !attention?.result && (
-            <p className="px-4 py-6 text-center text-sm text-text-secondary">
-              Nothing is flagged this period.
-              <span className="mt-1 block text-xs text-text-muted">
-                No borrower&rsquo;s expected credit loss rose materially against
-                the prior period.
-              </span>
-            </p>
-          )}
-        </Card>
+        <RequiresAttention
+          period={period}
+          onInvestigate={(id) =>
+            router.push(linkBack(`/investigations/${id}`, fromCockpit()))
+          }
+        />
       </section>
 
       {/* ------------------------------------------------------- recent work */}

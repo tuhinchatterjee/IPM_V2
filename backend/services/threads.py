@@ -310,19 +310,27 @@ def append(thread_id: int, *, role: str, content: str,
 
 
 def record_answer(thread_id: int, run: Any, *,
-                  user_id: int | None = None) -> MessageView:
+                  user_id: int | None = None,
+                  agentic: dict[str, Any] | None = None) -> MessageView:
     """Store an executed answer as the next assistant message.
 
     The whole run is kept, not a summary of it: the metrics the engine
     returned, the analyses used, the interpretation and the Trace. Re-opening a
     thread then shows what was actually shown, rather than a fresh calculation
     quietly presented as the original.
+
+    `agentic` is the officer record — who worked on it, at what level, what the
+    assurance came to. Stored WITH the answer for the same reason: re-opening
+    the thread tomorrow should show that a Senior Credit Officer produced this
+    figure, not a blank where the completion line was.
     """
     _require_db()
     from backend.db.engine import get_session
     from backend.models.platform import Investigation
 
     payload = run.to_dict() if hasattr(run, "to_dict") else dict(run)
+    if agentic:
+        payload["agentic"] = dict(agentic)
     narrative = payload.get("narrative") or {}
     content = str(narrative.get("direct_answer") or narrative.get("summary") or "")
 
@@ -422,7 +430,8 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
                 "agentic": officer.agentic(),
                 "thread": load(thread_id).to_dict()}
 
-    record_answer(thread_id, result, user_id=user_id)
+    record_answer(thread_id, result, user_id=user_id,
+                  agentic=officer.agentic())
     return {"status": result.status, "run": result.to_dict(),
             "agentic": officer.agentic(),
             "thread": load(thread_id).to_dict()}

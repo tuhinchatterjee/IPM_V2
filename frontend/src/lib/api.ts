@@ -1201,6 +1201,347 @@ export interface ExportAvailability {
   calculation_pack: ExportOffer;
 }
 
+/* ---------------------------------------------------------------- agentic */
+
+/**
+ * What the working indicator polls. §8.
+ *
+ * Deliberately small — see `api.agenticLive`. Everything here is a structured
+ * stage or a count the run recorded; there is no field carrying a model's
+ * intermediate reasoning, and §7 forbids one.
+ */
+export interface OfficerLive {
+  run_id: number;
+  run_key: string;
+  stage: string;
+  label: string;
+  caption: string;
+  detail: string;
+  officer_title: string;
+  officer_level: number;
+  status_line: string;
+  specialists: string[];
+  agent_count: number;
+  elapsed_ms: number;
+  active: boolean;
+  terminal: boolean;
+  completed: string[];
+  history: { stage: string; at: string; detail?: string }[];
+  sequence: string[];
+  selection_reason: string;
+  escalation_line: string;
+  failure: string;
+  assurance: string;
+  analysis_run_id: number | null;
+}
+
+/** The agentic block an Ask response carries. §11, §53, §54. */
+export interface AgenticBlock {
+  run_id: number | null;
+  run_key: string;
+  coordinated: boolean;
+  escalated: boolean;
+  officer_level: number;
+  officer_title: string;
+  remit?: string;
+  selection_reason: string;
+  complexity_score: number;
+  risk_score: number;
+  score: number;
+  agent_count: number;
+  planned_task_count: number;
+  status_line: string;
+  reasons: { id: string; weight: number; detail: string; kind: string }[];
+  escalation_line: string;
+  completion_line: string;
+  specialists?: string[];
+  summary?: string;
+  findings?: { agent_id: string; agent_name: string; finding: string;
+               analysis_run_id: number | null }[];
+  conflicts?: { about: string; between: string[]; resolved: boolean;
+                sentence: string }[];
+  limitations?: string[];
+  assurance?: {
+    status: string;
+    meaning: string;
+    weakest: string;
+    passed: number;
+    checked: number;
+    components: { key: string; label: string; state: string; detail: string }[];
+  };
+}
+
+/** What `previewOfficer` returns: an officer, before any work has started. */
+export interface OfficerPreview {
+  officer_level: number;
+  officer_title: string;
+  remit: string;
+  selection_reason: string;
+  complexity_score: number;
+  risk_score: number;
+  status_line: string;
+  provisional: boolean;
+  stage: string;
+  caption: string;
+}
+
+export interface AgentRunSummary {
+  id: number;
+  run_key: string;
+  trigger: string;
+  trigger_label: string;
+  question: string;
+  period: string;
+  officer_level: number;
+  officer_title: string;
+  orchestrator: string;
+  specialists: string[];
+  agent_count: number;
+  task_count: number;
+  status: string;
+  stage: string;
+  stage_label: string;
+  assurance: string;
+  usage: string;
+  failure: string;
+  failure_kind: string;
+  analysis_run_id: number | null;
+  started_at: string | null;
+  finished_at: string | null;
+  duration_ms: number | null;
+  created_at: string | null;
+}
+
+export interface AgentTaskView {
+  task_key: string;
+  agent_id: string;
+  agent_name: string;
+  purpose: string;
+  depends_on: string[];
+  layer: number;
+  tool: string;
+  status: string;
+  analysis_run_id: number | null;
+  finding: string;
+  validation_state: string;
+  tool_calls: Record<string, unknown>[];
+  retry_count: number;
+  error: string;
+  error_category: string;
+  approval_state: string;
+  duration_ms: number | null;
+}
+
+export interface AgentRunDetail extends AgentRunSummary {
+  selection_reason: string;
+  complexity_score: number;
+  risk_score: number;
+  plan: Record<string, unknown>;
+  task_graph: Record<string, unknown>;
+  budgets: Record<string, unknown>;
+  versions: Record<string, unknown>;
+  findings: Record<string, unknown>[];
+  conflicts: Record<string, unknown>[];
+  handoffs: Record<string, unknown>[];
+  validation: Record<string, unknown>;
+  assurance_detail: Record<string, unknown>;
+  synthesis: string;
+  stage_history: { stage: string; at: string; detail?: string }[];
+  trace_id: string;
+  build_sha: string;
+  config_fingerprint: string;
+  service_identity: string;
+  tasks: AgentTaskView[];
+  approvals: AgentApproval[];
+}
+
+export interface AgentDefinition {
+  agent_id: string;
+  business_name: string;
+  purpose: string;
+  when_to_use: string[];
+  when_not_to_use: string[];
+  allowed_capabilities: string[];
+  allowed_tools: string[];
+  allowed_data_domains: string[];
+  domain_labels: string[];
+  allowed_methods: string[];
+  maximum_steps: number;
+  timeout_seconds: number;
+  autonomy_level: number;
+  human_approval_requirements: string[];
+  escalation_rules: string[];
+  validation_requirements: string[];
+  model_role_preference: string;
+  owner: string;
+  version: string;
+  status: string;
+  evaluation_score: number;
+  certification_state: string;
+}
+
+export interface AgentCatalogue {
+  version: string;
+  fingerprint: string;
+  agents: AgentDefinition[];
+  domains: { id: string; label: string; concepts: string[] }[];
+  last_runs: Record<string, { at: string | null; tasks: number }>;
+  autonomy_levels: { level: number; name: string; meaning: string }[];
+}
+
+export interface AgentTool {
+  tool_id: string;
+  name: string;
+  purpose: string;
+  service: string;
+  parameters: string[];
+  required: string[];
+  writes: boolean;
+  reads_data: boolean;
+  cost: string;
+}
+
+export interface AgentSchedule {
+  id: number;
+  name: string;
+  description: string;
+  trigger: string;
+  trigger_label: string;
+  scope: string;
+  agents: { agent_id: string; name: string }[];
+  data_requirement: string[];
+  approval_policy: string;
+  enabled: boolean;
+  last_run_at: string | null;
+  last_run_id: number | null;
+}
+
+export interface AgentPolicy {
+  key: string;
+  label: string;
+  value: Record<string, unknown>;
+  version: number;
+  versions: number;
+  history: { version: number; value: Record<string, unknown>; active: boolean;
+             note: string; at: string | null }[];
+}
+
+export interface AgentApproval {
+  id: number;
+  run_id: number | null;
+  action: string;
+  action_label: string;
+  consequence: string;
+  autonomy_level: number;
+  agent_id: string;
+  agent_name: string;
+  title: string;
+  reason: string;
+  scope: string;
+  objects_affected: Record<string, unknown>[];
+  risk: string;
+  reversibility: string;
+  approver_role: string;
+  status: string;
+  decided_by: number | null;
+  decided_at: string | null;
+  decision_note: string;
+  created_at: string | null;
+  actions: string[];
+}
+
+export interface AgentEvent {
+  id: number;
+  kind: string;
+  label: string;
+  idempotency_key: string;
+  period: string;
+  status: string;
+  reason: string;
+  at: string | null;
+}
+
+export interface AgentWorker {
+  worker_id: string;
+  hostname: string;
+  status: string;
+  current_job_id: number | null;
+  jobs_completed: number;
+  jobs_failed: number;
+  build_sha: string;
+  started_at: string | null;
+  heartbeat_at: string | null;
+  alive: boolean;
+}
+
+/** One Risk Case, as Requires Attention and the drawer read it. §41-§43, §47. */
+export interface RiskCase {
+  id: number;
+  case_key: string;
+  title: string;
+  level: string;
+  level_label: string;
+  entity: string;
+  entity_id: string;
+  entity_kind: string;
+  period: string;
+  prior_period: string;
+  severity: string;
+  severity_score: number;
+  severity_detail: {
+    score: number;
+    band: string;
+    version: string;
+    explanation: string;
+    weights: Record<string, number>;
+    components: { key: string; label: string; value: number; weight: number;
+                  contribution: number; detail: string }[];
+  };
+  severity_version: string;
+  priority: number;
+  evidence_coverage: number;
+  exposure: number | null;
+  exposure_unit: string;
+  metrics: Record<string, unknown>[];
+  signals: string[];
+  conclusion: string;
+  why: string;
+  evidence: Record<string, unknown>;
+  analyses: number[];
+  status: string;
+  status_label: string;
+  open: boolean;
+  owner_id: number | null;
+  team_id: number | null;
+  due_at: string | null;
+  overdue: boolean;
+  snooze_until: string | null;
+  dismiss_reason: string;
+  resolution: string;
+  investigation_id: number | null;
+  project_id: number | null;
+  workflow_item_id: number | null;
+  agent_run_id: number | null;
+  trace_id: string;
+  created_at: string | null;
+  updated_at: string | null;
+  timeline: { id: number; kind: string; from_status: string; to_status: string;
+              body: string; actor_id: number | null; actor_agent: string;
+              actor_label: string; at: string | null }[];
+  links: { id: number; object_type: string; object_id: string; label: string;
+           relation: string; at: string | null }[];
+  next_actions: { id: string; label: string; note: string }[];
+}
+
+export interface RiskCaseList {
+  summary: string;
+  counts: Record<string, number>;
+  filters: { id: string; label: string }[];
+  level: string;
+  period: string;
+  cases: RiskCase[];
+}
+
 /** One row of the export audit log, for the Analysis audit view. */
 export interface ExportRecord {
   id: number;
@@ -3734,6 +4075,150 @@ export const api = {
     request<{ run_id: number; exports: ExportRecord[] }>(
       `/analysis-runs/${runId}/export/history`,
     ),
+
+  // ---- the governed agentic layer ----
+  //
+  // `agenticLive` is polled while a question is in flight, so it is
+  // deliberately the smallest call in this file: the stage, the officer, the
+  // specialists and the elapsed time. The full run document is several
+  // kilobytes and none of it is on screen yet.
+  agenticLive: (runId: number) =>
+    request<OfficerLive>(`/agentic/runs/${runId}/live`, { timeoutMs: 8_000 }),
+  agenticRun: (runId: number) => request<AgentRunDetail>(`/agentic/runs/${runId}`),
+  agenticRuns: (params: { limit?: number; status?: string; trigger?: string;
+                          mine?: boolean } = {}) =>
+    request<{ runs: AgentRunSummary[] }>(
+      `/agentic/runs?${new URLSearchParams({
+        ...(params.limit ? { limit: String(params.limit) } : {}),
+        ...(params.status ? { status_filter: params.status } : {}),
+        ...(params.trigger ? { trigger: params.trigger } : {}),
+        ...(params.mine ? { mine: "true" } : {}),
+      })}`,
+    ),
+  cancelAgenticRun: (runId: number, reason = "") =>
+    request<{ cancelled: boolean; message: string }>(
+      `/agentic/runs/${runId}/cancel`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+    ),
+  retryAgenticRun: (runId: number, reason = "") =>
+    request<{ job_id: number; queued: boolean; message: string }>(
+      `/agentic/runs/${runId}/retry`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+    ),
+  agentRegistry: () => request<AgentCatalogue>("/agentic/agents"),
+  agentTools: () => request<{ tools: AgentTool[]; no_tool_exists: string[] }>(
+    "/agentic/tools"),
+  agentSchedules: () => request<{ schedules: AgentSchedule[];
+                                  triggers: { id: string; label: string }[] }>(
+    "/agentic/schedules"),
+  setScheduleEnabled: (id: number, enabled: boolean) =>
+    request<AgentSchedule>(`/agentic/schedules/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ enabled }),
+    }),
+  runSchedule: (id: number) =>
+    request<{ job_id: number; queued: boolean; message: string }>(
+      `/agentic/schedules/${id}/run`, { method: "POST" }),
+  agentPolicies: () => request<{ policies: AgentPolicy[] }>("/agentic/policies"),
+  agentApprovals: () =>
+    request<{ approvals: AgentApproval[]; role: string }>("/agentic/approvals"),
+  decideApproval: (id: number, decision: string, note = "") =>
+    request<AgentApproval>(`/agentic/approvals/${id}`, {
+      method: "POST",
+      body: JSON.stringify({ decision, note }),
+    }),
+  agentEvents: (limit = 50) =>
+    request<{ events: AgentEvent[]; kinds: { id: string; label: string }[] }>(
+      `/agentic/events?limit=${limit}`),
+  agentWorkers: () =>
+    request<{ workers: AgentWorker[]; queue: Record<string, number>;
+              alive: number }>("/agentic/workers"),
+  // §9's first reading, from the sentence alone. Costs nothing on the server —
+  // regular expressions and arithmetic — so the officer indicator can appear
+  // the instant Ask is pressed rather than when the answer arrives.
+  previewOfficer: (question: string) =>
+    request<OfficerPreview>("/agentic/officer", {
+      method: "POST",
+      body: JSON.stringify({ question }),
+      timeoutMs: 8_000,
+    }),
+  agenticStages: () =>
+    request<{ sequence: string[]; terminal: string[];
+              stages: { id: string; label: string; caption: string }[] }>(
+      "/agentic/stages"),
+  // A whole-book review takes minutes, so it is queued by default and the
+  // Cockpit hears about it through the notification centre rather than by
+  // holding a request open across a proxy that will time it out.
+  startReview: (period = "", background = true) =>
+    request<{ queued: boolean; job_id?: number; run_id?: number;
+              period: string; message?: string }>("/agentic/review", {
+      method: "POST",
+      body: JSON.stringify({ period, background }),
+      timeoutMs: background ? 30_000 : 600_000,
+    }),
+
+  // ---- risk cases ----
+  riskCases: (params: { level?: string; period?: string; limit?: number;
+                        mine?: boolean } = {}) =>
+    request<RiskCaseList>(
+      `/risk-cases?${new URLSearchParams({
+        ...(params.level ? { level: params.level } : {}),
+        ...(params.period ? { period: params.period } : {}),
+        ...(params.limit ? { limit: String(params.limit) } : {}),
+        ...(params.mine ? { mine: "true" } : {}),
+      })}`,
+    ),
+  riskCase: (id: number) => request<RiskCase>(`/risk-cases/${id}`),
+  moveRiskCase: (id: number, status: string, note = "") =>
+    request<RiskCase>(`/risk-cases/${id}/status`, {
+      method: "POST",
+      body: JSON.stringify({ status, note }),
+    }),
+  assignRiskCase: (id: number, ownerId: number | null, note = "") =>
+    request<RiskCase>(`/risk-cases/${id}/assign`, {
+      method: "POST",
+      body: JSON.stringify({ owner_id: ownerId, note }),
+    }),
+  snoozeRiskCase: (id: number, days: number, note = "") =>
+    request<RiskCase>(`/risk-cases/${id}/snooze`, {
+      method: "POST",
+      body: JSON.stringify({ days, note }),
+    }),
+  dismissRiskCase: (id: number, reason: string) =>
+    request<RiskCase>(`/risk-cases/${id}/dismiss`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  resolveRiskCase: (id: number, reason: string) =>
+    request<RiskCase>(`/risk-cases/${id}/resolve`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  commentOnRiskCase: (id: number, body: string) =>
+    request<RiskCase>(`/risk-cases/${id}/comments`, {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    }),
+  investigateRiskCase: (id: number, projectId: number | null = null) =>
+    request<{ investigation_id: number; created: boolean; question?: string }>(
+      `/risk-cases/${id}/investigate`,
+      { method: "POST", body: JSON.stringify({ project_id: projectId }),
+        timeoutMs: 60_000 },
+    ),
+  riskCaseToProject: (id: number, projectId: number | null, name = "") =>
+    request<{ project_id: number; created: boolean }>(
+      `/risk-cases/${id}/project`,
+      { method: "POST", body: JSON.stringify({ project_id: projectId, name }) },
+    ),
+  sendRiskCaseForReview: (
+    id: number,
+    body: { recipients?: number[]; teams?: number[]; action?: string;
+            message?: string; priority?: string; due_at?: string },
+  ) =>
+    request<{ workflow_item_id: number }>(`/risk-cases/${id}/review`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   // ---- the metadata assistants ----
   askDataBuilder: (question: string) =>

@@ -755,3 +755,47 @@ table th {
   0%, 100% { box-shadow: 0 0 0 0 var(--color-ai-edge); }
   50%      { box-shadow: 0 0 0 3px color-mix(in oklab, transparent 70%, var(--color-ai-edge)); }
 }
+
+/* -----------------------------------------------------------------------------
+   THE OFFICER PULSE
+
+   §6 asks for a professional credit-monitoring pulse and forbids the obvious
+   alternatives: a cartoon heart, an emoji, a gaming spinner, a loading screen,
+   a fake percentage bar, a permanently animated decoration.
+
+   What is here is an ECG trace: a line that is flat most of the time and
+   carries one small beat. The reason it reads as professional rather than
+   playful is the duty cycle — the mark is still for most of its cycle, so the
+   eye registers activity without being drawn back to it every second.
+
+   The colour is a semantic token (--color-pulse), never a literal. §10 forbids
+   hard-coded green in components, and the reason is not only theming: the
+   "green" in the oxblood theme is not the "green" in porcelain, and a literal
+   would be right in one theme and wrong in seven.
+
+   Both animations stop dead under prefers-reduced-motion — the global block
+   above already collapses their duration, and the components render a static
+   status icon instead.
+   -------------------------------------------------------------------------- */
+
+:root {
+  /* The activity colour: the theme's own positive tone, which is the register
+     "healthy, live, monitored" in every palette. */
+  --color-pulse: var(--ipm-positive);
+  --color-pulse-muted: var(--ipm-positive-muted);
+}
+
+@keyframes officer-beat {
+  /* Flat, then one beat, then flat again. The long flat tail is the point. */
+  0%, 55%  { transform: scaleY(0.15); opacity: 0.5; }
+  62%      { transform: scaleY(1);    opacity: 1; }
+  69%      { transform: scaleY(0.3);  opacity: 0.8; }
+  76%      { transform: scaleY(0.6);  opacity: 0.9; }
+  84%, 100% { transform: scaleY(0.15); opacity: 0.5; }
+}
+
+@keyframes officer-trace {
+  /* The signal travelling along the line behind the beat. */
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(520%); }
+}
