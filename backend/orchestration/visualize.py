@@ -145,7 +145,13 @@ def read_shape(columns: list[dict[str, Any]], rows: list[dict[str, Any]]) -> Sha
         name = str(column.get("name") or "")
         lowered = name.lower()
         semantic = str(column.get("semantic") or "")
-        rank = int(column.get("rank") or pr.RANK_CONTEXT)
+        # `or` would be wrong here, and wrong in the one place it costs most:
+        # RANK_SUBJECT is 0, so `rank or RANK_CONTEXT` demotes every correctly
+        # ranked subject to context and the result loses its axis. A grouped
+        # result — ECL by sector — then had no subject, fell past the
+        # identity/text fallback, and was drawn as a table with no explanation.
+        declared = column.get("rank")
+        rank = int(declared) if declared is not None else pr.RANK_CONTEXT
 
         if semantic == pr.PERIOD and not shape.subject:
             shape.subject, shape.subject_is_period = name, True
@@ -192,10 +198,35 @@ def choose(columns: list[dict[str, Any]], rows: list[dict[str, Any]], *,
     returns the KPI and says why.
     """
     try:
-        return _choose(columns, rows, requested=requested)
+        chosen = _choose(columns, rows, requested=requested)
     except Exception as e:  # noqa: BLE001 - a picture must never lose an answer
         logger.warning("Could not choose a visualisation: %s", e)
         return Visual(reason="the result is shown as a table")
+
+    # P0.11. Selection and validation are separate jobs: a selector that is
+    # right most of the time still needs something to catch it when it is not,
+    # and a chart that misrepresents its own result is worse than the table.
+    # A two-period sector share was drawn as a heatmap whose axes were the
+    # MEASURE VALUES — one row per value, a sparse diagonal, floating-point
+    # headers — and nothing objected because nothing was asked to.
+    try:
+        from backend.orchestration import viz_contract as vc
+
+        verdict = vc.validate(chosen, columns, rows)
+        if not verdict.ok:
+            replacement = verdict.fallback
+            if replacement == chosen.chart:
+                replacement = TABLE
+            return Visual(
+                chart=replacement,
+                chart_first=replacement != TABLE,
+                alternatives=[TABLE] if replacement != TABLE else [],
+                source=chosen.source,
+                reason=(f"a {chosen.chart} would not say something true about "
+                        f"this result — {verdict.why}"))
+    except Exception as e:  # noqa: BLE001 - validation must never lose a chart
+        logger.warning("Could not validate the visualisation: %s", e)
+    return chosen
 
 
 def _choose(columns: list[dict[str, Any]], rows: list[dict[str, Any]], *,

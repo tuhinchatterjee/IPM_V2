@@ -141,14 +141,27 @@ def create_app() -> FastAPI:
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception):
         # Never leak a stack trace to the browser; log it in full instead.
+        #
+        # P0.10: categorised rather than reported as one anonymous 500. "Something
+        # went wrong on the server" was shown for a missing dataset, an
+        # unreachable provider, a permission refusal and — during Phase 0 — a
+        # stopped database, which is not a fault in CreditProbe at all. Each of
+        # those is a different thing for the reader to do.
+        from backend.api import failures
+
         request_id = getattr(request.state, "request_id", "unknown")
-        logger.exception("Unhandled error on %s (request %s)", request.url.path, request_id)
+        failure = failures.of(exc, request_id)
+        logger.exception(
+            "%s failure on %s (request %s): %s",
+            failure.category, request.url.path, request_id, type(exc).__name__)
         return JSONResponse(
-            status_code=500,
+            status_code=failure.status,
             content=ErrorResponse(
-                error="internal_error",
-                message="Something went wrong on the server. The error has been logged.",
-                detail={"request_id": request_id},
+                error=failure.category.lower(),
+                message=failure.message,
+                detail={"request_id": request_id,
+                        "correlation_id": request_id,
+                        "category": failure.category},
             ).model_dump(),
         )
 
