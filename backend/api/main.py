@@ -23,7 +23,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from backend.api import auth as auth_router
+from backend.api.routers import agentic as agentic_router
 from backend.api.routers import ask as ask_router
+from backend.api.routers import cases as cases_router
 from backend.api.routers import data_builder as data_builder_router
 from backend.api.routers import early_warning as early_warning_router
 from backend.api.routers import engine as engine_router
@@ -161,6 +163,11 @@ def create_app() -> FastAPI:
     app.include_router(ask_router.router, prefix=API_PREFIX)
     app.include_router(ask_router.trace_edit_router, prefix=API_PREFIX)
     app.include_router(early_warning_router.router, prefix=API_PREFIX)
+    # The governed agentic layer: runs, the live officer indicator,
+    # the registry, schedules, policies, approvals — and Risk Cases,
+    # which the Cockpit's Requires Attention reads.
+    app.include_router(agentic_router.router, prefix=API_PREFIX)
+    app.include_router(cases_router.router, prefix=API_PREFIX)
     app.include_router(hierarchy_router.projects_router, prefix=API_PREFIX)
     app.include_router(hierarchy_router.threads_router, prefix=API_PREFIX)
     app.include_router(hierarchy_router.analyses_router, prefix=API_PREFIX)

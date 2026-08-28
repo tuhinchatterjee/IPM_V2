@@ -363,11 +363,11 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
     investigation has established, and returns the state it leaves behind.
     """
     _require_db()
+    from backend.agentic import interactive as agentic
     from backend.db.engine import get_session
     from backend.models.platform import Investigation
     from backend.orchestration import conversation as cv
     from backend.orchestration import memory as wm
-    from backend.orchestration.executor import answer_investigation
 
     with get_session() as session:
         row = session.get(Investigation, thread_id)
@@ -379,17 +379,30 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
     append(thread_id, role=ROLE_USER, content=question, user_id=user_id)
 
     window = period or settled_period(context)
-    result, answered = answer_investigation(
-        question, user_id=user_id, project_id=project_id,
-        investigation_id=thread_id, persist=True, period=window,
-        state=cv.load(context),
-        # The TYPED memory as well as the analytical state. Without it a
-        # follow-up about a field set reached the planner with no "those" to
-        # resolve — which worked in tests that drove the orchestrator directly
-        # and failed for every user, because this is the function the browser
-        # actually calls.
-        memory=wm.load(context),
-    )
+
+    # The governed answer, wrapped in the officer record. §4 asks for an
+    # officer level on every user-requested analysis, and this is the function
+    # the browser actually calls — putting it anywhere else would give the
+    # indicator to the API and not to the product.
+    #
+    # `interactive.run` does not change what `answer_investigation` returns.
+    # It creates the agent run BEFORE the analysis so the stage is observable
+    # while the work happens, re-reads the officer level once the reading
+    # exists, and coordinates specialists where the question genuinely spans
+    # three governed domains.
+    with get_session() as session:
+        officer = agentic.run(
+            session, question=question, user_id=user_id,
+            project_id=project_id, investigation_id=thread_id,
+            period=window, state=cv.load(context),
+            # The TYPED memory as well as the analytical state. Without it a
+            # follow-up about a field set reached the planner with no "those"
+            # to resolve — which worked in tests that drove the orchestrator
+            # directly and failed for every user.
+            memory=wm.load(context))
+
+    result = officer.investigation
+    answered = officer.answered
     remember(thread_id, result, answered)
 
     if result.status == "needs_clarification":
@@ -406,10 +419,12 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
             user_id=user_id,
         )
         return {"status": "needs_clarification", "run": payload,
+                "agentic": officer.agentic(),
                 "thread": load(thread_id).to_dict()}
 
     record_answer(thread_id, result, user_id=user_id)
     return {"status": result.status, "run": result.to_dict(),
+            "agentic": officer.agentic(),
             "thread": load(thread_id).to_dict()}
 
 

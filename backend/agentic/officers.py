@@ -95,21 +95,40 @@ REMIT: dict[int, str] = {
         "coordinated between specialists and reconciled before it is reported.",
 }
 
-#: The score at which each level starts. Read as: a request scoring 3 or 4 gets
-#: a Senior Credit Officer; 5 or 6 a Portfolio Risk Lead; 7 or more the Chief
-#: Orchestrator. The first threshold is deliberately routing's own COMPLEX_AT,
-#: so the officer the user sees and the model route CreditProbe pays for
-#: escalate together rather than drifting apart.
+#: The score at which each level starts.
+#:
+#: Calibrated against §69's own five questions rather than guessed. The first
+#: attempt mapped routing's scale straight through — level 2 at routing's
+#: COMPLEX_AT of 3 — and over-promoted everything: "which customers had a
+#: downgrade and an ECL increase over the latest year" scores 7 on a scale
+#: where a two-dataset question already scores 3, and came out as a Chief
+#: Orchestrator. Routing's scale answers "is this worth the complex model",
+#: which saturates early on purpose; officer level answers "how senior is this
+#: work", which does not.
 FLOORS: tuple[tuple[int, int], ...] = (
-    (7, CHIEF_ORCHESTRATOR),
-    (5, PORTFOLIO_RISK_LEAD),
-    (3, SENIOR_CREDIT_OFFICER),
+    (13, CHIEF_ORCHESTRATOR),
+    (9, PORTFOLIO_RISK_LEAD),
+    (4, SENIOR_CREDIT_OFFICER),
     (0, CREDIT_ANALYST),
 )
 
 #: A request needing this many specialists is coordinated work by definition,
 #: whatever it scored.
 COORDINATED_AT = 3
+
+#: Grains that make work segment-level or portfolio-level by definition. §4
+#: defines level 3 by exactly this — "segment-level investigation,
+#: portfolio-level analysis" — and a score alone cannot express it: a
+#: borrower-grain question across two domains and two periods scores the same
+#: as a sector-wide investigation, and they are not the same job.
+SEGMENT_GRAINS: frozenset[str] = frozenset(
+    {"sector", "segment", "region", "product", "business_unit", "rating_band"})
+PORTFOLIO_GRAINS: frozenset[str] = frozenset({"portfolio", "book"})
+
+#: How many governed checks make a request an open-ended investigation rather
+#: than a calculation. Three: one is a figure, two is a comparison, three is
+#: somebody looking around.
+BROAD_AT = 3
 
 
 # ---------------------------------------------------------------------------
@@ -230,7 +249,10 @@ def reasons(question: str, *, decision: Any = None, reading: Any = None,
 
     # ---- risk -------------------------------------------------------------
     if _MATERIAL.search(text):
-        add("material", 3,
+        # Weight 4, which is exactly the Senior Credit Officer floor. That is
+        # the point: a question about a figure the bank certifies to its board
+        # is a senior officer's on its own, however trivial the arithmetic.
+        add("material", 4,
             "The request touches something with consequences beyond the "
             "screen — a provision, a limit, a certification or a disclosure.",
             kind="risk")
@@ -362,6 +384,9 @@ def select(question: str, *, decision: Any = None, reading: Any = None,
     risk = sum(r.weight for r in found if r.kind == "risk")
     level = level_for(max(complexity, risk))
 
+    # Two floors the score cannot express, both from §4's own definitions.
+    level = max(level, floor_for(reading))
+
     # Coordination is a floor of its own. Three specialists whose findings have
     # to be reconciled IS the Chief Orchestrator's job, whatever the sentence
     # scored — the alternative is a Senior Credit Officer credited with
@@ -380,6 +405,37 @@ def level_for(score: int) -> int:
     for floor, level in FLOORS:
         if score >= floor:
             return level
+    return CREDIT_ANALYST
+
+
+def floor_for(reading: Any) -> int:
+    """The minimum level the SHAPE of the work sets, whatever it scored.
+
+    §4 defines the top two levels by grain rather than by difficulty:
+
+        Level 3  segment-level investigation, portfolio-level analysis
+        Level 4  broad open-ended investigations, several datasets and
+                 several analyses, coordinated specialist work
+
+    A score cannot carry that distinction. "Which customers had a downgrade and
+    an ECL increase over the latest year" and "something seems wrong with
+    Contracting, investigate it" score identically — two domains, several
+    concepts, a period comparison — and they are different jobs: the first is
+    a borrower query a Senior Credit Officer answers, the second is a sector
+    investigation that belongs to the Portfolio Risk Lead.
+
+    So the grain sets a floor, and an open-ended investigation AT the portfolio
+    grain sets a higher one: a whole-book look-around is coordinated work by
+    construction, not because of any word in the sentence.
+    """
+    grain = str(getattr(reading, "grain", "") or "").strip().lower()
+    operations = int(getattr(reading, "operation_count", 0) or 0)
+    broad = operations >= BROAD_AT
+
+    if grain in PORTFOLIO_GRAINS:
+        return CHIEF_ORCHESTRATOR if broad else PORTFOLIO_RISK_LEAD
+    if grain in SEGMENT_GRAINS:
+        return PORTFOLIO_RISK_LEAD
     return CREDIT_ANALYST
 
 
@@ -422,15 +478,19 @@ __all__ = [
     "CHIEF_ORCHESTRATOR",
     "COORDINATED_AT",
     "CREDIT_ANALYST",
+    "BROAD_AT",
     "FLOORS",
     "LEVELS",
+    "PORTFOLIO_GRAINS",
     "PORTFOLIO_RISK_LEAD",
     "REMIT",
     "SENIOR_CREDIT_OFFICER",
     "TITLES",
     "Reason",
+    "SEGMENT_GRAINS",
     "Selection",
     "escalate",
+    "floor_for",
     "level_for",
     "reasons",
     "select",

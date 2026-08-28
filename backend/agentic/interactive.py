@@ -82,6 +82,10 @@ class Answered:
     assurance: Any = None
     coordinated: bool = False
     escalated: bool = False
+    #: What the orchestration layer reported about the turn — the reading, the
+    #: route, the conversation state. Carried through so `threads.ask` can
+    #: write memory back exactly as it did before this wrapper existed.
+    answered: Any = None
 
     def agentic(self) -> dict[str, Any]:
         """The block the response carries, for §11's completion line and §53's
@@ -186,10 +190,20 @@ def run(session: Any, *, question: str, user_id: int | None = None,
     runs.advance(session, run_row, stages.UNDERSTANDING)
     session.flush()
 
-    ask = answer_one or (lambda q, **kw: answer_investigation(
-        q, user_id=user_id, project_id=project_id,
-        investigation_id=investigation_id, persist=True, period=period,
-        state=state, memory=memory)[0])
+    if answer_one is not None:
+        ask = answer_one
+    else:
+        def ask(q: str, **_kw: Any) -> Any:
+            # `answer_investigation` returns the Investigation AND what the
+            # orchestration layer made of the turn. The caller needs both —
+            # `threads.ask` writes conversation memory from the second — so it
+            # is kept rather than discarded at the tuple unpack.
+            investigation, orchestrated = answer_investigation(
+                q, user_id=user_id, project_id=project_id,
+                investigation_id=investigation_id, persist=True,
+                period=period, state=state, memory=memory)
+            found.answered = orchestrated
+            return investigation
 
     try:
         runs.advance(session, run_row, stages.CALCULATING)
@@ -204,7 +218,7 @@ def run(session: Any, *, question: str, user_id: int | None = None,
 
     # §9's second reading: now that the reading exists, re-score. This is the
     # only place the level can move, and it can only move up.
-    reading = _reading_of(investigation)
+    reading = _reading_of(investigation, found.answered)
     specialists = registry.agents_for(_concepts_of(reading))
     second = rt.decide(question, reading=reading)
     later = officers.select(question, decision=second, reading=reading,
@@ -328,58 +342,110 @@ def _assurance(found: Answered, investigation: Any) -> Any:
 # ---------------------------------------------------------------------------
 
 
-def _reading_of(investigation: Any) -> Any:
+def _reading_of(investigation: Any, orchestrated: Any = None) -> Any:
     """A reading-shaped view of what the analysis actually used.
 
-    The Investigation carries a plan rather than the Reading the router
-    produced, so this reconstructs what the officer selection needs from it.
+    Three sources, merged, in order of how directly each one knows:
+
+    1. **The orchestration layer's own Reading**, when it has one. That is the
+       real thing — what the router understood — and nothing reconstructs it
+       better.
+    2. **The executed steps**, where the runtime records what it really read:
+       `result["datasets"]` and `result["plan"]["meta"]["concepts"]`. Needed
+       because the offline route produces an empty Reading, and reading it off
+       the AnalysisPlan finds nothing at all — the plan carries steps and a
+       scope, not measures. Without this the second officer selection saw a
+       question with no concepts, `agents_for()` returned nothing, and
+       coordination could never fire on ANY question, leaving the level to be
+       decided entirely by the sentence — which is what §5 forbids.
+    3. **The broad-investigation summary**, when the turn ran one. Six governed
+       checks over a named sector is segment-level work whatever the sentence
+       looked like, and `subject_kind` plus the probe count say so exactly.
+
     Duck-typed on purpose: `officers` reads attributes, and constructing a real
     `capability.Reading` here would couple the agentic layer to a class it has
     no other reason to know.
     """
-    plan = getattr(investigation, "plan", None)
+    steps = list(getattr(investigation, "steps", ()) or ())
+    datasets: list[str] = []
+    concepts: list[str] = []
+    periods: list[str] = []
+    grain = ""
 
-    class _Reading:
-        datasets = tuple(getattr(plan, "datasets", ()) or ())
-        concepts = tuple(_concept_names(plan))
-        metrics = concepts
-        periods = tuple(_periods_of(plan))
-        period_requirement = "two_period" if len(periods) >= 2 else "point_in_time"
-        grain = str(getattr(getattr(plan, "scope", None), "grain", "") or "")
-        dimensions = ()
-        operation_count = len(list(getattr(investigation, "steps", ()) or ()))
-        confidence = 1.0
-        clarification = ""
+    for step in steps:
+        result = getattr(step, "result", None)
+        if not isinstance(result, dict):
+            continue
+        for name in (result.get("datasets") or ()):
+            if str(name) and str(name) not in datasets:
+                datasets.append(str(name))
+        meta = (result.get("plan") or {}).get("meta") or {}
+        grain = grain or str(meta.get("grain") or "")
+        for entry in (meta.get("concepts") or ()):
+            name = str(entry.get("concept") if isinstance(entry, dict)
+                       else entry).lower()
+            if name and name not in concepts:
+                concepts.append(name)
+        for key in ("period", "compare_period", "prior_period"):
+            value = str(meta.get(key) or "")
+            if value and value not in periods:
+                periods.append(value)
+        at = str(getattr(step, "period", "") or "")
+        if at and at not in periods:
+            periods.append(at)
 
-    return _Reading()
+    # (1) The router's own Reading wins where it has anything.
+    router = getattr(orchestrated, "reading", None)
+    for name in ("datasets", "concepts", "periods"):
+        for value in (getattr(router, name, ()) or ()):
+            target = {"datasets": datasets, "concepts": concepts,
+                      "periods": periods}[name]
+            if str(value) and str(value) not in target:
+                target.append(str(value))
+    for value in (getattr(router, "metrics", ()) or ()):
+        if str(value) and str(value) not in concepts:
+            concepts.append(str(value))
+    grain = str(getattr(router, "grain", "") or "") or grain
+
+    # (3) A broad investigation is segment- or portfolio-level work by
+    # construction, and the probe count is the operation count.
+    probes = 0
+    summary = getattr(orchestrated, "investigation", None)
+    if isinstance(summary, dict) and summary:
+        # `probes` is a count on one assembly path and the list itself on
+        # another. Both mean "how many governed checks ran".
+        counted = summary.get("probes") or 0
+        probes = len(counted) if isinstance(counted, (list, tuple)) else int(counted)
+        kind = str(summary.get("subject_kind") or "").lower()
+        if kind in {"sector", "segment", "region", "product", "portfolio"}:
+            grain = grain or ("portfolio" if kind == "portfolio" else "sector")
+
+    reading = _Reading()
+    reading.datasets = tuple(datasets)
+    reading.concepts = tuple(concepts)
+    reading.metrics = tuple(concepts)
+    reading.periods = tuple(periods)
+    reading.period_requirement = (
+        str(getattr(router, "period_requirement", "") or "")
+        or ("two_period" if len(periods) >= 2 else "point_in_time"))
+    reading.grain = grain
+    reading.operation_count = max(len(steps), probes)
+    return reading
 
 
-def _concept_names(plan: Any) -> list[str]:
-    """Governed concept ids the plan measured.
+class _Reading:
+    """What `officers` and `routing` read off a reading, and nothing else."""
 
-    Read from the plan's own measures where it has them, falling back to the
-    ontology's vocabulary against the plan's intent. A concept this cannot
-    resolve simply does not add a specialist, which is the safe direction: a
-    missing specialist is a narrower plan, an invented one is a task nothing
-    can answer.
-    """
-    from backend.agentic import registry as reg
-
-    found: list[str] = []
-    for attribute in ("concepts", "measures", "metrics"):
-        for value in (getattr(plan, attribute, ()) or ()):
-            name = str(getattr(value, "concept_id", None)
-                       or getattr(value, "id", None) or value).lower()
-            if reg.domain_of(name) and name not in found:
-                found.append(name)
-    return found
-
-
-def _periods_of(plan: Any) -> list[str]:
-    scope = getattr(plan, "scope", None)
-    found = [str(getattr(scope, "period", "") or ""),
-             str(getattr(scope, "compare_period", "") or "")]
-    return [p for p in found if p]
+    datasets: tuple[str, ...] = ()
+    concepts: tuple[str, ...] = ()
+    metrics: tuple[str, ...] = ()
+    periods: tuple[str, ...] = ()
+    period_requirement: str = "point_in_time"
+    grain: str = ""
+    dimensions: tuple[str, ...] = ()
+    operation_count: int = 0
+    confidence: float = 1.0
+    clarification: str = ""
 
 
 def _concepts_of(reading: Any) -> list[str]:
@@ -388,7 +454,7 @@ def _concepts_of(reading: Any) -> list[str]:
 
 def _scope_of(reading: Any) -> dict[str, Any]:
     grain = str(getattr(reading, "grain", "") or "")
-    if grain in {"sector", "segment"}:
+    if grain in {"sector", "segment", "portfolio"}:
         return {"segment": "the portfolio"}
     return {"entity": "the portfolio"}
 

@@ -82,6 +82,49 @@ def test_a_segment_question_reaches_the_portfolio_risk_lead():
     assert chosen.level == officers.PORTFOLIO_RISK_LEAD
 
 
+# ------------------------------------------------------- §4's grain floors
+
+
+def test_grain_separates_two_questions_that_score_the_same():
+    """The reason `floor_for` exists.
+
+    A borrower-grain question across two domains and two periods, and a
+    sector-wide investigation, score identically. §4 says they are different
+    jobs, and the grain is what says so.
+    """
+    borrower = FakeReading(datasets=("customer_ratings", "ifrs9_staging"),
+                           concepts=("rating", "ecl"),
+                           periods=("Q2 2025", "Q2 2026"),
+                           period_requirement="two_period", grain="customer")
+    segment = FakeReading(datasets=("customer_ratings", "ifrs9_staging"),
+                          concepts=("rating", "ecl"),
+                          periods=("Q2 2025", "Q2 2026"),
+                          period_requirement="two_period", grain="sector",
+                          operation_count=6)
+    assert _select("q", borrower).level == officers.SENIOR_CREDIT_OFFICER
+    assert _select("q", segment).level == officers.PORTFOLIO_RISK_LEAD
+
+
+def test_an_open_ended_look_at_the_whole_book_is_coordinated_work():
+    """Portfolio grain plus several governed checks is level 4 by shape, not
+    because of any word in the sentence."""
+    one_figure = FakeReading(concepts=("ead",), grain="portfolio",
+                             operation_count=1)
+    looking_around = FakeReading(concepts=("ead",), grain="portfolio",
+                                 operation_count=6)
+    assert _select("q", one_figure).level == officers.PORTFOLIO_RISK_LEAD
+    assert _select("q", looking_around).level == officers.CHIEF_ORCHESTRATOR
+
+
+def test_a_facility_grain_grouping_stays_a_credit_analysts_work():
+    """"Show EAD by sector" is grouped BY sector but reported at facility
+    grain. Grouping is not segment-level investigation."""
+    chosen = _select("Show EAD by sector.",
+                     FakeReading(datasets=("facilities",), concepts=("ead",),
+                                 grain="facility"))
+    assert chosen.level == officers.CREDIT_ANALYST
+
+
 # ------------------------------------------------------- no phrase rules §5
 
 

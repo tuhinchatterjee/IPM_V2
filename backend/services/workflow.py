@@ -138,6 +138,11 @@ REVIEWABLE = {
     "dataset": "Dataset",
     "scenario": "Stress scenario",
     "document": "Document",
+    # §50 of the agentic phase: a Risk Case is sent for review through THIS
+    # service. A second workflow system beside it would give the product two
+    # inboxes, two notification rules and two answers to "what is waiting for
+    # me".
+    "risk_case": "Risk case",
 }
 
 
