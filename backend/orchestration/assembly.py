@@ -689,6 +689,23 @@ def _values(build: ap.AnalysisBuild, runtime: Any) -> dict[str, Any]:
     return values
 
 
+def result_values(build: ap.AnalysisBuild, runtime: Any) -> dict[str, Any]:
+    """The figures the narrative is built from, for anything that has to agree
+    with it.
+
+    The eight sections read these rather than re-deriving a movement of their
+    own: a credit-risk sentence that says "no movement" underneath a bottom
+    line that says "fell from 4,541 to 4,197" is the "prose contradiction with
+    result" in Defect F, and two derivations of the same number is how it
+    happens.
+    """
+    try:
+        return _values(build, runtime)
+    except Exception as e:  # noqa: BLE001 - a reading must not lose an answer
+        logger.warning("Could not read the result values: %s", e)
+        return {}
+
+
 def _units(build: ap.AnalysisBuild) -> dict[str, str]:
     units = {"matching": "count"}
     if build.matches:

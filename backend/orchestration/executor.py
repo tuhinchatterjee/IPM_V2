@@ -1009,6 +1009,7 @@ def answer_investigation(question: str, *, user_id: int | None = None,
 
     _record_conversation(investigation, answered)
     _settle_caveats(investigation)
+    _record_presentability(investigation, answered)
     if persist:
         persist_investigation(investigation, user_id=user_id,
                               project_id=project_id,
@@ -1691,6 +1692,78 @@ def _record_invariants(investigation: Investigation, answered: Any) -> None:
         investigation.node_hashes = graph.compute_hashes()
     except Exception as e:  # noqa: BLE001 - a Trace node must not lose an answer
         logger.warning("Could not record the invariant node: %s", e)
+
+
+def _record_presentability(investigation: Investigation, answered: Any) -> None:
+    """The eight sections, and the fourteen checks over them. P0.8.
+
+    Here rather than in the orchestrator because the gate has to see what the
+    READER will see, and the reader sees the assembled narrative — its direct
+    answer, its caveats — not only the model's paragraph. A gate that runs
+    before the answer is assembled is checking a draft.
+
+    It records; it does not yet suppress. The verdict reaches the Trace and the
+    API, so a failing answer is visibly failing rather than quietly polished,
+    and the layer that decides between repairing, clarifying and withholding
+    reads it there. Recording first is deliberate: a gate whose thresholds have
+    never been measured against real answers will either block correct ones or
+    be turned off, and both are worse than a gate that is watched.
+    """
+    from backend.orchestration import assembly
+    from backend.orchestration import presentable as pg
+    from backend.orchestration import sections as sc
+
+    narrative = getattr(investigation, "narrative", None)
+    build = getattr(answered, "build", None)
+    try:
+        answered.sections = sc.compose(
+            build, getattr(answered, "runtime", None),
+            list(getattr(build, "observations", None) or []),
+            question=investigation.question,
+            direct_answer=str(getattr(narrative, "direct_answer", "") or ""),
+            values=(assembly.result_values(build, answered.runtime)
+                    if build is not None and answered.runtime is not None
+                    else {}),
+            follow_ups=list(getattr(narrative, "follow_ups", None) or []))
+        answered.gate = pg.assess(answered, reading=answered.sections)
+    except Exception as e:  # noqa: BLE001 - a gate must not become the failure
+        logger.warning("Could not assess presentability: %s", e)
+        return
+
+    gate = answered.gate
+    if not gate.presentable:
+        logger.warning("Presentability %s for %r: %s", gate.verdict,
+                       investigation.question, gate.why)
+
+    graph = investigation.graph
+    if graph is None:
+        return
+    try:
+        node = graph.add_node(TraceNode(
+            id="presentability", type=NodeType.BUSINESS_INVARIANT,
+            label=gate.sentence(),
+            config={
+                "verdict": gate.verdict,
+                "why": gate.why,
+                "checks": [c.to_dict() for c in gate.checks],
+                "sections": (answered.sections.to_dict()
+                             if answered.sections is not None else {}),
+                "rule": ("Fourteen conditions an answer has to meet before it "
+                         "is put in front of a client. A polished but "
+                         "incomplete answer is more dangerous than an obviously "
+                         "broken one, because it gets forwarded."),
+            }))
+        if gate.presentable:
+            node.mark_ok()
+        else:
+            node.mark_failed(gate.why)
+        for leaf in ("interpretation", "result", "run__result"):
+            if leaf in graph.nodes:
+                graph.connect(leaf, "presentability")
+                break
+        investigation.node_hashes = graph.compute_hashes()
+    except Exception as e:  # noqa: BLE001 - a Trace node must not lose an answer
+        logger.warning("Could not record the presentability node: %s", e)
 
 
 def _record_evidence(investigation: Investigation, answered: Any) -> None:

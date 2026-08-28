@@ -193,6 +193,13 @@ class Answered:
     investigation: dict[str, Any] = field(default_factory=dict)
     #: What was checked about the result, and what did not hold.
     invariants: Any = None
+    #: The eight sections a client answer has to carry (P0.8). Composed from
+    #: the analyst observations, so every sentence rests on a computed figure.
+    sections: Any = None
+    #: Whether this answer may be put in front of a client, and why not.
+    #: P0.8's fourteen checks, run once, here, rather than distributed across
+    #: the places that produce each part of the answer.
+    gate: Any = None
     #: Which route and model answered this turn.
     decision: Any = None
     #: Which extra clauses of a compound question were answered in this turn,
@@ -867,6 +874,7 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
         **_role_call("interpretation"))
     if answered.written is not None and answered.written.model:
         answered.calls += 1
+
     return answered
 
 

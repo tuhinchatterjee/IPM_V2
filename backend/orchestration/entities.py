@@ -79,7 +79,9 @@ def match_all(question: str, dimensions: dict[str, list[str]]) -> list[EntityMat
             token = str(value)
             if not token:
                 continue
-            pattern = r"\b" + re.escape(token.lower()).replace(r"\ ", r"[\s\-_]+") + r"\b"
+            pattern = (_numeric_pattern(kind, token) if token.isdigit()
+                       else r"\b" + re.escape(token.lower())
+                       .replace(r"\ ", r"[\s\-_]+") + r"\b")
             found = re.search(pattern, lowered)
             if found and found.group(0) not in claimed:
                 claimed.add(found.group(0))
@@ -87,6 +89,46 @@ def match_all(question: str, dimensions: dict[str, list[str]]) -> list[EntityMat
                                        phrase=found.group(0), confidence=1.0,
                                        exact=True))
     return out
+
+
+def _numeric_pattern(kind: str, token: str) -> str:
+    """A whole-number match a decimal literal cannot satisfy, and — for a
+    dimension whose values are bare codes — one that needs the dimension named.
+
+    Two failures, one root: a number in a question is usually a quantity, and
+    IFRS 9 stages are the values "1", "2" and "3".
+
+    **A word boundary is the wrong boundary for a digit.** `.` is a non-word
+    character, so `\b1\b` matches inside "1.2". "Which borrowers have a DSCR
+    below 1.2?" resolved a stage filter of 1 AND a stage filter of 2 out of the
+    threshold. The answer came back about a different population, correctly
+    computed, and nothing said so until the invariant check found that the rows
+    did not match the filter the question was recorded as carrying.
+
+    **And a bare digit is not a stage.** "a DSCR of 2" names a ratio. The
+    governed vocabulary already refuses to infer these dimensions from free
+    text — `AMBIGUOUS_DIMENSIONS` exists for exactly this — and the entity
+    matcher was the reader that did not honour it. So a numeric value of an
+    ambiguous dimension matches only where the dimension is NAMED: "stage 2",
+    never "2".
+    """
+    from backend.orchestration import vocabulary as vc
+
+    digits = re.escape(str(token))
+    # Part of a longer number when a digit sits beside it, or when a decimal
+    # point or thousands separator with a DIGIT on its far side does. The digit
+    # on the far side is what makes the separator a separator: a trailing full
+    # stop is a sentence ("customers in Stage 2.") and a trailing comma is a
+    # list ("stage 1, 2 or 3"), neither of which is 1,200.
+    bounded = rf"(?<!\d)(?<!\d[.,]){digits}(?!\d)(?![.,]\d)"
+    if kind not in vc.AMBIGUOUS_DIMENSIONS:
+        return bounded
+    # The noun can be shared across a coordination — "stages 2 and 3" names
+    # both — so a chain of coordinated numbers may sit between it and this one.
+    # The chain still has to START at the noun, which is what keeps "a DSCR
+    # between 1 and 2" from resolving a stage out of its upper bound.
+    noun = re.escape(str(kind).rsplit("_", 1)[-1].lower())
+    return rf"\b{noun}s?\s+(?:of\s+)?(?:\d+\s*(?:,|and|or)\s+)*{bounded}"
 
 
 def match_dimension(phrase: str, kind: str,
