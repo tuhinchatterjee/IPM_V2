@@ -61,6 +61,7 @@ from backend.orchestration import capability as cap
 from backend.orchestration import certified as cert
 from backend.orchestration import conversation as cv
 from backend.orchestration import coverage as cov
+from backend.orchestration import decomposition as dcp
 from backend.orchestration import guardrail as gr
 from backend.orchestration import invariants as inv
 from backend.orchestration import memory as wm
@@ -752,6 +753,14 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
     reading = _with_overrides(reading, period, extra_filters)
     answered.reading = reading
 
+    # A governed method, routed BEFORE the ambiguity gate. "Decompose the change
+    # in ECL into exposure, stage migration, PD, LGD and mix" names exposure as
+    # a DRIVER, not as the measure to compute, and the gate read it as the
+    # measure — so the question that most needed this method was answered with a
+    # menu asking which exposure figure to use.
+    if dcp.wants(question):
+        return _decompose_ecl(answered, question, reading, context, period)
+
     # One word, several materially different figures. Asked rather than
     # defaulted: "show me exposure" answered as drawn balance is wrong for an
     # impairment question and wrong for a concentration question, and it reads
@@ -875,6 +884,28 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
     if answered.written is not None and answered.written.model:
         answered.calls += 1
 
+    return answered
+
+
+def _decompose_ecl(answered: Answered, question: str, reading: cap.Reading,
+                   context: Any, period: tuple[str, str] | None) -> Answered:
+    """Attribute a movement in ECL across the governed drivers. P0.4.
+
+    A handler rather than a planned analysis: the attribution is per account
+    across two periods and does not fit the aggregate/ranking/movement shapes
+    the planner compiles. It returns the same HandlerResult shape as every
+    other capability, so the answer surface renders one thing.
+    """
+    try:
+        answered.result = dcp.answer(
+            question, reading, context=context, period=period,
+            user_id=getattr(context, "user_id", None))
+    except Exception as e:  # noqa: BLE001 - a method must not become a 500
+        logger.exception("The ECL decomposition failed: %s", e)
+        answered.failure = (
+            "CreditProbe could not compute the ECL decomposition. Nothing "
+            "partial has been reported as an answer.")
+        answered.failure_kind = "EXECUTION"
     return answered
 
 

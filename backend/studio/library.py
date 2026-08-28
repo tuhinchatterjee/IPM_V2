@@ -32,7 +32,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from backend.studio.model import Category, Lifecycle, MethodDefinition
+from backend.studio.model import (
+    Category,
+    Lifecycle,
+    MethodDefinition,
+    TestCase,
+)
 
 C = Category
 L = Lifecycle
@@ -45,7 +50,8 @@ def d(id: str, name: str, category: str, definition: str, *,
       fields: tuple[str, ...] = (), weighting: tuple[str, ...] = (),
       output: str = "", interpretation: str = "", limitations: str = "",
       engine: str = "", lifecycle: str = L.PRECONFIGURED,
-      plan: dict[str, Any] | None = None) -> MethodDefinition:
+      plan: dict[str, Any] | None = None,
+      tests: tuple[TestCase, ...] = ()) -> MethodDefinition:
     """One library entry. Compact on purpose — there are three hundred of them."""
     return MethodDefinition(
         id=id, name=name, category=category, definition=definition,
@@ -56,8 +62,88 @@ def d(id: str, name: str, category: str, definition: str, *,
         weighting_options=list(weighting), output_type=output,
         interpretation=interpretation, limitations=limitations,
         engine_analysis=engine, lifecycle=lifecycle, plan=plan,
+        test_cases=list(tests),
     )
 
+
+#: Diagnostic cases for the ECL change decomposition, with the answers worked
+#: out by hand. Each isolates ONE driver, because a case where several drivers
+#: move at once cannot show that the attribution put the effect on the right
+#: one — it can only show that the total balances, which a wrong attribution
+#: also does. The full suite lives in tests/orchestration/test_decomposition.py;
+#: these are the ones a methodology owner should be able to read on screen and
+#: check with a pencil.
+_ECL_DECOMPOSITION_CASES: tuple[TestCase, ...] = (
+    TestCase(
+        id="exposure_only", name="Exposure grew, nothing else moved",
+        purpose="An account whose exposure rose by half, at unchanged PD, LGD "
+                "and stage. The whole movement belongs to exposure, and every "
+                "other driver must be exactly zero.",
+        data=[{"account_id": "A", "period": "opening", "ead": 100.0,
+               "ifrs9_stage": 1, "pd_12m_pct": 2.0, "lgd_pct": 40.0,
+               "model_ecl": 0.8, "total_ecl": 0.8},
+              {"account_id": "A", "period": "closing", "ead": 150.0,
+               "ifrs9_stage": 1, "pd_12m_pct": 2.0, "lgd_pct": 40.0,
+               "model_ecl": 1.2, "total_ecl": 1.2}],
+        expected={"movement": 0.4, "exposure": 0.4, "pd": 0.0, "lgd": 0.0,
+                  "stage_migration": 0.0}),
+    TestCase(
+        id="stage_only", name="A stage migration is not a rise in PD",
+        purpose="The twelve-month PD did not move; the account moved from a "
+                "twelve-month to a lifetime horizon. Reporting that as a PD "
+                "effect would send a reader to the ratings team about a model "
+                "that did exactly what SICR asked of it.",
+        data=[{"account_id": "A", "period": "opening", "ead": 100.0,
+               "ifrs9_stage": 1, "pd_12m_pct": 2.0, "pd_lifetime_pct": 6.0,
+               "lgd_pct": 40.0, "model_ecl": 0.8, "total_ecl": 0.8},
+              {"account_id": "A", "period": "closing", "ead": 100.0,
+               "ifrs9_stage": 2, "pd_12m_pct": 2.0, "pd_lifetime_pct": 6.0,
+               "lgd_pct": 40.0, "model_ecl": 2.4, "total_ecl": 2.4}],
+        expected={"movement": 1.6, "stage_migration": 1.6, "pd": 0.0}),
+    TestCase(
+        id="mix_only", name="Exposure moved between accounts, the book did not grow",
+        purpose="Total exposure is unchanged; it has moved from a safe "
+                "borrower to a risky one. This is a composition effect, and "
+                "reporting it as exposure would say the bank lent more, which "
+                "it did not.",
+        data=[{"account_id": "SAFE", "period": "opening", "ead": 100.0,
+               "pd_12m_pct": 1.0, "lgd_pct": 40.0, "ifrs9_stage": 1},
+              {"account_id": "RISKY", "period": "opening", "ead": 100.0,
+               "pd_12m_pct": 10.0, "lgd_pct": 40.0, "ifrs9_stage": 1},
+              {"account_id": "SAFE", "period": "closing", "ead": 50.0,
+               "pd_12m_pct": 1.0, "lgd_pct": 40.0, "ifrs9_stage": 1},
+              {"account_id": "RISKY", "period": "closing", "ead": 150.0,
+               "pd_12m_pct": 10.0, "lgd_pct": 40.0, "ifrs9_stage": 1}],
+        expected={"portfolio_mix": "the whole movement", "exposure": 0.0}),
+    TestCase(
+        id="arrival", name="An account that arrived is not a rise in PD",
+        purpose="It has one PD, not two. Folding arrivals into the drivers is "
+                "the common way a decomposition reconciles while lying.",
+        data=[{"account_id": "A", "period": "opening", "ead": 100.0,
+               "pd_12m_pct": 2.0, "lgd_pct": 40.0, "total_ecl": 0.8},
+              {"account_id": "A", "period": "closing", "ead": 100.0,
+               "pd_12m_pct": 2.0, "lgd_pct": 40.0, "total_ecl": 0.8},
+              {"account_id": "B", "period": "closing", "ead": 100.0,
+               "pd_12m_pct": 2.0, "lgd_pct": 40.0, "total_ecl": 0.8}],
+        expected={"movement": 0.8, "new_accounts": 0.8, "pd": 0.0}),
+    TestCase(
+        id="order_neutral", name="The attribution does not depend on the order",
+        purpose="Two factors both doubling. The change is 3, and neither "
+                "factor did more of it than the other. The one-at-a-time "
+                "attribution says 1 and 2 — and it reconciles, which is why "
+                "nobody catches it.",
+        data=[{"factor_a": 1.0, "factor_b": 1.0, "period": "opening"},
+              {"factor_a": 2.0, "factor_b": 2.0, "period": "closing"}],
+        expected={"factor_a": 1.5, "factor_b": 1.5}),
+    TestCase(
+        id="reconciliation", name="Every driver moving at once still reconciles",
+        purpose="Exposure, stage, PD, LGD and the overlay all moving, plus an "
+                "arrival and a departure. The whole claim of the method is "
+                "that the components still sum exactly to the movement.",
+        data=[{"note": "see tests/orchestration/test_decomposition.py"}],
+        expected={"sum_of_components": "closing ECL - opening ECL",
+                  "tolerance": "1e-6 relative"}),
+)
 
 # =====================================================  portfolio & exposure
 
@@ -401,10 +487,64 @@ IFRS9: list[MethodDefinition] = [
       aliases=("provision contribution", "ECL attribution"),
       history="Two periods", output="Ranked contribution",
       engine="ecl_movement", lifecycle=L.CERTIFIED),
-    d("ecl_waterfall", "ECL Waterfall", C.IFRS9,
-      "Opening ECL to closing ECL through its drivers.",
-      aliases=("provision waterfall", "ECL bridge"),
-      history="Two periods", output="Waterfall"),
+    d("ecl_change_decomposition", "ECL Change Decomposition", C.IFRS9,
+      "Opening ECL to closing ECL through its drivers, attributed without an "
+      "arbitrary ordering.",
+      aliases=("ECL waterfall", "provision waterfall", "ECL bridge",
+               "ECL attribution", "impairment bridge", "ECL walk",
+               "provision bridge"),
+      purpose="To say what MOVED the impairment charge, rather than where the "
+              "movement landed. An ECL movement by sector is a different "
+              "question with a similar shape: it reports the result of the "
+              "change, not its drivers.",
+      methodology=(
+          "Per account, over the population present in BOTH periods, modelled "
+          "ECL is factorised as T x w x R x PD12 x LGD x K — total exposure, "
+          "the account's share of it, the lifetime multiple its stage applies, "
+          "the twelve-month PD, loss given default, and a residual K carrying "
+          "everything else the model does (discounting, the lifetime loss "
+          "profile, the effective interest rate). The change is attributed "
+          "across those six by SHAPLEY value: each effect is the factor's "
+          "average marginal contribution over every order in which the factors "
+          "could have moved. That is the unique attribution that is "
+          "order-neutral, sums exactly to the movement, and gives a factor "
+          "that did not move an effect of zero. The one-at-a-time alternative "
+          "also reconciles, and hands every interaction term to whichever "
+          "factor happened to be moved last — so the same book tells a "
+          "different story depending on the order somebody chose, and each "
+          "version balances. The overlay (total ECL less modelled ECL) is "
+          "additive and attributed directly, and accounts present in only one "
+          "period are their own components, because an account with one PD "
+          "has no PD change."),
+      when_to_use="To explain a movement in the impairment charge to a "
+                  "committee, and to say which sectors and which borrowers "
+                  "drove it.",
+      when_not_to_use=(
+          "As evidence of cause. A PD effect says the PDs used in the "
+          "calculation changed; it does not say why, and a model "
+          "recalibration and a deteriorating book look identical here."),
+      grain="Account, identifiable across both periods",
+      history="Two periods", domains=("ifrs9",),
+      fields=("account_id", "customer_id", "sector", "ifrs9_stage", "ead",
+              "pd_12m_pct", "pd_lifetime_pct", "lgd_pct", "model_ecl",
+              "total_ecl"),
+      weighting=("EAD",),
+      output="Waterfall with sector and customer attribution",
+      interpretation=(
+          "Read the signs first: a positive effect drove the loss up. The "
+          "model residual is not an error term — it is the part of ECL that "
+          "exposure, PD and LGD do not describe, and on most books it is "
+          "material. A large residual movement is a question for the "
+          "impairment model owner, not a rounding difference."),
+      limitations=(
+          "It does not establish cause. It does not separate the residual "
+          "into discounting, lifetime profile and EIR — those move together "
+          "and are reported as one driver. It attributes the overlay rather "
+          "than explaining it, an overlay being a judgement. And it says "
+          "nothing about accounts outside the governed population for the two "
+          "periods compared."),
+      engine="ecl_change_decomposition", lifecycle=L.CERTIFIED,
+      tests=_ECL_DECOMPOSITION_CASES),
     d("pd_movement", "PD Movement", C.IFRS9,
       "Change in probability of default between periods.",
       aliases=("PD drift", "PD change"), history="Two periods",

@@ -395,3 +395,52 @@ def test_filters_are_recorded_in_the_trace():
     run = ok("portfolio_summary", filters={"sector": "Contracting"})
     filter_nodes = [n for n in run.graph.nodes.values() if n.type.value == "FILTER"]
     assert any(n.config.get("filters") == {"sector": "Contracting"} for n in filter_nodes)
+
+
+# ============================================ ECL change decomposition (P0.4)
+
+
+def test_the_ecl_decomposition_is_certified_and_registered():
+    contract = get_registry().contract("ecl_change_decomposition")
+    assert contract.certification is Certification.CERTIFIED
+    assert contract.limitations.strip()
+
+
+def test_the_ecl_decomposition_reconciles_on_the_real_book(periods):
+    """The whole claim of the method. A decomposition whose components do not
+    sum to the movement is a table of plausible numbers."""
+    run = ok("ecl_change_decomposition",
+             params={"period": periods[-1], "compare_period": periods[0]})
+    values = run.result.values
+    assert values["reconciles"] is True
+    assert values["attributed"] == pytest.approx(values["movement"], abs=0.01)
+    assert values["closing_total"] - values["opening_total"] == pytest.approx(
+        values["movement"], abs=0.01)
+
+
+def test_the_ecl_decomposition_names_every_governed_driver(periods):
+    from backend.orchestration import decomposition as dc
+
+    run = ok("ecl_change_decomposition",
+             params={"period": periods[-1], "compare_period": periods[0]})
+    shown = {row["component"] for row in run.result.rows}
+    assert shown == {dc.LABELS[key] for key in dc.COMPONENTS}
+
+
+def test_the_ecl_decomposition_says_what_it_does_not_prove(periods):
+    """An attribution read as causation is worse than no attribution, because
+    it names a culprit."""
+    run = ok("ecl_change_decomposition",
+             params={"period": periods[-1], "compare_period": periods[0]})
+    caveats = run.result.meta["does_not_prove"]
+    assert any("does not establish cause" in c for c in caveats)
+
+
+def test_the_ecl_decomposition_refuses_a_single_period(periods):
+    """Two periods or nothing. Comparing a period with itself would report a
+    movement of zero as though it had been measured."""
+    run = run_analysis("ecl_change_decomposition",
+                       params={"period": periods[-1],
+                               "compare_period": periods[-1]})
+    assert run.status != "succeeded"
+    assert "two periods" in str(run.error).lower()

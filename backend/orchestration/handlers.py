@@ -43,12 +43,25 @@ class HandlerResult:
     graph: TraceGraph | None = None
     follow_ups: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    #: The chart this answer should be drawn as, where the capability knows
+    #: better than the shape rule. An ECL decomposition is a waterfall, and a
+    #: waterfall cannot be inferred from a two-column table of labels and
+    #: amounts — it needs to know the rows are steps between two totals.
+    chart: dict[str, Any] = field(default_factory=dict)
+    #: How this answer was produced. "metadata" for a catalogue lookup, which
+    #: is what most capabilities are; a capability that COMPUTED something says
+    #: so, because the Trace consistency contract reads this field to decide
+    #: whether an analysis ran, and a real attribution reported as metadata
+    #: would make the Trace say nothing was calculated.
+    execution: str = "metadata"
+    execution_label: str = "Governed metadata"
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "answer": self.answer, "rows": self.rows, "columns": self.columns,
             "values": self.values, "detail": self.detail,
             "follow_ups": self.follow_ups, "warnings": self.warnings,
+            "chart": dict(self.chart), "execution": self.execution,
         }
 
 

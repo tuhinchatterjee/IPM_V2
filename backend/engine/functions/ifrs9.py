@@ -573,3 +573,175 @@ def approaching_sicr_threshold(ctx: ExecutionContext) -> AnalysisResult:
         meta={"grain": "One row per performing facility approaching the threshold.",
               "note": "Distance to the PD trigger only; other triggers are not measured here."},
     )
+
+
+# ============================================ ECL change decomposition (P0.4)
+
+DECOMPOSITION_FIELDS = [
+    "account_id", "customer_id", "sector", "ifrs9_stage", "ead",
+    "pd_12m_pct", "pd_lifetime_pct", "lgd_pct", "model_ecl", "total_ecl",
+]
+
+
+@register(AnalysisContract(
+    id="ecl_change_decomposition",
+    period_requirement=PeriodRequirement.TWO_PERIOD,
+    governed_default_period=True,
+    answer_shape=AnswerShape.MOVEMENT,
+    when_to_use=(
+        "Use when the question is WHAT MOVED the impairment charge, not where "
+        "the movement landed. An ECL movement by sector answers a different "
+        "question with a similar shape: it reports the result of the change "
+        "rather than its drivers."
+    ),
+    trigger_questions=[
+        "Decompose the change in total ECL into exposure, stage migration, PD, "
+        "LGD and portfolio mix.",
+        "What drove the increase in ECL?",
+        "Show me an ECL waterfall.",
+        "Bridge the movement in impairment between these two quarters.",
+    ],
+    limitations=(
+        "It does not establish cause: a PD effect says the PDs used in the "
+        "calculation changed, not why, and a model recalibration looks "
+        "identical to a deteriorating book. The model residual is not split "
+        "into discounting, lifetime profile and effective interest rate — "
+        "those move together and are reported as one driver. The overlay is "
+        "attributed rather than explained, an overlay being a judgement. "
+        "Accounts present in only one period are their own components and are "
+        "not given driver effects, because an account with one PD has no PD "
+        "change."
+    ),
+    required_domains=[IFRS9_STAGING],
+    name="ECL Change Decomposition",
+    description=(
+        "Opening ECL to closing ECL through exposure, portfolio mix, stage "
+        "migration, PD, LGD, the model residual and the overlay — attributed "
+        "by Shapley value, so the result does not depend on the order the "
+        "drivers are considered in, and reconciling exactly to the movement."
+    ),
+    category=Category.INVESTIGATE,
+    version="1.0.0",
+    owner=OWNER,
+    certification=Certification.CERTIFIED,
+    required_datasets=[STAGING],
+    required_fields=DECOMPOSITION_FIELDS,
+    parameters=[
+        PERIOD_PARAM,
+        Parameter("compare_period", ParamType.PERIOD,
+                  "The opening period the movement is measured from.",
+                  default="earliest"),
+    ],
+    outputs=[
+        OutputField("opening_total", "Total ECL at the opening period.",
+                    "number", unit="USD mn", precision=2),
+        OutputField("closing_total", "Total ECL at the closing period.",
+                    "number", unit="USD mn", precision=2),
+        OutputField("movement", "Closing ECL less opening ECL.", "number",
+                    unit="USD mn", precision=2),
+        OutputField("attributed", "The component effects, summed.", "number",
+                    unit="USD mn", precision=2),
+        OutputField("reconciles",
+                    "Whether the components sum to the movement.", "boolean"),
+        OutputField("largest_driver", "The component with the largest effect.",
+                    "string"),
+    ],
+    validation_rules=[
+        ValidationRule("components_reconcile",
+                       "The component effects must sum to closing ECL less "
+                       "opening ECL, within tolerance."),
+        ValidationRule("order_neutral",
+                       "The attribution must not depend on the order the "
+                       "drivers are considered in."),
+    ],
+    supported_visualizations=[VisualizationType.BAR, VisualizationType.TABLE],
+    calculation_description=(
+        "Per account, over the population present in both periods, modelled "
+        "ECL is factorised as T x w x R x PD12 x LGD x K — total exposure, the "
+        "account's share of it, the lifetime multiple its stage applies, the "
+        "twelve-month PD, loss given default, and a residual carrying "
+        "everything else the model does. The change is attributed across those "
+        "six by Shapley value: each effect is the factor's average marginal "
+        "contribution over every ordering. The overlay is additive and "
+        "attributed directly, and accounts present in only one period are "
+        "their own components."
+    ),
+))
+def ecl_change_decomposition(ctx: ExecutionContext) -> AnalysisResult:
+    from backend.orchestration import decomposition as dc
+
+    closing, opening, available = resolve_periods(
+        ctx.source, STAGING, ctx.params.get("period"),
+        ctx.params.get("compare_period"))
+    if not opening or opening == closing:
+        raise ValueError(
+            "An ECL decomposition compares two periods. Name the opening "
+            "period as well as the closing one.")
+
+    before, _ = ctx.read(STAGING, fields=DECOMPOSITION_FIELDS, period=opening,
+                         label=f"IFRS 9 staging · {opening}")
+    after, _ = ctx.read(STAGING, fields=DECOMPOSITION_FIELDS, period=closing,
+                        label=f"IFRS 9 staging · {closing}")
+
+    found = dc.decompose(
+        [dc.account_from(r) for r in before.to_dict("records")],
+        [dc.account_from(r) for r in after.to_dict("records")],
+        opening_period=opening, closing_period=closing)
+    if found.unavailable:
+        raise ValueError(f"The ECL movement could not be attributed: "
+                         f"{found.unavailable}.")
+
+    ctx.step(NodeType.CALCULATION,
+             f"Shapley attribution across {len(dc.FACTORS)} factors",
+             config={"factors": list(dc.FACTORS),
+                     "formulas": dc.formulas(),
+                     "rule": ("Each effect is the factor's average marginal "
+                              "contribution over every ordering, so no "
+                              "interaction term is handed to whichever factor "
+                              "moved last.")},
+             rows_in=int(len(before) + len(after)),
+             rows_out=len(found.components),
+             summary={"matched": found.matched, "arrived": found.arrived,
+                      "departed": found.departed})
+
+    # The declared rule, checked rather than asserted. An attribution that
+    # stopped reconciling would otherwise be a table of plausible numbers.
+    if not found.reconciles:
+        ctx.warn(
+            f"The components do not reconcile: they sum to "
+            f"{found.attributed:,.4f} against a movement of "
+            f"{found.movement:,.4f}. This result is NOT a complete "
+            "decomposition of the change.")
+
+    rows = [{"component": c.label,
+             "effect": rounded(c.effect, 4),
+             "share_of_movement_pct": rounded(c.share_of(found.movement), 2),
+             "direction": "adverse" if c.adverse else "favourable"}
+            for c in sorted(found.components, key=lambda x: -abs(x.effect))]
+
+    largest = found.material[0].label if found.material else ""
+    return AnalysisResult(
+        rows=rows,
+        values={
+            "period": closing, "compare_period": opening,
+            "opening_total": rounded(found.opening_total, 2),
+            "closing_total": rounded(found.closing_total, 2),
+            "movement": rounded(found.movement, 2),
+            "attributed": rounded(found.attributed, 4),
+            "reconciles": found.reconciles,
+            "largest_driver": largest,
+            "matched_accounts": found.matched,
+            "new_accounts": found.arrived,
+            "exited_accounts": found.departed,
+            "periods_available": available,
+        },
+        units={"effect": "USD mn", "share_of_movement_pct": "%"},
+        input_row_count=int(len(before) + len(after)),
+        warnings=ctx.warnings,
+        meta={"grain": "One row per driver of the movement.",
+              "waterfall": found.waterfall(),
+              "sectors": [c.to_dict() for c in found.sectors],
+              "customers": [c.to_dict() for c in found.customers],
+              "proves": found.proves(),
+              "does_not_prove": found.does_not_prove()},
+    )
