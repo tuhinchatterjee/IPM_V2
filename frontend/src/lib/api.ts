@@ -1178,6 +1178,49 @@ export interface VersionsResponse {
  * `message` is always safe and useful to show a user: either the backend's own
  * explanation, or a plain-English description of why we could not reach it.
  */
+/**
+ * What the two download buttons may offer for one analysis run.
+ *
+ * The labels come from the backend so the button in the interface and the file
+ * the endpoint produces can never describe themselves differently.
+ */
+export interface ExportOffer {
+  allowed: boolean;
+  reason: string;
+  label: string;
+  href: string;
+  /** Full pack only: whether this download carries row-level data. */
+  row_level?: boolean;
+}
+
+export interface ExportAvailability {
+  run_id: number;
+  results: ExportOffer;
+  calculation_pack: ExportOffer;
+}
+
+/** One row of the export audit log, for the Analysis audit view. */
+export interface ExportRecord {
+  id: number;
+  kind: string;
+  kind_label: string;
+  run_id: number | null;
+  trace_version: number | null;
+  user_name: string;
+  role: string;
+  status: string;
+  authorization: string;
+  reason: string;
+  filename: string;
+  content_hash: string;
+  size_bytes: number | null;
+  row_count: number | null;
+  duration_ms: number | null;
+  datasets: string[];
+  redactions: string[];
+  at: string;
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -1614,6 +1657,74 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   return (await response.json()) as T;
+}
+
+
+/**
+ * A file the backend generates, fetched as bytes rather than JSON.
+ *
+ * Two things a plain `<a download>` cannot do, and both of them matter here:
+ * it cannot send the role header or the session cookie the export endpoints
+ * authorise against, and it cannot show the user a refusal — a 403 arriving
+ * through a link is a browser page, not a message in the product. So the
+ * download is a `fetch`, and a failure comes back as an ApiError with the
+ * backend's own explanation in it.
+ *
+ * The filename comes from Content-Disposition, which is where the server put
+ * the sanitised name. Guessing one here would produce a second opinion about
+ * what the file is called.
+ */
+export interface DownloadedFile {
+  blob: Blob;
+  filename: string;
+}
+
+const FILENAME = /filename="([^"]+)"/;
+
+async function download(path: string, fallback: string,
+                        timeoutMs = 180_000): Promise<DownloadedFile> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${API_PREFIX}${path}`, {
+      signal: controller.signal,
+      credentials: "include",
+      headers: { "X-IPM-Role": activeRole },
+    });
+  } catch (error) {
+    const aborted = error instanceof DOMException && error.name === "AbortError";
+    throw new ApiError(
+      aborted
+        ? "The workbook took too long to generate and the request was stopped."
+        : `Cannot reach the CreditProbe backend at ${API_DISPLAY_URL}. Is it running?`,
+      0,
+      aborted ? "timeout" : "network_error",
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!response.ok) {
+    let code = "http_error";
+    let message = `The workbook could not be generated (status ${response.status}).`;
+    let detail: Record<string, unknown> = {};
+    try {
+      const body = await response.json();
+      const payload = body.detail && typeof body.detail === "object" ? body.detail : body;
+      code = payload.error ?? code;
+      message = payload.message ?? message;
+      detail = payload;
+    } catch {
+      /* a non-JSON error body: keep the fallback message */
+    }
+    throw new ApiError(message, response.status, code, detail);
+  }
+
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const named = FILENAME.exec(disposition);
+  return { blob: await response.blob(), filename: named?.[1] ?? fallback };
 }
 
 // ---------------------------------------------------------------------------
@@ -3595,6 +3706,33 @@ export const api = {
     ),
   studioValidationPackUrl: (id: string) =>
     `${API_BASE_URL}${API_PREFIX}/studio/${encodeURIComponent(id)}/validation-pack.xlsx`,
+
+  // ---- workbook exports ----
+  /**
+   * What this user may download for this run, and why not where they may not.
+   *
+   * Asked so a refusal is explained where the button is, rather than discovered
+   * as a 403 after a click. The endpoints enforce the same decision for
+   * themselves; this is courtesy, not the control.
+   */
+  exportAvailability: (runId: number) =>
+    request<ExportAvailability>(`/analysis-runs/${runId}/export/availability`),
+  downloadResults: (runId: number, version?: number) =>
+    download(
+      `/analysis-runs/${runId}/export/results.xlsx` +
+        (version ? `?version=${version}` : ""),
+      `CreditProbe_analysis_${runId}_results.xlsx`,
+    ),
+  downloadCalculationPack: (runId: number, version?: number) =>
+    download(
+      `/trace/${runId}/export/calculation-pack.xlsx` +
+        (version ? `?version=${version}` : ""),
+      `CreditProbe_analysis_${runId}_calculation_pack.xlsx`,
+    ),
+  exportHistory: (runId: number) =>
+    request<{ run_id: number; exports: ExportRecord[] }>(
+      `/analysis-runs/${runId}/export/history`,
+    ),
 
   // ---- the metadata assistants ----
   askDataBuilder: (question: string) =>

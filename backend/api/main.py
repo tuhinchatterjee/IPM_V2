@@ -27,6 +27,7 @@ from backend.api.routers import ask as ask_router
 from backend.api.routers import data_builder as data_builder_router
 from backend.api.routers import early_warning as early_warning_router
 from backend.api.routers import engine as engine_router
+from backend.api.routers import exports as exports_router
 from backend.api.routers import health as health_router
 from backend.api.routers import hierarchy as hierarchy_router
 from backend.api.routers import lenses as lenses_router
@@ -154,6 +155,8 @@ def create_app() -> FastAPI:
     app.include_router(studio_router.router, prefix=API_PREFIX)
     app.include_router(workspace_router.router, prefix=API_PREFIX)
     app.include_router(validation_router.router, prefix=API_PREFIX)
+    app.include_router(exports_router.runs_router, prefix=API_PREFIX)
+    app.include_router(exports_router.trace_router, prefix=API_PREFIX)
 
     @app.get("/", include_in_schema=False)
     def root():

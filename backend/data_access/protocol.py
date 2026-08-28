@@ -99,6 +99,24 @@ class DataSource(Protocol):
         """
         ...
 
+    def profile(
+        self,
+        dataset: str,
+        *,
+        period: str | None = None,
+        numeric: list[str] | None = None,
+        categorical: list[str] | None = None,
+        distinct: list[str] | None = None,
+        top: int = 12,
+    ) -> dict[str, Any]:
+        """Describe a dataset's shape without reading it out.
+
+        Counts, quantiles and value frequencies for the named fields, computed
+        in the store. The export layer uses this to profile the sources an
+        analysis read; it measures data and never touches a result.
+        """
+        ...
+
     def health(self) -> dict[str, Any]:
         """Whether this source is usable right now, for the /health endpoint."""
         ...

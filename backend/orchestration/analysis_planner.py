@@ -550,10 +550,18 @@ def _dimension(reading: Reading, context: GovernedContext, text: str) -> str:
 
 
 #: "for each X" / "by X" / "per X", where X is what the answer breaks down by.
+#:
+#: The terminator set has to include the time phrase a question usually ends
+#: with. "…by internal rating for the latest period" ran off the end of the
+#: thirty-character phrase budget, matched nothing, and left the question with
+#: no dimension — so it was planned as a ranking of facilities and then blocked
+#: by its own ordering invariant, because a plan ordered by rating cannot
+#: satisfy a promise to rank by exposure. The dimension was there in the
+#: sentence the whole time; only the regex could not see past "for the".
 _GROUPED_BY = _re.compile(
     r"\b(?:for each|for every|by|per|across|grouped by|broken down by)\s+"
     r"(?P<phrase>[a-z][a-z ]{2,30}?)\s*(?:,|\.|;|\?|$|\band\b|\bshow\b|"
-    r"\bwith\b|\bin the\b)")
+    r"\bwith\b|\bin the\b|\bfor the\b|\bat\b|\bover the\b|\bduring\b)")
 
 
 def _grouping_concept(lowered: str) -> str:

@@ -254,6 +254,168 @@ class DuckDBSource:
         )
         return self._run(sql, [pattern, *params])
 
+    # ---------------------------------------------------------------- profile
+
+    #: The quantiles a source profile reports. Chosen so a reviewer can see the
+    #: shape of a distribution — where the mass sits and how long the tail is —
+    #: without being handed a histogram they cannot check.
+    QUANTILES = (0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99)
+
+    def profile(
+        self,
+        dataset: str,
+        *,
+        period: str | None = None,
+        numeric: list[str] | None = None,
+        categorical: list[str] | None = None,
+        distinct: list[str] | None = None,
+        top: int = 12,
+    ) -> dict[str, Any]:
+        """Describe a governed dataset as it stands on disk, without reading it out.
+
+        Used by the export layer to profile the sources an analysis read. Every
+        statistic is computed inside DuckDB over the Parquet files, so a profile
+        of a two-million-row facility table moves a few dozen numbers rather
+        than the table.
+
+        This is measurement, not analysis. It never touches an analytical
+        result, and nothing here can change one: the caller asks which fields to
+        describe and gets counts, quantiles and frequencies back.
+
+        Fields that are not in the catalogue for this dataset are skipped rather
+        than fatal — a field recorded by an older run may since have been
+        renamed, and a profile is worth having without it.
+        """
+        spec = self.catalog.dataset(dataset)
+        pattern = self._require_files(dataset, period)
+        known = set(spec.fields)
+
+        def present(names: list[str] | None) -> list[str]:
+            return [n for n in (names or []) if n in known]
+
+        numeric_fields = present(numeric)
+        categorical_fields = present(categorical)
+        distinct_fields = present(distinct)
+        keys = [k for k in spec.primary_keys if k in known]
+
+        out: dict[str, Any] = {
+            "dataset": dataset,
+            "period": period or "",
+            "grain": spec.grain,
+            "primary_key": list(keys),
+            "path": pattern,
+            "skipped_fields": sorted(
+                {n for n in [*(numeric or []), *(categorical or []), *(distinct or [])]
+                 if n not in known}
+            ),
+        }
+
+        out["rows"] = self.row_count(dataset, period)
+
+        selects: list[str] = []
+        for name in distinct_fields:
+            col = _check_identifier(name, "field")
+            selects.append(f'COUNT(DISTINCT "{col}") AS "distinct__{col}"')
+            selects.append(f'COUNT(*) FILTER (WHERE "{col}" IS NULL) AS "null__{col}"')
+        if keys:
+            key_tuple = ", ".join(f'"{_check_identifier(k, "field")}"' for k in keys)
+            selects.append(f"COUNT(DISTINCT ({key_tuple})) AS \"key_distinct\"")
+            null_key = " OR ".join(
+                f'"{_check_identifier(k, "field")}" IS NULL' for k in keys
+            )
+            selects.append(f'COUNT(*) FILTER (WHERE {null_key}) AS "key_nulls"')
+        for name in numeric_fields:
+            col = _check_identifier(name, "field")
+            selects.append(f'COUNT("{col}") AS "n__{col}"')
+            selects.append(f'COUNT(*) FILTER (WHERE "{col}" IS NULL) AS "nulls__{col}"')
+            selects.append(f'SUM("{col}") AS "sum__{col}"')
+            selects.append(f'AVG("{col}") AS "mean__{col}"')
+            selects.append(f'STDDEV_SAMP("{col}") AS "stdev__{col}"')
+            selects.append(f'MIN("{col}") AS "min__{col}"')
+            selects.append(f'MAX("{col}") AS "max__{col}"')
+            for q in self.QUANTILES:
+                tag = f"p{int(round(q * 100)):02d}"
+                selects.append(
+                    f'QUANTILE_CONT("{col}", {q}) AS "{tag}__{col}"'
+                )
+
+        stats: dict[str, Any] = {}
+        if selects:
+            frame = self._run(
+                f"SELECT {', '.join(selects)} "
+                f"FROM read_parquet(?, hive_partitioning = true)",
+                [pattern],
+            )
+            if len(frame):
+                # Column by column, not row.to_dict(): a mixed row is one Series
+                # and pandas would upcast every count in it to a float, so a
+                # profile would report 16346.0 rows.
+                stats = {c: _plain(frame[c].iloc[0]) for c in frame.columns}
+
+        out["distinct"] = {
+            name: stats.get(f"distinct__{name}") for name in distinct_fields
+        }
+        out["distinct_nulls"] = {
+            name: stats.get(f"null__{name}") for name in distinct_fields
+        }
+        if keys:
+            key_distinct = stats.get("key_distinct")
+            out["key_distinct"] = key_distinct
+            out["key_nulls"] = stats.get("key_nulls")
+            out["duplicate_keys"] = (
+                None if key_distinct is None else max(0, out["rows"] - int(key_distinct))
+            )
+
+        out["numeric"] = [
+            {
+                "field": name,
+                "count": stats.get(f"n__{name}"),
+                "nulls": stats.get(f"nulls__{name}"),
+                "sum": stats.get(f"sum__{name}"),
+                "mean": stats.get(f"mean__{name}"),
+                "median": stats.get(f"p50__{name}"),
+                "stdev": stats.get(f"stdev__{name}"),
+                "min": stats.get(f"min__{name}"),
+                "max": stats.get(f"max__{name}"),
+                **{
+                    f"p{int(round(q * 100)):02d}": stats.get(
+                        f"p{int(round(q * 100)):02d}__{name}"
+                    )
+                    for q in self.QUANTILES
+                },
+            }
+            for name in numeric_fields
+        ]
+
+        out["categorical"] = [
+            self._categorical(pattern, name, top) for name in categorical_fields
+        ]
+        return out
+
+    def _categorical(self, pattern: str, name: str, top: int) -> dict[str, Any]:
+        col = _check_identifier(name, "field")
+        limit = max(1, min(int(top), 50))
+        frame = self._run(
+            f'SELECT "{col}" AS value, count(*) AS n '
+            f"FROM read_parquet(?, hive_partitioning = true) "
+            f"GROUP BY 1 ORDER BY n DESC, 1",
+            [pattern],
+        )
+        rows = [
+            {"value": _plain(r["value"]), "count": int(r["n"])}
+            for _, r in frame.iterrows()
+        ]
+        nulls = sum(r["count"] for r in rows if r["value"] is None)
+        present_rows = [r for r in rows if r["value"] is not None]
+        return {
+            "field": name,
+            "distinct": len(present_rows),
+            "nulls": nulls,
+            "top": present_rows[:limit],
+            "truncated": len(present_rows) > limit,
+            "values": present_rows,
+        }
+
     # ----------------------------------------------------------------- health
 
     def health(self) -> dict[str, Any]:
@@ -276,6 +438,23 @@ class DuckDBSource:
             detail["status"] = "error"
             detail["error"] = str(e)
         return detail
+
+
+
+def _plain(value: Any) -> Any:
+    """A DuckDB/pandas scalar as something JSON and openpyxl both accept."""
+    if value is None:
+        return None
+    if isinstance(value, float) and value != value:  # NaN
+        return None
+    if value is pd.NaT:
+        return None
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except (ValueError, AttributeError):  # pragma: no cover - defensive
+            return value
+    return value
 
 
 def _period_sort_key(period: str) -> tuple[int, int]:

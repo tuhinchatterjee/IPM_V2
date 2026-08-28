@@ -1737,3 +1737,68 @@ class AiValidationCase(Base):
     __table_args__ = (
         Index("ix_ai_validation_cases_run", "run_id", "position"),
     )
+
+
+# ================================================================== exports
+
+
+class ExportRecord(Base):
+    """One attempt to download an analysis as a workbook.
+
+    §41. Append-only, and written whether or not the export succeeded: a refused
+    download and a failed one are both things somebody will later need to
+    explain, and a log that only records successes cannot answer "who tried".
+
+    The row is deliberately wide. An export leaves the product — it lands on a
+    laptop, it gets forwarded, and six months later the question is not "did an
+    export happen" but "exactly which figures, from which data version, did that
+    file contain, and who was allowed to have it". Everything needed to answer
+    that is a column or a key in `detail`, so answering it never requires
+    regenerating the file.
+    """
+
+    __tablename__ = "export_records"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+
+    #: results | calculation_pack
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: What was exported. Kept as (type, id) rather than a foreign key so a run
+    #: that is later deleted does not take its own download history with it.
+    object_type: Mapped[str] = mapped_column(String(48), nullable=False,
+                                             default="analysis_run")
+    object_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    run_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    trace_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    role: Mapped[str] = mapped_column(String(24), nullable=False, default="")
+
+    #: allowed | denied | failed
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="allowed")
+    #: The authorisation basis — role:ADMIN, analyst:owner, viewer:published.
+    authorization: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    filename: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    #: SHA-256 of the bytes that were sent. Two downloads of the same run at the
+    #: same trace version differ only in their timestamp and their downloader,
+    #: so a differing hash is a real question.
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    row_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    datasets: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    redactions: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    #: The generation manifest: sheet names, fingerprints, build SHA, counts.
+    detail: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_export_records_object", "object_type", "object_id", "created_at"),
+        Index("ix_export_records_user", "user_id", "created_at"),
+        Index("ix_export_records_run", "run_id", "created_at"),
+    )
