@@ -1802,3 +1802,641 @@ class ExportRecord(Base):
         Index("ix_export_records_user", "user_id", "created_at"),
         Index("ix_export_records_run", "run_id", "created_at"),
     )
+
+
+# ================================================================== agentic
+#
+# The governed agentic layer. Twelve tables, and the shape of them says what
+# the layer is: a *record* of coordination, not a place where credit figures
+# are computed. Every number a Risk Case carries came out of an AnalysisRun and
+# is referenced by its id — there is no column here holding an ECL figure an
+# agent decided on.
+#
+# Why the definitions are mirrored into the database at all, when
+# backend/agentic/registry.py is the source: an administrator needs versions,
+# evaluation scores, last-validation dates and history, and none of those
+# belong in a Python file. The seed writes the definition; everything mutable
+# about it lives here.
+
+
+class AgentDefinition(Base):
+    """One specialist's job description, as the product currently runs it.
+
+    Seeded from `backend.agentic.registry`, which stays the source of the
+    permissions themselves. What lives here is the operational state around a
+    definition: which version is deployed, what it last scored, when it was last
+    validated, and whether an administrator has retired it.
+    """
+
+    __tablename__ = "agent_definitions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    agent_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    version: Mapped[str] = mapped_column(String(24), nullable=False, default="1.0")
+    business_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    purpose: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: The whole §13 contract as it was seeded, so a run months later can be
+    #: read against the definition that actually governed it.
+    definition: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: active | draft | retired
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
+    autonomy_level: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    model_role: Mapped[str] = mapped_column(String(24), nullable=False, default="router")
+    owner: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    evaluation_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    last_validation_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    certification_state: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="unreviewed")
+    #: The registry hash this row was seeded from. A definition whose registry
+    #: fingerprint has moved is one whose permissions changed under it.
+    registry_fingerprint: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("agent_id", "version", name="uq_agent_definition"),
+        Index("ix_agent_definitions_status", "status"),
+    )
+
+
+class AgentEvent(Base):
+    """Something happened that CreditProbe may want to act on. §34.
+
+    `idempotency_key` is the whole point of the table. A dataset publication
+    that is retried, replayed or delivered twice must produce ONE agentic run
+    and ONE set of Risk Cases; the unique index is what makes "no duplicate
+    cases on replay" (§70) a property of the schema rather than of whichever
+    code path happened to check first.
+    """
+
+    __tablename__ = "agent_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    #: DATASET_PUBLISHED, NEW_PERIOD_AVAILABLE, RISK_THRESHOLD_BREACHED…
+    kind: Mapped[str] = mapped_column(String(48), nullable=False)
+    #: Natural key for the thing that happened: dataset+period, case id, user.
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    object_type: Mapped[str] = mapped_column(String(48), nullable=False, default="")
+    object_id: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    period: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: received | accepted | ignored | failed
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="received")
+    #: Why an event was ignored, where it was.
+    reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("kind", "idempotency_key", name="uq_agent_event_once"),
+        Index("ix_agent_events_kind", "kind", "created_at"),
+    )
+
+
+class AgentRun(Base):
+    """One agentic run, from trigger to answer. §19.
+
+    Wide on purpose, for the same reason ExportRecord is: the question asked of
+    a run six months later is never "did it happen" but "which officer, which
+    specialists, over which data versions, under which budget, validated how,
+    and who approved what". Everything needed to answer that is a column or a
+    key in one of the JSONB documents.
+    """
+
+    __tablename__ = "agent_runs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    #: A stable public identifier, so a Trace deep-link survives a restore.
+    run_key: Mapped[str] = mapped_column(String(48), nullable=False)
+
+    #: user_question | scheduled_review | event | manual_review
+    trigger: Mapped[str] = mapped_column(String(32), nullable=False)
+    trigger_object_type: Mapped[str] = mapped_column(String(48), nullable=False, default="")
+    trigger_object_id: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    event_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_events.id", ondelete="SET NULL"), nullable=True)
+
+    question: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    period: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    prior_period: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    #: The governed service identity a proactive run acts as. §57: a scheduled
+    #: review is not "nobody", it is a principal with its own permissions.
+    service_identity: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    role: Mapped[str] = mapped_column(String(24), nullable=False, default="")
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+    investigation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("investigations.id", ondelete="SET NULL"), nullable=True)
+    #: The AnalysisRun this run's primary answer was recorded as, when there
+    #: was one. Keeps the agentic layer attached to the Trace it produced.
+    analysis_run_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    officer_level: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    officer_title: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    selection_reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    complexity_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    risk_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    agent_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    planned_task_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    orchestrator: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    specialists: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
+    #: queued | understanding | scoping | selecting_data | coordinating |
+    #: calculating | validating | interpreting | complete | needs_input | failed
+    #: | cancelled
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="queued")
+    stage: Mapped[str] = mapped_column(String(24), nullable=False, default="QUEUED")
+    #: Every stage this run has passed through, with timestamps. §7's structured
+    #: stages are an audit record, not only a spinner caption.
+    stage_history: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
+    plan: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: The task DAG as planned, so a run that was cancelled still shows what it
+    #: intended to do.
+    task_graph: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    budgets: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    usage: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: Catalogue, method, relationship and registry versions this run ran under.
+    versions: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    findings: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    conflicts: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    handoffs: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    validation: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    assurance: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    synthesis: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    failure: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    failure_kind: Mapped[str] = mapped_column(String(48), nullable=False, default="")
+
+    trace_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    build_sha: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    config_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    tasks: Mapped[list[AgentTask]] = relationship(
+        back_populates="run", cascade="all, delete-orphan",
+        order_by="AgentTask.id")
+
+    __table_args__ = (
+        UniqueConstraint("run_key", name="uq_agent_run_key"),
+        Index("ix_agent_runs_status", "status", "created_at"),
+        Index("ix_agent_runs_user", "user_id", "created_at"),
+        Index("ix_agent_runs_trigger", "trigger", "created_at"),
+    )
+
+
+class AgentTask(Base):
+    """One delegated task in a run's DAG. §16.
+
+    `depends_on` holds task keys rather than row ids so a plan can be written
+    before any of it is persisted — the DAG is decided in one place and saved in
+    one transaction, rather than being assembled by a sequence of inserts each
+    of which has to know the ids of the last.
+    """
+
+    __tablename__ = "agent_tasks"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    run_id: Mapped[int] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False)
+    #: Stable within a run: "t1", "validate", "screen".
+    task_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    agent_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    purpose: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: Task keys that must complete first.
+    depends_on: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    #: Which parallel layer this task sits in. Computed from the DAG, stored so
+    #: the Trace can draw it without recomputing a topological sort.
+    layer: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    tool: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    parameters: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: Everything the task read, by reference: result ids, dataset versions.
+    inputs: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    data_versions: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    #: pending | ready | running | complete | failed | skipped | cancelled |
+    #: blocked | needs_approval
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending")
+    #: The AnalysisRun a calculating task produced, so every agentic figure has
+    #: a Trace of its own.
+    analysis_run_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    result: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    finding: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    evidence: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: passed | failed | not_required, with the checks underneath.
+    validation_state: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="not_required")
+    validation: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    tool_calls: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_category: Mapped[str] = mapped_column(String(48), nullable=False, default="")
+    error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: not_required | pending | approved | rejected
+    approval_state: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="not_required")
+
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    run: Mapped[AgentRun] = relationship(back_populates="tasks")
+
+    __table_args__ = (
+        UniqueConstraint("run_id", "task_key", name="uq_agent_task_key"),
+        Index("ix_agent_tasks_run", "run_id", "status"),
+    )
+
+
+class AgentJob(Base):
+    """A durable unit of background work, and the lease on it. §17.
+
+    This is the queue. A worker claims a row with SELECT … FOR UPDATE SKIP
+    LOCKED, writes its own id and a lease expiry, and heartbeats while it works.
+    A worker that dies leaves a lease that expires; the next sweep returns the
+    job to `queued` and the work resumes rather than disappearing.
+
+    `idempotency_key` is unique among live jobs, so enqueuing the same review
+    twice produces one job — the second enqueue finds the first.
+    """
+
+    __tablename__ = "agent_jobs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    #: agentic_run | proactive_review | schedule_tick
+    kind: Mapped[str] = mapped_column(String(48), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=True)
+
+    #: queued | running | complete | failed | dead_letter | cancelled
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="queued")
+    #: Higher runs first. A user waiting on an answer outranks a nightly sweep.
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    scheduled_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=900)
+    last_error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    error_category: Mapped[str] = mapped_column(String(48), nullable=False, default="")
+
+    #: The worker holding the lease, and when it expires.
+    leased_by: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    leased_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    #: Set by a cancellation request. The worker checks it and stops cleanly
+    #: rather than being killed, so a partial run is still a recorded run.
+    cancel_requested: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false"))
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("ix_agent_jobs_claim", "status", "priority", "scheduled_at"),
+        Index("ix_agent_jobs_lease", "status", "lease_expires_at"),
+        Index("ix_agent_jobs_idem", "kind", "idempotency_key"),
+        # One LIVE job per idempotency key. Partial rather than a plain unique
+        # constraint because the same review legitimately runs again next
+        # quarter; what must not happen is two of them queued at once.
+        Index("uq_agent_jobs_live", "kind", "idempotency_key", unique=True,
+              postgresql_where=text("status IN ('queued', 'running')")),
+    )
+
+
+class AgentWorker(Base):
+    """A worker process and when it last said it was alive. §18.
+
+    Read by the health endpoint and by the stale-lease sweep. A worker row is
+    not authority over anything — the lease on the job is — but it is how an
+    operator answers "is anything actually running".
+    """
+
+    __tablename__ = "agent_workers"
+
+    worker_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    hostname: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    #: starting | idle | working | draining | stopped
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="starting")
+    current_job_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    jobs_completed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    jobs_failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    build_sha: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    heartbeat_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (Index("ix_agent_workers_heartbeat", "heartbeat_at"),)
+
+
+class AgentApproval(Base):
+    """A material action an agent proposed, waiting for a person. §22.
+
+    The row exists BEFORE the action does. An approval record created after the
+    fact is a receipt, not a gate — the whole point is that the action cannot
+    happen until this row says approved, and the action itself is described
+    here in enough detail that the approver is not being asked to trust a
+    summary.
+    """
+
+    __tablename__ = "agent_approvals"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=True)
+    task_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_tasks.id", ondelete="CASCADE"), nullable=True)
+    agent_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+
+    #: send_workflow | close_case | publish_data | certify_method | …
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: What the action would do, exactly, in a form the approver can read.
+    proposal: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    evidence: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    scope: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    objects_affected: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    #: low | medium | high
+    risk: Mapped[str] = mapped_column(String(16), nullable=False, default="medium")
+    #: reversible | partially_reversible | irreversible
+    reversibility: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="reversible")
+    #: Which role may decide. A gate anybody can open is not a gate.
+    approver_role: Mapped[str] = mapped_column(String(24), nullable=False, default="ADMIN")
+
+    #: pending | approved | rejected | changes_requested | expired
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending")
+    decided_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    decision_note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_agent_approvals_status", "status", "created_at"),
+        Index("ix_agent_approvals_run", "run_id"),
+    )
+
+
+class AgentSchedule(Base):
+    """A governed schedule: when CreditProbe reviews something on its own. §31."""
+
+    __tablename__ = "agent_schedules"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: on_dataset_published | monthly | quarterly | daily | weekly | manual
+    trigger: Mapped[str] = mapped_column(String(48), nullable=False)
+    #: portfolio | segment | watchlist | unresolved_cases
+    scope: Mapped[str] = mapped_column(String(48), nullable=False, default="portfolio")
+    scope_detail: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    agents: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    methods: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    #: Which domains must be published before this schedule may run.
+    data_requirement: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    approval_policy: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="draft_only")
+    notify: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    budget: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true"))
+
+    last_run_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    last_run_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (UniqueConstraint("name", name="uq_agent_schedule_name"),)
+
+
+class AgentPolicy(Base):
+    """The rules agents run under, versioned. §32.
+
+    Versioned by row rather than by update: a policy change is evidence, and a
+    run months ago has to be readable against the policy that governed it. Only
+    one version of a policy key is `active` at a time.
+    """
+
+    __tablename__ = "agent_policies"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    key: Mapped[str] = mapped_column(String(64), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    value: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true"))
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("key", "version", name="uq_agent_policy_version"),
+        Index("ix_agent_policies_active", "key", "active"),
+    )
+
+
+class RiskCase(Base):
+    """Something in the book that requires attention. §37.
+
+    A Risk Case is NOT an Investigation (§1). An Investigation is a
+    conversation somebody is having; a Risk Case is a finding with a lifecycle,
+    an owner and a due date, which may CAUSE an Investigation.
+
+    Every figure on a case is a reference. `metrics` holds the numbers with the
+    analysis run each came from, `analyses` holds the run ids, and `severity` is
+    computed by a versioned formula — never by a model (§39).
+    """
+
+    __tablename__ = "risk_cases"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    case_key: Mapped[str] = mapped_column(String(48), nullable=False)
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+
+    #: BORROWER | SEGMENT | PORTFOLIO | DATA_QUALITY
+    level: Mapped[str] = mapped_column(String(24), nullable=False)
+    #: What the case is about: a borrower name, a sector, the portfolio, a
+    #: dataset. Kept as a label plus an id rather than a foreign key because the
+    #: four levels point at four different kinds of thing.
+    entity: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    entity_id: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    #: sector | region | product | rating_band | portfolio_segment | business_unit
+    entity_kind: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    period: Mapped[str] = mapped_column(String(32), nullable=False)
+    prior_period: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+
+    #: critical | high | medium | low
+    severity: Mapped[str] = mapped_column(String(16), nullable=False, default="medium")
+    severity_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    #: The components the score was built from, and the formula version. §39
+    #: requires this to be transparent; a score with no arithmetic behind it is
+    #: exactly what the LLM is not allowed to produce.
+    severity_detail: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    severity_version: Mapped[str] = mapped_column(String(16), nullable=False, default="1.0")
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: How much of the evidence a full case would carry is actually present.
+    evidence_coverage: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+
+    exposure: Mapped[float | None] = mapped_column(Float, nullable=True)
+    exposure_unit: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    metrics: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    signals: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    #: The one sentence a reader gets first.
+    conclusion: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    why: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    evidence: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: AnalysisRun ids behind the case.
+    analyses: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
+    source_event_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_events.id", ondelete="SET NULL"), nullable=True)
+    agent_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="SET NULL"), nullable=True)
+    trace_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id"), nullable=True)
+    #: NEW | TRIAGED | UNDER_REVIEW | UNDER_INVESTIGATION | ACTION_PENDING |
+    #: MONITORING | RESOLVED | DISMISSED | SNOOZED
+    status: Mapped[str] = mapped_column(String(28), nullable=False, default="NEW")
+    due_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    snooze_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    dismiss_reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    resolution: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    investigation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("investigations.id", ondelete="SET NULL"), nullable=True)
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+    workflow_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("workflow_items.id", ondelete="SET NULL"), nullable=True)
+
+    #: The natural key that makes a replayed review update this case rather
+    #: than create a second one. §70: "no duplicate cases on replay".
+    dedupe_key: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    events: Mapped[list[RiskCaseEvent]] = relationship(
+        back_populates="case", cascade="all, delete-orphan",
+        order_by="RiskCaseEvent.created_at")
+    links: Mapped[list[RiskCaseLink]] = relationship(
+        back_populates="case", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("case_key", name="uq_risk_case_key"),
+        UniqueConstraint("dedupe_key", name="uq_risk_case_dedupe"),
+        Index("ix_risk_cases_open", "status", "severity_score"),
+        Index("ix_risk_cases_level", "level", "period"),
+        Index("ix_risk_cases_owner", "owner_id", "status"),
+    )
+
+
+class RiskCaseLink(Base):
+    """Something attached to a case: an analysis, an investigation, a project,
+    a workflow item, another case.
+
+    A join table rather than more columns on the case, because §49 says not to
+    duplicate data: the case points at objects that live where they live.
+    """
+
+    __tablename__ = "risk_case_links"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    case_id: Mapped[int] = mapped_column(
+        ForeignKey("risk_cases.id", ondelete="CASCADE"), nullable=False)
+    #: analysis | investigation | project | workflow | case | dataset
+    object_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    object_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    label: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    relation: Mapped[str] = mapped_column(String(32), nullable=False, default="evidence")
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    case: Mapped[RiskCase] = relationship(back_populates="links")
+
+    __table_args__ = (
+        UniqueConstraint("case_id", "object_type", "object_id",
+                         name="uq_risk_case_link"),
+        Index("ix_risk_case_links_object", "object_type", "object_id"),
+    )
+
+
+class RiskCaseEvent(Base):
+    """One thing that happened to a case: a status change, a comment, an
+    assignment, a snooze. Append-only — a case's history is evidence.
+
+    Comments and status changes share a table because on a case they are the
+    same thing: a timeline. Splitting them produces two lists a reader has to
+    interleave in their head to understand what happened.
+    """
+
+    __tablename__ = "risk_case_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    case_id: Mapped[int] = mapped_column(
+        ForeignKey("risk_cases.id", ondelete="CASCADE"), nullable=False)
+    #: created | status | assigned | comment | snoozed | dismissed | resolved |
+    #: linked | workflow | refreshed
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    from_status: Mapped[str] = mapped_column(String(28), nullable=False, default="")
+    to_status: Mapped[str] = mapped_column(String(28), nullable=False, default="")
+    body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    detail: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    #: Set when the actor was an agent rather than a person.
+    actor_agent: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    case: Mapped[RiskCase] = relationship(back_populates="events")
+
+    __table_args__ = (Index("ix_risk_case_events_case", "case_id", "created_at"),)
