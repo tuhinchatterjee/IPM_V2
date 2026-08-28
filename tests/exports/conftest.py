@@ -64,6 +64,40 @@ def rating_run(client) -> int:
     return ask(client, RATING_QUESTION)
 
 
+@pytest.fixture(autouse=True)
+def _clean_export_log():
+    """No export audit row survives from one test to the next.
+
+    §58. The audit assertions count rows, and a count is exactly the kind of
+    assertion that passes on somebody else's leftovers: a test asserting "one
+    more than before" is fine, and a test asserting "a refusal was recorded"
+    would pass forever on a single refusal recorded weeks ago by a different
+    test. Truncating around each test makes both honest.
+
+    The table is only ever written by exports, so clearing it takes nothing
+    else with it. If PostgreSQL is unreachable the suite has already skipped.
+    """
+    _truncate()
+    yield
+    _truncate()
+
+
+def _truncate() -> None:
+    from backend.config import settings
+
+    if not settings.has_database:
+        return
+    try:
+        from sqlalchemy import text
+
+        from backend.db.engine import get_session
+
+        with get_session() as session:
+            session.execute(text("DELETE FROM export_records"))
+    except Exception:  # noqa: BLE001 - a missing table is not a test failure
+        pass
+
+
 @pytest.fixture(scope="module")
 def rating_pack(rating_run):
     from backend.exports.gather import pack_for

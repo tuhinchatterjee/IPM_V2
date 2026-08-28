@@ -49,3 +49,10 @@ metadata/catalog.json
 # time and copied into the image. A build artefact, not source: committing one
 # would let a stale manifest certify code it never ran against.
 intelligence_release/
+
+# Generated workbooks. Both exports write to a browser download or a caller's
+# buffer, never into the repository — but a workbook saved into the tree while
+# debugging would carry a full analytical population with it, so the pattern is
+# ignored rather than trusted to habit. §63.
+CreditProbe_*.xlsx
+CreditProbe_*.xlsx.*
