@@ -2440,3 +2440,113 @@ class RiskCaseEvent(Base):
     case: Mapped[RiskCase] = relationship(back_populates="events")
 
     __table_args__ = (Index("ix_risk_case_events_case", "case_id", "created_at"),)
+
+
+# ===========================================================================
+# The Intelligence Review Queue — P0.15
+# ===========================================================================
+
+
+class ReviewQueueItem(Base):
+    """A failure somebody reviewed, and what the right answer would have been.
+
+    P0.15's active learning. Not a bug tracker: a bug report says what went
+    wrong, and this says what CreditProbe should have DONE instead, in the
+    same shape the curriculum specifies a case — which is what makes an
+    approved item something the factory can measure against rather than
+    something a person has to read and reinterpret.
+
+    Two rules are load-bearing and both are about the human in the middle.
+
+    **Nothing enters the curriculum without adjudication.** An item is captured
+    automatically and promoted only by a person who wrote down the corrected
+    reading. A queue that promotes its own contents is a product learning from
+    its own mistakes, which is how a wrong answer becomes the standard.
+
+    **No automatic production self-training.** Nothing here is fed back into a
+    model, and no weight anywhere changes because of a row in this table.
+    Approved items become CASES — specifications the product is evaluated
+    against, in a corpus a person can read.
+    """
+
+    __tablename__ = "review_queue_items"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+
+    # ---- what happened -----------------------------------------------------
+    #: The question exactly as it was asked. Never paraphrased on the way in:
+    #: the phrasing is frequently the defect.
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    #: How CreditProbe read it — the structured reading, as JSON.
+    current_reading: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                  default=dict)
+    #: The plan it built and the result it produced. What was actually shown.
+    observed_plan: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                default=dict)
+    observed_result: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                  default=dict)
+    #: Which of the sixteen evaluation layers this failed at, and which of the
+    #: ten failure categories it belongs to. Both named rather than free text,
+    #: so the queue can be counted.
+    failure_layer: Mapped[str] = mapped_column(String(48), nullable=False,
+                                               default="")
+    failure_category: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                  default="")
+    #: What a reviewer saw. The words a person used, kept as they wrote them.
+    observed_problem: Mapped[str] = mapped_column(Text, nullable=False,
+                                                  default="")
+
+    # ---- what it should have been ------------------------------------------
+    #: The corrected structured reading, in the shape a Reading carries.
+    corrected_reading: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                    default=dict)
+    #: What a correct answer must DO — capability, concepts, datasets,
+    #: invariants, forbidden behaviours. A specification, never an answer: a
+    #: stored figure is one somebody quietly aligns to whatever the product
+    #: returns.
+    corrected_expectations: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                         default=dict)
+
+    # ---- the human in the middle -------------------------------------------
+    #: CAPTURED | UNDER_REVIEW | APPROVED | REJECTED | DUPLICATE
+    status: Mapped[str] = mapped_column(String(24), nullable=False,
+                                        default="CAPTURED")
+    adjudicated_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    adjudicated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    #: Why the reviewer decided what they decided. Required to approve: an
+    #: approval with no reasoning is a click, and the curriculum inherits it.
+    adjudication_note: Mapped[str] = mapped_column(Text, nullable=False,
+                                                   default="")
+
+    # ---- what happened after -----------------------------------------------
+    #: NOT_TESTED | FAILING | PASSING | RETIRED. Whether the product now does
+    #: what the corrected expectations say. An approved item that has never
+    #: been run is NOT_TESTED, which is not the same as passing.
+    regression_status: Mapped[str] = mapped_column(String(16), nullable=False,
+                                                   default="NOT_TESTED")
+    regression_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    #: The curriculum case id this became, once approved.
+    curriculum_case_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                    default="")
+
+    #: Where it came from: cockpit | agentic | evaluation | manual.
+    source: Mapped[str] = mapped_column(String(24), nullable=False,
+                                        default="manual")
+    #: The run this was captured from, so the Trace can be reopened.
+    run_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+        onupdate=func.now())
+
+    __table_args__ = (
+        Index("ix_review_queue_status", "status", "created_at"),
+        Index("ix_review_queue_layer", "failure_layer"),
+        Index("ix_review_queue_regression", "regression_status"),
+    )

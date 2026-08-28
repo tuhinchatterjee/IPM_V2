@@ -194,7 +194,20 @@ def signals(question: str, *, reading: Any = None, continuation: Any = None,
 
     if _BROAD.search(text):
         add("broad", 3, "The request is open-ended rather than one figure.")
-    if _MULTI_OBJECTIVE.search(text):
+
+    # How many objectives the request contains, counted by the P0.3
+    # decomposer rather than guessed by a pattern here. Two places counting
+    # the same thing is one too many, and the regex was the worse of the two:
+    # it wanted ", and <wh-word>", so "…, rank sectors by the change, and SAY
+    # which borrowers drove it" — four objectives — scored as one, and a
+    # request that needed the complex planner took the routine route.
+    objectives = _objective_count(text)
+    if objectives >= 3:
+        add("objectives", 3,
+            f"The request names {objectives} things to produce.")
+    elif objectives == 2:
+        add("objectives", 2, "The request names two things to produce.")
+    elif _MULTI_OBJECTIVE.search(text):
         add("objectives", 2, "The request names more than one thing to produce.")
     if _METHODOLOGY.search(text):
         add("methodology", 3, "The request is about a method, not a figure.")
@@ -216,6 +229,47 @@ def signals(question: str, *, reading: Any = None, continuation: Any = None,
             "Demo Safe Mode is on, where a misunderstanding is expensive.")
 
     return found
+
+
+#: A clause that opens with a bare imperative is another thing to produce.
+#: "…, compare it with four quarters ago, rank sectors by the change, and say
+#: which borrowers drove it" is three, however the sentence is punctuated.
+_IMPERATIVE = re.compile(
+    r"(?:,|;|\band\b|\bthen\b)\s+(calculat\w*|comput\w*|compar\w*|rank\w*|"
+    r"show\w*|list\w*|say\w*|tell\w*|identif\w*|decompos\w*|attribut\w*|"
+    r"break\s*down|summaris\w*|summariz\w*|explain\w*|find\w*|report\w*)\b",
+    re.I)
+
+
+def _objective_count(text: str) -> int:
+    """How many things this request asks CreditProbe to produce.
+
+    Counted LIBERALLY here, and deliberately more liberally than the P0.3
+    decomposer that governs the answer. The two consumers have opposite
+    tolerances, and it is worth being explicit about why:
+
+    `objectives.read` decides what the ANSWER must cover, so it refuses to
+    split on a bare comma — "For every sector, calculate the Stage 2 share" is
+    one request, and splitting it would make the product chase an objective
+    nobody asked for.
+
+    This decides which MODEL thinks about it. Over-routing a simple question
+    costs a second and a few cents; under-routing a compound one produces a
+    confident wrong answer in front of a client. So a serial list of
+    imperatives counts here even where the decomposer keeps it whole, and the
+    router takes whichever count is higher.
+
+    Never raises: routing must not be the thing that fails.
+    """
+    serial = len(_IMPERATIVE.findall(text or "")) + 1 if text else 0
+    try:
+        from backend.orchestration import objectives as ob
+
+        governed = len(ob.read(text).objectives)
+    except Exception as e:  # noqa: BLE001 - routing must never be the failure
+        logger.debug("Could not count objectives for routing: %s", e)
+        governed = 0
+    return max(serial, governed)
 
 
 def decide(question: str, *, reading: Any = None, continuation: Any = None,
