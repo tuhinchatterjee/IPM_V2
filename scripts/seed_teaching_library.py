@@ -34,12 +34,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from backend.db.engine import SessionLocal
 from backend.services import teaching_library as tl
 from backend.teaching import schema as sc
-from intelligence_factory.teaching import migrate
+from intelligence_factory.teaching import canonical, migrate
 
 
 def corpus() -> list[sc.TeachingCase]:
     """Every case the factory offers the library."""
-    return migrate.cases()
+    return [*migrate.cases(), *canonical.cases()]
 
 
 def seed(*, actor: str = "seed") -> dict[str, int]:
@@ -72,7 +72,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.report:
-        print(json.dumps(migrate.report(), indent=2, sort_keys=True))
+        print(json.dumps({"migrated": migrate.report(),
+                          "canonical": canonical.report()},
+                         indent=2, sort_keys=True))
         return 0
 
     counts = seed()
