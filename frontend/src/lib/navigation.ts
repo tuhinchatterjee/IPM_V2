@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
+  Bot,
   Boxes,
   ClipboardCheck,
   Database,
@@ -61,6 +62,15 @@ export interface NavItem {
   status: CapabilityStatus;
   phase: string;
   group: NavGroup;
+  /**
+   * Which roles see this in the sidebar. Absent means everybody.
+   *
+   * Hiding a link is COURTESY, not security — §28's Agent Operations is
+   * enforced by `principals.require_operate` on every endpoint behind it, and
+   * a Viewer who types the URL gets a 403 rather than a screen. What this
+   * prevents is a sidebar full of things the reader cannot open.
+   */
+  roles?: string[];
 }
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -214,6 +224,20 @@ export const NAV_ITEMS: NavItem[] = [
 
   // ---- ADMIN ----
   {
+    href: "/agent-operations",
+    label: "Agent Operations",
+    description:
+      "The governed agentic layer: the twelve specialists and what each may do, every run and what it cost, the schedules, the policies, the approvals waiting for a person, and how the agents score against the evaluation corpus.",
+    icon: Bot,
+    status: "live",
+    phase: "",
+    group: "Admin",
+    // §64: "Only authorized roles can access it." §28 places it with
+    // Administration rather than in the ordinary Cockpit navigation, because
+    // an analyst has no use for a worker heartbeat.
+    roles: ["ADMIN", "DATA_STEWARD"],
+  },
+  {
     href: "/users",
     label: "Users & Teams",
     description: "Users, teams, roles and permissions at capability, object and data level.",
@@ -240,8 +264,11 @@ export const STATUS_LABEL: Record<CapabilityStatus, string> = {
   planned: "Planned",
 };
 
-export function itemsInGroup(group: NavGroup): NavItem[] {
-  return NAV_ITEMS.filter((item) => item.group === group);
+export function itemsInGroup(group: NavGroup, role?: string): NavItem[] {
+  return NAV_ITEMS.filter(
+    (item) =>
+      item.group === group && (!item.roles || !role || item.roles.includes(role)),
+  );
 }
 
 export function findNavItem(href: string): NavItem | undefined {

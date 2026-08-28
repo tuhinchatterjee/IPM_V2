@@ -184,8 +184,10 @@ class Score:
         """
         risk = [c for c in self.components if c.key in RISK_COMPONENTS
                 and c.contribution > 0.01]
-        quality = [c for c in self.components if c.key in QUALITY_COMPONENTS
-                   and c.value > 0.4]
+        # A quality component now scores HIGH when things are complete, so
+        # what is worth naming is a WEAK one.
+        quality = [c for c in self.components
+                   if c.key in {DATA_CONFIDENCE, EVIDENCE} and c.value < 0.5]
         risk.sort(key=lambda c: -c.contribution)
 
         if risk:
@@ -195,7 +197,7 @@ class Score:
             said = ("Nothing in the governed risk signals makes this "
                     "material.")
         if quality:
-            said += (f" Held back by "
+            said += (f" Thin on "
                      f"{_and_list([c.label.lower() for c in quality[:2]])}.")
         return said
 
@@ -357,13 +359,21 @@ def _appetite(breached: bool, headroom: float | None) -> Component:
 
 
 def _data(confidence: float) -> Component:
-    """Poor data confidence RAISES severity where it means the picture may be
-    worse than measured — but only a little, and it is stated. A case that is
-    severe because nobody can see it properly is a real thing, and it is a
-    different thing from a case that is severe because the numbers are bad."""
+    """How much of the picture the governed data actually shows.
+
+    Scores HIGH when confidence is high, like every other component. The first
+    version inverted it — poor data raised severity, on the argument that a
+    case nobody can see properly is itself worrying — and the evaluation corpus
+    caught what that costs: a case built on incomplete data outranked the same
+    case built on complete data, which sends an officer to the least
+    established finding first.
+
+    "We cannot see this clearly" is a real concern, and it belongs in a
+    DATA_QUALITY case of its own (§44), where somebody can fix the data. It
+    does not belong inflating the severity of a borrower case.
+    """
     level = max(0.0, min(1.0, float(confidence)))
-    value = 1.0 - level
-    return Component(DATA_CONFIDENCE, value, WEIGHTS[DATA_CONFIDENCE],
+    return Component(DATA_CONFIDENCE, level, WEIGHTS[DATA_CONFIDENCE],
                      f"Data and relationship confidence is {level:.0%}."
                      if level < 1.0 else
                      "The data and relationships behind this are complete.",
@@ -383,18 +393,19 @@ def _validation(passed: bool, checked: int) -> Component:
 
 
 def _evidence(present: int, expected: int) -> Component:
-    """Missing evidence lowers the score.
+    """How much of the expected evidence is actually attached.
 
-    Deliberately the opposite direction to a naive design. An incomplete case
-    should NOT outrank a complete one — sending an officer to the case with the
-    least behind it is exactly backwards.
+    Scores with coverage, so a complete case outranks a thin one. This is the
+    direction the module's own docstring always argued for and the arithmetic
+    originally did the opposite of — the evaluation corpus caught it (PRI-2).
+    Sending a credit officer to the case with the least behind it is exactly
+    backwards.
     """
     if not expected:
         return Component(EVIDENCE, 0.0, WEIGHTS[EVIDENCE],
                          "No evidence was expected for this case.", None)
     coverage = max(0.0, min(1.0, present / expected))
-    value = 1.0 - coverage
-    return Component(EVIDENCE, value, WEIGHTS[EVIDENCE],
+    return Component(EVIDENCE, coverage, WEIGHTS[EVIDENCE],
                      f"{present} of {expected} pieces of expected evidence "
                      f"are attached.", round(coverage, 4))
 

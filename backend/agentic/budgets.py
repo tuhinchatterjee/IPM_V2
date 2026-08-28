@@ -181,7 +181,12 @@ class Budget:
         """
         limit = self.limit(meter)
         now = int(self.spent.get(meter, 0))
-        if limit and now + amount > limit:
+        # A limit of ZERO means none allowed, not unlimited. `if limit` treated
+        # them as the same thing, so an administrator setting a budget to 0 to
+        # switch something off would have granted it without a ceiling —
+        # exactly backwards, and silent. Unlimited is expressed as a negative
+        # limit, which nothing in the shipped policy uses.
+        if limit >= 0 and now + amount > limit:
             self.exhausted = Exhausted(meter, now, limit, completed=completed,
                                        remaining=remaining)
             logger.info("budget exhausted: %s %s/%s", meter, now, limit)
@@ -202,10 +207,19 @@ class Budget:
         return True
 
     def limit(self, meter: str) -> int:
-        return int(self.limits.to_dict().get(meter, 0))
+        """The ceiling for a meter. Negative means unlimited.
+
+        A meter nothing defines is unlimited rather than zero: a typo in a
+        meter name should not silently stop a run, it should be visible as a
+        meter that never fills.
+        """
+        return int(self.limits.to_dict().get(meter, -1))
 
     def remaining(self, meter: str) -> int:
-        return max(0, self.limit(meter) - int(self.spent.get(meter, 0)))
+        limit = self.limit(meter)
+        if limit < 0:
+            return 0
+        return max(0, limit - int(self.spent.get(meter, 0)))
 
     # -- the clock ---------------------------------------------------------
 
@@ -221,7 +235,8 @@ class Budget:
         """
         elapsed = int(self.elapsed_seconds)
         self.spent[RUNTIME] = elapsed
-        if self.limits.runtime_seconds and elapsed > self.limits.runtime_seconds:
+        if (self.limits.runtime_seconds >= 0
+                and elapsed > self.limits.runtime_seconds):
             self.exhausted = Exhausted(
                 RUNTIME, elapsed, self.limits.runtime_seconds,
                 completed=completed, remaining=remaining)

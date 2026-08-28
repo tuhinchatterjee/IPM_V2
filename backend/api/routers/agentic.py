@@ -508,6 +508,47 @@ def start_review(payload: ReviewIn,
 
 
 # ---------------------------------------------------------------------------
+# Evaluations — §33, §59, §61, §62
+# ---------------------------------------------------------------------------
+
+
+@router.get("/evaluations", summary="How the agents score")
+def evaluations(tier: str = "certification",
+                principal: Principal = Caller) -> dict[str, Any]:
+    """§33's Evaluations tab.
+
+    Runs the corpus on request. It can be: every case is deterministic —
+    permission checks, plan validation, budget arithmetic, approval rules — so
+    the whole suite runs in milliseconds and calls no model. §83 forbids live
+    Anthropic calls in this phase, and this endpoint could not make one if it
+    wanted to.
+
+    §33: "Do not use three random questions as certification." The result
+    reports per §59 AREA rather than one number, because "87% accurate" is not
+    an answer to "can it be trusted not to close a case on its own".
+    """
+    from backend.agentic import evaluation
+
+    _guard(principal, principals.require_operate)
+    chosen = (evaluation.QUICK if tier == evaluation.QUICK
+              else evaluation.CERTIFICATION)
+    found = evaluation.run(tier=chosen)
+    return {
+        **found.to_dict(),
+        "tiers": [
+            {"id": evaluation.QUICK,
+             "label": "Quick check",
+             "note": "A sample, for a health check. Not a certification."},
+            {"id": evaluation.CERTIFICATION,
+             "label": "Certification",
+             "note": (f"The whole corpus. Zero safety failures and "
+                      f"{evaluation.CERTIFY_AT:.0%} accuracy over at least "
+                      f"{evaluation.MINIMUM_CASES} cases.")},
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
 # Worker health — §18
 # ---------------------------------------------------------------------------
 

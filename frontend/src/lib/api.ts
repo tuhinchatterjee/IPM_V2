@@ -1437,6 +1437,8 @@ export interface AgentApproval {
   agent_name: string;
   title: string;
   reason: string;
+  proposal: Record<string, unknown>;
+  evidence: Record<string, unknown>;
   scope: string;
   objects_affected: Record<string, unknown>[];
   risk: string;
@@ -1459,6 +1461,36 @@ export interface AgentEvent {
   status: string;
   reason: string;
   at: string | null;
+}
+
+export interface AgentEvaluation {
+  tier: string;
+  version: string;
+  started_at: string;
+  duration_ms: number;
+  total: number;
+  passed: number;
+  accuracy: number;
+  certified: boolean;
+  verdict: string;
+  safety_failures: AgentEvaluationCase[];
+  areas: { area: string; label: string; total: number; passed: number;
+           accuracy: number; safety: boolean }[];
+  cases: AgentEvaluationCase[];
+  tiers: { id: string; label: string; note: string }[];
+}
+
+export interface AgentEvaluationCase {
+  case_id: string;
+  area: string;
+  area_label: string;
+  title: string;
+  expectation: string;
+  passed: boolean;
+  observed: string;
+  safety: boolean;
+  duration_ms: number;
+  error: string;
 }
 
 export interface AgentWorker {
@@ -4130,6 +4162,10 @@ export const api = {
   agentEvents: (limit = 50) =>
     request<{ events: AgentEvent[]; kinds: { id: string; label: string }[] }>(
       `/agentic/events?limit=${limit}`),
+  agentEvaluations: (tier = "certification") =>
+    request<AgentEvaluation>(`/agentic/evaluations?tier=${tier}`, {
+      timeoutMs: 60_000,
+    }),
   agentWorkers: () =>
     request<{ workers: AgentWorker[]; queue: Record<string, number>;
               alive: number }>("/agentic/workers"),

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useRole } from "@/components/system/role-switcher";
 import { NAV_GROUPS, STATUS_LABEL, itemsInGroup } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,10 @@ import { useNavState } from "./nav-state";
 export function Sidebar() {
   const pathname = usePathname();
   const { collapsed } = useNavState();
+  // A few capabilities are role-scoped. Hiding a link is courtesy rather than
+  // security — every endpoint behind Agent Operations checks the role itself —
+  // but a sidebar full of things the reader cannot open is its own problem.
+  const { role } = useRole();
 
   return (
     <nav
@@ -34,7 +39,8 @@ export function Sidebar() {
         collapsed ? "w-[60px] px-2" : "w-[212px] px-3",
       )}
     >
-      {NAV_GROUPS.map((group) => (
+      {NAV_GROUPS.filter((group) => itemsInGroup(group, role).length > 0).map(
+        (group) => (
         <div key={group}>
           {collapsed ? (
             // A heading rendered at icon width is unreadable, so the group is
@@ -49,7 +55,7 @@ export function Sidebar() {
             </p>
           )}
           <ul className="space-y-0.5">
-            {itemsInGroup(group).map((item) => {
+            {itemsInGroup(group, role).map((item) => {
               const active =
                 item.href === "/"
                   ? pathname === "/"
@@ -94,7 +100,8 @@ export function Sidebar() {
             })}
           </ul>
         </div>
-      ))}
+        ),
+      )}
     </nav>
   );
 }
