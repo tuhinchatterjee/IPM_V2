@@ -276,7 +276,7 @@ def current_runtime() -> dict[str, str]:
     try:
         from backend.build_info import build_info
 
-        now["build_sha"] = build_info().git_sha or ""
+        now["build_sha"] = build_info().sha or ""
     except Exception:  # pragma: no cover
         now["build_sha"] = ""
     try:

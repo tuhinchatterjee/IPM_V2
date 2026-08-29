@@ -47,6 +47,7 @@ from typing import Any
 
 from backend.assurance import dimensions as dm
 from backend.assurance import record as rc
+from backend.assurance import signals as sg
 from backend.assurance import store as sto
 
 logger = logging.getLogger(__name__)
@@ -67,219 +68,133 @@ TRACE_NODES: dict[str, tuple[str, ...]] = {
 }
 
 
-def _outcome(passed: bool | None, *, warn_instead: bool = False) -> str:
-    """Tri-state. None means nothing established it, which is SKIPPED."""
-    if passed is None:
-        return rc.SKIPPED
-    if passed:
-        return rc.PASS
-    return rc.WARNING if warn_instead else rc.FAIL
+def checks_for(investigation: Any, answered: Any, *, officer: Any = None,
+               project_id: str = "", proactive: bool = False
+               ) -> list[rc.Check]:
+    """One check for every subcomponent. Ninety-five, every time.
 
+    The collector no longer decides WHICH checks to emit — it emits all of
+    them, and the outcome of each says what happened:
 
-def _add(checks: list[rc.Check], name: str, passed: bool | None, *,
-         detail: str = "", evidence: list[str] | None = None,
-         warn_instead: bool = False) -> None:
-    """Append one check, skipping unknown subcomponent names.
+        a reader exists and judged        PASS / WARNING / FAIL
+        a reader exists and found nothing SKIPPED
+        a reader exists and it does not
+          apply, with a stated reason     NOT_APPLICABLE
+        no reader exists                  NOT_AVAILABLE
 
-    An unknown name would land in no dimension and be counted by nothing,
-    which is a silent hole. Logging it makes a typo visible on the first run
-    rather than as a coverage number nobody can explain.
+    That last line is the whole of §19. Before this, an unwired check was
+    simply absent from the record, and absent checks are invisible: the
+    coverage number quietly excluded them and nobody could tell an
+    uninstrumented product from a well-behaved one. Now every gap is a row
+    that says which system was supposed to produce the signal, and a
+    critical gap blocks.
     """
-    if not dm.dimension_of(name):
-        logger.warning("Assurance check %r belongs to no dimension", name)
-        return
-    checks.append(rc.check(name, _outcome(passed, warn_instead=warn_instead),
-                           detail=detail, evidence=list(evidence or [])))
-
-
-def _node_ids(investigation: Any) -> set[str]:
-    graph = getattr(investigation, "graph", None)
-    if graph is None:
-        return set()
-    try:
-        return {str(n.get("id", "")) for n in graph.to_dict().get("nodes", [])}
-    except Exception:  # pragma: no cover - a malformed graph is not an answer
-        return set()
-
-
-def _bool_or_none(value: Any) -> bool | None:
-    return bool(value) if isinstance(value, bool) else None
-
-
-# ------------------------------------------------------------ the collector
-
-
-def checks_for(investigation: Any, answered: Any) -> list[rc.Check]:
-    """Read every signal the runtime produced, once each.
-
-    Ordered by dimension so a reader comparing this against §191-§196 can
-    follow along, and so a signal that ought to exist and does not is visible
-    as a gap in the list rather than as a number.
-    """
+    ctx = sg.Ctx.of(investigation, answered, officer=officer,
+                    project_id=project_id, proactive=proactive)
+    flow = flow_of(ctx)
+    applies = _applicable(flow)
     checks: list[rc.Check] = []
-    nodes = _node_ids(investigation)
-    reading = getattr(answered, "reading", None)
-    judgment = getattr(answered, "judgment", None) or {}
-    rubric = judgment.get("rubric") or {}
-    conversation = getattr(investigation, "conversation", {}) or {}
-    status = str(getattr(investigation, "status", "") or "")
-
-    # ---- Understanding & context ------------------------------------
-    capability = str(getattr(reading, "capability", "") or "")
-    _add(checks, "capability_intent", bool(capability) or None,
-         detail=f"Capability read as {capability}." if capability else "",
-         evidence=["capability"])
-    action = str(conversation.get("action") or "")
-    _add(checks, "conversation_action", bool(action) or None,
-         detail=f"Conversation action {action}." if action else "")
-    objectives = list(getattr(reading, "objectives", None) or [])
-    _add(checks, "objective_extraction", bool(objectives) or None,
-         detail=f"{len(objectives)} objective(s) extracted."
-         if objectives else "")
-    if status == "needs_clarification":
-        _add(checks, "ambiguity_detection", True,
-             detail="CreditProbe stopped to ask rather than guessing.")
-        _add(checks, "clarification_quality",
-             bool(getattr(investigation, "clarification", None)),
-             detail="A structured clarification was returned.")
-    language = str(conversation.get("language") or "")
-    _add(checks, "language_locale_understanding", bool(language) or None,
-         detail=f"Language {language}." if language else "")
-    carried = conversation.get("carried")
-    _add(checks, "context_carry_forward", _bool_or_none(carried))
-
-    # ---- Analytical design -------------------------------------------
-    coverage = getattr(answered, "coverage", None)
-    if coverage is not None:
-        covered = _bool_or_none(getattr(coverage, "complete", None))
-        missing = list(getattr(coverage, "missing", None) or [])
-        _add(checks, "objective_coverage", covered,
-             detail=("Every requested objective was addressed."
-                     if covered else
-                     f"{len(missing)} objective(s) were not addressed: "
-                     f"{', '.join(str(m) for m in missing[:3])}"),
-             evidence=["objective_coverage"])
-    else:
-        _add(checks, "objective_coverage", None)
-    build = getattr(answered, "build", None)
-    _add(checks, "concept_selection",
-         bool(getattr(build, "measures", None)) or None)
-    _add(checks, "dataset_selection",
-         bool(getattr(build, "datasets", None)
-              or getattr(build, "dataset", None)) or None)
-    _add(checks, "period_selection", bool(getattr(build, "period", "")) or None,
-         detail=f"Period {getattr(build, 'period', '')}." if build else "")
-    _add(checks, "grain_selection", bool(getattr(build, "grain", "")) or None)
-    _add(checks, "population_definition",
-         bool(getattr(build, "population", None)
-              or getattr(build, "filters", None)) or None)
-    _add(checks, "plan_completeness",
-         bool(getattr(investigation, "plan", None)) or None)
-    route = (getattr(answered, "decision", None) or {})
-    _add(checks, "model_route_escalation",
-         bool(route) or None,
-         detail=str(route.get("reason", "")) if isinstance(route, dict) else "")
-
-    # ---- Computation & evidence ---------------------------------------
-    runtime = getattr(answered, "runtime", None)
-    if runtime is not None:
-        _add(checks, "execution", True,
-             detail=f"{len(list(getattr(runtime, 'rows', None) or []))} "
-                    "row(s) returned.", evidence=["result"])
-        _add(checks, "generated_query",
-             bool(getattr(runtime, "sql", "")) or None, evidence=["query"])
-    elif status in ("needs_clarification", "rejected"):
-        # Deliberately SKIPPED, not NOT_APPLICABLE. Nothing computed the
-        # applicability; the turn simply never reached the engine, and §183
-        # is explicit that absence is not exemption.
-        _add(checks, "execution", None,
-             detail="No analysis ran on this turn.")
-    else:
-        _add(checks, "execution", None)
-
-    invariants = getattr(answered, "invariants", None)
-    if invariants is not None:
-        holds = _bool_or_none(getattr(invariants, "passed", None))
-        _add(checks, "business_invariants", holds,
-             detail=str(getattr(invariants, "summary", "") or ""),
-             evidence=["business_invariant"])
-        _add(checks, "totals_reconciliation", holds,
-             evidence=["business_invariant"])
-    else:
-        _add(checks, "business_invariants", None)
-        _add(checks, "totals_reconciliation", None)
-
-    facts = judgment.get("facts") or {}
-    if facts:
-        usable = int(facts.get("usable") or 0)
-        _add(checks, "evidence_fact_graph", usable > 0,
-             detail=f"{usable} usable fact(s), "
-                    f"{len(facts.get('refused') or [])} refused.",
-             evidence=["evidence"])
-    else:
-        _add(checks, "evidence_fact_graph", None)
-
-    contract = judgment.get("contract") or {}
-    grounded = contract.get("grounded")
-    ungrounded = list(contract.get("ungrounded") or [])
-    if grounded is not None:
-        _add(checks, "figure_grounding", bool(grounded),
-             detail=("Every figure in the prose traces to a validated fact."
-                     if grounded else
-                     f"{len(ungrounded)} figure(s) trace to no fact: "
-                     f"{', '.join(str(u) for u in ungrounded[:3])}"),
-             evidence=["grounding"])
-    else:
-        _add(checks, "figure_grounding", None)
-
-    # ---- Judgment & presentation ---------------------------------------
-    if rubric:
-        for name, key in (("direct_bottom_line", "direct"),
-                          ("limitations", "limitations"),
-                          ("client_presentability", "presentable"),
-                          ("number_formatting", "formatting"),
-                          ("concision_no_repetition", "concise")):
-            value = rubric.get(key)
-            _add(checks, name, _bool_or_none(value),
-                 detail=str(rubric.get("sentence", ""))
-                 if value is False else "",
-                 evidence=["analytical_judgment"],
-                 # A badly written answer is not a wrong answer. §94's split,
-                 # carried into the record so presentation problems never
-                 # produce a FAILED status on their own.
-                 warn_instead=name in ("number_formatting",
-                                       "concision_no_repetition",
-                                       "client_presentability"))
-    _add(checks, "trace_clarity", bool(nodes) or None,
-         detail=f"{len(nodes)} Trace node(s) recorded.")
-
-    # ---- Agentic delivery -----------------------------------------------
-    agentic_id = str(getattr(answered, "agentic_run_id", "") or "")
-    if agentic_id:
-        _add(checks, "agentic_trace_consistency", True,
-             detail="An agentic run is recorded against this answer.",
-             evidence=["agentic_run"])
-    # No else: an absent agentic run leaves the whole dimension unmeasured,
-    # and §195 explains that in the review rather than scoring it here.
-
-    # ---- Reliability & experience ----------------------------------------
-    _add(checks, "no_unexplained_500", status != "failed",
-         detail="" if status != "failed" else
-                str(getattr(answered, "failure", "") or "the turn failed"))
-    _add(checks, "controlled_error_handling",
-         status in ("succeeded", "partial", "needs_clarification",
-                    "rejected") or None,
-         detail=f"Turn status {status}." if status else "")
-    duration = int(getattr(investigation, "duration_ms", 0) or 0)
-    _add(checks, "latency", duration > 0 or None,
-         detail=f"{duration} ms." if duration else "")
+    for name in dm.all_subcomponents():
+        if name not in applies:
+            # §21's applicability, established deterministically from the
+            # flow class rather than from the question's wording. A
+            # clarification has no result to reconcile, and counting the
+            # result checks against it would report every clarification as
+            # a broken analysis.
+            checks.append(rc.check(
+                name, rc.NOT_APPLICABLE,
+                because=f"this check does not apply to a "
+                        f"{flow.replace('_', ' ').lower()} turn"))
+            continue
+        checks.append(_check_for(name, ctx))
     return checks
+
+
+def flow_of(ctx: sg.Ctx) -> str:
+    """Which flow class this turn belongs to. §21."""
+    try:
+        from backend.proof import flows as fl
+
+        return fl.classify(
+            answer_type=ctx.status, executed=ctx.executed,
+            datasets=len(ctx.datasets),
+            agentic_run=ctx.outcome is not None,
+            specialists=len(list(getattr(getattr(ctx.outcome, "plan", None),
+                                         "agents", None) or [])),
+            proactive=ctx.proactive, project_id=ctx.project_id)
+    except Exception as e:  # noqa: BLE001 - classification is not the answer
+        logger.warning("Could not classify the flow: %s", e)
+        return ""
+
+
+def _applicable(flow: str) -> frozenset[str]:
+    """What applies to this flow, widest set where the flow is unknown.
+
+    Unknown resolves to everything, so a turn nobody classified is harder
+    to claim coverage for rather than easier.
+    """
+    try:
+        from backend.proof import flows as fl
+
+        return fl.applicable(flow) if flow else frozenset(
+            dm.all_subcomponents())
+    except Exception:  # pragma: no cover
+        return frozenset(dm.all_subcomponents())
+
+
+def _check_for(name: str, ctx: sg.Ctx) -> rc.Check:
+    """One subcomponent, judged or honestly unjudged."""
+    if name not in sg.READERS:
+        return rc.Check(subcomponent=name, outcome=rc.NOT_AVAILABLE,
+                        detail=_no_signal_detail(name))
+    signal = sg.read(name, ctx)
+    if signal is None:
+        return rc.Check(
+            subcomponent=name, outcome=rc.SKIPPED,
+            detail="The signal for this check was absent on this turn.")
+    if signal.outcome == rc.NOT_APPLICABLE:
+        # §183 refuses an unreasoned NOT_APPLICABLE, and a reader that
+        # returned one without a reason is a bug in the reader — reported as
+        # SKIPPED rather than allowed through.
+        if not signal.because.strip():
+            return rc.Check(
+                subcomponent=name, outcome=rc.SKIPPED,
+                detail="This check reported not-applicable with no reason, "
+                       "so it is recorded as skipped.")
+        return rc.check(name, rc.NOT_APPLICABLE, because=signal.because)
+    return rc.Check(subcomponent=name, outcome=signal.outcome,
+                    detail=signal.detail, evidence=list(signal.evidence))
+
+
+def _no_signal_detail(name: str) -> str:
+    """Why a subcomponent has no reader, quoting the Coverage Map.
+
+    Names the system that owes the signal, so the record itself is the work
+    list. "No signal exists" is unactionable; "the judgment drivers engine
+    does not emit drivers.decomposition" is a ticket.
+    """
+    try:
+        from backend.proof import coverage as cvg
+
+        entry = cvg.MAP.get(name)
+    except Exception:  # pragma: no cover - the map is optional at runtime
+        entry = None
+    if entry is None:
+        return ("No signal exists for this check and it is not in the "
+                "Coverage Map.")
+    if entry.state == cvg.OUT_OF_BAND:
+        return (f"This check is verified outside the backend record "
+                f"({entry.source_system}"
+                + (f"; see {entry.test}" if entry.test else "") + ").")
+    return (f"Not yet instrumented: {entry.source_system} does not emit "
+            f"{entry.source_field}. Owner: {entry.owner or 'unassigned'}.")
 
 
 def build(investigation: Any, answered: Any, *,
           investigation_id: str = "", answer_id: str = "",
           user_id: int | None = None, project_id: str = "",
-          turn_index: int = 0) -> rc.Record:
+          turn_index: int = 0, officer: Any = None,
+          proactive: bool = False) -> rc.Record:
     """Assemble the record. Never raises.
 
     §180's fields are filled from what is on hand; anything absent stays
@@ -302,7 +217,8 @@ def build(investigation: Any, answered: Any, *,
         else [],
     )
     try:
-        made.checks = checks_for(investigation, answered)
+        made.checks = checks_for(investigation, answered, officer=officer,
+                                 project_id=project_id, proactive=proactive)
     except Exception as e:  # noqa: BLE001 - the record is not the answer
         logger.warning("Could not collect assurance checks: %s", e)
         made.checks = []
@@ -311,7 +227,7 @@ def build(investigation: Any, answered: Any, *,
         from backend.build_info import build_info
 
         info = build_info()
-        made.build_sha = info.git_sha or ""
+        made.build_sha = info.sha or ""
         made.app_version = str(getattr(info, "version", "") or "")
     except Exception:  # pragma: no cover
         pass
@@ -360,7 +276,7 @@ def record_for(investigation: Any, answered: Any, **kwargs: Any) -> str:
         made = build(investigation, answered, **{
             k: v for k, v in kwargs.items()
             if k in ("investigation_id", "answer_id", "user_id", "project_id",
-                     "turn_index")})
+                     "turn_index", "officer", "proactive")})
         route = (getattr(answered, "decision", None) or {})
         return sto.write(
             made, turn_index=int(kwargs.get("turn_index", 0) or 0),

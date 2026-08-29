@@ -238,6 +238,18 @@ class DimensionResult:
         return (len(self.counted) / denominator * 100.0) if denominator else 0.0
 
     @property
+    def measured(self) -> bool:
+        """Whether anything in this dimension produced a judgement.
+
+        Every surface that renders a dimension needs this, and it must be a
+        property rather than something each caller derives: five modules
+        reading `stored.get("measured")` off a payload that never carried
+        the key rendered every dimension of every record as unmeasured,
+        including the ones where all eighteen checks passed.
+        """
+        return bool(self.counted)
+
+    @property
     def score(self) -> float | None:
         """Points out of a hundred for this dimension, or None if nothing ran.
 
@@ -256,6 +268,10 @@ class DimensionResult:
             "label": dm.LABELS.get(self.dimension, self.dimension),
             "answers": dm.ANSWERS.get(self.dimension, ""),
             "weight": dm.WEIGHTS.get(self.dimension, 0),
+            # Read by review.py, reviews.py, comparison.py and store.py. It
+            # was absent, so all four saw False for every dimension of every
+            # record — including ones where everything passed.
+            "measured": self.measured,
             "score": (round(self.score, 1) if self.score is not None
                       else None),
             "coverage_pct": round(self.coverage_pct, 1),
@@ -263,7 +279,13 @@ class DimensionResult:
             "passed": len(self.passed),
             "warnings": len(self.warnings),
             "failed": len(self.failures),
+            # Both names, because the surfaces read "failures" and the older
+            # payload said "failed". Emitting one and reading the other is
+            # how a dimension with three failures renders as clean.
+            "failures": len(self.failures),
             "skipped": len(self.skipped),
+            "not_available": len([c for c in self.checks
+                                  if c.outcome == NOT_AVAILABLE]),
             "critical_failures": [c.subcomponent
                                   for c in self.critical_failures],
             "subcomponents": [c.to_dict() for c in self.checks],

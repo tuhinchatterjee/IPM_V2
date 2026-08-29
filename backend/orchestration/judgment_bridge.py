@@ -93,8 +93,14 @@ def facts_from(runtime: Any, build: Any, run_id: str = "") -> ev.Graph:
         return graph
 
     subject = next((c for c in schema if c.get("is_identity")), None)
+    # The presentation contract calls this field `semantic`. It was read as
+    # `kind`, which is on no column, so the filter matched nothing and the
+    # Evidence Fact Graph registered ZERO facts for every analysis — leaving
+    # figure grounding with nothing to ground against. `kind` is still
+    # accepted so an older contract shape keeps working.
     measures = [c for c in schema
-                if not c.get("is_identity") and c.get("kind") in
+                if not c.get("is_identity")
+                and (c.get("semantic") or c.get("kind")) in
                 ("money", "percent", "ratio", "count", "days")]
 
     for index, row in enumerate(rows[:200]):
@@ -113,7 +119,9 @@ def facts_from(runtime: Any, build: Any, run_id: str = "") -> ev.Graph:
                 period=str(getattr(build, "period", "") or ""),
                 value=float(value) if isinstance(value, (int, float))
                 else None,
-                unit=str(measure.get("kind") or ""),
+                unit=str(measure.get("unit")
+                         or measure.get("semantic")
+                         or measure.get("kind") or ""),
                 grain=str(getattr(build, "grain", "") or ""),
                 source_run_id=run_id or "runtime",
                 source_method=str(getattr(build, "method", "") or ""),

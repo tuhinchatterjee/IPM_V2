@@ -191,7 +191,10 @@ def _sha() -> str:
     try:
         from backend.build_info import build_info
 
-        return str(getattr(build_info(), "git_sha", "") or "")
+        # `.sha`, not `.git_sha`. The getattr default meant this returned
+        # "" forever rather than raising, so every feedback item recorded no
+        # build — which is the field that makes it reproducible.
+        return str(build_info().sha or "")
     except Exception:  # pragma: no cover - no build stamp
         return ""
 

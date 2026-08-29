@@ -25,7 +25,6 @@ from backend.assurance import record as rc
 from backend.proof import coverage as cv
 from backend.proof import flows as fl
 
-
 # ============================================================ the map itself
 
 
@@ -235,3 +234,99 @@ def test_a_deterministically_inapplicable_check_leaves_both_denominators():
 
     assert len(found.applicable_set) == without - 1
     assert "join_reconciliation" not in found.critical_set
+
+
+# ============================== the map and the collector must agree
+
+
+def test_the_map_and_the_readers_describe_the_same_set():
+    """The property that stops the Coverage Map becoming a wish list.
+
+    Before this phase the map claimed 71.6% wired while the probes observed
+    9.5% actual coverage — it was describing an intention. A map that
+    overstates instrumentation is worse than no map, because it reports the
+    problem as solved.
+
+    Asserted both ways on purpose: the map may not claim a signal no reader
+    reads, and a reader may not exist that nobody mapped (an unmapped reader
+    has no owner, no source and no stated rules).
+    """
+    from backend.assurance import signals as sg
+
+    assert cv.wired() - set(sg.READERS) == set(), (
+        "the Coverage Map claims these are wired and no reader reads them")
+    assert set(sg.READERS) - cv.wired() == set(), (
+        "these readers exist and the Coverage Map does not list them as "
+        "wired")
+
+
+def test_every_reader_returns_a_signal_or_nothing():
+    """A reader that returned a bare string or a bool would be silently
+    mis-scored by the collector."""
+    from backend.assurance import record as arc
+    from backend.assurance import signals as sg
+
+    ctx = sg.Ctx.of(None, None)
+    for name in sg.READERS:
+        signal = sg.read(name, ctx)
+        if signal is None:
+            continue
+        assert isinstance(signal, sg.Signal), name
+        assert signal.outcome in arc.OUTCOMES, (name, signal.outcome)
+
+
+def test_a_reader_that_raises_is_recorded_rather_than_losing_the_record():
+    """Losing ninety-four good checks because one reader misbehaved would be
+    a far worse trade than recording that it misbehaved."""
+    from backend.assurance import record as arc
+    from backend.assurance import signals as sg
+
+    def explode(ctx):
+        raise RuntimeError("deliberate")
+
+    original = sg.READERS.get("latency")
+    sg.READERS["latency"] = explode
+    try:
+        signal = sg.read("latency", sg.Ctx.of(None, None))
+    finally:
+        if original is not None:
+            sg.READERS["latency"] = original
+
+    assert signal is not None
+    assert signal.outcome == arc.SKIPPED
+    assert "RuntimeError" in signal.detail
+
+
+def test_an_unreasoned_not_applicable_from_a_reader_becomes_skipped():
+    """§183 refuses an unreasoned NOT_APPLICABLE. A reader that returned one
+    is a bug in the reader, and letting it through would remove a check from
+    the denominator on no evidence."""
+    from backend.assurance import collect as ac
+    from backend.assurance import record as arc
+    from backend.assurance import signals as sg
+
+    def sloppy(ctx):
+        return sg.Signal(arc.NOT_APPLICABLE)
+
+    original = sg.READERS.get("latency")
+    sg.READERS["latency"] = sloppy
+    try:
+        check = ac._check_for("latency", sg.Ctx.of(None, None))
+    finally:
+        if original is not None:
+            sg.READERS["latency"] = original
+
+    assert check.outcome == arc.SKIPPED
+    assert "no reason" in check.detail
+
+
+def test_an_unwired_subcomponent_names_the_system_that_owes_the_signal():
+    """"No signal exists" is unactionable. "The judgment drivers engine does
+    not emit drivers.decomposition" is a ticket."""
+    from backend.assurance import collect as ac
+
+    detail = ac._no_signal_detail("drivers_contributions")
+
+    assert "judgment drivers engine" in detail
+    assert "drivers.decomposition" in detail
+    assert "Owner" in detail
