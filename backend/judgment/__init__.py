@@ -17,6 +17,10 @@ plausibly and unaccountably if nobody stops it:
 ``persistence``  a trend or a movement, with the required history stated.
 ``materiality``  the band, from a versioned policy, never from a model.
 ``observations`` structured claims with templates, not paragraphs.
+``blueprints``   what a competent analyst would look at, and what may be
+                 omitted only with a recorded reason.
+``hypotheses``   the candidate explanations, and the fourteen questions a
+                 conclusion has to survive before it is said out loud.
 
 The through-line is that each one produces a STRUCTURED verdict with the
 measures that produced it attached, so a reader can disagree with the
@@ -25,13 +29,15 @@ can explain a finding without being able to invent one.
 """
 
 from backend.judgment import (
+    blueprints,
     breadth,
     drivers,
     evidence,
+    hypotheses,
     materiality,
     observations,
     persistence,
 )
 
-__all__ = ["breadth", "drivers", "evidence", "materiality", "observations",
-           "persistence"]
+__all__ = ["blueprints", "breadth", "drivers", "evidence", "hypotheses",
+           "materiality", "observations", "persistence"]

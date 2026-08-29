@@ -134,12 +134,32 @@ def test_the_lab_answers_without_calling_a_provider(client, monkeypatch):
 @db
 def test_the_lab_reports_why_cases_were_refused(client):
     """"Nothing came back" is unactionable; "eleven cases were refused on
-    portfolio scope" is a fix."""
-    body = client.post("/api/v1/intelligence/retrieval-lab",
-                       json={"question": "zxqv wibble frobnicate"},
-                       headers=admin()).json()
-    assert body["retrieved"] == []
-    assert body["refused"]
+    portfolio scope" is a fix.
+
+    The lab is asked about a case this test creates, rather than about
+    whatever happens to be seeded: the suite empties the teaching library, so
+    a test that assumed a populated one would pass or fail on the order the
+    files ran in.
+    """
+    client.post("/api/v1/intelligence/cases", headers=admin(), json={"case": {
+        "case_id": "api-lab-1", "title": "Total EAD by sector",
+        "family_id": "SINGLE_DOMAIN_AGGREGATION",
+        "question": "What is total exposure at default by sector?",
+        "objectives": [{"id": "o1", "text": "total EAD by sector"}],
+        "analytical_plan_contract": {"group_by": ["sector"]},
+        "concepts": ["exposure at default"]}})
+    try:
+        body = client.post("/api/v1/intelligence/retrieval-lab",
+                           json={"question": "zxqv wibble frobnicate"},
+                           headers=admin()).json()
+        assert body["considered"] >= 1
+        assert body["retrieved"] == []
+        # Unapproved, so it never even reaches the ranking stage.
+        assert body["refused"]
+    finally:
+        client.post("/api/v1/intelligence/cases/api-lab-1/retire",
+                    json={"reviewer": "Amal", "note": "test cleanup"},
+                    headers=admin())
 
 
 @db
