@@ -1010,11 +1010,70 @@ def answer_investigation(question: str, *, user_id: int | None = None,
     _record_conversation(investigation, answered)
     _settle_caveats(investigation)
     _record_presentability(investigation, answered)
+    _record_judgment(investigation, answered)
     if persist:
         persist_investigation(investigation, user_id=user_id,
                               project_id=project_id,
                               investigation_id=investigation_id)
     return investigation, answered
+
+
+def _record_judgment(investigation: Investigation, answered: Any) -> None:
+    """The Part B judgment layer, and Demo Safe Mode. §125, §130.
+
+    Runs after the presentability gate because it READS that gate rather than
+    repeating it — §125's "do not duplicate existing runtime services" is the
+    instruction, and the two overlap on grounding, period accuracy and Trace
+    consistency. Where they overlap both run and both are recorded, because
+    they ask slightly different questions and the day they disagree is a day
+    somebody needs to see.
+
+    Never raises. A judgment layer that could turn a correct answer into a
+    five hundred is one that gets removed, and then none of it runs.
+    """
+    from backend.orchestration import judgment_bridge as jb
+
+    try:
+        block = jb.assess(investigation, answered)
+    except Exception as e:  # noqa: BLE001 - the assessment is not the answer
+        logger.warning("The judgment bridge raised: %s", e)
+        return
+
+    answered.judgment = block
+    graph = investigation.graph
+    if graph is None:
+        return
+    try:
+        verdict = (block.get("demo_safe") or {})
+        node = graph.add_node(TraceNode(
+            id="analytical_judgment", type=NodeType.BUSINESS_INVARIANT,
+            label=str((block.get("rubric") or {}).get("sentence")
+                      or "The judgment layer could not assess this answer."),
+            config={
+                "facts": block.get("facts", {}),
+                "contract": block.get("contract", {}),
+                "rubric": block.get("rubric", {}),
+                "demo_safe": verdict,
+                "unavailable": block.get("unavailable", ""),
+                "rule": ("Eighteen dimensions, split into the ones where a "
+                         "failure means the answer says something untrue and "
+                         "the ones where it means the answer is badly "
+                         "written. The first kind blocks; the second gets one "
+                         "repair and then a deterministic summary."),
+            }))
+        if (block.get("rubric") or {}).get("verdict") == "SHOW":
+            node.mark_ok()
+        else:
+            node.mark_failed(str((block.get("rubric") or {}).get("sentence")
+                                 or block.get("unavailable")
+                                 or "not assessed"))
+        for leaf in ("presentability", "interpretation", "result"):
+            if leaf in graph.nodes:
+                graph.connect(leaf, "analytical_judgment")
+                break
+        investigation.node_hashes = graph.compute_hashes()
+    except Exception as e:  # noqa: BLE001 - a Trace node must not lose an answer
+        logger.warning("Could not record the judgment node: %s", e)
 
 
 def _typed_state(answered: Any) -> dict[str, Any]:
