@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { useRole } from "@/components/system/role-switcher";
+import { useDemoMode } from "@/components/system/demo-mode";
 import { NAV_GROUPS, STATUS_LABEL, itemsInGroup } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,9 @@ export function Sidebar() {
   // security — every endpoint behind Agent Operations checks the role itself —
   // but a sidebar full of things the reader cannot open is its own problem.
   const { role } = useRole();
+  // §5: a surface that is not part of tomorrow leaves the navigation rather
+  // than sitting there as a placeholder somebody clicks.
+  const { on: demoMode } = useDemoMode();
 
   return (
     <nav
@@ -39,7 +43,7 @@ export function Sidebar() {
         collapsed ? "w-[60px] px-2" : "w-[212px] px-3",
       )}
     >
-      {NAV_GROUPS.filter((group) => itemsInGroup(group, role).length > 0).map(
+      {NAV_GROUPS.filter((group) => itemsInGroup(group, role, demoMode).length > 0).map(
         (group) => (
         <div key={group}>
           {collapsed ? (
@@ -55,7 +59,7 @@ export function Sidebar() {
             </p>
           )}
           <ul className="space-y-0.5">
-            {itemsInGroup(group, role).map((item) => {
+            {itemsInGroup(group, role, demoMode).map((item) => {
               const active =
                 item.href === "/"
                   ? pathname === "/"

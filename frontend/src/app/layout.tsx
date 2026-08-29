@@ -7,6 +7,7 @@ import {
 } from "next/font/google";
 
 import { AuthProvider } from "@/components/system/auth";
+import { DemoModeProvider } from "@/components/system/demo-mode";
 import { AppShell } from "@/components/layout/app-shell";
 import { RoleProvider } from "@/components/system/role-switcher";
 import { ThemeProvider, ThemeScript } from "@/components/system/theme-provider";
@@ -85,7 +86,9 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <RoleProvider>
-              <AppShell>{children}</AppShell>
+              <DemoModeProvider>
+                <AppShell>{children}</AppShell>
+              </DemoModeProvider>
             </RoleProvider>
           </AuthProvider>
         </ThemeProvider>

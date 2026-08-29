@@ -109,6 +109,21 @@ services:
       # credit-risk product where anybody reaching the page is silently an
       # Analyst is not one anybody can deploy.
       REQUIRE_LOGIN: ${REQUIRE_LOGIN:-true}
+
+      # The two demonstration switches, passed through explicitly.
+      #
+      # Neither reached the container before the client-demo release: they
+      # were documented in .env.example, read by the backend, and never
+      # listed here — so setting one had no effect at all inside Docker,
+      # which is the only place the demonstration runs.
+      #
+      # They are separate settings on purpose. DEMO MODE says this
+      # deployment is a demonstration: label the data synthetic, pin the
+      # data release, suppress background schedules. DEMO SAFE MODE says
+      # refuse to show an answer that cannot be fully validated. A pilot on
+      # real client data wants the second and must not have the first.
+      CREDITPROBE_DEMO_MODE: ${CREDITPROBE_DEMO_MODE:-false}
+      DEMO_SAFE_MODE: ${DEMO_SAFE_MODE:-false}
     volumes:
       # The analytical data, mounted rather than copied: no duplication of large
       # files, and the Parquet layer the container builds on first start stays

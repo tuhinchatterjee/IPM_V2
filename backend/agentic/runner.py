@@ -104,6 +104,20 @@ def run_schedule_tick(job: queue.Job, should_stop: Callable[[], bool]) -> None:
     if should_stop():
         return
 
+    # Demo Mode suppresses the third of the three. Waking a snoozed case and
+    # notifying an owner are cheap and truthful; a schedule firing on its own
+    # halfway through a demonstration is a portfolio review competing for the
+    # same database as the question being asked on screen.
+    #
+    # Suppressed, not disabled: a presenter clicking Run Portfolio Review
+    # still runs one. What cannot happen is a run nobody started.
+    from backend.demo import mode
+
+    if not mode.schedules_may_fire():
+        logger.info("Demo Mode is on: schedules do not fire on their own. "
+                    "A run started from the screen still runs.")
+        return
+
     with get_session() as session:
         started = schedules.tick(session)
         if started:

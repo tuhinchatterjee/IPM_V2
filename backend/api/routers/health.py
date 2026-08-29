@@ -191,6 +191,27 @@ def build() -> dict:
     }
 
 
+@router.get("/demo", summary="Demonstration posture")
+def demo() -> dict:
+    """Whether this deployment is a demonstration, and what that guarantees.
+
+    Read by the front end so the synthetic-data label and the scope freeze
+    come from ONE authority. A build-time flag in the browser bundle would
+    let the two disagree: a container started without Demo Mode would still
+    serve a front end insisting the data was synthetic, or worse, the other
+    way round.
+
+    Demo Safe Mode is reported beside it and is a different setting — an
+    answer-quality policy, not a statement about the deployment.
+    """
+    from backend.demo import mode
+    from backend.release import demo_safe
+
+    body = mode.posture().to_dict()
+    body["demo_safe_mode"] = demo_safe.enabled()
+    return body
+
+
 @router.get("/health", response_model=HealthResponse, summary="System health")
 def health() -> HealthResponse:
     components = [_check_database(), _check_analytical_store(), _check_catalog(),

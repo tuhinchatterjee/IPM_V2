@@ -577,11 +577,16 @@ def demo_safe() -> bool:
 
     Read from the environment rather than a database so it cannot be changed
     by a request mid-demo, and so a deployment can pin it.
-    """
-    import os
 
-    return (os.environ.get("DEMO_SAFE_MODE") or "").strip().lower() in {
-        "1", "true", "yes", "on"}
+    Delegated to `backend.release.demo_safe`, which is the only module that
+    should know the variable's name. This function read `DEMO_SAFE_MODE`
+    while that one read `AI_DEMO_SAFE_MODE`, so the documented setting turned
+    on the routing half of the mode and left the half that decides whether an
+    answer may be shown switched off.
+    """
+    from backend.release import demo_safe as policy
+
+    return policy.enabled()
 
 
 def _investigate(answered: Answered, question: str, context: Any,

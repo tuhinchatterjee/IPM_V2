@@ -66,6 +66,17 @@ export interface ComponentHealth {
   data: Record<string, unknown>;
 }
 
+export interface DemoPostureResponse {
+  demo_mode: boolean;
+  label: string;
+  detail: string;
+  data_release: string;
+  guarantees: Record<string, boolean>;
+  guarantee_means: Record<string, string>;
+  demo_safe_mode: boolean;
+  version: string;
+}
+
 export interface HealthResponse {
   status: OverallStatus;
   app: string;
@@ -3136,6 +3147,15 @@ export const api = {
   // ---- system ----
   health: (timeoutMs?: number) =>
     request<HealthResponse>("/health", { timeoutMs: timeoutMs ?? 8_000 }),
+  /**
+   * Whether this deployment is a demonstration. The backend is the single
+   * authority: a build-time flag in the browser bundle can disagree with the
+   * container it is talking to, and the direction that disagreement runs in
+   * is the difference between "labelled synthetic" and "labelled synthetic
+   * when it is not".
+   */
+  demoPosture: () =>
+    request<DemoPostureResponse>("/demo", { timeoutMs: 8_000 }),
   catalog: () => request<CatalogResponse>("/catalog"),
 
   // ---- engine ----

@@ -55,6 +55,34 @@ export type CapabilityStatus =
 
 export type NavGroup = "Home" | "Work" | "Intelligence" | "Build" | "Govern" | "Admin";
 
+/**
+ * The client-demo scope freeze.
+ *
+ * Distinct from `status`, and the distinction is the point. `status` says how
+ * finished a capability is; `demo` says whether it is part of tomorrow's
+ * demonstration. A capability can be perfectly finished and still not belong
+ * in a twenty-minute walkthrough, and one that is honestly labelled
+ * "Placeholder by design" is finished enough to ship and wrong to show.
+ *
+ *   core     Shown, and must be reliable.
+ *   optional Shown only if every check passes; the presenter may skip it.
+ *   admin    Reachable by an authorized user, not part of the walkthrough.
+ *   hidden   Removed from navigation while Demo Mode is on.
+ *
+ * `hidden` removes the LINK, not the route. Anyone who types the address
+ * still gets the page, because hiding a screen is presentation, never
+ * security — the API behind it enforces permission whatever the sidebar
+ * shows.
+ */
+export type DemoScope = "core" | "optional" | "admin" | "hidden";
+
+export const DEMO_SCOPE_LABEL: Record<DemoScope, string> = {
+  core: "Core demo",
+  optional: "Optional",
+  admin: "Admin preview",
+  hidden: "Hidden in Demo Mode",
+};
+
 export interface NavItem {
   href: string;
   label: string;
@@ -72,6 +100,13 @@ export interface NavItem {
    * prevents is a sidebar full of things the reader cannot open.
    */
   roles?: string[];
+  /**
+   * Where this sits in the client-demo scope freeze. See
+   * `docs/DEMO_SCOPE_FREEZE.md` for why each one is classified as it is.
+   */
+  demo: DemoScope;
+  /** Why, in one line, when the answer is not obvious. */
+  demoNote?: string;
 }
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -93,6 +128,7 @@ export const NAV_ITEMS: NavItem[] = [
     status: "live",
     phase: "",
     group: "Home",
+    demo: "core",
   },
 
   // ---- WORK: the product hierarchy, largest container first ----
@@ -105,6 +141,7 @@ export const NAV_ITEMS: NavItem[] = [
     status: "live",
     phase: "",
     group: "Work",
+    demo: "core",
   },
   {
     href: "/investigations",
@@ -115,6 +152,7 @@ export const NAV_ITEMS: NavItem[] = [
     status: "live",
     phase: "",
     group: "Work",
+    demo: "core",
   },
   {
     href: "/analyses",
@@ -125,6 +163,7 @@ export const NAV_ITEMS: NavItem[] = [
     status: "live",
     phase: "",
     group: "Work",
+    demo: "core",
   },
   {
     href: "/documents",
@@ -135,6 +174,9 @@ export const NAV_ITEMS: NavItem[] = [
     status: "preview",
     phase: "Placeholder by design",
     group: "Work",
+    demo: "hidden",
+    demoNote:
+      "Placeholder by design: the cards are fixed sample records, not authored documents. Nothing here is wired to analytical content, so it would be the first dead end a client found.",
   },
 
   // ---- INTELLIGENCE: standing capability rather than one-off work ----
@@ -147,6 +189,9 @@ export const NAV_ITEMS: NavItem[] = [
     status: "live",
     phase: "",
     group: "Intelligence",
+    demo: "optional",
+    demoNote:
+      "Real and seeded with one published Lens. Shown if time allows; not on the twenty-minute path.",
   },
   {
     href: "/early-warning",
@@ -157,6 +202,9 @@ export const NAV_ITEMS: NavItem[] = [
     status: "partial",
     phase: "Prototype signal, fitted on synthetic data. Not a validated model.",
     group: "Intelligence",
+    demo: "optional",
+    demoNote:
+      "Real and honestly labelled a prototype fitted on synthetic data. Show it only if the audience asks about predictive signals, and read the label out.",
   },
   {
     href: "/playbooks",
@@ -167,6 +215,9 @@ export const NAV_ITEMS: NavItem[] = [
     status: "partial",
     phase: "Manual and on-publication triggers run; scheduled ones are not yet wired to a scheduler",
     group: "Intelligence",
+    demo: "optional",
+    demoNote:
+      "Manual and on-publication triggers run. Scheduled ones are not wired to a scheduler, so do not promise scheduling.",
   },
   {
     href: "/stress",
@@ -177,6 +228,7 @@ export const NAV_ITEMS: NavItem[] = [
     status: "live",
     phase: "",
     group: "Intelligence",
+    demo: "optional",
   },
 
   // ---- BUILD: what the product is capable of, and what it may read ----
@@ -189,6 +241,7 @@ export const NAV_ITEMS: NavItem[] = [
     status: "live",
     phase: "",
     group: "Build",
+    demo: "core",
   },
   {
     href: "/data-builder",
@@ -199,6 +252,7 @@ export const NAV_ITEMS: NavItem[] = [
     status: "live",
     phase: "",
     group: "Build",
+    demo: "core",
   },
 
   // ---- GOVERN ----
@@ -211,6 +265,7 @@ export const NAV_ITEMS: NavItem[] = [
     status: "live",
     phase: "",
     group: "Govern",
+    demo: "core",
   },
   {
     href: "/workflow",
@@ -221,6 +276,7 @@ export const NAV_ITEMS: NavItem[] = [
     status: "live",
     phase: "",
     group: "Govern",
+    demo: "core",
   },
 
   // ---- ADMIN ----
@@ -233,6 +289,9 @@ export const NAV_ITEMS: NavItem[] = [
     status: "live",
     phase: "",
     group: "Admin",
+    demo: "admin",
+    demoNote:
+      "Already restricted to ADMIN and DATA_STEWARD. Compelling to a technical audience and irrelevant to a CRO.",
     // §64: "Only authorized roles can access it." §28 places it with
     // Administration rather than in the ordinary Cockpit navigation, because
     // an analyst has no use for a worker heartbeat.
@@ -247,6 +306,9 @@ export const NAV_ITEMS: NavItem[] = [
     status: "live",
     phase: "",
     group: "Admin",
+    demo: "admin",
+    demoNote:
+      "Already restricted to ADMIN and DATA_STEWARD. Holds the Feedback & Learning area, which is worth showing on request rather than by default.",
     // §119: an ordinary Analyst sees only a compact assurance badge on the
     // answer itself. Reading which cases production retrieves is most of the
     // way to knowing how to phrase a question to get a chosen answer, so the
@@ -262,6 +324,15 @@ export const NAV_ITEMS: NavItem[] = [
     status: "preview",
     phase: "Demo records",
     group: "Admin",
+    // Restricted here in the release-candidate phase. The route crawl found
+    // an ANALYST and a VIEWER seeing this link and getting a 403 from
+    // `/api/v1/users` the moment they clicked it — the sidebar was offering
+    // a door the API was always going to refuse. The endpoint's permission
+    // was right; the invitation was wrong.
+    roles: ["ADMIN"],
+    demo: "admin",
+    demoNote:
+      "Real accounts and real permissions, but the screen is labelled Preview and its team management is not complete.",
   },
   {
     href: "/settings",
@@ -271,6 +342,7 @@ export const NAV_ITEMS: NavItem[] = [
     status: "partial",
     phase: "",
     group: "Admin",
+    demo: "admin",
   },
 ];
 
@@ -281,11 +353,25 @@ export const STATUS_LABEL: Record<CapabilityStatus, string> = {
   planned: "Planned",
 };
 
-export function itemsInGroup(group: NavGroup, role?: string): NavItem[] {
+export function itemsInGroup(
+  group: NavGroup,
+  role?: string,
+  demoMode = false,
+): NavItem[] {
   return NAV_ITEMS.filter(
     (item) =>
-      item.group === group && (!item.roles || !role || item.roles.includes(role)),
+      item.group === group &&
+      (!item.roles || !role || item.roles.includes(role)) &&
+      // In Demo Mode, `hidden` items leave the navigation. Out of it, every
+      // capability is listed with its honest status, which is what a
+      // development build and a pilot both want.
+      !(demoMode && item.demo === "hidden"),
   );
+}
+
+/** Everything in one demo scope, for the scope-freeze document and its test. */
+export function itemsInDemoScope(scope: DemoScope): NavItem[] {
+  return NAV_ITEMS.filter((item) => item.demo === scope);
 }
 
 export function findNavItem(href: string): NavItem | undefined {

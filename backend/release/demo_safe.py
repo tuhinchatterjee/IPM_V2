@@ -44,6 +44,21 @@ DEMO_SAFE_VERSION = "1.0.0"
 #: be turned on deliberately.
 ENV = "AI_DEMO_SAFE_MODE"
 
+#: The names that turn it on, in the order they are looked for.
+#:
+#: Two, because two existed. This module read `AI_DEMO_SAFE_MODE` while
+#: `orchestrator.demo_safe()` read `DEMO_SAFE_MODE` and `.env.example`
+#: documented the second — so setting the documented one enabled the routing
+#: half of Demo Safe Mode and not the half that decides whether an answer may
+#: be SHOWN. Half of a mode whose whole purpose is to refuse a wrong answer is
+#: worse than none of it, because it looks like it is on.
+#:
+#: Both are honoured rather than one renamed, so a deployment already setting
+#: either keeps working.
+ENV_NAMES: tuple[str, ...] = (ENV, "DEMO_SAFE_MODE")
+
+_TRUE = frozenset({"1", "true", "yes", "on"})
+
 # ---------------------------------------------------------- §130's twelve
 APPROVED_RELEASE = "approved_current_intelligence_release"
 LIVE_VERIFIED = "current_live_provider_verification"
@@ -106,8 +121,8 @@ def enabled() -> bool:
     deliberately, and one that defaults on would be turned off by the first
     person it inconvenienced.
     """
-    return os.environ.get(ENV, "").strip().lower() in ("1", "true", "yes",
-                                                       "on")
+    return any(os.environ.get(name, "").strip().lower() in _TRUE
+               for name in ENV_NAMES)
 
 
 @dataclass

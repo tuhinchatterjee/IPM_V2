@@ -8,6 +8,7 @@ import { PanelLeft } from "lucide-react";
 import { AiPowerControl } from "@/components/system/ai-power";
 import { NotificationCentre } from "@/components/collaboration/notifications";
 import { BackendStatusIndicator } from "@/components/system/backend-status";
+import { DemoBadge } from "@/components/system/demo-mode";
 import { RoleSwitcher } from "@/components/system/role-switcher";
 import { ThemeMenu } from "@/components/system/theme-menu";
 
@@ -73,6 +74,7 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-1.5">
+        <DemoBadge />
         <AiPowerControl />
         {/* §48: reachable from the screen you are on, not from a screen you
             have to go to — and deliberately out of the Cockpit, whose whole
