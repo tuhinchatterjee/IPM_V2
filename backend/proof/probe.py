@@ -121,6 +121,12 @@ class Probe:
     period: str = ""
     grain: str = ""
     plan_steps: int = 0
+    #: Steps the runtime actually executed. Different from `plan_steps`: a
+    #: broad investigation runs governed probes and leaves executed steps
+    #: without an AnalysisPlan, so plan steps is 0 on the most complex thing
+    #: the product does.
+    executed_steps: int = 0
+    probes: int = 0
     plan_valid: bool = False
     rows_returned: int | None = None
     executed: bool = False
@@ -176,7 +182,9 @@ class Probe:
             "tool_calls": list(self.tool_calls),
             "datasets": list(self.datasets), "methods": list(self.methods),
             "period": self.period, "grain": self.grain,
-            "plan": {"steps": self.plan_steps, "valid": self.plan_valid},
+            "plan": {"steps": self.plan_steps, "valid": self.plan_valid,
+                     "executed_steps": self.executed_steps,
+                     "probes": self.probes},
             "execution": {"executed": self.executed,
                           "rows": self.rows_returned},
             "invariants_passed": self.invariants_passed,
@@ -383,6 +391,18 @@ def run_probe(question: str, *, label: str = "", project_id: str = "",
     probe.plan_steps = len(steps)
     probe.plan_valid = bool(steps) and not (getattr(plan, "unmatched", None)
                                             or [])
+    executed = list(getattr(investigation, "steps", None) or [])
+    probe.executed_steps = len(executed)
+    for step in executed:
+        result = getattr(step, "result", None)
+        if not isinstance(result, dict):
+            continue
+        summary = (result.get("detail") or {}).get("investigation") or {}
+        found = summary.get("probes")
+        if isinstance(found, list | tuple):
+            probe.probes = max(probe.probes, len(found))
+        elif isinstance(found, int):
+            probe.probes = max(probe.probes, found)
 
     runtime = getattr(answered, "runtime", None)
     probe.executed = runtime is not None

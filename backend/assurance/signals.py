@@ -503,13 +503,42 @@ def approved_kernel_use(ctx: Ctx) -> Signal | None:
 
 
 def execution(ctx: Ctx) -> Signal | None:
-    if not ctx.executed:
-        if ctx.status in ("needs_clarification", "rejected"):
-            return _na(f"the turn ended in {ctx.status} before reaching the "
-                       "engine")
-        return None
-    rows = int(getattr(ctx.runtime, "row_count", 0) or 0)
-    return _pass(f"Executed and returned {rows} row(s).", "result")
+    """Whether governed analysis actually ran.
+
+    Two shapes count, because the product has two. A single analysis leaves
+    a `runtime` result. A broad or coordinated investigation runs its work
+    through governed probes and specialist sub-analyses and leaves executed
+    STEPS instead — reading only the first reported the portfolio review,
+    which ran six governed probes, as having executed nothing.
+    """
+    if ctx.executed:
+        rows = int(getattr(ctx.runtime, "row_count", 0) or 0)
+        return _pass(f"Executed and returned {rows} row(s).", "result")
+    steps = list(getattr(ctx.investigation, "steps", None) or [])
+    probes = _probe_count(ctx)
+    if steps or probes:
+        return _pass(f"{probes or len(steps)} governed "
+                     f"{'probe' if probes else 'step'}(s) executed.",
+                     "result")
+    if ctx.status in ("needs_clarification", "rejected"):
+        return _na(f"the turn ended in {ctx.status} before reaching the "
+                   "engine")
+    return None
+
+
+def _probe_count(ctx: Ctx) -> int:
+    """How many governed checks a broad investigation ran."""
+    for step in (getattr(ctx.investigation, "steps", None) or []):
+        result = getattr(step, "result", None)
+        if not isinstance(result, dict):
+            continue
+        summary = (result.get("detail") or {}).get("investigation") or {}
+        probes = summary.get("probes")
+        if isinstance(probes, list | tuple):
+            return len(probes)
+        if isinstance(probes, int):
+            return probes
+    return 0
 
 
 def data_quality(ctx: Ctx) -> Signal | None:
@@ -860,16 +889,39 @@ def agent_selection(ctx: Ctx) -> Signal | None:
         return _na("no orchestration ran on this turn")
     plan = getattr(ctx.outcome, "plan", None)
     agents = list(getattr(plan, "agents", None) or [])
-    concepts = list(getattr(ctx.reading, "concepts", None) or [])
     if not agents:
         return _pass("No specialist was engaged, and none was needed.",
                      "agentic_run")
+    # The concepts that chose the specialists are NOT always the router's
+    # own reading: a broad investigation's router reading is empty, and the
+    # specialists are selected from the concepts its governed probes named.
+    # Reading only `answered.reading` reported every coordinated review as
+    # having selected five specialists on no basis at all.
+    concepts = set(str(c).lower()
+                   for c in (getattr(ctx.reading, "concepts", None) or []))
+    concepts |= _probe_concepts(ctx)
     return _verdict(
         bool(concepts),
         f"{len(agents)} specialist(s) selected against "
-        f"{len(concepts)} concept(s).",
+        f"{len(concepts)} governed concept(s).",
         f"{len(agents)} specialist(s) selected with no concept behind them.",
         "agentic_run")
+
+
+def _probe_concepts(ctx: Ctx) -> set[str]:
+    """The governed concepts a broad investigation's probes named."""
+    found: set[str] = set()
+    for step in (getattr(ctx.investigation, "steps", None) or []):
+        result = getattr(step, "result", None)
+        if not isinstance(result, dict):
+            continue
+        summary = (result.get("detail") or {}).get("investigation") or {}
+        for probe in (summary.get("probes") or []):
+            name = str((probe or {}).get("concept")
+                       if isinstance(probe, dict) else probe or "").lower()
+            if name:
+                found.add(name)
+    return found
 
 
 def orchestration_plan(ctx: Ctx) -> Signal | None:

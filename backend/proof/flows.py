@@ -208,6 +208,14 @@ def classify(*, answer_type: str = "", executed: bool = False,
     """
     if proactive:
         return PROACTIVE
+    # Coordination is tested BEFORE execution. A broad investigation does its
+    # work through specialist sub-analyses rather than one runtime result, so
+    # the turn carries no single `runtime` object — and testing `executed`
+    # first filed a portfolio review that ran six governed probes and five
+    # specialist tasks as CONVERSATIONAL, exempting it from every check that
+    # matters most for exactly that kind of work.
+    if agentic_run and specialists >= 2:
+        return PROJECT if project_id else COORDINATED
     if not executed:
         # Nothing computed. Metadata answered from the catalogue is a real
         # answer; a clarification or a refusal is a different thing again.
@@ -216,8 +224,6 @@ def classify(*, answer_type: str = "", executed: bool = False,
         return CONVERSATIONAL
     if project_id:
         return PROJECT
-    if agentic_run and specialists >= 2:
-        return COORDINATED
     if datasets >= 2:
         return MULTI_DOMAIN
     return SIMPLE

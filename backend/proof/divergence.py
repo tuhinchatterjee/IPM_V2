@@ -55,7 +55,11 @@ AXES: tuple[tuple[str, str, bool], ...] = (
     ("dataset_count", "datasets touched", True),
     ("trace_node_count", "Trace nodes recorded", False),
     ("coordinated", "the run was coordinated", True),
-    ("plan_steps", "plan steps", True),
+    # Governed work actually executed, not the shape of an AnalysisPlan. A
+    # broad investigation runs its probes without one, so `plan_steps` was 0
+    # on the most expensive request in the product and made every escalation
+    # to it look like a step DOWN.
+    ("governed_work", "governed analyses executed", True),
 )
 
 MATERIAL = "MATERIAL"
@@ -82,6 +86,8 @@ def _axis(probe: Probe, name: str) -> Any:
         return len(probe.datasets)
     if name == "trace_node_count":
         return len(probe.trace_nodes)
+    if name == "governed_work":
+        return max(probe.plan_steps, probe.executed_steps, probe.probes)
     return getattr(probe, name, None)
 
 
@@ -127,26 +133,60 @@ class Comparison:
         return [d for d in self.differences if d.differs and d.expensive]
 
     @property
-    def escalation_is_monotonic(self) -> bool:
-        """The higher officer did at least as much on every expensive axis.
+    def unmeasured_axes(self) -> list[str]:
+        """Axes the higher run reports NOTHING on while the lower reports
+        something.
 
-        A run that escalated to a Chief Orchestrator and touched FEWER
-        datasets than the Credit Analyst path did not escalate — it took a
-        different, smaller route and put a bigger badge on it.
+        Kept apart from a regression on purpose, because they are different
+        facts and conflating them makes the instrument lie. A coordinated
+        review reports zero datasets and zero tool calls not because it read
+        less, but because its Investigation does not aggregate what its
+        specialist sub-analyses touched — those were persisted as separate
+        Investigations. That is a real gap in what the Trace can show, and
+        it is recorded as a gap rather than reported as the run having done
+        less work than a single-dataset query.
         """
+        gaps: list[str] = []
         for difference in self.differences:
             if not difference.expensive:
                 continue
             lower, higher = difference.lower, difference.higher
             if isinstance(lower, bool) or isinstance(higher, bool):
-                if lower and not higher:
-                    return False
                 continue
-            if isinstance(lower, int | float) and isinstance(higher,
-                                                             int | float):
-                if higher < lower:
-                    return False
-        return True
+            if (isinstance(lower, int | float)
+                    and isinstance(higher, int | float)
+                    and lower > 0 and higher == 0):
+                gaps.append(difference.axis)
+        return gaps
+
+    @property
+    def regressions(self) -> list[str]:
+        """Axes where the higher officer genuinely did LESS.
+
+        Both sides measured, and the higher one smaller. That is an
+        escalation that took a different, smaller route and put a bigger
+        badge on it.
+        """
+        found: list[str] = []
+        unmeasured = set(self.unmeasured_axes)
+        for difference in self.differences:
+            if not difference.expensive or difference.axis in unmeasured:
+                continue
+            lower, higher = difference.lower, difference.higher
+            if isinstance(lower, bool) or isinstance(higher, bool):
+                if lower and not higher:
+                    found.append(difference.axis)
+                continue
+            if (isinstance(lower, int | float)
+                    and isinstance(higher, int | float) and higher < lower):
+                found.append(difference.axis)
+        return found
+
+    @property
+    def escalation_is_monotonic(self) -> bool:
+        """The higher officer did at least as much everywhere it can be
+        compared."""
+        return not self.regressions
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -164,6 +204,8 @@ class Comparison:
             "expensive_differences": [d.axis
                                       for d in self.expensive_differences],
             "monotonic": self.escalation_is_monotonic,
+            "regressions": self.regressions,
+            "unmeasured_axes": self.unmeasured_axes,
         }
 
 
@@ -206,6 +248,8 @@ def matrix(probes: list[Probe]) -> dict[str, Any]:
         "material": len([c for c in comparisons if c.verdict == MATERIAL]),
         "decorative": len(decorative),
         "monotonic": all(c.escalation_is_monotonic for c in comparisons),
+        "unmeasured_axes": sorted({axis for c in comparisons
+                                   for axis in c.unmeasured_axes}),
         "verdict": (DECORATIVE if decorative else
                     MATERIAL if comparisons else SAME_CLASS),
         "note": ("Only expensive axes count. A run that recorded more Trace "

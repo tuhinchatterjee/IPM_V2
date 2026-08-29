@@ -265,6 +265,28 @@ def from_handler(question: str, reading: cap.Reading,
         node_hashes={}, role="primary",
     )
     graph = result.graph or TraceGraph()
+    # Every other assembly path opens the Trace with the question and how it
+    # was read. This one did not, so a broad investigation — the most
+    # complex thing the product does — produced a Trace a reader could not
+    # enter: no question, no reading, no capability. `audit_completeness`
+    # reported it as soon as the check was wired.
+    if "question" not in graph.nodes:
+        graph.add_node(TraceNode(
+            id="question", type=NodeType.USER_PROMPT, label=question,
+            config={"asked": question}))
+    if "intent" not in graph.nodes:
+        node = graph.add_node(TraceNode(
+            id="intent", type=NodeType.CAPABILITY,
+            label=reading.label or reading.objective or "Read as a request",
+            config={"intent": reading.intent,
+                    "objective": reading.objective,
+                    "source": reading.source,
+                    "execution": result.execution,
+                    "rule": "Answered from the governed catalogue and the "
+                            "deterministic investigation probes. No figure "
+                            "was invented."}))
+        node.mark_ok()
+        graph.connect("question", "intent")
     return Investigation(
         question=question, plan=plan, steps=[step], narrative=narrative,
         graph=graph, node_hashes=graph.compute_hashes(),

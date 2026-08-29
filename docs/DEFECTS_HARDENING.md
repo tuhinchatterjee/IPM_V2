@@ -179,3 +179,165 @@ throughout the platform, and passing a string reaches an `INSERT` before
 failing. The harness now creates a real Project row.
 
 **Status: OPEN.**
+
+---
+
+## D11 — `build_info().git_sha` has never existed
+
+**Severity: high.** Four call sites read it. Three were inside a swallowing
+`except`, and the fourth used `getattr(build_info(), "git_sha", "")`, which
+returned `""` forever rather than raising.
+
+**Effect.** Every Assurance Record and every feedback item recorded **no
+build**. The build staleness axis could therefore never fire, and no feedback
+item was reproducible — the build is precisely the field that turns an
+opinion into a bug report.
+
+The attribute is `.sha`.
+
+**Status: FIXED.**
+
+---
+
+## D12 — The Evidence Fact Graph registered zero facts, always
+
+**Severity: critical.** Figure grounding — §79's whole mechanism — had
+nothing to ground against.
+
+**Cause.** `judgment_bridge.facts_from` filtered result columns on
+`c.get("kind")`. The presentation contract calls that field `semantic`;
+nothing in it has `kind`. The filter matched nothing, so no measure was ever
+turned into a fact, on any analysis, ever.
+
+**Evidence.** Before: `{'registered': 0, 'usable': 0}`. After: `{'registered':
+45, 'usable': 45}` on the sample analysis.
+
+**Status: FIXED** (both keys accepted, so an older contract shape still
+works).
+
+---
+
+## D14 — The stage sequence contradicted the runtime
+
+**Severity: medium — and it made the working indicator lie.**
+
+`stages.SEQUENCE` placed `COORDINATING` **before** `CALCULATING`. The runtime
+coordinates **after** the first analysis, because specialists are selected
+from the reading and the reading does not exist until something has run. So
+every coordinated run attempted a backwards transition, `can_move` refused
+it, and the run stayed on `CALCULATING` while four specialists worked — the
+screen said "Running governed calculations" throughout the coordination it
+was supposed to be reporting.
+
+§5: "The UI must truthfully reflect backend state." The sequence now follows
+the runtime.
+
+A second, related case: specialist sub-analyses report `CALCULATING` from
+inside `COORDINATING`. That is a nested step, not a regression — the run
+really is coordinating and a specialist really is calculating — so
+`runs.advance(..., nested=True)` records it as detail and holds the stage
+instead of logging a refusal per specialist.
+
+**Status: FIXED.**
+
+---
+
+## D18 — The assurance record described a sub-analysis, not the user's turn
+
+**Severity: high.**
+
+`interactive.run`'s `ask` closure answers the user's question **and** every
+specialist sub-question during coordination, and it assigned
+`found.answered` unconditionally. So after coordination `found.answered`
+held the **last specialist's** result. Conversation memory was written from
+it, and the Assurance Record was built from it — describing an analysis the
+user never asked for.
+
+**Status: FIXED** — only the user's own question is kept.
+
+---
+
+## D16 — A broad investigation left a Trace nobody could enter
+
+**Severity: medium.**
+
+`assembly.from_handler` — the path a broad or catalogue-answered
+investigation takes — never wrote the `question` or `intent` nodes that every
+other assembly path opens with. A portfolio review, the most complex thing
+the product does, produced a Trace of three nodes: the judgment block, the
+presentability gate and the assurance summary. No question, no reading, no
+capability.
+
+Found the moment `audit_completeness` was wired.
+
+**Status: FIXED.**
+
+---
+
+## D19 — A coordinated review reports nothing about what its specialists read
+
+**Severity: high. OPEN.**
+
+A coordinated portfolio review reports **zero datasets** and **zero tool
+calls** on its own Investigation, while a single-dataset query reports one
+dataset and ten. Not because it read less — it ran six governed probes across
+four specialists — but because the specialist sub-analyses are persisted as
+**separate Investigations**, and the coordinating Investigation does not
+aggregate what they touched.
+
+**Effect.** The Trace for a portfolio review cannot say which data it read.
+For the most consequential answer in the product, the lineage question has no
+answer.
+
+**How it is held open.** `divergence.unmeasured_axes` separates "did less
+work" from "recorded nothing to compare", so the instrument does not report
+this as an escalation that shrank. A test asserts the current behaviour
+explicitly, so closing the gap breaks it loudly:
+`test_the_coordinated_run_does_not_report_what_its_specialists_touched`.
+
+---
+
+## D15 — A specialist sub-analysis returns unordered account rows
+
+**Severity: high (Tier 1 class). OPEN — and currently contained.**
+
+Reproducer: *"Show days past due and the NPL ratio for the portfolio at the
+latest published period."*
+
+The question is portfolio-level. The analysis returns **account-grain** rows,
+in no order, and the request-derived `ordering` invariant fails: *"The answer
+claims to be ranked by days past due and row 4 is larger than row 3."*
+
+**Containment.** This is caught, not shown. The invariant fails, the
+presentability gate returns WITHHOLD, and the turn ends `failed` rather than
+displaying a wrong answer. The governed pipeline behaved exactly as designed.
+
+**What is still wrong.** A portfolio-level question should not produce
+account-grain rows, and the fix is in grain selection rather than in the
+gate. Left OPEN rather than patched late in this phase: a planner change made
+under time pressure to clear a test is how the next defect gets shipped.
+
+---
+
+## D17 — Table columns are not in the governed rank order
+
+**Severity: low. OPEN.**
+
+`table_column_ordering` fails on some results: the presentation contract
+assigns each column a `rank`, and the emitted order does not follow it.
+Cosmetic rather than incorrect, and reported rather than hidden.
+
+---
+
+## D20 — A coordinated review registers no evidence facts
+
+**Severity: high. OPEN.**
+
+The broad investigation quotes real figures ("500 customers where internal
+rating was downgraded") and `evidence_fact_graph` FAILs, because
+`facts_from` needs a single `runtime` result and a coordinated review has
+none — its figures come from probe results.
+
+The consequence is the one D12 was about, in a different place: for the
+answers where grounding matters most, there is no fact graph behind the
+prose. Reported as a FAIL rather than exempted, so it stays visible.

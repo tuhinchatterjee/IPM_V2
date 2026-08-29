@@ -42,9 +42,19 @@ CANCELLED = "CANCELLED"
 #: The order work normally moves through. Used to render completed stages and
 #: to refuse a backwards transition — a run that shows VALIDATING and then
 #: SCOPING again is telling the user something untrue about what it is doing.
+#: COORDINATING sits AFTER CALCULATING, which is the order the runtime
+#: actually works in: specialists are selected from the reading, and the
+#: reading only exists once the first analysis has run. With COORDINATING
+#: earlier in the sequence, every coordinated run tried to move backwards,
+#: `can_move` refused it, and the run stayed on CALCULATING while four
+#: specialists worked — so the screen said "Running governed calculations"
+#: through the whole of the coordination it was meant to be reporting.
+#:
+#: §5: "The UI must truthfully reflect backend state." The sequence follows
+#: the runtime rather than the other way round.
 SEQUENCE: tuple[str, ...] = (
-    QUEUED, UNDERSTANDING, SCOPING, SELECTING_DATA, COORDINATING,
-    CALCULATING, VALIDATING, INTERPRETING, COMPLETE,
+    QUEUED, UNDERSTANDING, SCOPING, SELECTING_DATA, CALCULATING,
+    COORDINATING, VALIDATING, INTERPRETING, COMPLETE,
 )
 
 TERMINAL: frozenset[str] = frozenset({COMPLETE, NEEDS_INPUT, FAILED, CANCELLED})

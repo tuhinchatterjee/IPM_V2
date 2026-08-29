@@ -202,11 +202,19 @@ def run(session: Any, *, question: str, user_id: int | None = None,
             # orchestration layer made of the turn. The caller needs both —
             # `threads.ask` writes conversation memory from the second — so it
             # is kept rather than discarded at the tuple unpack.
+            #
+            # Only the USER'S turn is kept. This same closure answers every
+            # specialist sub-question during coordination, and assigning
+            # unconditionally left `found.answered` holding the LAST
+            # specialist's result — so conversation memory, and the assurance
+            # record built from it, described a sub-analysis the user never
+            # asked for rather than the question they did.
             investigation, orchestrated = answer_investigation(
                 q, user_id=user_id, project_id=project_id,
                 investigation_id=investigation_id, persist=True,
                 period=period, state=state, memory=memory)
-            found.answered = orchestrated
+            if q == question and found.answered is None:
+                found.answered = orchestrated
             return investigation
 
     try:
@@ -289,8 +297,11 @@ def _coordinate(session: Any, run_row: Any, found: Answered, question: str,
         plan, answer_one=lambda q, **kw: ask(q, user_id=actor.user_id),
         budget=budget, actor=actor, should_stop=stop,
         on_task=lambda t: runs.update_task(session, run_row.id, t),
+        # `nested`: these come from inside COORDINATING. A specialist
+        # calculating is part of coordination, not a step back to it.
         on_stage=lambda s, d: runs.advance(session, run_row, s, detail=d,
-                                           agents=len(plan.agents)))
+                                           agents=len(plan.agents),
+                                           nested=True))
 
 
 def _should_coordinate(specialists: list[Any], investigation: Any) -> bool:
@@ -429,9 +440,19 @@ def _reading_of(investigation: Any, orchestrated: Any = None) -> Any:
 
     # (3) A broad investigation is segment- or portfolio-level work by
     # construction, and the probe count is the operation count.
+    #
+    # Looked for in two places, because it is written to only one of them.
+    # `orchestrated.investigation` is empty on the path the Cockpit actually
+    # takes; the summary lives inside the step result, under
+    # `detail.investigation`. Reading only the first meant every broad
+    # investigation arrived here with no concepts and no grain — so
+    # `agents_for()` returned nothing, `_should_coordinate` could never be
+    # true, and the Chief Orchestrator badge sat on top of zero specialists
+    # and zero tasks. That is the same failure source (2) was added to fix,
+    # reappearing on the broad path.
     probes = 0
-    summary = getattr(orchestrated, "investigation", None)
-    if isinstance(summary, dict) and summary:
+    summary = _broad_summary(investigation, orchestrated)
+    if summary:
         # `probes` is a count on one assembly path and the list itself on
         # another. Both mean "how many governed checks ran".
         counted = summary.get("probes") or 0
@@ -439,6 +460,14 @@ def _reading_of(investigation: Any, orchestrated: Any = None) -> Any:
         kind = str(summary.get("subject_kind") or "").lower()
         if kind in {"sector", "segment", "region", "product", "portfolio"}:
             grain = grain or ("portfolio" if kind == "portfolio" else "sector")
+        # Each probe names the governed concept it checked. Those concepts
+        # are what select the specialists, and they were being thrown away.
+        if isinstance(counted, (list, tuple)):
+            for probe in counted:
+                name = str((probe or {}).get("concept")
+                           if isinstance(probe, dict) else probe or "").lower()
+                if name and name not in concepts:
+                    concepts.append(name)
 
     reading = _Reading()
     reading.datasets = tuple(datasets)
@@ -451,6 +480,27 @@ def _reading_of(investigation: Any, orchestrated: Any = None) -> Any:
     reading.grain = grain
     reading.operation_count = max(len(steps), probes)
     return reading
+
+
+def _broad_summary(investigation: Any, orchestrated: Any) -> dict[str, Any]:
+    """The broad-investigation summary, from wherever it was written.
+
+    Two places, checked in order of directness. The orchestration layer
+    carries it on some paths; on the path the Cockpit takes it is nested in
+    the executed step's result. A reader that knew only one of them saw
+    nothing on every real run.
+    """
+    direct = getattr(orchestrated, "investigation", None)
+    if isinstance(direct, dict) and direct:
+        return direct
+    for step in (getattr(investigation, "steps", ()) or ()):
+        result = getattr(step, "result", None)
+        if not isinstance(result, dict):
+            continue
+        found = (result.get("detail") or {}).get("investigation")
+        if isinstance(found, dict) and found:
+            return found
+    return {}
 
 
 class _Reading:

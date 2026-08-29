@@ -166,15 +166,32 @@ def _build_sha() -> str:
 
 
 def advance(session: Any, run: AgentRun, stage: str, *, detail: str = "",
-            agents: int = 0) -> bool:
+            agents: int = 0, nested: bool = False) -> bool:
     """Move to a stage, recording when.
 
     Refuses to move backwards (see `stages.can_move`) rather than silently
     accepting it: a run that shows VALIDATING and then SCOPING again has told
     the user something untrue, and the bug that caused it is easier to find
     here than in the transcript of somebody's demonstration.
+
+    `nested=True` is for a stage report coming from INSIDE a later stage — a
+    specialist running its own calculation while the run is COORDINATING.
+    That is not a regression and it is not a lie: the run really is
+    coordinating, and a specialist really is calculating. So the stage holds
+    and the report is recorded as detail, which is what the screen should
+    say. Without this the orchestrator's per-specialist reports each tried
+    to move the run backwards and were refused with a warning apiece.
     """
     if not stages.can_move(run.stage or stages.QUEUED, stage):
+        if nested and run.stage not in stages.TERMINAL:
+            history = list(run.stage_history or [])
+            history.append(stages.step(
+                run.stage, agents=agents,
+                detail=detail or stages.caption(stage)).to_dict())
+            run.stage_history = history
+            run.updated_at = _now()
+            session.flush()
+            return True
         logger.warning("run %s refused stage %s → %s", run.id, run.stage,
                        stage)
         return False
