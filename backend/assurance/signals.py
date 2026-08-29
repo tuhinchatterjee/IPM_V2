@@ -991,8 +991,11 @@ def agentic_trace_consistency(ctx: Ctx) -> Signal | None:
 
 
 def controlled_error_handling(ctx: Ctx) -> Signal | None:
+    # Five, not four. "unsupported" is what a governed refusal looks like —
+    # the status a prompt-injection attempt correctly produces — and leaving
+    # it out reported every safe refusal as an UNCONTRACTED state.
     contracted = ("succeeded", "partial", "needs_clarification", "rejected",
-                  "failed")
+                  "failed", "unsupported")
     if not ctx.status:
         return None
     return _verdict(ctx.status in contracted,

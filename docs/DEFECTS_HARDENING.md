@@ -341,3 +341,47 @@ none — its figures come from probe results.
 The consequence is the one D12 was about, in a different place: for the
 answers where grounding matters most, there is no fact graph behind the
 prose. Reported as a FAIL rather than exempted, so it stays visible.
+
+---
+
+## D21 — Nine of §18's fifteen risk classes have no teaching cases at all
+
+**Severity: high. OPEN — and the finding is the point.**
+
+Building the review pack over the live library covers **6 of 15** classes.
+These nine have **zero** eligible cases:
+
+`permission_tenant_safety`, `prompt_injection`, `agentic_cockpit`,
+`agentic_project`, `officer_selection`, `agent_selection`,
+`proactive_review`, `risk_cases`, `workflow_approval`.
+
+**What it means.** The 2,453-case library teaches analytical questions. It
+teaches CreditProbe nothing about the agentic layer, nothing about
+permission and tenant safety, and nothing about refusing an injected
+instruction — the classes where a wrong answer is least recoverable. §25 asks
+for exactly these in the development corpus and they are not there.
+
+**Why it is not being fixed by generating them.** Cases for these classes
+have to be written against real governed behaviour and reviewed by a person.
+Generating 200 more AUTO_VALIDATED cases would raise a count and change
+nothing: none of them would be retrievable, and none would have been read.
+
+The pack reports `classes_empty` rather than quietly returning six classes,
+so the gap is a work list instead of an absence.
+
+---
+
+## D22 — "unsupported" was not in the contracted-outcome set
+
+**Severity: medium.**
+
+`signals.controlled_error_handling` listed four contracted outcomes:
+`succeeded`, `partial`, `needs_clarification`, `rejected`, `failed`. A
+governed refusal — which is what a prompt-injection attempt correctly
+produces — has status `unsupported`, and was therefore reported as an
+**uncontracted state**: the safest possible behaviour scored as a failure of
+error handling.
+
+Found by the §33 injection suite on its first run.
+
+**Status: FIXED.**

@@ -419,6 +419,40 @@ def retrievable(session: Session, *, family_id: str = "",
     ).scalars())
 
 
+def review_pack(session: Session, *, per_class: int = 0) -> dict[str, Any]:
+    """§18's prioritized human-review pack, over the live library.
+
+    Reads and selects. Approves nothing: `approve` needs a named reviewer
+    and is not called from here.
+    """
+    from backend.teaching import review_pack as rp
+
+    rows = session.execute(select(Row)).scalars().all()
+    return rp.build(rows, per_class=per_class or rp.PER_CLASS)
+
+
+def mark_reviewed(session: Session, case_id: str, *, reviewer: str,
+                  note: str) -> Row:
+    """§16's HUMAN_REVIEWED: a person read it and did not sign for it.
+
+    Deliberately a separate call from `approve`, and deliberately not a step
+    on the way to it that anything automatic can take: the reviewer's name
+    and their note are both required, because "reviewed by nobody, no
+    comment" is the state this was added to distinguish FROM.
+    """
+    if not str(reviewer).strip():
+        raise LibraryError("a review needs a named reviewer")
+    if not str(note).strip():
+        raise LibraryError(
+            "a review needs the reviewer's assessment: recording that "
+            "somebody looked, without what they concluded, is not a review")
+    row = latest(session, case_id)
+    if row is None:
+        raise LibraryError(f"no case {case_id!r}")
+    return _transition(session, row, st.HUMAN_REVIEWED, actor=reviewer,
+                       note=note, detail={"reviewer": reviewer})
+
+
 def duplicates(session: Session, case: sc.TeachingCase) -> list[Row]:
     """Cases already in the library teaching the same thing. §15."""
     return list(session.execute(

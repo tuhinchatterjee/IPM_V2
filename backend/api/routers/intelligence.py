@@ -849,6 +849,62 @@ def studio_releases_tab(principal: Principal = RequireAnalyst
                        manifest.to_dict(), list(rl.FILES), missing)
 
 
+@router.get("/review-pack")
+def review_pack(per_class: int = Query(default=0, ge=0, le=50),
+                principal: Principal = RequireAdmin) -> dict[str, Any]:
+    """§18's prioritized human-review pack.
+
+    Administrator-only: a list of what has not been reviewed is a map of
+    where the product is unproven, which is authoring-surface information.
+
+    Reading this approves nothing. Every row says so, not just the header,
+    because a row copied into a spreadsheet has to carry its own label.
+    """
+    session = _session()
+    try:
+        return tl.review_pack(session, per_class=per_class)
+    except Exception as exc:  # noqa: BLE001 - reported, not swallowed
+        raise _unavailable(exc) from exc
+    finally:
+        session.close()
+
+
+class ReviewedRequest(BaseModel):
+    """§16's HUMAN_REVIEWED. Both fields required, deliberately."""
+
+    reviewer: str = Field(..., min_length=1)
+    note: str = Field(..., min_length=1)
+
+
+@router.post("/cases/{case_id}/reviewed")
+def mark_case_reviewed(case_id: str, body: ReviewedRequest,
+                       principal: Principal = RequireAdmin
+                       ) -> dict[str, Any]:
+    """Record that a named person read a case and what they concluded.
+
+    Not an approval, and not a step anything automatic may take. The case
+    stays out of production retrieval: reviewed is not approved.
+    """
+    session = _session()
+    try:
+        row = tl.mark_reviewed(session, case_id, reviewer=body.reviewer,
+                               note=body.note)
+    except tl.LibraryError as bad:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error": "cannot_mark_reviewed", "message": str(bad)}
+        ) from bad
+    except Exception as exc:  # noqa: BLE001
+        raise _unavailable(exc) from exc
+    finally:
+        session.close()
+    return {"case_id": case_id, "review_status": row.review_status,
+            "status_means": st.STATUS_MEANS.get(row.review_status, ""),
+            "retrievable": False,
+            "note": "A reviewed case is not retrievable. Approval is a "
+                    "separate, named act."}
+
+
 @router.get("/investigation-reviews")
 def investigation_reviews(view: str = Query(default=arv.RECENT),
                           limit: int = Query(default=100, ge=1, le=500),

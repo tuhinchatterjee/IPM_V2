@@ -50,8 +50,23 @@ AUTO_VALIDATED = "AUTO_VALIDATED"
 #: A validator declined to vouch for it: a generated variant that changed
 #: meaning, an ambiguity nobody adjudicated, a plan that would not compile.
 SME_REVIEW_REQUIRED = "SME_REVIEW_REQUIRED"
+#: A named person READ it and recorded what they thought — and did not sign
+#: for production. §16's HUMAN_REVIEWED.
+#:
+#: The gap between reading and signing is real work, and collapsing it was
+#: costing the review workflow its most useful state: a reviewer who has
+#: looked at forty cases and approved eight has thirty-two they have genuinely
+#: assessed, and before this they were indistinguishable from the ones nobody
+#: had opened. It is NOT retrievable: reviewed is not approved.
+HUMAN_REVIEWED = "HUMAN_REVIEWED"
 #: A named person read it and signed for it. Retrievable.
 APPROVED = "APPROVED"
+#: §16 calls this HUMAN_APPROVED, which is what APPROVED has always meant —
+#: `may_approve` refuses any approval without a named human behind it. The
+#: alias exists so the brief's vocabulary resolves in code and in the API,
+#: without a migration that rewrites the stored value on 2,453 rows and every
+#: audit event that references it.
+HUMAN_APPROVED = APPROVED
 #: Reviewed and refused. Kept, not deleted: a rejected case records a reading
 #: somebody decided was wrong, which is worth as much as one they accepted.
 REJECTED = "REJECTED"
@@ -61,15 +76,46 @@ RETIRED = "RETIRED"
 STALE = "STALE"
 #: Derived from a deterministic contract and re-derived today (§6).
 SYSTEM_VALIDATED = "SYSTEM_VALIDATED"
+#: §16's name for the same thing: validated against a deterministic
+#: reference rather than by a person. Aliased rather than renamed for the
+#: reason above.
+SYSTEM_REFERENCE_VALIDATED = SYSTEM_VALIDATED
 
 STATUSES: tuple[str, ...] = (
-    DRAFT, AUTO_VALIDATED, SME_REVIEW_REQUIRED, APPROVED, REJECTED, RETIRED,
-    STALE, SYSTEM_VALIDATED,
+    DRAFT, AUTO_VALIDATED, SME_REVIEW_REQUIRED, HUMAN_REVIEWED, APPROVED,
+    REJECTED, RETIRED, STALE, SYSTEM_VALIDATED,
 )
 
-#: The statuses production retrieval may draw from. SYSTEM_VALIDATED is in
-#: this set but gated — see `retrievable`.
+#: The statuses production retrieval may draw from.
+#:
+#: §16: "Default production retrieval: HUMAN_APPROVED." SYSTEM_VALIDATED is
+#: in this set and GATED — `retrievable` refuses it unless an administrator
+#: has explicitly governed it on, and the surfaces label it when they do.
+#: AUTO_VALIDATED is deliberately absent: a machine agreeing with itself is
+#: not a review, and all 2,453 of the library's cases are in that state.
 RETRIEVABLE: frozenset[str] = frozenset({APPROVED, SYSTEM_VALIDATED})
+
+#: What each status means, in one sentence, for every surface that shows one.
+#: Written here so the Studio, the API and the review workbench cannot each
+#: invent their own gloss.
+STATUS_MEANS: dict[str, str] = {
+    DRAFT: "Authored and incomplete. Never retrieved.",
+    AUTO_VALIDATED: "Passed the deterministic validators. A machine agreed "
+                    "with itself, which is not review — and not retrievable.",
+    SME_REVIEW_REQUIRED: "A validator declined to vouch for it. A person has "
+                         "to look.",
+    HUMAN_REVIEWED: "A named person read it and recorded an assessment, and "
+                    "has not signed for production. Not retrievable.",
+    APPROVED: "A named person read it and signed for it. Retrievable by "
+              "production.",
+    SYSTEM_VALIDATED: "Re-derived today from a deterministic contract. "
+                      "Retrievable only where an administrator has governed "
+                      "it on, and labelled where it is.",
+    REJECTED: "Reviewed and refused. Kept rather than deleted: a rejected "
+              "case records a reading somebody decided was wrong.",
+    RETIRED: "Deliberately withdrawn. Terminal.",
+    STALE: "Something it was validated against has changed underneath it.",
+}
 
 # ---------------------------------------------------------- authoring method
 #: Written by a person, word by word.
@@ -143,14 +189,23 @@ SENSITIVITIES: tuple[str, ...] = (PUBLIC, DIAGNOSTIC, CLIENT)
 TRANSITIONS: dict[str, frozenset[str]] = {
     DRAFT: frozenset({AUTO_VALIDATED, SME_REVIEW_REQUIRED, SYSTEM_VALIDATED,
                       REJECTED, RETIRED}),
-    AUTO_VALIDATED: frozenset({SME_REVIEW_REQUIRED, APPROVED, SYSTEM_VALIDATED,
-                               REJECTED, STALE, RETIRED, DRAFT}),
-    SME_REVIEW_REQUIRED: frozenset({APPROVED, REJECTED, DRAFT, STALE,
-                                    RETIRED}),
-    APPROVED: frozenset({STALE, SME_REVIEW_REQUIRED, RETIRED}),
+    AUTO_VALIDATED: frozenset({SME_REVIEW_REQUIRED, HUMAN_REVIEWED, APPROVED,
+                               SYSTEM_VALIDATED, REJECTED, STALE, RETIRED,
+                               DRAFT}),
+    SME_REVIEW_REQUIRED: frozenset({HUMAN_REVIEWED, APPROVED, REJECTED, DRAFT,
+                                    STALE, RETIRED}),
+    #: A reviewer who has read a case may sign for it, refuse it, send it
+    #: back for changes, or retire it. They may not leave it retrievable by
+    #: having read it, which is why there is no edge to production from here
+    #: other than APPROVED.
+    HUMAN_REVIEWED: frozenset({APPROVED, REJECTED, DRAFT, SME_REVIEW_REQUIRED,
+                               STALE, RETIRED}),
+    APPROVED: frozenset({STALE, SME_REVIEW_REQUIRED, HUMAN_REVIEWED,
+                         RETIRED}),
     SYSTEM_VALIDATED: frozenset({STALE, SME_REVIEW_REQUIRED, RETIRED}),
     REJECTED: frozenset({DRAFT, RETIRED}),
-    STALE: frozenset({DRAFT, AUTO_VALIDATED, SME_REVIEW_REQUIRED, RETIRED}),
+    STALE: frozenset({DRAFT, AUTO_VALIDATED, SME_REVIEW_REQUIRED,
+                      HUMAN_REVIEWED, RETIRED}),
     RETIRED: frozenset(),
 }
 
@@ -323,6 +378,8 @@ __all__ = [
     "CERTIFIED_METHOD", "GENERATED",
     "CLIENT", "DERIVED", "DIAGNOSTIC", "DIAGNOSTIC_DATASET", "DRAFT",
     "ENGINE_CONTRACT", "HUMAN", "LLM_GENERATED", "MACHINE_AUTHORED",
+    "HUMAN_APPROVED", "HUMAN_REVIEWED", "STATUS_MEANS",
+    "SYSTEM_REFERENCE_VALIDATED",
     "MIGRATED", "PUBLIC", "REJECTED", "RETIRED", "RETRIEVABLE",
     "REVIEWED_FAILURE", "REVIEWED_TEST", "SEMANTIC_CONTRACT", "SENSITIVITIES",
     "SME_REVIEW_REQUIRED", "STALE", "STALENESS_AXES", "STATUSES",
