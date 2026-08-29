@@ -37,6 +37,7 @@ from backend.api.routers import hierarchy as hierarchy_router
 from backend.api.routers import intelligence as intelligence_router
 from backend.api.routers import lenses as lenses_router
 from backend.api.routers import playbooks as playbooks_router
+from backend.api.routers import regulatory as regulatory_router
 from backend.api.routers import studio as studio_router
 from backend.api.routers import users as users_router
 from backend.api.routers import validation as validation_router
@@ -191,6 +192,9 @@ def create_app() -> FastAPI:
     # is open to every signed-in role. Reading the queue and
     # adjudicating are not.
     app.include_router(feedback_router.router, prefix=API_PREFIX)
+    app.include_router(regulatory_router.router, prefix=API_PREFIX)
+    app.include_router(regulatory_router.corpus_router,
+                       prefix=API_PREFIX)
     app.include_router(hierarchy_router.projects_router, prefix=API_PREFIX)
     app.include_router(hierarchy_router.threads_router, prefix=API_PREFIX)
     app.include_router(hierarchy_router.analyses_router, prefix=API_PREFIX)

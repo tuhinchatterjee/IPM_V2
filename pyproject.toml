@@ -49,6 +49,12 @@ dependencies = [
     # DuckDB queries the Parquet analytics layer. Imported ONLY by
     # backend/data_access/duckdb_source.py — see docs/ARCHITECTURE.md §3.
     "duckdb==1.5.5",
+    # ---- Part G: regulatory circular ingestion ----
+    # pypdf reads page text and page counts out of a circular PDF. Pure Python
+    # and no system libraries, so the image builds the same way everywhere. A
+    # scanned page yields no text and is marked NEEDS_OCR rather than stored
+    # as empty — backend/regulatory/extract.py refuses to pretend.
+    "pypdf==6.4.0",
 ]
 
 [dependency-groups]

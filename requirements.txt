@@ -47,3 +47,11 @@ pydantic-settings==2.15.0
 duckdb==1.5.5
 # FastAPI's TestClient needs httpx at runtime of the test suite.
 httpx==0.28.1
+
+# ---- Part G: regulatory circular ingestion ----
+# pypdf reads the page text and the page count out of a circular PDF. Pure
+# Python and no system libraries, which matters because the Docker image has
+# to build the same way on a laptop and on a bank's runner. Scanned pages
+# produce no extractable text and are marked NEEDS_OCR rather than stored as
+# empty — see backend/regulatory/extract.py, which refuses to pretend.
+pypdf==6.4.0

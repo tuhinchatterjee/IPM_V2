@@ -2970,3 +2970,165 @@ class AssuranceRecord(Base):
               "created_at"),
         Index("ix_assurance_answer", "answer_id"),
     )
+
+
+class RegulatoryDocument(Base):
+    """A circular, its metadata and everything read out of it. Part G.
+
+    Same split as `TeachingCase`, for the same reason. The columns are what
+    retrieval filters on — regulator, reference, the effective window, status,
+    confidentiality, tenant — and the pages, sections and extraction detail
+    live in ``body``, which is the document's own ``to_dict()``. The ORIGINAL
+    is not here at all: it is on disk under its hash, because a rulebook is
+    tens of megabytes, is read whole or not at all, and would bloat every
+    backup to no purpose.
+
+    ``content_hash`` is the anchor. It is unique per tenant, so a bulk upload
+    that includes the same circular twice ends with one document and not two,
+    and every citation resolves through it: a reader who wants to check a
+    quoted obligation can be handed the bytes it was taken from and can prove
+    they are the bytes that were uploaded.
+
+    Nothing here is approved by being written. A row arrives UPLOADED, becomes
+    EXTRACTED, and reaches APPROVED only through a named SME and an activated
+    Regulatory Knowledge Release.
+    """
+
+    __tablename__ = "regulatory_documents"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    circular_id: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    # ---- what the regulator called it --------------------------------------
+    title: Mapped[str] = mapped_column(String(400), nullable=False, default="")
+    regulator: Mapped[str] = mapped_column(String(120), nullable=False,
+                                           default="")
+    reference: Mapped[str] = mapped_column(String(120), nullable=False,
+                                           default="")
+    jurisdiction: Mapped[str] = mapped_column(String(64), nullable=False,
+                                              default="")
+    language: Mapped[str] = mapped_column(String(8), nullable=False,
+                                          default="en")
+
+    # ---- when it applies ---------------------------------------------------
+    #: Dates as ISO strings rather than DATE columns. The window is compared
+    #: as a whole and never arithmetic'd, ISO strings sort correctly, and a
+    #: circular with no effective date has to be storable so it can be
+    #: reported as unusable rather than rejected at the door.
+    issued_on: Mapped[str] = mapped_column(String(10), nullable=False,
+                                           default="")
+    effective_on: Mapped[str] = mapped_column(String(10), nullable=False,
+                                              default="")
+    expires_on: Mapped[str] = mapped_column(String(10), nullable=False,
+                                            default="")
+
+    # ---- the original ------------------------------------------------------
+    file_format: Mapped[str] = mapped_column(String(8), nullable=False,
+                                             default="")
+    filename: Mapped[str] = mapped_column(String(240), nullable=False,
+                                          default="")
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False,
+                                              default="")
+    byte_size: Mapped[int] = mapped_column(BigInteger, nullable=False,
+                                           default=0)
+    page_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # ---- governance --------------------------------------------------------
+    status: Mapped[str] = mapped_column(String(32), nullable=False,
+                                        default="UPLOADED")
+    confidentiality: Mapped[str] = mapped_column(String(16), nullable=False,
+                                                 default="RESTRICTED")
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False,
+                                        default="")
+    supersedes: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                             default=list)
+    superseded_by: Mapped[str] = mapped_column(String(120), nullable=False,
+                                               default="")
+
+    #: The whole document contract: pages, sections, rules, extraction notes.
+    body: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: What extraction did, kept beside the document so a re-extraction after
+    #: a library upgrade can be told apart from the first attempt.
+    extraction: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                             default=dict)
+
+    rule_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    approved_rule_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                     default=0)
+
+    uploaded_by: Mapped[str] = mapped_column(String(120), nullable=False,
+                                             default="")
+    notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    schema_version: Mapped[str] = mapped_column(String(16), nullable=False,
+                                                default="1.0.0")
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                 server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+        onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant", "content_hash",
+                         name="uq_regulatory_tenant_hash"),
+        UniqueConstraint("circular_id", name="uq_regulatory_circular_id"),
+        Index("ix_regulatory_reference", "regulator", "reference"),
+        Index("ix_regulatory_effective", "effective_on", "expires_on"),
+        Index("ix_regulatory_status", "status", "tenant"),
+        Index("ix_regulatory_tenant", "tenant", "created_at"),
+    )
+
+
+class RegulatoryRelease(Base):
+    """A frozen set of approved regulatory knowledge. Part G.
+
+    Production uses ONE active release per tenant. An answer records which,
+    so "what regulatory knowledge was this based on?" has an answer that is
+    still true next quarter — rather than "whatever had been approved by the
+    time it ran", which is not one.
+
+    Rollback is activating the previous release. Nothing is deleted, so a
+    rollback is a normal operation and not a recovery.
+    """
+
+    __tablename__ = "regulatory_releases"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    release_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False,
+                                        default="")
+    status: Mapped[str] = mapped_column(String(16), nullable=False,
+                                        default="DRAFT")
+
+    #: circular_id -> approved rule ids, and the hash each was frozen against.
+    contents: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    circular_hashes: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                  default=dict)
+    circular_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                default=0)
+    rule_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    reviewers: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                            default=list)
+    approver: Mapped[str] = mapped_column(String(120), nullable=False,
+                                          default="")
+    created_by: Mapped[str] = mapped_column(String(120), nullable=False,
+                                            default="")
+    #: What this release IS, independent of who made it or when — so a
+    #: rollback is recognisable as a return to a known state.
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+    replaces: Mapped[str] = mapped_column(String(64), nullable=False,
+                                          default="")
+    note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                 server_default=func.now())
+    activated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("release_id", name="uq_regulatory_release_id"),
+        Index("ix_regulatory_release_active", "tenant", "status",
+              "activated_at"),
+    )
