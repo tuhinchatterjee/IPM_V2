@@ -74,6 +74,49 @@ BROKEN_MARKERS: tuple[tuple[str, str], ...] = (
     ("application error", "unhandled client exception"),
 )
 
+#: How many DISCOVERED links to follow, at most.
+#:
+#: Bounded because the first run against a seeded workspace did not finish.
+#: Analysis Studio lists 324 methods, Data Builder 20 datasets, and following
+#: every one of them at 45 seconds of patience each is an afternoon, not a
+#: release gate. The cap is applied to a SORTED list so the sample is the same
+#: every run - a crawl that checked a different random 60 links each time
+#: could not be compared with the last one.
+#:
+#: The number of links found is reported whether or not they were all
+#: followed, so "60 of 412" is visible rather than looking like 60 of 60.
+MAX_DISCOVERED = 60
+
+#: Per-visit patience. Lower than the browser-acceptance harness on purpose:
+#: this crawl visits hundreds of pages and a slow page is itself a finding.
+VISIT_TIMEOUT_MS = 20_000
+SELECTOR_TIMEOUT_MS = 10_000
+
+#: Routes a role is EXPECTED to be refused, and why.
+#:
+#: A 403 here is the product working. `/users` is ADMIN-only in the sidebar,
+#: `/ai-studio` is ADMIN and DATA_STEWARD, and a Viewer is read-only so
+#: executing an analysis is refused wherever they type the address. None of
+#: these is reachable by a link for that role - the crawl types the URL, which
+#: is exactly what a permission check is for.
+#:
+#: Kept as an explicit table rather than "any 403 is fine", because a 403 on a
+#: route a role SHOULD reach is a real defect and would be silently swallowed
+#: by the looser rule. Mirrors `frontend/src/lib/navigation.ts`.
+EXPECTED_REFUSALS: dict[tuple[str, str], str] = {
+    ("ANALYST", "/users"): "Users & Teams is ADMIN-only",
+    ("VIEWER", "/users"): "Users & Teams is ADMIN-only",
+    ("VIEWER", "/ai-studio"): "the AI Studio is ADMIN and DATA_STEWARD",
+    ("VIEWER", "/ai-studio/feedback-learning"):
+        "the AI Studio is ADMIN and DATA_STEWARD",
+    ("ANALYST", "/agent-operations"):
+        "Agent Operations is ADMIN and DATA_STEWARD",
+    ("VIEWER", "/agent-operations"):
+        "Agent Operations is ADMIN and DATA_STEWARD",
+    ("VIEWER", "/studio/approaching_sicr"):
+        "a Viewer is read-only and may not execute an analysis",
+}
+
 #: Console lines that are noise rather than a defect. Kept deliberately short:
 #: a long ignore list is how a real error gets ignored.
 CONSOLE_IGNORE: tuple[str, ...] = (
@@ -90,6 +133,12 @@ class Visit:
     ok: bool = False
     reason: str = ""
     console: list[str] = field(default_factory=list)
+    #: Requests the page made that came back >= 400, with their URLs.
+    failed_requests: list[str] = field(default_factory=list)
+    #: Set when every failure was a 403 on a route this role is meant to be
+    #: refused. The product working, not a defect - and reported separately
+    #: rather than counted as a pass, so it stays visible.
+    refused_as_intended: str = ""
     links: int = 0
     ways_out: int = 0
     source: str = "route"
@@ -97,7 +146,10 @@ class Visit:
     def to_dict(self) -> dict[str, Any]:
         return {"path": self.path, "role": self.role, "status": self.status,
                 "ok": self.ok, "reason": self.reason,
-                "console": self.console[:5], "links": self.links,
+                "console": self.console[:5],
+                "failed_requests": self.failed_requests[:5],
+                "refused_as_intended": self.refused_as_intended,
+                "links": self.links,
                 "ways_out": self.ways_out, "source": self.source}
 
 
@@ -107,10 +159,21 @@ class Report:
     error: str = ""
     visits: list[Visit] = field(default_factory=list)
     resolved: dict[str, str] = field(default_factory=dict)
+    #: Links the crawl found beyond the routes it was told about, and how many
+    #: of them it actually followed. Reported separately so a capped run says
+    #: so rather than looking complete.
+    discovered: int = 0
+    followed: int = 0
 
     @property
     def failures(self) -> list[Visit]:
-        return [v for v in self.visits if not v.ok]
+        """Real defects. A permission refusal the product intends is not one."""
+        return [v for v in self.visits
+                if not v.ok and not v.refused_as_intended]
+
+    @property
+    def refusals(self) -> list[Visit]:
+        return [v for v in self.visits if v.refused_as_intended]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -121,7 +184,12 @@ class Report:
             "visits": [v.to_dict() for v in self.visits],
             "total": len(self.visits),
             "failed": len(self.failures),
-            "passed": len(self.visits) - len(self.failures),
+            "refused_as_intended": len(self.refusals),
+            "passed": len(self.visits) - len(self.failures)
+                      - len(self.refusals),
+            "links_discovered": self.discovered,
+            "links_followed": self.followed,
+            "max_discovered": MAX_DISCOVERED,
         }
 
 
@@ -170,9 +238,16 @@ def dynamic_routes(report: Report) -> list[str]:
     # reported a 404 against the product; the 404 was real and the fault was
     # here. Two different objects are both called "saved" and their routes
     # look alike, which is worth knowing on its own.
-    if thread:
-        report.resolved["saved_investigation"] = thread
-        found.append(f"/investigations/saved/{thread}")
+    #
+    # And the id is taken from the endpoint that route READS - not from the
+    # Investigations list. An Investigation with no stored answer is a thread,
+    # not a saved investigation, and building the route from a thread id tests
+    # the not-found page rather than the feature.
+    saved_thread = _first(_api("/api/v1/workspace/investigations"),
+                          "investigations")
+    if saved_thread:
+        report.resolved["saved_investigation"] = saved_thread
+        found.append(f"/investigations/saved/{saved_thread}")
 
     saved = _first(_api("/api/v1/analyses"), "analyses")
     if saved:
@@ -247,9 +322,27 @@ def _visit(page: Any, path: str, role: str, *, source: str) -> Visit:
     page.on("console",
             lambda m: console.append(f"{m.type}: {m.text}")
             if m.type == "error" else None)
+
+    # The failing REQUEST, not just the console line about it.
+    #
+    # Chromium's console says "Failed to load resource: the server responded
+    # with a status of 404" and does not say WHICH resource, so the first
+    # version of this report named a broken page and gave nobody a way to
+    # find out what was broken on it. The response listener has the URL.
+    failed: list[str] = []
+
+    def _record(response: Any) -> None:
+        try:
+            if response.status >= 400:
+                failed.append(f"{response.status} {response.url}")
+        except Exception:  # noqa: BLE001 - a request that vanished is not news
+            pass
+
+    page.on("response", _record)
     try:
         response = page.goto(f"{FRONTEND}{path}",
-                             wait_until="domcontentloaded", timeout=45_000)
+                             wait_until="domcontentloaded",
+                             timeout=VISIT_TIMEOUT_MS)
     except Exception as e:  # noqa: BLE001
         visit.reason = f"{type(e).__name__}: {str(e)[:140]}"
         return visit
@@ -260,7 +353,7 @@ def _visit(page: Any, path: str, role: str, *, source: str) -> Visit:
         return visit
 
     try:
-        page.wait_for_selector("main", timeout=20_000)
+        page.wait_for_selector("main", timeout=SELECTOR_TIMEOUT_MS)
     except Exception:  # noqa: BLE001
         visit.reason = "no <main> rendered"
 
@@ -286,7 +379,19 @@ def _visit(page: Any, path: str, role: str, *, source: str) -> Visit:
 
     visit.console = [c for c in console
                      if not any(skip in c.lower() for skip in CONSOLE_IGNORE)]
-    if visit.console and not visit.reason:
+    visit.failed_requests = [f for f in failed
+                             if not any(skip in f.lower()
+                                        for skip in CONSOLE_IGNORE)]
+    if visit.failed_requests and not visit.reason:
+        # Name the request. "console error: 404" is unactionable; the URL is
+        # the whole of the finding.
+        expected = EXPECTED_REFUSALS.get((role, path), "")
+        only_403 = all(f.startswith("403 ") for f in visit.failed_requests)
+        if expected and only_403:
+            visit.refused_as_intended = expected
+        else:
+            visit.reason = "; ".join(visit.failed_requests[:2])[:200]
+    elif visit.console and not visit.reason:
         visit.reason = f"console error: {visit.console[0][:140]}"
 
     visit.ok = not visit.reason
@@ -342,7 +447,10 @@ def run(report: Report, *, follow_links: bool = True) -> Report:
         if follow_links:
             # Everything the crawl FOUND that it was not told about. This is
             # where a dead Back link or a stale deep link turns up.
-            extra = sorted(discovered - set(routes))
+            found = sorted(discovered - set(routes))
+            report.discovered = len(found)
+            extra = found[:MAX_DISCOVERED]
+            report.followed = len(extra)
             context = browser.new_context(
                 viewport={"width": 1440, "height": 900},
                 extra_http_headers={"X-IPM-Role": "ADMIN",
@@ -403,6 +511,16 @@ def main(argv: list[str] | None = None) -> int:
     body = report.to_dict()
     print(f"{body['passed']}/{body['total']} visits passed across "
           f"{len(ROLES)} roles.")
+    if body["refused_as_intended"]:
+        print(f"  {body['refused_as_intended']} permission refusal(s), each "
+              f"on a route that role has no link to - the product working")
+        for refusal in report.refusals:
+            print(f"    [{refusal.role:7}] {refusal.path:36} "
+                  f"{refusal.refused_as_intended}")
+    if body["links_discovered"]:
+        print(f"  followed {body['links_followed']} of "
+              f"{body['links_discovered']} discovered link(s) "
+              f"(cap {MAX_DISCOVERED})")
     unresolved = [k for k, v in report.resolved.items() if not v]
     if unresolved:
         print(f"  unresolved ids (those detail routes were NOT crawled): "

@@ -173,7 +173,17 @@ def _investigation(session: Any, owner: Any, project_id: int | None,
         published_globally=published,
         published_at=datetime.now(UTC) if published else None,
         published_by=owner.id if published else None,
-        current_version=1,
+        # Zero, not one. These are conversation THREADS; neither has a stored
+        # answer yet, because the presenter asks the questions live.
+        #
+        # The first version of this seed claimed version 1, and
+        # `investigations.load()` correctly refuses an Investigation that
+        # claims a version it has no stored answer for - so the object listed
+        # happily in /investigations and its saved view returned 404. An
+        # object that appears in a list and 404s on its own detail route is
+        # exactly the broken deep link the route crawl exists to find, and it
+        # found this one.
+        current_version=0,
         message_count=0,
     )
     session.add(row)

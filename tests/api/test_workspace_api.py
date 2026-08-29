@@ -473,8 +473,21 @@ def test_a_team_receives_work_and_its_members_are_told(client, crowd):
             team = Team(name="wf_credit_review")
             session.add(team)
             session.flush()
-            session.add(TeamMember(team_id=team.id, user_id=second))
         team_id = team.id
+        # Membership is ensured whether or not the team already existed.
+        #
+        # It used to be added only when the team was CREATED, and this test
+        # then passed only on a database where the team and the user had been
+        # created in the same run. The `crowd` fixture recreates a missing
+        # user with a NEW id, so on a database where the team survived and the
+        # user did not, the membership row pointed at a deleted user and the
+        # notification reached nobody. That is exactly the shared-state false
+        # PASS the release-candidate brief asks to be removed - found when a
+        # demo reset removed the test accounts and left the team behind.
+        member = session.query(TeamMember).filter_by(
+            team_id=team_id, user_id=second).first()
+        if member is None:
+            session.add(TeamMember(team_id=team_id, user_id=second))
         session.commit()
 
     item = client.post(

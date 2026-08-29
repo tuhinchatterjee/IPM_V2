@@ -419,7 +419,23 @@ def listing(*, project_id: int | None = None, owner_id: int | None = None,
     from backend.models.platform import Investigation, InvestigationVersion
 
     with get_session() as session:
-        query = select(Investigation).order_by(Investigation.updated_at.desc()).limit(limit)
+        # SAVED investigations - the ones with a stored answer.
+        #
+        # This listed every Investigation, including threads that have never
+        # been answered, while `load()` on the same id raised NotFound because
+        # there was no stored version. A list and its own detail route
+        # disagreeing about what an object is produces the worst kind of
+        # broken link: one the user reaches from a page that just told them it
+        # existed. Found by the release-candidate route crawl.
+        query = (
+            select(Investigation)
+            .where(
+                select(InvestigationVersion.id)
+                .where(InvestigationVersion.investigation_id == Investigation.id)
+                .exists()
+            )
+            .order_by(Investigation.updated_at.desc())
+            .limit(limit))
         if project_id is not None:
             query = query.where(Investigation.project_id == project_id)
         if owner_id is not None:

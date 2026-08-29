@@ -1,5 +1,5 @@
 {
-  "started": "2026-08-29T13:20:09+0000",
+  "started": "2026-08-29T15:13:14+0000",
   "viewports": [
     {
       "name": "desktop",
@@ -58,7 +58,7 @@
       "viewport": "desktop",
       "check": "navigable",
       "ok": true,
-      "detail": "32 way(s) out"
+      "detail": "31 way(s) out"
     },
     {
       "screen": "/",
@@ -104,61 +104,61 @@
     },
     {
       "screen": "/investigations",
+      "viewport": "desktop",
+      "check": "navigable",
+      "ok": true,
+      "detail": "22 way(s) out"
+    },
+    {
+      "screen": "/investigations",
+      "viewport": "desktop",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/investigations",
+      "viewport": "desktop",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/investigations",
+      "viewport": "desktop",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/projects",
+      "viewport": "desktop",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/projects",
+      "viewport": "desktop",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/projects",
+      "viewport": "desktop",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/projects",
       "viewport": "desktop",
       "check": "navigable",
       "ok": true,
       "detail": "23 way(s) out"
     },
     {
-      "screen": "/investigations",
-      "viewport": "desktop",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/investigations",
-      "viewport": "desktop",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/investigations",
-      "viewport": "desktop",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/projects",
-      "viewport": "desktop",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/projects",
-      "viewport": "desktop",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/projects",
-      "viewport": "desktop",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/projects",
-      "viewport": "desktop",
-      "check": "navigable",
-      "ok": true,
-      "detail": "24 way(s) out"
-    },
-    {
       "screen": "/projects",
       "viewport": "desktop",
       "check": "no accuracy label",
@@ -205,7 +205,7 @@
       "viewport": "desktop",
       "check": "navigable",
       "ok": true,
-      "detail": "38 way(s) out"
+      "detail": "37 way(s) out"
     },
     {
       "screen": "/ai-studio",
@@ -254,7 +254,7 @@
       "viewport": "desktop",
       "check": "navigable",
       "ok": true,
-      "detail": "29 way(s) out"
+      "detail": "28 way(s) out"
     },
     {
       "screen": "/agent-operations",
@@ -352,499 +352,499 @@
       "viewport": "desktop",
       "check": "navigable",
       "ok": true,
-      "detail": "24 way(s) out"
-    },
-    {
-      "screen": "/studio",
-      "viewport": "desktop",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/studio",
-      "viewport": "desktop",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/studio",
-      "viewport": "desktop",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "desktop",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "desktop",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "desktop",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "desktop",
-      "check": "navigable",
-      "ok": true,
-      "detail": "223 way(s) out"
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "desktop",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "desktop",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "desktop",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/trace",
-      "viewport": "desktop",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/trace",
-      "viewport": "desktop",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/trace",
-      "viewport": "desktop",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/trace",
-      "viewport": "desktop",
-      "check": "navigable",
-      "ok": true,
       "detail": "23 way(s) out"
     },
     {
-      "screen": "/trace",
+      "screen": "/studio",
       "viewport": "desktop",
       "check": "no accuracy label",
       "ok": true,
       "detail": ""
     },
     {
-      "screen": "/trace",
+      "screen": "/studio",
       "viewport": "desktop",
       "check": "no fake progress",
       "ok": true,
       "detail": ""
     },
     {
-      "screen": "/trace",
+      "screen": "/studio",
       "viewport": "desktop",
       "check": "reduced motion respected",
       "ok": true,
       "detail": "0 element(s) animating indefinitely"
     },
     {
-      "screen": "/workflow",
+      "screen": "/analyses",
       "viewport": "desktop",
       "check": "loads",
       "ok": true,
       "detail": "HTTP 200"
     },
     {
-      "screen": "/workflow",
+      "screen": "/analyses",
       "viewport": "desktop",
       "check": "renders",
       "ok": true,
       "detail": ""
     },
     {
-      "screen": "/workflow",
+      "screen": "/analyses",
       "viewport": "desktop",
       "check": "no horizontal overflow",
       "ok": true,
       "detail": "-15px beyond the viewport"
     },
     {
-      "screen": "/workflow",
-      "viewport": "desktop",
-      "check": "navigable",
-      "ok": true,
-      "detail": "28 way(s) out"
-    },
-    {
-      "screen": "/workflow",
-      "viewport": "desktop",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/workflow",
-      "viewport": "desktop",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/workflow",
-      "viewport": "desktop",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/settings",
-      "viewport": "desktop",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/settings",
-      "viewport": "desktop",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/settings",
-      "viewport": "desktop",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/settings",
+      "screen": "/analyses",
       "viewport": "desktop",
       "check": "navigable",
       "ok": true,
       "detail": "31 way(s) out"
     },
     {
-      "screen": "/settings",
+      "screen": "/analyses",
       "viewport": "desktop",
       "check": "no accuracy label",
       "ok": true,
       "detail": ""
     },
     {
-      "screen": "/settings",
+      "screen": "/analyses",
       "viewport": "desktop",
       "check": "no fake progress",
       "ok": true,
       "detail": ""
     },
     {
-      "screen": "/settings",
+      "screen": "/analyses",
       "viewport": "desktop",
       "check": "reduced motion respected",
       "ok": true,
       "detail": "0 element(s) animating indefinitely"
     },
     {
-      "screen": "/ai-studio/feedback-learning",
+      "screen": "/trace",
       "viewport": "desktop",
       "check": "loads",
       "ok": true,
       "detail": "HTTP 200"
     },
     {
-      "screen": "/ai-studio/feedback-learning",
+      "screen": "/trace",
       "viewport": "desktop",
       "check": "renders",
       "ok": true,
       "detail": ""
     },
     {
-      "screen": "/ai-studio/feedback-learning",
+      "screen": "/trace",
       "viewport": "desktop",
       "check": "no horizontal overflow",
       "ok": true,
       "detail": "-15px beyond the viewport"
     },
     {
-      "screen": "/ai-studio/feedback-learning",
+      "screen": "/trace",
+      "viewport": "desktop",
+      "check": "navigable",
+      "ok": true,
+      "detail": "22 way(s) out"
+    },
+    {
+      "screen": "/trace",
+      "viewport": "desktop",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/trace",
+      "viewport": "desktop",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/trace",
+      "viewport": "desktop",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/workflow",
+      "viewport": "desktop",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/workflow",
+      "viewport": "desktop",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/workflow",
+      "viewport": "desktop",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/workflow",
+      "viewport": "desktop",
+      "check": "navigable",
+      "ok": true,
+      "detail": "27 way(s) out"
+    },
+    {
+      "screen": "/workflow",
+      "viewport": "desktop",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/workflow",
+      "viewport": "desktop",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/workflow",
+      "viewport": "desktop",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/settings",
+      "viewport": "desktop",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/settings",
+      "viewport": "desktop",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/settings",
+      "viewport": "desktop",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/settings",
       "viewport": "desktop",
       "check": "navigable",
       "ok": true,
       "detail": "30 way(s) out"
     },
     {
-      "screen": "/ai-studio/feedback-learning",
+      "screen": "/settings",
       "viewport": "desktop",
       "check": "no accuracy label",
       "ok": true,
       "detail": ""
     },
     {
-      "screen": "/ai-studio/feedback-learning",
+      "screen": "/settings",
       "viewport": "desktop",
       "check": "no fake progress",
       "ok": true,
       "detail": ""
     },
     {
-      "screen": "/ai-studio/feedback-learning",
+      "screen": "/settings",
       "viewport": "desktop",
       "check": "reduced motion respected",
       "ok": true,
       "detail": "0 element(s) animating indefinitely"
     },
     {
-      "screen": "/",
-      "viewport": "laptop",
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "desktop",
       "check": "loads",
       "ok": true,
       "detail": "HTTP 200"
     },
     {
-      "screen": "/",
-      "viewport": "laptop",
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "desktop",
       "check": "renders",
       "ok": true,
       "detail": ""
     },
     {
-      "screen": "/",
-      "viewport": "laptop",
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "desktop",
       "check": "no horizontal overflow",
       "ok": true,
       "detail": "-15px beyond the viewport"
     },
     {
-      "screen": "/",
-      "viewport": "laptop",
-      "check": "navigable",
-      "ok": true,
-      "detail": "32 way(s) out"
-    },
-    {
-      "screen": "/",
-      "viewport": "laptop",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/",
-      "viewport": "laptop",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/",
-      "viewport": "laptop",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/investigations",
-      "viewport": "laptop",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/investigations",
-      "viewport": "laptop",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/investigations",
-      "viewport": "laptop",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/investigations",
-      "viewport": "laptop",
-      "check": "navigable",
-      "ok": true,
-      "detail": "23 way(s) out"
-    },
-    {
-      "screen": "/investigations",
-      "viewport": "laptop",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/investigations",
-      "viewport": "laptop",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/investigations",
-      "viewport": "laptop",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/projects",
-      "viewport": "laptop",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/projects",
-      "viewport": "laptop",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/projects",
-      "viewport": "laptop",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/projects",
-      "viewport": "laptop",
-      "check": "navigable",
-      "ok": true,
-      "detail": "24 way(s) out"
-    },
-    {
-      "screen": "/projects",
-      "viewport": "laptop",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/projects",
-      "viewport": "laptop",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/projects",
-      "viewport": "laptop",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/ai-studio",
-      "viewport": "laptop",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/ai-studio",
-      "viewport": "laptop",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/ai-studio",
-      "viewport": "laptop",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/ai-studio",
-      "viewport": "laptop",
-      "check": "navigable",
-      "ok": true,
-      "detail": "23 way(s) out"
-    },
-    {
-      "screen": "/ai-studio",
-      "viewport": "laptop",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/ai-studio",
-      "viewport": "laptop",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/ai-studio",
-      "viewport": "laptop",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/agent-operations",
-      "viewport": "laptop",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/agent-operations",
-      "viewport": "laptop",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/agent-operations",
-      "viewport": "laptop",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/agent-operations",
-      "viewport": "laptop",
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "desktop",
       "check": "navigable",
       "ok": true,
       "detail": "29 way(s) out"
     },
     {
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "desktop",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "desktop",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "desktop",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/",
+      "viewport": "laptop",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/",
+      "viewport": "laptop",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/",
+      "viewport": "laptop",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/",
+      "viewport": "laptop",
+      "check": "navigable",
+      "ok": true,
+      "detail": "31 way(s) out"
+    },
+    {
+      "screen": "/",
+      "viewport": "laptop",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/",
+      "viewport": "laptop",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/",
+      "viewport": "laptop",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/investigations",
+      "viewport": "laptop",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/investigations",
+      "viewport": "laptop",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/investigations",
+      "viewport": "laptop",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/investigations",
+      "viewport": "laptop",
+      "check": "navigable",
+      "ok": true,
+      "detail": "23 way(s) out"
+    },
+    {
+      "screen": "/investigations",
+      "viewport": "laptop",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/investigations",
+      "viewport": "laptop",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/investigations",
+      "viewport": "laptop",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/projects",
+      "viewport": "laptop",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/projects",
+      "viewport": "laptop",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/projects",
+      "viewport": "laptop",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/projects",
+      "viewport": "laptop",
+      "check": "navigable",
+      "ok": true,
+      "detail": "23 way(s) out"
+    },
+    {
+      "screen": "/projects",
+      "viewport": "laptop",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/projects",
+      "viewport": "laptop",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/projects",
+      "viewport": "laptop",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/ai-studio",
+      "viewport": "laptop",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/ai-studio",
+      "viewport": "laptop",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/ai-studio",
+      "viewport": "laptop",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/ai-studio",
+      "viewport": "laptop",
+      "check": "navigable",
+      "ok": true,
+      "detail": "22 way(s) out"
+    },
+    {
+      "screen": "/ai-studio",
+      "viewport": "laptop",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/ai-studio",
+      "viewport": "laptop",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/ai-studio",
+      "viewport": "laptop",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/agent-operations",
+      "viewport": "laptop",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/agent-operations",
+      "viewport": "laptop",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/agent-operations",
+      "viewport": "laptop",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/agent-operations",
+      "viewport": "laptop",
+      "check": "navigable",
+      "ok": true,
+      "detail": "28 way(s) out"
+    },
+    {
       "screen": "/agent-operations",
       "viewport": "laptop",
       "check": "no accuracy label",
@@ -888,208 +888,208 @@
     },
     {
       "screen": "/data-builder",
+      "viewport": "laptop",
+      "check": "navigable",
+      "ok": true,
+      "detail": "26 way(s) out"
+    },
+    {
+      "screen": "/data-builder",
+      "viewport": "laptop",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/data-builder",
+      "viewport": "laptop",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/data-builder",
+      "viewport": "laptop",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/studio",
+      "viewport": "laptop",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/studio",
+      "viewport": "laptop",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/studio",
+      "viewport": "laptop",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/studio",
+      "viewport": "laptop",
+      "check": "navigable",
+      "ok": true,
+      "detail": "23 way(s) out"
+    },
+    {
+      "screen": "/studio",
+      "viewport": "laptop",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/studio",
+      "viewport": "laptop",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/studio",
+      "viewport": "laptop",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/analyses",
+      "viewport": "laptop",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/analyses",
+      "viewport": "laptop",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/analyses",
+      "viewport": "laptop",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/analyses",
+      "viewport": "laptop",
+      "check": "navigable",
+      "ok": true,
+      "detail": "22 way(s) out"
+    },
+    {
+      "screen": "/analyses",
+      "viewport": "laptop",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/analyses",
+      "viewport": "laptop",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/analyses",
+      "viewport": "laptop",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/trace",
+      "viewport": "laptop",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/trace",
+      "viewport": "laptop",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/trace",
+      "viewport": "laptop",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/trace",
+      "viewport": "laptop",
+      "check": "navigable",
+      "ok": true,
+      "detail": "22 way(s) out"
+    },
+    {
+      "screen": "/trace",
+      "viewport": "laptop",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/trace",
+      "viewport": "laptop",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/trace",
+      "viewport": "laptop",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/workflow",
+      "viewport": "laptop",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/workflow",
+      "viewport": "laptop",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/workflow",
+      "viewport": "laptop",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/workflow",
       "viewport": "laptop",
       "check": "navigable",
       "ok": true,
       "detail": "27 way(s) out"
     },
     {
-      "screen": "/data-builder",
-      "viewport": "laptop",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/data-builder",
-      "viewport": "laptop",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/data-builder",
-      "viewport": "laptop",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/studio",
-      "viewport": "laptop",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/studio",
-      "viewport": "laptop",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/studio",
-      "viewport": "laptop",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/studio",
-      "viewport": "laptop",
-      "check": "navigable",
-      "ok": true,
-      "detail": "24 way(s) out"
-    },
-    {
-      "screen": "/studio",
-      "viewport": "laptop",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/studio",
-      "viewport": "laptop",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/studio",
-      "viewport": "laptop",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "laptop",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "laptop",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "laptop",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "laptop",
-      "check": "navigable",
-      "ok": true,
-      "detail": "23 way(s) out"
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "laptop",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "laptop",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "laptop",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/trace",
-      "viewport": "laptop",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/trace",
-      "viewport": "laptop",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/trace",
-      "viewport": "laptop",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/trace",
-      "viewport": "laptop",
-      "check": "navigable",
-      "ok": true,
-      "detail": "23 way(s) out"
-    },
-    {
-      "screen": "/trace",
-      "viewport": "laptop",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/trace",
-      "viewport": "laptop",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/trace",
-      "viewport": "laptop",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/workflow",
-      "viewport": "laptop",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/workflow",
-      "viewport": "laptop",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/workflow",
-      "viewport": "laptop",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/workflow",
-      "viewport": "laptop",
-      "check": "navigable",
-      "ok": true,
-      "detail": "28 way(s) out"
-    },
-    {
       "screen": "/workflow",
       "viewport": "laptop",
       "check": "no accuracy label",
@@ -1133,306 +1133,306 @@
     },
     {
       "screen": "/settings",
-      "viewport": "laptop",
-      "check": "navigable",
-      "ok": true,
-      "detail": "31 way(s) out"
-    },
-    {
-      "screen": "/settings",
-      "viewport": "laptop",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/settings",
-      "viewport": "laptop",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/settings",
-      "viewport": "laptop",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/ai-studio/feedback-learning",
-      "viewport": "laptop",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/ai-studio/feedback-learning",
-      "viewport": "laptop",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/ai-studio/feedback-learning",
-      "viewport": "laptop",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/ai-studio/feedback-learning",
       "viewport": "laptop",
       "check": "navigable",
       "ok": true,
       "detail": "30 way(s) out"
     },
     {
-      "screen": "/ai-studio/feedback-learning",
+      "screen": "/settings",
       "viewport": "laptop",
       "check": "no accuracy label",
       "ok": true,
       "detail": ""
     },
     {
-      "screen": "/ai-studio/feedback-learning",
+      "screen": "/settings",
       "viewport": "laptop",
       "check": "no fake progress",
       "ok": true,
       "detail": ""
     },
     {
-      "screen": "/ai-studio/feedback-learning",
+      "screen": "/settings",
       "viewport": "laptop",
       "check": "reduced motion respected",
       "ok": true,
       "detail": "0 element(s) animating indefinitely"
     },
     {
-      "screen": "/",
-      "viewport": "tablet",
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "laptop",
       "check": "loads",
       "ok": true,
       "detail": "HTTP 200"
     },
     {
-      "screen": "/",
-      "viewport": "tablet",
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "laptop",
       "check": "renders",
       "ok": true,
       "detail": ""
     },
     {
-      "screen": "/",
-      "viewport": "tablet",
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "laptop",
       "check": "no horizontal overflow",
       "ok": true,
       "detail": "-15px beyond the viewport"
     },
     {
-      "screen": "/",
-      "viewport": "tablet",
-      "check": "navigable",
-      "ok": true,
-      "detail": "32 way(s) out"
-    },
-    {
-      "screen": "/",
-      "viewport": "tablet",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/",
-      "viewport": "tablet",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/",
-      "viewport": "tablet",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/investigations",
-      "viewport": "tablet",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/investigations",
-      "viewport": "tablet",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/investigations",
-      "viewport": "tablet",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/investigations",
-      "viewport": "tablet",
-      "check": "navigable",
-      "ok": true,
-      "detail": "23 way(s) out"
-    },
-    {
-      "screen": "/investigations",
-      "viewport": "tablet",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/investigations",
-      "viewport": "tablet",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/investigations",
-      "viewport": "tablet",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/projects",
-      "viewport": "tablet",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/projects",
-      "viewport": "tablet",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/projects",
-      "viewport": "tablet",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/projects",
-      "viewport": "tablet",
-      "check": "navigable",
-      "ok": true,
-      "detail": "24 way(s) out"
-    },
-    {
-      "screen": "/projects",
-      "viewport": "tablet",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/projects",
-      "viewport": "tablet",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/projects",
-      "viewport": "tablet",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/ai-studio",
-      "viewport": "tablet",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/ai-studio",
-      "viewport": "tablet",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/ai-studio",
-      "viewport": "tablet",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/ai-studio",
-      "viewport": "tablet",
-      "check": "navigable",
-      "ok": true,
-      "detail": "23 way(s) out"
-    },
-    {
-      "screen": "/ai-studio",
-      "viewport": "tablet",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/ai-studio",
-      "viewport": "tablet",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/ai-studio",
-      "viewport": "tablet",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/agent-operations",
-      "viewport": "tablet",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/agent-operations",
-      "viewport": "tablet",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/agent-operations",
-      "viewport": "tablet",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/agent-operations",
-      "viewport": "tablet",
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "laptop",
       "check": "navigable",
       "ok": true,
       "detail": "29 way(s) out"
     },
     {
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "laptop",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "laptop",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "laptop",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/",
+      "viewport": "tablet",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/",
+      "viewport": "tablet",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/",
+      "viewport": "tablet",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/",
+      "viewport": "tablet",
+      "check": "navigable",
+      "ok": true,
+      "detail": "31 way(s) out"
+    },
+    {
+      "screen": "/",
+      "viewport": "tablet",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/",
+      "viewport": "tablet",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/",
+      "viewport": "tablet",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/investigations",
+      "viewport": "tablet",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/investigations",
+      "viewport": "tablet",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/investigations",
+      "viewport": "tablet",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/investigations",
+      "viewport": "tablet",
+      "check": "navigable",
+      "ok": true,
+      "detail": "23 way(s) out"
+    },
+    {
+      "screen": "/investigations",
+      "viewport": "tablet",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/investigations",
+      "viewport": "tablet",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/investigations",
+      "viewport": "tablet",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/projects",
+      "viewport": "tablet",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/projects",
+      "viewport": "tablet",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/projects",
+      "viewport": "tablet",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/projects",
+      "viewport": "tablet",
+      "check": "navigable",
+      "ok": true,
+      "detail": "23 way(s) out"
+    },
+    {
+      "screen": "/projects",
+      "viewport": "tablet",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/projects",
+      "viewport": "tablet",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/projects",
+      "viewport": "tablet",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/ai-studio",
+      "viewport": "tablet",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/ai-studio",
+      "viewport": "tablet",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/ai-studio",
+      "viewport": "tablet",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/ai-studio",
+      "viewport": "tablet",
+      "check": "navigable",
+      "ok": true,
+      "detail": "22 way(s) out"
+    },
+    {
+      "screen": "/ai-studio",
+      "viewport": "tablet",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/ai-studio",
+      "viewport": "tablet",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/ai-studio",
+      "viewport": "tablet",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/agent-operations",
+      "viewport": "tablet",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/agent-operations",
+      "viewport": "tablet",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/agent-operations",
+      "viewport": "tablet",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/agent-operations",
+      "viewport": "tablet",
+      "check": "navigable",
+      "ok": true,
+      "detail": "28 way(s) out"
+    },
+    {
       "screen": "/agent-operations",
       "viewport": "tablet",
       "check": "no accuracy label",
@@ -1476,208 +1476,208 @@
     },
     {
       "screen": "/data-builder",
+      "viewport": "tablet",
+      "check": "navigable",
+      "ok": true,
+      "detail": "26 way(s) out"
+    },
+    {
+      "screen": "/data-builder",
+      "viewport": "tablet",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/data-builder",
+      "viewport": "tablet",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/data-builder",
+      "viewport": "tablet",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/studio",
+      "viewport": "tablet",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/studio",
+      "viewport": "tablet",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/studio",
+      "viewport": "tablet",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/studio",
+      "viewport": "tablet",
+      "check": "navigable",
+      "ok": true,
+      "detail": "23 way(s) out"
+    },
+    {
+      "screen": "/studio",
+      "viewport": "tablet",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/studio",
+      "viewport": "tablet",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/studio",
+      "viewport": "tablet",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/analyses",
+      "viewport": "tablet",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/analyses",
+      "viewport": "tablet",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/analyses",
+      "viewport": "tablet",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/analyses",
+      "viewport": "tablet",
+      "check": "navigable",
+      "ok": true,
+      "detail": "22 way(s) out"
+    },
+    {
+      "screen": "/analyses",
+      "viewport": "tablet",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/analyses",
+      "viewport": "tablet",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/analyses",
+      "viewport": "tablet",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/trace",
+      "viewport": "tablet",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/trace",
+      "viewport": "tablet",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/trace",
+      "viewport": "tablet",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/trace",
+      "viewport": "tablet",
+      "check": "navigable",
+      "ok": true,
+      "detail": "22 way(s) out"
+    },
+    {
+      "screen": "/trace",
+      "viewport": "tablet",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/trace",
+      "viewport": "tablet",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/trace",
+      "viewport": "tablet",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/workflow",
+      "viewport": "tablet",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/workflow",
+      "viewport": "tablet",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/workflow",
+      "viewport": "tablet",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/workflow",
       "viewport": "tablet",
       "check": "navigable",
       "ok": true,
       "detail": "27 way(s) out"
     },
     {
-      "screen": "/data-builder",
-      "viewport": "tablet",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/data-builder",
-      "viewport": "tablet",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/data-builder",
-      "viewport": "tablet",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/studio",
-      "viewport": "tablet",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/studio",
-      "viewport": "tablet",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/studio",
-      "viewport": "tablet",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/studio",
-      "viewport": "tablet",
-      "check": "navigable",
-      "ok": true,
-      "detail": "24 way(s) out"
-    },
-    {
-      "screen": "/studio",
-      "viewport": "tablet",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/studio",
-      "viewport": "tablet",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/studio",
-      "viewport": "tablet",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "tablet",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "tablet",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "tablet",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "tablet",
-      "check": "navigable",
-      "ok": true,
-      "detail": "23 way(s) out"
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "tablet",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "tablet",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/analyses",
-      "viewport": "tablet",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/trace",
-      "viewport": "tablet",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/trace",
-      "viewport": "tablet",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/trace",
-      "viewport": "tablet",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/trace",
-      "viewport": "tablet",
-      "check": "navigable",
-      "ok": true,
-      "detail": "23 way(s) out"
-    },
-    {
-      "screen": "/trace",
-      "viewport": "tablet",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/trace",
-      "viewport": "tablet",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/trace",
-      "viewport": "tablet",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/workflow",
-      "viewport": "tablet",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/workflow",
-      "viewport": "tablet",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/workflow",
-      "viewport": "tablet",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/workflow",
-      "viewport": "tablet",
-      "check": "navigable",
-      "ok": true,
-      "detail": "28 way(s) out"
-    },
-    {
       "screen": "/workflow",
       "viewport": "tablet",
       "check": "no accuracy label",
@@ -1721,59 +1721,59 @@
     },
     {
       "screen": "/settings",
-      "viewport": "tablet",
-      "check": "navigable",
-      "ok": true,
-      "detail": "31 way(s) out"
-    },
-    {
-      "screen": "/settings",
-      "viewport": "tablet",
-      "check": "no accuracy label",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/settings",
-      "viewport": "tablet",
-      "check": "no fake progress",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/settings",
-      "viewport": "tablet",
-      "check": "reduced motion respected",
-      "ok": true,
-      "detail": "0 element(s) animating indefinitely"
-    },
-    {
-      "screen": "/ai-studio/feedback-learning",
-      "viewport": "tablet",
-      "check": "loads",
-      "ok": true,
-      "detail": "HTTP 200"
-    },
-    {
-      "screen": "/ai-studio/feedback-learning",
-      "viewport": "tablet",
-      "check": "renders",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "screen": "/ai-studio/feedback-learning",
-      "viewport": "tablet",
-      "check": "no horizontal overflow",
-      "ok": true,
-      "detail": "-15px beyond the viewport"
-    },
-    {
-      "screen": "/ai-studio/feedback-learning",
       "viewport": "tablet",
       "check": "navigable",
       "ok": true,
       "detail": "30 way(s) out"
+    },
+    {
+      "screen": "/settings",
+      "viewport": "tablet",
+      "check": "no accuracy label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/settings",
+      "viewport": "tablet",
+      "check": "no fake progress",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/settings",
+      "viewport": "tablet",
+      "check": "reduced motion respected",
+      "ok": true,
+      "detail": "0 element(s) animating indefinitely"
+    },
+    {
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "tablet",
+      "check": "loads",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "tablet",
+      "check": "renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "tablet",
+      "check": "no horizontal overflow",
+      "ok": true,
+      "detail": "-15px beyond the viewport"
+    },
+    {
+      "screen": "/ai-studio/feedback-learning",
+      "viewport": "tablet",
+      "check": "navigable",
+      "ok": true,
+      "detail": "29 way(s) out"
     },
     {
       "screen": "/ai-studio/feedback-learning",

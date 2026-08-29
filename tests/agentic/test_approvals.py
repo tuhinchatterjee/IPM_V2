@@ -199,6 +199,30 @@ def session():
         s.close()
 
 
+@pytest.fixture
+def decider(session):
+    """A real user id to record a decision against.
+
+    `agent_approvals.decided_by` is a foreign key to `users`, and these tests
+    used to pass the literal 7 - which happened to be a user the test suite
+    had created for something else entirely. When a demonstration reset
+    removed that account, three tests started failing with a foreign-key
+    violation, having proved nothing about approvals for as long as they had
+    been passing.
+
+    §33: no shared-state false PASS. This creates the account it needs.
+    """
+    from backend.db.models import User
+
+    found = session.query(User).filter_by(username="approvals_decider").first()
+    if found is None:
+        found = User(username="approvals_decider", role="ADMIN",
+                     password_hash="not-a-login")
+        session.add(found)
+        session.commit()
+    return int(found.id)
+
+
 @db
 def test_an_action_waits_in_the_queue_until_somebody_decides(session):
     row = approvals.open_gate(session, _gate())
@@ -234,37 +258,37 @@ def test_a_role_below_the_gate_cannot_decide_it(session):
 
 
 @db
-def test_approving_records_who_decided_and_when(session):
+def test_approving_records_who_decided_and_when(session, decider):
     row = approvals.open_gate(session, _gate())
-    approvals.decide(session, row, decision=approvals.APPROVED, user_id=7,
+    approvals.decide(session, row, decision=approvals.APPROVED, user_id=decider,
                      role="ADMIN", note="Agreed, send it.")
     session.commit()
     assert approvals.approved(row) is True
-    assert row.decided_by == 7
+    assert row.decided_by == decider
     assert row.decided_at is not None
     assert row.decision_note == "Agreed, send it."
 
 
 @db
-def test_a_gate_cannot_be_decided_twice(session):
+def test_a_gate_cannot_be_decided_twice(session, decider):
     """An approval that could be flipped afterwards is a record of an opinion,
     not of a decision — and the trail would not show which one the action was
     taken under."""
     row = approvals.open_gate(session, _gate())
-    approvals.decide(session, row, decision=approvals.REJECTED, user_id=7,
+    approvals.decide(session, row, decision=approvals.REJECTED, user_id=decider,
                      role="ADMIN")
     session.commit()
     with pytest.raises(approvals.AlreadyDecided):
         approvals.decide(session, row, decision=approvals.APPROVED,
-                         user_id=7, role="ADMIN")
+                         user_id=decider, role="ADMIN")
     assert row.status == approvals.REJECTED
 
 
 @db
-def test_a_rejected_or_changed_gate_does_not_permit_the_action(session):
+def test_a_rejected_or_changed_gate_does_not_permit_the_action(session, decider):
     for decision in (approvals.REJECTED, approvals.CHANGES_REQUESTED):
         row = approvals.open_gate(session, _gate())
-        approvals.decide(session, row, decision=decision, user_id=7,
+        approvals.decide(session, row, decision=decision, user_id=decider,
                          role="ADMIN")
         session.commit()
         assert approvals.approved(row) is False
@@ -281,7 +305,7 @@ def test_a_gate_that_was_never_opened_permits_nothing(session):
 def test_an_invalid_decision_is_refused(session):
     row = approvals.open_gate(session, _gate())
     with pytest.raises(ValueError):
-        approvals.decide(session, row, decision="maybe", user_id=7,
+        approvals.decide(session, row, decision="maybe", user_id=decider,
                          role="ADMIN")
 
 

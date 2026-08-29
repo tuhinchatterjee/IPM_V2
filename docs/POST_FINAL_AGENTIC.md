@@ -1,6 +1,6 @@
 # Agentic baseline
 
-Generated 2026-08-29T13:19:56+0000 · 4.0s · 15 probes
+Generated 2026-08-29T15:16:32+0000 · 4.0s · 15 probes
 
 **No provider call was made.** Every probe runs inside `assert_no_provider_calls`, which makes any attempt to reach a model raise. This is structural, not a promise.
 
@@ -18,8 +18,8 @@ Generated 2026-08-29T13:19:56+0000 · 4.0s · 15 probes
 | Mean specialists per request | 0.67 |
 | Mean tasks per request | 0.67 |
 | Mean model-call estimate per request | 0.0 |
-| Mean latency (ms) | 190 |
-| p95 latency (ms) | 837 |
+| Mean latency (ms) | 187 |
+| p95 latency (ms) | 807 |
 | Requests that executed an analysis % | 33.3 |
 | Invariants passed % (of executed) | 100.0 |
 | Grounded % (where grounding ran) | — |
