@@ -42,6 +42,11 @@ from backend.ai_studio import permissions as pm
 from backend.ai_studio import report as rp
 from backend.ai_studio import tabs as tb
 from backend.api.permissions import Principal, RequireAdmin, RequireAnalyst
+from backend.api.routers.assurance import viewer_for
+from backend.assurance import comparison as acmp
+from backend.assurance import reviews as arv
+from backend.assurance import store as ast
+from backend.assurance import trends as atr
 from backend.orchestration import routing as rt
 from backend.services import review_queue as rq
 from backend.services import teaching_library as tl
@@ -134,6 +139,11 @@ def overview(principal: Principal = RequireAnalyst) -> dict[str, Any]:
             "critical": sorted(fl.CRITICAL),
         },
         "classifiers": cls.report([]),
+        # §201. The six broad dimensions replace the flat top-level component
+        # wall. They sit BELOW the governance numbers rather than above them
+        # for the reason in this function's docstring: a screen that opens
+        # with a score teaches everybody that the score is the thing to read.
+        "dimensions": atr.overview(),
     }
 
 
@@ -837,6 +847,116 @@ def studio_releases_tab(principal: Principal = RequireAnalyst
                             (rl.Manifest(), [], list(rl.FILES)))
     return tb.releases(rl.gate(require_release=False).to_dict(),
                        manifest.to_dict(), list(rl.FILES), missing)
+
+
+@router.get("/investigation-reviews")
+def investigation_reviews(view: str = Query(default=arv.RECENT),
+                          limit: int = Query(default=100, ge=1, le=500),
+                          since: str = Query(default=""),
+                          until: str = Query(default=""),
+                          user_id: int | None = Query(default=None),
+                          project_id: str = Query(default=""),
+                          portfolio_scope: str = Query(default=""),
+                          language: str = Query(default=""),
+                          officer_level: int | None = Query(default=None),
+                          model_route: str = Query(default=""),
+                          teaching_release_id: str = Query(default=""),
+                          overall_status: str = Query(default=""),
+                          dimension: str = Query(default=""),
+                          feedback: str = Query(default=""),
+                          case_family: str = Query(default=""),
+                          principal: Principal = RequireAnalyst
+                          ) -> dict[str, Any]:
+    """§186 and §187. Recent Investigations, and how CreditProbe performed.
+
+    Open to an analyst rather than administrator-only, unlike the rest of the
+    Studio: §207 already limits WHICH Investigations each caller sees, and
+    an analyst who ran an Investigation is entitled to review it. What an
+    analyst does not get is other people's — which the access policy, not
+    this decorator, decides.
+    """
+    viewer = viewer_for(principal)
+    filters = arv.Filters.from_query({
+        "since": since, "until": until, "user_id": user_id,
+        "project_id": project_id, "portfolio_scope": portfolio_scope,
+        "language": language, "officer_level": officer_level,
+        "model_route": model_route,
+        "teaching_release_id": teaching_release_id,
+        "overall_status": overall_status, "dimension": dimension,
+        "feedback": feedback, "case_family": case_family})
+    records = ast.recent(limit=max(limit, 200))
+    listing = arv.build(viewer, view=view, filters=filters, limit=limit,
+                        records=records)
+    payload = listing.to_dict()
+    payload["counts"] = arv.counts(viewer, records=records)
+    return payload
+
+
+@router.get("/studio/investigation-reviews")
+def studio_investigation_reviews(principal: Principal = RequireAnalyst
+                                 ) -> dict[str, Any]:
+    """§186's tab shell: the views, their counts, and the six dimensions
+    across everything this reviewer may see."""
+    viewer = viewer_for(principal)
+    records = ast.recent(limit=500)
+    visible = arv.build(viewer, view=arv.RECENT, limit=500, records=records)
+    return tb.investigation_reviews(
+        arv.counts(viewer, records=records),
+        visible.total_visible,
+        atr.tiles([r for r in records
+                   if r.assurance_record_id in
+                   {row["assurance_record_id"] for row in visible.rows}]))
+
+
+@router.get("/dimension-trends")
+def dimension_trends(cohort: str = Query(default="release"),
+                     limit: int = Query(default=500, ge=1, le=1000),
+                     principal: Principal = RequireAnalyst
+                     ) -> dict[str, Any]:
+    """§202. One cohort at a time, each bucket carrying its own sample size.
+
+    A bucket below the sample floor reports no score rather than a score
+    with a footnote: a number with a caveat next to it gets read as a
+    number.
+    """
+    viewer = viewer_for(principal)
+    records = ast.recent(limit=limit)
+    visible = [r for r in records
+               if r.assurance_record_id in
+               {row["assurance_record_id"]
+                for row in arv.build(viewer, limit=limit,
+                                     records=records).rows}]
+    return atr.trend(visible, cohort)
+
+
+@router.get("/dimension-contribution/{record_id}")
+def dimension_contribution(record_id: str,
+                           principal: Principal = RequireAnalyst
+                           ) -> dict[str, Any]:
+    """§203. How each dimension affected one record's overall status.
+
+    Roles and sentences rather than six percentages: where a gate decided
+    the outcome the weights never ran, and printing them would describe an
+    arithmetic that did not happen.
+    """
+    from backend.assurance import access as aac
+
+    viewer = viewer_for(principal)
+    row = ast.get(record_id)
+    if row is None or not aac.may_read(viewer, aac.Subject(
+            assurance_record_id=row.assurance_record_id,
+            investigation_id=row.investigation_id,
+            project_id=row.project_id, owner_user_id=row.user_id,
+            tenant_id=row.tenant_id)).allowed:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "not_found",
+                    "message": "No assurance record is available at that "
+                               "address."})
+    payload = atr.contribution(row)
+    payload["comparison_verdicts"] = [
+        {"id": v, "means": acmp.VERDICT_MEANS[v]} for v in acmp.VERDICTS]
+    return payload
 
 
 @router.get("/studio/live-health")

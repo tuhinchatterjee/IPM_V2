@@ -124,7 +124,10 @@ def test_every_map_node_belongs_to_a_step_or_the_interpretive_frame(investigatio
              "scope", "evidence", "presentability",
              # Part B's judgment layer, recorded beside the presentability
              # gate it reads rather than repeats.
-             "analytical_judgment"}
+             "analytical_judgment",
+             # Part F's assurance summary, recorded last because it reads
+             # every other verdict rather than forming its own.
+             "assurance_summary"}
     for node_id in investigation.graph.nodes:
         if node_id in frame:
             continue

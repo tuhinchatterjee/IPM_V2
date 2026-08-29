@@ -102,6 +102,11 @@ MEANS: dict[str, str] = {
 
 #: Score at or above which HIGH_ASSURANCE is available, and coverage at or
 #: above which a claim may be made at all. Both versioned with the weights.
+#: §184. The one name this number is allowed to have, wherever it is shown.
+#: A constant rather than a string literal per surface, because "accuracy"
+#: appearing on one screen out of six is exactly how the rule gets lost.
+ASSURANCE_LABEL = "Operational assurance"
+
 HIGH_ASSURANCE_AT = 90.0
 MIN_COVERAGE_PCT = 70.0
 #: Below this, nothing may be claimed: UNVERIFIED.
@@ -410,19 +415,14 @@ class Record:
         edited, and an assurance record that could be revised after the fact
         is a record of what somebody wanted to have happened.
         """
-        body = {
-            "answer_id": self.answer_id,
-            "investigation_id": self.investigation_id,
-            "question": self.question,
-            "build_sha": self.build_sha,
-            "checks": sorted(
-                (c.subcomponent, c.outcome) for c in self.checks),
-            "limitations": sorted(self.limitations),
-            "created_at": self.created_at,
-        }
-        blob = json.dumps(body, sort_keys=True, separators=(",", ":"),
-                          default=str)
-        return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:32]
+        return fingerprint_of(fingerprint_body(
+            answer_id=self.answer_id,
+            investigation_id=self.investigation_id,
+            question=self.question,
+            build_sha=self.build_sha,
+            checks=[(c.subcomponent, c.outcome) for c in self.checks],
+            limitations=list(self.limitations),
+            created_at=self.created_at))
 
     @property
     def intact(self) -> bool:
@@ -480,6 +480,34 @@ class Record:
             "reference_match": reference_block(self.reference_match_pct,
                                           self.reference_source),
         }
+
+
+def fingerprint_body(*, answer_id: str, investigation_id: str,
+                     question: str, build_sha: str,
+                     checks: list[tuple[str, str]], limitations: list[str],
+                     created_at: str) -> dict[str, Any]:
+    """What a record's fingerprint is taken over.
+
+    Module-level so the thing that VERIFIES a record after a round trip
+    through the database computes the same hash as the thing that sealed it.
+    Two copies of this dictionary would drift, and the first symptom would be
+    every stored record reporting itself as tampered with.
+    """
+    return {
+        "answer_id": answer_id,
+        "investigation_id": investigation_id,
+        "question": question,
+        "build_sha": build_sha,
+        "checks": sorted(checks),
+        "limitations": sorted(limitations),
+        "created_at": created_at,
+    }
+
+
+def fingerprint_of(body: dict[str, Any]) -> str:
+    blob = json.dumps(body, sort_keys=True, separators=(",", ":"),
+                      default=str)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:32]
 
 
 def reference_block(pct: float | None, source: str) -> dict[str, Any]:
@@ -553,9 +581,9 @@ def seal(record: Record) -> Record:
     return record
 
 
-__all__ = ["COUNTED", "Check", "DimensionResult", "FAIL", "FAILED",
+__all__ = ["ASSURANCE_LABEL", "COUNTED", "Check", "DimensionResult", "FAIL", "FAILED",
            "HIGH_ASSURANCE", "HIGH_ASSURANCE_AT", "MEANS", "MIN_COVERAGE_PCT",
            "NEEDS_REVIEW", "NOT_APPLICABLE", "NotEstablished", "OUTCOMES",
            "PASS", "RECORD_VERSION", "Record", "SKIPPED", "STALE",
-           "STATUSES", "UNVERIFIED", "UNVERIFIED_BELOW_PCT", "VALIDATED",
+           "STATUSES", "UNVERIFIED", "fingerprint_body", "fingerprint_of", "UNVERIFIED_BELOW_PCT", "VALIDATED",
            "VALIDATED_WITH_LIMITATIONS", "WARNING", "check", "seal"]

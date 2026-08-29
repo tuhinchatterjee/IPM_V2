@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { Explain, Panel, Rules, Validation, Dot } from "@/components/ai-studio/shared";
+import { DimensionStrip } from "@/components/assurance/dimensions";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
@@ -30,7 +31,7 @@ import { cn } from "@/lib/utils";
  * product it describes.
  */
 
-function useLoad<T>(load: () => Promise<T>) {
+function useLoad<T>(load: () => Promise<T>, deps: unknown[] = []) {
   const [state, setState] = React.useState<{
     data: T | null;
     error: string;
@@ -50,8 +51,10 @@ function useLoad<T>(load: () => Promise<T>) {
     return () => {
       live = false;
     };
+    // The loader closure changes on every render; the caller's `deps` are
+    // what actually decide when to re-fetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, deps);
 
   return state;
 }
@@ -740,6 +743,161 @@ export function Failures() {
           ))}
         </ul>
       </Panel>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------ §186, §201
+
+/**
+ * The Investigation Reviews tab. §186, §187.
+ *
+ * A table, not a card wall, and §187 says so in as many words. The point of
+ * the screen is comparison across many Investigations, which is a scanning
+ * task: forty rows of the same nine columns answers "which of these needs
+ * attention", and forty cards of nine differently-placed facts does not.
+ */
+export function InvestigationReviews() {
+  const tab = useLoad(() => api.studioReviewsTab());
+  const [view, setView] = React.useState("RECENT");
+  const list = useLoad(() => api.investigationReviews({ view }), [view]);
+
+  if (tab.error) return <Failed message={tab.error} />;
+  if (!tab.data || !list.data) return <Loading />;
+
+  const rows = list.data.rows;
+
+  return (
+    <div className="space-y-4">
+      <Panel title="How recent Investigations performed" explanation={tab.data.explanation}>
+        <p className="text-xs leading-relaxed text-text-tertiary">
+          {tab.data.presentation_note}
+        </p>
+      </Panel>
+
+      <Panel title="The six dimensions across these Investigations" count={tab.data.dimensions.length}>
+        <ul className="divide-y divide-border">
+          {tab.data.dimensions.map((tile) => (
+            <li key={tile.dimension} className="py-2.5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="text-xs font-medium text-text-primary">
+                  {tile.label}
+                  {tile.is_gate ? (
+                    <span className="ml-2 text-status-warning">gate</span>
+                  ) : null}
+                </p>
+                <span className="text-xs tabular-nums text-text-tertiary">
+                  {tile.underpowered
+                    ? `${tile.sample} of ${tile.min_sample} needed to score`
+                    : `${tile.score ?? "—"} · ${tile.coverage_pct.toFixed(0)}% measured`}
+                </span>
+              </div>
+              <p className="text-xs leading-relaxed text-text-secondary">
+                {tile.answers}
+              </p>
+              {tile.worst_subcomponents.length ? (
+                <p className="text-xs text-text-tertiary">
+                  Most often failing:{" "}
+                  {tile.worst_subcomponents
+                    .map((w) => `${w.subcomponent.replaceAll("_", " ")} (${w.failures})`)
+                    .join(", ")}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      </Panel>
+
+      <Card className="space-y-3 p-5">
+        <div role="tablist" aria-label="Investigation review views" className="flex flex-wrap gap-1">
+          {list.data.views.map((one) => (
+            <button
+              key={one.id}
+              type="button"
+              role="tab"
+              aria-selected={one.id === list.data?.view}
+              onClick={() => setView(one.id)}
+              title={one.means}
+              className={
+                one.id === list.data?.view
+                  ? "rounded border border-border bg-surface-raised px-2 py-1 text-xs font-medium text-text-primary"
+                  : "rounded border border-transparent px-2 py-1 text-xs text-text-secondary hover:text-text-primary"
+              }
+            >
+              {one.label}
+              <span className="ml-1.5 text-text-tertiary">
+                {list.data?.counts?.[one.id] ?? 0}
+              </span>
+            </button>
+          ))}
+        </div>
+        <p className="text-xs leading-relaxed text-text-secondary">
+          {list.data.view_means}
+        </p>
+
+        {rows.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border text-left text-text-tertiary">
+                  <th className="py-1.5 pr-3 font-medium">Investigation</th>
+                  <th className="py-1.5 pr-3 font-medium">Scope</th>
+                  <th className="py-1.5 pr-3 font-medium">Dimensions</th>
+                  <th className="py-1.5 pr-3 font-medium">Status</th>
+                  <th className="py-1.5 pr-3 font-medium">Coverage</th>
+                  <th className="py-1.5 pr-3 font-medium">Critical</th>
+                  <th className="py-1.5 pr-3 font-medium">Feedback</th>
+                  <th className="py-1.5 font-medium">Release</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {rows.map((row) => (
+                  <tr key={row.assurance_record_id}>
+                    <td className="max-w-[22rem] truncate py-2 pr-3 text-text-primary">
+                      {row.title}
+                    </td>
+                    <td className="py-2 pr-3 text-text-secondary">
+                      {row.scope || "—"}
+                    </td>
+                    <td className="py-2 pr-3">
+                      <DimensionStrip cells={row.dimensions} />
+                    </td>
+                    <td className="py-2 pr-3 text-text-secondary">
+                      {row.status_now.replaceAll("_", " ")}
+                    </td>
+                    <td className="py-2 pr-3 tabular-nums text-text-secondary">
+                      {row.coverage_pct.toFixed(0)}%
+                    </td>
+                    <td className="py-2 pr-3 tabular-nums text-text-secondary">
+                      {row.critical_failures || "—"}
+                    </td>
+                    <td className="py-2 pr-3 tabular-nums text-text-secondary">
+                      {row.good_feedback || row.bad_feedback
+                        ? `${row.good_feedback}/${row.bad_feedback}`
+                        : "—"}
+                    </td>
+                    <td className="py-2 text-text-tertiary">
+                      {row.release_current ? "current" : "stale"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-xs text-text-secondary">
+            No Investigations in this view yet. Records are written as answers
+            are given.
+          </p>
+        )}
+
+        {list.data.withheld ? (
+          <p className="text-xs text-text-tertiary">
+            {list.data.withheld} record(s) are not shown because they belong to
+            Investigations this account cannot access.
+          </p>
+        ) : null}
+      </Card>
     </div>
   );
 }

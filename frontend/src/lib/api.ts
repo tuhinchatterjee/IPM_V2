@@ -4316,6 +4316,30 @@ export const api = {
     request<StudioLiveHealth>("/intelligence/studio/live-health"),
   studioFailures: () =>
     request<StudioFailures>("/intelligence/studio/failures"),
+  // ---- Investigation assurance (Part F) ----
+  //
+  // Also deterministic. An assurance review reads records that were written
+  // when the answers were given; nothing here re-scores anything, and
+  // nothing here calls a provider.
+  investigationReviews: (params: Record<string, string> = {}) =>
+    request<InvestigationReviews>(
+      `/intelligence/investigation-reviews${
+        Object.keys(params).length
+          ? `?${new URLSearchParams(params).toString()}`
+          : ""
+      }`,
+    ),
+  studioReviewsTab: () =>
+    request<StudioReviewsTab>("/intelligence/studio/investigation-reviews"),
+  investigationAssurance: (investigationId: string) =>
+    request<AssuranceReview>(
+      `/investigations/${encodeURIComponent(investigationId)}/assurance`,
+    ),
+  assuranceRecord: (investigationId: string, recordId: string) =>
+    request<AssuranceReview>(
+      `/investigations/${encodeURIComponent(investigationId)}/assurance/${encodeURIComponent(recordId)}`,
+    ),
+
   studioRouteSimulator: (question: string) =>
     request<StudioRouteSimulation>("/intelligence/studio/route-simulator", {
       method: "POST",
@@ -4411,6 +4435,204 @@ export type StudioReleasesTab = StudioPanel & {
   missing_files: string[];
   actions: { id: string; label: string; needs: string; note?: string }[];
   never: string;
+};
+
+/**
+ * Part F. The six Intelligence Dimensions and the Investigation Assurance
+ * Record.
+ *
+ * `operational_assurance` is nullable on purpose, at every level. The gates
+ * refuse a number more often than they award one, and a type that made it
+ * `number` would push every rendering site into inventing a zero — which
+ * reads as a very bad score rather than as no score at all.
+ */
+export type DimensionCell = {
+  dimension: string;
+  short: string;
+  state: "PASSED" | "WARNING" | "FAILED" | "UNMEASURED";
+  score?: number | null;
+  coverage_pct?: number;
+};
+
+export type ReferenceMatch = {
+  available: boolean;
+  value_pct: number | null;
+  source: string;
+  why: string;
+};
+
+export type ReviewRow = {
+  assurance_record_id: string;
+  investigation_id: string;
+  title: string;
+  user_id: number | null;
+  project_id: string;
+  at: string;
+  scope: string;
+  language: string;
+  turn_index: number;
+  officer_level: number;
+  model_route: string;
+  case_family: string;
+  overall_status: string;
+  status_now: string;
+  operational_assurance: number | null;
+  operational_assurance_label: string;
+  coverage_pct: number;
+  reference_match: ReferenceMatch;
+  dimensions: DimensionCell[];
+  critical_failures: number;
+  warnings: number;
+  good_feedback: number;
+  bad_feedback: number;
+  teaching_release_id: string;
+  release_current: boolean;
+  stale_reasons: string[];
+  superseded_by: string;
+  rerun_of: string;
+  open_review: boolean;
+};
+
+export type InvestigationReviews = {
+  view: string;
+  view_label: string;
+  view_means: string;
+  views: { id: string; label: string; means: string }[];
+  filters: Record<string, unknown>;
+  filter_fields: { field: string; label: string }[];
+  rows: ReviewRow[];
+  count: number;
+  total_visible: number;
+  withheld: number;
+  presentation: string;
+  counts: Record<string, number>;
+};
+
+export type DimensionTile = {
+  dimension: string;
+  label: string;
+  answers: string;
+  short: string;
+  weight: number;
+  is_gate: boolean;
+  records: number;
+  measured_records: number;
+  sample: number;
+  min_sample: number;
+  underpowered: boolean;
+  score: number | null;
+  score_label: string;
+  coverage_pct: number;
+  failures: number;
+  warnings: number;
+  critical_failures: number;
+  state: string;
+  subcomponents: number;
+  worst_subcomponents: { subcomponent: string; failures: number }[];
+};
+
+export type StudioReviewsTab = StudioPanel & {
+  views: { id: string; count: number }[];
+  dimensions: DimensionTile[];
+  presentation: string;
+  presentation_note: string;
+  score_rules: Record<string, boolean>;
+};
+
+export type AssuranceDimension = {
+  dimension: string;
+  label: string;
+  answers: string;
+  short: string;
+  weight: number;
+  measured: boolean;
+  status: string;
+  score: number | null;
+  score_label: string;
+  coverage_pct: number;
+  examines: string[];
+  passed: string[];
+  warnings: { subcomponent: string; why: string }[];
+  failures: { subcomponent: string; why: string; critical: boolean }[];
+  skipped: string[];
+  why_points_were_lost: {
+    subcomponent: string;
+    cost: string;
+    critical: boolean;
+    why: string;
+  }[];
+  applicability?: { applicable: boolean; reason?: string };
+};
+
+export type AssuranceReview = {
+  version: string;
+  button: string;
+  tab: string;
+  header: {
+    assurance_record_id: string;
+    investigation_id: string;
+    title: string;
+    scope: string;
+    at: string;
+    overall_status: string;
+    status_now: string;
+    status_means: string;
+    operational_assurance: number | null;
+    operational_assurance_label: string;
+    coverage_pct: number;
+    reference_match: ReferenceMatch;
+    critical_issues: number;
+    warnings: number;
+    user_feedback: { good: number; bad: number };
+    stale: boolean;
+    stale_reasons: string[];
+    [key: string]: unknown;
+  };
+  dimensions: AssuranceDimension[];
+  timeline: {
+    turn: number;
+    assurance_record_id: string;
+    question: string;
+    answer_type: string;
+    at: string;
+    overall_status: string;
+    operational_assurance: number | null;
+    coverage_pct: number;
+    dimensions: DimensionCell[];
+    repairs: number;
+    clarifications: number;
+    limitations: string[];
+    feedback: { good: number; bad: number };
+    actions: string[];
+    [key: string]: unknown;
+  }[];
+  thread: {
+    status: string;
+    status_means: string;
+    turns: number;
+    failed_turns: string[];
+    averaged: boolean;
+    note: string;
+  };
+  recommended_improvements: {
+    subcomponent: string;
+    because: string;
+    suggestion: string;
+  }[];
+  feedback: {
+    raw_user_feedback: {
+      good: number;
+      bad: number;
+      changes_score: boolean;
+      note: string;
+    };
+    adjudicated_findings: unknown[];
+    adjudication_note: string;
+  };
+  limitations: string[];
+  integrity: { intact: boolean; note?: string };
+  detail_level?: string;
+  detail_note?: string;
 };
 
 export type StudioLiveHealth = StudioPanel & {

@@ -141,8 +141,15 @@ def leave(body: FeedbackRequest,
     logger.info("Feedback %s recorded: %s on %s", item.feedback_id,
                 item.rating, item.answer_id)
 
+    # §199. The Assurance Record for this answer learns that somebody
+    # disagreed with it — a raw counter and nothing else. There is no code
+    # path from here to any check, dimension or status, which is a stronger
+    # guarantee that a thumb cannot move a score than a policy would be.
+    linked = _note_on_assurance(item)
+
     return {
         "feedback_id": item.feedback_id,
+        "linked_to_assurance_record": linked,
         "status": item.status,
         # §149's exact wording, from the constant. Reviewed, not learned from.
         "acknowledgement": fs.acknowledgement(item.rating),
@@ -153,6 +160,25 @@ def leave(body: FeedbackRequest,
         "triage": fc.triage(item).to_dict(),
         "changes_production": False,
     }
+
+
+def _note_on_assurance(item: Any) -> bool:
+    """Increment the raw feedback counter on the answer's record.
+
+    Never raises and never blocks the feedback: an answer whose assurance
+    record was never written is still an answer somebody wants to complain
+    about.
+    """
+    try:
+        from backend.assurance import store as ast
+
+        return ast.note_feedback(
+            item.answer_id,
+            good=1 if item.rating == fs.GOOD else 0,
+            bad=1 if item.rating == fs.BAD else 0)
+    except Exception as e:  # noqa: BLE001 - linkage is not the feedback
+        logger.debug("Could not link feedback to an assurance record: %s", e)
+        return False
 
 
 def _sha() -> str:

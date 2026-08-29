@@ -569,7 +569,8 @@ def coverage(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 __all__ = ["AGENTIC", "BLUEPRINTS", "COVERAGE_COLUMNS", "EVALUATIONS",
-           "EVALUATION_SUBTABS", "evaluations", "failures", "live_health",
+           "EVALUATION_SUBTABS", "evaluations", "failures",
+           "investigation_reviews", "live_health",
            "prompts", "releases", "route_simulator", "routing",
            "teaching_cases",
            "FEEDBACK", "JUDGMENT", "JUDGMENT_SUBTABS", "KNOWLEDGE", "LABELS",
@@ -779,6 +780,54 @@ def evaluations() -> dict[str, Any]:
             "note": ("A live evaluation is estimated first and run only on "
                      "explicit confirmation. An evaluation that can start by "
                      "accident is one somebody starts by accident."),
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# §186, §201 — Investigation Reviews and the dimension Overview
+# ---------------------------------------------------------------------------
+
+def investigation_reviews(views: dict[str, int], rows: int,
+                          dimensions: list[dict[str, Any]]) -> dict[str, Any]:
+    """§186's tab. Recent Investigations, and how CreditProbe performed.
+
+    The tab that makes the rest of the Studio answerable. Every other tab
+    describes an INPUT — a case, a blueprint, a policy, a prompt — and this
+    one is the only place those inputs are visible in the act of being used.
+    A Studio without it is a room full of controls with no window.
+    """
+    return {
+        "version": TABS_VERSION, "tab": REVIEWS,
+        "purpose": PURPOSE[REVIEWS],
+        "explanation": ex.Explanation(
+            what="Recent authorized Investigations, each with the six "
+                 "Intelligence Dimensions, its coverage, its critical "
+                 "failures and the feedback people left on it.",
+            why="Every other tab describes something CreditProbe was GIVEN. "
+                "This is the only tab that shows what it DID with any of it.",
+            when="After any release, when a user reports a bad answer, and "
+                 "whenever somebody asks how the product is actually "
+                 "performing.",
+            validated="Each row is an immutable Assurance Record written at "
+                      "the time of the answer, not a re-scoring of it.",
+            performing=(f"{rows} record(s) visible to this reviewer."
+                        if rows else ex.NOT_MEASURED),
+            stale_or_failing="Records pinned to a superseded build or "
+                             "release are marked stale rather than "
+                             "re-scored.",
+            release="Each record names the Intelligence Release and Teaching "
+                    "Release that served it.").to_dict(),
+        "views": [{"id": v, "count": views.get(v, 0)} for v in views],
+        "dimensions": dimensions,
+        "presentation": "table",
+        "presentation_note": ("A table rather than a card wall: the task is "
+                              "comparison across many Investigations, and "
+                              "that is a scanning task."),
+        "score_rules": {
+            "operational_assurance_is_not_accuracy": True,
+            "raw_feedback_changes_no_score": True,
+            "stale_records_are_not_current": True,
         },
     }
 

@@ -19,8 +19,35 @@ what any check was FOR.
                 coverage gate before score, so a record with a failed
                 invariant never gets a number somebody could quote.
 ``panel``       "HOW CREDITPROBE PERFORMED", assembled for a reader.
+``store``       the records, persisted. Written once and never rescored:
+                staleness is computed against today's runtime rather than
+                stored, so a record keeps saying what was true when it was
+                made while a reader still learns the world has moved.
+``access``      who may read a review — inherited from the Investigation it
+                describes, because two permission models over the same
+                content diverge, and the one that diverges upward is a leak.
+``reviews``     §186's recent Investigation Reviews: eight views written as
+                predicates over one row set, so FAILED and LOW ASSURANCE
+                cannot drift into two definitions of failure.
+``review``      §189-§199's full review of one turn and its thread.
+``comparison``  §200's rerun comparison, whose first job is deciding whether
+                a comparison is legitimate at all.
+``trends``      §201-§203: the six tiles that replaced the twenty-five-card
+                wall, their trends by cohort, and how each dimension
+                actually affected an outcome.
 """
 
-from backend.assurance import dimensions, panel, record
+from backend.assurance import (
+    access,
+    comparison,
+    dimensions,
+    panel,
+    record,
+    review,
+    reviews,
+    store,
+    trends,
+)
 
-__all__ = ["dimensions", "panel", "record"]
+__all__ = ["access", "comparison", "dimensions", "panel", "record", "review",
+           "reviews", "store", "trends"]

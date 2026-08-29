@@ -1011,6 +1011,9 @@ def answer_investigation(question: str, *, user_id: int | None = None,
     _settle_caveats(investigation)
     _record_presentability(investigation, answered)
     _record_judgment(investigation, answered)
+    _record_assurance(investigation, answered, user_id=user_id,
+                      project_id=project_id,
+                      investigation_id=investigation_id)
     if persist:
         persist_investigation(investigation, user_id=user_id,
                               project_id=project_id,
@@ -1074,6 +1077,87 @@ def _record_judgment(investigation: Investigation, answered: Any) -> None:
         investigation.node_hashes = graph.compute_hashes()
     except Exception as e:  # noqa: BLE001 - a Trace node must not lose an answer
         logger.warning("Could not record the judgment node: %s", e)
+
+
+def _record_assurance(investigation: Investigation, answered: Any, *,
+                      user_id: int | None = None,
+                      project_id: str | None = None,
+                      investigation_id: str | None = None) -> None:
+    """§205 and §210. The Assurance Record, and its Trace node.
+
+    Runs last, after every other check has recorded its verdict, because it
+    READS those verdicts rather than recomputing them. An assurance layer
+    that formed its own opinion would be a second thing to keep in agreement
+    with the first, and the day they disagreed neither would be trusted.
+
+    Never raises. A record of how well an answer went is not worth losing
+    the answer over — which is also why the record is written even when the
+    turn failed: "CreditProbe declined to answer" is a claim about the
+    product that somebody will eventually dispute.
+    """
+    from backend.assurance import collect as ac
+
+    try:
+        made = ac.build(investigation, answered,
+                        investigation_id=str(investigation_id or ""),
+                        project_id=str(project_id or ""),
+                        user_id=user_id)
+        summary = ac.trace_summary(made)
+    except Exception as e:  # noqa: BLE001 - assurance never breaks an answer
+        logger.warning("Could not assemble the assurance record: %s", e)
+        return
+
+    answered.assurance = summary
+    graph = investigation.graph
+    if graph is not None:
+        try:
+            node = graph.add_node(TraceNode(
+                id="assurance_summary", type=NodeType.BUSINESS_INVARIANT,
+                label=f"{summary['overall_status']} — "
+                      f"{summary['coverage_pct']:.0f}% of checks ran",
+                config={
+                    "dimensions": summary["dimensions"],
+                    "overall_status": summary["overall_status"],
+                    "status_means": summary["status_means"],
+                    "operational_assurance": summary["operational_assurance"],
+                    "operational_assurance_label":
+                        summary["operational_assurance_label"],
+                    "coverage_pct": summary["coverage_pct"],
+                    "critical_failures": summary["critical_failures"],
+                    "warnings": summary["warnings"],
+                    "skipped_mandatory": summary["skipped_mandatory"],
+                    "reference_match": summary["reference_match"],
+                    "build_sha": summary["build_sha"],
+                    "intelligence_release_id":
+                        summary["intelligence_release_id"],
+                    "teaching_release_id": summary["teaching_release_id"],
+                    "rule": summary["rule"],
+                }))
+            if summary["critical_failures"]:
+                node.mark_failed("; ".join(summary["critical_failures"][:3]))
+            else:
+                node.mark_ok()
+            for leaf in ("analytical_judgment", "presentability",
+                         "interpretation", "result"):
+                if leaf in graph.nodes:
+                    graph.connect(leaf, "assurance_summary")
+                    break
+            investigation.node_hashes = graph.compute_hashes()
+        except Exception as e:  # noqa: BLE001 - a Trace node must not lose an answer
+            logger.warning("Could not record the assurance node: %s", e)
+
+    # Stored separately from the Trace node so a database that is down loses
+    # the history rather than the summary the user is looking at.
+    try:
+        route = (getattr(answered, "decision", None) or {})
+        from backend.assurance import store as asto
+
+        stored = asto.write(made, model_route=str(
+            route.get("final_route", "") if isinstance(route, dict) else ""))
+        if stored:
+            summary["stored"] = stored
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Could not store the assurance record: %s", e)
 
 
 def _typed_state(answered: Any) -> dict[str, Any]:

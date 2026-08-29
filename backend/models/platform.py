@@ -2804,3 +2804,169 @@ class TeachingCaseEvent(Base):
         Index("ix_teaching_event_case", "case_id", "case_version", "at"),
         Index("ix_teaching_event_status", "to_status", "at"),
     )
+
+
+class AssuranceRecord(Base):
+    """§180's Investigation Assurance Record, as stored. Part F.
+
+    One row per answered turn. §208 makes this table append-only in
+    practice: a record is historical evidence tied to the build, data,
+    models and releases that produced it, and "do not rewrite historical
+    scores" means the columns below are written once and read forever.
+    Staleness is therefore not a column that gets updated — it is computed
+    against the CURRENT runtime at read time, so the record keeps saying
+    what was true when it was made while the reader still learns that the
+    world has moved on.
+
+    The verdict is stored alongside the checks rather than only derived,
+    because the weights and gates that produced it are themselves
+    versioned: recomputing an old record under today's policy would
+    silently restate history, which is the thing §208 forbids.
+    """
+
+    __tablename__ = "assurance_records"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    #: The stable public identifier used in URLs and exports.
+    assurance_record_id: Mapped[str] = mapped_column(String(64),
+                                                     nullable=False,
+                                                     unique=True)
+    record_version: Mapped[str] = mapped_column(String(16), nullable=False,
+                                                default="1.0.0")
+
+    # ---- what was answered -------------------------------------------------
+    tenant_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                           default="")
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    investigation_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                  default="")
+    project_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+    message_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+    answer_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                           default="")
+    trace_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                          default="")
+    agentic_run_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                default="")
+    question: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    answer_type: Mapped[str] = mapped_column(String(32), nullable=False,
+                                             default="")
+    portfolio_scope: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                 default="")
+    language: Mapped[str] = mapped_column(String(8), nullable=False,
+                                          default="en")
+    #: Position in the thread, so a timeline orders by something better than
+    #: a timestamp two turns can share.
+    turn_index: Mapped[int] = mapped_column(Integer, nullable=False,
+                                            default=0)
+
+    # ---- under what ---------------------------------------------------------
+    build_sha: Mapped[str] = mapped_column(String(64), nullable=False,
+                                           default="")
+    app_version: Mapped[str] = mapped_column(String(32), nullable=False,
+                                             default="")
+    intelligence_release_id: Mapped[str] = mapped_column(String(64),
+                                                         nullable=False,
+                                                         default="")
+    teaching_release_id: Mapped[str] = mapped_column(String(64),
+                                                     nullable=False,
+                                                     default="")
+    ontology_version: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                  default="")
+    routing_policy_version: Mapped[str] = mapped_column(String(32),
+                                                        nullable=False,
+                                                        default="")
+    officer_level: Mapped[int] = mapped_column(Integer, nullable=False,
+                                               default=0)
+    model_route: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+    blueprint_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                              default="")
+    case_family: Mapped[str] = mapped_column(String(48), nullable=False,
+                                             default="")
+
+    # ---- the verdict, as computed at the time -------------------------------
+    overall_status: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                default="")
+    #: §184. NULL where the gates refused a number — which is most of the
+    #: interesting cases, and is why this is nullable rather than 0.
+    operational_assurance: Mapped[float | None] = mapped_column(Float,
+                                                                nullable=True)
+    coverage_pct: Mapped[float] = mapped_column(Float, nullable=False,
+                                                default=0.0)
+    #: Kept in its own column, never merged with the one above.
+    reference_match_pct: Mapped[float | None] = mapped_column(Float,
+                                                              nullable=True)
+    reference_source: Mapped[str] = mapped_column(String(120), nullable=False,
+                                                  default="")
+    critical_failure_count: Mapped[int] = mapped_column(Integer,
+                                                        nullable=False,
+                                                        default=0)
+    warning_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                               default=0)
+    weights_version: Mapped[str] = mapped_column(String(16), nullable=False,
+                                                 default="")
+
+    # ---- the evidence -------------------------------------------------------
+    #: Every check, as recorded. The drill-down reads from here.
+    checks: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    #: Per-dimension roll-up as computed at the time, so §203's contribution
+    #: view does not have to re-derive history.
+    dimension_results: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                    default=dict)
+    objective_coverage: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                     default=dict)
+    limitations: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                              default=list)
+    #: The rest of §180's fields that do not each deserve a column: served
+    #: models, method and relationship versions, data versions, result
+    #: fingerprints, retrieved teaching case ids, agent roles, run ids.
+    context: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    repair_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                              default=0)
+    clarification_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                     default=0)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False,
+                                             default=0)
+    tokens_in: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_out: Mapped[int] = mapped_column(Integer, nullable=False,
+                                            default=0)
+    cost_usd: Mapped[float] = mapped_column(Float, nullable=False,
+                                            default=0.0)
+    #: §182's tamper check. Recomputed on read; a mismatch is reported rather
+    #: than repaired, because a record that silently heals is not evidence.
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+
+    # ---- what happened afterwards ------------------------------------------
+    #: §199. Raw counts only. This never feeds the score — the column exists
+    #: so a reviewer can see that people disagreed with an answer the gates
+    #: were happy with, which is a reason to look rather than a reason to
+    #: change a number.
+    good_feedback_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                     default=0)
+    bad_feedback_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                    default=0)
+    #: Set when this turn was re-run after a fix, pointing at the newer
+    #: record. §200 compares the two; neither one is edited.
+    superseded_by: Mapped[str] = mapped_column(String(64), nullable=False,
+                                               default="")
+    rerun_of: Mapped[str] = mapped_column(String(64), nullable=False,
+                                          default="")
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                 server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_assurance_investigation", "investigation_id", "turn_index"),
+        Index("ix_assurance_recent", "created_at"),
+        Index("ix_assurance_status", "overall_status", "created_at"),
+        Index("ix_assurance_user", "user_id", "created_at"),
+        Index("ix_assurance_project", "project_id", "created_at"),
+        Index("ix_assurance_release", "intelligence_release_id",
+              "created_at"),
+        Index("ix_assurance_answer", "answer_id"),
+    )

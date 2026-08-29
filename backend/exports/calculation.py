@@ -59,6 +59,11 @@ logger = logging.getLogger(__name__)
 COVER = "COVER"
 FINAL = "FINAL RESULTS"
 
+#: §206's sheet. Placed immediately before FINAL RESULTS, which stays last:
+#: a reader who has followed the calculation to its end should meet how well
+#: it went before they meet the answer, not after.
+ASSURANCE = "INVESTIGATION ASSURANCE"
+
 #: How close two figures must be to count as reconciled. Money is carried to
 #: two decimals through the stack, so anything under a hundredth is rounding.
 TOLERANCE = 0.01
@@ -157,6 +162,7 @@ def build(pack: Pack, *, profiles: list[Any] | None = None,
     _ledger(add("TRACE LEDGER"), pack)
     _evidence(add("INTERPRETATION EVIDENCE"), pack)
     _limitations(add("LIMITATIONS"), pack, view, sources, population, redacted)
+    _assurance(add(ASSURANCE), pack)
     _final(add(FINAL), pack)
 
     _cover(cover, pack, view, sheets, checks)
@@ -2417,6 +2423,96 @@ def _final(ws: Worksheet, pack: Pack) -> None:
         ("Rows", len(pack.rows)),
     ], row)
     results_sheet(ws, pack, row=row, heading=False)
+
+
+def _assurance(ws: Worksheet, pack: Pack) -> None:
+    """§206's INVESTIGATION ASSURANCE sheet.
+
+    Read from the assurance_summary Trace node rather than recomputed. A pack
+    that re-scored a run at export time could disagree with the review screen
+    for the same run, and the export is the copy that gets emailed to a
+    regulator.
+
+    §206 also says: "Do not include hidden chain-of-thought." Nothing on this
+    sheet comes from a model — every row is a named check with a recorded
+    outcome, which is the only kind of content the assurance record holds.
+    """
+    from backend.assurance import dimensions as dm
+    from backend.assurance import record as rc
+
+    style.page_setup(ws)
+    row = style.crumb(ws)
+    row = style.title(
+        ws, ASSURANCE,
+        "How CreditProbe performed on this run, and what it could not "
+        "establish.", row=row)
+
+    config: dict[str, Any] = {}
+    for node in pack.nodes("BUSINESS_INVARIANT"):
+        if str(node.get("id")) == "assurance_summary":
+            config = dict(node.get("config") or {})
+            break
+
+    if not config:
+        style.facts(ws, [
+            ("Assurance record", "No assurance record was written for this "
+                                 "run."),
+            ("What that means", "This run predates the Investigation "
+                                "Assurance Record, or the record could not "
+                                "be assembled. It is not evidence that the "
+                                "run passed."),
+        ], row)
+        return
+
+    score = config.get("operational_assurance")
+    row = style.facts(ws, [
+        ("Overall status", str(config.get("overall_status") or "—")),
+        ("What that means", str(config.get("status_means") or "—")),
+        # §184, on the sheet most likely to be printed and circulated.
+        (rc.ASSURANCE_LABEL,
+         f"{score:.0f} / 100" if isinstance(score, int | float)
+         else "not awarded — see the status above"),
+        ("Reference match",
+         str((config.get("reference_match") or {}).get("why")
+             or "no independent reference answer exists")),
+        ("Coverage", f"{config.get('coverage_pct', 0):.0f}% of applicable "
+                     "checks ran"),
+        ("Critical failures",
+         ", ".join(config.get("critical_failures") or []) or "none"),
+        ("Warnings", ", ".join(config.get("warnings") or []) or "none"),
+        ("Mandatory checks that did not run",
+         ", ".join(config.get("skipped_mandatory") or []) or "none"),
+        ("Build", config.get("build_sha") or "not recorded"),
+        ("Intelligence Release",
+         config.get("intelligence_release_id") or "not recorded"),
+        ("Teaching Release",
+         config.get("teaching_release_id") or "not recorded"),
+        ("Rule", str(config.get("rule") or "")),
+    ], row)
+
+    dimension_rows: list[list[Any]] = []
+    for entry in config.get("dimensions") or []:
+        name = str(entry.get("dimension") or "")
+        measured = bool(entry.get("measured"))
+        dimension_rows.append([
+            str(entry.get("label") or name),
+            dm.ANSWERS.get(name, ""),
+            entry.get("score") if measured else "not measured",
+            f"{entry.get('coverage_pct', 0):.0f}%",
+            entry.get("failures", 0),
+            entry.get("warnings", 0),
+            ("FAIL" if entry.get("failures") else
+             "WARNING" if entry.get("warnings") else
+             "PASS" if measured else "SKIPPED"),
+            ", ".join(entry.get("trace_nodes") or []) or "—",
+        ])
+    row = style.table(
+        ws,
+        ["Dimension", "Question it answers", "Score", "Coverage", "Failures",
+         "Warnings", "Status", "Trace nodes"],
+        dimension_rows, row=row + 1, status_column=6,
+        widths=[30, 74, 10, 11, 10, 10, 12, 44],
+    )
 
 
 def _validation_word(pack: Pack) -> str:

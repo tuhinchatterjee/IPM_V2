@@ -104,6 +104,11 @@ const LiveHealth = React.lazy(() =>
     default: m.LiveHealth,
   })),
 );
+const Reviews = React.lazy(() =>
+  import("@/components/ai-studio/panels").then((m) => ({
+    default: m.InvestigationReviews,
+  })),
+);
 const Later = React.lazy(() =>
   import("@/components/ai-studio/panels").then((m) => ({
     default: m.ComingWithLaterWork,
@@ -121,6 +126,7 @@ const PANELS: Record<string, React.ReactNode> = {
   MODEL_ROUTING: <Routing />,
   PROMPTS_AND_TEACHING_PACKS: <Prompts />,
   EVALUATIONS: <Evaluations />,
+  INVESTIGATION_REVIEWS: <Reviews />,
   FEEDBACK_AND_LEARNING: <Failures />,
   RELEASES: <Releases />,
   LIVE_AI_HEALTH: <LiveHealth />,
@@ -128,8 +134,6 @@ const PANELS: Record<string, React.ReactNode> = {
 };
 
 const LATER: Record<string, string> = {
-  INVESTIGATION_REVIEWS:
-    "How recent investigations performed, turn by turn — the six Intelligence Dimensions and the assurance record behind every answer. Lands with the Investigation assurance work.",
   AGENTIC_HEALTH:
     "Whether the agentic layer is genuinely running: whether the worker executes, whether a review produced evidence-backed cases, and whether the Agentic Trace reflects the tasks that actually ran. Lands with the agentic reliability work.",
 };

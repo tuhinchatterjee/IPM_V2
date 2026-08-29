@@ -13,6 +13,7 @@ import {
   CoordinatedReview,
 } from "@/components/agentic/assurance";
 import { PendingOfficer } from "@/components/agentic/pending";
+import { HowCreditProbePerformed } from "@/components/assurance/review";
 import { CompletionLine } from "@/components/agentic/working";
 import { Composer } from "@/components/ask/composer";
 import { ProjectMenu } from "@/components/ask/project-picker";
@@ -229,6 +230,20 @@ function Thread({ threadId }: { threadId: number }) {
 
         <div ref={endRef} />
       </div>
+
+      {/* §188. "How CreditProbe performed", on the Investigation itself.
+          Collapsed by default: a reader who is happy with the answer should
+          not have to scroll past a validation report to reach the composer,
+          and a reader who is not happy should find it without asking anyone
+          where it lives. */}
+      <details className="rounded-md border border-border">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-text-primary">
+          How CreditProbe performed
+        </summary>
+        <div className="border-t border-border p-4">
+          <HowCreditProbePerformed investigationId={String(thread.id)} />
+        </div>
+      </details>
 
       {error && (
         <Card className="border-negative/40 p-4 text-sm text-negative">{error}</Card>

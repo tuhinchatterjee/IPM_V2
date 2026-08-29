@@ -54,6 +54,18 @@ LABELS: dict[str, str] = {
     RELIABILITY: "Reliability & experience",
 }
 
+#: §187's "six compact dimension indicators". A two-letter code so a row can
+#: carry all six without becoming a paragraph, and a fixed order so a reader's
+#: eye learns the positions rather than re-reading the headers each row.
+SHORT: dict[str, str] = {
+    UNDERSTANDING: "UC",
+    DESIGN: "AD",
+    COMPUTATION: "CE",
+    JUDGMENT: "JP",
+    AGENTIC: "AG",
+    RELIABILITY: "RX",
+}
+
 #: The question each dimension answers, in the words §178 uses. Shown at the
 #: top of the dimension, because a score with no question above it is a
 #: number somebody has to guess the meaning of.
@@ -233,6 +245,7 @@ def catalogue() -> dict[str, Any]:
 
 __all__ = ["AGENTIC", "ANSWERS", "COMPUTATION", "CRITICAL", "DESIGN",
            "DIMENSIONS", "DIMENSIONS_VERSION", "JUDGMENT", "LABELS",
+           "SHORT",
            "MANDATORY", "RELIABILITY", "SUBCOMPONENTS", "UNDERSTANDING",
            "WEIGHTS", "WEIGHTS_VERSION", "Weights", "all_subcomponents",
            "catalogue", "dimension_of"]
