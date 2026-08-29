@@ -25,6 +25,13 @@ plausibly and unaccountably if nobody stops it:
                  UNRESOLVED as a permitted answer.
 ``interpretation`` the nine sections an answer may have, what the narrative
                  model is given, and whether what came back is grounded.
+``selection``    what a click on a chart means, as structured memory.
+``judgment_policy`` when the harder model is worth its cost, and what it may
+                 see — never a portfolio, never before the engine ran.
+``task_dag``     a blueprint compiled to a bounded graph, and the nine
+                 conditions before an investigation may say it is finished.
+``presentability`` eighteen dimensions, and the difference between an answer
+                 that is wrong and one that is badly written.
 ``visual_grammar`` what a field MEANS rather than how it is stored, and which
                  picture that permits.
 ``visual_critic`` twelve checks between choosing a chart and drawing it,
@@ -44,13 +51,18 @@ from backend.judgment import (
     evidence,
     hypotheses,
     interpretation,
+    judgment_policy,
     materiality,
     observations,
     persistence,
+    presentability,
+    selection,
+    task_dag,
     visual_critic,
     visual_grammar,
 )
 
 __all__ = ["blueprints", "breadth", "contradictions", "drivers", "evidence",
-           "hypotheses", "interpretation", "materiality", "observations",
-           "persistence", "visual_critic", "visual_grammar"]
+           "hypotheses", "interpretation", "judgment_policy", "materiality",
+           "observations", "persistence", "presentability", "selection",
+           "task_dag", "visual_critic", "visual_grammar"]
