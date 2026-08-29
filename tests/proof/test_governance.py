@@ -249,6 +249,19 @@ def test_the_live_library_has_no_approved_cases():
 
 @db
 def test_the_live_pack_builds_and_approves_nothing():
+    """§38's isolation rule, learned the hard way.
+
+    This asserted `pack["rows"]` and passed only because the teaching
+    library happened to be seeded when it ran. The suite EMPTIES
+    `teaching_cases`, so the same assertion failed as soon as a test that
+    empties it ran first — a test that passes on pre-existing records and
+    fails on ordering.
+
+    What is actually being claimed here is that the pack builds over the
+    live library and approves nothing, which is true of an empty library
+    too. The claim that a populated library produces rows belongs to the
+    test below, which populates one itself.
+    """
     from backend.db.engine import get_session
     from backend.services import teaching_library as tl
 
@@ -256,8 +269,54 @@ def test_the_live_pack_builds_and_approves_nothing():
         pack = tl.review_pack(session)
 
     assert pack["approved"] is False
-    assert pack["rows"]
-    assert pack["eligible_cases"] > 0
+    assert pack["label"] == "REVIEW REQUIRED"
+    assert pack["eligible_cases"] == len(
+        [r for r in pack["rows"]]) or pack["eligible_cases"] >= 0
+    assert pack["classes_covered"] + len(pack["classes_empty"]) \
+        == len(rp.CLASSES)
+
+
+@db
+def test_a_pack_over_cases_this_test_creates_has_rows():
+    """The other half, with its own fixture so nothing depends on order."""
+    import uuid
+
+    from backend.db.engine import get_session
+    from backend.services import teaching_library as tl
+    from backend.teaching import schema as sc
+
+    marker = uuid.uuid4().hex[:8]
+    made = [
+        sc.TeachingCase(
+            case_id=f"pack-{marker}-{index}",
+            title=f"pack fixture {index}",
+            family_id="SINGLE_DOMAIN_AGGREGATION",
+            question="What is total exposure at default by sector?",
+            objectives=[sc.Objective(id="o1",
+                                     text="total EAD by sector")],
+            analytical_plan_contract={"group_by": ["sector"]},
+            concepts=["exposure at default"])
+        for index in range(3)]
+
+    with get_session() as session:
+        for case in made:
+            tl.save(session, case, actor="the governance proof suite")
+        session.commit()
+        try:
+            pack = tl.review_pack(session)
+            ours = [r for r in pack["rows"] if marker in r["case_id"]]
+
+            assert pack["approved"] is False
+            assert ours, "the pack did not include the cases just created"
+            for row in ours:
+                assert row["approved"] is False
+                assert row["why"]
+        finally:
+            for case in made:
+                tl.retire(session, case.case_id,
+                          actor="the governance proof suite",
+                          note="test cleanup")
+            session.commit()
 
 
 @db

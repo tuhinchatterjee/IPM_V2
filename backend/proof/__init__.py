@@ -21,6 +21,9 @@ before and after a change.
 ``flows``       the flow classes and their coverage targets, because one
                 global coverage number over six different kinds of request
                 is a number about nothing.
+``matrix``      §35's Feature Proof Matrix: what is PROVEN and by what,
+                which differs from what was built in exactly the places
+                that matter.
 
 The rule the whole package is built around: **nothing here may manufacture a
 PASS.** A signal that is not wired reports NOT_AVAILABLE, which blocks where
@@ -28,6 +31,6 @@ the subcomponent is critical. That is uncomfortable by design — it is what
 makes an improving coverage number mean something.
 """
 
-from backend.proof import coverage, divergence, flows, probe
+from backend.proof import coverage, divergence, flows, matrix, probe
 
-__all__ = ["coverage", "divergence", "flows", "probe"]
+__all__ = ["coverage", "divergence", "flows", "matrix", "probe"]
