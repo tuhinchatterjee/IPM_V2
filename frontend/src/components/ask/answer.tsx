@@ -26,6 +26,7 @@ import { HighlightProvider } from "@/components/analytics/highlight";
 import { DynamicAnalysisPanel } from "@/components/ask/dynamic-analysis";
 import { KpiTile } from "@/components/analytics/primitives";
 import { ResultView } from "@/components/analytics/result-view";
+import { AnswerFeedback } from "@/components/feedback/answer-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -989,6 +990,17 @@ export function AnswerBlock({
 
       {/* ------------------------------ 10. SUGGESTED NEXT QUESTIONS */}
       {onAsk && <FollowUps questions={run.follow_ups} onAsk={onAsk} busy={busy} />}
+
+      {/* --------------------------------------------- 12. WAS THIS USEFUL?
+          §148: after every response, including clarifications, controlled
+          failures and unsupported ones. Deliberately the last thing and
+          deliberately quiet — a prominent GOOD button beside an answer
+          nobody checked collects agreement rather than correctness. */}
+      <AnswerFeedback
+        answerId={String(runId ?? run.question ?? "")}
+        analysisRunId={runId ? String(runId) : undefined}
+        className="pt-1"
+      />
     </div>
     </HighlightProvider>
   );

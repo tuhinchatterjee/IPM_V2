@@ -30,6 +30,7 @@ from backend.api.routers import data_builder as data_builder_router
 from backend.api.routers import early_warning as early_warning_router
 from backend.api.routers import engine as engine_router
 from backend.api.routers import exports as exports_router
+from backend.api.routers import feedback as feedback_router
 from backend.api.routers import health as health_router
 from backend.api.routers import hierarchy as hierarchy_router
 from backend.api.routers import intelligence as intelligence_router
@@ -182,6 +183,10 @@ def create_app() -> FastAPI:
     # which the Cockpit's Requires Attention reads.
     app.include_router(agentic_router.router, prefix=API_PREFIX)
     app.include_router(cases_router.router, prefix=API_PREFIX)
+    # Answer feedback: §148 requires it on every response, so the POST
+    # is open to every signed-in role. Reading the queue and
+    # adjudicating are not.
+    app.include_router(feedback_router.router, prefix=API_PREFIX)
     app.include_router(hierarchy_router.projects_router, prefix=API_PREFIX)
     app.include_router(hierarchy_router.threads_router, prefix=API_PREFIX)
     app.include_router(hierarchy_router.analyses_router, prefix=API_PREFIX)

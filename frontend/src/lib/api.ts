@@ -4321,6 +4321,54 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ question }),
     }),
+
+  // ---- answer feedback (Part E) ----
+  //
+  // §148 requires the control after every response, so this is open to every
+  // signed-in role — the people most likely to notice a wrong answer are the
+  // analysts who read them all day.
+  feedbackOptions: () => request<FeedbackOptions>("/feedback/options"),
+  leaveFeedback: (body: FeedbackRequest) =>
+    request<FeedbackReceipt>("/feedback", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+};
+
+export type FeedbackOptions = {
+  ratings: string[];
+  reasons: { GOOD: { code: string; label: string }[]; BAD: { code: string; label: string }[] };
+  acknowledgement: string;
+  bad_reason_encouraged: boolean;
+  note: string;
+};
+
+export type FeedbackRequest = {
+  rating: "GOOD" | "BAD";
+  answer_id: string;
+  reason_codes?: string[];
+  comment?: string;
+  expected_behavior?: string;
+  selected_fact_ids?: string[];
+  selected_chart_element?: string;
+  selected_trace_node?: string;
+  message_id?: string;
+  investigation_id?: string;
+  analysis_run_id?: string;
+  trace_id?: string;
+  agentic_run_id?: string;
+  project_id?: string;
+  scope?: string;
+  language?: string;
+};
+
+export type FeedbackReceipt = {
+  feedback_id: string;
+  status: string;
+  acknowledgement: string;
+  reproducible: boolean;
+  reason_missing: boolean;
+  changes_production: boolean;
 };
 
 /** A tab payload that is mostly an explanation plus free-form detail. */

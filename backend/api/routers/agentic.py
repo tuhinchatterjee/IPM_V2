@@ -596,5 +596,101 @@ def workers(principal: Principal = Caller) -> dict[str, Any]:
         }
 
 
+@router.get("/health", summary="Agentic health, as a governed state")
+def agentic_health(principal: Principal = Caller) -> dict[str, Any]:
+    """§135's AgenticHealth. Four state machines and thirty fields.
+
+    Four rather than one because "is the agentic layer working?" has four
+    different answers and the question is usually asked when three of them
+    are fine. A healthy worker with a stalled queue looks healthy; reporting
+    one colour hides whichever of the four is the problem, which is the one
+    somebody is trying to find.
+    """
+    _guard(principal, principals.require_operate)
+    from backend.agentic import health as ah
+
+    with get_session() as session:
+        found = queue.workers(session)
+        depths = queue.depth(session)
+        alive = [w for w in found if w.get("alive")]
+        beat = max((w.get("heartbeat_at") for w in alive
+                    if w.get("heartbeat_at")), default=None)
+
+        state = ah.Health(
+            worker_state=ah.worker_state(last_heartbeat=beat),
+            queue_depth=int(depths.get(queue.QUEUED, 0)),
+            running_jobs=int(depths.get(queue.RUNNING, 0)),
+            dead_letter_jobs=int(depths.get(queue.DEAD_LETTER, 0)),
+            worker_last_heartbeat=_iso(beat) or "",
+            worker_build_sha=str(
+                (alive[0].get("build_sha") if alive else "") or ""),
+        )
+        state.queue_state = ah.queue_state(
+            depth=state.queue_depth, running=state.running_jobs,
+            oldest_queued_age=state.oldest_queued_age,
+            worker=state.worker_state)
+        state.scheduler_state = ah.scheduler_state(
+            enabled=bool(schedules.listing(session))
+            if hasattr(schedules, "listing") else False,
+            due=state.scheduled_reviews_due,
+            late=state.scheduled_reviews_late)
+        _latest_review(session, state)
+        return state.to_dict()
+
+
+def _latest_review(session: Any, state: Any) -> None:
+    """The latest portfolio review, from a RUN rather than a case table.
+
+    §136's last line lives here: with no run there is no state but NOT_RUN,
+    however empty the case table is. An empty table means nothing looked.
+    """
+    from sqlalchemy import text
+
+    from backend.agentic import health as ah
+
+    try:
+        row = session.execute(text("""
+            SELECT id, status, trigger, started_at, finished_at, period
+            FROM agent_runs
+            WHERE trigger IN ('scheduled_review', 'manual_review', 'event')
+            ORDER BY id DESC LIMIT 1""")).mappings().first()
+    except Exception:  # pragma: no cover - the table is not there yet
+        row = None
+
+    if row is None:
+        state.latest_review_state = ah.NOT_RUN
+        return
+
+    counts = _case_counts(session, int(row["id"]))
+    state.latest_review_id = int(row["id"])
+    state.latest_review_scope = str(row.get("period") or "")
+    state.latest_review_started_at = _iso(row.get("started_at")) or ""
+    state.latest_review_completed_at = _iso(row.get("finished_at")) or ""
+    state.latest_review_case_counts = counts
+    # A run that finished is not thereby validated. Until a validation record
+    # exists the state is VALIDATING, which is honest and is the state that
+    # stops an unvalidated review being reported as a clean book.
+    state.latest_review_validation_status = str(row.get("status") or "")
+    state.latest_review_state = ah.review_state(
+        run_status=str(row.get("status") or ""),
+        validated=str(row.get("status") or "").lower() in
+        ("succeeded", "complete", "completed"),
+        cases=sum(counts.values()),
+        stale_reasons=state.stale_reasons)
+
+
+def _case_counts(session: Any, run_id: int) -> dict[str, int]:
+    from sqlalchemy import text
+
+    try:
+        rows = session.execute(
+            text("SELECT scope, count(*) AS n FROM risk_cases "
+                 "WHERE run_id = :run GROUP BY scope"),
+            {"run": run_id}).mappings().all()
+    except Exception:  # pragma: no cover - the table is not there yet
+        return {}
+    return {str(r["scope"]): int(r["n"]) for r in rows}
+
+
 def _iso(value: Any) -> str | None:
     return value.isoformat() if hasattr(value, "isoformat") else None
