@@ -69,6 +69,7 @@ from backend.orchestration import reuse as ru
 from backend.orchestration import routing as rt
 from backend.orchestration import scope as sc
 from backend.orchestration.context import retrieve
+from backend.regulatory import intent as regulatory_intent
 from backend.semantics import ontology
 
 logger = logging.getLogger(__name__)
@@ -172,6 +173,11 @@ class Answered:
     #: this answerable, and offering one invites the user to accept an answer to
     #: a different question.
     unsupported: str = ""
+    #: Set when a question was refused because it asks what a
+    #: regulation says and no approved Regulatory Knowledge Release is
+    #: active. Kept separate from `coverage` because the reason is
+    #: different: the data is not missing, the APPROVED SOURCE is.
+    regulatory: dict[str, Any] = field(default_factory=dict)
     #: Set when CreditProbe could not answer and is saying so. Never a reason to
     #: answer something else.
     failure: str = ""
@@ -399,6 +405,26 @@ def answer(question: str, *, context: Any = None,
             answered.coverage = held.to_dict()
             return finish(answered)
 
+    # A question about what a REGULATION SAYS, with no approved Regulatory
+    # Knowledge Release to answer it from.
+    #
+    # Found by the demonstration question set. "What does the circular say
+    # about provisioning for Stage 2?" ran a SIMPLE_ANALYSIS over
+    # `ifrs9_staging` and presented the result, with no circular in the corpus
+    # and no release active. The coverage check above had passed it, correctly:
+    # provisioning and Stage 2 ARE governed concepts. Nothing asked the
+    # different question - is this a request for a figure, or for the content
+    # of a document? Those need different sources and only one of them exists.
+    #
+    # `backend/regulatory/assurance.py` already makes `release_active` a
+    # CRITICAL gate. The gate was right and nothing routed to it.
+    documentary = regulatory_intent.read(question)
+    if documentary.documentary and not regulatory_intent.may_answer(
+            _session_for_regulatory()):
+        answered.unsupported = regulatory_intent.refusal(documentary)
+        answered.regulatory = documentary.to_dict()
+        return finish(answered)
+
     # A borrower CreditProbe does not hold is only the reason a question cannot
     # be answered when the question was otherwise answerable. "Did the CEO of
     # Al Rajhi Contracting resign?" was answered "CreditProbe could not find Al
@@ -570,6 +596,22 @@ def _previous_scope(state: cv.ConversationState) -> sc.ScopeFrame:
         grain=state.grain, top_n=state.top_n,
         presentation=state.visualization,
         fingerprint=state.plan_fingerprint)
+
+
+def _session_for_regulatory() -> Any:
+    """A session to read the active Regulatory Release with, or None.
+
+    None means "cannot tell", and `may_answer` treats that as NO. A regulatory
+    answer given because the database was briefly unreachable is the worst
+    possible reason to have given one.
+    """
+    try:
+        from backend.db.engine import get_session
+
+        with get_session() as session:
+            return session
+    except Exception:  # noqa: BLE001 - see the docstring
+        return None
 
 
 def demo_safe() -> bool:
