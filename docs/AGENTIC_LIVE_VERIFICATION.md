@@ -55,12 +55,91 @@ curl http://localhost:8000/api/v1/health | Select-String source_sha
 If they differ you are testing an image built from different code, and every
 result below is about something other than your working tree.
 
+## The nine modes, and what each one costs
+
+Every mode prints its estimate and asks for confirmation before it spends
+anything. The estimates are stated here as well so the decision can be made
+before a terminal is open.
+
+| Command | Calls | What it proves |
+|---|---|---|
+| `-DryRun` | 0 | Configuration, build and eligibility. Nothing is verified. |
+| `-FeedbackCritical` | **0** | The accuracy prompt, the feedback event, the learning observation, the candidate pipeline and the raw-feedback guard. |
+| `-RegulatoryCritical` | **0** | Circular extraction, as-of retrieval, citations and the five Regulatory Assurance critical gates. |
+| `-Quick` | ~13 | One call per active model role, plus the smoke thread. |
+| `-FullRouting` | ~14 | The live intent-recognition suite, in full. |
+| `-ProjectCritical` | ~18 | The same agentic work inside a Project, with scope isolation. |
+| `-AgenticCritical` | ~22 | Officer selection, coordination, and what the specialists actually read. |
+| `-Critical` | ~30 | Every acceptance thread, end to end, through the API. |
+| `-FullCertification` | ~120 | The full certification run over the sealed holdout. |
+
+### The two free modes
+
+`-FeedbackCritical` and `-RegulatoryCritical` make **no provider call at
+all**, and that is not a rounding down. Recording a rating, labelling an
+observation, proposing a candidate, extracting a circular and retrieving as
+of a date are deterministic operations; no model is asked anything.
+
+Two consequences follow, and both are deliberate:
+
+* **They run without a key.** Eligibility is not checked, because refusing to
+  run them because no key is configured would withhold the one verification
+  that always works — which is exactly the verification somebody reaches for
+  when the key is the thing they are unsure about.
+* **They never report LIVE_VERIFIED.** They earn a status of their own,
+  `DETERMINISTIC_VERIFIED`, exit 0, and write to their own report file. The
+  AI panel's LIVE VERIFIED lamp stays off, because no model ran. A build that
+  claimed live verification on the strength of arithmetic would be lying about
+  the one thing this whole module exists to tell the truth about.
+
+```powershell
+cd C:\path\to\IPM_V2
+.\scripts\verify-live-ai.ps1 -FeedbackCritical
+.\scripts\verify-live-ai.ps1 -RegulatoryCritical
+```
+
+Expected tail, for both:
+
+```
+  provider calls    none - this mode is deterministic
+    PASS  ...
+  report stored     yes
+  STATUS            DETERMINISTIC_VERIFIED
+  exit code         0
+```
+
+### Report files
+
+A run that makes no provider call writes to its own name, so the cheapest
+command in the product cannot land on top of — and destroy — the report a
+paid run has just written.
+
+```
+logs\live_ai_verification_<sha>.json          # -Quick, -Critical, -FullRouting,
+                                              # -FullCertification, -AgenticCritical,
+                                              # -ProjectCritical
+logs\verification_dryrun_<sha>.json
+logs\verification_feedbackcritical_<sha>.json
+logs\verification_regulatorycritical_<sha>.json
+```
+
+Only the first can set the product's LIVE VERIFIED badge, and only while the
+commit and the model configuration still match the ones it was made on.
+
 ## Agentic verification
 
 ```powershell
-.\scripts\verify-live-ai.ps1 -Quick        # a handful of calls
-.\scripts\verify-live-ai.ps1 -Critical     # the Tier 1 set
+.\scripts\verify-live-ai.ps1 -Quick             # a handful of calls
+.\scripts\verify-live-ai.ps1 -Critical          # the Tier 1 set
+.\scripts\verify-live-ai.ps1 -AgenticCritical   # officers, coordination, reads
+.\scripts\verify-live-ai.ps1 -ProjectCritical   # the same work inside a Project
 ```
+
+`-AgenticCritical` drives the same probes as `docs/POST_FINAL_AGENTIC.md`
+rather than a separate suite, so what the live run reports and what the
+measured baseline reports cannot disagree. Each of its four questions carries
+the officer level it must select; a run that answers well at the wrong level
+fails, because a badge that does not predict the execution path is decoration.
 
 What a live agentic run should demonstrate, and what to look for in the
 report each mode writes:
