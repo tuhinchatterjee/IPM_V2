@@ -4357,6 +4357,148 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  // ---- §7-§24: the accuracy-and-usefulness prompt, and the learning area ----
+  //
+  // The placement decision is made by the backend rather than here. §7's
+  // suppression rules are the half that protects the user rather than the
+  // product, and a client that decided for itself would drift — the
+  // suppressions first.
+  feedbackPrompt: (params: {
+    answer_id: string;
+    thread_id?: string;
+    complete?: boolean;
+    is_error?: boolean;
+    is_skeleton?: boolean;
+    already_answered?: boolean;
+  }) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== "") query.set(key, String(value));
+    });
+    return request<FeedbackPrompt>(`/learning/prompt?${query.toString()}`);
+  },
+  leaveAccuracyFeedback: (body: AccuracyFeedbackRequest) =>
+    request<AccuracyFeedbackReceipt>("/learning/feedback", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  muteFeedbackThread: (threadId: string) =>
+    request<{ muted_threads: string[] }>("/learning/preferences/mute-thread", {
+      method: "POST",
+      body: JSON.stringify({ thread_id: threadId }),
+    }),
+  learningInbox: (rating = "", limit = 50) =>
+    request<{ events: Record<string, unknown>[]; count: number }>(
+      `/learning/inbox?rating=${encodeURIComponent(rating)}&limit=${limit}`,
+    ),
+  learningCandidates: (caseStatus = "") =>
+    request<{
+      candidates: Record<string, unknown>[];
+      count: number;
+      statuses: Record<string, string>;
+      failure_classes: Record<string, string>;
+    }>(`/learning/candidates?case_status=${encodeURIComponent(caseStatus)}`),
+  learningObservations: (label = "") =>
+    request<{
+      observations: Record<string, unknown>[];
+      count: number;
+      labels: Record<string, string>;
+      note: string;
+    }>(`/learning/observations?label=${encodeURIComponent(label)}`),
+  learningReleases: () =>
+    request<{
+      releases: Record<string, unknown>[];
+      active: string;
+      gates: Record<string, string>;
+      note: string;
+    }>("/learning/releases"),
+  learningReplays: () =>
+    request<{ replays: Record<string, unknown>[] }>("/learning/replays"),
+  learningModels: () =>
+    request<{
+      runs: Record<string, unknown>[];
+      tasks: { task: string; decides: string; baseline: string }[];
+      forbidden: Record<string, string>;
+      note: string;
+    }>("/learning/models"),
+  learningSatisfaction: (days = 30) =>
+    request<SatisfactionMetrics>(`/learning/metrics/satisfaction?days=${days}`),
+  learningMetrics: () =>
+    request<Record<string, unknown>>("/learning/metrics/learning"),
+  learningGuard: () => request<LearningGuard>("/learning/guard"),
+};
+
+/** §7's prompt, as the backend decided it. */
+export type FeedbackPrompt = {
+  show: boolean;
+  because: string;
+  question: string;
+  answers: { value: string; label: string; means: string }[];
+  answer_id: string;
+  categories: { id: string; label: string; means: string }[];
+  consent_question: string;
+  consent_options: Record<string, string>;
+  detail_on: string[];
+  dont_ask_again_in_this_thread: boolean;
+};
+
+export type AccuracyFeedbackRequest = {
+  rating: string;
+  answer_id: string;
+  categories?: string[];
+  comment?: string;
+  correction?: {
+    conclusion?: string;
+    value?: string;
+    preferred_dataset?: string;
+    preferred_period?: string;
+    preferred_method?: string;
+    expected_visualization?: string;
+    reference?: string;
+  };
+  consent?: string;
+  surface?: string;
+  investigation_id?: string;
+  project_id?: string;
+  message_id?: string;
+  question?: string;
+  agentic_run_id?: string;
+  plan_fingerprint?: string;
+  assurance_record_id?: string;
+  build_sha?: string;
+  officer_level?: number | null;
+};
+
+export type AccuracyFeedbackReceipt = {
+  event_id: string;
+  acknowledgement: string;
+  what_happens_next: string;
+  reproducible: boolean;
+  may_learn: boolean;
+};
+
+export type SatisfactionMetrics = {
+  window_days: number;
+  answers_given: number;
+  feedback_events: number;
+  rated: number;
+  response_rate_pct: number | null;
+  by_rating: Record<string, number>;
+  by_issue_category: Record<string, number>;
+  corrections: number;
+  correction_rate_pct: number | null;
+  note: string;
+};
+
+export type LearningGuard = {
+  ok: boolean;
+  explanation: string;
+  protected: Record<string, string[]>;
+  forbidden_imports: Record<string, string>;
+  modules: string[];
+  exemptions: { module: string; line: number; reason: string }[];
+  findings: { module: string; line: number; explanation: string }[];
 };
 
 export type FeedbackOptions = {

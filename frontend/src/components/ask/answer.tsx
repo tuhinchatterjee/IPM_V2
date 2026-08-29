@@ -26,7 +26,7 @@ import { HighlightProvider } from "@/components/analytics/highlight";
 import { DynamicAnalysisPanel } from "@/components/ask/dynamic-analysis";
 import { KpiTile } from "@/components/analytics/primitives";
 import { ResultView } from "@/components/analytics/result-view";
-import { AnswerFeedback } from "@/components/feedback/answer-feedback";
+import { AccuracyFeedback } from "@/components/feedback/accuracy-prompt";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -988,19 +988,24 @@ export function AnswerBlock({
         returnTo={returnTo}
       />
 
-      {/* ------------------------------ 10. SUGGESTED NEXT QUESTIONS */}
-      {onAsk && <FollowUps questions={run.follow_ups} onAsk={onAsk} busy={busy} />}
+      {/* ------------------------- 11. WAS THIS ACCURATE AND USEFUL?
+          §7: below the completed answer and ABOVE the suggested follow-ups.
+          The order matters more than it looks: a prompt below the follow-ups
+          is below the thing a user clicks to leave, so it is a prompt most
+          users never see. One prompt per answer — the Part E control it
+          replaces asked a different, narrower question in the same place.
 
-      {/* --------------------------------------------- 12. WAS THIS USEFUL?
-          §148: after every response, including clarifications, controlled
-          failures and unsupported ones. Deliberately the last thing and
-          deliberately quiet — a prominent GOOD button beside an answer
-          nobody checked collects agreement rather than correctness. */}
-      <AnswerFeedback
+          Deliberately quiet. A prominent button beside an answer nobody
+          checked collects agreement rather than correctness. */}
+      <AccuracyFeedback
         answerId={String(runId ?? run.question ?? "")}
-        analysisRunId={runId ? String(runId) : undefined}
+        agenticRunId={runId ? String(runId) : undefined}
+        question={run.question}
         className="pt-1"
       />
+
+      {/* ------------------------------ 12. SUGGESTED NEXT QUESTIONS */}
+      {onAsk && <FollowUps questions={run.follow_ups} onAsk={onAsk} busy={busy} />}
     </div>
     </HighlightProvider>
   );
