@@ -105,10 +105,13 @@ PLOTTABLE: frozenset[str] = frozenset({
     MEASURE, PERCENTAGE, PERCENTAGE_POINT, DISTRIBUTION_VALUE,
     DECOMPOSITION_COMPONENT})
 
-#: Roles that may label a categorical axis.
+#: Roles that may label a categorical axis. TIME is here because §86's
+#: "category × period × measure → heatmap" puts periods on one of the two
+#: categorical axes, as do a grouped bar's series and small multiples' panels.
+#: Leaving it out refused the exact chart the mapping names for that shape.
 LABELLING: frozenset[str] = frozenset({
     ENTITY, CATEGORY, ORDINAL_CATEGORY, RISK_BAND, GEOGRAPHY, FLOW_SOURCE,
-    FLOW_DESTINATION})
+    FLOW_DESTINATION, TIME})
 
 #: Roles that carry an inherent order which must not be re-sorted by size.
 #: Sorting rating grades by ECL puts CCC next to AA and calls it a ranking.

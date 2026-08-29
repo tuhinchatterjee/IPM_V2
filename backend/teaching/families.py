@@ -243,6 +243,19 @@ FAMILIES: tuple[Family, ...] = (
     Family("VISUALIZATION_SELECTION", "Visualization selection", JUDGMENT,
            "Choose a chart the data's shape supports, and decline to chart "
            "what a chart would misrepresent."),
+    Family("INVESTIGATION_BLUEPRINT", "Investigation blueprint", JUDGMENT,
+           "Select the blueprint a competent analyst would work from, and "
+           "record a reason for every mandatory objective omitted."),
+    Family("ANALYST_INTERPRETATION", "Analyst interpretation", JUDGMENT,
+           "Say what the numbers mean in the order a credit reader needs, "
+           "and decline a section the evidence does not support."),
+    Family("MATERIALITY_JUDGMENT", "Materiality, breadth and persistence",
+           JUDGMENT,
+           "Decide how large, how broad and how sustained a movement is from "
+           "governed measures rather than from the size of its percentage."),
+    Family("CHALLENGE_PASS", "Challenge pass", JUDGMENT,
+           "Attack the conclusion before a reader does, and report what "
+           "survived rather than that a challenge ran."),
 
     # -------------------------------------------------------------- refusal
     Family("AMBIGUITY", "Ambiguity", REFUSAL,

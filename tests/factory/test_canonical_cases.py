@@ -94,9 +94,16 @@ def test_the_corpus_covers_the_families_migration_leaves_empty(cases):
 
 
 def test_together_with_migration_every_available_family_has_cases():
-    """The whole point of doing both. A family with no cases is a family whose
-    obligation nothing in the library demonstrates."""
-    covered = {c.family_id for c in [*mg.cases(), *cn.cases()]}
+    """The whole point of doing all three. A family with no cases is a family
+    whose obligation nothing in the library demonstrates.
+
+    The judgment corpus is in here because §95's four new families live only
+    there: checking migration and the canonical corpus alone would report the
+    four as gaps while six hundred cases sit in them."""
+    from intelligence_factory.teaching import judgment_blueprints as jb
+
+    covered = {c.family_id
+               for c in [*mg.cases(), *cn.cases(), *jb.cases()]}
     missing = sorted(set(fam.AVAILABLE) - covered)
     assert missing == []
 

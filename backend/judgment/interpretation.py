@@ -358,6 +358,13 @@ def check(narrative: str, built: Pack) -> Grounding:
     for observation in built.observations:
         for value in (observation.get("slots") or {}).values():
             allowed.add(_normalise(value))
+            # Figures INSIDE a slot's text count too. An engine's verdict
+            # arrives as "three names carry 71% of the movement", and 71 came
+            # from the pack as surely as a numeric slot would have. Matching
+            # only whole slot values reported every such figure as invented,
+            # which is a grounding check that fires on its own evidence.
+            for figure in _figures(str(value)):
+                allowed.add(_normalise(figure))
 
     for figure in _figures(narrative):
         if _normalise(figure) not in allowed:

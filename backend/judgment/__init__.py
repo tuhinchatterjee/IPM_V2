@@ -25,6 +25,9 @@ plausibly and unaccountably if nobody stops it:
                  UNRESOLVED as a permitted answer.
 ``interpretation`` the nine sections an answer may have, what the narrative
                  model is given, and whether what came back is grounded.
+``factory``      the eight of them composed into one investigation run, so
+                 the failures they each prevent cannot happen in the gaps
+                 between them.
 ``selection``    what a click on a chart means, as structured memory.
 ``judgment_policy`` when the harder model is worth its cost, and what it may
                  see — never a portfolio, never before the engine ran.
@@ -49,6 +52,7 @@ from backend.judgment import (
     contradictions,
     drivers,
     evidence,
+    factory,
     hypotheses,
     interpretation,
     judgment_policy,
@@ -63,6 +67,7 @@ from backend.judgment import (
 )
 
 __all__ = ["blueprints", "breadth", "contradictions", "drivers", "evidence",
+           "factory",
            "hypotheses", "interpretation", "judgment_policy", "materiality",
            "observations", "persistence", "presentability", "selection",
            "task_dag", "visual_critic", "visual_grammar"]

@@ -20,6 +20,7 @@ import pytest
 
 from backend.teaching import failures as fl
 from backend.teaching import families as fam
+from backend.teaching import release as rel
 from tests.conftest import database_available
 
 db = pytest.mark.skipif(not database_available(),
@@ -285,7 +286,10 @@ def test_the_releases_route_names_the_gate_state(client):
     body = client.get("/api/v1/intelligence/releases",
                       headers=analyst()).json()
     assert body["gate"]["state"] in body["states"]
-    assert len(body["files"]) == 15
+    # Derived rather than counted: a release file added by a later section
+    # should change this list, and a test that pinned the number would fail
+    # for the right change every time.
+    assert body["files"] == list(rel.FILES)
 
 
 def test_the_disclosure_route_lists_section_45s_seven_sections(client):

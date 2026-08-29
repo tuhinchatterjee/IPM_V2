@@ -82,14 +82,32 @@ FILES: tuple[str, ...] = (
     "ontology_fingerprint.json",
     "method_fingerprint.json",
     "evaluation_report.json",
+    # §100. A required file rather than an optional one: a release with no
+    # judgment manifest is a release whose materiality, contradiction and
+    # visualization policies nobody recorded, and `load` reporting it missing
+    # is better than the runtime discovering it.
+    "judgment_manifest.json",
     "holdout_manifest.json",
     "approval_record.json",
 )
 
-#: The axes a release goes STALE on. The same list §5 uses for a case, plus
-#: the two that are properties of the release rather than of any case in it.
+#: §100's judgment axes. Every one is a policy a Part B engine reads at
+#: runtime, so a release cut against an old materiality policy describes a
+#: product that no longer exists — which is exactly what STALE means. Listed
+#: apart from §5's axes only because they arrived later; they are checked
+#: identically.
+JUDGMENT_AXES: tuple[str, ...] = (
+    "blueprint_version", "judgment_policy_version",
+    "materiality_policy_version", "contradiction_taxonomy_version",
+    "visualization_grammar_version", "interpretation_contract_version",
+)
+
+#: The axes a release goes STALE on. The same list §5 uses for a case, the two
+#: that are properties of the release rather than of any case in it, and
+#: §100's six.
 STALENESS_AXES: tuple[str, ...] = (*st.STALENESS_AXES, "git_sha",
-                                   "retrieval_version", "routing_policy")
+                                   "retrieval_version", "routing_policy",
+                                   *JUDGMENT_AXES)
 
 
 @dataclass
@@ -116,6 +134,32 @@ class Manifest:
     relationship_version: str = ""
     retrieval_version: str = ""
 
+    # ---- §100: the analytical-judgment content -------------------------
+    #
+    # Six versions, because the Part B engines read six separate policies at
+    # runtime and any one of them moving means the release describes a
+    # product that has since changed. Recorded individually rather than as
+    # one "judgment_version" so a reader is told WHICH policy moved.
+    blueprint_version: str = ""
+    judgment_policy_version: str = ""
+    materiality_policy_version: str = ""
+    contradiction_taxonomy_version: str = ""
+    visualization_grammar_version: str = ""
+    interpretation_contract_version: str = ""
+    #: Cases per judgment family, and the distinct-lesson count beside it.
+    #: §95's "do not inflate" made visible in the release rather than only in
+    #: the factory report.
+    judgment_case_counts: dict[str, int] = field(default_factory=dict)
+    judgment_distinct_lessons: dict[str, int] = field(default_factory=dict)
+    #: §96's four suites, kept apart. A combined judgment score is not
+    #: recorded here because there is not one.
+    judgment_evaluations: dict[str, Any] = field(default_factory=dict)
+    #: Who signed off on the judgment content specifically. A release
+    #: approved for its teaching cases has not thereby been approved for its
+    #: materiality policy.
+    judgment_review_approvals: list[dict[str, str]] = field(
+        default_factory=list)
+
     evaluation_metrics: dict[str, Any] = field(default_factory=dict)
     critical_failures: list[str] = field(default_factory=list)
     confidence_bounds: dict[str, Any] = field(default_factory=dict)
@@ -140,6 +184,7 @@ class Manifest:
             "retrieval_version": self.retrieval_version,
             "git_sha": self.git_sha,
             "routing_policy": _fingerprint(self.routing_policy),
+            **{axis: getattr(self, axis, "") for axis in JUDGMENT_AXES},
         }
 
 
@@ -172,7 +217,13 @@ def build(cases: list[sc.TeachingCase], *, git_sha: str = "",
           retrieval_policy: dict[str, Any] | None = None,
           model_roles: list[str] | None = None,
           critical_failures: list[str] | None = None,
-          confidence_bounds: dict[str, Any] | None = None) -> dict[str, Any]:
+          confidence_bounds: dict[str, Any] | None = None,
+          judgment_versions: dict[str, str] | None = None,
+          judgment_case_counts: dict[str, int] | None = None,
+          judgment_distinct_lessons: dict[str, int] | None = None,
+          judgment_evaluations: dict[str, Any] | None = None,
+          judgment_approvals: list[dict[str, str]] | None = None
+          ) -> dict[str, Any]:
     """A release, as the files §43 lists.
 
     Takes cases rather than a session, so a release can be built and inspected
@@ -217,7 +268,18 @@ def build(cases: list[sc.TeachingCase], *, git_sha: str = "",
         evaluation_metrics=dict(evaluation or {}),
         critical_failures=list(critical_failures or []),
         confidence_bounds=dict(confidence_bounds or {}),
+        judgment_case_counts=dict(judgment_case_counts or {}),
+        judgment_distinct_lessons=dict(judgment_distinct_lessons or {}),
+        judgment_evaluations=dict(judgment_evaluations or {}),
+        judgment_review_approvals=list(judgment_approvals or []),
     )
+    # Left blank when the caller does not supply them, and a blank axis is
+    # STALE rather than agreed — the same asymmetry as everywhere else. A
+    # release that recorded no materiality policy version cannot claim to
+    # match the one running.
+    for axis, value in (judgment_versions or {}).items():
+        if axis in JUDGMENT_AXES:
+            setattr(manifest, axis, str(value))
 
     return {
         "manifest.json": manifest.to_dict(),
@@ -236,6 +298,18 @@ def build(cases: list[sc.TeachingCase], *, git_sha: str = "",
         "ontology_fingerprint.json": {"version": ontology},
         "method_fingerprint.json": {"version": manifest.method_version},
         "evaluation_report.json": dict(evaluation or {}),
+        # §100's content as its own file, so a reviewer signing off on the
+        # judgment policies reads them rather than finding them inside a
+        # manifest of everything.
+        "judgment_manifest.json": {
+            "versions": {axis: getattr(manifest, axis, "")
+                         for axis in JUDGMENT_AXES},
+            "case_counts": manifest.judgment_case_counts,
+            "distinct_lessons": manifest.judgment_distinct_lessons,
+            "evaluations": manifest.judgment_evaluations,
+            "critical_failures": manifest.critical_failures,
+            "review_approvals": manifest.judgment_review_approvals,
+        },
         # The holdout MANIFEST — counts and coverage, never a question and
         # never an answer. §41: the retrieval service cannot access holdout
         # cases or labels, and a release that carried them would hand them to
@@ -441,6 +515,7 @@ def stale_axes(manifest: Manifest,
 
 
 __all__ = ["APPROVED", "FILES", "Gate", "Manifest", "RELEASE_DIR",
-           "RELEASE_VERSION", "STALE", "STALENESS_AXES", "STATES",
+           "JUDGMENT_AXES", "RELEASE_VERSION", "STALE", "STALENESS_AXES",
+           "STATES",
            "UNAVAILABLE", "UNRELEASED", "approve", "build", "freeze", "gate",
            "latest", "load", "release_id", "stale_axes"]
