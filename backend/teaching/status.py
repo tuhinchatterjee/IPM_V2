@@ -72,8 +72,15 @@ STATUSES: tuple[str, ...] = (
 RETRIEVABLE: frozenset[str] = frozenset({APPROVED, SYSTEM_VALIDATED})
 
 # ---------------------------------------------------------- authoring method
-#: Written by a person.
+#: Written by a person, word by word.
 HUMAN = "HUMAN"
+#: Instantiated from a reviewed blueprint over the governed vocabulary. The
+#: SPECIFICATION was written and reviewed by a person once; the SUBJECT is
+#: governed; the PHRASING is generated. Distinct from HUMAN because calling a
+#: generated instance hand-written is the exact dishonesty this phase forbids,
+#: and distinct from LLM_GENERATED because no model was involved and the
+#: blueprint has a line number somebody can read.
+BLUEPRINT = "BLUEPRINT"
 #: Written by a model. §5: never labelled human reviewed on the strength of
 #: having been validated.
 LLM_GENERATED = "LLM_GENERATED"
@@ -87,8 +94,16 @@ MIGRATED = "MIGRATED"
 REVIEWED_FAILURE = "REVIEWED_FAILURE"
 
 AUTHORING_METHODS: tuple[str, ...] = (
-    HUMAN, LLM_GENERATED, VARIANT, DERIVED, MIGRATED, REVIEWED_FAILURE,
+    HUMAN, BLUEPRINT, LLM_GENERATED, VARIANT, DERIVED, MIGRATED,
+    REVIEWED_FAILURE,
 )
+
+#: Methods where no person wrote the words. Used for reporting, never for
+#: permission: a blueprint case is as eligible for approval as any other, and
+#: what this set exists for is to stop a count of 1,828 reading as 1,828
+#: sentences somebody typed.
+GENERATED: frozenset[str] = frozenset({BLUEPRINT, LLM_GENERATED, VARIANT,
+                                       DERIVED, MIGRATED})
 
 #: Methods whose output no validator may vouch for on its own. A model that
 #: writes a case and a model that checks it agree far more often than either
@@ -304,7 +319,8 @@ def describe(status: str) -> str:
 
 
 __all__ = [
-    "APPROVED", "AUTHORING_METHODS", "AUTO_VALIDATED", "CERTIFIED_METHOD",
+    "APPROVED", "AUTHORING_METHODS", "AUTO_VALIDATED", "BLUEPRINT",
+    "CERTIFIED_METHOD", "GENERATED",
     "CLIENT", "DERIVED", "DIAGNOSTIC", "DIAGNOSTIC_DATASET", "DRAFT",
     "ENGINE_CONTRACT", "HUMAN", "LLM_GENERATED", "MACHINE_AUTHORED",
     "MIGRATED", "PUBLIC", "REJECTED", "RETIRED", "RETRIEVABLE",

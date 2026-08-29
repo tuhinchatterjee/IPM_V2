@@ -206,7 +206,11 @@ def build(*, family: str, title: str, turns: list[Turn],
         expected_officer_level=officer,
         difficulty=difficulty,
         risk_level=risk,
-        authoring_method=st.HUMAN,
+        # Honest by construction: the specification below was written and
+        # reviewed once; the subject comes from the governed vocabulary; the
+        # phrasing is generated. Calling that HUMAN would make a count of six
+        # hundred read as six hundred sentences somebody typed.
+        authoring_method=st.BLUEPRINT,
         data_sensitivity=st.PUBLIC,
         ontology_version=migrate.ONTOLOGY_VERSION,
     )

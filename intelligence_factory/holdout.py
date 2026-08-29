@@ -61,7 +61,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-HOLDOUT_VERSION = "1.2.0"
+HOLDOUT_VERSION = "2.0.0"
 
 #: The families a holdout must exercise for its score to mean anything. Not
 #: the curriculum's twenty-five: a holdout tests generalisation, so it is
@@ -74,9 +74,28 @@ SCOPE = "multi-turn scope change"
 BOUNDARY = "boundary value"
 COMPOUND = "compound request"
 BROAD = "broad investigation"
+#: §41's remaining kinds. Each is a way the product can look right on the open
+#: library and be wrong in the field.
+#:
+#: A paraphrase the variant generator never made — because the generator is
+#: rule-based, and a rule-based generator's blind spots are systematic.
+UNSEEN_PARAPHRASE = "unseen paraphrase"
+#: Two things the library teaches separately and never together. Most real
+#: questions are combinations, and a corpus of single-concept cases measures
+#: the wrong thing.
+UNSEEN_COMBINATION = "unseen combination"
+#: A pronoun whose antecedent is inside the same sentence, in a shape §10's
+#: list does not contain.
+SAME_TURN = "same-turn reference"
+#: Corporate and retail vocabulary on questions the library only ever asked
+#: scope-neutrally. §48's leakage, from the other direction.
+CORPORATE = "corporate variant"
+RETAIL = "retail variant"
 
 KINDS: tuple[str, ...] = (UNSEEN_ENTITY, UNSEEN_PERIOD, UNSEEN_ALIAS,
-                          ADVERSARIAL, SCOPE, BOUNDARY, COMPOUND, BROAD)
+                          UNSEEN_PARAPHRASE, UNSEEN_COMBINATION, SAME_TURN,
+                          ADVERSARIAL, SCOPE, BOUNDARY, COMPOUND, BROAD,
+                          CORPORATE, RETAIL)
 
 
 @dataclass
@@ -421,6 +440,149 @@ CORRECTIONS: tuple[dict[str, str], ...] = (
             "a complete answer score as a miss. The case still requires the "
             "datasets and an executed answer."},
 )
+
+# ---------------------------------------------------------------------------
+# §41's extension
+# ---------------------------------------------------------------------------
+#
+# Added at version 2.0.0. Everything here tests a way the product can score
+# well on the open library and still be wrong in front of a client: a phrasing
+# the rule-based variant generator cannot produce, a combination the library
+# teaches only in pieces, a same-turn referent in a shape §10's list does not
+# contain, and the two scope vocabularies on questions the library only ever
+# asked scope-neutrally.
+#
+# These are SEALED. Nothing that shapes the product may read them, and the
+# import-graph test enforces it.
+
+_EXTENSION: tuple[Case, ...] = (
+    # ------------------------------------------- paraphrases nobody generated
+    _c("hold-para-1", UNSEEN_PARAPHRASE, "A question asked as a statement",
+       Turn("I need the Stage 2 position by sector for the latest quarter.",
+            capability="ANALYSIS", concepts=("ifrs 9 stage",),
+            invariants=("share_bounds",))),
+    _c("hold-para-2", UNSEEN_PARAPHRASE, "A question buried in context",
+       Turn("The committee meets Thursday and they always ask about "
+            "concentration — what does the top twenty look like?",
+            capability="ANALYSIS", concepts=("exposure at default",),
+            invariants=("row_limit",))),
+    _c("hold-para-3", UNSEEN_PARAPHRASE, "A double negative",
+       Turn("Which borrowers are not outside the covenant thresholds?",
+            capability="ANALYSIS", concepts=("covenant headroom",),
+            forbidden=("inverted_condition",), critical=True)),
+    _c("hold-para-4", UNSEEN_PARAPHRASE, "A question phrased as an accusation",
+       Turn("Why has nobody flagged the Contracting deterioration?",
+            capability="ANALYSIS", forbidden=("UNSUPPORTED",))),
+    _c("hold-para-5", UNSEEN_PARAPHRASE, "An imperative with no verb",
+       Turn("Stage 3 exposure. By sector. Latest.",
+            capability="ANALYSIS", concepts=("ifrs 9 stage",))),
+    _c("hold-para-6", UNSEEN_PARAPHRASE, "A measure named by its formula",
+       Turn("What is ECL over EAD by rating grade?",
+            capability="ANALYSIS", concepts=("ecl coverage",),
+            forbidden=("summing a ratio",), critical=True)),
+
+    # ------------------------------------------ combinations never taught together
+    _c("hold-comb-1", UNSEEN_COMBINATION,
+       "A vintage cut of a migration matrix",
+       Turn("For facilities originated in 2023, show the stage migration "
+            "between Q1 and Q2 2026.",
+            capability="ANALYSIS", concepts=("ifrs 9 stage",),
+            datasets=("portfolio_facility", "ifrs9_staging"),
+            invariants=("population_matched_both_dates",), critical=True)),
+    _c("hold-comb-2", UNSEEN_COMBINATION,
+       "A roll rate inside a concentration cut",
+       Turn("For the twenty largest obligors, what proportion of accounts "
+            "rolled from 30-59 to 60-89 last quarter?",
+            capability="ANALYSIS", concepts=("days past due",),
+            invariants=("denominator_is_opening_population", "row_limit"),
+            critical=True)),
+    _c("hold-comb-3", UNSEEN_COMBINATION,
+       "An as-of join under a decomposition",
+       Turn("Decompose the ECL change over the latest year, using each "
+            "borrower's rating as it stood at the opening date.",
+            capability="ANALYSIS", concepts=("expected credit loss",),
+            invariants=("components_reconcile", "as_of_alignment"),
+            critical=True)),
+    _c("hold-comb-4", UNSEEN_COMBINATION,
+       "Risk appetite measured on a cohort",
+       Turn("Is the 2022 vintage within the sub-investment grade limit?",
+            capability="ANALYSIS", invariants=("limit_stated",))),
+    _c("hold-comb-5", UNSEEN_COMBINATION,
+       "A contradiction inside a scenario",
+       Turn("Under the severe downside, ECL falls in Manufacturing while "
+            "Stage 2 rises. What is going on?",
+            capability="ANALYSIS", concepts=("expected credit loss",),
+            forbidden=("resolving the contradiction silently",),
+            critical=True)),
+    _c("hold-comb-6", UNSEEN_COMBINATION,
+       "Grain reconciliation across two domains",
+       Turn("Show total exposure at default by group parent for Real Estate, "
+            "with each group's worst covenant headroom, and confirm the "
+            "exposure ties to the facility total.",
+            capability="ANALYSIS",
+            datasets=("portfolio_facility", "group_structure",
+                      "covenant_tests"),
+            invariants=("totals_tie", "no_double_counting"), critical=True)),
+
+    # ----------------------------------------- same-turn shapes §10 does not list
+    _c("hold-st-1", SAME_TURN, "A referent split across a conjunction",
+       Turn("Find borrowers whose DSCR fell below 1.2 and whose rating was "
+            "downgraded, then rank the ones that did both by exposure at "
+            "default.",
+            capability="ANALYSIS", invariants=("condition",), critical=True)),
+    _c("hold-st-2", SAME_TURN, "A referent to the smaller of two cohorts",
+       Turn("Compare Contracting and Real Estate on ECL coverage, and tell me "
+            "which borrowers drive the weaker one.",
+            capability="ANALYSIS", concepts=("ecl coverage",),
+            forbidden=("single_cohort",), critical=True)),
+    _c("hold-st-3", SAME_TURN, "A possessive referent",
+       Turn("Show the ten largest SME obligors and their covenant status.",
+            capability="ANALYSIS", invariants=("row_limit",))),
+    _c("hold-st-4", SAME_TURN, "A referent inside a negation",
+       Turn("Which Stage 2 borrowers have rising DPD, and which of them have "
+            "not been put on the watchlist?",
+            capability="ANALYSIS", datasets=("watchlist_register",),
+            critical=True)),
+    _c("hold-st-5", SAME_TURN, "An ordinal referent",
+       Turn("Rank sectors by ECL growth and describe the top three.",
+            capability="ANALYSIS", invariants=("row_limit",))),
+
+    # ------------------------------------------------------ corporate variants
+    _c("hold-corp-1", CORPORATE, "Obligor grain on a facility question",
+       Turn("For Contracting obligors with revolving facilities, what is "
+            "utilisation against the approved limit?",
+            capability="ANALYSIS", concepts=("limit utilisation",),
+            forbidden=("account grain",), critical=True)),
+    _c("hold-corp-2", CORPORATE, "Financial spreading coverage",
+       Turn("Which corporate obligors have no financial spread within the "
+            "last twelve months?",
+            capability="ANALYSIS", datasets=("borrower_financials",))),
+    _c("hold-corp-3", CORPORATE, "Group aggregation under a limit",
+       Turn("Which group parents exceed the single-name limit once their "
+            "subsidiaries are aggregated?",
+            capability="ANALYSIS", datasets=("group_structure",),
+            invariants=("no_double_counting", "limit_stated"),
+            critical=True)),
+
+    # --------------------------------------------------------- retail variants
+    _c("hold-ret-1", RETAIL, "Account grain on a product question",
+       Turn("What is the 30+ delinquency rate on credit cards by origination "
+            "vintage?",
+            capability="ANALYSIS", concepts=("days past due",),
+            forbidden=("obligor grain", "covenant"), critical=True)),
+    _c("hold-ret-2", RETAIL, "A retail concept the corporate book lacks",
+       Turn("How has the behavioural score distribution moved on auto "
+            "finance over the last year?", capability="ANALYSIS")),
+    _c("hold-ret-3", RETAIL, "Cure rates on an early bucket",
+       Turn("What proportion of personal loan accounts that were 30-59 days "
+            "past due last quarter are current now?",
+            capability="ANALYSIS", concepts=("days past due",),
+            invariants=("denominator_is_opening_population",),
+            critical=True)),
+)
+
+CASES = CASES + _EXTENSION
+
 
 BY_ID: dict[str, Case] = {c.id: c for c in CASES}
 

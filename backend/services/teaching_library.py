@@ -484,6 +484,110 @@ def summary(session: Session) -> dict[str, Any]:
     }
 
 
+def governance(session: Session) -> dict[str, Any]:
+    """The library, reported honestly. Every cut the phase brief asks for.
+
+    Why this is its own function and not a slice of `summary`
+    ---------------------------------------------------------
+    A count of 1,828 cases means nothing on its own, and the ways it can
+    mislead are specific: a library that is 100% AUTO_VALIDATED reads as a
+    library of 1,828 usable cases and is a library of none, because retrieval
+    serves APPROVED only. A library whose cases were written by rules and
+    blueprints reads as reviewed work unless the authoring method is on the
+    same screen as the count.
+
+    So every count here is broken down by the thing that could be hiding
+    behind it, and `human_reviewed` is computed from actual approval records
+    rather than from status — a case can only be counted as human reviewed
+    when a person's name and a timestamp are on it.
+    """
+    rows = list(session.execute(select(Row)).scalars())
+    newest: dict[str, Row] = {}
+    for row in rows:
+        held = newest.get(row.case_id)
+        if held is None or row.case_version > held.case_version:
+            newest[row.case_id] = row
+    current = list(newest.values())
+
+    def _count(attribute: str) -> dict[str, int]:
+        out: dict[str, int] = {}
+        for row in current:
+            key = str(getattr(row, attribute, "") or "—")
+            out[key] = out.get(key, 0) + 1
+        return dict(sorted(out.items()))
+
+    by_status = {name: 0 for name in st.STATUSES}
+    for row in current:
+        by_status[row.review_status] = by_status.get(row.review_status, 0) + 1
+
+    #: A case counted as human reviewed must have a person and a time on it.
+    #: §5 forbids labelling LLM-generated cases human reviewed, and the way
+    #: that happens is not a deliberate lie — it is a status being read as an
+    #: approval.
+    human = [r for r in current
+             if r.review_status == st.APPROVED and (r.reviewer or "").strip()
+             and r.approved_at is not None]
+    claimed = [r for r in current if r.review_status == st.APPROVED]
+
+    provenance: dict[str, int] = {}
+    for row in current:
+        source = (row.source_provenance or "").split(":")[0] or "unrecorded"
+        provenance[source] = provenance.get(source, 0) + 1
+
+    retrievable_now = [r for r in current if bool(
+        st.retrievable(r.review_status, sensitivity=r.data_sensitivity))]
+
+    return {
+        "cases": len(current),
+        "versions": len(rows),
+        "by_status": by_status,
+        "by_authoring_method": _count("authoring_method"),
+        "by_provenance": dict(sorted(provenance.items())),
+        "by_family": _count("family_id"),
+        "by_difficulty": _count("difficulty"),
+        "by_scope": _count("portfolio_scope"),
+        "by_language": _count("language"),
+        "by_sensitivity": _count("data_sensitivity"),
+        "human_reviewed": len(human),
+        "approved_without_a_reviewer": len(claimed) - len(human),
+        "retrievable_now": len(retrievable_now),
+        "hand_written": sum(1 for r in current
+                            if r.authoring_method == st.HUMAN),
+        "generated": sum(1 for r in current
+                         if r.authoring_method in st.GENERATED),
+        "machine_authored": sum(
+            1 for r in current
+            if r.authoring_method in st.MACHINE_AUTHORED),
+        "derived_from_contracts": sum(
+            1 for r in current if r.authoring_method == st.DERIVED),
+        "sentence": _governance_sentence(current, human, retrievable_now),
+    }
+
+
+def _governance_sentence(current: list[Row], human: list[Row],
+                         retrievable_now: list[Row]) -> str:
+    """The one line that has to be true.
+
+    Written to be readable out loud in a governance meeting, and written so
+    that the uncomfortable version of it is the one that appears when the
+    uncomfortable version is true.
+    """
+    total = len(current)
+    if not total:
+        return "The teaching library is empty."
+    written = sum(1 for r in current if r.authoring_method == st.HUMAN)
+    blueprint = sum(1 for r in current if r.authoring_method == st.BLUEPRINT)
+    migrated = sum(1 for r in current if r.authoring_method == st.MIGRATED)
+    derived = sum(1 for r in current if r.authoring_method == st.DERIVED)
+    return (
+        f"{total} teaching cases. {len(human)} carry a named human approval "
+        f"and {len(retrievable_now)} are retrievable by production. "
+        f"{written} were written by hand, {blueprint} instantiated from "
+        f"reviewed blueprints, {migrated} migrated from existing corpora and "
+        f"{derived} derived from certified method contracts. No case is "
+        "described as human reviewed without an approval record.")
+
+
 def specifications(rows: Sequence[Row]) -> list[dict[str, Any]]:
     """Stored rows as plain dictionaries, for the factory to read.
 
@@ -495,7 +599,8 @@ def specifications(rows: Sequence[Row]) -> list[dict[str, Any]]:
     return [to_case(row).to_dict() for row in rows]
 
 
-__all__ = ["LibraryError", "approve", "coverage", "duplicates", "history",
+__all__ = ["LibraryError", "approve", "coverage", "duplicates",
+           "governance", "history",
            "latest", "reject", "retire", "retrievable", "revalidate", "save",
            "send_to_review", "specifications", "summary", "sweep_stale",
            "system_validate", "to_case", "version"]

@@ -48,8 +48,13 @@ def seed(*, actor: str = "seed") -> dict[str, int]:
     try:
         for case in corpus():
             existing = tl.latest(session, case.case_id)
-            if existing is not None and \
-                    existing.fingerprint == sc.fingerprint(case):
+            # The whole body, not just the fingerprint. A fingerprint covers
+            # what a case TEACHES, which is deliberately narrower than what a
+            # case IS: correcting an authoring method or a provenance changes
+            # nothing about the lesson and everything about the governance
+            # report, and a check that ignored it would leave the library
+            # describing itself wrongly for ever.
+            if existing is not None and existing.body == case.to_dict():
                 counts["unchanged"] += 1
                 continue
             try:
