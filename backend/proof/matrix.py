@@ -168,12 +168,16 @@ FEATURES: tuple[Feature, ...] = (
     _f("Trace", "version comparison",
        "backend/orchestration/modification.py", "tests/orchestration/", RUN,
        BACKEND_ONLY),
+    # D19, closed. It was LIMITED here for the whole of the previous phase:
+    # a coordinated review threw away every sub-analysis it ran except the
+    # headline sentence, so its Trace could not say which data it touched.
+    # The Investigation now accumulates a composition record, the probe reads
+    # it, and the baseline shows a portfolio review reading four datasets
+    # against a single query's one.
     _f("Trace", "coordinated-run lineage",
-       "backend/agentic/interactive.py",
-       "tests/proof/test_agentic_proof.py", RUN, LIMITED,
-       "D19: a coordinated review does not aggregate what its specialist "
-       "sub-Investigations read, so its Trace cannot say which data it "
-       "touched."),
+       "backend/orchestration/investigation.py, backend/agentic/interactive.py",
+       "tests/proof/test_agentic_proof.py, tests/proof/test_defect_closure.py",
+       RUN, PROVEN),
 
     # ------------------------------------------------------ Data Builder
     _f("Data Builder", "domains, datasets, periods, fields",

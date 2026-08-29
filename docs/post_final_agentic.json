@@ -1,0 +1,3181 @@
+{
+  "generated_at": "2026-08-29T13:19:56+0000",
+  "duration_s": 4.0,
+  "probes": [
+    {
+      "probe_id": "pr-243f00a0fe74",
+      "label": "A \u2014 metadata",
+      "question": "What ratings data do you have?",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 0,
+      "expected": {
+        "officer": 1,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "answer"
+      },
+      "ok": true,
+      "error": "",
+      "status": "succeeded",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [
+        "result"
+      ],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 1,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "catalogue",
+        "intent",
+        "presentability",
+        "question",
+        "result"
+      ],
+      "assurance": {
+        "flow": "METADATA_DISCOVERY",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.8,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 15,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 79,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 448
+    },
+    {
+      "probe_id": "pr-a97a22225839",
+      "label": "B \u2014 simple analysis",
+      "question": "Show IFRS 9 EAD by sector for the latest quarter.",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 1,
+      "expected": {
+        "officer": 1,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "answer"
+      },
+      "ok": true,
+      "error": "",
+      "status": "succeeded",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "Reason(id='segment_scope', weight=1, detail='The request is scoped at a segment rather than at named borrowers.', kind='complexity')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [
+        "run__dataset_ifrs9_staging",
+        "run__domain_1",
+        "run__family_ifrs9_staging",
+        "run__fingerprint",
+        "run__op_denominator",
+        "run__op_grouped",
+        "run__op_ranked",
+        "run__op_shared",
+        "run__result",
+        "run__sql"
+      ],
+      "datasets": [
+        "ifrs9_staging"
+      ],
+      "methods": [],
+      "period": "Q2 2026",
+      "grain": "segment",
+      "plan": {
+        "steps": 1,
+        "valid": true,
+        "executed_steps": 1,
+        "probes": 0
+      },
+      "execution": {
+        "executed": true,
+        "rows": 15
+      },
+      "invariants_passed": true,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "interpretation",
+        "invariants",
+        "mathematical_query",
+        "presentability",
+        "question",
+        "routing",
+        "run__dataset_ifrs9_staging",
+        "run__domain_1",
+        "run__family_ifrs9_staging",
+        "run__fingerprint",
+        "run__op_denominator",
+        "run__op_grouped",
+        "run__op_ranked",
+        "run__op_shared",
+        "run__result",
+        "run__sql",
+        "scope"
+      ],
+      "assurance": {
+        "flow": "SIMPLE_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 97.8,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 45,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 49,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 91
+    },
+    {
+      "probe_id": "pr-91fc552c7909",
+      "label": "C \u2014 multi-domain",
+      "question": "Which customers had a rating downgrade and an increase in ECL over the latest year?",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 2,
+      "expected": {
+        "officer": 2,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "answer"
+      },
+      "ok": true,
+      "error": "",
+      "status": "succeeded",
+      "officer": {
+        "level": 2,
+        "title": "Senior Credit Officer",
+        "reason": "Reason(id='route:migration', weight=3, detail='The request is about movement between grades, stages or buckets.', kind='complexity'); Reason(id='escalation', weight=0, detail='The request is about movement between grades, stages or buckets. 3 datasets are named or implied. 4 governed concepts are involved.', kind='complexity')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": true
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [
+        "run__dataset_customer_ratings",
+        "run__dataset_ifrs9_staging",
+        "run__dataset_portfolio_facility",
+        "run__domain_1",
+        "run__domain_2",
+        "run__domain_3",
+        "run__family_customer_ratings",
+        "run__family_ifrs9_staging",
+        "run__family_portfolio_facility",
+        "run__fingerprint",
+        "run__join__closing_asof_customer_ratings",
+        "run__join__closing_join_ifrs9_staging",
+        "run__join__movement",
+        "run__join__opening_asof_customer_ratings",
+        "run__join__opening_join_ifrs9_staging",
+        "run__op_closing_aligned_customer_ratings",
+        "run__op_closing_asof_customer_ratings",
+        "run__op_closing_grain",
+        "run__op_closing_join_ifrs9_staging",
+        "run__op_cohort",
+        "run__op_movement",
+        "run__op_movements",
+        "run__op_opening_aligned_customer_ratings",
+        "run__op_opening_asof_customer_ratings",
+        "run__op_opening_grain",
+        "run__op_opening_join_ifrs9_staging",
+        "run__op_path",
+        "run__op_ranked",
+        "run__op_result",
+        "run__reconciliation",
+        "run__result",
+        "run__sql"
+      ],
+      "datasets": [
+        "customer_ratings",
+        "ifrs9_staging",
+        "portfolio_facility"
+      ],
+      "methods": [],
+      "period": "",
+      "grain": "customer",
+      "plan": {
+        "steps": 1,
+        "valid": true,
+        "executed_steps": 1,
+        "probes": 0
+      },
+      "execution": {
+        "executed": true,
+        "rows": 170
+      },
+      "invariants_passed": true,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "interpretation",
+        "invariants",
+        "mathematical_query",
+        "presentability",
+        "question",
+        "routing",
+        "run__dataset_customer_ratings",
+        "run__dataset_ifrs9_staging",
+        "run__dataset_portfolio_facility",
+        "run__domain_1",
+        "run__domain_2",
+        "run__domain_3",
+        "run__family_customer_ratings",
+        "run__family_ifrs9_staging",
+        "run__family_portfolio_facility",
+        "run__fingerprint",
+        "run__join__closing_asof_customer_ratings",
+        "run__join__closing_join_ifrs9_staging",
+        "run__join__movement",
+        "run__join__opening_asof_customer_ratings",
+        "run__join__opening_join_ifrs9_staging",
+        "run__op_closing_aligned_customer_ratings",
+        "run__op_closing_asof_customer_ratings",
+        "run__op_closing_grain",
+        "run__op_closing_join_ifrs9_staging",
+        "run__op_cohort",
+        "run__op_movement",
+        "run__op_movements",
+        "run__op_opening_aligned_customer_ratings",
+        "run__op_opening_asof_customer_ratings",
+        "run__op_opening_grain",
+        "run__op_opening_join_ifrs9_staging",
+        "run__op_path",
+        "run__op_ranked",
+        "run__op_result",
+        "run__reconciliation",
+        "run__result",
+        "run__sql",
+        "scope"
+      ],
+      "assurance": {
+        "flow": "MULTI_DOMAIN_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 96.0,
+        "coverage_pct": 92.0,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 43,
+          "WARNING": 2,
+          "FAIL": 1,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 45,
+          "NOT_AVAILABLE": 4
+        }
+      },
+      "duration_ms": 240
+    },
+    {
+      "probe_id": "pr-b9d89d4f58f1",
+      "label": "D \u2014 segment investigation",
+      "question": "Something seems wrong with Contracting. Investigate it.",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 3,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "answer"
+      },
+      "ok": true,
+      "error": "",
+      "status": "succeeded",
+      "officer": {
+        "level": 4,
+        "title": "Chief Orchestrator",
+        "reason": "Reason(id='route:broad', weight=3, detail='The request is open-ended rather than one figure.', kind='complexity'); Reason(id='route:objectives', weight=2, detail='The request names two things to produce.', kind='complexity'); Reason(id='escalation', weight=0, detail='The request is open-ended rather than one figure. 4 governed credit domains are involved (delinquency, exposure, ifrs9, ratings). 4 specialists are needed and have to agree.', kind='complexity')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": true,
+        "coordinated": true,
+        "escalated": true
+      },
+      "specialists": [
+        "Credit Analyst",
+        "Ratings & Financials",
+        "IFRS 9",
+        "Delinquency & Collections",
+        "Validation & Assurance"
+      ],
+      "agent_count": 5,
+      "task_count": 5,
+      "tool_calls": [],
+      "datasets": [
+        "customer_ratings",
+        "facility_delinquency",
+        "ifrs9_staging",
+        "portfolio_facility"
+      ],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 6,
+        "probes": 6
+      },
+      "execution": {
+        "executed": true,
+        "rows": 206
+      },
+      "invariants_passed": true,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 3,
+      "limitations": [
+        "Ratings & Financials: Clarification(kind='reading', question='customer_ratings is published for 2018 to 2025; it has no opening period at Q2 2025.', detail='CreditProbe composes an analysis from the governed concepts in the catalogue. Name the figure you want and it will build it \u2014 or start from one of these.', options=[{'id': 'concept-0', 'label': 'exposure at default by sector', 'question': 'What is total exposure at default by sector in Q2 2026?'}, {'id': 'concept-1', 'label': 'The largest exposures', 'question': 'Show me the ten largest customers by exposure at default.'}, {'id': 'concept-2', 'label': 'How expected credit loss moved', 'question': 'How has expected credit loss changed over the latest year?'}, {'id': 'catalogue', 'label': 'What data is available', 'question': 'What data do you have?'}], because='It asks for a figure computed from governed data.', allow_custom=True)",
+        "Validation & Assurance did not run because an earlier component could not complete."
+      ],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "AGENTIC_COORDINATED_REVIEW",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 94.4,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 17,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 77,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 837
+    },
+    {
+      "probe_id": "pr-8b0286782111",
+      "label": "E \u2014 portfolio review",
+      "question": "Review the latest portfolio and tell me everything that genuinely requires CRO attention.",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 4,
+      "expected": {
+        "officer": 4,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "answer"
+      },
+      "ok": true,
+      "error": "",
+      "status": "succeeded",
+      "officer": {
+        "level": 4,
+        "title": "Chief Orchestrator",
+        "reason": "Reason(id='route:broad', weight=3, detail='The request is open-ended rather than one figure.', kind='complexity'); Reason(id='route:objectives', weight=2, detail='The request names two things to produce.', kind='complexity'); Reason(id='portfolio_scope', weight=2, detail='The request is scoped at the portfolio rather than at named borrowers.', kind='complexity')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": true,
+        "coordinated": true,
+        "escalated": true
+      },
+      "specialists": [
+        "Credit Analyst",
+        "Ratings & Financials",
+        "IFRS 9",
+        "Delinquency & Collections",
+        "Validation & Assurance"
+      ],
+      "agent_count": 5,
+      "task_count": 5,
+      "tool_calls": [],
+      "datasets": [
+        "customer_ratings",
+        "facility_delinquency",
+        "ifrs9_staging",
+        "portfolio_facility"
+      ],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 6,
+        "probes": 6
+      },
+      "execution": {
+        "executed": true,
+        "rows": 1011
+      },
+      "invariants_passed": true,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 3,
+      "limitations": [
+        "Ratings & Financials: Clarification(kind='reading', question='customer_ratings is published for 2018 to 2025; it has no opening period at Q2 2025.', detail='CreditProbe composes an analysis from the governed concepts in the catalogue. Name the figure you want and it will build it \u2014 or start from one of these.', options=[{'id': 'concept-0', 'label': 'exposure at default by sector', 'question': 'What is total exposure at default by sector in Q2 2026?'}, {'id': 'concept-1', 'label': 'The largest exposures', 'question': 'Show me the ten largest customers by exposure at default.'}, {'id': 'concept-2', 'label': 'How expected credit loss moved', 'question': 'How has expected credit loss changed over the latest year?'}, {'id': 'catalogue', 'label': 'What data is available', 'question': 'What data do you have?'}], because='It asks for a figure computed from governed data.', allow_custom=True)",
+        "Validation & Assurance did not run because an earlier component could not complete."
+      ],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "AGENTIC_COORDINATED_REVIEW",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 94.4,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 17,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 77,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 847
+    },
+    {
+      "probe_id": "pr-85799a9b1f81",
+      "label": "F \u2014 ambiguity",
+      "question": "Show me exposure.",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 5,
+      "expected": {
+        "officer": 1,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "clarification"
+      },
+      "ok": true,
+      "error": "",
+      "status": "needs_clarification",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 0,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": true,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.3,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 14,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 80,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 30
+    },
+    {
+      "probe_id": "pr-97d6bfd2a364",
+      "label": "G \u2014 unsupported",
+      "question": "Which borrowers had their CEO resign?",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 6,
+      "expected": {
+        "officer": 1,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "unsupported"
+      },
+      "ok": true,
+      "error": "",
+      "status": "unsupported",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 0,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": true,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "coverage",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.3,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 14,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 80,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 30
+    },
+    {
+      "probe_id": "pr-dad2a0f2e139",
+      "label": "H1 \u2014 previous result \u2014 setup",
+      "question": "Show IFRS 9 ECL by sector for the last four quarters.",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 0,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "answer"
+      },
+      "ok": true,
+      "error": "",
+      "status": "succeeded",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "Reason(id='segment_scope', weight=1, detail='The request is scoped at a segment rather than at named borrowers.', kind='complexity')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [
+        "run__dataset_ifrs9_staging",
+        "run__domain_1",
+        "run__family_ifrs9_staging",
+        "run__fingerprint",
+        "run__op_denominator",
+        "run__op_grouped",
+        "run__op_ranked",
+        "run__op_shared",
+        "run__result",
+        "run__sql"
+      ],
+      "datasets": [
+        "ifrs9_staging"
+      ],
+      "methods": [],
+      "period": "Q2 2026",
+      "grain": "segment",
+      "plan": {
+        "steps": 1,
+        "valid": true,
+        "executed_steps": 1,
+        "probes": 0
+      },
+      "execution": {
+        "executed": true,
+        "rows": 15
+      },
+      "invariants_passed": true,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "interpretation",
+        "invariants",
+        "mathematical_query",
+        "presentability",
+        "question",
+        "routing",
+        "run__dataset_ifrs9_staging",
+        "run__domain_1",
+        "run__family_ifrs9_staging",
+        "run__fingerprint",
+        "run__op_denominator",
+        "run__op_grouped",
+        "run__op_ranked",
+        "run__op_shared",
+        "run__result",
+        "run__sql",
+        "scope"
+      ],
+      "assurance": {
+        "flow": "SIMPLE_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 97.8,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 45,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 49,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 79
+    },
+    {
+      "probe_id": "pr-0166d75eaec1",
+      "label": "H2 \u2014 previous result \u2014 reuse",
+      "question": "Does this trend make sense?",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 1,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "answer"
+      },
+      "ok": true,
+      "error": "",
+      "status": "succeeded",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [
+        "result"
+      ],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 1,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "derived_statistic",
+        "evidence",
+        "intent",
+        "presentability",
+        "previous_result",
+        "question",
+        "result",
+        "reused_result"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 96.4,
+        "coverage_pct": 84.2,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 15,
+          "WARNING": 0,
+          "FAIL": 1,
+          "SKIPPED": 2,
+          "NOT_APPLICABLE": 76,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 33
+    },
+    {
+      "probe_id": "pr-2859d7a7d4cc",
+      "label": "PA \u2014 project \u2014 unresolved risks",
+      "question": "Review unresolved risks in this Project.",
+      "context": "project",
+      "project_id": "1981",
+      "investigation_id": "",
+      "turn_index": 0,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": ""
+      },
+      "ok": true,
+      "error": "",
+      "status": "needs_clarification",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "Reason(id='route:predictive', weight=3, detail='The request asks for something statistical or forward-looking.', kind='risk')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 0,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": true,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.3,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 14,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 80,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 33
+    },
+    {
+      "probe_id": "pr-31a00bf2faab",
+      "label": "PB \u2014 project \u2014 refresh analyses",
+      "question": "Refresh the saved Analyses with the latest published data.",
+      "context": "project",
+      "project_id": "1981",
+      "investigation_id": "",
+      "turn_index": 1,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": ""
+      },
+      "ok": true,
+      "error": "",
+      "status": "unsupported",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 0,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": true,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "coverage",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.3,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 14,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 80,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 38
+    },
+    {
+      "probe_id": "pr-57da4be473a4",
+      "label": "PC \u2014 project \u2014 create investigations",
+      "question": "Create Investigations for the three most material open borrower cases.",
+      "context": "project",
+      "project_id": "1981",
+      "investigation_id": "",
+      "turn_index": 2,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": ""
+      },
+      "ok": true,
+      "error": "",
+      "status": "unsupported",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 0,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": true,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "coverage",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.3,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 14,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 80,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 35
+    },
+    {
+      "probe_id": "pr-6f08ee697c1b",
+      "label": "PD \u2014 project \u2014 what changed",
+      "question": "Which Project conclusions changed since the last review?",
+      "context": "project",
+      "project_id": "1981",
+      "investigation_id": "",
+      "turn_index": 3,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": ""
+      },
+      "ok": true,
+      "error": "",
+      "status": "needs_clarification",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "Reason(id='route:predictive', weight=3, detail='The request asks for something statistical or forward-looking.', kind='risk')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 0,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": true,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.3,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 14,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 80,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 35
+    },
+    {
+      "probe_id": "pr-540fe4745b47",
+      "label": "PE \u2014 project \u2014 send for review",
+      "question": "Send the updated Project to Portfolio Risk for review.",
+      "context": "project",
+      "project_id": "1981",
+      "investigation_id": "",
+      "turn_index": 4,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": ""
+      },
+      "ok": true,
+      "error": "",
+      "status": "needs_clarification",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "Reason(id='route:predictive', weight=3, detail='The request asks for something statistical or forward-looking.', kind='risk'); Reason(id='portfolio_scope', weight=2, detail='The request is scoped at the portfolio rather than at named borrowers.', kind='complexity')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 0,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": true,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.3,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 14,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 80,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 48
+    },
+    {
+      "probe_id": "pr-eb4a5f5f5925",
+      "label": "PF \u2014 project \u2014 publish globally",
+      "question": "Publish this Investigation globally.",
+      "context": "project",
+      "project_id": "1981",
+      "investigation_id": "",
+      "turn_index": 5,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": ""
+      },
+      "ok": true,
+      "error": "",
+      "status": "unsupported",
+      "officer": {
+        "level": 2,
+        "title": "Senior Credit Officer",
+        "reason": "Reason(id='material', weight=4, detail='The request touches something with consequences beyond the screen \u2014 a provision, a limit, a certification or a disclosure.', kind='risk')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 0,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": true,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "coverage",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.3,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 14,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 80,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 29
+    }
+  ],
+  "cockpit": [
+    {
+      "probe_id": "pr-243f00a0fe74",
+      "label": "A \u2014 metadata",
+      "question": "What ratings data do you have?",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 0,
+      "expected": {
+        "officer": 1,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "answer"
+      },
+      "ok": true,
+      "error": "",
+      "status": "succeeded",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [
+        "result"
+      ],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 1,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "catalogue",
+        "intent",
+        "presentability",
+        "question",
+        "result"
+      ],
+      "assurance": {
+        "flow": "METADATA_DISCOVERY",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.8,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 15,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 79,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 448
+    },
+    {
+      "probe_id": "pr-a97a22225839",
+      "label": "B \u2014 simple analysis",
+      "question": "Show IFRS 9 EAD by sector for the latest quarter.",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 1,
+      "expected": {
+        "officer": 1,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "answer"
+      },
+      "ok": true,
+      "error": "",
+      "status": "succeeded",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "Reason(id='segment_scope', weight=1, detail='The request is scoped at a segment rather than at named borrowers.', kind='complexity')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [
+        "run__dataset_ifrs9_staging",
+        "run__domain_1",
+        "run__family_ifrs9_staging",
+        "run__fingerprint",
+        "run__op_denominator",
+        "run__op_grouped",
+        "run__op_ranked",
+        "run__op_shared",
+        "run__result",
+        "run__sql"
+      ],
+      "datasets": [
+        "ifrs9_staging"
+      ],
+      "methods": [],
+      "period": "Q2 2026",
+      "grain": "segment",
+      "plan": {
+        "steps": 1,
+        "valid": true,
+        "executed_steps": 1,
+        "probes": 0
+      },
+      "execution": {
+        "executed": true,
+        "rows": 15
+      },
+      "invariants_passed": true,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "interpretation",
+        "invariants",
+        "mathematical_query",
+        "presentability",
+        "question",
+        "routing",
+        "run__dataset_ifrs9_staging",
+        "run__domain_1",
+        "run__family_ifrs9_staging",
+        "run__fingerprint",
+        "run__op_denominator",
+        "run__op_grouped",
+        "run__op_ranked",
+        "run__op_shared",
+        "run__result",
+        "run__sql",
+        "scope"
+      ],
+      "assurance": {
+        "flow": "SIMPLE_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 97.8,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 45,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 49,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 91
+    },
+    {
+      "probe_id": "pr-91fc552c7909",
+      "label": "C \u2014 multi-domain",
+      "question": "Which customers had a rating downgrade and an increase in ECL over the latest year?",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 2,
+      "expected": {
+        "officer": 2,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "answer"
+      },
+      "ok": true,
+      "error": "",
+      "status": "succeeded",
+      "officer": {
+        "level": 2,
+        "title": "Senior Credit Officer",
+        "reason": "Reason(id='route:migration', weight=3, detail='The request is about movement between grades, stages or buckets.', kind='complexity'); Reason(id='escalation', weight=0, detail='The request is about movement between grades, stages or buckets. 3 datasets are named or implied. 4 governed concepts are involved.', kind='complexity')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": true
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [
+        "run__dataset_customer_ratings",
+        "run__dataset_ifrs9_staging",
+        "run__dataset_portfolio_facility",
+        "run__domain_1",
+        "run__domain_2",
+        "run__domain_3",
+        "run__family_customer_ratings",
+        "run__family_ifrs9_staging",
+        "run__family_portfolio_facility",
+        "run__fingerprint",
+        "run__join__closing_asof_customer_ratings",
+        "run__join__closing_join_ifrs9_staging",
+        "run__join__movement",
+        "run__join__opening_asof_customer_ratings",
+        "run__join__opening_join_ifrs9_staging",
+        "run__op_closing_aligned_customer_ratings",
+        "run__op_closing_asof_customer_ratings",
+        "run__op_closing_grain",
+        "run__op_closing_join_ifrs9_staging",
+        "run__op_cohort",
+        "run__op_movement",
+        "run__op_movements",
+        "run__op_opening_aligned_customer_ratings",
+        "run__op_opening_asof_customer_ratings",
+        "run__op_opening_grain",
+        "run__op_opening_join_ifrs9_staging",
+        "run__op_path",
+        "run__op_ranked",
+        "run__op_result",
+        "run__reconciliation",
+        "run__result",
+        "run__sql"
+      ],
+      "datasets": [
+        "customer_ratings",
+        "ifrs9_staging",
+        "portfolio_facility"
+      ],
+      "methods": [],
+      "period": "",
+      "grain": "customer",
+      "plan": {
+        "steps": 1,
+        "valid": true,
+        "executed_steps": 1,
+        "probes": 0
+      },
+      "execution": {
+        "executed": true,
+        "rows": 170
+      },
+      "invariants_passed": true,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "interpretation",
+        "invariants",
+        "mathematical_query",
+        "presentability",
+        "question",
+        "routing",
+        "run__dataset_customer_ratings",
+        "run__dataset_ifrs9_staging",
+        "run__dataset_portfolio_facility",
+        "run__domain_1",
+        "run__domain_2",
+        "run__domain_3",
+        "run__family_customer_ratings",
+        "run__family_ifrs9_staging",
+        "run__family_portfolio_facility",
+        "run__fingerprint",
+        "run__join__closing_asof_customer_ratings",
+        "run__join__closing_join_ifrs9_staging",
+        "run__join__movement",
+        "run__join__opening_asof_customer_ratings",
+        "run__join__opening_join_ifrs9_staging",
+        "run__op_closing_aligned_customer_ratings",
+        "run__op_closing_asof_customer_ratings",
+        "run__op_closing_grain",
+        "run__op_closing_join_ifrs9_staging",
+        "run__op_cohort",
+        "run__op_movement",
+        "run__op_movements",
+        "run__op_opening_aligned_customer_ratings",
+        "run__op_opening_asof_customer_ratings",
+        "run__op_opening_grain",
+        "run__op_opening_join_ifrs9_staging",
+        "run__op_path",
+        "run__op_ranked",
+        "run__op_result",
+        "run__reconciliation",
+        "run__result",
+        "run__sql",
+        "scope"
+      ],
+      "assurance": {
+        "flow": "MULTI_DOMAIN_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 96.0,
+        "coverage_pct": 92.0,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 43,
+          "WARNING": 2,
+          "FAIL": 1,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 45,
+          "NOT_AVAILABLE": 4
+        }
+      },
+      "duration_ms": 240
+    },
+    {
+      "probe_id": "pr-b9d89d4f58f1",
+      "label": "D \u2014 segment investigation",
+      "question": "Something seems wrong with Contracting. Investigate it.",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 3,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "answer"
+      },
+      "ok": true,
+      "error": "",
+      "status": "succeeded",
+      "officer": {
+        "level": 4,
+        "title": "Chief Orchestrator",
+        "reason": "Reason(id='route:broad', weight=3, detail='The request is open-ended rather than one figure.', kind='complexity'); Reason(id='route:objectives', weight=2, detail='The request names two things to produce.', kind='complexity'); Reason(id='escalation', weight=0, detail='The request is open-ended rather than one figure. 4 governed credit domains are involved (delinquency, exposure, ifrs9, ratings). 4 specialists are needed and have to agree.', kind='complexity')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": true,
+        "coordinated": true,
+        "escalated": true
+      },
+      "specialists": [
+        "Credit Analyst",
+        "Ratings & Financials",
+        "IFRS 9",
+        "Delinquency & Collections",
+        "Validation & Assurance"
+      ],
+      "agent_count": 5,
+      "task_count": 5,
+      "tool_calls": [],
+      "datasets": [
+        "customer_ratings",
+        "facility_delinquency",
+        "ifrs9_staging",
+        "portfolio_facility"
+      ],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 6,
+        "probes": 6
+      },
+      "execution": {
+        "executed": true,
+        "rows": 206
+      },
+      "invariants_passed": true,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 3,
+      "limitations": [
+        "Ratings & Financials: Clarification(kind='reading', question='customer_ratings is published for 2018 to 2025; it has no opening period at Q2 2025.', detail='CreditProbe composes an analysis from the governed concepts in the catalogue. Name the figure you want and it will build it \u2014 or start from one of these.', options=[{'id': 'concept-0', 'label': 'exposure at default by sector', 'question': 'What is total exposure at default by sector in Q2 2026?'}, {'id': 'concept-1', 'label': 'The largest exposures', 'question': 'Show me the ten largest customers by exposure at default.'}, {'id': 'concept-2', 'label': 'How expected credit loss moved', 'question': 'How has expected credit loss changed over the latest year?'}, {'id': 'catalogue', 'label': 'What data is available', 'question': 'What data do you have?'}], because='It asks for a figure computed from governed data.', allow_custom=True)",
+        "Validation & Assurance did not run because an earlier component could not complete."
+      ],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "AGENTIC_COORDINATED_REVIEW",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 94.4,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 17,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 77,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 837
+    },
+    {
+      "probe_id": "pr-8b0286782111",
+      "label": "E \u2014 portfolio review",
+      "question": "Review the latest portfolio and tell me everything that genuinely requires CRO attention.",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 4,
+      "expected": {
+        "officer": 4,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "answer"
+      },
+      "ok": true,
+      "error": "",
+      "status": "succeeded",
+      "officer": {
+        "level": 4,
+        "title": "Chief Orchestrator",
+        "reason": "Reason(id='route:broad', weight=3, detail='The request is open-ended rather than one figure.', kind='complexity'); Reason(id='route:objectives', weight=2, detail='The request names two things to produce.', kind='complexity'); Reason(id='portfolio_scope', weight=2, detail='The request is scoped at the portfolio rather than at named borrowers.', kind='complexity')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": true,
+        "coordinated": true,
+        "escalated": true
+      },
+      "specialists": [
+        "Credit Analyst",
+        "Ratings & Financials",
+        "IFRS 9",
+        "Delinquency & Collections",
+        "Validation & Assurance"
+      ],
+      "agent_count": 5,
+      "task_count": 5,
+      "tool_calls": [],
+      "datasets": [
+        "customer_ratings",
+        "facility_delinquency",
+        "ifrs9_staging",
+        "portfolio_facility"
+      ],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 6,
+        "probes": 6
+      },
+      "execution": {
+        "executed": true,
+        "rows": 1011
+      },
+      "invariants_passed": true,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 3,
+      "limitations": [
+        "Ratings & Financials: Clarification(kind='reading', question='customer_ratings is published for 2018 to 2025; it has no opening period at Q2 2025.', detail='CreditProbe composes an analysis from the governed concepts in the catalogue. Name the figure you want and it will build it \u2014 or start from one of these.', options=[{'id': 'concept-0', 'label': 'exposure at default by sector', 'question': 'What is total exposure at default by sector in Q2 2026?'}, {'id': 'concept-1', 'label': 'The largest exposures', 'question': 'Show me the ten largest customers by exposure at default.'}, {'id': 'concept-2', 'label': 'How expected credit loss moved', 'question': 'How has expected credit loss changed over the latest year?'}, {'id': 'catalogue', 'label': 'What data is available', 'question': 'What data do you have?'}], because='It asks for a figure computed from governed data.', allow_custom=True)",
+        "Validation & Assurance did not run because an earlier component could not complete."
+      ],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "AGENTIC_COORDINATED_REVIEW",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 94.4,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 17,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 77,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 847
+    },
+    {
+      "probe_id": "pr-85799a9b1f81",
+      "label": "F \u2014 ambiguity",
+      "question": "Show me exposure.",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 5,
+      "expected": {
+        "officer": 1,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "clarification"
+      },
+      "ok": true,
+      "error": "",
+      "status": "needs_clarification",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 0,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": true,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.3,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 14,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 80,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 30
+    },
+    {
+      "probe_id": "pr-97d6bfd2a364",
+      "label": "G \u2014 unsupported",
+      "question": "Which borrowers had their CEO resign?",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 6,
+      "expected": {
+        "officer": 1,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "unsupported"
+      },
+      "ok": true,
+      "error": "",
+      "status": "unsupported",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 0,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": true,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "coverage",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.3,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 14,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 80,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 30
+    }
+  ],
+  "follow_up": [
+    {
+      "probe_id": "pr-dad2a0f2e139",
+      "label": "H1 \u2014 previous result \u2014 setup",
+      "question": "Show IFRS 9 ECL by sector for the last four quarters.",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 0,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "answer"
+      },
+      "ok": true,
+      "error": "",
+      "status": "succeeded",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "Reason(id='segment_scope', weight=1, detail='The request is scoped at a segment rather than at named borrowers.', kind='complexity')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [
+        "run__dataset_ifrs9_staging",
+        "run__domain_1",
+        "run__family_ifrs9_staging",
+        "run__fingerprint",
+        "run__op_denominator",
+        "run__op_grouped",
+        "run__op_ranked",
+        "run__op_shared",
+        "run__result",
+        "run__sql"
+      ],
+      "datasets": [
+        "ifrs9_staging"
+      ],
+      "methods": [],
+      "period": "Q2 2026",
+      "grain": "segment",
+      "plan": {
+        "steps": 1,
+        "valid": true,
+        "executed_steps": 1,
+        "probes": 0
+      },
+      "execution": {
+        "executed": true,
+        "rows": 15
+      },
+      "invariants_passed": true,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "interpretation",
+        "invariants",
+        "mathematical_query",
+        "presentability",
+        "question",
+        "routing",
+        "run__dataset_ifrs9_staging",
+        "run__domain_1",
+        "run__family_ifrs9_staging",
+        "run__fingerprint",
+        "run__op_denominator",
+        "run__op_grouped",
+        "run__op_ranked",
+        "run__op_shared",
+        "run__result",
+        "run__sql",
+        "scope"
+      ],
+      "assurance": {
+        "flow": "SIMPLE_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 97.8,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 45,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 49,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 79
+    },
+    {
+      "probe_id": "pr-0166d75eaec1",
+      "label": "H2 \u2014 previous result \u2014 reuse",
+      "question": "Does this trend make sense?",
+      "context": "cockpit",
+      "project_id": "",
+      "investigation_id": "",
+      "turn_index": 1,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": "answer"
+      },
+      "ok": true,
+      "error": "",
+      "status": "succeeded",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [
+        "result"
+      ],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 1,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "derived_statistic",
+        "evidence",
+        "intent",
+        "presentability",
+        "previous_result",
+        "question",
+        "result",
+        "reused_result"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 96.4,
+        "coverage_pct": 84.2,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 15,
+          "WARNING": 0,
+          "FAIL": 1,
+          "SKIPPED": 2,
+          "NOT_APPLICABLE": 76,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 33
+    }
+  ],
+  "project": [
+    {
+      "probe_id": "pr-2859d7a7d4cc",
+      "label": "PA \u2014 project \u2014 unresolved risks",
+      "question": "Review unresolved risks in this Project.",
+      "context": "project",
+      "project_id": "1981",
+      "investigation_id": "",
+      "turn_index": 0,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": ""
+      },
+      "ok": true,
+      "error": "",
+      "status": "needs_clarification",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "Reason(id='route:predictive', weight=3, detail='The request asks for something statistical or forward-looking.', kind='risk')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 0,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": true,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.3,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 14,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 80,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 33
+    },
+    {
+      "probe_id": "pr-31a00bf2faab",
+      "label": "PB \u2014 project \u2014 refresh analyses",
+      "question": "Refresh the saved Analyses with the latest published data.",
+      "context": "project",
+      "project_id": "1981",
+      "investigation_id": "",
+      "turn_index": 1,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": ""
+      },
+      "ok": true,
+      "error": "",
+      "status": "unsupported",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 0,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": true,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "coverage",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.3,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 14,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 80,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 38
+    },
+    {
+      "probe_id": "pr-57da4be473a4",
+      "label": "PC \u2014 project \u2014 create investigations",
+      "question": "Create Investigations for the three most material open borrower cases.",
+      "context": "project",
+      "project_id": "1981",
+      "investigation_id": "",
+      "turn_index": 2,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": ""
+      },
+      "ok": true,
+      "error": "",
+      "status": "unsupported",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 0,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": true,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "coverage",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.3,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 14,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 80,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 35
+    },
+    {
+      "probe_id": "pr-6f08ee697c1b",
+      "label": "PD \u2014 project \u2014 what changed",
+      "question": "Which Project conclusions changed since the last review?",
+      "context": "project",
+      "project_id": "1981",
+      "investigation_id": "",
+      "turn_index": 3,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": ""
+      },
+      "ok": true,
+      "error": "",
+      "status": "needs_clarification",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "Reason(id='route:predictive', weight=3, detail='The request asks for something statistical or forward-looking.', kind='risk')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 0,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": true,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.3,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 14,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 80,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 35
+    },
+    {
+      "probe_id": "pr-540fe4745b47",
+      "label": "PE \u2014 project \u2014 send for review",
+      "question": "Send the updated Project to Portfolio Risk for review.",
+      "context": "project",
+      "project_id": "1981",
+      "investigation_id": "",
+      "turn_index": 4,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": ""
+      },
+      "ok": true,
+      "error": "",
+      "status": "needs_clarification",
+      "officer": {
+        "level": 1,
+        "title": "Credit Analyst",
+        "reason": "Reason(id='route:predictive', weight=3, detail='The request asks for something statistical or forward-looking.', kind='risk'); Reason(id='portfolio_scope', weight=2, detail='The request is scoped at the portfolio rather than at named borrowers.', kind='complexity')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 0,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": true,
+      "unsupported": false,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "intent",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.3,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 14,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 80,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 48
+    },
+    {
+      "probe_id": "pr-eb4a5f5f5925",
+      "label": "PF \u2014 project \u2014 publish globally",
+      "question": "Publish this Investigation globally.",
+      "context": "project",
+      "project_id": "1981",
+      "investigation_id": "",
+      "turn_index": 5,
+      "expected": {
+        "officer": null,
+        "specialists": [],
+        "datasets": [],
+        "outcome": ""
+      },
+      "ok": true,
+      "error": "",
+      "status": "unsupported",
+      "officer": {
+        "level": 2,
+        "title": "Senior Credit Officer",
+        "reason": "Reason(id='material', weight=4, detail='The request touches something with consequences beyond the screen \u2014 a provision, a limit, a certification or a disclosure.', kind='risk')",
+        "complexity": null,
+        "risk": null,
+        "orchestrated": false,
+        "coordinated": false,
+        "escalated": false
+      },
+      "specialists": [],
+      "agent_count": 0,
+      "task_count": 0,
+      "tool_calls": [],
+      "datasets": [],
+      "methods": [],
+      "period": "",
+      "grain": "",
+      "plan": {
+        "steps": 0,
+        "valid": false,
+        "executed_steps": 0,
+        "probes": 0
+      },
+      "execution": {
+        "executed": false,
+        "rows": null
+      },
+      "invariants_passed": null,
+      "grounded": null,
+      "ungrounded": [],
+      "clarified": false,
+      "unsupported": true,
+      "conflicts": 0,
+      "findings": 0,
+      "limitations": [],
+      "repairs": 0,
+      "model_calls": 0,
+      "approvals_required": 0,
+      "trace_nodes": [
+        "analytical_judgment",
+        "assurance_summary",
+        "coverage",
+        "presentability",
+        "question"
+      ],
+      "assurance": {
+        "flow": "CONVERSATIONAL_NO_ANALYSIS",
+        "status": "VALIDATED_WITH_LIMITATIONS",
+        "operational_assurance": 100.0,
+        "coverage_pct": 93.3,
+        "critical_failures": [],
+        "critical_not_available": [],
+        "mandatory_unresolved": [],
+        "checks": {
+          "PASS": 14,
+          "WARNING": 0,
+          "FAIL": 0,
+          "SKIPPED": 0,
+          "NOT_APPLICABLE": 80,
+          "NOT_AVAILABLE": 1
+        }
+      },
+      "duration_ms": 29
+    }
+  ],
+  "divergence": {
+    "version": "1.0.0",
+    "levels_observed": [
+      1,
+      2,
+      4
+    ],
+    "comparisons": [
+      {
+        "verdict": "MATERIAL",
+        "verdict_means": "The two requests took materially different governed execution paths. The officer level corresponds to real work.",
+        "lower": {
+          "label": "A \u2014 metadata",
+          "officer_level": 1,
+          "officer_title": "Credit Analyst",
+          "flow": "METADATA_DISCOVERY"
+        },
+        "higher": {
+          "label": "C \u2014 multi-domain",
+          "officer_level": 2,
+          "officer_title": "Senior Credit Officer",
+          "flow": "MULTI_DOMAIN_ANALYSIS"
+        },
+        "differences": [
+          {
+            "axis": "orchestrated",
+            "label": "an orchestrator ran",
+            "lower": false,
+            "higher": false,
+            "differs": false,
+            "expensive": true
+          },
+          {
+            "axis": "agent_count",
+            "label": "specialist count",
+            "lower": 0,
+            "higher": 0,
+            "differs": false,
+            "expensive": true
+          },
+          {
+            "axis": "task_count",
+            "label": "task count",
+            "lower": 0,
+            "higher": 0,
+            "differs": false,
+            "expensive": true
+          },
+          {
+            "axis": "tool_call_count",
+            "label": "governed executions",
+            "lower": 1,
+            "higher": 32,
+            "differs": true,
+            "expensive": true
+          },
+          {
+            "axis": "dataset_count",
+            "label": "datasets touched",
+            "lower": 0,
+            "higher": 3,
+            "differs": true,
+            "expensive": true
+          },
+          {
+            "axis": "trace_node_count",
+            "label": "Trace nodes recorded",
+            "lower": 7,
+            "higher": 42,
+            "differs": true,
+            "expensive": false
+          },
+          {
+            "axis": "coordinated",
+            "label": "the run was coordinated",
+            "lower": false,
+            "higher": false,
+            "differs": false,
+            "expensive": true
+          },
+          {
+            "axis": "governed_work",
+            "label": "governed analyses executed",
+            "lower": 1,
+            "higher": 1,
+            "differs": false,
+            "expensive": true
+          }
+        ],
+        "expensive_differences": [
+          "tool_call_count",
+          "dataset_count"
+        ],
+        "monotonic": true,
+        "regressions": [],
+        "unmeasured_axes": []
+      },
+      {
+        "verdict": "MATERIAL",
+        "verdict_means": "The two requests took materially different governed execution paths. The officer level corresponds to real work.",
+        "lower": {
+          "label": "C \u2014 multi-domain",
+          "officer_level": 2,
+          "officer_title": "Senior Credit Officer",
+          "flow": "MULTI_DOMAIN_ANALYSIS"
+        },
+        "higher": {
+          "label": "D \u2014 segment investigation",
+          "officer_level": 4,
+          "officer_title": "Chief Orchestrator",
+          "flow": "AGENTIC_COORDINATED_REVIEW"
+        },
+        "differences": [
+          {
+            "axis": "orchestrated",
+            "label": "an orchestrator ran",
+            "lower": false,
+            "higher": true,
+            "differs": true,
+            "expensive": true
+          },
+          {
+            "axis": "agent_count",
+            "label": "specialist count",
+            "lower": 0,
+            "higher": 5,
+            "differs": true,
+            "expensive": true
+          },
+          {
+            "axis": "task_count",
+            "label": "task count",
+            "lower": 0,
+            "higher": 5,
+            "differs": true,
+            "expensive": true
+          },
+          {
+            "axis": "tool_call_count",
+            "label": "governed executions",
+            "lower": 32,
+            "higher": 0,
+            "differs": true,
+            "expensive": true
+          },
+          {
+            "axis": "dataset_count",
+            "label": "datasets touched",
+            "lower": 3,
+            "higher": 4,
+            "differs": true,
+            "expensive": true
+          },
+          {
+            "axis": "trace_node_count",
+            "label": "Trace nodes recorded",
+            "lower": 42,
+            "higher": 5,
+            "differs": true,
+            "expensive": false
+          },
+          {
+            "axis": "coordinated",
+            "label": "the run was coordinated",
+            "lower": false,
+            "higher": true,
+            "differs": true,
+            "expensive": true
+          },
+          {
+            "axis": "governed_work",
+            "label": "governed analyses executed",
+            "lower": 1,
+            "higher": 6,
+            "differs": true,
+            "expensive": true
+          }
+        ],
+        "expensive_differences": [
+          "orchestrated",
+          "agent_count",
+          "task_count",
+          "tool_call_count",
+          "dataset_count",
+          "coordinated",
+          "governed_work"
+        ],
+        "monotonic": true,
+        "regressions": [],
+        "unmeasured_axes": [
+          "tool_call_count"
+        ]
+      }
+    ],
+    "material": 2,
+    "decorative": 0,
+    "monotonic": true,
+    "unmeasured_axes": [
+      "tool_call_count"
+    ],
+    "verdict": "MATERIAL",
+    "note": "Only expensive axes count. A run that recorded more Trace nodes and did nothing else did not do more work."
+  },
+  "coverage_map": {
+    "version": "1.0.0",
+    "subcomponents": 95,
+    "mapped": 95,
+    "unmapped": [],
+    "orphans": [],
+    "wired": 72,
+    "planned": 18,
+    "out_of_band": 5,
+    "wired_pct": 75.8,
+    "critical": 17,
+    "critical_wired": 17,
+    "critical_pct": 100.0,
+    "critical_gaps": [],
+    "by_dimension": [
+      {
+        "dimension": "UNDERSTANDING_AND_CONTEXT",
+        "label": "Understanding & context",
+        "subcomponents": 12,
+        "wired": 11,
+        "planned": 1,
+        "out_of_band": 0,
+        "critical": 0,
+        "critical_wired": 0
+      },
+      {
+        "dimension": "ANALYTICAL_DESIGN",
+        "label": "Analytical design",
+        "subcomponents": 15,
+        "wired": 14,
+        "planned": 1,
+        "out_of_band": 0,
+        "critical": 3,
+        "critical_wired": 3
+      },
+      {
+        "dimension": "COMPUTATION_AND_EVIDENCE",
+        "label": "Computation & evidence",
+        "subcomponents": 18,
+        "wired": 18,
+        "planned": 0,
+        "out_of_band": 0,
+        "critical": 10,
+        "critical_wired": 10
+      },
+      {
+        "dimension": "JUDGMENT_AND_PRESENTATION",
+        "label": "Judgment & presentation",
+        "subcomponents": 18,
+        "wired": 13,
+        "planned": 5,
+        "out_of_band": 0,
+        "critical": 2,
+        "critical_wired": 2
+      },
+      {
+        "dimension": "AGENTIC_DELIVERY",
+        "label": "Agentic delivery",
+        "subcomponents": 16,
+        "wired": 8,
+        "planned": 8,
+        "out_of_band": 0,
+        "critical": 1,
+        "critical_wired": 1
+      },
+      {
+        "dimension": "RELIABILITY_AND_EXPERIENCE",
+        "label": "Reliability & experience",
+        "subcomponents": 16,
+        "wired": 8,
+        "planned": 3,
+        "out_of_band": 5,
+        "critical": 1,
+        "critical_wired": 1
+      }
+    ],
+    "unwired_outcome": "NOT_AVAILABLE",
+    "rule": "A subcomponent with no wired signal reports NOT_AVAILABLE, never PASS and never SKIPPED. Where it is critical, that blocks. The coverage number cannot be improved by editing this map \u2014 only by wiring the signal."
+  },
+  "flows": [
+    {
+      "flow": "AGENTIC_COORDINATED_REVIEW",
+      "label": "Agentic coordinated review",
+      "probes": 2,
+      "applicable": 76,
+      "critical_applicable": 17,
+      "mean_coverage_pct": 94.4,
+      "statuses": [
+        "VALIDATED_WITH_LIMITATIONS"
+      ],
+      "scored": 2
+    },
+    {
+      "flow": "CONVERSATIONAL_NO_ANALYSIS",
+      "label": "Conversational (no analysis ran)",
+      "probes": 9,
+      "applicable": 25,
+      "critical_applicable": 4,
+      "mean_coverage_pct": 92.3,
+      "statuses": [
+        "VALIDATED_WITH_LIMITATIONS"
+      ],
+      "scored": 9
+    },
+    {
+      "flow": "METADATA_DISCOVERY",
+      "label": "Metadata / discovery",
+      "probes": 1,
+      "applicable": 22,
+      "critical_applicable": 4,
+      "mean_coverage_pct": 93.8,
+      "statuses": [
+        "VALIDATED_WITH_LIMITATIONS"
+      ],
+      "scored": 1
+    },
+    {
+      "flow": "MULTI_DOMAIN_ANALYSIS",
+      "label": "Multi-domain analysis",
+      "probes": 1,
+      "applicable": 61,
+      "critical_applicable": 16,
+      "mean_coverage_pct": 92.0,
+      "statuses": [
+        "VALIDATED_WITH_LIMITATIONS"
+      ],
+      "scored": 1
+    },
+    {
+      "flow": "SIMPLE_ANALYSIS",
+      "label": "Simple analysis",
+      "probes": 2,
+      "applicable": 55,
+      "critical_applicable": 15,
+      "mean_coverage_pct": 97.8,
+      "statuses": [
+        "VALIDATED_WITH_LIMITATIONS"
+      ],
+      "scored": 2
+    }
+  ],
+  "metrics": {
+    "probes": 15,
+    "completed": 15,
+    "errors": 0,
+    "officer_accuracy_pct": 100.0,
+    "officer_scored": 6,
+    "outcome_accuracy_pct": 100.0,
+    "outcome_scored": 9,
+    "unnecessary_specialists": 0,
+    "missed_specialists": 0,
+    "mean_specialists": 0.67,
+    "mean_tasks": 0.67,
+    "mean_model_calls": 0.0,
+    "mean_latency_ms": 190,
+    "p95_latency_ms": 837,
+    "executed_pct": 33.3,
+    "invariants_passed_pct": 100.0,
+    "grounded_pct": null,
+    "mean_assurance_coverage_pct": 93.4,
+    "records_scored": 15,
+    "records_unverified": 0,
+    "records_failed": 0,
+    "critical_failures": 0,
+    "critical_not_available": 0,
+    "mandatory_unresolved": 0
+  },
+  "no_provider_calls": true
+}
