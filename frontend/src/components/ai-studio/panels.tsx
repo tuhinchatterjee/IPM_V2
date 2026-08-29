@@ -573,3 +573,278 @@ export function ComingWithLaterWork({
     </Card>
   );
 }
+
+// ---------------------------------------------------------------------- §106
+
+export function TeachingCases() {
+  const { data, error } = useLoad(() => api.studioTeachingCases());
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <Panel title="Who has actually reviewed this library" explanation={data.explanation}>
+        <p className="text-sm leading-relaxed text-text-primary">
+          {String(data.governance.sentence ?? "")}
+        </p>
+        <p className="mt-1 text-xs text-text-tertiary">{data.never_shown}</p>
+      </Panel>
+      <Panel title="Filters the case list supports">
+        <p className="text-xs text-text-secondary">
+          {data.filters.join(" · ")}
+        </p>
+      </Panel>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------- §110
+
+export function Routing() {
+  const { data, error } = useLoad(() => api.studioRoutingTab());
+  const [question, setQuestion] = React.useState("");
+  const [simulation, setSimulation] = React.useState<{
+    called_a_provider: boolean;
+    note: string;
+  } | null>(null);
+
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <Panel title="Model roles" count={data.roles.length} explanation={data.explanation}>
+        <ul className="divide-y divide-border">
+          {data.roles.map((role) => (
+            <li key={role.name} className="py-2">
+              <p className="text-xs font-medium text-text-primary">
+                {role.name.replaceAll("_", " ")}
+                {role.active ? null : (
+                  <span className="ml-2 text-text-tertiary">inactive</span>
+                )}
+              </p>
+              <p className="text-xs text-text-secondary">{role.purpose}</p>
+              <p className="text-xs text-text-tertiary">
+                {role.configured_model || "provider default"}
+                {role.effort ? ` · ${role.effort}` : ""}
+                {role.inherited ? " · inherited" : ""}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </Panel>
+
+      <Panel title="Why a question goes where it goes">
+        <dl className="space-y-2">
+          {Object.entries(data.why).map(([id, why]) => (
+            <div key={id}>
+              <dt className="text-xs font-medium text-text-primary">{id}</dt>
+              <dd className="text-xs leading-relaxed text-text-secondary">
+                {why}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <p className="mt-2 text-xs text-text-tertiary">
+          {data.fallback_policy.note}
+        </p>
+      </Panel>
+
+      <Panel title="Route simulator">
+        <p className="text-xs text-text-tertiary">
+          Predicts the route from the same signals the runtime uses. Nothing is
+          sent anywhere and nothing is spent, so try as many phrasings as you
+          like.
+        </p>
+        <div className="mt-2 flex flex-wrap items-end gap-2">
+          <input
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="A sanitised question"
+            className="min-w-64 flex-1 rounded border border-border bg-surface px-2 py-1 text-xs text-text-primary"
+          />
+          <button
+            type="button"
+            disabled={!question.trim()}
+            onClick={async () =>
+              setSimulation(await api.studioRouteSimulator(question))
+            }
+            className="rounded bg-surface-raised px-3 py-1 text-xs font-medium text-text-primary disabled:opacity-50"
+          >
+            Predict
+          </button>
+        </div>
+        {simulation ? (
+          <p className="mt-2 text-xs text-text-secondary">{simulation.note}</p>
+        ) : null}
+      </Panel>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------- §112
+
+export function Evaluations() {
+  const { data, error } = useLoad(() => api.studioEvaluations());
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <Panel title="Seven suites, kept apart" explanation={data.explanation}>
+        <ul className="mt-1 space-y-0.5 text-xs text-text-secondary">
+          {data.subtabs.map((one) => (
+            <li key={one}>· {one.replaceAll("_", " ").toLowerCase()}</li>
+          ))}
+        </ul>
+      </Panel>
+      <Panel title="What a number here is allowed to claim">
+        <Rules rules={data.reporting_rules} />
+      </Panel>
+      <Panel title="Cost">
+        <p className="text-xs text-text-secondary">{data.cost_control.note}</p>
+      </Panel>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------- §114
+
+export function Failures() {
+  const { data, error } = useLoad(() => api.studioFailures());
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <Panel title="The active-learning queue" explanation={data.explanation}>
+        <p className="text-sm leading-relaxed text-text-secondary">
+          {data.note}
+        </p>
+      </Panel>
+      <Panel title="Failure categories" count={data.categories.length}>
+        <ul className="divide-y divide-border">
+          {data.categories.map((one) => (
+            <li key={one.id} className="flex items-start gap-2 py-2">
+              <Dot ok={!one.critical} />
+              <div>
+                <p className="text-xs font-medium text-text-primary">
+                  {one.label}
+                  <span className="ml-2 text-text-tertiary">{one.stage}</span>
+                </p>
+                <p className="text-xs leading-relaxed text-text-secondary">
+                  {one.looks_like}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Panel>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------- §115
+
+export function Releases() {
+  const { data, error } = useLoad(() => api.studioReleasesTab());
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <Panel title="The release in force" explanation={data.explanation}>
+        <p className="text-sm text-text-primary">
+          {String(data.gate.state ?? "unknown")}
+        </p>
+        <p className="text-xs leading-relaxed text-text-secondary">
+          {String(data.gate.reason ?? "")}
+        </p>
+        {data.missing_files.length ? (
+          <p className="mt-1 text-xs text-status-warning">
+            Missing from the release: {data.missing_files.join(", ")}
+          </p>
+        ) : null}
+      </Panel>
+      <Panel title="Actions">
+        <ul className="space-y-1">
+          {data.actions.map((one) => (
+            <li key={one.id} className="text-xs">
+              <span className="font-medium text-text-primary">{one.label}</span>
+              <span className="text-text-tertiary"> · {one.needs}</span>
+              {one.note ? (
+                <span className="text-text-secondary"> — {one.note}</span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-xs text-text-tertiary">{data.never}</p>
+      </Panel>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------- §116
+
+export function LiveHealth() {
+  const { data, error } = useLoad(() => api.studioLiveHealth());
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <Panel title="Provider">
+        <p className="text-sm text-text-primary">
+          {String(data.provider.state ?? "unknown")}
+        </p>
+        <p className="text-xs text-text-tertiary">
+          CONNECTED means a real response came back, not that a key is present.
+        </p>
+      </Panel>
+      <Panel title="Safe local commands">
+        <ul className="space-y-3">
+          {data.commands.map((one) => (
+            <li key={one.what}>
+              <p className="text-xs font-medium text-text-primary">
+                {one.what}
+              </p>
+              <pre className="mt-1 overflow-x-auto rounded bg-surface-raised p-2 text-xs text-text-secondary">
+                {one.windows}
+                {"\n"}
+                {one.unix}
+              </pre>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-xs text-text-tertiary">
+          Never shown here: {data.never_shown.join(", ")}.
+        </p>
+      </Panel>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------- §111
+
+export function Prompts() {
+  const { data, error } = useLoad(() => api.studioPrompts());
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <Panel
+        title="What may reach a model"
+        explanation={data.explanation}
+      >
+        <Rules rules={(data.pack_policy ?? {}) as Record<string, unknown>} />
+      </Panel>
+      <Panel title="Prompt caching">
+        <Rules rules={(data.caching ?? {}) as Record<string, unknown>} />
+      </Panel>
+      <Panel title="Promotion">
+        <Rules rules={(data.promotion ?? {}) as Record<string, unknown>} />
+      </Panel>
+    </div>
+  );
+}

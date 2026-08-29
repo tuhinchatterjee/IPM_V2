@@ -4303,6 +4303,93 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  studioTeachingCases: () =>
+    request<StudioTeachingCases>("/intelligence/studio/teaching-cases"),
+  studioRoutingTab: () =>
+    request<StudioRoutingTab>("/intelligence/studio/routing-tab"),
+  studioPrompts: () => request<StudioPanel>("/intelligence/studio/prompts"),
+  studioEvaluations: () =>
+    request<StudioEvaluations>("/intelligence/studio/evaluations"),
+  studioReleasesTab: () =>
+    request<StudioReleasesTab>("/intelligence/studio/releases-tab"),
+  studioLiveHealth: () =>
+    request<StudioLiveHealth>("/intelligence/studio/live-health"),
+  studioFailures: () =>
+    request<StudioFailures>("/intelligence/studio/failures"),
+  studioRouteSimulator: (question: string) =>
+    request<StudioRouteSimulation>("/intelligence/studio/route-simulator", {
+      method: "POST",
+      body: JSON.stringify({ question }),
+    }),
+};
+
+/** A tab payload that is mostly an explanation plus free-form detail. */
+export type StudioPanel = {
+  purpose: string;
+  explanation?: StudioExplanation;
+  [key: string]: unknown;
+};
+
+export type StudioTeachingCases = StudioPanel & {
+  governance: { sentence?: string; [key: string]: unknown };
+  summary: Record<string, unknown>;
+  filters: string[];
+  never_shown: string;
+};
+
+export type StudioRoutingTab = StudioPanel & {
+  roles: {
+    name: string;
+    purpose: string;
+    configured_model: string;
+    effort: string;
+    inherited: boolean;
+    active: boolean;
+  }[];
+  why: Record<string, string>;
+  fallback_policy: { when_complex_unavailable: string; note: string };
+};
+
+export type StudioEvaluations = StudioPanel & {
+  subtabs: string[];
+  reporting_rules: Record<string, unknown>;
+  cost_control: { confirmation_required: boolean; note: string };
+};
+
+export type StudioReleasesTab = StudioPanel & {
+  gate: { state?: string; reason?: string; [key: string]: unknown };
+  manifest: Record<string, unknown>;
+  files: string[];
+  missing_files: string[];
+  actions: { id: string; label: string; needs: string; note?: string }[];
+  never: string;
+};
+
+export type StudioLiveHealth = StudioPanel & {
+  provider: { state?: string };
+  commands: { what: string; windows: string; unix: string }[];
+  never_shown: string[];
+};
+
+export type StudioFailures = StudioPanel & {
+  categories: {
+    id: string;
+    stage: string;
+    label: string;
+    looks_like: string;
+    critical: boolean;
+  }[];
+  items: Record<string, unknown>[];
+  no_automatic_learning: boolean;
+  note: string;
+};
+
+export type StudioRouteSimulation = {
+  question: string;
+  features: Record<string, unknown>;
+  route: Record<string, unknown>;
+  called_a_provider: boolean;
+  note: string;
 };
 
 /** §117: the seven answers every Studio object gives about itself. */

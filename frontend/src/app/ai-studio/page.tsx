@@ -69,6 +69,41 @@ const Settings = React.lazy(() =>
     default: m.Settings,
   })),
 );
+const TeachingCases = React.lazy(() =>
+  import("@/components/ai-studio/panels").then((m) => ({
+    default: m.TeachingCases,
+  })),
+);
+const Routing = React.lazy(() =>
+  import("@/components/ai-studio/panels").then((m) => ({
+    default: m.Routing,
+  })),
+);
+const Prompts = React.lazy(() =>
+  import("@/components/ai-studio/panels").then((m) => ({
+    default: m.Prompts,
+  })),
+);
+const Evaluations = React.lazy(() =>
+  import("@/components/ai-studio/panels").then((m) => ({
+    default: m.Evaluations,
+  })),
+);
+const Failures = React.lazy(() =>
+  import("@/components/ai-studio/panels").then((m) => ({
+    default: m.Failures,
+  })),
+);
+const Releases = React.lazy(() =>
+  import("@/components/ai-studio/panels").then((m) => ({
+    default: m.Releases,
+  })),
+);
+const LiveHealth = React.lazy(() =>
+  import("@/components/ai-studio/panels").then((m) => ({
+    default: m.LiveHealth,
+  })),
+);
 const Later = React.lazy(() =>
   import("@/components/ai-studio/panels").then((m) => ({
     default: m.ComingWithLaterWork,
@@ -82,28 +117,21 @@ const PANELS: Record<string, React.ReactNode> = {
   INVESTIGATION_BLUEPRINTS: <Blueprints />,
   ANALYTICAL_JUDGMENT: <Judgment />,
   VISUALIZATION_GRAMMAR: <VisualGrammar />,
+  TEACHING_CASES: <TeachingCases />,
+  MODEL_ROUTING: <Routing />,
+  PROMPTS_AND_TEACHING_PACKS: <Prompts />,
+  EVALUATIONS: <Evaluations />,
+  FEEDBACK_AND_LEARNING: <Failures />,
+  RELEASES: <Releases />,
+  LIVE_AI_HEALTH: <LiveHealth />,
   SETTINGS: <Settings />,
 };
 
 const LATER: Record<string, string> = {
-  TEACHING_CASES:
-    "Every case CreditProbe learns from, with its status, its family and whether a person has actually reviewed it. The library and its governance report already exist behind /intelligence/cases and /intelligence/governance; this tab is where they get a reader.",
-  MODEL_ROUTING:
-    "Which model role handles what, why, and what a question would cost. The routing policy and the honest role preflight already exist behind /intelligence/routing.",
-  PROMPTS_AND_TEACHING_PACKS:
-    "The versioned prompts and the pack policy that governs what reaches a model.",
-  EVALUATIONS:
-    "What has been measured, over how many cases, and what the evidence supports — kept in four separate suites, because one combined judgment score hides the failure that matters.",
   INVESTIGATION_REVIEWS:
-    "How recent investigations performed, turn by turn. Lands with the Investigation assurance work.",
-  FEEDBACK_AND_LEARNING:
-    "What users told us and what was done about it, under governed review. Lands with the user-feedback learning loop.",
+    "How recent investigations performed, turn by turn — the six Intelligence Dimensions and the assurance record behind every answer. Lands with the Investigation assurance work.",
   AGENTIC_HEALTH:
-    "Whether the agentic layer is genuinely running. Lands with the agentic reliability work.",
-  RELEASES:
-    "What is frozen, what is approved, and what has gone stale underneath it. The release manifest and its gate already exist behind /intelligence/releases.",
-  LIVE_AI_HEALTH:
-    "The provider, the roles and what a live check would cost, with the exact safe local commands.",
+    "Whether the agentic layer is genuinely running: whether the worker executes, whether a review produced evidence-backed cases, and whether the Agentic Trace reflects the tasks that actually ran. Lands with the agentic reliability work.",
 };
 
 export default function AiIntelligenceStudioPage() {

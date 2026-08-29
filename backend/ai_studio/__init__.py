@@ -35,6 +35,6 @@ Two rules run through all of it:
                  the Studio feels about the blueprint.
 """
 
-from backend.ai_studio import capabilities, explain, permissions, tabs
+from backend.ai_studio import capabilities, explain, permissions, report, tabs
 
-__all__ = ["capabilities", "explain", "permissions", "tabs"]
+__all__ = ["capabilities", "explain", "permissions", "report", "tabs"]

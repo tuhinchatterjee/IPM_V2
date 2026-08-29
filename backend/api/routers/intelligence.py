@@ -39,6 +39,7 @@ from pydantic import BaseModel, Field
 
 from backend.ai_studio import capabilities as cap
 from backend.ai_studio import permissions as pm
+from backend.ai_studio import report as rp
 from backend.ai_studio import tabs as tb
 from backend.api.permissions import Principal, RequireAdmin, RequireAnalyst
 from backend.orchestration import routing as rt
@@ -757,6 +758,133 @@ def _holdout_manifest(path: Any) -> dict[str, Any]:
         return json.loads(candidate.read_text("utf-8"))
     except Exception:  # pragma: no cover - unreadable release file
         return {}
+
+
+@router.get("/studio/teaching-cases")
+def studio_teaching_cases(principal: Principal = RequireAdmin
+                          ) -> dict[str, Any]:
+    """§106. The library, with the governance sentence leading.
+
+    Administrator-only, because a list of what production retrieves is most
+    of the way to knowing how to get a chosen answer out of it.
+    """
+    session = _session()
+    try:
+        return tb.teaching_cases(tl.summary(session), tl.governance(session),
+                                 tl.coverage(session))
+    finally:
+        session.close()
+
+
+@router.get("/studio/routing-tab")
+def studio_routing_tab(principal: Principal = RequireAnalyst
+                       ) -> dict[str, Any]:
+    """§110. Roles, thresholds, and the four "why" answers."""
+    return tb.routing(_preflight())
+
+
+def _preflight() -> dict[str, Any]:
+    from backend.llm import roles as rl_roles
+
+    try:
+        import backend.llm as llm
+
+        return rl_roles.preflight(llm.get_provider())
+    except Exception:  # pragma: no cover - no provider configured
+        return {"roles": [], "note": "No provider is configured."}
+
+
+class SimulateRequest(BaseModel):
+    """A sanitised question for the route simulator. Never sent anywhere."""
+
+    question: str = Field(..., min_length=1, max_length=2000)
+
+
+@router.post("/studio/route-simulator")
+def studio_route_simulator(body: SimulateRequest,
+                           principal: Principal = RequireAdmin
+                           ) -> dict[str, Any]:
+    """§110's simulator. Predicts the route; makes no call.
+
+    An administrator who can try twenty phrasings for nothing will, and one
+    who spends a call per try will try none — which is how a routing policy
+    goes unexamined.
+    """
+    return tb.route_simulator(body.question)
+
+
+@router.get("/studio/prompts")
+def studio_prompts(principal: Principal = RequireAdmin) -> dict[str, Any]:
+    """§111. The pack policy and the caching contract, never prompt text
+    that might carry a hard-coded client example."""
+    return tb.prompts()
+
+
+@router.get("/studio/evaluations")
+def studio_evaluations(principal: Principal = RequireAdmin
+                       ) -> dict[str, Any]:
+    """§112's seven suites, and the rules under which any of them may be
+    quoted."""
+    return tb.evaluations()
+
+
+@router.get("/studio/releases-tab")
+def studio_releases_tab(principal: Principal = RequireAnalyst
+                        ) -> dict[str, Any]:
+    """§115. What is frozen, approved, and stale underneath it."""
+    path = rl.latest()
+    manifest, _, missing = (rl.load(path) if path else
+                            (rl.Manifest(), [], list(rl.FILES)))
+    return tb.releases(rl.gate(require_release=False).to_dict(),
+                       manifest.to_dict(), list(rl.FILES), missing)
+
+
+@router.get("/studio/live-health")
+def studio_live_health(principal: Principal = RequireAdmin
+                       ) -> dict[str, Any]:
+    """§116. Provider state and the exact safe local commands.
+
+    Never a key and never an authorization header. The commands are given in
+    full because an administrator who cannot copy one will invent a variant,
+    and the invented variant is the one that logs a key.
+    """
+    return tb.live_health({"state": _provider_state()}, _preflight())
+
+
+@router.get("/studio/failures")
+def studio_failures(principal: Principal = RequireAdmin) -> dict[str, Any]:
+    """§114. The active-learning queue. No automatic production learning."""
+    session = _session()
+    try:
+        items = rq.listing(session) if hasattr(rq, "listing") else []
+    finally:
+        session.close()
+    return tb.failures(items)
+
+
+@router.get("/studio/report")
+def studio_report(principal: Principal = RequireAdmin) -> dict[str, Any]:
+    """§121's Intelligence Performance report, as data.
+
+    Every one of the thirteen sheets appears, empty ones saying so. A report
+    whose contents depend on what was available produces two documents with
+    the same title and different meanings.
+    """
+    try:
+        return rp.build()
+    except rp.WouldLeak as leak:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "would_leak", "message": str(leak)}) from leak
+
+
+@router.get("/studio/audit-actions")
+def studio_audit_actions(principal: Principal = RequireAdmin
+                         ) -> dict[str, Any]:
+    """§123. What is audited, and what every entry must carry."""
+    return {"actions": list(rp.AUDITED), "fields": list(rp.AUDIT_FIELDS),
+            "events": [{"id": e, "says": rp.SAYS[e],
+                        "notify": rp.NOTIFY[e]} for e in rp.EVENTS]}
 
 
 @router.get("/studio/badge")

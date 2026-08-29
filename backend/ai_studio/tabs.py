@@ -569,9 +569,377 @@ def coverage(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 __all__ = ["AGENTIC", "BLUEPRINTS", "COVERAGE_COLUMNS", "EVALUATIONS",
+           "EVALUATION_SUBTABS", "evaluations", "failures", "live_health",
+           "prompts", "releases", "route_simulator", "routing",
+           "teaching_cases",
            "FEEDBACK", "JUDGMENT", "JUDGMENT_SUBTABS", "KNOWLEDGE", "LABELS",
            "LIVE_HEALTH", "NEEDS", "OVERVIEW", "PROMPTS", "PURPOSE",
            "RELEASES", "REVIEWS", "ROUTING", "SETTINGS", "TABS",
            "TABS_VERSION", "TEACHING_CASES", "VISUAL_GRAMMAR", "blueprints",
            "coverage", "index", "judgment", "knowledge", "result_shape_lab",
            "visible", "visual_grammar"]
+
+
+# ---------------------------------------------------------------------------
+# §110 — Model routing
+# ---------------------------------------------------------------------------
+
+def routing(preflight: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Which role handles what, why, and what it costs. §110.
+
+    The four "why" answers §110 asks for are written out rather than derived,
+    because they are the whole point of the tab: a reader who can see that a
+    question routed to the complex planner and cannot see WHY has been shown a
+    log line.
+    """
+    from backend.judgment import judgment_policy as jp
+    from backend.llm import roles as rl
+    from backend.orchestration import routing as rt
+    from backend.teaching import policy as po
+
+    thresholds = po.default()
+    return {
+        "version": TABS_VERSION, "tab": ROUTING, "purpose": PURPOSE[ROUTING],
+        "explanation": ex.Explanation(
+            what="The model roles, the signals that pick between them, and "
+                 "the thresholds those signals are compared against.",
+            why="A product that silently used a different model than the one "
+                "configured would produce different answers with the same "
+                "Trace.",
+            when="Once per question, before anything is planned.",
+            validated="By the routing evaluation suite and by the honest "
+                      "preflight, which never reports CONNECTED from the "
+                      "presence of a key.",
+            performing=ex.NOT_MEASURED,
+            stale_or_failing=ex.NOTHING_STALE,
+            release="The routing policy fingerprint is a release staleness "
+                    "axis.").to_dict(),
+        # Roles, never model ids. What serves a role is configuration, and a
+        # Studio that hard-coded one would be wrong the week after the next
+        # model ships.
+        "roles": [{"name": r.name, "purpose": rl.PURPOSE.get(r.name, ""),
+                   "configured_model": r.model, "effort": r.effort,
+                   "inherited": r.inherited,
+                   "active": r.name in rl.ACTIVE_ROLES}
+                  for r in rl.all_roles(include_inactive=True)],
+        "preflight": preflight or {},
+        "why": {
+            "routine": "The question's signals fall below the complexity "
+                       "threshold: one objective, a governed concept, a "
+                       "period the vocabulary knows. The routine planner "
+                       "answers it and the harder model would answer it "
+                       "identically for more money.",
+            "complex": "Several objectives, a broad prompt, a "
+                       "high-materiality subject, or a signal the routine "
+                       "planner already failed on. What is hard is the "
+                       "judgement, not the arithmetic.",
+            "critic": "A high-risk or client-facing answer, a rubric repair, "
+                      "or a challenge pass — the cases where being wrong "
+                      "cannot be corrected afterwards.",
+            "none": "The question needs no model at all: a metadata lookup, "
+                    "a cached result, or a request CreditProbe declines. "
+                    "Spending a call to decline is still spending a call.",
+        },
+        "thresholds": thresholds.to_dict() if hasattr(thresholds, "to_dict")
+        else {"fingerprint": getattr(thresholds, "fingerprint", "")},
+        "stages": list(getattr(rt, "STAGES", ())),
+        "judgment_escalations": jp.policy(),
+        "fallback_policy": {
+            "when_complex_unavailable": rt.unavailable_policy(),
+            "note": ("CreditProbe never silently substitutes a different "
+                     "model. It degrades visibly or declines."),
+        },
+    }
+
+
+def route_simulator(question: str) -> dict[str, Any]:
+    """§110's safe simulator. Predicts; never calls.
+
+    "No API call in simulation" is the instruction, and it is what makes the
+    simulator usable: an administrator who can try twenty phrasings for
+    nothing will, and one who spends a call per try will try none.
+    """
+    from backend.orchestration import routing as rt
+
+    signals = rt.signals(question)
+    decision = rt.decide(question)
+    return {
+        "version": TABS_VERSION,
+        "question": question,
+        "features": signals.to_dict() if hasattr(signals, "to_dict")
+        else {"direct": getattr(signals, "direct", None)},
+        "route": decision.to_dict() if hasattr(decision, "to_dict") else {},
+        "called_a_provider": False,
+        "note": ("Predicted from the same signals the runtime uses. Nothing "
+                 "was sent anywhere and nothing was spent."),
+    }
+
+
+# ---------------------------------------------------------------------------
+# §111 — Prompts and Teaching Packs
+# ---------------------------------------------------------------------------
+
+def prompts() -> dict[str, Any]:
+    """Versioned prompts and the pack policy. §111.
+
+    Fingerprints rather than text by default. §111 says do not expose secrets
+    or client content, and a prompt is the one artefact most likely to have
+    accumulated a hard-coded example from a real portfolio.
+    """
+    from backend.llm import caching as ca
+    from backend.teaching import pack as pk
+
+    return {
+        "version": TABS_VERSION, "tab": PROMPTS, "purpose": PURPOSE[PROMPTS],
+        "explanation": ex.Explanation(
+            what="The versioned prompts each model role receives, and the "
+                 "policy governing what a Teaching Pack may contain.",
+            why="A prompt is configuration that changes every answer. An "
+                "unversioned one changes answers with nothing recording that "
+                "it did.",
+            when="On every call, assembled in a stable order so the cache "
+                 "hits.",
+            validated="A prompt candidate is promoted only after an "
+                      "evaluation, and a regression blocks it.",
+            performing=ex.NOT_MEASURED,
+            stale_or_failing=ex.NOTHING_STALE,
+            release="Prompt fingerprints are recorded on the release "
+                    "manifest.").to_dict(),
+        "pack_policy": {
+            "included": list(pk.INCLUDED),
+            "excluded": list(pk.EXCLUDED),
+            "budget_characters": getattr(pk, "DEFAULT_BUDGET", 4000),
+            "note": ("A pack is dropped whole rather than truncated. Half a "
+                     "teaching case teaches half a lesson, and which half is "
+                     "arbitrary."),
+        },
+        "caching": {
+            "stable_order": list(ca.STABLE_ORDER),
+            "min_cacheable_chars": ca.MIN_CACHEABLE_CHARS,
+            "note": ("One breakpoint, after the stable blocks. A cache "
+                     "breakpoint after something that changes per question "
+                     "caches nothing and costs the write."),
+        },
+        "promotion": {
+            "requires": ["an evaluation against the development corpus",
+                         "no regression on the mandatory threads",
+                         "a named approver"],
+            "note": "A winning candidate is promoted by a person, not by "
+                    "having won.",
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# §112 — Evaluations
+# ---------------------------------------------------------------------------
+
+EVALUATION_SUBTABS: tuple[str, ...] = (
+    "DEVELOPMENT", "SEALED_CERTIFICATION", "LIVE_SMOKE", "AGENTIC",
+    "JUDGMENT", "VISUALIZATION", "MODEL_EXPERIMENTS")
+
+
+def evaluations() -> dict[str, Any]:
+    """§112's seven suites, kept apart.
+
+    Separately, always. The four judgment suites already refuse to combine
+    into one score for the reason §96 gives, and the same argument covers
+    these seven: a sealed certification and a live smoke test fail for
+    unrelated reasons, and an average of them tells you about neither.
+    """
+    return {
+        "version": TABS_VERSION, "tab": EVALUATIONS,
+        "purpose": PURPOSE[EVALUATIONS],
+        "subtabs": list(EVALUATION_SUBTABS),
+        "explanation": ex.Explanation(
+            what="Seven evaluation suites, each measuring something "
+                 "different, none of them averaged together.",
+            why="A number without its sample size and interval is a claim "
+                "the evidence may not support, and the first thing anybody "
+                "quotes.",
+            when="Before a release is cut, and after any change to a prompt, "
+                 "a policy or the routing.",
+            validated="The suites validate everything else; what validates "
+                      "them is the sealed holdout, which the production "
+                      "planner cannot reach.",
+            performing=ex.NOT_MEASURED,
+            stale_or_failing=ex.NOTHING_STALE,
+            release="Evaluation metrics and critical failures are recorded "
+                    "on the release manifest.").to_dict(),
+        "reporting_rules": {
+            "intervals": ("Every rate carries a 95% Wilson interval and every "
+                          "gate compares the LOWER bound."),
+            "min_observations": 30,
+            "no_combined_score": True,
+            "critical_overrides": ("A single critical failure blocks a "
+                                   "release whatever the average says."),
+        },
+        "cost_control": {
+            "confirmation_required": True,
+            "note": ("A live evaluation is estimated first and run only on "
+                     "explicit confirmation. An evaluation that can start by "
+                     "accident is one somebody starts by accident."),
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# §115, §116 — Releases and Live AI health
+# ---------------------------------------------------------------------------
+
+def releases(gate: dict[str, Any], manifest: dict[str, Any],
+             files: list[str], missing: list[str]) -> dict[str, Any]:
+    """§115. What is frozen, approved, and stale underneath."""
+    return {
+        "version": TABS_VERSION, "tab": RELEASES,
+        "purpose": PURPOSE[RELEASES],
+        "explanation": ex.Explanation(
+            what="The frozen Intelligence Release: the approved cases, the "
+                 "policies, the prompts, the thresholds and the metrics that "
+                 "were true when it was cut.",
+            why="Without one, production runs off whatever is approved right "
+                "now, and an answer given last week cannot be reproduced.",
+            when="Every answer, when production is configured to require a "
+                 "release.",
+            validated="By the certification the release records, and by the "
+                      "staleness check that runs against the live "
+                      "configuration.",
+            performing=f"gate reports {gate.get('state', 'unknown')}",
+            stale_or_failing=(", ".join(gate.get("moved", []))
+                              or ex.NOTHING_STALE),
+            release=str(manifest.get("release_id") or ex.NOT_RELEASED)
+        ).to_dict(),
+        "gate": gate, "manifest": manifest,
+        "files": list(files), "missing_files": list(missing),
+        "actions": [
+            {"id": "compare", "label": "Compare releases", "needs": pm.VIEW},
+            {"id": "manifest", "label": "View manifest", "needs": pm.VIEW},
+            {"id": "validate", "label": "Validate",
+             "needs": pm.EVALUATION_RUN},
+            {"id": "estimate", "label": "Estimate live certification",
+             "needs": pm.EVALUATION_RUN},
+            {"id": "promote", "label": "Promote", "needs": pm.RELEASE_APPROVE,
+             "note": "Requires a named approver and a reason."},
+            {"id": "rollback", "label": "Roll back",
+             "needs": pm.RELEASE_APPROVE,
+             "note": "Under governance, with the reason recorded."},
+        ],
+        "never": ("A release never packages the sealed holdout. Its manifest "
+                  "carries counts and a fingerprint; the questions and gold "
+                  "answers stay where the production planner cannot reach "
+                  "them."),
+    }
+
+
+def live_health(provider: dict[str, Any],
+                preflight: dict[str, Any]) -> dict[str, Any]:
+    """§116. The provider, the roles, and the exact safe local commands.
+
+    Never a key, never an authorization header, never a request body. The
+    commands are given in full because an administrator who cannot copy one
+    will invent a variant, and the invented variant is the one that logs a
+    key.
+    """
+    return {
+        "version": TABS_VERSION, "tab": LIVE_HEALTH,
+        "purpose": PURPOSE[LIVE_HEALTH],
+        "provider": provider, "roles": preflight,
+        "commands": [
+            {"what": "A quick check — one small call per active role",
+             "windows": "powershell -File scripts/verify-live-ai.ps1 -Mode quick",
+             "unix": "python -m backend.validation.live_verify --mode quick"},
+            {"what": "The full sealed certification (costs real money)",
+             "windows": "powershell -File scripts/verify-live-ai.ps1 -Mode full -Confirm",
+             "unix": "python -m intelligence_factory.certify --certify --confirm"},
+            {"what": "Provider state without spending anything",
+             "windows": "curl http://localhost:8000/api/v1/health/ai",
+             "unix": "curl http://localhost:8000/api/v1/health/ai"},
+        ],
+        "never_shown": ["API keys", "authorization headers", "request bodies",
+                        "prompt text containing client content"],
+    }
+
+
+# ---------------------------------------------------------------------------
+# §114 — Failures and active learning
+# ---------------------------------------------------------------------------
+
+def failures(items: list[dict[str, Any]]) -> dict[str, Any]:
+    """§114. What went wrong, who is looking at it, and what came of it.
+
+    The last line of §114 is the one that matters: no automatic production
+    self-learning. Everything here is a queue for a person, and an item that
+    has not been through one changes nothing in production.
+    """
+    from backend.teaching import failures as fl
+
+    return {
+        "version": TABS_VERSION, "tab": FEEDBACK, "purpose": PURPOSE[FEEDBACK],
+        "explanation": ex.Explanation(
+            what="Failures found in production and in evaluation, each with a "
+                 "proposed correction and an adjudication.",
+            why="A product that learned from its own failures automatically "
+                "would change what it believes with nobody having agreed to "
+                "it.",
+            when="Whenever an answer fails a check, a user reports one, or an "
+                 "evaluation regresses.",
+            validated="An approved correction becomes a regression case and a "
+                      "teaching case, both of which are evaluated before any "
+                      "release carries them.",
+            performing=f"{len(items)} items in the queue",
+            stale_or_failing=ex.NOTHING_STALE,
+            release="An item is released only as part of a Teaching Release."
+        ).to_dict(),
+        "categories": [{"id": c.id, "stage": c.stage, "label": c.label,
+                        "looks_like": c.looks_like,
+                        "critical": fl.is_critical(c.id)}
+                       for c in fl.CATEGORIES],
+        "items": items,
+        "no_automatic_learning": True,
+        "note": ("Unreviewed feedback never changes production. An approved "
+                 "correction creates a regression case and a teaching case; "
+                 "both are evaluated before a release carries them."),
+    }
+
+
+# ---------------------------------------------------------------------------
+# §106 — Teaching cases
+# ---------------------------------------------------------------------------
+
+def teaching_cases(summary: dict[str, Any], governance: dict[str, Any],
+                   coverage_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """§106. The library, and an honest account of who reviewed it.
+
+    The governance sentence leads, because it is the answer to the question a
+    Model Risk reviewer actually has: how many of these has a person read?
+    A count of two and a half thousand cases beside a count of zero human
+    approvals is the truth, and burying it under a family breakdown would
+    make the family breakdown the message.
+    """
+    return {
+        "version": TABS_VERSION, "tab": TEACHING_CASES,
+        "purpose": PURPOSE[TEACHING_CASES],
+        "explanation": ex.Explanation(
+            what="Every case CreditProbe learns from, with its status, its "
+                 "family, its difficulty and its provenance.",
+            why="Retrieval decides what a model sees before it answers. A "
+                "library nobody can audit is a set of instructions nobody "
+                "read.",
+            when="On every question, through governed retrieval — and only "
+                 "APPROVED and explicitly governed SYSTEM_VALIDATED cases "
+                 "are ever retrieved.",
+            validated="Each case carries its own validation record; the "
+                      "governance report counts human review only where a "
+                      "named reviewer and a timestamp exist.",
+            performing=governance.get("sentence", ex.NOT_MEASURED),
+            stale_or_failing=ex.NOTHING_STALE,
+            release="Approved cases are frozen into the Teaching Release."
+        ).to_dict(),
+        "governance": governance,
+        "summary": summary,
+        "coverage": coverage(coverage_rows),
+        "filters": ["family", "difficulty", "scope", "language", "status",
+                    "owner", "stale", "critical", "model_route"],
+        "never_shown": ("Sealed-holdout content is never shown here, in any "
+                        "state, to any role."),
+    }

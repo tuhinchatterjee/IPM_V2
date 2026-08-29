@@ -556,3 +556,210 @@ def test_no_studio_route_leaks_a_key_or_a_holdout_question(client):
         for forbidden in ("sk-ant", "authorization:", "api_key",
                           "anthropic_api_key", "bearer "):
             assert forbidden not in text, (path, forbidden)
+
+
+# =========================================== §106, §110-§116 the other tabs
+
+
+def test_the_routing_tab_names_roles_and_never_a_model_id():
+    """§110: do not hard-code model IDs. The role is named; what serves it is
+    configuration, and a Studio that named one would be wrong the week after
+    the next model ships."""
+    payload = tb.routing()
+
+    assert payload["roles"]
+    for role in payload["roles"]:
+        assert "claude" not in role["name"].lower()
+        assert "opus" not in role["name"].lower()
+    assert set(payload["why"]) == {"routine", "complex", "critic", "none"}
+    for why in payload["why"].values():
+        assert len(why) > 40
+
+
+def test_the_route_simulator_makes_no_call():
+    """An administrator who can try twenty phrasings for nothing will, and one
+    who spends a call per try will try none — which is how a routing policy
+    goes unexamined."""
+    result = tb.route_simulator("what is total ECL by sector?")
+
+    assert result["called_a_provider"] is False
+    assert "nothing was spent" in result["note"]
+
+
+def test_the_prompts_tab_shows_the_pack_policy_and_not_prompt_text():
+    """§111: do not expose secrets or client content. A prompt is the artefact
+    most likely to have accumulated a hard-coded example from a real
+    portfolio."""
+    payload = tb.prompts()
+
+    assert payload["pack_policy"]["included"]
+    assert payload["pack_policy"]["excluded"]
+    assert payload["promotion"]["requires"]
+    text = str(payload).lower()
+    for forbidden in ("sk-ant", "api_key", "authorization"):
+        assert forbidden not in text
+
+
+def test_the_evaluations_tab_keeps_the_seven_suites_apart():
+    payload = tb.evaluations()
+
+    assert len(payload["subtabs"]) == 7
+    assert payload["reporting_rules"]["no_combined_score"] is True
+    assert payload["cost_control"]["confirmation_required"] is True
+
+
+def test_a_live_evaluation_cannot_start_by_accident():
+    """An evaluation that can start by accident is one somebody starts by
+    accident."""
+    assert tb.evaluations()["cost_control"]["confirmation_required"] is True
+
+
+def test_the_live_health_tab_gives_commands_and_never_a_key():
+    payload = tb.live_health({"state": "OFFLINE"}, {"roles": []})
+
+    assert len(payload["commands"]) >= 3
+    for command in payload["commands"]:
+        assert command["windows"] and command["unix"]
+        assert "sk-ant" not in command["windows"]
+        assert "Authorization" not in command["unix"]
+    assert "API keys" in payload["never_shown"]
+
+
+def test_the_releases_tab_says_the_holdout_is_never_packaged():
+    payload = tb.releases({"state": "UNRELEASED"}, {}, ["manifest.json"], [])
+
+    assert "sealed holdout" in payload["never"]
+    assert any(a["id"] == "promote" for a in payload["actions"])
+    for action in payload["actions"]:
+        assert action["needs"] in pm.PERMISSIONS
+
+
+def test_the_failures_tab_says_there_is_no_automatic_learning():
+    """§114's last line, and the whole shape of the tab."""
+    payload = tb.failures([])
+
+    assert payload["no_automatic_learning"] is True
+    assert "Unreviewed feedback never changes production" in payload["note"]
+    assert len(payload["categories"]) == 24
+
+
+def test_the_teaching_cases_tab_leads_with_the_governance_sentence():
+    """The answer to the question a Model Risk reviewer actually has: how
+    many of these has a person read?"""
+    payload = tb.teaching_cases(
+        {"total": 2453},
+        {"sentence": "2453 teaching cases. 0 carry a named human approval."},
+        [])
+
+    performing = [a for a in payload["explanation"]["answers"]
+                  if a["id"] == "performing"][0]
+    assert "0 carry a named human approval" in performing["answer"]
+    assert "Sealed-holdout content is never shown" in payload["never_shown"]
+
+
+# ==================================== §121-§123 export, notifications, audit
+
+
+def test_the_report_has_all_thirteen_sheets_even_when_empty():
+    """A report whose contents depend on what was available produces two
+    documents with the same title and different meanings."""
+    from backend.ai_studio import report as rp
+
+    built = rp.build()
+
+    assert len(built["sheets"]) == 13
+    assert [s["name"] for s in built["sheets"]] == list(rp.SHEETS)
+    for sheet in built["sheets"]:
+        assert sheet["contents"], sheet["name"]
+        assert sheet["note"], sheet["name"]
+
+
+def test_the_report_refuses_to_carry_a_secret_or_a_holdout_answer():
+    """An export is the one artefact that leaves the building. Everything
+    else here can be wrong and corrected; an export that left with a holdout
+    question in it cannot be recalled."""
+    from backend.ai_studio import report as rp
+
+    for leaky in ({"Overview": [{"note": "sk-ant-api03-xxx"}]},
+                  {"Critical Failures": [{"detail": "gold_answer: 4.1%"}]},
+                  {"Model Routing": [{"header": "Authorization: Bearer x"}]}):
+        with pytest.raises(rp.WouldLeak):
+            rp.build(leaky)
+
+
+def test_the_ten_notification_events_section_122_names_all_route_somewhere():
+    from backend.ai_studio import report as rp
+
+    assert len(rp.EVENTS) == 10
+    for event in rp.EVENTS:
+        assert rp.NOTIFY[event] in pm.PERMISSIONS, event
+        assert len(rp.SAYS[event]) > 30, event
+
+
+def test_an_unknown_notification_is_refused_rather_than_sent_to_everybody():
+    """A notification with no defined audience is one the whole administrator
+    group learns to ignore."""
+    from backend.ai_studio import report as rp
+
+    with pytest.raises(KeyError):
+        rp.notification("something_happened")
+
+
+def test_an_audit_entry_needs_a_named_actor_and_a_reason():
+    """"system changed a routing policy" is not an audit trail, and a change
+    with no reason cannot be reviewed — only reverted, by somebody who does
+    not know why it was made."""
+    from backend.ai_studio import report as rp
+
+    with pytest.raises(ValueError):
+        rp.record("policy_changed", user="", object_id="materiality",
+                  reason="raised the floor")
+    with pytest.raises(ValueError):
+        rp.record("policy_changed", user="admin#1",
+                  object_id="materiality", reason="   ")
+    with pytest.raises(KeyError):
+        rp.record("did_a_thing", user="admin#1", object_id="x", reason="y")
+
+    entry = rp.record("policy_changed", user="admin#1",
+                      object_id="materiality",
+                      reason="raised the appetite floor after the Q2 review",
+                      old_version="1.0.0", new_version="1.1.0",
+                      affected_release="rel-7")
+    assert set(entry.to_dict()) == set(rp.AUDIT_FIELDS)
+    assert entry.at
+
+
+def test_the_twelve_audited_actions_section_123_names_are_all_covered():
+    from backend.ai_studio import report as rp
+
+    assert len(rp.AUDITED) == 12
+    for action in ("case_approved", "prompt_changed", "routing_changed",
+                   "policy_changed", "release_promoted",
+                   "release_rolled_back", "live_verification",
+                   "fine_tuning_export"):
+        assert action in rp.AUDITED
+
+
+def test_the_remaining_studio_routes_answer_for_an_administrator(client):
+    for path in ("routing-tab", "prompts", "evaluations", "releases-tab",
+                 "live-health", "failures", "report", "audit-actions"):
+        response = client.get(f"/api/v1/intelligence/studio/{path}",
+                              headers=admin())
+        assert response.status_code == 200, (path, response.text[:200])
+
+
+def test_the_route_simulator_route_spends_nothing(client):
+    response = client.post("/api/v1/intelligence/studio/route-simulator",
+                           headers=admin(),
+                           json={"question": "what moved in Contracting?"})
+
+    assert response.status_code == 200
+    assert response.json()["called_a_provider"] is False
+
+
+def test_an_analyst_may_not_open_the_authoring_tabs(client):
+    for path in ("teaching-cases", "prompts", "evaluations", "failures",
+                 "report", "audit-actions", "live-health"):
+        refused = client.get(f"/api/v1/intelligence/studio/{path}",
+                             headers=analyst())
+        assert refused.status_code == 403, path
