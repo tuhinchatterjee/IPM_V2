@@ -61,12 +61,47 @@ SKIPPED = "SKIPPED"
 #: Excluded from the denominator ONLY where applicability was deterministically
 #: established. A check nobody ran is SKIPPED, not NOT_APPLICABLE.
 NOT_APPLICABLE = "NOT_APPLICABLE"
+#: §20. The check APPLIES to this flow and no signal exists to run it — the
+#: runtime does not emit one, or the instrumentation was never wired.
+#:
+#: Split out from SKIPPED because the two are different problems with
+#: different owners. SKIPPED means execution deliberately did not occur, and
+#: is a fact about this run. NOT_AVAILABLE means the check cannot run for ANY
+#: run, and is a fact about the product — an engineering gap rather than a
+#: runtime decision. Collapsing them hides every uninstrumented check inside
+#: the noise of legitimately skipped ones, which is precisely how a coverage
+#: number stops meaning anything.
+#:
+#: It is the harsher of the two: a critical NOT_AVAILABLE BLOCKS.
+NOT_AVAILABLE = "NOT_AVAILABLE"
 
-OUTCOMES: tuple[str, ...] = (PASS, WARNING, FAIL, SKIPPED, NOT_APPLICABLE)
+OUTCOMES: tuple[str, ...] = (PASS, WARNING, FAIL, SKIPPED, NOT_APPLICABLE,
+                             NOT_AVAILABLE)
+
+#: What each outcome means, in a sentence, for the surfaces that show it.
+OUTCOME_MEANS: dict[str, str] = {
+    PASS: "The check ran and the answer satisfied it.",
+    WARNING: "The check ran and found something worth stating, which does "
+             "not make the answer wrong.",
+    FAIL: "The check ran and the answer did not satisfy it.",
+    SKIPPED: "Execution deliberately did not run this check on this turn. It "
+             "is not a pass, and it costs coverage.",
+    NOT_APPLICABLE: "This check does not apply to this kind of request, and "
+                    "the reason is recorded. It leaves the denominator.",
+    NOT_AVAILABLE: "This check applies and no signal exists to run it. It is "
+                   "an instrumentation gap in CreditProbe, not a judgement "
+                   "about the answer — and where the check is critical it "
+                   "blocks.",
+}
 
 #: Outcomes that count toward coverage — the check actually ran and produced
-#: a judgement.
+#: a judgement. NOT_AVAILABLE is deliberately absent: an uninstrumented check
+#: has produced no judgement about anything.
 COUNTED: frozenset[str] = frozenset({PASS, WARNING, FAIL})
+
+#: Outcomes that mean "this check did not produce a judgement, and that is a
+#: gap rather than an exemption". Both stay in the coverage denominator.
+UNRESOLVED: frozenset[str] = frozenset({SKIPPED, NOT_AVAILABLE})
 
 # ------------------------------------------------- §181's seven statuses
 HIGH_ASSURANCE = "HIGH_ASSURANCE"
@@ -313,17 +348,38 @@ class Record:
         return [c.subcomponent for c in self.checks if c.outcome == WARNING]
 
     @property
-    def skipped_mandatory(self) -> list[str]:
-        """Mandatory checks that were skipped, or never recorded at all.
+    def critical_not_available(self) -> list[str]:
+        """§20. Critical checks that apply and have no signal behind them.
 
-        §183's other half: "a missing check is not silently treated as
-        NOT_APPLICABLE". A subcomponent absent from the record is skipped,
-        because nothing ran it.
+        These block exactly as a critical failure does, and for a reason
+        worth stating plainly: a critical check with no instrumentation
+        means nobody can say whether the answer satisfied it. "We did not
+        look" and "we looked and it was fine" must never produce the same
+        status.
+        """
+        return sorted(c.subcomponent for c in self.checks
+                      if c.outcome == NOT_AVAILABLE and c.critical)
+
+    @property
+    def not_available(self) -> list[str]:
+        return sorted(c.subcomponent for c in self.checks
+                      if c.outcome == NOT_AVAILABLE)
+
+    @property
+    def skipped_mandatory(self) -> list[str]:
+        """Mandatory checks that produced no judgement.
+
+        Three ways that happens, all of them counted here: the check was
+        SKIPPED, the check is NOT_AVAILABLE, or the check is absent from the
+        record entirely. §183's other half — "a missing check is not
+        silently treated as NOT_APPLICABLE" — plus §20's rule that a
+        mandatory SKIPPED blocks, which an uninstrumented mandatory check
+        must not escape by being a different word.
         """
         seen = {c.subcomponent: c for c in self.checks}
         return sorted(
             name for name in dm.MANDATORY
-            if name not in seen or seen[name].outcome == SKIPPED)
+            if name not in seen or seen[name].outcome in UNRESOLVED)
 
     @property
     def coverage_pct(self) -> float:
@@ -368,11 +424,21 @@ class Record:
             return _verdict(STALE, None, self.coverage_pct, policy,
                             reasons=self.stale_reasons)
 
-        # 1. Critical gates.
+        # 1. Critical gates. A failure first, then §20's other blocking
+        # condition: a critical check that could not run at all.
         if self.critical_failures:
             return _verdict(
                 FAILED, None, self.coverage_pct, policy,
                 reasons=[f"{name} failed" for name in self.critical_failures])
+        blocked = self.critical_not_available
+        if blocked:
+            # UNVERIFIED rather than FAILED: nothing is proven wrong. But no
+            # score either, because a critical check nobody could run leaves
+            # the central question unanswered.
+            return _verdict(
+                UNVERIFIED, None, self.coverage_pct, policy,
+                reasons=[f"{name} is critical and no signal exists to check "
+                         "it" for name in blocked])
 
         # 2. Coverage gate.
         coverage = self.coverage_pct
@@ -581,7 +647,8 @@ def seal(record: Record) -> Record:
     return record
 
 
-__all__ = ["ASSURANCE_LABEL", "COUNTED", "Check", "DimensionResult", "FAIL", "FAILED",
+__all__ = ["ASSURANCE_LABEL", "COUNTED", "NOT_AVAILABLE",
+           "OUTCOME_MEANS", "UNRESOLVED", "Check", "DimensionResult", "FAIL", "FAILED",
            "HIGH_ASSURANCE", "HIGH_ASSURANCE_AT", "MEANS", "MIN_COVERAGE_PCT",
            "NEEDS_REVIEW", "NOT_APPLICABLE", "NotEstablished", "OUTCOMES",
            "PASS", "RECORD_VERSION", "Record", "SKIPPED", "STALE",

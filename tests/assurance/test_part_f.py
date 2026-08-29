@@ -98,10 +98,57 @@ def test_computation_carries_the_most_weight():
 # ================================================ §183 the five outcomes
 
 
-def test_there_are_exactly_five_check_outcomes():
-    assert len(rc.OUTCOMES) == 5
+def test_there_are_exactly_six_check_outcomes():
+    """§183 named five; §20 added the sixth.
+
+    NOT_AVAILABLE is split out of SKIPPED because they are different problems
+    with different owners: SKIPPED means execution deliberately did not run
+    the check on this turn, and NOT_AVAILABLE means the check cannot run for
+    ANY turn because nothing emits its signal. Collapsed together, every
+    uninstrumented check hides inside the noise of legitimately skipped ones.
+    """
+    assert len(rc.OUTCOMES) == 6
     assert set(rc.OUTCOMES) == {rc.PASS, rc.WARNING, rc.FAIL, rc.SKIPPED,
-                                rc.NOT_APPLICABLE}
+                                rc.NOT_APPLICABLE, rc.NOT_AVAILABLE}
+    for outcome in rc.OUTCOMES:
+        assert len(rc.OUTCOME_MEANS[outcome]) > 30, outcome
+
+
+def test_neither_skipped_nor_not_available_counts_as_coverage():
+    assert rc.SKIPPED not in rc.COUNTED
+    assert rc.NOT_AVAILABLE not in rc.COUNTED
+    assert rc.UNRESOLVED == {rc.SKIPPED, rc.NOT_AVAILABLE}
+
+
+def test_a_critical_check_with_no_signal_blocks():
+    """§20: "Critical NOT_AVAILABLE blocks."
+
+    UNVERIFIED rather than FAILED — nothing is proven wrong. But no score
+    either: a critical check nobody could run leaves the central question
+    unanswered, and "we did not look" must never produce the same status as
+    "we looked and it was fine".
+    """
+    made = rc.Record(answer_id="a")
+    for name in dm.all_subcomponents():
+        made.checks.append(
+            rc.check(name, rc.NOT_AVAILABLE if name == "figure_grounding"
+                     else rc.PASS))
+
+    verdict = made.overall()
+
+    assert verdict["overall_status"] == rc.UNVERIFIED
+    assert verdict["operational_assurance"] is None
+    assert "no signal exists" in verdict["reasons"][0]
+    assert made.critical_not_available == ["figure_grounding"]
+
+
+def test_a_mandatory_check_with_no_signal_blocks_like_a_skip():
+    """An uninstrumented mandatory check must not escape §20's mandatory-skip
+    gate by being a different word."""
+    made = rc.Record(answer_id="a")
+    made.checks = [rc.check("trace_clarity", rc.NOT_AVAILABLE)]
+
+    assert "trace_clarity" in made.skipped_mandatory
 
 
 def test_skipped_is_never_pass():
