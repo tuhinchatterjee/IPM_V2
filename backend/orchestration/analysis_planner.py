@@ -31,6 +31,7 @@ from typing import Any
 
 from backend.orchestration import concepts as cx
 from backend.orchestration import conversation as cv
+from backend.orchestration import grain as gr
 from backend.orchestration import multi
 from backend.orchestration import semantics as sm
 from backend.orchestration.capability import Reading
@@ -115,6 +116,25 @@ class AnalysisBuild:
     #: What an analyst would notice about the result, computed from it. Feeds
     #: both the deterministic reading and the live model's prompt.
     observations: list[Any] = field(default_factory=list)
+    #: What one row of this answer IS, and how that was decided. §4. None only
+    #: on the shapes that have not been given a grain contract yet, which is
+    #: why every reader of it treats absence as "not declared" rather than as
+    #: a grain.
+    grain_contract: Any = None
+
+    @property
+    def output_grain(self) -> str:
+        """The grain of the ANSWER, which is not the grain of its source.
+
+        `grain` is the key the plan groups on; a by-sector aggregate over a
+        facility-keyed table has `grain == "facility"` and emits one row per
+        sector. Reporting the first as though it described the second is the
+        defect this property exists to end.
+        """
+        contract = self.grain_contract
+        if contract is not None:
+            return contract.got or contract.want.grain
+        return self.grain
 
     @property
     def datasets(self) -> list[str]:
@@ -294,6 +314,26 @@ def plan(reading: Reading, context: GovernedContext, *,
             dimension = first
     shape = _shape(reading, conditions, dimension, text)
 
+    # What one row of the answer is, decided from the objective before the plan
+    # is built rather than read off whatever the source happened to be keyed
+    # on. §4.
+    #
+    # The shape correction is the D15 fix in one line. A RANKING cuts to the
+    # ten largest SOMETHINGS, and there is no such thing as the ten largest
+    # portfolios: a question asked about the book as a whole is a total, and
+    # planning it as a ranking is what returned ten account rows under a
+    # portfolio heading. `_shape` cannot see this because it never looks at the
+    # grain; it reads `operation == "list"` and calls that a ranking.
+    carried_key = ""
+    if carrying and continuation is not None and continuation.has_population:
+        carried_key = str(continuation.entity_key or "")
+    wants_grain = gr.requested(
+        text, dimension=dimension,
+        population_grain=gr.GRAIN_OF_KEY.get(carried_key, ""),
+        rows_requested=bool(_explicit_top_n(text) or inherited_top_n))
+    if wants_grain.grain == gr.PORTFOLIO and shape == RANKING:
+        shape = AGGREGATE
+
     if carrying and not reading.periods and not period and state.opening_period \
             and state.closing_period and shape in (COHORT, MOVEMENT):
         period = (state.opening_period, state.closing_period)
@@ -335,7 +375,8 @@ def plan(reading: Reading, context: GovernedContext, *,
             inherited_count_of=(str((state.ir.get("meta") or {}).get("count_of")
                                     or "") if carrying else ""),
             fallback_dataset=_fallback_dataset(state if carrying else None),
-            preferred_datasets=list(state.datasets) if carrying else None)
+            preferred_datasets=list(state.datasets) if carrying else None,
+            wants_grain=wants_grain)
 
     if carried_concepts:
         build.carried_concepts = carried_concepts
@@ -881,7 +922,8 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
                    inherited_top_n: int = 0,
                    inherited_count_of: str = "",
                    fallback_dataset: str = "",
-                   preferred_datasets: list[str] | None = None) -> AnalysisBuild:
+                   preferred_datasets: list[str] | None = None,
+                   wants_grain: Any = None) -> AnalysisBuild:
     """AGGREGATE and RANKING: read one period, scope it, group, order, cut.
 
     Three things this does that the phrase-matching planner could not.
@@ -1100,12 +1142,36 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
                 "CreditProbe could not bring the figures this asks for onto one "
                 "table. Name one measure and it will compose the analysis."))
 
+    want = wants_grain if wants_grain is not None else gr.requested(
+        text, dimension=dimension,
+        dataset_grain=multi.DATASET_GRAIN.get(base, ""))
+    source_grain = multi.DATASET_GRAIN.get(base, grain)
+
+    # The key the REQUESTED grain needs, where the base carries it. An
+    # explicit request for customer level has to group by customer_id even
+    # when the turn also inherited a sector breakdown; grouping by the
+    # breakdown alone answers the previous question again.
+    wanted_key = gr.KEY_OF.get(want.grain, "")
+    if wanted_key and wanted_key not in available:
+        wanted_key = ""
+
     if scoped and not dimension and key:
         # A follow-up about a named population is answered one row per member.
         # Rolling it into a single total answers "what do these five come to?"
         # when the question was "what are these five?".
         group_by = [key]
         label = f"One row per {grain} in the carried population"
+    elif want.explicit and want.grain == gr.PORTFOLIO:
+        # One row for the whole book. Not a cut-down ranking and not a
+        # ranking at all: there is nothing to order one row against. §4.
+        group_by = []
+        label = "Roll up to one row for the whole portfolio"
+    elif want.explicit and want.grain == gr.SEGMENT and dimension:
+        group_by = [dimension]
+        label = f"Total by {dimension}"
+    elif want.explicit and wanted_key:
+        group_by = [wanted_key] + ([dimension] if dimension else [])
+        label = f"Aggregate to one row per {want.grain}"
     elif shape == AGGREGATE and dimension:
         group_by = [dimension]
         label = f"Total by {dimension}"
@@ -1242,7 +1308,46 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
         })
 
     used = [m for _, m in measures]
-    summary = _summary(shape, used, filters, dimension, period, grain, top_n)
+    # Which enrichments would have multiplied the book and were rolled up to
+    # the join key first. `multi._join_edge` already inserts that step; what
+    # was missing is any record of it reaching the answer, so a reader had no
+    # way to know a join had been made safe. Read off the operations rather
+    # than off intent — the op that ran is the fact. §4.
+    pre_aggregated = _rolled_up_before_join(operations)
+    got = gr.declared(group_by, key=key, dimension=dimension)
+
+    if not want.explicit:
+        # The question did not say what one row should be, so there is nothing
+        # to violate. The plan's own choice becomes the declaration — recorded
+        # as unstated, so the answer says the grain was inferred rather than
+        # asked for. Enforcing a guess would refuse "what is total EAD?",
+        # which is a portfolio question the fallback reads as facility.
+        want = gr.Requested(
+            grain=got, explicit=False, source="dataset",
+            dimension=dimension if got == gr.SEGMENT else "",
+            because=("the question did not say what one row should be, so "
+                     f"CreditProbe answered it as {gr.MEANS.get(got, got)}"))
+
+    contract = gr.Contract(
+        want=want, got=got, source_grain=source_grain,
+        keys=_grain_keys(got, group_by, dimension),
+        aggregated=[label] if group_by else ["Total across the population"],
+        pre_aggregated=pre_aggregated)
+    if not contract.ok:
+        # The plan does not answer the question it was built from. Blocking
+        # here is the point of §4: a wrong-grain result must fail BEFORE
+        # display, and the earliest place it can fail is before it is run.
+        raise CannotPlan(
+            f"This asks for {gr.MEANS.get(want.grain, want.grain)} and the "
+            f"plan would return {gr.MEANS.get(got, got)}.",
+            clarification=(
+                f"CreditProbe read this as a question about "
+                f"{gr.MEANS.get(want.grain, want.grain)} — {want.because} — "
+                f"but the governed data behind it can only be reported as "
+                f"{gr.MEANS.get(got, got)}. Ask for it at that level, or name "
+                "the breakdown you want."))
+    summary = _summary(shape, used, filters, dimension, period, grain, top_n,
+                       output_grain=got)
     if scoped and population is not None:
         summary += (f", restricted to the {len(population.entity_ids)} "
                     f"{population.entity_key} carried forward from the "
@@ -1253,6 +1358,7 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
         "operations": operations,
         "meta": {
             "kind": f"dynamic_{shape}", "grain": grain, "period": period,
+            "output_grain": got, "grain_contract": contract.to_dict(),
             "dataset": base, "datasets": datasets,
             "dimension": dimension, "top_n": top_n,
             "share_column": share_of,
@@ -1276,7 +1382,7 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
         plan=plan_doc, shape=shape, reading=reading, matches=used,
         conditions=[], filters=filters, dataset=base, grain=grain,
         period=period, dimension=dimension, top_n=top_n, warnings=warnings,
-        summary=summary, joins=joins,
+        summary=summary, joins=joins, grain_contract=contract,
     )
 
 
@@ -1389,11 +1495,55 @@ def _descending(match: cx.ConceptMatch, text: str) -> bool:
     return True
 
 
+def _grain_keys(got: str, group_by: list[str],
+                dimension: str) -> tuple[str, ...]:
+    """The columns that must be unique across the rows, at the emitted grain.
+
+    Not simply the grouping. "One row per customer, broken down by sector"
+    groups by both, and testing the PAIR for uniqueness would pass a result
+    where one customer appears under two sectors — which is the amplification
+    the check exists to find. The identity of a row at customer grain is the
+    customer.
+    """
+    key = gr.KEY_OF.get(got, "")
+    if key and key in group_by:
+        return (key,)
+    if got == gr.SEGMENT:
+        column = dimension if dimension in group_by else ""
+        return (column,) if column else tuple(c for c in group_by if c)
+    return tuple(c for c in group_by if c)
+
+
+def _rolled_up_before_join(operations: list[dict[str, Any]]) -> list[str]:
+    """The datasets a pre-join roll-up protected the row count from.
+
+    Resolved through the operation graph rather than parsed out of a label:
+    the AGGREGATE_BEFORE_JOIN step names its input, the input is the SCAN, and
+    the SCAN names the dataset. A label is prose and will be reworded.
+    """
+    datasets: dict[str, str] = {
+        str(op.get("id") or ""): str((op.get("params") or {}).get("dataset") or "")
+        for op in operations if op.get("op") == "SCAN"}
+    out: list[str] = []
+    for op in operations:
+        if op.get("op") != "AGGREGATE_BEFORE_JOIN":
+            continue
+        for source in (op.get("inputs") or []):
+            name = datasets.get(str(source), "")
+            if name and name not in out:
+                out.append(name)
+    return out
+
+
 def _summary(shape: str, measures: list[cx.ConceptMatch],
              filters: list[tuple[str, str]], dimension: str, period: str,
-             grain: str, top_n: int) -> str:
+             grain: str, top_n: int, *, output_grain: str = "") -> str:
     names = ", ".join(m.concept.label for m in measures)
     where = " for " + ", ".join(v for _, v in filters) if filters else ""
+    if output_grain == gr.PORTFOLIO:
+        # Said explicitly, because "ECL at Q4 2025" reads as a figure about
+        # something and the reader supplies the something themselves.
+        return f"{names}{where} across the whole portfolio at {period}."
     if shape == AGGREGATE and dimension:
         readable = dimension.replace("_", " ")
         cut = f"the {top_n} largest {readable}s" if top_n else readable

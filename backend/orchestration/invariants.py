@@ -168,7 +168,53 @@ def compile_checks(build: Any, question: str = "") -> list[Check]:
         ])
 
     checks.extend(_from_ontology(build))
+    checks.extend(_from_grain(build))
     checks.extend(_from_question(question, build))
+    return checks
+
+
+def _from_grain(build: Any) -> list[Check]:
+    """The postconditions the declared output grain promises. §4.
+
+    Three of them, and each one exists because the other two would have missed
+    a real failure.
+
+    `output_grain` catches the portfolio question that came back as ten account
+    rows — the row COUNT contradicts the grain, and no key column is involved.
+
+    `unique_grain_key` catches duplicate amplification: a join that fanned the
+    book out returns two rows for one customer under a heading that says one
+    row per customer, and the second row is the same customer's second
+    facility. It is compiled from the CONTRACT rather than from an "each" or
+    "per" in the sentence, which is the difference between checking the
+    promise and checking whether the user happened to phrase it as a promise.
+
+    `non_negative` on a portfolio total is not a grain check; it is left where
+    it is. This function only compiles what the grain declared.
+
+    Nothing is compiled when the build carries no contract. A shape that has
+    not been given one is not silently assumed to be at facility grain — an
+    assumed grain is exactly the defect, one layer further down.
+    """
+    from backend.orchestration import grain as gr
+
+    contract = gr.contract_of(build)
+    if contract is None:
+        return []
+
+    got = contract.got or contract.want.grain
+    checks: list[Check] = [Check(
+        rule="output_grain",
+        claim=f"{gr.MEANS.get(got, got)} — {contract.want.because}",
+        params={"grain": got, "single_row": got == gr.PORTFOLIO})]
+
+    keys = [c for c in contract.keys if c]
+    if keys:
+        checks.append(Check(
+            rule="unique_grain_key",
+            claim=gr.MEANS.get(got, got),
+            columns=tuple(keys),
+            params={"columns": list(keys), "grain": got}))
     return checks
 
 
@@ -520,6 +566,52 @@ def _unique_key(check: Check, rows: list[dict[str, Any]],
                 "the question asked for."))
 
 
+def _output_grain(check: Check, rows: list[dict[str, Any]],
+                  runtime: Any) -> Failure | None:
+    """Whether the answer has the shape its declared grain promises.
+
+    Only the portfolio case is decidable from the rows alone — one row for the
+    whole book means one row — and that is the case D15 was. The rest is
+    carried by `unique_grain_key`, which tests the promise that a key column
+    identifies a row rather than repeating.
+    """
+    del rows
+    if not bool(check.params.get("single_row")):
+        return None
+    total = int(getattr(runtime, "row_count", 0) or 0)
+    if total <= 1:
+        return None
+    return Failure(
+        check=check, offending=total - 1,
+        detail=(f"The question is about the portfolio as a whole and the "
+                f"answer has {total} rows, so each row is something smaller "
+                "than the portfolio."))
+
+
+def _unique_grain_key(check: Check, rows: list[dict[str, Any]],
+                      runtime: Any) -> Failure | None:
+    """No two rows share the identity the declared grain says a row has."""
+    del runtime
+    columns = [str(c) for c in (check.params.get("columns") or []) if c]
+    if not columns:
+        return None
+    seen: set[tuple[str, ...]] = set()
+    duplicates: list[dict[str, Any]] = []
+    for row in rows:
+        identity = tuple(str(row.get(c, "")) for c in columns)
+        if any(identity) and identity in seen:
+            duplicates.append(row)
+        seen.add(identity)
+    if not duplicates:
+        return None
+    readable = ", ".join(c.replace("_", " ") for c in columns)
+    return Failure(
+        check=check, offending=len(duplicates), example=dict(duplicates[0]),
+        detail=(f"The answer promises {check.claim} and {readable} repeats on "
+                f"{len(duplicates)} rows — a join has multiplied the book, or "
+                "the rows are at a finer grain than the question asked for."))
+
+
 def _period_span(check: Check, rows: list[dict[str, Any]],
                  runtime: Any) -> Failure | None:
     """Whether the two periods compared are as far apart as the question said."""
@@ -582,6 +674,8 @@ _HANDLERS: dict[str, Any] = {
     "non_negative": _non_negative,
     "ordinal_range": _ordinal_range,
     "unique_key": _unique_key,
+    "output_grain": _output_grain,
+    "unique_grain_key": _unique_grain_key,
 }
 
 

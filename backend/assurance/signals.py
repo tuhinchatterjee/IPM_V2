@@ -383,11 +383,30 @@ def period_selection(ctx: Ctx) -> Signal | None:
 
 
 def grain_selection(ctx: Ctx) -> Signal | None:
+    """Whether the answer declared what one of its rows is, and why. §4.
+
+    A grain read off the source dataset is not a declaration — every plan has
+    one of those and it says nothing about the answer. What is checked is the
+    governed contract: the grain the objective asked for, the grain the plan
+    emitted, and the two agreeing.
+    """
+    from backend.orchestration import grain as gr
+
     if not ctx.executed:
         return _na("no analysis was planned on this turn")
-    grain = str(getattr(ctx.build, "grain", "") or "")
-    return _verdict(bool(grain), f"Output grain {grain}.",
-                    "No output grain was recorded.", "data")
+    contract = gr.contract_of(ctx.build)
+    if contract is None:
+        grain = str(getattr(ctx.build, "grain", "") or "")
+        return _verdict(bool(grain),
+                        f"Source grain {grain}, with no output-grain contract.",
+                        "No output grain was recorded.", "data")
+    got = contract.got or contract.want.grain
+    return _verdict(
+        contract.ok,
+        f"{gr.MEANS.get(got, got)} — {contract.want.because}.",
+        (f"The question asks for {gr.MEANS.get(contract.want.grain, '')} and "
+         f"the plan emits {gr.MEANS.get(got, got)}."),
+        "data")
 
 
 def population_definition(ctx: Ctx) -> Signal | None:

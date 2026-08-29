@@ -85,6 +85,10 @@ class ScopeFrame:
     opening: str = ""
     closing: str = ""
     grain: str = ""
+    #: Why the answer is at that grain, in the sentence the user is shown. §4.
+    #: Carried on the frame rather than recomputed, so the Scope line and the
+    #: Trace say the same thing about the same turn.
+    grain_because: str = ""
     top_n: int = 0
     presentation: str = ""
     fingerprint: str = ""
@@ -147,6 +151,7 @@ class ScopeFrame:
             "opening": self.opening,
             "closing": self.closing,
             "grain": self.grain,
+            "grain_because": self.grain_because,
             "top_n": self.top_n,
             "presentation": self.presentation,
             "fingerprint": self.fingerprint,
@@ -169,6 +174,7 @@ class ScopeFrame:
             opening=str(raw.get("opening") or ""),
             closing=str(raw.get("closing") or ""),
             grain=str(raw.get("grain") or ""),
+            grain_because=str(raw.get("grain_because") or ""),
             top_n=int(raw.get("top_n") or 0),
             presentation=str(raw.get("presentation") or ""),
             fingerprint=str(raw.get("fingerprint") or ""),
@@ -226,7 +232,15 @@ def frame_of(build: Any, continuation: Any = None,
         period=str(getattr(build, "period", "") or ""),
         opening=str(getattr(build, "opening", "") or ""),
         closing=str(getattr(build, "closing", "") or ""),
-        grain=str(getattr(build, "grain", "") or ""),
+        # The grain of the ANSWER, not of the table it was read from. A
+        # by-sector aggregate over a facility-keyed source used to declare
+        # itself facility-grained here, which is true of what it scanned and
+        # false of what the user is looking at. §4.
+        grain=str(getattr(build, "output_grain", "")
+                  or getattr(build, "grain", "") or ""),
+        grain_because=str(getattr(
+            getattr(getattr(build, "grain_contract", None), "want", None),
+            "because", "") or ""),
         top_n=int(getattr(build, "top_n", 0) or 0),
         presentation=presentation,
         fingerprint=str((build.plan.get("meta") or {}).get("fingerprint") or ""),

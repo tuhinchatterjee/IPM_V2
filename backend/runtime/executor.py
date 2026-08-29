@@ -235,6 +235,12 @@ def _trace_preamble(graph: TraceGraph, plan: AnalyticalPlan, question: str,
             "operations": [o.to_dict() for o in plan.ordered()],
             "fingerprint": plan.fingerprint(),
             "warnings": report.warnings,
+            # What one row of this answer IS, and why. §4. On the plan node
+            # rather than a node of its own because the grain is a property of
+            # the plan — a reader looking at the steps should not have to go
+            # somewhere else to find out what they produce.
+            "output_grain": str(plan.meta.get("output_grain") or ""),
+            "grain_contract": dict(plan.meta.get("grain_contract") or {}),
         },
     ))
     if previous:

@@ -283,6 +283,7 @@ def test_a_pack_over_cases_this_test_creates_has_rows():
 
     from backend.db.engine import get_session
     from backend.services import teaching_library as tl
+    from backend.teaching import review_pack as rp
     from backend.teaching import schema as sc
 
     marker = uuid.uuid4().hex[:8]
@@ -299,16 +300,32 @@ def test_a_pack_over_cases_this_test_creates_has_rows():
         for index in range(3)]
 
     with get_session() as session:
-        for case in made:
-            tl.save(session, case, actor="the governance proof suite")
+        saved = [tl.save(session, case, actor="the governance proof suite")
+                 for case in made]
         session.commit()
         try:
+            # Two assertions, because one of them used to be an accident.
+            #
+            # Asking the SERVICE for a pack and looking for these three cases
+            # in it passed only while the library was empty: the pack takes
+            # four cases per risk class, and against the seeded 2,453 the
+            # three fixtures never make the cut. It failed the moment the
+            # suite ran with a seeded library, which is a test that was
+            # measuring the fixture data rather than the code.
+            #
+            # So the service path is asserted for what is true of it whatever
+            # the library holds — it returns rows and it approves nothing —
+            # and the fixtures are asserted against a pack built over exactly
+            # them.
             pack = tl.review_pack(session)
-            ours = [r for r in pack["rows"] if marker in r["case_id"]]
-
             assert pack["approved"] is False
-            assert ours, "the pack did not include the cases just created"
-            for row in ours:
+            assert pack["rows"], "the live library produced no review pack"
+
+            ours = rp.build(saved, per_class=rp.PER_CLASS)
+            rows = [r for r in ours["rows"] if marker in r["case_id"]]
+            assert rows, "a pack over exactly these cases did not include them"
+            assert ours["approved"] is False
+            for row in rows:
                 assert row["approved"] is False
                 assert row["why"]
         finally:

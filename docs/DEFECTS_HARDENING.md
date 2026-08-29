@@ -299,7 +299,9 @@ explicitly, so closing the gap breaks it loudly:
 
 ## D15 — A specialist sub-analysis returns unordered account rows
 
-**Severity: high (Tier 1 class). OPEN — and currently contained.**
+**Severity: high (Tier 1 class). FIXED — see `docs/DEFECTS_FINAL.md` for the
+full closure record. The text below is left as it was written, because a defect
+log that is edited to match the fix stops being evidence of what was found.**
 
 Reproducer: *"Show days past due and the NPL ratio for the portfolio at the
 latest published period."*

@@ -382,7 +382,8 @@ def run_probe(question: str, *, label: str = "", project_id: str = "",
                          or ([getattr(build, "dataset", "")]
                              if getattr(build, "dataset", "") else [])))
     probe.period = str(getattr(build, "period", "") or "")
-    probe.grain = str(getattr(build, "grain", "") or "")
+    probe.grain = str(getattr(build, "output_grain", "")
+                      or getattr(build, "grain", "") or "")
     method = getattr(build, "method", None)
     probe.methods = [str(method)] if method else []
 
