@@ -150,6 +150,20 @@ Without `--start` it assumes the stack is already up on ports 8000 and 3000.
 
 ---
 
+## 5a. What the learning layer costs
+
+```powershell
+docker compose exec backend python scripts/learning_performance.py
+```
+
+Free, offline, no provider call. It prints what each feedback and learning
+operation costs and, in one line, how much is added to an answer. On the
+container this was measured on, that total was **under 2 ms**, almost all of
+it one database write. If the platform database is unreachable it reports the
+write as `NOT MEASURED` rather than dropping it from the total.
+
+---
+
 ## 6. The client demo, in order
 
 Sign in as an ADMIN. The path below is roughly twenty minutes and shows each

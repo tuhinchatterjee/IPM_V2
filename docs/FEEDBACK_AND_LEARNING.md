@@ -239,7 +239,42 @@ GET  /api/v1/learning/guard
 The screen is **AI Studio → Feedback & Learning**
 (`/ai-studio/feedback-learning`), seven tabs plus the guard card.
 
-## 9. What this is not
+## 9. What it costs
+
+§48. Measured offline, no provider call, on this container — so the absolute
+numbers are about this machine and the RATIO is the part that travels.
+
+| Operation | Median | Worst | On the answer path |
+|---|---|---|---|
+| the prompt decision | 0.0004 ms | 0.0110 ms | **yes** |
+| building an observation | 0.0077 ms | 0.0408 ms | **yes** |
+| writing the observation | 1.9558 ms | 2.3758 ms | **yes** |
+| recording a rating | 0.0051 ms | 0.0391 ms | no |
+| labelling an observation | 0.0003 ms | 0.0017 ms | no |
+| proposing a candidate | 0.0080 ms | 0.0282 ms | no |
+| applying a preference | 0.0011 ms | 0.0060 ms | no |
+| the raw-feedback guard scan | 113.9284 ms | 155.5562 ms | no |
+
+**Total added to an answer: 1.9639 ms**, almost all of it the database
+write. An answer that involves a model call is three orders of magnitude
+slower than that, so the observation is not perceptible; and it is written
+before the answer is handed back deliberately, because an observation written
+afterwards is one that goes missing when the process dies.
+
+The guard scan is the slowest thing in the module by a factor of fifty, and it
+**never runs on the answer path**. It runs in CI, in
+`GET /api/v1/learning/guard`, and in `verify-live-ai.ps1 -FeedbackCritical`.
+
+Reproduce with:
+
+```
+python scripts/learning_performance.py --json docs/learning_performance.json
+```
+
+If the platform database is unreachable, the write is reported as
+`NOT MEASURED` rather than silently dropped from the total.
+
+## 10. What this is not
 
 This process does **not** retrain Anthropic foundation-model weights, and
 nothing in it is fine-tuning of a foundation model. See
