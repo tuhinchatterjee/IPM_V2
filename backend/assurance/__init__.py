@@ -32,6 +32,10 @@ what any check was FOR.
 ``review``      §189-§199's full review of one turn and its thread.
 ``comparison``  §200's rerun comparison, whose first job is deciding whether
                 a comparison is legitimate at all.
+``honesty``     §212's seven "it must be impossible to show" rules, as
+                predicates a surface can be run against — because a prose
+                rule in a brief is not impossible, it is a thing somebody
+                forgets while building the tenth screen with a number on it.
 ``trends``      §201-§203: the six tiles that replaced the twenty-five-card
                 wall, their trends by cohort, and how each dimension
                 actually affected an outcome.
@@ -39,8 +43,10 @@ what any check was FOR.
 
 from backend.assurance import (
     access,
+    collect,
     comparison,
     dimensions,
+    honesty,
     panel,
     record,
     review,
@@ -49,5 +55,5 @@ from backend.assurance import (
     trends,
 )
 
-__all__ = ["access", "comparison", "dimensions", "panel", "record", "review",
-           "reviews", "store", "trends"]
+__all__ = ["access", "collect", "comparison", "dimensions", "honesty",
+           "panel", "record", "review", "reviews", "store", "trends"]

@@ -343,6 +343,7 @@ class StoredRecord:
     answer_id: str = ""
     message_id: str = ""
     trace_id: str = ""
+    agentic_run_id: str = ""
     question: str = ""
     answer_type: str = ""
     portfolio_scope: str = ""
@@ -467,7 +468,7 @@ class StoredRecord:
             "result_fingerprints": self.context.get("result_fingerprints", []),
             "retrieved_teaching_case_ids": self.context.get(
                 "retrieved_teaching_case_ids", []),
-            "agentic_run_id": "",
+            "agentic_run_id": self.agentic_run_id,
         })
         return payload
 
@@ -499,6 +500,7 @@ def _row_to_stored(row: Any, runtime: dict[str, str]) -> StoredRecord:
         answer_id=row.answer_id,
         message_id=row.message_id,
         trace_id=row.trace_id,
+        agentic_run_id=row.agentic_run_id,
         question=row.question,
         answer_type=row.answer_type,
         portfolio_scope=row.portfolio_scope,

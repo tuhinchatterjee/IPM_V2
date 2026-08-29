@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api, type AssuranceReview } from "@/lib/api";
 
 import { AssuranceFigure, DimensionStrip } from "./dimensions";
+import { referenceText } from "./present";
 
 /**
  * "HOW CREDITPROBE PERFORMED". §188-§199.
@@ -94,6 +95,8 @@ export function HowCreditProbePerformed({
             <dd className="text-sm">
               <AssuranceFigure
                 score={head.operational_assurance}
+                // The <dt> above already names it; repeating the label
+                // here would read as two different figures.
                 label=""
                 status={head.overall_status}
               />
@@ -104,9 +107,7 @@ export function HowCreditProbePerformed({
               Reference match
             </dt>
             <dd className="text-xs leading-relaxed text-text-secondary">
-              {head.reference_match.available
-                ? `${head.reference_match.value_pct}% against ${head.reference_match.source}`
-                : head.reference_match.why}
+              {referenceText(data)}
             </dd>
           </div>
           <div>

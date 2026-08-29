@@ -5,6 +5,8 @@ import * as React from "react";
 import type { DimensionCell } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
+import { cellWord, scoreText } from "./present";
+
 /**
  * The six Intelligence Dimensions, as screen furniture. Part F, §178-§189.
  *
@@ -34,13 +36,6 @@ const CELL: Record<DimensionCell["state"], string> = {
   UNMEASURED: "border-dashed border-border bg-transparent text-text-tertiary",
 };
 
-const WORD: Record<DimensionCell["state"], string> = {
-  PASSED: "passed",
-  WARNING: "warning",
-  FAILED: "failed",
-  UNMEASURED: "not measured",
-};
-
 export function DimensionStrip({
   cells,
   className,
@@ -53,9 +48,7 @@ export function DimensionStrip({
       {cells.map((cell) => (
         <span
           key={cell.dimension}
-          title={`${cell.dimension.replaceAll("_", " ").toLowerCase()} — ${
-            WORD[cell.state]
-          }`}
+          title={`${cell.dimension.replaceAll("_", " ").toLowerCase()} — ${cellWord(cell)}`}
           className={cn(
             "inline-flex h-5 min-w-[1.75rem] items-center justify-center rounded border px-1 text-[10px] font-medium tabular-nums",
             CELL[cell.state],
@@ -90,22 +83,14 @@ export function AssuranceFigure({
   className?: string;
 }) {
   return (
-    <span className={cn("tabular-nums", className)}>
-      {score === null ? (
-        <span className="text-text-secondary">
-          {status.replaceAll("_", " ").toLowerCase()}
-        </span>
-      ) : (
-        <>
-          <span className="font-medium text-text-primary">
-            {score.toFixed(0)}
-          </span>
-          <span className="text-text-tertiary">
-            {" "}
-            / 100 {label.toLowerCase()}
-          </span>
-        </>
+    <span
+      className={cn(
+        "tabular-nums",
+        score === null ? "text-text-secondary" : "text-text-primary",
+        className,
       )}
+    >
+      {scoreText(score, label, status)}
     </span>
   );
 }
