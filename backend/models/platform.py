@@ -2532,7 +2532,40 @@ class ReviewQueueItem(Base):
     curriculum_case_id: Mapped[str] = mapped_column(String(64), nullable=False,
                                                     default="")
 
-    #: Where it came from: cockpit | agentic | evaluation | manual.
+    # ---- §33's fuller capture ----------------------------------------------
+    #: What the user said was wrong, in their words. Kept apart from
+    #: `observed_problem`, which is what a reviewer wrote: a user saying "these
+    #: aren't the right customers" and a reviewer writing "the population was
+    #: not narrowed to the carried cohort" are different evidence, and merging
+    #: them loses the half that is not an interpretation.
+    user_correction: Mapped[str] = mapped_column(Text, nullable=False,
+                                                 default="")
+    #: The teaching cases retrieved for the failing run. Ids only. §33 asks
+    #: for them because "the planner was shown three examples of the wrong
+    #: family" is a fix and "the plan was wrong" is not.
+    retrieved_case_ids: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                     default=list)
+    #: Which invariants ran and what they said.
+    observed_invariants: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                      default=dict)
+    #: The prose that was shown. Recorded because a grounding failure is only
+    #: visible in the sentence that made the claim.
+    observed_interpretation: Mapped[str] = mapped_column(Text, nullable=False,
+                                                         default="")
+    #: The Teaching Release the failing run was served by, and the release the
+    #: approved correction went into. §33's "release inclusion": a correction
+    #: that has been approved and not released has not fixed anything yet.
+    observed_release_id: Mapped[str] = mapped_column(String(64),
+                                                     nullable=False,
+                                                     default="")
+    included_in_release: Mapped[str] = mapped_column(String(64),
+                                                     nullable=False,
+                                                     default="")
+    #: The teaching case an approved correction became.
+    teaching_case_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                  default="")
+
+    #: Where it came from: cockpit | agentic | evaluation | manual | feedback.
     source: Mapped[str] = mapped_column(String(24), nullable=False,
                                         default="manual")
     #: The run this was captured from, so the Trace can be reopened.

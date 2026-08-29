@@ -86,13 +86,26 @@ def capture(session: Session, *, question: str,
             observed_result: dict[str, Any] | None = None,
             failure_layer: str = "", failure_category: str = "",
             observed_problem: str = "", source: str = "manual",
-            run_id: str = "", user_id: int | None = None) -> ReviewQueueItem:
+            run_id: str = "", user_id: int | None = None,
+            user_correction: str = "",
+            retrieved_case_ids: list[str] | None = None,
+            observed_invariants: dict[str, Any] | None = None,
+            observed_interpretation: str = "",
+            observed_release_id: str = "") -> ReviewQueueItem:
     """Record a failure somebody noticed.
 
     Deliberately cheap to call and deliberately incomplete: capture takes what
     the product already knows, and the corrected reading is what a REVIEWER
     adds. A capture step that demanded the correction up front would be a form,
     and nobody fills in a form at the moment they find a bug.
+
+    §33's fields are all optional for the same reason. `user_correction` is
+    kept apart from `observed_problem` because a user saying "these aren't the
+    right customers" and a reviewer writing "the population was not narrowed to
+    the carried cohort" are different evidence, and merging them loses the half
+    that is not an interpretation. `retrieved_case_ids` is there because "the
+    planner was shown three examples of the wrong family" is a fix and "the
+    plan was wrong" is not.
     """
     item = ReviewQueueItem(
         question=str(question or "").strip(),
@@ -102,6 +115,11 @@ def capture(session: Session, *, question: str,
         failure_layer=str(failure_layer or "")[:48],
         failure_category=str(failure_category or "")[:32],
         observed_problem=str(observed_problem or ""),
+        user_correction=str(user_correction or ""),
+        retrieved_case_ids=list(retrieved_case_ids or []),
+        observed_invariants=dict(observed_invariants or {}),
+        observed_interpretation=str(observed_interpretation or ""),
+        observed_release_id=str(observed_release_id or "")[:64],
         status=CAPTURED,
         regression_status=NOT_TESTED,
         source=source if source in SOURCES else "manual",
@@ -198,6 +216,45 @@ def approve(session: Session, item_id: int, *, corrected_reading: dict[str, Any]
     item.regression_status = NOT_TESTED
     session.flush()
     return item
+
+
+def record_release(session: Session, item_id: int, *, release_id: str,
+                   teaching_case_id: str = "") -> ReviewQueueItem:
+    """§33's release inclusion.
+
+    An approved correction that has not shipped has not fixed anything, and
+    that is precisely the state that looks finished on a review screen: the
+    reviewer signed it, the case exists, and production is still serving the
+    release that got it wrong. Recording the release is what lets a queue say
+    "approved, not yet live" rather than "done".
+    """
+    item = session.get(ReviewQueueItem, int(item_id))
+    if item is None:
+        raise NotPermitted(f"There is no review item {item_id}.")
+    if item.status != APPROVED:
+        raise NotPermitted(
+            "Only an approved item can be included in a release. An item that "
+            "has not been adjudicated has nothing to include.")
+    item.included_in_release = str(release_id or "")[:64]
+    if teaching_case_id:
+        item.teaching_case_id = str(teaching_case_id)[:64]
+    session.flush()
+    return item
+
+
+def awaiting_release(session: Session, *,
+                     limit: int = 500) -> list[ReviewQueueItem]:
+    """Approved corrections that have not shipped.
+
+    The list somebody has to look at before saying the queue is clear.
+    """
+    found = session.execute(
+        select(ReviewQueueItem)
+        .where(ReviewQueueItem.status == APPROVED,
+               ReviewQueueItem.included_in_release == "")
+        .order_by(ReviewQueueItem.adjudicated_at.asc())
+        .limit(int(limit)))
+    return list(found.scalars())
 
 
 def reject(session: Session, item_id: int, *, note: str,
@@ -358,6 +415,8 @@ def summary(session: Session) -> dict[str, Any]:
 
 
 __all__ = [
+    "awaiting_release",
+    "record_release",
     "APPROVED",
     "CAPTURED",
     "DUPLICATE",

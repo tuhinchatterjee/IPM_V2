@@ -32,6 +32,7 @@ from backend.api.routers import engine as engine_router
 from backend.api.routers import exports as exports_router
 from backend.api.routers import health as health_router
 from backend.api.routers import hierarchy as hierarchy_router
+from backend.api.routers import intelligence as intelligence_router
 from backend.api.routers import lenses as lenses_router
 from backend.api.routers import playbooks as playbooks_router
 from backend.api.routers import studio as studio_router
@@ -187,6 +188,7 @@ def create_app() -> FastAPI:
     app.include_router(lenses_router.router, prefix=API_PREFIX)
     app.include_router(playbooks_router.router, prefix=API_PREFIX)
     app.include_router(studio_router.router, prefix=API_PREFIX)
+    app.include_router(intelligence_router.router, prefix=API_PREFIX)
     app.include_router(workspace_router.router, prefix=API_PREFIX)
     app.include_router(validation_router.router, prefix=API_PREFIX)
     app.include_router(exports_router.runs_router, prefix=API_PREFIX)
