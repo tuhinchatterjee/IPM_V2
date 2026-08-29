@@ -4276,4 +4276,231 @@ export const api = {
       body: JSON.stringify({ question }),
       timeoutMs: 60_000,
     }),
+
+  // ---- the AI Intelligence Studio (Part C) ----
+  //
+  // Every one of these is deterministic. §37's rule about the Retrieval Lab
+  // holds for the whole Studio: nothing here spends a credit, because a
+  // screen that cost money to render is a screen nobody opens twice.
+  studioTabs: () => request<StudioTabIndex>("/intelligence/studio/tabs"),
+  studioReadiness: () =>
+    request<StudioReadiness>("/intelligence/studio/readiness"),
+  studioCapabilities: () =>
+    request<StudioCapabilityHealth>("/intelligence/studio/capabilities"),
+  studioKnowledge: () =>
+    request<StudioSections>("/intelligence/studio/knowledge"),
+  studioBlueprints: () =>
+    request<StudioObjects>("/intelligence/studio/blueprints"),
+  studioJudgment: () => request<StudioJudgment>("/intelligence/studio/judgment"),
+  studioVisualGrammar: () =>
+    request<StudioVisualGrammar>("/intelligence/studio/visual-grammar"),
+  studioPermissions: () =>
+    request<StudioPermissions>("/intelligence/studio/permissions"),
+  studioHoldout: () => request<StudioHoldout>("/intelligence/studio/holdout"),
+  studioBadge: () => request<StudioBadge>("/intelligence/studio/badge"),
+  studioShapeLab: (body: StudioShapeLabRequest) =>
+    request<StudioShapeLabResult>("/intelligence/studio/shape-lab", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+};
+
+/** §117: the seven answers every Studio object gives about itself. */
+export type StudioExplanation = {
+  answers: { id: string; question: string; answer: string }[];
+  complete: boolean;
+  missing: string[];
+};
+
+/** §118: what backs a validation status. A status with no test set is a colour. */
+export type StudioValidation = {
+  validation_status: string;
+  test_set: string;
+  case_count: number;
+  passed: number;
+  failed: number;
+  pass_rate: number | null;
+  critical_failures: string[];
+  last_run: string;
+  version: string;
+  owner: string;
+  known_limitations: string[];
+  staleness: string[];
+  usage: number;
+  trustworthy: boolean;
+  sentence: string;
+};
+
+export type StudioTabIndex = {
+  tabs: {
+    id: string;
+    label: string;
+    purpose: string;
+    needs: string;
+    visible: boolean;
+  }[];
+  visible: string[];
+};
+
+export type StudioReadiness = {
+  state: string;
+  means: string;
+  reasons: string[];
+  to_improve: string[];
+  states: string[];
+  sentence: string;
+};
+
+export type StudioCapabilityHealth = {
+  capabilities: {
+    capability: string;
+    means: string;
+    score: {
+      point_pct: number;
+      lower_pct: number;
+      upper_pct: number;
+      successes: number;
+      total: number;
+      reportable: boolean;
+      sentence: string;
+    };
+    case_count: number;
+    trend: string;
+    critical: boolean;
+    critical_failures: string[];
+    last_evaluated: string;
+    status: string;
+    sentence: string;
+  }[];
+  critical_failures: string[];
+  unmeasured: string[];
+  failing: string[];
+  no_aggregate_score: boolean;
+};
+
+export type StudioSections = {
+  sections: {
+    id: string;
+    name: string;
+    count: number;
+    edit_in: string;
+    explanation: StudioExplanation;
+    rows: Record<string, unknown>[];
+  }[];
+};
+
+export type StudioObjects = {
+  count: number;
+  objects: (Record<string, unknown> & {
+    object_id: string;
+    name: string;
+    explanation: StudioExplanation;
+    validation: StudioValidation;
+  })[];
+  explanation_audit: { total: number; complete: boolean };
+};
+
+export type StudioJudgment = {
+  subtabs: string[];
+  policies: Record<
+    string,
+    {
+      id: string;
+      name: string;
+      version: string;
+      explanation: StudioExplanation;
+      rules: Record<string, unknown>;
+    }
+  >;
+};
+
+export type StudioVisualGrammar = {
+  explanation: StudioExplanation;
+  roles: {
+    id: string;
+    means: string;
+    plottable: boolean;
+    labelling: boolean;
+    never_drawn: boolean;
+  }[];
+  mapping: {
+    shape: string;
+    means: string;
+    default: string;
+    default_label: string;
+    alternatives: string[];
+  }[];
+  suitability: {
+    factors: string[];
+    weights: Record<string, number>;
+    threshold: number;
+    fatal: string[];
+  };
+  critic: { id: string; asks: string; fatal: boolean; mandatory: boolean }[];
+  accessibility: string;
+  precision_contract: { max_decimals: number };
+  interactions: { chart: string; means: string }[];
+};
+
+export type StudioPermissions = {
+  permissions: { id: string; means: string; roles: string[] }[];
+  separated_duties: { author: string; review: string }[];
+  enforced: string;
+  yours: string[];
+};
+
+export type StudioHoldout = {
+  version: string;
+  case_count: number | null;
+  families: string[] | null;
+  critical_count: number | null;
+  evaluation_result: string | null;
+  fingerprint: string | null;
+  shown: string[];
+  withheld: string[];
+  note: string;
+};
+
+export type StudioBadge = {
+  release_id: string;
+  state: string;
+  readiness: string;
+};
+
+export type StudioShapeLabRequest = {
+  shape: string;
+  roles: Record<string, string>;
+  categories?: number;
+  longest_label?: number;
+  periods?: number;
+  measures?: number;
+  cardinality?: number;
+  missing_pct?: number;
+  needs_zero_baseline?: boolean;
+  zero_baseline_available?: boolean;
+  wants_records?: boolean;
+  precision_required?: number;
+  narrow_device?: boolean;
+};
+
+export type StudioShapeLabResult = {
+  shape?: string;
+  shape_means?: string;
+  field_roles?: Record<string, { role: string; means: string }>;
+  candidates?: {
+    chart: string;
+    label: string;
+    total: number;
+    accepted: boolean;
+    rejections: string[];
+    factors: Record<string, number>;
+  }[];
+  chosen?: string;
+  chosen_label?: string;
+  fell_back?: boolean;
+  reason?: string;
+  used_live_data?: boolean;
+  error?: string;
+  shapes?: string[];
+  message?: string;
 };

@@ -37,6 +37,9 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
+from backend.ai_studio import capabilities as cap
+from backend.ai_studio import permissions as pm
+from backend.ai_studio import tabs as tb
 from backend.api.permissions import Principal, RequireAdmin, RequireAnalyst
 from backend.orchestration import routing as rt
 from backend.services import review_queue as rq
@@ -566,6 +569,209 @@ def disclosure_sections(principal: Principal = RequireAnalyst
                         ) -> dict[str, Any]:
     """§45's seven Trace sections, named for the UI to render in order."""
     return {"sections": list(dc.SECTIONS), "version": dc.DISCLOSURE_VERSION}
+
+
+# ---------------------------------------------------------------------------
+# Part C — the Studio's fifteen tabs
+# ---------------------------------------------------------------------------
+#
+# Added rather than replacing the routes above: those answer questions about
+# one object each and the Studio is built on them. These answer "what does
+# this TAB show", which is a different question and one the front end needs
+# before it can render anything.
+
+
+@router.get("/studio/tabs")
+def studio_tabs(principal: Principal = RequireAnalyst) -> dict[str, Any]:
+    """§102's fifteen tabs, and which of them this caller may open.
+
+    Returned for every signed-in caller, including one who may open none: a
+    front end that cannot ask what exists cannot explain to a reader why they
+    are seeing an empty page.
+    """
+    return tb.index(principal.role.value)
+
+
+@router.get("/studio/readiness")
+def studio_readiness(principal: Principal = RequireAnalyst) -> dict[str, Any]:
+    """§104's honest client-demo status, with its reasons.
+
+    Assembled from what other parts of the product established, never from a
+    judgement made here. A readiness that this route could compute on its own
+    would be a readiness that agrees with itself.
+    """
+    gate = rl.gate(require_release=False)
+    unavailable = _unavailable_roles()
+
+    signals = cap.Signals(
+        release_state=gate.state,
+        provider_state=_provider_state(),
+        unavailable_roles=unavailable,
+        stale_axes=list(getattr(gate, "moved", ()) or ()),
+        unmeasured_capabilities=list(cap.CAPABILITIES))
+    return {**cap.readiness(signals).to_dict(),
+            "signals": {"release_state": gate.state,
+                        "unavailable_roles": unavailable}}
+
+
+def _unavailable_roles() -> list[str]:
+    """Active model roles the provider cannot serve. §29's preflight.
+
+    Spends nothing: the preflight reads configuration and whatever the
+    provider can say about itself without a call, which is the whole reason
+    the Studio can render this without costing anything.
+    """
+    from backend.llm import roles as rl_roles
+
+    try:
+        import backend.llm as llm
+
+        report = rl_roles.preflight(llm.get_provider())
+    except Exception:  # pragma: no cover - no provider configured
+        return []
+    return [row["name"] for row in report.get("roles", [])
+            if row.get("active") and row.get("state") == rl_roles.UNAVAILABLE]
+
+
+def _provider_state() -> str:
+    """OFFLINE / CONFIGURED / CONNECTED / DEGRADED, from the provider itself.
+
+    CONNECTED means a real response came back, not that a key is present —
+    the distinction the whole provider-observability work exists for, and the
+    one §104's readiness depends on.
+    """
+    try:
+        import backend.llm as llm
+
+        return str(getattr(llm.provider_status(), "state", "OFFLINE"))
+    except Exception:  # pragma: no cover - provider unavailable
+        return "OFFLINE"
+
+
+@router.get("/studio/capabilities")
+def studio_capabilities(principal: Principal = RequireAnalyst
+                        ) -> dict[str, Any]:
+    """§103's eighteen capability rows.
+
+    Every one appears, including the ones nothing has measured — as
+    NOT_EVALUATED rather than omitted, because a capability missing from a
+    health table reads as one that does not exist.
+    """
+    return cap.health([])
+
+
+@router.get("/studio/knowledge")
+def studio_knowledge(principal: Principal = RequireAnalyst) -> dict[str, Any]:
+    """§105. Read-only summaries that deep-link to the real editors."""
+    return tb.knowledge()
+
+
+@router.get("/studio/blueprints")
+def studio_blueprints(principal: Principal = RequireAnalyst
+                      ) -> dict[str, Any]:
+    """§107. Every blueprint, with what may be omitted and why."""
+    return tb.blueprints()
+
+
+@router.get("/studio/judgment")
+def studio_judgment(principal: Principal = RequireAnalyst) -> dict[str, Any]:
+    """§108. The six judgment policies, with their actual rules on screen."""
+    return tb.judgment()
+
+
+@router.get("/studio/visual-grammar")
+def studio_visual_grammar(principal: Principal = RequireAnalyst
+                          ) -> dict[str, Any]:
+    """§109. Roles, mapping, suitability weights and the critic's checks."""
+    return tb.visual_grammar()
+
+
+class ShapeLabRequest(BaseModel):
+    """§109's Result Shape Lab. A SHAPE, never portfolio data."""
+
+    shape: str = Field(..., description="One of the fifteen result shapes")
+    roles: dict[str, str] = Field(default_factory=dict)
+    categories: int = 0
+    longest_label: int = 0
+    periods: int = 0
+    measures: int = 0
+    cardinality: int = 0
+    missing_pct: float = 0.0
+    needs_zero_baseline: bool = False
+    zero_baseline_available: bool = True
+    wants_records: bool = False
+    precision_required: int = 0
+    narrow_device: bool = False
+
+
+@router.post("/studio/shape-lab")
+def studio_shape_lab(body: ShapeLabRequest,
+                     principal: Principal = RequireAnalyst) -> dict[str, Any]:
+    """§109's lab, with every candidate's score and rejection kept.
+
+    Takes a sanitised schema, not rows: "no live portfolio data required" is
+    the instruction, and a lab that accepted rows would be a lab somebody
+    pasted a client extract into.
+    """
+    payload = body.model_dump()
+    shape = payload.pop("shape")
+    roles = payload.pop("roles")
+    return tb.result_shape_lab(shape, roles, **payload)
+
+
+@router.get("/studio/permissions")
+def studio_permissions(principal: Principal = RequireAdmin) -> dict[str, Any]:
+    """§119's grant table. Administrator-only: it is the Settings tab."""
+    return {**pm.matrix(), "yours": pm.granted(principal.role.value)}
+
+
+@router.get("/studio/holdout")
+def studio_holdout(principal: Principal = RequireAdmin) -> dict[str, Any]:
+    """§120. Sealed-holdout METADATA, and nothing else, ever.
+
+    The factory already keeps holdout content behind an import boundary the
+    backend cannot cross. This is the second wall: a screenshot of a holdout
+    question in a demo has leaked it whatever the import graph says.
+    """
+    path = rl.latest()
+    manifest = {}
+    if path:
+        _, _, _ = rl.load(path)
+        manifest = _holdout_manifest(path)
+    try:
+        return pm.holdout_view(manifest)
+    except pm.HoldoutLeak as leak:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "holdout_leak", "message": str(leak)}) from leak
+
+
+def _holdout_manifest(path: Any) -> dict[str, Any]:
+    import json
+    from pathlib import Path
+
+    candidate = Path(path) / "holdout_manifest.json"
+    if not candidate.exists():
+        return {}
+    try:
+        return json.loads(candidate.read_text("utf-8"))
+    except Exception:  # pragma: no cover - unreadable release file
+        return {}
+
+
+@router.get("/studio/badge")
+def studio_badge(principal: Principal = RequireAnalyst) -> dict[str, Any]:
+    """§119: all an ordinary Analyst sees of the Studio.
+
+    A compact assurance badge for the Trace. Not a score and not a case count:
+    an analyst who could read which cases production retrieves would be most
+    of the way to knowing how to phrase a question to get a chosen answer.
+    """
+    gate = rl.gate(require_release=False)
+    ready = cap.readiness(cap.Signals(
+        release_state=gate.state,
+        unmeasured_capabilities=list(cap.CAPABILITIES)))
+    return pm.badge(gate.release_id, gate.state, ready.state)
 
 
 __all__ = ["router"]

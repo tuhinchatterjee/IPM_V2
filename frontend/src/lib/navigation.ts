@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
+  Brain,
   Bot,
   Boxes,
   ClipboardCheck,
@@ -235,6 +236,22 @@ export const NAV_ITEMS: NavItem[] = [
     // §64: "Only authorized roles can access it." §28 places it with
     // Administration rather than in the ordinary Cockpit navigation, because
     // an analyst has no use for a worker heartbeat.
+    roles: ["ADMIN", "DATA_STEWARD"],
+  },
+  {
+    href: "/ai-studio",
+    label: "AI Intelligence Studio",
+    description:
+      "What CreditProbe has been taught, how it was validated, how it is performing, what has gone stale and which release is running \u2014 for the ontology, the teaching library, the investigation blueprints, the judgment policies, the visualization grammar and the model routing.",
+    icon: Brain,
+    status: "live",
+    phase: "",
+    group: "Admin",
+    // §119: an ordinary Analyst sees only a compact assurance badge on the
+    // answer itself. Reading which cases production retrieves is most of the
+    // way to knowing how to phrase a question to get a chosen answer, so the
+    // Studio needs the standing to change it — and every endpoint behind it
+    // enforces that whatever the sidebar shows.
     roles: ["ADMIN", "DATA_STEWARD"],
   },
   {
