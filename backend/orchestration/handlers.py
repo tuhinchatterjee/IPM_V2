@@ -55,6 +55,11 @@ class HandlerResult:
     #: would make the Trace say nothing was calculated.
     execution: str = "metadata"
     execution_label: str = "Governed metadata"
+    #: What the sub-analyses of a composed answer did, when this answer was
+    #: assembled out of several. Not serialized by `to_dict` — it is read by
+    #: the judgment bridge, the Assurance collector and the proof probe, all
+    #: of which want the object rather than a rendering of it. §3.
+    composition: Any = None
 
     def to_dict(self) -> dict[str, Any]:
         return {

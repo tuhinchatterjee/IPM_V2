@@ -387,6 +387,9 @@ def select(question: str, *, decision: Any = None, reading: Any = None,
     # Two floors the score cannot express, both from §4's own definitions.
     level = max(level, floor_for(reading))
 
+    # And a ceiling, from the same definitions. See `ceiling_for`.
+    level = min(level, ceiling_for(reading))
+
     # Coordination is a floor of its own. Three specialists whose findings have
     # to be reconciled IS the Chief Orchestrator's job, whatever the sentence
     # scored — the alternative is a Senior Credit Officer credited with
@@ -439,6 +442,51 @@ def floor_for(reading: Any) -> int:
     return CREDIT_ANALYST
 
 
+def ceiling_for(reading: Any) -> int:
+    """The maximum level the SHAPE of the work allows, whatever it scored.
+
+    The symmetric half of `floor_for`, and it exists because the asymmetry
+    was a defect.
+
+        "Which customers had a rating downgrade and an increase in ECL over
+         the latest year?"
+
+    came out as a **Portfolio Risk Lead**. It scores 10 — three datasets, four
+    concepts, two periods, a rating migration, two domains, two specialists —
+    and 10 clears the Portfolio Risk Lead floor of 9. Every one of those
+    signals is real. None of them makes the work portfolio work.
+
+    §4 defines the top two levels by GRAIN, not by difficulty:
+
+        Level 2  several calculation steps, two governed domains, a period
+                 comparison, a join
+        Level 3  a segment or the whole portfolio
+
+    That question is level 2's definition, sentence for sentence. It is a
+    borrower comparison — a hard one — and answering it does not make somebody
+    a Portfolio Risk Lead any more than a difficult reconciliation makes them
+    a CRO. `floor_for` already lets the grain raise the level; without a
+    ceiling, the score could raise it past the point where the level still
+    means what §4 says it means.
+
+    Two things lift the ceiling, and both are real widenings of the work
+    rather than measures of its difficulty: an open-ended look-around (three
+    or more governed checks, which is `BROAD_AT`), and coordination, which
+    `select` applies afterwards as a floor of its own so that three
+    specialists still reach the Chief Orchestrator.
+
+    A reading with no grain sets no ceiling. An unknown shape is not a small
+    one, and capping on absence would quietly demote every turn whose grain
+    the reading could not resolve.
+    """
+    grain = str(getattr(reading, "grain", "") or "").strip().lower()
+    if not grain or grain in SEGMENT_GRAINS or grain in PORTFOLIO_GRAINS:
+        return CHIEF_ORCHESTRATOR
+    if int(getattr(reading, "operation_count", 0) or 0) >= BROAD_AT:
+        return CHIEF_ORCHESTRATOR
+    return SENIOR_CREDIT_OFFICER
+
+
 def escalate(previous: Selection, *, to: int, why: str) -> Selection:
     """Move to a more senior officer part-way through a request.
 
@@ -481,6 +529,7 @@ __all__ = [
     "BROAD_AT",
     "FLOORS",
     "LEVELS",
+    "ceiling_for",
     "PORTFOLIO_GRAINS",
     "PORTFOLIO_RISK_LEAD",
     "REMIT",

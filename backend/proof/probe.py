@@ -292,6 +292,36 @@ def _trace_nodes(investigation: Any) -> list[str]:
         return []
 
 
+def _consulted(answered: Any) -> list[str]:
+    """The governed sources a catalogue answer looked at. §3 (D5).
+
+    A metadata answer reads dataset METADATA rather than dataset rows, and
+    it records which — in the handler result's own detail block. Nothing
+    carried that up, so "what ratings data do you have?" reported zero
+    datasets, and a catalogue answer that cannot say which catalogue it read
+    cannot be checked against the catalogue.
+
+    Kept separate from a build's datasets rather than merged into them: this
+    is what was CONSULTED, and the probe's row count stays empty because no
+    rows were read.
+    """
+    result = getattr(answered, "result", None)
+    detail = getattr(result, "detail", None) or {}
+    found: list[str] = []
+    for entry in (detail.get("datasets") or []):
+        name = (str(entry.get("name") or entry.get("dataset") or "")
+                if isinstance(entry, dict) else str(entry or ""))
+        if name and name not in found:
+            found.append(name)
+    if not found:
+        primary = detail.get("primary")
+        if isinstance(primary, dict):
+            name = str(primary.get("dataset") or primary.get("name") or "")
+            if name:
+                found.append(name)
+    return found
+
+
 def run_probe(question: str, *, label: str = "", project_id: str = "",
               investigation_id: str | None = None,
               user_id: int | None = None,
@@ -377,10 +407,17 @@ def run_probe(question: str, *, label: str = "", project_id: str = "",
             probe.specialists = [str(a) for a in agents]
 
     build = getattr(answered, "build", None)
+    # A composed answer — a broad investigation, a coordinated review — has no
+    # build of its own; its work is in the sub-analyses. Reading only `build`
+    # reported a review that ran six governed analyses over four datasets as
+    # having executed nothing and read nothing. §3 (D4/D19).
+    composition = getattr(answered, "composition", None)
     probe.datasets = sorted(
-        str(d) for d in (getattr(build, "datasets", None)
+        str(d) for d in (getattr(composition, "datasets", None)
+                         or getattr(build, "datasets", None)
                          or ([getattr(build, "dataset", "")]
-                             if getattr(build, "dataset", "") else [])))
+                             if getattr(build, "dataset", "") else [])
+                         or _consulted(answered)))
     probe.period = str(getattr(build, "period", "") or "")
     probe.grain = str(getattr(build, "output_grain", "")
                       or getattr(build, "grain", "") or "")
@@ -406,14 +443,32 @@ def run_probe(question: str, *, label: str = "", project_id: str = "",
             probe.probes = max(probe.probes, found)
 
     runtime = getattr(answered, "runtime", None)
-    probe.executed = runtime is not None
+    probe.executed = runtime is not None or bool(
+        getattr(composition, "executed", False))
     if runtime is not None:
         probe.rows_returned = len(list(getattr(runtime, "rows", None) or []))
+    elif composition is not None and composition.executed:
+        probe.rows_returned = composition.rows
+        probe.executed_steps = max(probe.executed_steps, composition.ran)
 
     invariants = getattr(answered, "invariants", None)
     if invariants is not None:
-        passed = getattr(invariants, "passed", None)
-        probe.invariants_passed = bool(passed) if passed is not None else None
+        # `Report` says `ok`. This read `passed`, which is on no invariant
+        # report anywhere, so every executed analysis reported "invariants
+        # not measured" and the baseline printed 0% — over runs where five
+        # checks had been compiled and all five had held. D7 was raised as
+        # "either the invariants do not hold or the signal is not surfaced in
+        # a shape the collector reads"; it was the second. §3.
+        #
+        # A report with no checks stays None. Nothing was checked, and a
+        # check that did not run is not a check that passed.
+        checks = list(getattr(invariants, "checks", None) or [])
+        probe.invariants_passed = (
+            bool(getattr(invariants, "ok", False)) if checks else None)
+    elif composition is not None:
+        # None when nothing was checked, which is not the same as False. A
+        # check that did not run is not a check that failed either. §3 (D7).
+        probe.invariants_passed = composition.invariants_passed
 
     judgment = getattr(answered, "judgment", None) or {}
     contract = judgment.get("contract") or {}

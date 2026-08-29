@@ -38,13 +38,14 @@ from intelligence_factory.teaching import (
     canonical,
     judgment_blueprints,
     migrate,
+    safety,
 )
 
 
 def corpus() -> list[sc.TeachingCase]:
     """Every case the factory offers the library."""
     return [*migrate.cases(), *canonical.cases(),
-            *judgment_blueprints.cases()]
+            *judgment_blueprints.cases(), *safety.cases()]
 
 
 def seed(*, actor: str = "seed") -> dict[str, int]:

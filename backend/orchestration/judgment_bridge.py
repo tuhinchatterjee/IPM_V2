@@ -167,6 +167,7 @@ def assess(investigation: Any, answered: Any) -> dict[str, Any]:
         graph = facts_from(runtime, build, run_id)
         found = observations_from(build, graph)
         periods = _periods(build)
+        composition = getattr(answered, "composition", None)
         contract = it.build(found, periods=periods,
                             question_is_open=_is_open(investigation.question))
 
@@ -174,6 +175,21 @@ def assess(investigation: Any, answered: Any) -> dict[str, Any]:
                           "usable": len(graph.usable()),
                           "refused": [{"fact_id": f, "why": w}
                                       for f, w in graph.refused[:10]]}
+        if not graph.facts and composition is not None \
+                and composition.facts_registered:
+            # A composed answer has no runtime of its own, so `facts_from`
+            # over it registers nothing — which is how a coordinated review
+            # that ran six governed analyses came to report zero evidence
+            # facts. §3 (D20). The facts belong to the sub-analyses and are
+            # counted where they were made, not invented here.
+            block["facts"] = {
+                "registered": composition.facts_registered,
+                "usable": composition.facts_usable,
+                "refused": list(composition.facts_refused[:10]),
+                "composed_from": composition.ran,
+                "note": (f"Registered across {composition.ran} governed "
+                         "sub-analyses, not by the synthesis itself."),
+            }
         block["contract"] = contract.to_dict()
         block["rubric"] = _rubric(investigation, answered,
                                   contract, found, graph).to_dict()

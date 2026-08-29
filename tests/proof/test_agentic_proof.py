@@ -151,25 +151,31 @@ def test_escalation_buys_more_work_rather_than_less(simple_probe,
     assert comparison.regressions == [], comparison.to_dict()
 
 
-def test_the_coordinated_run_does_not_report_what_its_specialists_touched(
+def test_the_coordinated_run_reports_what_its_specialists_touched(
         simple_probe, portfolio_probe):
-    """A known gap, asserted so it cannot be forgotten.
+    """D19, closed.
 
-    A coordinated review reports zero datasets and zero tool calls — not
-    because it read less than a single-dataset query, but because its
-    Investigation does not aggregate what its specialist sub-analyses
-    touched: those were persisted as separate Investigations. The Trace for
-    a portfolio review therefore cannot say which data it read.
+    This test used to assert the opposite. A coordinated review reported
+    zero datasets and zero tool calls — not because it read less than a
+    single-dataset query, but because its Investigation threw away every
+    sub-analysis it ran except for the headline sentence. The Trace for a
+    portfolio review could not say which data it read.
 
-    This test asserts the CURRENT behaviour so that closing the gap breaks
-    it loudly and somebody updates this comment, rather than the gap
-    persisting because nothing ever mentioned it.
+    The composition record fixed that, and the old test failed loudly when
+    it did, which is what it was for. What is asserted now is the closed
+    state: a review reads MORE than a single-dataset query, and says so.
     """
     comparison = dv.compare(simple_probe, portfolio_probe)
 
-    assert "dataset_count" in comparison.unmeasured_axes, (
-        "the coordinated Investigation now reports its datasets — good. "
-        "Update this test and docs/DEFECTS_HARDENING.md D19.")
+    assert "dataset_count" not in comparison.unmeasured_axes, (
+        "the coordinated Investigation has stopped reporting its datasets")
+    assert portfolio_probe.datasets, (
+        "a coordinated review that ran governed analyses reports no dataset")
+    assert len(portfolio_probe.datasets) >= len(simple_probe.datasets), (
+        "a portfolio review read fewer datasets than a single query: "
+        f"{portfolio_probe.datasets} vs {simple_probe.datasets}")
+    assert portfolio_probe.executed is True
+    assert comparison.regressions == [], comparison.regressions
 
 
 def test_the_officer_selection_records_why(portfolio_probe, simple_probe):

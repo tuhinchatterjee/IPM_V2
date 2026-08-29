@@ -297,6 +297,169 @@ def why_empty() -> str:
         "full one.")
 
 
+@dataclass
+class Composition:
+    """What a broad investigation's sub-analyses actually did. §3 (D4/D19/D20).
+
+    The defect this closes
+    -----------------------
+    A broad investigation runs six governed probes through the same path a
+    user's question takes, and then threw all six answers away except for
+    their headline sentences. The composed answer had no `build`, no
+    `runtime`, no invariant report and no evidence facts, so:
+
+    - the flow classifier filed a coordinated portfolio review under
+      "conversational, no analysis ran";
+    - the Trace could not say which datasets the review touched;
+    - the Evidence Fact Graph registered nothing, so nothing in the synthesis
+      was grounded against a fact;
+    - operational Assurance had no execution to check.
+
+    Every one of those was reported as a separate defect. They are one defect:
+    the composition was never recorded. This is the record.
+
+    Nothing here is inferred. Each field is read off a sub-answer that really
+    ran, and a probe that produced no runtime contributes nothing — which is
+    why `ran` and `attempted` are separate numbers.
+    """
+
+    #: Probes that produced a governed result.
+    ran: int = 0
+    #: Probes that were attempted, including the ones that came back empty.
+    attempted: int = 0
+    datasets: list[str] = field(default_factory=list)
+    periods: list[str] = field(default_factory=list)
+    grains: list[str] = field(default_factory=list)
+    concepts: list[str] = field(default_factory=list)
+    methods: list[str] = field(default_factory=list)
+    rows: int = 0
+    #: Invariants compiled and checked across every sub-analysis.
+    invariants_checked: int = 0
+    invariants_failed: int = 0
+    #: Sub-analyses whose invariants all held. A review is only as sound as
+    #: the weakest analysis under it.
+    invariants_clean: int = 0
+    #: Sub-analyses that validated an Analytical IR, compiled a query
+    #: through the safe compiler, and read through the governed path. Counted
+    #: separately from `ran` so a review cannot claim work it did not do.
+    ir_validated: int = 0
+    queries_compiled: int = 0
+    governed_reads: int = 0
+    #: Sub-analyses whose declared output grain matched their objective.
+    grain_contracts_ok: int = 0
+    facts_registered: int = 0
+    facts_usable: int = 0
+    facts_refused: list[dict[str, str]] = field(default_factory=list)
+    #: The Trace node ids the sub-analyses left behind, so a reader can enter
+    #: the review at the analysis that produced any one line.
+    trace_nodes: list[str] = field(default_factory=list)
+
+    @property
+    def executed(self) -> bool:
+        return self.ran > 0
+
+    @property
+    def invariants_passed(self) -> bool | None:
+        """None when nothing was checked. A check that did not run is not a
+        check that passed — the distinction D7 was raised about."""
+        if not self.invariants_checked:
+            return None
+        return self.invariants_failed == 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ran": self.ran, "attempted": self.attempted,
+            "datasets": list(self.datasets), "periods": list(self.periods),
+            "grains": list(self.grains), "concepts": list(self.concepts),
+            "methods": list(self.methods), "rows": self.rows,
+            "ir_validated": self.ir_validated,
+            "queries_compiled": self.queries_compiled,
+            "governed_reads": self.governed_reads,
+            "grain_contracts_ok": self.grain_contracts_ok,
+            "invariants": {"checked": self.invariants_checked,
+                           "failed": self.invariants_failed,
+                           "clean_analyses": self.invariants_clean,
+                           "passed": self.invariants_passed},
+            "facts": {"registered": self.facts_registered,
+                      "usable": self.facts_usable,
+                      "refused": list(self.facts_refused[:10])},
+            "trace_nodes": list(self.trace_nodes),
+        }
+
+
+def _extend(into: list[str], values: Any) -> None:
+    """Append what is new, in first-seen order. Order is not cosmetic here:
+    the datasets a review read are shown in the order it read them."""
+    for value in (values or []):
+        text = str(value or "").strip()
+        if text and text not in into:
+            into.append(text)
+
+
+def _observe(into: Composition, answered: Any) -> None:
+    """Fold one sub-analysis into the composition. Reads, never infers."""
+    build = getattr(answered, "build", None)
+    runtime = getattr(answered, "runtime", None)
+    if runtime is None:
+        return
+
+    into.ran += 1
+    _extend(into.datasets, getattr(build, "datasets", None)
+            or ([getattr(build, "dataset", "")]
+                if getattr(build, "dataset", "") else []))
+    _extend(into.periods, [p for p in (getattr(build, "period", ""),
+                                       getattr(build, "opening", ""),
+                                       getattr(build, "closing", "")) if p])
+    _extend(into.grains, [getattr(build, "output_grain", "")
+                          or getattr(build, "grain", "")])
+    _extend(into.concepts, [getattr(m.concept, "label", "")
+                            for m in (getattr(build, "matches", None) or [])])
+    _extend(into.methods, [getattr(build, "method", "")])
+    into.rows += int(getattr(runtime, "row_count", 0) or 0)
+
+    plan = getattr(runtime, "plan", None)
+    if list(getattr(plan, "operations", None) or []):
+        into.ir_validated += 1
+    if getattr(runtime, "query", None) is not None:
+        into.queries_compiled += 1
+        # The safe compiler IS the governed read path: a result with a
+        # compiled query behind it was scoped before it ran.
+        into.governed_reads += 1
+
+    from backend.orchestration import grain as gr
+
+    contract = gr.contract_of(build)
+    if contract is not None and contract.ok:
+        into.grain_contracts_ok += 1
+
+    report = getattr(answered, "invariants", None)
+    if report is not None:
+        checked = len(getattr(report, "checks", None) or [])
+        failed = len(getattr(report, "failures", None) or [])
+        into.invariants_checked += checked
+        into.invariants_failed += failed
+        if checked and not failed:
+            into.invariants_clean += 1
+
+    # The Evidence Fact Graph, built from the sub-analysis the same way it is
+    # built for a single answer. Before this, a coordinated review registered
+    # zero facts however many analyses ran under it.
+    try:
+        from backend.orchestration import judgment_bridge as jb
+
+        graph = jb.facts_from(runtime, build,
+                              str(getattr(answered, "run_id", "") or "probe"))
+        into.facts_registered += len(graph.facts)
+        into.facts_usable += len(graph.usable())
+        into.facts_refused.extend({"fact_id": f, "why": w}
+                                  for f, w in graph.refused[:3])
+    except Exception as e:  # noqa: BLE001 - evidence must not lose the answer
+        logger.warning("Could not register facts for a probe: %s", e)
+
+    graph = getattr(runtime, "trace", None) or getattr(runtime, "graph", None)
+    _extend(into.trace_nodes, list(getattr(graph, "nodes", {}) or {}))
+
+
 def run(request: Request, question: str, *, answer_one: Any) -> Any:
     """Run every probe and assemble one answer out of them.
 
@@ -310,7 +473,9 @@ def run(request: Request, question: str, *, answer_one: Any) -> Any:
 
     rows: list[dict[str, Any]] = []
     notes: list[str] = []
+    composed = Composition()
     for probe in request.probes:
+        composed.attempted += 1
         try:
             answered = answer_one(probe.question, use_certified=False)
         except Exception as e:  # noqa: BLE001 - one probe must not lose the rest
@@ -318,6 +483,7 @@ def run(request: Request, question: str, *, answer_one: Any) -> Any:
             notes.append(f"{probe.label}: could not be computed ({e}).")
             continue
 
+        _observe(composed, answered)
         finding, figures = _finding(answered)
         if not finding:
             notes.append(f"{probe.label}: {_why_not(answered)}")
@@ -348,12 +514,25 @@ def run(request: Request, question: str, *, answer_one: Any) -> Any:
                  {"name": "finding", "label": "What it found"},
                  {"name": "rows", "label": "Rows"},
                  {"name": "question", "label": "Asked as"}],
-        values={"probes": len(rows), "subject": request.subject},
+        values={"probes": len(rows), "subject": request.subject,
+                "analyses_run": composed.ran,
+                "datasets_read": len(composed.datasets)},
         detail={"investigation": request.to_dict(),
+                "composed": composed.to_dict(),
                 "rule": ("Each line is a governed analysis over the named "
                          "population. Nothing here asserts a cause.")},
         warnings=notes,
         follow_ups=[r["question"] for r in rows[:4]],
+        composition=composed,
+        # A review that ran governed analyses did not look anything up in a
+        # catalogue. Reported as `metadata`, the Trace consistency contract
+        # concluded nothing was calculated and the flow classifier filed a
+        # coordinated portfolio review under "no analysis ran".
+        execution=("composed_analysis" if composed.executed else "metadata"),
+        execution_label=(
+            f"{composed.ran} governed analyses over "
+            f"{len(composed.datasets)} datasets" if composed.executed
+            else "Governed metadata"),
     )
 
 

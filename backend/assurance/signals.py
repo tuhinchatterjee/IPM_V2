@@ -111,6 +111,9 @@ class Ctx:
     runtime: Any = None
     gate: Any = None
     invariants: Any = None
+    #: What the sub-analyses of a composed answer did. A coordinated review
+    #: has no runtime of its own; its work is one level down. §3.
+    composition: Any = None
     decision: Any = None
     scope: Any = None
     continuation: Any = None
@@ -131,6 +134,7 @@ class Ctx:
         ctx.runtime = getattr(answered, "runtime", None)
         ctx.gate = getattr(answered, "gate", None)
         ctx.invariants = getattr(answered, "invariants", None)
+        ctx.composition = getattr(answered, "composition", None)
         ctx.decision = getattr(answered, "decision", None)
         ctx.scope = getattr(answered, "scope", None)
         ctx.continuation = getattr(answered, "continuation", None)
@@ -151,7 +155,31 @@ class Ctx:
 
     @property
     def executed(self) -> bool:
+        """Whether THIS turn produced a governed result of its own.
+
+        Deliberately not widened to cover a composed answer. Every reader
+        gated on this then goes on to read `ctx.build`, which a composed
+        answer does not have — so widening it would turn a fleet of honest
+        NOT_APPLICABLEs into a fleet of FAILs. The composed case is a
+        separate question, asked separately. §3.
+        """
         return self.runtime is not None
+
+    @property
+    def composed(self) -> bool:
+        """Whether this answer was assembled out of several analyses.
+
+        A coordinated review runs six governed analyses and keeps none of
+        their runtimes. Before this existed, every analysis check on such a
+        turn answered "no analysis was planned on this turn", which is the
+        most confident way to be wrong. §3 (D4/D19).
+        """
+        return bool(getattr(self.composition, "executed", False))
+
+    @property
+    def analysed(self) -> bool:
+        """Governed analysis ran, one way or the other."""
+        return self.executed or self.composed
 
     @property
     def wrote_prose(self) -> bool:
@@ -164,7 +192,26 @@ class Ctx:
         if found:
             return [str(d) for d in found]
         single = getattr(self.build, "dataset", "")
-        return [str(single)] if single else []
+        if single:
+            return [str(single)]
+        # The datasets a composed review read are the union of what its
+        # sub-analyses read. Reporting none of them is what made a
+        # coordinated review's Trace unable to say what it touched. §3 (D19).
+        composed = [str(d) for d in (getattr(self.composition, "datasets", None)
+                                     or [])]
+        if composed:
+            return composed
+        # And a catalogue answer consulted dataset metadata, which it records
+        # in its own detail and nothing read. §3 (D5).
+        result = getattr(self.answered, "result", None)
+        detail = getattr(result, "detail", None) or {}
+        found: list[str] = []
+        for entry in (detail.get("datasets") or []):
+            name = (str(entry.get("name") or entry.get("dataset") or "")
+                    if isinstance(entry, dict) else str(entry or ""))
+            if name and name not in found:
+                found.append(name)
+        return found
 
     @property
     def multi_dataset(self) -> bool:
@@ -350,6 +397,13 @@ def objective_coverage(ctx: Ctx) -> Signal | None:
 
 
 def concept_selection(ctx: Ctx) -> Signal | None:
+    if ctx.composed and not ctx.executed:
+        found = list(getattr(ctx.composition, "concepts", None) or [])
+        return _verdict(bool(found),
+                        f"{len(found)} governed concept(s) resolved across "
+                        f"{ctx.composition.ran} sub-analyses.",
+                        "The review ran analyses that resolved no governed "
+                        "concept.", "data")
     if not ctx.executed:
         return _na("no analysis was planned on this turn")
     concepts = list(getattr(ctx.reading, "concepts", None) or [])
@@ -362,6 +416,14 @@ def concept_selection(ctx: Ctx) -> Signal | None:
 
 
 def dataset_selection(ctx: Ctx) -> Signal | None:
+    if ctx.composed and not ctx.executed:
+        found = list(getattr(ctx.composition, "datasets", None) or [])
+        return _verdict(bool(found),
+                        f"{len(found)} governed dataset(s) read across "
+                        f"{ctx.composition.ran} sub-analyses: "
+                        + ", ".join(found) + ".",
+                        "The review reports no dataset behind its findings.",
+                        "data")
     if not ctx.executed:
         return _na("no analysis was planned on this turn")
     datasets = ctx.datasets
@@ -375,6 +437,12 @@ def period_selection(ctx: Ctx) -> Signal | None:
     check = ctx.gate_check("period_correct")
     if check is not None:
         return check
+    if ctx.composed and not ctx.executed:
+        found = list(getattr(ctx.composition, "periods", None) or [])
+        return _verdict(bool(found),
+                        "Sub-analyses read " + ", ".join(found) + ".",
+                        "The review's sub-analyses recorded no period.",
+                        "data")
     if not ctx.executed:
         return _na("no analysis was planned on this turn")
     period = str(getattr(ctx.build, "period", "") or "")
@@ -392,6 +460,17 @@ def grain_selection(ctx: Ctx) -> Signal | None:
     """
     from backend.orchestration import grain as gr
 
+    if ctx.composed and not ctx.executed:
+        # §4: a broad investigation may contain several Analyses at different
+        # grains, and each declares and validates its own.
+        ok = ctx.composition.grain_contracts_ok
+        grains = list(getattr(ctx.composition, "grains", None) or [])
+        return _verdict(
+            ok == ctx.composition.ran,
+            f"{ok} of {ctx.composition.ran} sub-analyses declared and met "
+            "their own output grain (" + ", ".join(grains) + ").",
+            f"{ctx.composition.ran - ok} sub-analyses emitted a grain their "
+            "own objective did not ask for.", "data")
     if not ctx.executed:
         return _na("no analysis was planned on this turn")
     contract = gr.contract_of(ctx.build)
@@ -496,6 +575,13 @@ def task_dag(ctx: Ctx) -> Signal | None:
 
 
 def analytical_ir(ctx: Ctx) -> Signal | None:
+    if ctx.composed and not ctx.executed:
+        made = ctx.composition.ir_validated
+        return _verdict(made == ctx.composition.ran,
+                        f"{made} of {ctx.composition.ran} sub-analyses "
+                        "validated an Analytical IR.",
+                        f"{ctx.composition.ran - made} sub-analyses produced "
+                        "a result with no validated IR.", "query")
     if not ctx.executed:
         return _na("no analysis executed on this turn")
     plan = getattr(ctx.runtime, "plan", None)
@@ -506,6 +592,13 @@ def analytical_ir(ctx: Ctx) -> Signal | None:
 
 
 def generated_query(ctx: Ctx) -> Signal | None:
+    if ctx.composed and not ctx.executed:
+        made = ctx.composition.queries_compiled
+        return _verdict(made == ctx.composition.ran,
+                        f"{made} of {ctx.composition.ran} sub-analyses "
+                        "compiled a query through the safe compiler.",
+                        f"{ctx.composition.ran - made} sub-analyses ran with "
+                        "no recorded query.", "query")
     if not ctx.executed:
         return _na("no analysis executed on this turn")
     query = getattr(ctx.runtime, "query", None)
@@ -796,21 +889,60 @@ def trace_clarity(ctx: Ctx) -> Signal | None:
 
 
 def table_column_ordering(ctx: Ctx) -> Signal | None:
-    """Columns follow the governed rank, identity first.
+    """Columns reach the reader in governed rank order, identity first, whole.
 
-    Read from the presentation contract's own `rank`, which is the thing
-    that decides the order — so this checks that the contract was applied
-    rather than re-deriving an order to compare against.
+    This check used to read `presentation.contract`, and it failed on every
+    two-period cohort. That was a defect in the check. `contract` returns the
+    columns in the order the RUNTIME produced them — its docstring says so —
+    because the rows are keyed by name and nothing downstream should have to
+    care. `schema` is the ordered one, and it is what the table renders from.
+    So the check was reporting the compiler's emission order as the reader's
+    order, and calling the difference a presentation fault. §3 (D17).
+
+    Reading `schema` instead would make the check vacuous: it sorts, so its
+    ranks are always sorted. What is worth checking is what the ordering is
+    FOR, so three things are asserted about the order the reader gets:
+
+      * every column the runtime produced still reaches them — a column that
+        vanished because a ranking rule did not recognise it is a figure
+        nobody can see or ask about;
+      * the ranks do not go backwards;
+      * the subject is first, because a table whose first column is not what
+        its rows are about cannot be scanned.
     """
-    columns = _contract_columns(ctx)
-    if not columns:
+    if not ctx.executed:
         return _na("no table was displayed on this turn")
-    ranks = [c.get("rank") for c in columns if c.get("rank") is not None]
-    if not ranks:
-        return None
-    return _verdict(ranks == sorted(ranks),
-                    f"{len(columns)} column(s) in governed rank order.",
-                    "Columns are not in the governed rank order.", "result")
+    try:
+        from backend.orchestration import presentation as pr
+
+        ordered = pr.schema(ctx.runtime, ctx.build)
+    except Exception as e:  # noqa: BLE001 - no schema is a finding, not a raise
+        return _fail(f"The presentation schema could not be built: {e}",
+                     "result")
+    if not ordered:
+        return _na("no table was displayed on this turn")
+
+    produced = {str(c.get("name") if isinstance(c, dict)
+                    else getattr(c, "name", c))
+                for c in (getattr(ctx.runtime, "columns", None) or [])}
+    placed = {str(c.get("name")) for c in ordered}
+    missing = sorted(produced - placed)
+    if missing:
+        return _fail(
+            f"{len(missing)} column(s) the analysis produced never reach the "
+            f"table: {', '.join(missing[:5])}.", "result")
+
+    shown = [c for c in ordered if not c.get("hidden")]
+    ranks = [c.get("rank") for c in shown if c.get("rank") is not None]
+    if ranks != sorted(ranks):
+        return _fail("Columns are not in the governed rank order.", "result")
+
+    identities = [i for i, c in enumerate(shown) if c.get("is_identity")]
+    if identities and identities[0] != 0:
+        return _fail(
+            "The column the rows are about is not the first one.", "result")
+    return _pass(f"{len(shown)} column(s) in governed rank order, "
+                 "identity first, none dropped.", "result")
 
 
 def expected_output_visual_intent(ctx: Ctx) -> Signal | None:
@@ -1091,6 +1223,13 @@ def privacy_tenant_safety(ctx: Ctx) -> Signal | None:
     produced its result through it read only what the caller may read. This
     check exists to catch a result produced some OTHER way.
     """
+    if ctx.composed and not ctx.executed:
+        reads = ctx.composition.governed_reads
+        return _verdict(reads == ctx.composition.ran,
+                        f"All {reads} sub-analyses read through the "
+                        "tenant-scoped query path.",
+                        f"{ctx.composition.ran - reads} sub-analyses produced "
+                        "a result outside the governed query path.", "query")
     if not ctx.executed:
         return _pass("No data was read on this turn.")
     if getattr(ctx.runtime, "query", None) is None:

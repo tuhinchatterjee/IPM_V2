@@ -90,6 +90,9 @@ CLASS_IDS: tuple[str, ...] = tuple(c for c, _, _ in CLASSES)
 CLASS_LABELS: dict[str, str] = {c: label for c, label, _ in CLASSES}
 CLASS_WHY: dict[str, str] = {c: why for c, _, why in CLASSES}
 
+#: The class ids, as a case may declare one of them in its own tags.
+CLASS_IDS: tuple[str, ...] = tuple(c for c, _, _ in CLASSES)
+
 #: How many cases per class the pack asks for by default. Small on purpose:
 #: fifteen classes at four cases each is sixty cases, which is a morning's
 #: work and a real decision at the end of it. A pack nobody finishes
@@ -108,6 +111,22 @@ def classify(case: Any) -> str:
     tags = {str(t).lower() for t in (getattr(case, "tags", None) or ())}
     checks = {str(c).lower() for c in
               (getattr(case, "expected_failure_categories", None) or ())}
+
+    # An explicit declaration wins. Everything below is inference from tags
+    # and family names, and inference is what left nine of the fifteen
+    # classes empty: twenty-four AGENTIC_ORCHESTRATION cases carried the tag
+    # `agentic_orchestration`, the rule looks for `agentic`, and a set
+    # membership test does not match a prefix. A case that knows which class
+    # it was written for should be able to say so rather than hope a keyword
+    # rule guesses right. §3 (D21).
+    #
+    # Deliberately exact, and deliberately not a substring match: loosening
+    # the rules below to match fragments would file every `agent_selection`
+    # case under `agentic_cockpit`, and nobody would notice because both
+    # would look populated.
+    declared = tags & set(CLASS_IDS)
+    if len(declared) == 1:
+        return next(iter(declared))
 
     for tag, name in (
         ("permission", "permission_tenant_safety"),
