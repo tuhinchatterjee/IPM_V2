@@ -45,9 +45,11 @@
 
     COST
     ----
-    -DryRun spends nothing. Every other mode makes real provider calls and
-    consumes credit; each prints its estimate before it runs and, unless you
-    pass -Yes, asks you to confirm.
+    -DryRun, -FeedbackCritical and -RegulatoryCritical spend nothing: those
+    three paths are entirely deterministic and make no provider call at all.
+    Every other mode makes real provider calls and consumes credit; each
+    prints its estimate before it runs and, unless you pass -Yes, asks you to
+    confirm.
 
     EXIT CODES
     ----------
@@ -56,10 +58,15 @@
     nothing can be bound to the build, and the product will not show durable
     verification.
 
-        0   LIVE_VERIFIED or DRY_RUN
+        0   LIVE_VERIFIED, DETERMINISTIC_VERIFIED or DRY_RUN
         1   FAILED               a case did not pass
         2   PASSED_NOT_STORED    calls passed, report refused or unwritable
         3   NOT_ELIGIBLE         no key, or the image is not this commit
+
+    DETERMINISTIC_VERIFIED is not a synonym for LIVE_VERIFIED and never
+    lights the AI panel's LIVE VERIFIED lamp. It means every check in a mode
+    that makes no provider call passed. Reporting it as a live verification
+    would claim a model ran when none did.
 
 .PARAMETER DryRun
     Report what would be verified, and what each mode would cost. Zero credits.
@@ -104,6 +111,18 @@
 
 .EXAMPLE
     .\scripts\verify-live-ai.ps1 -FullRouting
+
+.EXAMPLE
+    .\scripts\verify-live-ai.ps1 -AgenticCritical
+
+.EXAMPLE
+    .\scripts\verify-live-ai.ps1 -FeedbackCritical
+
+.EXAMPLE
+    .\scripts\verify-live-ai.ps1 -RegulatoryCritical
+
+.EXAMPLE
+    .\scripts\verify-live-ai.ps1 -ProjectCritical
 #>
 
 [CmdletBinding(DefaultParameterSetName = 'DryRun')]
@@ -113,6 +132,14 @@ param(
     [Parameter(ParameterSetName = 'Critical')][switch]$Critical,
     [Parameter(ParameterSetName = 'FullRouting')][switch]$FullRouting,
     [Parameter(ParameterSetName = 'FullCertification')][switch]$FullCertification,
+    # The final consolidation phase's four narrow modes. Each drives one area
+    # end to end rather than sampling across all of them, because "the
+    # agentic layer is broken" and "the feedback loop is broken" need
+    # different evidence and a mixed run gives neither.
+    [Parameter(ParameterSetName = 'AgenticCritical')][switch]$AgenticCritical,
+    [Parameter(ParameterSetName = 'FeedbackCritical')][switch]$FeedbackCritical,
+    [Parameter(ParameterSetName = 'RegulatoryCritical')][switch]$RegulatoryCritical,
+    [Parameter(ParameterSetName = 'ProjectCritical')][switch]$ProjectCritical,
     [switch]$Yes,
     [switch]$Json
 )
@@ -137,11 +164,20 @@ Push-Location -Path $RepoRoot
 # so the number is on screen BEFORE anything is started. A tool that tells you
 # what a run cost afterwards is a tool people stop running.
 $EstimatedCalls = @{
-    'dryrun'            = 0
-    'quick'             = 13
-    'critical'          = 30
-    'fullrouting'       = 14
-    'fullcertification' = 120
+    'dryrun'             = 0
+    'quick'              = 13
+    'critical'           = 30
+    'fullrouting'        = 14
+    'fullcertification'  = 120
+    'agenticcritical'    = 22
+    # Zero, and it is not a rounding. The feedback and regulatory paths are
+    # entirely deterministic: recording a rating, labelling an observation,
+    # proposing a candidate, extracting a circular and retrieving as of a date
+    # all run without a model. A mode that reported "about 5 calls" for them
+    # would be describing a system that does not exist.
+    'feedbackcritical'   = 0
+    'regulatorycritical' = 0
+    'projectcritical'    = 18
 }
 
 # The exit-code contract, shared with backend/validation/live_verify.py.
@@ -179,10 +215,14 @@ function Stop-With {
 
 $Mode = 'dryrun'
 switch ($PSCmdlet.ParameterSetName) {
-    'Quick'             { $Mode = 'quick' }
-    'Critical'          { $Mode = 'critical' }
-    'FullRouting'       { $Mode = 'fullrouting' }
-    'FullCertification' { $Mode = 'fullcertification' }
+    'Quick'              { $Mode = 'quick' }
+    'Critical'           { $Mode = 'critical' }
+    'FullRouting'        { $Mode = 'fullrouting' }
+    'FullCertification'  { $Mode = 'fullcertification' }
+    'AgenticCritical'    { $Mode = 'agenticcritical' }
+    'FeedbackCritical'   { $Mode = 'feedbackcritical' }
+    'RegulatoryCritical' { $Mode = 'regulatorycritical' }
+    'ProjectCritical'    { $Mode = 'projectcritical' }
 }
 
 Write-Head ('CreditProbe live AI verification - {0}' -f $Mode)
@@ -335,7 +375,18 @@ $Code = $LASTEXITCODE
 
 Write-Head 'Report'
 
-$ReportName = 'live_ai_verification_{0}.json' -f $ShortSha
+# A run that makes no provider call writes to its OWN file. One report per
+# commit was fine while every mode was a live one; it meant the cheapest
+# command in the product could land on top of - and destroy - the report a
+# paid run had just written. Kept in step with `report_name()` in
+# backend/validation/live_verify.py.
+$DeterministicModes = @('dryrun', 'feedbackcritical', 'regulatorycritical')
+if ($DeterministicModes -contains $Mode) {
+    $ReportName = 'verification_{0}_{1}.json' -f $Mode, $ShortSha
+}
+else {
+    $ReportName = 'live_ai_verification_{0}.json' -f $ShortSha
+}
 $LogDirectory = Join-Path -Path $RepoRoot -ChildPath 'logs'
 $ReportPath = Join-Path -Path $LogDirectory -ChildPath $ReportName
 
@@ -363,8 +414,9 @@ switch ($Code) {
     2 { $Status = 'PASSED_NOT_STORED' }
     3 { $Status = 'NOT_ELIGIBLE' }
 }
-if ($Mode -eq 'dryrun' -and $Code -eq 0) {
-    $Status = 'DRY_RUN'
+if ($Code -eq 0 -and $DeterministicModes -contains $Mode) {
+    $Status = $(if ($Mode -eq 'dryrun') { 'DRY_RUN' }
+                else { 'DETERMINISTIC_VERIFIED' })
 }
 
 Write-Field 'status' $Status $(if ($Code -eq 0) { 'Green' } else { 'Red' })
@@ -374,6 +426,14 @@ if ($Status -eq 'DRY_RUN') {
     Write-Host '  Dry run complete. Nothing was spent.' -ForegroundColor Green
     Write-Host '  To verify for real:' -ForegroundColor Gray
     Write-Host '      .\scripts\verify-live-ai.ps1 -Quick' -ForegroundColor White
+}
+elseif ($Status -eq 'DETERMINISTIC_VERIFIED') {
+    Write-Host ''
+    Write-Host '  Every check passed and the report was stored.' -ForegroundColor Green
+    Write-Host '  This mode made NO provider call, so it is not live-model' -ForegroundColor Gray
+    Write-Host '  verification and the AI panel will not show LIVE VERIFIED.' -ForegroundColor Gray
+    Write-Host '  It verifies deterministic behaviour: the feedback prompt,' -ForegroundColor DarkGray
+    Write-Host '  the learning pipeline and the regulatory gates.' -ForegroundColor DarkGray
 }
 elseif ($Status -eq 'LIVE_VERIFIED') {
     Write-Host ''

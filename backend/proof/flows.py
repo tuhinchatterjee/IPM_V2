@@ -195,7 +195,8 @@ def mandatory_for(flow: str) -> frozenset[str]:
 
 
 def classify(*, answer_type: str = "", executed: bool = False,
-             datasets: int = 0, agentic_run: bool = False,
+             datasets: int = 0, consulted: int = 0,
+             agentic_run: bool = False,
              specialists: int = 0, proactive: bool = False,
              project_id: str = "") -> str:
     """Which flow a turn belongs to, from the record rather than the prose.
@@ -219,7 +220,11 @@ def classify(*, answer_type: str = "", executed: bool = False,
     if not executed:
         # Nothing computed. Metadata answered from the catalogue is a real
         # answer; a clarification or a refusal is a different thing again.
-        if answer_type in ("metadata", "discovery", "succeeded") and datasets:
+        # `consulted` and not `datasets`: a catalogue answer LOOKS AT dataset
+        # metadata and reads no rows. Counting the two as one number made a
+        # metadata answer look like it had read six sources. §3 (D5).
+        if (answer_type in ("metadata", "discovery", "succeeded")
+                and (consulted or datasets)):
             return METADATA
         return CONVERSATIONAL
     if project_id:

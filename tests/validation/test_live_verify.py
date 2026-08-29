@@ -39,9 +39,78 @@ def test_a_dry_run_states_what_every_other_mode_costs():
     report = lv.dry_run()
     for mode in lv.MODES:
         assert mode in report.estimated_calls
-    assert all(report.estimated_calls[m] > 0
-               for m in lv.MODES if m != lv.DRYRUN), (
-        "a mode that spends credit must say so before it is run")
+    for mode in lv.MODES:
+        if mode in lv.NON_LIVE_MODES:
+            continue
+        assert report.estimated_calls[mode] > 0, (
+            f"{mode} spends credit and must say so before it is run")
+
+
+def test_only_a_declared_free_mode_estimates_nothing():
+    """The other half of the estimate rule, and the one that matters now that
+    two modes really are free.
+
+    A zero estimate is either the truth or the most expensive kind of lie: an
+    operator approves a run on the strength of it. So a mode may only estimate
+    nothing if it is DECLARED as one that makes no provider call — a mode that
+    calls the model and forgets to set an estimate fails here rather than
+    quietly asking for approval it has not earned.
+    """
+    report = lv.dry_run()
+    free = {m for m in lv.MODES if report.estimated_calls[m] == 0}
+
+    assert free == set(lv.NON_LIVE_MODES), (
+        "a mode estimates zero calls without being declared deterministic: "
+        f"{sorted(free - set(lv.NON_LIVE_MODES))}")
+
+
+def test_a_deterministic_mode_is_not_reported_as_live_verification():
+    """§54: this build must never claim live-model verification it did not do.
+
+    The feedback and regulatory modes make no provider call at all. Passing
+    them is worth recording — and recording it as LIVE_VERIFIED would light
+    the product's own lamp on the strength of arithmetic.
+    """
+    report = lv.feedback_critical()
+
+    assert report.status == lv.STATUS_DETERMINISTIC_VERIFIED, report.failures
+    assert report.live_verified is False
+    assert report.live_calls_made == 0
+    assert report.spends_credits is False
+    assert lv.EXIT_FOR[report.status] == lv.EXIT_OK
+    assert report.cases, "a deterministic run must say what it checked"
+    assert all(case.passed for case in report.cases), report.failures
+
+
+def test_the_regulatory_mode_is_deterministic_too():
+    report = lv.regulatory_critical()
+
+    assert report.status == lv.STATUS_DETERMINISTIC_VERIFIED, report.failures
+    assert report.live_calls_made == 0
+    assert report.cases
+
+
+def test_a_free_run_cannot_overwrite_a_live_verification(tmp_path):
+    """The cheapest command in the product must not destroy the most
+    expensive evidence in it.
+
+    Every mode wrote to one file per commit. `stored()` refused to READ a dry
+    run as a verification, which kept the badge honest and did nothing to stop
+    a free run landing on top of the report a paid one had just written.
+    """
+    live = lv.Report(mode=lv.QUICK)
+    lv._stamp(live)
+    live.live_verified = True
+    live.live_calls_made = 12
+    live.status = lv.STATUS_LIVE_VERIFIED
+    kept = lv.write(live, tmp_path)
+
+    lv.write(lv.dry_run(), tmp_path)
+    lv.write(lv.feedback_critical(), tmp_path)
+
+    assert json.loads(kept.read_text())["mode"] == lv.QUICK
+    assert lv.stored(tmp_path).get("mode") == lv.QUICK
+    assert lv.badge(tmp_path)["live_verified"] is True
 
 
 def test_a_dry_run_reports_the_build_and_the_roles():
@@ -149,7 +218,10 @@ def test_the_written_report_is_named_for_the_commit(tmp_path):
     report = lv.dry_run()
     path = lv.write(report, tmp_path)
     assert report.git_sha[:12] in path.name
-    assert path.name.startswith("live_ai_verification_")
+
+    live = lv.Report(mode=lv.QUICK)
+    lv._stamp(live)
+    assert lv.write(live, tmp_path).name.startswith("live_ai_verification_")
 
 
 # ---------------------------------------------------------------- staleness

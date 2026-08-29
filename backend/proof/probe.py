@@ -117,6 +117,10 @@ class Probe:
     agent_count: int = 0
     tool_calls: list[str] = field(default_factory=list)
     datasets: list[str] = field(default_factory=list)
+    #: Catalogue entries a metadata answer LOOKED AT. Not datasets it read:
+    #: a discovery answer reads dataset metadata and returns no rows, and
+    #: counting the two together makes both numbers meaningless.
+    consulted: list[str] = field(default_factory=list)
     methods: list[str] = field(default_factory=list)
     period: str = ""
     grain: str = ""
@@ -416,8 +420,15 @@ def run_probe(question: str, *, label: str = "", project_id: str = "",
         str(d) for d in (getattr(composition, "datasets", None)
                          or getattr(build, "datasets", None)
                          or ([getattr(build, "dataset", "")]
-                             if getattr(build, "dataset", "") else [])
-                         or _consulted(answered)))
+                             if getattr(build, "dataset", "") else [])))
+    # Kept apart from `datasets`, and the separation is the point. Merging
+    # them made a metadata answer that consulted six catalogue entries report
+    # more datasets than a two-domain analysis that READ three — so the
+    # officer ladder stopped being monotonic on the dataset axis, and the
+    # divergence instrument reported an escalation that did less work. It had
+    # not; the instrument had started measuring two different things with one
+    # number. §3 (D5).
+    probe.consulted = sorted(_consulted(answered))
     probe.period = str(getattr(build, "period", "") or "")
     probe.grain = str(getattr(build, "output_grain", "")
                       or getattr(build, "grain", "") or "")
@@ -503,6 +514,7 @@ def run_probe(question: str, *, label: str = "", project_id: str = "",
 
     probe.flow = fl.classify(
         answer_type=probe.status, executed=probe.executed,
-        datasets=len(probe.datasets), agentic_run=probe.orchestrated,
+        datasets=len(probe.datasets), consulted=len(probe.consulted),
+        agentic_run=probe.orchestrated,
         specialists=len(probe.specialists), project_id=project_id)
     return probe, officer

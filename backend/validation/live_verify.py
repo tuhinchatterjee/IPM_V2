@@ -51,19 +51,65 @@ CRITICAL = "critical"
 FULL_ROUTING = "fullrouting"
 FULL_CERTIFICATION = "fullcertification"
 
-MODES: tuple[str, ...] = (DRYRUN, QUICK, CRITICAL, FULL_ROUTING,
-                          FULL_CERTIFICATION)
-
-#: What a run amounted to. Four outcomes, and no fifth.
+#: The final consolidation phase's four narrow modes. Each drives ONE area end
+#: to end rather than sampling across all of them, because "the agentic layer
+#: is broken" and "the feedback loop is broken" need different evidence and a
+#: mixed run gives neither.
 #:
-#: The distinction that matters is between the middle two. A run whose live
-#: calls all passed but whose report could not be stored is NOT a verification:
-#: nothing is bound to the commit or to the model configuration, the product
-#: cannot show durable verification, and nobody can audit it later. Reporting
-#: that as success — which is what "live verified yes" beside "REPORT NOT
-#: WRITTEN" did — tells the operator the opposite of the truth.
+#: Two of them spend nothing, and that is not a rounding: the feedback and
+#: regulatory paths are entirely deterministic. Recording a rating, labelling
+#: an observation, proposing a candidate, extracting a circular and retrieving
+#: as of a date all run without a model, so a mode that reported "about five
+#: calls" for them would be describing a system that does not exist.
+AGENTIC_CRITICAL = "agenticcritical"
+FEEDBACK_CRITICAL = "feedbackcritical"
+REGULATORY_CRITICAL = "regulatorycritical"
+PROJECT_CRITICAL = "projectcritical"
+
+MODES: tuple[str, ...] = (DRYRUN, QUICK, CRITICAL, FULL_ROUTING,
+                          FULL_CERTIFICATION, AGENTIC_CRITICAL,
+                          FEEDBACK_CRITICAL, REGULATORY_CRITICAL,
+                          PROJECT_CRITICAL)
+
+#: What each mode is for, in one line, so `--help` and the PowerShell wrapper
+#: say the same thing.
+MODE_MEANS: dict[str, str] = {
+    DRYRUN: "Configuration, build and eligibility only. Spends nothing.",
+    QUICK: "One call per active model role, plus the smoke thread.",
+    CRITICAL: "Every acceptance thread, end to end, through the API.",
+    FULL_ROUTING: "The live intent-recognition suite, in full.",
+    FULL_CERTIFICATION: "The full certification run over the sealed holdout.",
+    AGENTIC_CRITICAL: "Officer selection, coordination and what the "
+                      "specialists actually read.",
+    FEEDBACK_CRITICAL: "The feedback prompt, the event, the observation and "
+                       "the candidate pipeline. Deterministic — no calls.",
+    REGULATORY_CRITICAL: "Circular ingestion, as-of retrieval, citations and "
+                         "Regulatory Assurance. Deterministic — no calls.",
+    PROJECT_CRITICAL: "The same agentic work inside a Project, with scope "
+                      "isolation.",
+}
+
+#: What a run amounted to.
+#:
+#: The distinction that matters is between PASSED_NOT_STORED and the two
+#: verified outcomes. A run whose checks all passed but whose report could not
+#: be stored is NOT a verification: nothing is bound to the commit or to the
+#: model configuration, the product cannot show durable verification, and
+#: nobody can audit it later. Reporting that as success — which is what "live
+#: verified yes" beside "REPORT NOT WRITTEN" did — tells the operator the
+#: opposite of the truth.
+#:
+#: DETERMINISTIC_VERIFIED is the final phase's addition, and it exists to keep
+#: the product honest rather than to add a synonym for success. The feedback
+#: and regulatory modes make no provider call at all, so calling their result
+#: LIVE_VERIFIED would claim live-model verification that did not happen; and
+#: calling it FAILED — which is what the first wiring did, because `_finish`
+#: settled every status from `live_verified` — reported a clean run as a
+#: broken one. Neither is true. A deterministic mode verifies deterministic
+#: behaviour, says so in its own word, and never lights the LIVE VERIFIED lamp.
 STATUS_DRY_RUN = "DRY_RUN"
 STATUS_LIVE_VERIFIED = "LIVE_VERIFIED"
+STATUS_DETERMINISTIC_VERIFIED = "DETERMINISTIC_VERIFIED"
 STATUS_PASSED_NOT_STORED = "PASSED_NOT_STORED"
 STATUS_FAILED = "FAILED"
 STATUS_NOT_ELIGIBLE = "NOT_ELIGIBLE"
@@ -77,6 +123,7 @@ EXIT_NOT_ELIGIBLE = 3
 EXIT_FOR: dict[str, int] = {
     STATUS_DRY_RUN: EXIT_OK,
     STATUS_LIVE_VERIFIED: EXIT_OK,
+    STATUS_DETERMINISTIC_VERIFIED: EXIT_OK,
     STATUS_FAILED: EXIT_FAILED,
     STATUS_PASSED_NOT_STORED: EXIT_PASSED_NOT_STORED,
     STATUS_NOT_ELIGIBLE: EXIT_NOT_ELIGIBLE,
@@ -110,6 +157,10 @@ ESTIMATED_CALLS: dict[str, int] = {
     CRITICAL: 30,
     FULL_ROUTING: 14,
     FULL_CERTIFICATION: 120,
+    AGENTIC_CRITICAL: 22,
+    FEEDBACK_CRITICAL: 0,
+    REGULATORY_CRITICAL: 0,
+    PROJECT_CRITICAL: 18,
 }
 
 # Derived from the catalogue rather than left as the literal above, which is
@@ -851,7 +902,11 @@ def _finish(report: Report) -> Report:
     passing run to LIVE_VERIFIED only once the report is actually on disk, and
     downgrades it to PASSED_NOT_STORED when it is not.
     """
-    if report.status not in (STATUS_NOT_ELIGIBLE, STATUS_DRY_RUN):
+    # DETERMINISTIC_VERIFIED is settled by the runner and left alone here.
+    # `live_verified` is a statement about provider calls, and a mode that
+    # makes none can neither earn it nor be condemned by it.
+    if report.status not in (STATUS_NOT_ELIGIBLE, STATUS_DRY_RUN,
+                             STATUS_DETERMINISTIC_VERIFIED, STATUS_FAILED):
         report.status = (STATUS_LIVE_VERIFIED if report.live_verified
                          else STATUS_FAILED)
     report.finished_at = _now()
@@ -1002,6 +1057,31 @@ def _key_free(payload: dict[str, Any]) -> list[str]:
     return found
 
 
+#: Modes that make no provider call, and whose report is therefore not a live
+#: verification of anything.
+#:
+#: They get their own file names. One report per commit was fine while every
+#: mode was a live one, but a dry run — or, now, a free feedback check — would
+#: land on the same path and overwrite the evidence of a run that really did
+#: call the model. `stored()` already refused to READ a dry run as a
+#: verification; that kept the badge honest and did nothing to stop the
+#: verification itself being destroyed by the cheapest command in the product.
+NON_LIVE_MODES: frozenset[str] = frozenset(
+    {DRYRUN, FEEDBACK_CRITICAL, REGULATORY_CRITICAL})
+
+
+def report_name(mode: str, git_sha: str) -> str:
+    """Where a report for this mode belongs, by name.
+
+    The live name is unchanged, because the product, the PowerShell wrapper
+    and every stored report already use it.
+    """
+    short = (git_sha or "unknown")[:12]
+    if mode in NON_LIVE_MODES:
+        return f"verification_{mode}_{short}.json"
+    return f"live_ai_verification_{short}.json"
+
+
 def write(report: Report, directory: Path | None = None) -> Path:
     """Write the report, refusing if anything key-shaped is in it."""
     payload = report.to_dict()
@@ -1013,8 +1093,7 @@ def write(report: Report, directory: Path | None = None) -> Path:
 
     target = Path(directory or REPORT_DIR)
     target.mkdir(parents=True, exist_ok=True)
-    short = (report.git_sha or "unknown")[:12]
-    path = target / f"live_ai_verification_{short}.json"
+    path = target / report_name(report.mode, report.git_sha)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n",
                     encoding="utf-8")
     return path
@@ -1062,8 +1141,7 @@ def stored(directory: Path | None = None) -> dict[str, Any]:
     """
     current = Report()
     _stamp(current)
-    short = (current.git_sha or "unknown")[:12]
-    path = Path(directory or REPORT_DIR) / f"live_ai_verification_{short}.json"
+    path = Path(directory or REPORT_DIR) / report_name(QUICK, current.git_sha)
     if not path.exists():
         return {}
     try:
@@ -1071,7 +1149,9 @@ def stored(directory: Path | None = None) -> dict[str, Any]:
     except Exception as e:  # noqa: BLE001 - an unreadable report is no report
         logger.warning("The stored verification could not be read: %s", e)
         return {}
-    return {} if str(found.get("mode") or "") == DRYRUN else found
+    # Belt and braces: a report written before the non-live modes had their
+    # own file names may still be sitting on this path.
+    return {} if str(found.get("mode") or "") in NON_LIVE_MODES else found
 
 
 def badge(directory: Path | None = None) -> dict[str, Any]:
@@ -1124,12 +1204,257 @@ def badge(directory: Path | None = None) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+def _calls_made() -> int:
+    """How many provider calls this process has made so far.
+
+    Read from the provider ledger rather than counted by hand, so a mode that
+    drives the real orchestrator reports the calls the orchestrator actually
+    made — including the ones a repair or an escalation added, which nobody
+    remembers to increment a local counter for.
+    """
+    try:
+        from backend.llm import telemetry
+
+        return int(telemetry.ledger().counts().get("total", 0))
+    except Exception:  # noqa: BLE001 - a missing count must not fail a run
+        return 0
+
+
+def _deterministic(mode: str, components: list[str], check) -> Report:
+    """A verification mode that spends nothing.
+
+    Same report shape, same storage, same exit codes — and `spends_credits` is
+    False and the estimate is zero, so the operator is not asked to approve a
+    cost that does not exist.
+
+    Eligibility is deliberately NOT checked. A deterministic mode does not
+    need a configured provider, and refusing to run it because no key is set
+    would withhold the one verification that always works — which is exactly
+    the verification somebody reaches for when the key is the thing they are
+    unsure about.
+
+    The status it earns is DETERMINISTIC_VERIFIED, never LIVE_VERIFIED. What
+    ran here was arithmetic, not a model, and a report that said otherwise
+    would be claiming live verification that did not happen.
+    """
+    report = Report(mode=mode, started_at=_now())
+    _stamp(report)
+    report.estimated_calls = {mode: 0}
+    report.spends_credits = False
+    report.live_verified = False
+    report.live_calls_made = 0
+    report.components = list(components)
+    try:
+        cases = list(check())
+    except Exception as e:  # noqa: BLE001 - a broken check is a failure
+        cases = [Case(name=f"{mode} could not run", component=mode,
+                      passed=False, detail=str(e)[:300])]
+    report.cases.extend(cases)
+    report.failures.extend(
+        f"{case.name}: {case.detail}" if case.detail else case.name
+        for case in cases if not case.passed)
+    report.passed = not report.failures
+    report.status = (STATUS_DETERMINISTIC_VERIFIED if report.passed
+                     else STATUS_FAILED)
+    return _finish(report)
+
+
+def _case(name: str, component: str, problem: str) -> Case:
+    """One check, stated so the report reads the same whether it passed.
+
+    `problem` is the empty string when the check held, and the sentence a
+    reader needs when it did not — so a passing deterministic report is a list
+    of what WAS verified rather than a silence that could equally mean nothing
+    was checked at all.
+    """
+    return Case(name=name, component=component, passed=not problem,
+                detail=problem)
+
+
+def agentic_critical() -> Report:
+    """Officer selection, coordination, and what the specialists read.
+
+    Runs the proof probes rather than a separate suite, so what this reports
+    and what `docs/POST_FINAL_AGENTIC.md` reports cannot disagree.
+    """
+    report = Report(mode=AGENTIC_CRITICAL, started_at=_now())
+    _stamp(report)
+    report.estimated_calls = {AGENTIC_CRITICAL:
+                              ESTIMATED_CALLS[AGENTIC_CRITICAL]}
+    report.spends_credits = True
+    report.components = ["officer_selection", "agent_selection",
+                         "coordination", "assurance_coverage"]
+
+    can, why = eligible(report)
+    if not can:
+        report.failures.append(why)
+        report.passed = False
+        report.status = STATUS_NOT_ELIGIBLE
+        return _finish(report)
+
+    from backend.proof import probe as pb
+
+    before = _calls_made()
+    for question, expected in (
+        ("What ratings data do you have?", 1),
+        ("Show IFRS 9 EAD by sector for the latest quarter.", 1),
+        ("Which customers had a rating downgrade and an increase in ECL over "
+         "the latest year?", 2),
+        ("Review the latest portfolio and tell me everything that matters.",
+         4),
+    ):
+        found, _ = pb.run_probe(question, expected_officer=expected)
+        problem = ""
+        if found.error:
+            problem = found.error[:300]
+        elif found.officer_level != expected:
+            problem = (f"officer {found.officer_level}, expected {expected}")
+        report.cases.append(Case(
+            name=question, component="officer_selection",
+            passed=not problem, detail=problem,
+            calls=0))
+        if problem:
+            report.failures.append(f"{question[:40]}...: {problem}")
+    report.live_calls_made = max(0, _calls_made() - before)
+    report.passed = not report.failures
+    report.live_verified = report.passed and report.live_calls_made > 0
+    report.status = STATUS_LIVE_VERIFIED if report.passed else STATUS_FAILED
+    return _finish(report)
+
+
+def _feedback_checks() -> list[Case]:
+    from backend.learning import candidate as cd
+    from backend.learning import feedback as fb
+    from backend.learning import guard as gd
+    from backend.learning import observation as ob
+
+    found = gd.report()
+    return [
+        _case("the accuracy question is worded as the series measures it",
+              "feedback_prompt",
+              "" if fb.QUESTION == "Was this answer accurate and useful?"
+              else "the feedback question has drifted from the wording the "
+                   "satisfaction series is measured against"),
+        _case("five answers, including the two that decline",
+              "feedback_prompt",
+              "" if len(fb.ANSWERS) == 5
+              else f"{len(fb.ANSWERS)} answers, expected 5"),
+        _case("twenty-three issue categories, in pipeline order",
+              "feedback_event",
+              "" if len(fb.CATEGORY_IDS) == 23
+              else f"{len(fb.CATEGORY_IDS)} issue categories, expected 23"),
+        _case("nine candidate statuses", "candidate_pipeline",
+              "" if len(cd.STATUSES) == 9
+              else f"{len(cd.STATUSES)} candidate statuses, expected 9"),
+        _case("an observation starts unlabelled", "learning_observation",
+              "" if ob.Observation().label == ob.UNLABELED
+              else "an observation does not start UNLABELED"),
+        _case("no module can write production behaviour from raw feedback",
+              "raw_feedback_guard",
+              "" if found.ok else found.sentence()),
+    ]
+
+
+def feedback_critical() -> Report:
+    return _deterministic(
+        FEEDBACK_CRITICAL,
+        ["feedback_prompt", "feedback_event", "learning_observation",
+         "candidate_pipeline", "raw_feedback_guard"],
+        _feedback_checks)
+
+
+def _regulatory_checks() -> list[Case]:
+    from datetime import date
+
+    from backend.regulatory import assurance as ra
+    from backend.regulatory import extract as ex
+    from backend.regulatory import schema as rs
+
+    unavailable = ex.availability()["unavailable"]
+    sample = ex.extract(
+        b"4.1 A bank must maintain coverage of at least 1.5 % of exposure.\n",
+        rs.TXT)
+    extracted = any(r.kind == rs.THRESHOLD and r.unit == "%"
+                    for r in sample.rules)
+    undated = rs.Circular(circular_id="c", effective=None).in_force_on(
+        date(2030, 1, 1))
+    return [
+        _case("an extractor is installed for every accepted format",
+              "circular_extraction",
+              "" if not unavailable
+              else "no extractor is installed for: " + ", ".join(unavailable)),
+        _case("the five regulatory critical gates are the ones named",
+              "regulatory_assurance",
+              "" if set(ra.CRITICAL_CHECKS) == {"cited", "in_force",
+                                                "reviewed", "original_intact",
+                                                "release_active"}
+              else "the regulatory critical gates have changed"),
+        _case("a percentage threshold is extracted as a rule",
+              "circular_extraction",
+              "" if extracted else "a percentage threshold was not extracted"),
+        _case("a circular with no effective date is not in force",
+              "as_of_retrieval",
+              "" if not undated
+              else "a circular with no effective date is treated as in force"),
+    ]
+
+
+def regulatory_critical() -> Report:
+    return _deterministic(
+        REGULATORY_CRITICAL,
+        ["circular_extraction", "as_of_retrieval", "citations",
+         "regulatory_assurance"],
+        _regulatory_checks)
+
+
+def project_critical() -> Report:
+    """The same agentic work inside a Project, with scope isolation."""
+    report = Report(mode=PROJECT_CRITICAL, started_at=_now())
+    _stamp(report)
+    report.estimated_calls = {PROJECT_CRITICAL:
+                              ESTIMATED_CALLS[PROJECT_CRITICAL]}
+    report.spends_credits = True
+    report.components = ["project_scope", "project_agentic",
+                         "project_isolation"]
+
+    can, why = eligible(report)
+    if not can:
+        report.failures.append(why)
+        report.passed = False
+        report.status = STATUS_NOT_ELIGIBLE
+        return _finish(report)
+
+    from backend.proof import probe as pb
+
+    before = _calls_made()
+    for question in (
+        "Review unresolved risks in this Project.",
+        "Which Project conclusions changed since the last period?",
+        "Publish this Investigation globally.",
+    ):
+        found, _ = pb.run_probe(question)
+        problem = found.error[:300] if found.error else ""
+        report.cases.append(Case(name=question, component="project_agentic",
+                                 passed=not problem, detail=problem))
+        if problem:
+            report.failures.append(f"{question[:40]}...: {problem}")
+    report.live_calls_made = max(0, _calls_made() - before)
+    report.passed = not report.failures
+    report.live_verified = report.passed and report.live_calls_made > 0
+    report.status = STATUS_LIVE_VERIFIED if report.passed else STATUS_FAILED
+    return _finish(report)
+
+
 RUNNERS = {
     DRYRUN: dry_run,
     QUICK: quick,
     CRITICAL: critical,
     FULL_ROUTING: full_routing,
     FULL_CERTIFICATION: full_certification,
+    AGENTIC_CRITICAL: agentic_critical,
+    FEEDBACK_CRITICAL: feedback_critical,
+    REGULATORY_CRITICAL: regulatory_critical,
+    PROJECT_CRITICAL: project_critical,
 }
 
 
@@ -1183,7 +1508,8 @@ def store_result(report: Report, directory: Path | None = None) -> Path | None:
         path = write(report, directory)
     except Exception as e:  # noqa: BLE001 - refusing to write IS the result
         report.storage_error = str(e)
-        if report.status == STATUS_LIVE_VERIFIED:
+        if report.status in (STATUS_LIVE_VERIFIED,
+                             STATUS_DETERMINISTIC_VERIFIED):
             report.status = STATUS_PASSED_NOT_STORED
         print(f"REPORT NOT WRITTEN: {e}", file=sys.stderr)
         return None
@@ -1200,6 +1526,10 @@ STATUS_DETAIL: dict[str, str] = {
     STATUS_LIVE_VERIFIED:
         "The live calls passed AND the report was stored against this commit. "
         "The AI panel will show LIVE VERIFIED.",
+    STATUS_DETERMINISTIC_VERIFIED:
+        "Every check passed and the report was stored against this commit. "
+        "NO provider call was made, so this is NOT live-model verification "
+        "and the AI panel will not show LIVE VERIFIED.",
     STATUS_PASSED_NOT_STORED:
         "The live calls PASSED, but the report could not be stored. Nothing "
         "is bound to this commit or model configuration, the AI panel will "
@@ -1232,8 +1562,8 @@ def _print_summary(report: Report, path: Path | None) -> None:
         can, why = eligible(report)
         print(f"  eligible          "
               f"{'yes' if can else 'no' + (f' - {why}' if why else '')}")
-    else:
-        print(f"  live calls        {report.live_calls_made}")
+    elif report.mode in NON_LIVE_MODES:
+        print("  provider calls    none - this mode is deterministic")
         for case in report.cases:
             mark = "PASS" if case.passed else "FAIL"
             served = f"  served={case.served_model}" if case.served_model else ""
@@ -1246,7 +1576,8 @@ def _print_summary(report: Report, path: Path | None) -> None:
 
     # Three separate facts, never collapsed into one. The middle one is the
     # whole point of this block: calls can pass and still leave nothing behind.
-    print(f"  live calls passed {'yes' if report.live_verified else 'no'}")
+    if report.mode not in NON_LIVE_MODES:
+        print(f"  live calls passed {'yes' if report.live_verified else 'no'}")
     print(f"  report stored     {'yes' if path else 'NO'}")
     if report.storage_error:
         print(f"    reason          {report.storage_error}")

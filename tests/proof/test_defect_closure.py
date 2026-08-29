@@ -126,10 +126,17 @@ def test_d5_a_catalogue_answer_says_which_catalogue_it_read():
     probe, _ = _probe("What ratings data do you have?")
 
     assert probe.error == "", probe.error
-    assert probe.datasets, "a catalogue answer names no catalogue"
+    assert probe.consulted, "a catalogue answer names no catalogue"
     assert probe.flow == fl.METADATA
-    # It consulted metadata; it did not read rows, and says neither more nor
-    # less than that.
+    # Consulted, not read — and the two are separate numbers.
+    #
+    # They were one number first, and merging them cost the officer ladder
+    # its monotonicity: a metadata answer that looked at six catalogue
+    # entries reported more "datasets" than a two-domain analysis that READ
+    # three, so the divergence instrument reported an escalation doing less
+    # work. It had not. The instrument had started measuring two different
+    # things with one number, which is the same class of defect as D5 itself.
+    assert probe.datasets == []
     assert probe.rows_returned is None
     assert probe.executed is False
 

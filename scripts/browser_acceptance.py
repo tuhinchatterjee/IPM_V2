@@ -73,6 +73,12 @@ SCREENS: tuple[tuple[str, str], ...] = (
     ("/trace", "main"),
     ("/workflow", "main"),
     ("/settings", "main"),
+    # Added in the final consolidation phase. §45 asks for the Feedback
+    # Inbox, Candidate Cases, the Review Workbench, the Replay Lab, Learning
+    # Releases and the learning metrics to be inspected; they are seven tabs
+    # of one screen, so the screen is what is checked and the tabs are
+    # asserted in the frontend node tests rather than clicked here.
+    ("/ai-studio/feedback-learning", "main"),
 )
 
 #: Words that may never label a figure with no independent reference. §184.

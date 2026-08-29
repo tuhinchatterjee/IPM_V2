@@ -265,6 +265,115 @@ FEATURES: tuple[Feature, ...] = (
     _f("Assurance", "score honesty (§212's seven rules)",
        "backend/assurance/honesty.py",
        "tests/assurance/test_reviews_and_honesty.py", RUN, PROVEN),
+
+    # --------------------------------------------- Grain (final phase §4)
+    _f("Grain", "output grain inferred from the objective",
+       "backend/orchestration/grain.py",
+       "tests/orchestration/test_grain.py", NOT_APPLICABLE, PROVEN),
+    _f("Grain", "grain postconditions block a wrong-grain answer",
+       "backend/orchestration/invariants.py",
+       "tests/orchestration/test_grain.py", NOT_APPLICABLE, PROVEN),
+    _f("Grain", "grain in Scope and on the Trace",
+       "backend/orchestration/scope.py, backend/runtime/executor.py",
+       "tests/orchestration/test_grain.py", NOT_RUN, BACKEND_ONLY,
+       "The Trace plan node carries the contract; no browser check reads it "
+       "off the screen."),
+
+    # ------------------------------------ Regulatory knowledge (Part G-A)
+    _f("Regulatory", "bulk circular upload and immutable originals",
+       "backend/regulatory/store.py, backend/api/routers/regulatory.py",
+       "tests/regulatory/test_part_g.py", NOT_RUN, BACKEND_ONLY,
+       "The upload route and the store are tested; no browser check drives "
+       "the upload form, because the form is not built."),
+    _f("Regulatory", "PDF, DOCX, XLSX, CSV, TXT and HTML extraction",
+       "backend/regulatory/extract.py",
+       "tests/regulatory/test_part_g.py", NOT_APPLICABLE, PROVEN),
+    _f("Regulatory", "OCR fallback",
+       "backend/regulatory/extract.py", "tests/regulatory/test_part_g.py",
+       NOT_APPLICABLE, LIMITED,
+       "No OCR engine is installed on this deployment. A scanned page is "
+       "reported NEEDS_OCR rather than read, and `availability()` says so "
+       "before anybody uploads."),
+    _f("Regulatory", "obligations, definitions, thresholds and exceptions",
+       "backend/regulatory/extract.py", "tests/regulatory/test_part_g.py",
+       NOT_APPLICABLE, PROVEN),
+    _f("Regulatory", "supersession, conflict and as-of retrieval",
+       "backend/regulatory/knowledge.py",
+       "tests/regulatory/test_part_g.py", NOT_APPLICABLE, PROVEN),
+    _f("Regulatory", "SME review and Regulatory Knowledge Releases",
+       "backend/regulatory/release.py, backend/services/regulatory.py",
+       "tests/regulatory/test_part_g.py", NOT_RUN, BACKEND_ONLY,
+       "No review workbench screen. The API and the governance are tested "
+       "end to end."),
+    _f("Regulatory", "Regulatory Assurance (five critical gates)",
+       "backend/regulatory/assurance.py",
+       "tests/regulatory/test_part_g.py", NOT_APPLICABLE, PROVEN),
+
+    # ------------------------------------- Teaching corpus (Part G-B)
+    _f("Teaching corpus", "500+ Q&A template and import",
+       "backend/teaching/importer.py",
+       "tests/regulatory/test_part_g.py", NOT_RUN, BACKEND_ONLY,
+       "A 600-row workbook imports in a test; no browser check drives the "
+       "upload form, because the form is not built."),
+    _f("Teaching corpus", "duplicate and conflict review",
+       "backend/teaching/importer.py",
+       "tests/regulatory/test_part_g.py", NOT_APPLICABLE, PROVEN),
+    _f("Teaching corpus", "imported cases arrive awaiting review",
+       "backend/teaching/importer.py",
+       "tests/regulatory/test_part_g.py", NOT_APPLICABLE, PROVEN),
+
+    # ------------------------------------- Feedback and learning (§7-§39)
+    _f("Feedback", "the accuracy-and-usefulness prompt",
+       "backend/learning/feedback.py, "
+       "frontend/src/components/feedback/accuracy-prompt.tsx",
+       "tests/learning/, frontend present.test.ts", RUN, PROVEN),
+    _f("Feedback", "23 issue categories and structured correction",
+       "backend/learning/feedback.py", "tests/learning/", NOT_RUN,
+       BACKEND_ONLY,
+       "The panel renders from the backend's list; no browser check opens "
+       "it, because opening it needs a completed answer in a live thread."),
+    _f("Feedback", "immutable Feedback Events with 24 links",
+       "backend/learning/feedback.py, backend/services/learning.py",
+       "tests/learning/", NOT_APPLICABLE, PROVEN),
+    _f("Feedback", "raw feedback cannot change production (§11)",
+       "backend/learning/guard.py", "tests/learning/", NOT_APPLICABLE,
+       PROVEN),
+    _f("Feedback", "Learning Observation for every question",
+       "backend/learning/observation.py, backend/agentic/interactive.py",
+       "tests/learning/", NOT_APPLICABLE, PROVEN),
+    _f("Feedback", "presentation preferences (channel A)",
+       "backend/learning/preference.py", "tests/learning/", NOT_RUN,
+       BACKEND_ONLY,
+       "The closed set and its refusals are tested; no settings screen "
+       "renders them yet."),
+    _f("Learning", "candidate cases and the nine statuses",
+       "backend/learning/candidate.py", "tests/learning/",
+       NOT_APPLICABLE, PROVEN),
+    _f("Learning", "review workbench (ten actions)",
+       "backend/services/learning.py, "
+       "frontend/src/app/ai-studio/feedback-learning/page.tsx",
+       "tests/learning/", RUN, LIMITED,
+       "The area renders the queues and the guard. Acting on a candidate is "
+       "an API call with no form behind it yet."),
+    _f("Learning", "Replay Lab",
+       "backend/learning/replay.py", "tests/learning/", RUN, BACKEND_ONLY,
+       "Comparison, verdicts and blocking are tested. The screen lists runs "
+       "and does not yet drive one."),
+    _f("Learning", "Learning Releases and rollback",
+       "backend/learning/release.py", "tests/learning/", RUN, BACKEND_ONLY,
+       "Five gates, activation and rollback are tested through the service."),
+    _f("Learning", "local auxiliary models",
+       "backend/learning/models.py", "tests/learning/", RUN, BACKEND_ONLY,
+       "Nine tasks, the forbidden set, artifact scanning and the activation "
+       "refusals are tested. No model has been trained: there is no "
+       "approved corpus to train one on."),
+    _f("Learning", "satisfaction and learning metrics",
+       "backend/services/learning.py", "tests/learning/", RUN, PROVEN),
+    _f("Learning", "Shadow Mode",
+       "not implemented", "", NOT_RUN, DEFERRED,
+       "§38 asks for it optionally and off by default. It is not built, and "
+       "reporting it as off would be reporting a switch that does not "
+       "exist."),
 )
 
 
