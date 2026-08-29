@@ -21,6 +21,10 @@ plausibly and unaccountably if nobody stops it:
                  omitted only with a recorded reason.
 ``hypotheses``   the candidate explanations, and the fourteen questions a
                  conclusion has to survive before it is said out loud.
+``contradictions`` signals that disagree, fifteen recorded diagnostics, and
+                 UNRESOLVED as a permitted answer.
+``interpretation`` the nine sections an answer may have, what the narrative
+                 model is given, and whether what came back is grounded.
 
 The through-line is that each one produces a STRUCTURED verdict with the
 measures that produced it attached, so a reader can disagree with the
@@ -31,13 +35,16 @@ can explain a finding without being able to invent one.
 from backend.judgment import (
     blueprints,
     breadth,
+    contradictions,
     drivers,
     evidence,
     hypotheses,
+    interpretation,
     materiality,
     observations,
     persistence,
 )
 
-__all__ = ["blueprints", "breadth", "drivers", "evidence", "hypotheses",
-           "materiality", "observations", "persistence"]
+__all__ = ["blueprints", "breadth", "contradictions", "drivers", "evidence",
+           "hypotheses", "interpretation", "materiality", "observations",
+           "persistence"]
