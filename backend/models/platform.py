@@ -3132,3 +3132,425 @@ class RegulatoryRelease(Base):
         Index("ix_regulatory_release_active", "tenant", "status",
               "activated_at"),
     )
+
+
+class FeedbackEventRow(Base):
+    """§10's immutable feedback event.
+
+    Append-only by construction rather than by trigger: there is no update
+    path in the service, and a revision is a NEW row carrying `supersedes`.
+    §10 is explicit — "a subsequent edit creates a new version/event; do not
+    overwrite historical feedback" — because a user who changes their mind has
+    said two things and which came first is part of what they said.
+
+    The columns are what the Inbox filters and the metrics group by. The
+    twenty-four links live in ``body``, which is the event's own ``to_dict()``,
+    for the same reason the teaching library splits: a query the product
+    actually runs is an index scan, and the rest would be seventy columns
+    nothing filters on.
+    """
+
+    __tablename__ = "feedback_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    event_version: Mapped[int] = mapped_column(Integer, nullable=False,
+                                               default=1)
+    supersedes: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False,
+                                        default="")
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                         default="")
+    project_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+    investigation_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                  default="")
+    message_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+    answer_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                           default="")
+    assurance_record_id: Mapped[str] = mapped_column(String(64),
+                                                     nullable=False,
+                                                     default="")
+    agentic_run_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                default="")
+    plan_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                  default="")
+    build_sha: Mapped[str] = mapped_column(String(64), nullable=False,
+                                           default="")
+
+    #: YES | PARTLY | NO | NOT_SURE | SKIP
+    rating: Mapped[str] = mapped_column(String(16), nullable=False,
+                                        default="SKIP")
+    categories: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                             default=list)
+    surface: Mapped[str] = mapped_column(String(24), nullable=False,
+                                         default="COCKPIT")
+    consent: Mapped[str] = mapped_column(String(16), nullable=False,
+                                         default="UNSET")
+    comment: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    reproducible: Mapped[bool] = mapped_column(Boolean, nullable=False,
+                                               default=False)
+
+    body: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+    schema_version: Mapped[str] = mapped_column(String(16), nullable=False,
+                                                default="1.0.0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                 server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("event_id", name="uq_feedback_event_id"),
+        Index("ix_feedback_answer", "answer_id"),
+        Index("ix_feedback_tenant", "tenant", "created_at"),
+        Index("ix_feedback_rating", "rating", "created_at"),
+        Index("ix_feedback_investigation", "investigation_id", "created_at"),
+        Index("ix_feedback_project", "project_id", "created_at"),
+        Index("ix_feedback_user", "user_id", "created_at"),
+    )
+
+
+class LearningObservationRow(Base):
+    """§12's observation: one row per question, whether or not anybody rated it.
+
+    A corpus of complaints is a biased sample of the answers that were wrong.
+    Recording every question is what makes "how often does this go wrong?" a
+    different question from "how often does somebody say so?".
+
+    `label` is UNLABELED until a feedback event arrives. It is explicitly not
+    "satisfied": §12 says "do not assume no feedback means satisfaction", and
+    the response rate on a feedback prompt is low enough everywhere that
+    reading silence as approval would mean concluding most answers were good
+    on the evidence of nothing.
+    """
+
+    __tablename__ = "learning_observations"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    observation_id: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False,
+                                        default="")
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                         default="")
+    project_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+    investigation_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                  default="")
+    message_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+    answer_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                           default="")
+    turn_index: Mapped[int] = mapped_column(Integer, nullable=False,
+                                            default=0)
+    question: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    officer_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    outcome: Mapped[str] = mapped_column(String(24), nullable=False,
+                                         default="")
+    plan_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                  default="")
+    build_sha: Mapped[str] = mapped_column(String(64), nullable=False,
+                                           default="")
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False,
+                                            default=0)
+
+    #: UNLABELED | LABELED | DECLINED
+    label: Mapped[str] = mapped_column(String(16), nullable=False,
+                                       default="UNLABELED")
+    rating: Mapped[str] = mapped_column(String(16), nullable=False,
+                                        default="")
+    feedback_event_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                   default="")
+
+    body: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+    schema_version: Mapped[str] = mapped_column(String(16), nullable=False,
+                                                default="1.0.0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                 server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("observation_id", name="uq_observation_id"),
+        Index("ix_observation_answer", "answer_id"),
+        Index("ix_observation_tenant", "tenant", "created_at"),
+        Index("ix_observation_label", "label", "created_at"),
+        Index("ix_observation_fingerprint", "fingerprint"),
+    )
+
+
+class CandidateLearningCase(Base):
+    """§15's candidate, and the nine statuses it moves through.
+
+    `user_correction` and the `proposed_*` fields inside ``body`` are kept
+    apart on purpose: §8 says "do not treat a user correction as automatically
+    correct", and the separation is what makes that enforceable rather than
+    hoped for. Nothing copies the first into the second without a reviewer.
+    """
+
+    __tablename__ = "candidate_learning_cases"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    candidate_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False,
+                                        default="")
+    status: Mapped[str] = mapped_column(String(32), nullable=False,
+                                        default="DRAFT")
+    failure_class: Mapped[str] = mapped_column(String(24), nullable=False,
+                                               default="unclassified")
+
+    feedback_event_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                   default="")
+    observation_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                default="")
+    question: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    reviewer: Mapped[str] = mapped_column(String(120), nullable=False,
+                                          default="")
+    review_note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    rejected_because: Mapped[str] = mapped_column(Text, nullable=False,
+                                                  default="")
+    redacted: Mapped[bool] = mapped_column(Boolean, nullable=False,
+                                           default=False)
+    release_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+
+    body: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    schema_version: Mapped[str] = mapped_column(String(16), nullable=False,
+                                                default="1.0.0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                 server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+        onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("candidate_id", name="uq_candidate_id"),
+        Index("ix_candidate_status", "status", "tenant"),
+        Index("ix_candidate_class", "failure_class", "created_at"),
+        Index("ix_candidate_feedback", "feedback_event_id"),
+    )
+
+
+class LearningReviewDecision(Base):
+    """One reviewer action on one candidate, kept forever.
+
+    Separate from the candidate's own status because the status is where a
+    case IS and this is how it got there. A case that went NEEDS_REVIEW →
+    REJECTED → NEEDS_REVIEW → HUMAN_APPROVED has a history worth reading, and
+    a single `reviewer` column on the case would show only the last person to
+    touch it.
+    """
+
+    __tablename__ = "learning_review_decisions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    decision_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    candidate_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False,
+                                        default="")
+    action: Mapped[str] = mapped_column(String(32), nullable=False,
+                                        default="")
+    from_status: Mapped[str] = mapped_column(String(32), nullable=False,
+                                             default="")
+    to_status: Mapped[str] = mapped_column(String(32), nullable=False,
+                                           default="")
+    reviewer: Mapped[str] = mapped_column(String(120), nullable=False,
+                                          default="")
+    reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    body: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                 server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("decision_id", name="uq_review_decision_id"),
+        Index("ix_review_decision_candidate", "candidate_id", "created_at"),
+        Index("ix_review_decision_reviewer", "reviewer", "created_at"),
+    )
+
+
+class LearningReleaseRow(Base):
+    """§24's frozen manifest, and the one active release production uses."""
+
+    __tablename__ = "learning_releases"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    release_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False,
+                                        default="")
+    status: Mapped[str] = mapped_column(String(16), nullable=False,
+                                        default="DRAFT")
+
+    teaching_release_id: Mapped[str] = mapped_column(String(64),
+                                                     nullable=False,
+                                                     default="")
+    regulatory_release_id: Mapped[str] = mapped_column(String(64),
+                                                       nullable=False,
+                                                       default="")
+    candidate_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                 default=0)
+    reviewers: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                            default=list)
+    approver: Mapped[str] = mapped_column(String(120), nullable=False,
+                                          default="")
+    created_by: Mapped[str] = mapped_column(String(120), nullable=False,
+                                            default="")
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+    replaces: Mapped[str] = mapped_column(String(64), nullable=False,
+                                          default="")
+    build_sha: Mapped[str] = mapped_column(String(64), nullable=False,
+                                           default="")
+    note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    body: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                 server_default=func.now())
+    activated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("release_id", name="uq_learning_release_id"),
+        Index("ix_learning_release_active", "tenant", "status",
+              "activated_at"),
+    )
+
+
+class LearningReleaseActivation(Base):
+    """Every activation and every rollback, in order.
+
+    §24 asks for rollback support, and rollback is only trustworthy if the
+    sequence of activations is a record rather than a reconstruction. This is
+    the record: who activated what, when, over what, and why a rollback
+    happened.
+    """
+
+    __tablename__ = "learning_release_activations"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    activation_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    release_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False,
+                                        default="")
+    #: ACTIVATED | ROLLED_BACK
+    action: Mapped[str] = mapped_column(String(16), nullable=False,
+                                        default="ACTIVATED")
+    replaces: Mapped[str] = mapped_column(String(64), nullable=False,
+                                          default="")
+    approver: Mapped[str] = mapped_column(String(120), nullable=False,
+                                          default="")
+    reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                 server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("activation_id", name="uq_activation_id"),
+        Index("ix_activation_release", "release_id", "created_at"),
+        Index("ix_activation_tenant", "tenant", "created_at"),
+    )
+
+
+class ReplayRun(Base):
+    """§37's Replay Lab run: production versus a candidate, case by case."""
+
+    __tablename__ = "replay_runs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    release_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False,
+                                        default="")
+    case_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                            default=0)
+    improved: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    regressed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    critical_regressions: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                      default=0)
+    clean: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    blocked_by: Mapped[str] = mapped_column(String(120), nullable=False,
+                                            default="")
+    blocked_because: Mapped[str] = mapped_column(Text, nullable=False,
+                                                 default="")
+    body: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                 server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("run_id", name="uq_replay_run_id"),
+        Index("ix_replay_release", "release_id", "created_at"),
+        Index("ix_replay_tenant", "tenant", "created_at"),
+    )
+
+
+class LocalTrainingRun(Base):
+    """§21's local training run, and the artifact it produced.
+
+    The artifact's HASH is here; the artifact is not. Same reasoning as the
+    regulatory originals: a model file is read whole and never queried, and a
+    hash is what a reproduction check actually needs.
+    """
+
+    __tablename__ = "local_training_runs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    training_run_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    task: Mapped[str] = mapped_column(String(48), nullable=False, default="")
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False,
+                                        default="")
+    dataset_release_id: Mapped[str] = mapped_column(String(64),
+                                                    nullable=False,
+                                                    default="")
+    algorithm: Mapped[str] = mapped_column(String(64), nullable=False,
+                                           default="")
+    seed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    build_sha: Mapped[str] = mapped_column(String(64), nullable=False,
+                                           default="")
+    artifact_hash: Mapped[str] = mapped_column(String(64), nullable=False,
+                                               default="")
+    status: Mapped[str] = mapped_column(String(16), nullable=False,
+                                        default="QUEUED")
+    activated: Mapped[bool] = mapped_column(Boolean, nullable=False,
+                                            default=False)
+    approver: Mapped[str] = mapped_column(String(120), nullable=False,
+                                          default="")
+    failure: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    body: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                 server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("training_run_id", name="uq_training_run_id"),
+        Index("ix_training_task", "task", "created_at"),
+        Index("ix_training_active", "tenant", "activated", "task"),
+    )
+
+
+class UserFeedbackPreference(Base):
+    """§13's channel A: presentation settings, per user, per tenant.
+
+    The only thing in the learning layer that takes effect without a review,
+    and the closed set in `backend/learning/preference.py` is why that is
+    safe. `muted_threads` carries §7's "don't ask again in this thread".
+    """
+
+    __tablename__ = "user_feedback_preferences"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False,
+                                        default="")
+    values: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    muted_threads: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                default=list)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+        onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "tenant", name="uq_feedback_preference"),
+    )

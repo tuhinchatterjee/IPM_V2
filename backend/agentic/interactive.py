@@ -269,7 +269,47 @@ def run(session: Any, *, question: str, user_id: int | None = None,
     run_row.selection_reason = selection.selection_reason
     session.flush()
 
+    _observe(session, found, question=question, user_id=user_id,
+             project_id=project_id, investigation_id=investigation_id,
+             run_row=run_row)
+
     return found
+
+
+def _observe(session: Any, found: Answered, *, question: str,
+             user_id: Any, project_id: Any, investigation_id: Any,
+             run_row: Any) -> None:
+    """Every question becomes a Learning Observation. §12.
+
+    Every question, not every complaint: a corpus of complaints is a biased
+    sample of the answers that were wrong, and tells you nothing about how
+    often things go wrong — only about how often somebody says so.
+
+    The observation is UNLABELED until somebody rates the answer. It is
+    explicitly not "satisfied": §12 says "do not assume no feedback means
+    satisfaction", and the response rate on a feedback prompt is low enough
+    everywhere that reading silence as approval would mean concluding most
+    answers were good on the evidence of nothing at all.
+
+    Wrapped, because this runs after the answer is already made. An
+    observation that raised would turn a delivered answer into a failed one,
+    which is the worst possible trade for a record nobody is waiting for.
+    """
+    try:
+        from backend.learning import observation as lo
+        from backend.services import learning as ls
+
+        made = lo.observe(
+            found.answered, question=question,
+            user_id=str(user_id or ""), project_id=str(project_id or ""),
+            investigation_id=str(investigation_id or ""),
+            answer_id=str(getattr(run_row, "run_key", "") or ""),
+            officer=found,
+            latency_ms=int(getattr(run_row, "duration_ms", 0) or 0))
+        ls.record_observation(session, made)
+        session.flush()
+    except Exception as e:  # noqa: BLE001 - a record must not lose an answer
+        logger.warning("Could not record a learning observation: %s", e)
 
 
 def _coordinate(session: Any, run_row: Any, found: Answered, question: str,

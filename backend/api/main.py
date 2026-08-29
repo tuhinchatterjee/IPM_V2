@@ -35,6 +35,7 @@ from backend.api.routers import feedback as feedback_router
 from backend.api.routers import health as health_router
 from backend.api.routers import hierarchy as hierarchy_router
 from backend.api.routers import intelligence as intelligence_router
+from backend.api.routers import learning as learning_router
 from backend.api.routers import lenses as lenses_router
 from backend.api.routers import playbooks as playbooks_router
 from backend.api.routers import regulatory as regulatory_router
@@ -193,6 +194,7 @@ def create_app() -> FastAPI:
     # adjudicating are not.
     app.include_router(feedback_router.router, prefix=API_PREFIX)
     app.include_router(regulatory_router.router, prefix=API_PREFIX)
+    app.include_router(learning_router.router, prefix=API_PREFIX)
     app.include_router(regulatory_router.corpus_router,
                        prefix=API_PREFIX)
     app.include_router(hierarchy_router.projects_router, prefix=API_PREFIX)
