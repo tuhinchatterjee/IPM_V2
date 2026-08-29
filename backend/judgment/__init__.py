@@ -25,6 +25,10 @@ plausibly and unaccountably if nobody stops it:
                  UNRESOLVED as a permitted answer.
 ``interpretation`` the nine sections an answer may have, what the narrative
                  model is given, and whether what came back is grounded.
+``visual_grammar`` what a field MEANS rather than how it is stored, and which
+                 picture that permits.
+``visual_critic`` twelve checks between choosing a chart and drawing it,
+                 including whether its bars add up to the table beside it.
 
 The through-line is that each one produces a STRUCTURED verdict with the
 measures that produced it attached, so a reader can disagree with the
@@ -43,8 +47,10 @@ from backend.judgment import (
     materiality,
     observations,
     persistence,
+    visual_critic,
+    visual_grammar,
 )
 
 __all__ = ["blueprints", "breadth", "contradictions", "drivers", "evidence",
            "hypotheses", "interpretation", "materiality", "observations",
-           "persistence"]
+           "persistence", "visual_critic", "visual_grammar"]
