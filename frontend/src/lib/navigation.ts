@@ -1,13 +1,14 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
-  Brain,
   Bot,
   Boxes,
+  Brain,
   ClipboardCheck,
   Database,
   FileText,
   FlaskConical,
+  Gauge,
   GitBranch,
   LayoutGrid,
   Radar,
@@ -232,6 +233,17 @@ export const NAV_ITEMS: NavItem[] = [
   },
 
   // ---- BUILD: what the product is capable of, and what it may read ----
+  {
+    href: "/scorecard-validation",
+    label: "Scorecard Validation",
+    description:
+      "Governed monitoring and validation of the retail application and behavioural scorecards: discrimination, calibration, stability, variable diagnostics and implementation, each against an approved limit that says where it came from.",
+    icon: Gauge,
+    status: "live",
+    phase: "",
+    group: "Intelligence",
+    demo: "core",
+  },
   {
     href: "/studio",
     label: "Analysis Studio",

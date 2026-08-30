@@ -1,6 +1,6 @@
 # Full-system feature verification matrix
 
-Generated from the build at `d0f156f` by `scripts/feature_matrix.py`.
+Generated from the build at `f25a7be` by `scripts/feature_matrix.py`.
 
 This inventory is enumerated, not remembered. Every row comes from a page that exists on disk or an endpoint in the live OpenAPI spec, so a route added and forgotten appears here anyway. Three columns cannot be generated and are curated by hand - expected behaviour, defect and remaining limitation - because each is a claim somebody is accountable for, and deriving them from the code would produce a document that agrees with the code by construction and therefore establishes nothing.
 
@@ -8,12 +8,12 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | | |
 |---|---|
-| Pages | 41 |
-| Reviewed | 41 |
+| Pages | 42 |
+| Reviewed | 42 |
 | Not yet reviewed | 0 |
 | Carrying a known defect | 2 |
 | Not fully OK | 5 |
-| API endpoints | 356 across 30 areas |
+| API endpoints | 378 across 31 areas |
 | Browser-crawled routes | 37 |
 
 ## Pages
@@ -49,7 +49,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/` | any signed-in role | The Cockpit: ask a question, see recent investigations, and see what requires attention. Counts reflect what actually moved this period. | `ask` (5) | 7 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Requires Attention shows Portfolio and Data as empty at Q2 2026 because nothing moved at those levels. Nothing is invented to fill a filter. |
+| `/` | any signed-in role | The Cockpit: ask a question, see recent investigations, and see what requires attention. Counts reflect what actually moved this period. | `ask` (5) | 8 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Requires Attention shows Portfolio and Data as empty at Q2 2026 because nothing moved at those levels. Nothing is invented to fill a filter. |
 
 ### data-builder
 
@@ -60,7 +60,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 | `/data-builder/domain/[...domain]` | Administrator, Analyst | One domain and the datasets under it. | `data-builder` (51) | 4 file(s) | - | OK | - | - |
 | `/data-builder/inbox` | Administrator | Incoming data, its drift against the contract, and what to do about it. | `data-builder` (51) | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 | `/data-builder/new` | Administrator | Register a new dataset. | `data-builder` (51) | - | ADMIN pass | OK | - | - |
-| `/data-builder` | Administrator, Analyst | The governed catalogue: domains, datasets, families and authority. | `data-builder` (51) | 11 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/data-builder` | Administrator, Analyst | The governed catalogue: domains, datasets, families and authority. | `data-builder` (51) | 12 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 | `/data-builder/relationships` | Administrator, Analyst | The governed relationship graph, its cardinalities and its proposals. | `data-builder` (51) | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 
 ### documents
@@ -114,6 +114,12 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 | `/projects/[id]` | any signed-in role | One Project: its Investigations, its people, its workflow and its Risk Cases. Project-scoped work stays inside it until published. | `workspace` (18) | 4 file(s) | `/projects/2409` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | A Project holds context, threads, analyses and people but not a structured operating plan; the governed Project Plan is not built. |
 | `/projects` | any signed-in role | Credit Projects the signed-in user can reach. | `workspace` (18) | 4 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 
+### scorecard-validation
+
+| Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
+|---|---|---|---|---|---|---|---|---|
+| `/scorecard-validation` | Administrator, Data Steward or Analyst | Retail Scorecard Validation: the application and behavioural scorecards, twelve tabs covering discrimination, calibration, stability, variable diagnostics, implementation replication, the model registry with its exact equations, the two agentic diagnostics, trends, findings and the validation policy. | `scorecard` (16) | 1 file(s) | - | OK | - | Every figure is computed over synthetic demonstration data marked SYNTHETIC_DEMO, which describes no real customer. A month whose twelve-month performance window has not closed shows stability only, and says when the window closes rather than showing a zero. Metrics with no approved limit read NO APPROVED LIMIT, which is not a pass and is not the same as NOT MEASURED. The validation opinion is derived by governed policy and is not regulatory certification. |
+
 ### settings
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
@@ -130,9 +136,9 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/studio/[methodId]` | Administrator, Analyst | One method: its definition, its validation and its certification. | `studio` (14) | 2 file(s) | `/studio/approaching_sicr` ADMIN pass, ANALYST pass, VIEWER pass; `/studio/new` ADMIN pass | OK | - | - |
+| `/studio/[methodId]` | Administrator, Analyst | One method: its definition, its validation and its certification. | `studio` (14) | 3 file(s) | `/studio/approaching_sicr` ADMIN pass, ANALYST pass, VIEWER pass; `/studio/new` ADMIN pass | OK | - | - |
 | `/studio/new` | Administrator, Analyst | Define a new method for validation. | `studio` (14) | - | ADMIN pass | OK | - | - |
-| `/studio` | Administrator, Analyst | Analysis Studio: the certified method library. | `studio` (14) | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/studio` | Administrator, Analyst | Analysis Studio: the certified method library. | `studio` (14) | 3 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 | `/studio/regulatory-intelligence` | Administrator or Data Steward | Regulatory Intelligence: the document library, the sixteen-stage processing pipeline, extracted requirements with their citations and confidence, one-by-one review, contradictions and their governed resolutions, draft method candidates and the audit trail. | `studio` (14) | - | - | OK | - | Reads empty on a fresh installation until a regulatory document has been processed. The pipeline, the fifteen requirement types, the twelve contradiction classes and the ten resolutions render regardless, so a reviewer can see what would happen before it does. Extraction produces proposed requirements only — nothing here changes a method, a policy or the ontology. |
 
 ### trace
@@ -175,10 +181,10 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `analysis-runs` | 3 |
 | `ask` | 5 |
 | `auth` | 3 |
-| `brain` | 22 |
+| `brain` | 24 |
 | `build` | 1 |
 | `catalog` | 1 |
-| `continuous-learning` | 10 |
+| `continuous-learning` | 14 |
 | `data-builder` | 51 |
 | `demo` | 1 |
 | `early-warning` | 10 |
@@ -194,6 +200,7 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `regulatory` | 13 |
 | `regulatory-intelligence` | 17 |
 | `risk-cases` | 11 |
+| `scorecard` | 16 |
 | `studio` | 14 |
 | `teaching-corpus` | 3 |
 | `trace` | 6 |

@@ -156,6 +156,22 @@ _JUDGEMENTS: dict[str, Judgement] = {
                    "because 'nothing to compare against' and 'nobody "
                    "looked' read identically as a zero. No sealed-holdout "
                    "question or gold answer appears here, by \u00a758."),
+    "/scorecard-validation": Judgement(
+        "Retail Scorecard Validation: the application and behavioural "
+        "scorecards, twelve tabs covering discrimination, calibration, "
+        "stability, variable diagnostics, implementation replication, the "
+        "model registry with its exact equations, the two agentic "
+        "diagnostics, trends, findings and the validation policy.",
+        role="Administrator, Data Steward or Analyst",
+        limitation="Every figure is computed over synthetic demonstration "
+                   "data marked SYNTHETIC_DEMO, which describes no real "
+                   "customer. A month whose twelve-month performance window "
+                   "has not closed shows stability only, and says when the "
+                   "window closes rather than showing a zero. Metrics with "
+                   "no approved limit read NO APPROVED LIMIT, which is not "
+                   "a pass and is not the same as NOT MEASURED. The "
+                   "validation opinion is derived by governed policy and is "
+                   "not regulatory certification."),
     "/ai-studio/brain-center": Judgement(
         "The Brain Center: what Brain is running, the Learning Ledger, the "
         "three export formats, quarantined imports, the Lift Lab, the Merge "
@@ -417,6 +433,7 @@ _API_ALIAS: dict[str, str] = {
     "data-builder": "data-builder",
     "engine-builder": "engine",
     "early-warning": "early-warning",
+    "scorecard-validation": "scorecard",
 }
 
 

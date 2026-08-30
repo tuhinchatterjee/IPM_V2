@@ -4978,6 +4978,117 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  // ------------------------ Retail Scorecard Validation. §17-§36
+  //
+  // Every one of these reads the Parquet lake and returns summaries. §76:
+  // a month is 12,000-19,000 rows and none of them crosses the wire —
+  // the aggregation happens on the server and the browser gets band
+  // tables and sampled curves.
+  scorecardOverview: () =>
+    request<ScorecardOverview>("/scorecard/overview"),
+  scorecardPolicy: () => request<ScorecardPolicy>("/scorecard/policy"),
+  scorecardMonths: (type: ScorecardType) =>
+    request<ScorecardMonths>(`/scorecard/months/${type}`),
+  scorecardDashboard: (
+    type: ScorecardType,
+    options: {
+      model?: string;
+      month?: string;
+      segmentBy?: string;
+      curves?: boolean;
+    } = {},
+  ) => {
+    const query = new URLSearchParams();
+    if (options.model) query.set("model", options.model);
+    if (options.month) query.set("month", options.month);
+    if (options.segmentBy) query.set("segment_by", options.segmentBy);
+    if (options.curves === false) query.set("curves", "false");
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<ScorecardDashboard>(`/scorecard/dashboard/${type}${suffix}`);
+  },
+  scorecardModels: (type: ScorecardType) =>
+    request<ScorecardModels>(`/scorecard/models/${type}`),
+  scorecardEquation: (type: ScorecardType, model: string) =>
+    request<ScorecardEquation>(
+      `/scorecard/models/${type}/${encodeURIComponent(model)}/equation`,
+    ),
+  scorecardBinning: (type: ScorecardType, variable = "") =>
+    request<ScorecardBinningSpec>(
+      `/scorecard/binning/${type}${
+        variable ? `?variable=${encodeURIComponent(variable)}` : ""
+      }`,
+    ),
+  scorecardVariables: (type: ScorecardType) =>
+    request<ScorecardVariables>(`/scorecard/variables/${type}`),
+  scorecardLowDiscrimination: (
+    type: ScorecardType,
+    options: { model?: string; month?: string; leaveOneOut?: boolean } = {},
+  ) => {
+    const query = new URLSearchParams();
+    if (options.model) query.set("model", options.model);
+    if (options.month) query.set("month", options.month);
+    if (options.leaveOneOut === false) query.set("leave_one_out", "false");
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<ScorecardDiagnosis>(
+      `/scorecard/diagnose/${type}/low-discrimination${suffix}`,
+    );
+  },
+  scorecardAccuracy: (
+    type: ScorecardType,
+    options: { model?: string; month?: string } = {},
+  ) => {
+    const query = new URLSearchParams();
+    if (options.model) query.set("model", options.model);
+    if (options.month) query.set("month", options.month);
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<ScorecardDiagnosis>(
+      `/scorecard/diagnose/${type}/accuracy${suffix}`,
+    );
+  },
+  scorecardOdrTrend: (type: ScorecardType, monthsBack = 20, model?: string) =>
+    request<ScorecardOdrTrend>(
+      `/scorecard/trend/${type}/odr?months_back=${monthsBack}` +
+        (model ? `&model=${model}` : ""),
+    ),
+  scorecardScoreTrend: (type: ScorecardType, monthsBack = 12) =>
+    request<ScorecardScoreTrend>(
+      `/scorecard/trend/${type}/score?months_back=${monthsBack}`,
+    ),
+  scorecardDrift: (
+    type: ScorecardType,
+    options: { model?: string; month?: string; candidates?: boolean } = {},
+  ) => {
+    const query = new URLSearchParams();
+    if (options.model) query.set("model", options.model);
+    if (options.month) query.set("month", options.month);
+    if (options.candidates) query.set("candidates", "true");
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<ScorecardDrift>(`/scorecard/drift/${type}${suffix}`);
+  },
+  scorecardSegments: (
+    type: ScorecardType,
+    by: string,
+    options: { model?: string; month?: string } = {},
+  ) => {
+    const query = new URLSearchParams({ by });
+    if (options.model) query.set("model", options.model);
+    if (options.month) query.set("month", options.month);
+    return request<ScorecardSegments>(`/scorecard/segments/${type}?${query}`);
+  },
+  scorecardCandidate: (type: ScorecardType, body: ScorecardCandidateRequest) =>
+    request<ScorecardCandidateResult>(`/scorecard/models/${type}/candidate`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  scorecardRescore: (
+    type: ScorecardType,
+    body: ScorecardCandidateRequest & { months: string[] },
+  ) =>
+    request<ScorecardRescoreResult>(`/scorecard/models/${type}/rescore`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   // §21/§22. The merge that produces a third Brain from two.
   brainMergePreview: (importId: string) =>
     request<BrainMergePreview>(`/brain/merge/${encodeURIComponent(importId)}`),
@@ -5113,6 +5224,591 @@ export type BrainMergePreview = {
   contested_items: number;
   why_not: string[];
   note: string;
+};
+
+export type ScorecardType = "APPLICATION" | "BEHAVIORAL";
+
+/**
+ * §7's three month notions, which the dashboard must show separately.
+ *
+ * `latest_data_month` is what arrived. `latest_matured_performance_month`
+ * is the last one whose performance window closed. Conflating them is how
+ * a trend chart shows a fictitious improvement at its right edge.
+ */
+export type ScorecardContext = {
+  scorecard_type: ScorecardType;
+  model: string;
+  validation_month: string;
+  latest_data_month: string;
+  latest_matured_performance_month: string;
+  performance_horizon_months: number;
+  outcome_maturity_status: string;
+  reference_population: string;
+  what_this_means: string;
+};
+
+/** §81's row: metric, observed, limit, status, source. */
+export type ScorecardAssessment = {
+  metric: string;
+  label: string;
+  observed: number | null;
+  limit_value: number | null;
+  status: string;
+  source: string | null;
+  why: string;
+  evidence?: string;
+};
+
+export type ScorecardOverview = {
+  module: string;
+  scorecard_types: ScorecardType[];
+  origin: string;
+  not_client_data: string;
+  scorecards: Record<
+    string,
+    {
+      available: boolean;
+      why?: string;
+      months?: string[];
+      month_count?: number;
+      latest_data_month?: string;
+      latest_matured_performance_month?: string;
+      performance_horizon_months?: number;
+      models?: string[];
+      candidate_variables?: number;
+      families?: string[];
+    }
+  >;
+  domains: {
+    domains: Record<string, string>;
+    families: Record<string, string[]>;
+    not_client_data: string;
+  };
+};
+
+export type ScorecardPolicy = {
+  provenances: string[];
+  statuses: string[];
+  severities: string[];
+  opinions: string[];
+  limits: {
+    metric: string;
+    label: string;
+    direction: string;
+    breach_at: number;
+    watch_at: number | null;
+    provenance: string;
+    note: string;
+  }[];
+  every_limit_here_is_demo_policy: boolean;
+  why: string;
+};
+
+export type ScorecardMonths = {
+  scorecard_type: ScorecardType;
+  months: {
+    month: string;
+    matured: boolean;
+    outcome_available_from: string;
+  }[];
+  latest_data_month: string;
+  latest_matured_performance_month: string;
+  performance_horizon_months: number;
+  immature_months_are_stability_only: string;
+};
+
+export type ScorecardBand = {
+  band: number;
+  observations: number;
+  events: number;
+  observed_default_rate: number;
+  average_predicted_pd: number;
+  score_from: number;
+  score_to: number;
+  evidence: string;
+};
+
+/**
+ * A section the dashboard could not compute.
+ *
+ * §7: a month whose window has not closed gets this rather than a number.
+ * The screen renders `why`, which names the month the window closes.
+ */
+export type ScorecardUnavailable = {
+  available: false;
+  section: string;
+  why: string;
+  latest_matured_month: string;
+};
+
+export type ScorecardDiscrimination =
+  | ScorecardUnavailable
+  | {
+      available?: undefined;
+      auc: number;
+      auc_ci_low: number | null;
+      auc_ci_high: number | null;
+      gini: number;
+      accuracy_ratio: number;
+      ks: number;
+      ks_at_score: number;
+      observations: number;
+      events: number;
+      evidence: string;
+      score_direction: string;
+      definitions: Record<string, string>;
+      reads_as: string;
+      gains: {
+        decile: number;
+        observations: number;
+        events: number;
+        bad_rate: number;
+        lift: number;
+        cumulative_capture_rate: number;
+        population_share: number;
+        evidence: string;
+      }[];
+      roc_curve?: { false_positive_rate: number; true_positive_rate: number }[];
+      ks_curve?: {
+        score: number;
+        cumulative_bad: number;
+        cumulative_good: number;
+        gap: number;
+      }[];
+      assessments: ScorecardAssessment[];
+    };
+
+export type ScorecardCalibration =
+  | ScorecardUnavailable
+  | {
+      available?: undefined;
+      observed_default_rate: number;
+      average_predicted_pd: number;
+      observed_defaults: number;
+      expected_defaults: number;
+      calibration_in_the_large: number;
+      calibration_slope: number | null;
+      brier_score: number;
+      log_loss: number;
+      bucket_rmse: number;
+      mape: number | null;
+      mape_status: string;
+      observations: number;
+      evidence: string;
+      buckets: ScorecardBand[];
+      what_rmse_means_here: string;
+      reads_as: string;
+      assessments: ScorecardAssessment[];
+    };
+
+export type ScorecardShift = {
+  kind: string;
+  variable: string;
+  index: number;
+  reference_rows: number;
+  current_rows: number;
+  bins: {
+    bin: string;
+    reference_share: number;
+    current_share: number;
+    shift: number;
+    contribution: number;
+  }[];
+  thresholds_are_policy: string;
+  assessment?: ScorecardAssessment;
+};
+
+export type ScorecardStability = {
+  score_psi: ScorecardShift;
+  score_psi_assessment: ScorecardAssessment;
+  variable_csi: (ScorecardShift & { why?: string })[];
+  special_bin_rates: Record<string, Record<string, number>>;
+  baseline: string;
+  available_without_outcomes: string;
+};
+
+export type ScorecardVariableRow = {
+  variable: string;
+  measured_on: string;
+  auc: number | null;
+  gini: number | null;
+  ks: number | null;
+  observations: number;
+  events: number;
+  missing_rate?: number;
+  special_bin_rate?: number;
+  evidence: string;
+  why?: string;
+  information_value?: number | null;
+  woe_monotonic?: boolean | null;
+  in_active_model?: boolean;
+  coefficient?: number | null;
+};
+
+export type ScorecardDashboard = {
+  context: ScorecardContext;
+  summary: Record<string, unknown> & {
+    population: number;
+    defaults: number | null;
+    observed_default_rate: number | null;
+    average_predicted_pd: number;
+    average_score: number;
+  };
+  data_quality: Record<string, unknown> & {
+    rows: number;
+    duplicate_keys: number;
+    defaults: number | null;
+    missingness_by_active_variable: Record<string, number>;
+    missingness_assessments: ScorecardAssessment[];
+    sample_sufficiency: ScorecardAssessment[];
+    pd_within_zero_and_one: boolean;
+    score_range: { min: number; max: number };
+  };
+  discrimination: ScorecardDiscrimination;
+  calibration: ScorecardCalibration;
+  stability: ScorecardStability;
+  variables:
+    | ScorecardUnavailable
+    | {
+        available?: undefined;
+        scope: string;
+        variables: ScorecardVariableRow[];
+        active_variables: string[];
+        candidate_count: number;
+        candidate_is_not_active: string;
+      };
+  implementation: {
+    rows_checked: number;
+    max_absolute_logit_difference: number;
+    mismatch_count: number;
+    mismatch_rate: number;
+    status: string;
+    why: string;
+    assessment: ScorecardAssessment;
+  };
+  comparison:
+    | ScorecardUnavailable
+    | {
+        available?: undefined;
+        population: number;
+        period: string;
+        models: {
+          model: string;
+          auc: number;
+          gini: number;
+          ks: number;
+          brier_score: number;
+          log_loss: number;
+          bucket_rmse: number;
+          mape: number | null;
+          mape_status: string;
+          average_predicted_pd: number;
+          observed_default_rate: number;
+          auc_ci_low: number | null;
+          auc_ci_high: number | null;
+          evidence: string;
+        }[];
+        best_rank_ordering: string;
+        best_calibrated: string;
+        identical_population: string;
+        overlapping_intervals: string;
+      };
+  segments?:
+    | ScorecardUnavailable
+    | {
+        available?: undefined;
+        split_by: string;
+        segments: {
+          segment: string;
+          observations: number;
+          events: number;
+          observed_default_rate: number;
+          average_predicted_pd: number;
+          gini: number | null;
+          ks?: number;
+          evidence: string;
+          why_no_gini?: string;
+        }[];
+        sample_sufficiency: string;
+      };
+  findings: {
+    findings: ScorecardFinding[];
+    counts: Record<string, number>;
+  };
+  performance_limits: ScorecardAssessment[];
+  validation_opinion: {
+    opinion: string;
+    because: string[];
+    findings: Record<string, number>;
+    breached_metrics: string[];
+    metrics_not_measured: string[];
+    metrics_with_no_approved_limit: string[];
+    how_this_was_decided: string;
+    not_a_certification: string;
+  } | null;
+  origin: string;
+  not_client_data: string;
+};
+
+export type ScorecardFinding = {
+  finding_id: string;
+  model_id: string;
+  period: string;
+  category: string;
+  report_section: string;
+  title: string;
+  description: string;
+  severity: string;
+  metric: string;
+  observed: number | null;
+  limit_value: number | null;
+  limit_source: string;
+  breach: boolean;
+  impact: string;
+  recommendation: string;
+  status: string;
+  raised_by: string;
+};
+
+export type ScorecardEquationTerm = {
+  variable: string;
+  coefficient: number;
+  transformation: string;
+  column: string;
+};
+
+export type ScorecardEquation = {
+  model_name: string;
+  scorecard_type: ScorecardType;
+  intercept: number;
+  link: string;
+  terms: ScorecardEquationTerm[];
+  active_variables: string[];
+  binning_spec_version: string;
+  score_mapping: {
+    base_score: number;
+    pdo: number;
+    base_odds: number;
+    score_direction: string;
+    factor: number;
+    offset: number;
+    formula: string;
+  } | null;
+  reads_as: string;
+  pd_from_logit: string;
+  validation: {
+    valid: boolean;
+    blocking: { check: string; severity: string; detail: string }[];
+    warnings: { check: string; severity: string; detail: string }[];
+    checks_run: number;
+    checks: string[];
+  };
+};
+
+export type ScorecardModels = {
+  scorecard_type: ScorecardType;
+  default_definition: Record<string, unknown>;
+  score_mapping: Record<string, unknown>;
+  models: Record<
+    string,
+    {
+      equation: ScorecardEquation;
+      fit: Record<string, unknown>;
+      active_variables: string[];
+    }
+  >;
+  answered_from_the_registry: string;
+};
+
+export type ScorecardBinningSpec = {
+  spec_version: string;
+  scorecard_type: ScorecardType;
+  development_population: string;
+  development_rows: number;
+  development_bads: number;
+  variables: Record<
+    string,
+    {
+      variable: string;
+      kind: string;
+      information_value: number;
+      iv_strength: string;
+      iv_strength_is_a_convention: string;
+      woe_monotonic: boolean;
+      bins: {
+        bin_id: string;
+        label: string;
+        count: number;
+        good_count: number;
+        bad_count: number;
+        bad_rate: number;
+        woe: number;
+        iv_contribution: number;
+        special: boolean;
+      }[];
+    }
+  >;
+  frozen: string;
+};
+
+export type ScorecardVariables = {
+  scorecard_type: ScorecardType;
+  candidates: {
+    name: string;
+    label: string;
+    kind: string;
+    definition: string;
+    risk_direction: string;
+    unit: string;
+    scoreable: boolean;
+  }[];
+  candidate_count: number;
+  active_by_model: Record<string, string[]>;
+  sensitive_excluded_from_scoring: string[];
+  candidate_is_not_active: string;
+};
+
+/**
+ * §28/§29. A diagnosis, with what it did and did not establish.
+ *
+ * `claim_strength` is the whole point: "associated with" until a
+ * leave-one-out actually ran, "accounts for" after.
+ */
+export type ScorecardDiagnosis = {
+  question_as_asked: string;
+  question_as_analysed: string;
+  why_restated: string;
+  steps_run: string[];
+  evidence: {
+    subject: string;
+    measure: string;
+    current: number | null;
+    baseline: number | null;
+    change: number | null;
+    weight: number;
+    evidence: string;
+    reads_as: string;
+  }[];
+  ranked: {
+    rank: number;
+    subject?: string;
+    root_cause?: string;
+    weight: number;
+    measures?: string[];
+    because?: string;
+    means?: string;
+  }[];
+  claim_strength: string;
+  limitations: string[];
+  suggested_next_analyses: string[];
+  context: Record<string, unknown>;
+};
+
+export type ScorecardOdrTrend = {
+  scorecard_type: ScorecardType;
+  model: string;
+  months: {
+    month: string;
+    observations: number;
+    defaults: number;
+    observed_default_rate: number;
+    average_predicted_pd: number;
+    evidence: string;
+  }[];
+  months_requested: number;
+  months_returned: number;
+  only_matured: string;
+};
+
+export type ScorecardScoreTrend = {
+  scorecard_type: ScorecardType;
+  model: string;
+  baseline: string;
+  months: {
+    month: string;
+    score_psi: number;
+    mean_score: number;
+    median_score: number;
+    p10: number;
+    p90: number;
+    observations: number;
+  }[];
+  available_without_outcomes: string;
+};
+
+export type ScorecardDrift = {
+  scope: string;
+  month: string;
+  variables: {
+    variable: string;
+    csi: number | null;
+    in_active_model: boolean;
+    largest_move: Record<string, unknown> | null;
+    why?: string;
+  }[];
+  measurable: number;
+  why_some_are_absent: string;
+};
+
+export type ScorecardSegments = {
+  split_by: string;
+  segments: {
+    segment: string;
+    observations: number;
+    events: number;
+    observed_default_rate: number;
+    average_predicted_pd: number;
+    gini: number | null;
+    ks?: number;
+    evidence: string;
+    why_no_gini?: string;
+  }[];
+  sample_sufficiency: string;
+};
+
+export type ScorecardCandidateRequest = {
+  model_name: string;
+  intercept: number;
+  terms: { variable: string; coefficient: number }[];
+  based_on?: string;
+};
+
+export type ScorecardCandidateResult = {
+  candidate: ScorecardEquation;
+  validation: ScorecardEquation["validation"];
+  diff: {
+    from_model: string;
+    to_model: string;
+    variables_added: string[];
+    variables_removed: string[];
+    coefficients_changed: Record<
+      string,
+      { from: number; to: number; delta: number }
+    >;
+    intercept: { from: number; to: number; delta: number };
+    material: boolean;
+    status: string;
+  };
+  status: string;
+  activated: boolean;
+  what_happens_next: string;
+};
+
+export type ScorecardRescoreResult = ScorecardCandidateResult & {
+  compared_against: string;
+  months: {
+    month: string;
+    comparable: boolean;
+    why?: string;
+    observations?: number;
+    candidate?: { gini: number; ks: number; auc: number };
+    baseline?: { gini: number; ks: number; auc: number };
+    gini_delta?: number;
+    evidence?: string;
+  }[];
+  months_comparable: number;
+  mean_gini_delta: number | null;
+  nothing_was_written: string;
 };
 
 export type BrainMergeResult = {

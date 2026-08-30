@@ -103,6 +103,17 @@ ALLOWLIST: tuple[Allowed, ...] = (
         "package has no API router, no frontend route and no navigation "
         "entry, so none of these numbers reaches a reader as a figure."),
     Allowed(
+        "frontend/src/lib/scorecard-format.ts",
+        "Fitted scorecard coefficients, and nothing else. A coefficient is "
+        "not a business figure - it is part of the model's specification, "
+        "the number somebody re-types to reproduce a score, and §52's "
+        "implementation replication is precisely the question of whether "
+        "production computes the same score from the same equation. A "
+        "coefficient of 0.000412 written as 0.00 cannot answer it. The "
+        "module exists so this exemption is one function wide: every rate, "
+        "amount and count on the validation screens goes through the "
+        "contract as everywhere else."),
+    Allowed(
         "backend/ai_context.py",
         "The calibrated constant k in a technical model description, not a "
         "portfolio figure."),
