@@ -89,11 +89,6 @@ const Evaluations = React.lazy(() =>
     default: m.Evaluations,
   })),
 );
-const Failures = React.lazy(() =>
-  import("@/components/ai-studio/panels").then((m) => ({
-    default: m.Failures,
-  })),
-);
 const Releases = React.lazy(() =>
   import("@/components/ai-studio/panels").then((m) => ({
     default: m.Releases,
@@ -109,9 +104,19 @@ const Reviews = React.lazy(() =>
     default: m.InvestigationReviews,
   })),
 );
+const Failures = React.lazy(() =>
+  import("@/components/ai-studio/panels").then((m) => ({
+    default: m.Failures,
+  })),
+);
 const Later = React.lazy(() =>
   import("@/components/ai-studio/panels").then((m) => ({
     default: m.ComingWithLaterWork,
+  })),
+);
+const Area = React.lazy(() =>
+  import("@/components/ai-studio/panels").then((m) => ({
+    default: m.StudioArea,
   })),
 );
 
@@ -127,7 +132,50 @@ const PANELS: Record<string, React.ReactNode> = {
   PROMPTS_AND_TEACHING_PACKS: <Prompts />,
   EVALUATIONS: <Evaluations />,
   INVESTIGATION_REVIEWS: <Reviews />,
-  FEEDBACK_AND_LEARNING: <Failures />,
+  // Two tabs open onto areas with their own tab bars rather than rendering
+  // a panel. Nesting eleven tabs inside one tab produces a bar nobody reads.
+  FEEDBACK_AND_LEARNING: (
+    <div className="space-y-4">
+      <Area
+        title="Feedback & Learning"
+        what="What users told us, what CreditProbe did about it, and everything that has to happen in between before production changes. Raw feedback cannot change an Assurance status, a score, a plan, a result, a release, a prompt, a routing policy, a model, the ontology or a method."
+        href="/ai-studio/feedback-learning"
+        opens={[
+          "Feedback inbox",
+          "Observations",
+          "Candidate cases",
+          "Replay lab",
+          "Learning releases",
+          "Local models",
+          "Metrics",
+        ]}
+      />
+      {/* The failure taxonomy stays on the tab. It is the Studio's own
+          reading of how the product is performing, rather than part of the
+          review workbench the link opens. */}
+      <Failures />
+    </div>
+  ),
+  BRAIN_CENTER: (
+    <Area
+      title="Brain Center"
+      what="What Brain is running here, what this installation has learned, what has been imported from elsewhere, and how much measured improvement each import actually produced. Learning captured, learning approved and learning activated are three different numbers and are never added together."
+      href="/ai-studio/brain-center"
+      opens={[
+        "Current Brain",
+        "Learning ledger",
+        "Export",
+        "Imports",
+        "Quarantine",
+        "Lift Lab",
+        "Merge Lab",
+        "Installations",
+        "Rollbacks",
+        "Compatibility",
+        "Security",
+      ]}
+    />
+  ),
   RELEASES: <Releases />,
   LIVE_AI_HEALTH: <LiveHealth />,
   SETTINGS: <Settings />,
@@ -153,11 +201,12 @@ export default function AiIntelligenceStudioPage() {
         setIndex(data);
         setTab((was) => was || data.visible[0] || "");
       })
-      .catch((e: unknown) =>
-        live &&
-        setError(
-          e instanceof Error ? e.message : "Could not load the Studio.",
-        ),
+      .catch(
+        (e: unknown) =>
+          live &&
+          setError(
+            e instanceof Error ? e.message : "Could not load the Studio.",
+          ),
       );
     return () => {
       live = false;

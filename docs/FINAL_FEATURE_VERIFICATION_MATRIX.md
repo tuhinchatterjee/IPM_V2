@@ -1,6 +1,6 @@
 # Full-system feature verification matrix
 
-Generated from the build at `29bfa1f` by `scripts/feature_matrix.py`.
+Generated from the build at `b9b1770` by `scripts/feature_matrix.py`.
 
 This inventory is enumerated, not remembered. Every row comes from a page that exists on disk or an endpoint in the live OpenAPI spec, so a route added and forgotten appears here anyway. Three columns cannot be generated and are curated by hand - expected behaviour, defect and remaining limitation - because each is a claim somebody is accountable for, and deriving them from the code would produce a document that agrees with the code by construction and therefore establishes nothing.
 
@@ -8,12 +8,12 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | | |
 |---|---|
-| Pages | 38 |
-| Reviewed | 38 |
+| Pages | 39 |
+| Reviewed | 39 |
 | Not yet reviewed | 0 |
 | Carrying a known defect | 2 |
 | Not fully OK | 5 |
-| API endpoints | 300 across 27 areas |
+| API endpoints | 322 across 28 areas |
 | Browser-crawled routes | 37 |
 
 ## Pages
@@ -28,8 +28,9 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
+| `/ai-studio/brain-center` | Administrator | The Brain Center: what Brain is running, the Learning Ledger, the three export formats, quarantined imports, the Lift Lab, the Merge Lab, installation history, rollbacks, compatibility and security. | `intelligence` (45) | - | - | OK | - | Imports, Lift Lab, Merge Lab, Installations and Rollbacks read empty on a fresh installation, because nothing has been imported. That is the honest state, not a missing screen: the pipeline, the resolution set and the enforced security rules render regardless so a reviewer can see what would happen before it does. |
 | `/ai-studio/feedback-learning` | Administrator | Feedback and the governed learning queue: observations, candidates, review and releases. | `intelligence` (45) | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/ai-studio` | Administrator | AI Intelligence Studio: the six Intelligence Dimensions, the current release, evaluations and health. | `intelligence` (45) | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | 15 of the 18 tabs the final brief names. Continuous Learning, Brain Center and Regulatory Learning are the three being added in this phase. |
+| `/ai-studio` | Administrator | AI Intelligence Studio: the six Intelligence Dimensions, the current release, evaluations and health. | `intelligence` (45) | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | 16 of the 18 tabs the final brief names. Brain Center is present; Continuous Learning and Regulatory Learning are the two still being added in this phase. |
 
 ### analyses
 
@@ -172,6 +173,7 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `analysis-runs` | 3 |
 | `ask` | 5 |
 | `auth` | 3 |
+| `brain` | 22 |
 | `build` | 1 |
 | `catalog` | 1 |
 | `data-builder` | 51 |

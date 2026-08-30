@@ -313,3 +313,43 @@ def census(entries: list[Entry]) -> dict[str, Any]:
         "note": "captured, approved and activated are three different "
                 "numbers. More capture is not improvement.",
     }
+
+
+def portable_view(entry: Entry) -> dict[str, Any]:
+    """What of an entry may leave this installation.
+
+    A projection rather than the row. `Entry` carries the tenant, the user
+    who was working when the thing was learned, and the free-text note the
+    reviewer wrote, and none of those is learning — they are who we are and
+    who works here. What travels is the observation and enough provenance to
+    judge it: which source, against which release, approved by whom in what
+    role.
+
+    Refuses an entry that is not exportable rather than redacting it into
+    something exportable. §14 is a gate an entry passes; quietly stripping
+    fields until it fits would turn the gate into a formatting step.
+    """
+    if not entry.exportable:
+        raise LedgerError(
+            f"{entry.entry_id} may not be exported: review status is "
+            f"{entry.review_status} and portability is {entry.portability}. "
+            "Both must be settled — approved but local stays local, and "
+            "portable but unapproved is not learning yet.")
+    return {
+        "entry_id": entry.entry_id,
+        "schema_version": entry.schema_version,
+        "source": entry.source,
+        "object_kind": entry.object_kind,
+        "summary": entry.summary,
+        "body": entry.body,
+        "learned_against": {
+            "build_sha": entry.build_sha,
+            "intelligence_release_id": entry.intelligence_release_id,
+            "teaching_release_id": entry.teaching_release_id,
+            "ontology_version": entry.ontology_version,
+        },
+        "candidate_components": list(entry.candidate_components),
+        "redaction_status": entry.redaction_status,
+        "approved_at": entry.approved_at,
+        "released_in": entry.released_in,
+    }

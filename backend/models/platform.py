@@ -3554,3 +3554,434 @@ class UserFeedbackPreference(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "tenant", name="uq_feedback_preference"),
     )
+
+
+# ==========================================================================
+# The AI Brain: the Learning Ledger, packages, quarantine, installations,
+# conflicts and the trusted signer registry. §13-§26.
+#
+# Six tables, and the split between them is the governance:
+#
+#   brain_ledger_entries   everything this installation learned, from any
+#                          source, whether or not anyone acted on it. Never
+#                          updated, never deleted; a wrong entry is
+#                          superseded by a new one that points at it.
+#   brain_packages         a package that exists — exported by us or
+#                          uploaded to us. The bytes and the manifest.
+#   brain_imports          what is happening to an uploaded package as it
+#                          moves through §16's fifteen stages. Separate from
+#                          the package because one package can be evaluated,
+#                          rejected, and evaluated again later against a
+#                          different baseline.
+#   brain_installations    §24's history: what was integrated, when, by
+#                          whom, and how much improvement it produced.
+#   brain_conflicts        contradictory learning found between an import
+#                          and what is already here, and how it was settled.
+#   brain_signers          §26's trusted signer registry. Trust is a
+#                          decision recorded here, not a property of a key.
+# ==========================================================================
+
+
+class BrainLedgerEntry(Base):
+    """§13/§14. One thing learned, immutable, and portable only by decision.
+
+    There is no UPDATE path in the service layer, and `superseded_by` is why
+    that costs nothing: an entry found to be wrong is corrected by a new row
+    pointing back at this one, so "what did we believe in March, and was it
+    any good?" stays answerable in December.
+
+    `portability` defaults to NON_PORTABLE. Most learning names a borrower
+    or quotes a confidential document and is nobody else's business;
+    travelling is a gate an entry passes, not a property it starts with.
+    """
+
+    __tablename__ = "brain_ledger_entries"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    entry_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(16), nullable=False,
+                                                default="1.0.0")
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                         default="")
+
+    object_kind: Mapped[str] = mapped_column(String(32), nullable=False,
+                                             default="")
+    object_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                           default="")
+    related_ids: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                              default=dict)
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    body: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    #: What it was learned against. A lesson learned under a different
+    #: ontology may not mean the same thing now.
+    build_sha: Mapped[str] = mapped_column(String(40), nullable=False,
+                                           default="")
+    intelligence_release_id: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="")
+    teaching_release_id: Mapped[str] = mapped_column(String(64),
+                                                     nullable=False,
+                                                     default="")
+    ontology_version: Mapped[str] = mapped_column(String(16), nullable=False,
+                                                  default="")
+
+    classification: Mapped[str] = mapped_column(String(24), nullable=False,
+                                                default="LOCAL")
+    portability: Mapped[str] = mapped_column(String(24), nullable=False,
+                                             default="NON_PORTABLE")
+    portability_blockers: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                       default=list)
+    redaction_status: Mapped[str] = mapped_column(String(16), nullable=False,
+                                                  default="NONE")
+    review_status: Mapped[str] = mapped_column(String(24), nullable=False,
+                                               default="CAPTURED")
+    reviewer: Mapped[str] = mapped_column(String(64), nullable=False,
+                                          default="")
+    review_note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    candidate_components: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                       default=list)
+    candidate_case_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                   default="")
+    candidate_policy_id: Mapped[str] = mapped_column(String(64),
+                                                     nullable=False,
+                                                     default="")
+    candidate_method_id: Mapped[str] = mapped_column(String(64),
+                                                     nullable=False,
+                                                     default="")
+    candidate_ontology_change: Mapped[str] = mapped_column(
+        Text, nullable=False, default="")
+
+    approved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    released_in: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+    activated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+
+    #: Set when a later entry corrects this one. The ledger is a history.
+    superseded_by: Mapped[str] = mapped_column(String(48), nullable=False,
+                                               default="")
+    #: What makes this the same observation as another. The same steward
+    #: mapping the same field twice is one thing learned, not two.
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("entry_id", name="uq_brain_ledger_entry"),
+        Index("ix_brain_ledger_source", "tenant", "source", "created_at"),
+        Index("ix_brain_ledger_status", "tenant", "review_status",
+              "portability"),
+        Index("ix_brain_ledger_fingerprint", "tenant", "fingerprint"),
+        Index("ix_brain_ledger_object", "object_kind", "object_id"),
+    )
+
+
+class BrainPackage(Base):
+    """A Brain Pack, Learning Bundle or Developer Bundle that exists.
+
+    Exported by us or uploaded to us; `direction` says which. The manifest
+    is stored as it arrived rather than as we interpreted it, because a
+    compatibility argument later is an argument about what the sender
+    actually claimed.
+
+    `storage_path` may be emptied by a payload purge while the row stays.
+    §23: the bytes go, the record of what was installed does not.
+    """
+
+    __tablename__ = "brain_packages"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    package_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    direction: Mapped[str] = mapped_column(String(16), nullable=False,
+                                           default="IMPORT")
+    package_kind: Mapped[str] = mapped_column(String(16), nullable=False,
+                                              default="cpbrain")
+
+    brain_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                          default="")
+    brain_name: Mapped[str] = mapped_column(String(160), nullable=False,
+                                            default="")
+    brain_version: Mapped[str] = mapped_column(String(32), nullable=False,
+                                               default="")
+
+    manifest: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: SHA-256 of the package bytes. What a later "is this the same package?"
+    #: is answered with.
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False,
+                                            default=0)
+    entry_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                             default=0)
+
+    signature_state: Mapped[str] = mapped_column(String(24), nullable=False,
+                                                 default="UNSIGNED")
+    signing_key_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                default="")
+    signer_trust: Mapped[str] = mapped_column(String(24), nullable=False,
+                                              default="UNKNOWN")
+
+    storage_path: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    payload_purged_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_by: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("package_id", name="uq_brain_package"),
+        Index("ix_brain_package_tenant", "tenant", "direction", "created_at"),
+        Index("ix_brain_package_sha", "sha256"),
+    )
+
+
+class BrainImport(Base):
+    """§16's quarantine. Where an uploaded package is in the pipeline.
+
+    One row per attempt rather than per package: the same package may be
+    evaluated, rejected on a conflict, and evaluated again months later
+    against a different baseline, and collapsing those into one row would
+    lose the fact that we said no the first time.
+
+    Nothing here is retrievable by the live runtime. The candidate's
+    teaching cases do not reach retrieval until an installation row exists
+    and is ACTIVE.
+    """
+
+    __tablename__ = "brain_imports"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    import_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    package_id: Mapped[str] = mapped_column(String(48), nullable=False)
+
+    stage: Mapped[str] = mapped_column(String(32), nullable=False,
+                                       default="UPLOADED")
+    state: Mapped[str] = mapped_column(String(24), nullable=False,
+                                       default="IN_QUARANTINE")
+    #: Every stage this import has passed, in order, with when and by whom.
+    stage_history: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                default=list)
+    #: What is stopping it. An import with blockers may be inspected and
+    #: evaluated; it may not activate.
+    blockers: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
+    security_report: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                  default=dict)
+    compatibility_report: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                       default=dict)
+    component_diff: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                 default=dict)
+    evaluation: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                             default=dict)
+    impact_report: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                default=dict)
+
+    approvals: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                            default=list)
+    decision: Mapped[str] = mapped_column(String(24), nullable=False,
+                                          default="")
+    decision_reason: Mapped[str] = mapped_column(Text, nullable=False,
+                                                 default="")
+    decided_by: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+    decided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    uploaded_by: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+        onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("import_id", name="uq_brain_import"),
+        Index("ix_brain_import_stage", "tenant", "state", "stage"),
+        Index("ix_brain_import_package", "package_id"),
+    )
+
+
+class BrainInstallation(Base):
+    """§24's history. What was integrated, when, by whom, and what it did.
+
+    The measured columns are the point. An installation row that records
+    only "installed on the 4th" cannot answer the question §24 says the user
+    must be able to answer, so baseline, candidate, the six-dimension deltas
+    and the critical fixes and regressions are first-class here rather than
+    buried in a report nobody kept.
+    """
+
+    __tablename__ = "brain_installations"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    installation_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    import_id: Mapped[str] = mapped_column(String(48), nullable=False,
+                                           default="")
+    package_id: Mapped[str] = mapped_column(String(48), nullable=False,
+                                            default="")
+
+    brain_name: Mapped[str] = mapped_column(String(160), nullable=False,
+                                            default="")
+    brain_version: Mapped[str] = mapped_column(String(32), nullable=False,
+                                               default="")
+    source_instance_id: Mapped[str] = mapped_column(String(64),
+                                                    nullable=False,
+                                                    default="")
+    source_user: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+
+    installed_by: Mapped[str] = mapped_column(String(64), nullable=False,
+                                              default="")
+    approved_by: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                              default=list)
+    components: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                             default=list)
+    conflicts: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                            default=list)
+
+    baseline_metrics: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                   default=dict)
+    candidate_metrics: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                    default=dict)
+    dimension_deltas: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                   default=dict)
+    critical_fixes: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                 default=list)
+    critical_regressions: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                       default=list)
+
+    release_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+    state: Mapped[str] = mapped_column(String(24), nullable=False,
+                                       default="STAGED")
+    staged_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    activated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    rolled_back_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    rollback_reason: Mapped[str] = mapped_column(Text, nullable=False,
+                                                 default="")
+    retired_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    post_activation_verification: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict)
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("installation_id", name="uq_brain_installation"),
+        Index("ix_brain_installation_state", "tenant", "state",
+              "activated_at"),
+        Index("ix_brain_installation_import", "import_id"),
+    )
+
+
+class BrainConflict(Base):
+    """§20/§21. Learning that contradicts learning already here.
+
+    `resolution` has no NEWER_WINS. Recency is not evidence, and a table
+    that offered it would make "the import is more recent" a reason, which
+    is how a receiver quietly adopts a stranger's threshold.
+    """
+
+    __tablename__ = "brain_conflicts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    conflict_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    import_id: Mapped[str] = mapped_column(String(48), nullable=False,
+                                           default="")
+
+    conflict_class: Mapped[str] = mapped_column(String(48), nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False,
+                                          default="MEDIUM")
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    incoming: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    existing: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    recommendation: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                default="")
+    recommendation_reason: Mapped[str] = mapped_column(Text, nullable=False,
+                                                       default="")
+
+    resolution: Mapped[str] = mapped_column(String(32), nullable=False,
+                                            default="")
+    resolution_reason: Mapped[str] = mapped_column(Text, nullable=False,
+                                                   default="")
+    #: The axis a SCOPE_SPLIT splits on. Required for that resolution and
+    #: empty for every other, because a split with no axis is a deferral
+    #: wearing a decision's name.
+    split_axis: Mapped[str] = mapped_column(String(48), nullable=False,
+                                            default="")
+    resolved_by: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+    resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("conflict_id", name="uq_brain_conflict"),
+        Index("ix_brain_conflict_import", "import_id", "severity"),
+    )
+
+
+class BrainSigner(Base):
+    """§26's trusted signer registry.
+
+    Trust is a decision recorded here by a named person, not a property a
+    key asserts about itself. A package signed by a key that is not in this
+    table may be inspected and evaluated — blocking at upload would stop a
+    reviewer examining a package they had every right to look at — and may
+    not be activated.
+    """
+
+    __tablename__ = "brain_signers"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    key_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    label: Mapped[str] = mapped_column(String(160), nullable=False,
+                                       default="")
+    organization: Mapped[str] = mapped_column(String(160), nullable=False,
+                                              default="")
+    #: HIGH, LOW or REVOKED. HIGH is what §26 requires before activation.
+    trust_level: Mapped[str] = mapped_column(String(16), nullable=False,
+                                             default="LOW")
+    #: A hash of the shared verification key. Never the key itself: this
+    #: table is read by the Brain Center and read by support.
+    key_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                 default="")
+
+    added_by: Mapped[str] = mapped_column(String(64), nullable=False,
+                                          default="")
+    added_reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    revoked_by: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+    revoked_reason: Mapped[str] = mapped_column(Text, nullable=False,
+                                                default="")
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant", "key_id", name="uq_brain_signer"),
+        Index("ix_brain_signer_trust", "tenant", "trust_level"),
+    )

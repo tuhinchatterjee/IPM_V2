@@ -296,15 +296,21 @@ def test_a_readiness_state_always_says_how_to_improve_or_why_it_is_top():
 # ==================================================== §102 the fifteen tabs
 
 
+#: §102's fifteen, in §102's order. Asserted as an ordered SUBSEQUENCE
+#: rather than as the whole list: a later phase may add a tab, and that is
+#: not a regression, but dropping one of these or reordering them is.
+SECTION_102_TABS = ["OVERVIEW", "KNOWLEDGE", "TEACHING_CASES",
+                    "INVESTIGATION_BLUEPRINTS", "ANALYTICAL_JUDGMENT",
+                    "VISUALIZATION_GRAMMAR", "MODEL_ROUTING",
+                    "PROMPTS_AND_TEACHING_PACKS", "EVALUATIONS",
+                    "INVESTIGATION_REVIEWS", "FEEDBACK_AND_LEARNING",
+                    "AGENTIC_HEALTH", "RELEASES", "LIVE_AI_HEALTH",
+                    "SETTINGS"]
+
+
 def test_the_fifteen_tabs_section_102_names_are_all_present():
-    assert len(tb.TABS) == 15
-    expected = ["OVERVIEW", "KNOWLEDGE", "TEACHING_CASES",
-                "INVESTIGATION_BLUEPRINTS", "ANALYTICAL_JUDGMENT",
-                "VISUALIZATION_GRAMMAR", "MODEL_ROUTING",
-                "PROMPTS_AND_TEACHING_PACKS", "EVALUATIONS",
-                "INVESTIGATION_REVIEWS", "FEEDBACK_AND_LEARNING",
-                "AGENTIC_HEALTH", "RELEASES", "LIVE_AI_HEALTH", "SETTINGS"]
-    assert list(tb.TABS) == expected
+    assert len(SECTION_102_TABS) == 15
+    assert [t for t in tb.TABS if t in SECTION_102_TABS] == SECTION_102_TABS
 
 
 def test_every_tab_says_what_it_is_for():
@@ -320,7 +326,7 @@ def test_an_ordinary_analyst_opens_no_studio_tab():
     """§119: an Analyst sees only a compact assurance badge in the Trace."""
     assert tb.visible("ANALYST") == []
     assert tb.visible("VIEWER") == []
-    assert len(tb.visible("ADMIN")) == 15
+    assert tb.visible("ADMIN") == list(tb.TABS)
 
 
 def test_a_steward_sees_the_read_tabs_and_not_the_authoring_ones():
@@ -337,7 +343,7 @@ def test_the_tab_index_tells_a_caller_what_exists_and_what_they_may_open():
     they are seeing an empty page."""
     index = tb.index("ANALYST")
 
-    assert len(index["tabs"]) == 15
+    assert len(index["tabs"]) == len(tb.TABS)
     assert index["visible"] == []
     assert all(t["purpose"] for t in index["tabs"])
 
@@ -422,9 +428,19 @@ def test_the_shape_lab_refuses_a_shape_the_grammar_does_not_know():
 # ================================================== §119 permissions
 
 
+#: §119's eight. Later phases add permissions; none of these may leave, and
+#: every permission — theirs and any newer one — still owes a meaning and a
+#: grant, because a permission nobody can describe gets granted to everybody.
+SECTION_119_PERMISSIONS = (pm.VIEW, pm.TEACHING_AUTHOR, pm.TEACHING_REVIEW,
+                           pm.MODEL_EXPERIMENT, pm.EVALUATION_RUN,
+                           pm.RELEASE_APPROVE, pm.LIVE_HEALTH_VIEW, pm.ADMIN)
+
+
 def test_the_eight_permissions_section_119_names_all_have_a_meaning():
-    assert len(pm.PERMISSIONS) == 8
+    assert len(SECTION_119_PERMISSIONS) == 8
+    assert set(SECTION_119_PERMISSIONS) <= set(pm.PERMISSIONS)
     for permission in pm.PERMISSIONS:
+        assert permission in pm.GRANTS, permission
         assert len(pm.MEANS[permission]) > 20, permission
 
 
@@ -513,7 +529,7 @@ def test_an_analyst_gets_the_badge_and_an_empty_tab_list(client):
     tabs = client.get("/api/v1/intelligence/studio/tabs",
                       headers=analyst()).json()
     assert tabs["visible"] == []
-    assert len(tabs["tabs"]) == 15
+    assert len(tabs["tabs"]) == len(tb.TABS)
 
     badge = client.get("/api/v1/intelligence/studio/badge",
                        headers=analyst()).json()

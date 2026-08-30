@@ -24,7 +24,8 @@ export const API_BASE_URL =
  * so anything shown to a user goes through this instead.
  */
 export const API_DISPLAY_URL =
-  API_BASE_URL || "this page's own address, forwarded to the CreditProbe backend";
+  API_BASE_URL ||
+  "this page's own address, forwarded to the CreditProbe backend";
 
 const API_PREFIX = "/api/v1";
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -300,8 +301,17 @@ export interface RunFingerprint {
   data: string;
   relationships: string;
   parameters: string;
-  datasets?: { dataset: string; version: string; origin: string; periods: string[] }[];
-  relationships_used?: { relationship_id: number; version: number; cardinality: string }[];
+  datasets?: {
+    dataset: string;
+    version: string;
+    origin: string;
+    periods: string[];
+  }[];
+  relationships_used?: {
+    relationship_id: number;
+    version: number;
+    cardinality: string;
+  }[];
 }
 
 export interface AnalyticalPlanPayload {
@@ -458,7 +468,12 @@ export interface DomainOverview extends DomainSummary {
   }[];
 }
 
-export type Lifecycle = "draft" | "mapped" | "validated" | "published" | "archived";
+export type Lifecycle =
+  | "draft"
+  | "mapped"
+  | "validated"
+  | "published"
+  | "archived";
 
 export interface DatasetSummary {
   name: string;
@@ -601,7 +616,6 @@ export interface DataVersionRow {
   quality_report: ValidationReport;
   published_at: string | null;
 }
-
 
 // ---- Ask CreditProbe --------------------------------------------------------------
 
@@ -1143,7 +1157,11 @@ export interface CompoundAnswer {
     shared: boolean;
   };
   length_policy?: LengthPolicy;
-  layout?: "single" | "primary_and_supporting" | "grouped" | "investigation_review";
+  layout?:
+    | "single"
+    | "primary_and_supporting"
+    | "grouped"
+    | "investigation_review";
   analyses_performed?: number;
   suggested?: string[];
   is_compound?: boolean;
@@ -1210,7 +1228,11 @@ export interface StoredInvestigation {
   steps: ExecutedStep[];
   narrative: Narrative | Record<string, never>;
   follow_ups: string[];
-  available_versions: { version: number; label: string; created_at: string | null }[];
+  available_versions: {
+    version: number;
+    label: string;
+    created_at: string | null;
+  }[];
   model_provider: string | null;
   model_name: string | null;
   stages: Stage[];
@@ -1256,7 +1278,11 @@ export interface ProposedChange {
   request: string;
   understood: boolean;
   applicable: boolean;
-  operation: { kind: string; payload: Record<string, unknown>; description: string } | null;
+  operation: {
+    kind: string;
+    payload: Record<string, unknown>;
+    description: string;
+  } | null;
   description: string;
   current_plan: PlanDef;
   proposed_plan: PlanDef;
@@ -1275,8 +1301,17 @@ export interface AppliedModification extends InvestigationResponse {
   from_version: number;
   request: string;
   change: ProposedChange;
-  hash_diff: { added: string[]; removed: string[]; changed: string[]; unchanged: string[] };
-  available_versions: { version: number; label: string; created_at: string | null }[];
+  hash_diff: {
+    added: string[];
+    removed: string[];
+    changed: string[];
+    unchanged: string[];
+  };
+  available_versions: {
+    version: number;
+    label: string;
+    created_at: string | null;
+  }[];
 }
 
 export interface VersionsResponse {
@@ -1381,10 +1416,18 @@ export interface AgenticBlock {
   completion_line: string;
   specialists?: string[];
   summary?: string;
-  findings?: { agent_id: string; agent_name: string; finding: string;
-               analysis_run_id: number | null }[];
-  conflicts?: { about: string; between: string[]; resolved: boolean;
-                sentence: string }[];
+  findings?: {
+    agent_id: string;
+    agent_name: string;
+    finding: string;
+    analysis_run_id: number | null;
+  }[];
+  conflicts?: {
+    about: string;
+    between: string[];
+    resolved: boolean;
+    sentence: string;
+  }[];
   limitations?: string[];
   assurance?: {
     status: string;
@@ -1547,8 +1590,13 @@ export interface AgentPolicy {
   value: Record<string, unknown>;
   version: number;
   versions: number;
-  history: { version: number; value: Record<string, unknown>; active: boolean;
-             note: string; at: string | null }[];
+  history: {
+    version: number;
+    value: Record<string, unknown>;
+    active: boolean;
+    note: string;
+    at: string | null;
+  }[];
 }
 
 export interface AgentApproval {
@@ -1599,8 +1647,14 @@ export interface AgentEvaluation {
   certified: boolean;
   verdict: string;
   safety_failures: AgentEvaluationCase[];
-  areas: { area: string; label: string; total: number; passed: number;
-           accuracy: number; safety: boolean }[];
+  areas: {
+    area: string;
+    label: string;
+    total: number;
+    passed: number;
+    accuracy: number;
+    safety: boolean;
+  }[];
   cases: AgentEvaluationCase[];
   tiers: { id: string; label: string; note: string }[];
 }
@@ -1651,8 +1705,14 @@ export interface RiskCase {
     version: string;
     explanation: string;
     weights: Record<string, number>;
-    components: { key: string; label: string; value: number; weight: number;
-                  contribution: number; detail: string }[];
+    components: {
+      key: string;
+      label: string;
+      value: number;
+      weight: number;
+      contribution: number;
+      detail: string;
+    }[];
   };
   severity_version: string;
   priority: number;
@@ -1682,11 +1742,25 @@ export interface RiskCase {
   trace_id: string;
   created_at: string | null;
   updated_at: string | null;
-  timeline: { id: number; kind: string; from_status: string; to_status: string;
-              body: string; actor_id: number | null; actor_agent: string;
-              actor_label: string; at: string | null }[];
-  links: { id: number; object_type: string; object_id: string; label: string;
-           relation: string; at: string | null }[];
+  timeline: {
+    id: number;
+    kind: string;
+    from_status: string;
+    to_status: string;
+    body: string;
+    actor_id: number | null;
+    actor_agent: string;
+    actor_label: string;
+    at: string | null;
+  }[];
+  links: {
+    id: number;
+    object_type: string;
+    object_id: string;
+    label: string;
+    relation: string;
+    at: string | null;
+  }[];
   next_actions: { id: string; label: string; note: string }[];
 }
 
@@ -1748,7 +1822,6 @@ export class ApiError extends Error {
     return this.status === 403;
   }
 }
-
 
 export interface RelationshipNode {
   name: string;
@@ -2004,7 +2077,10 @@ export interface StudioMethod extends StudioMethodBrief {
   required_concepts: StudioConcept[];
   required_relationships: StudioRelationshipNeed[];
   period_alignment: StudioPeriodAlignment;
-  plan: { operations?: Record<string, unknown>[]; meta?: Record<string, unknown> } | null;
+  plan: {
+    operations?: Record<string, unknown>[];
+    meta?: Record<string, unknown>;
+  } | null;
   engine_analysis: string;
   test_cases: StudioTestCase[];
   versions: StudioMethodVersion[];
@@ -2103,7 +2179,10 @@ interface RequestOptions extends Omit<RequestInit, "signal"> {
   rawBody?: boolean;
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+async function request<T>(
+  path: string,
+  options: RequestOptions = {},
+): Promise<T> {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, headers, rawBody, ...init } = options;
 
   // Without a timeout a stopped backend leaves the UI spinning indefinitely,
@@ -2127,7 +2206,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       },
     });
   } catch (error) {
-    const aborted = error instanceof DOMException && error.name === "AbortError";
+    const aborted =
+      error instanceof DOMException && error.name === "AbortError";
     throw new ApiError(
       aborted
         ? `The backend did not respond within ${timeoutMs / 1000} seconds.`
@@ -2146,7 +2226,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     try {
       const body = await response.json();
       // FastAPI wraps our structured errors in `detail`; ours are flat.
-      const payload = body.detail && typeof body.detail === "object" ? body.detail : body;
+      const payload =
+        body.detail && typeof body.detail === "object" ? body.detail : body;
       code = payload.error ?? code;
       message = payload.message ?? message;
       detail = payload;
@@ -2158,7 +2239,6 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   return (await response.json()) as T;
 }
-
 
 /**
  * A file the backend generates, fetched as bytes rather than JSON.
@@ -2179,8 +2259,11 @@ export interface DownloadedFile {
   filename: string;
 }
 
-async function download(path: string, fallback: string,
-                        timeoutMs = 180_000): Promise<DownloadedFile> {
+async function download(
+  path: string,
+  fallback: string,
+  timeoutMs = 180_000,
+): Promise<DownloadedFile> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -2192,7 +2275,8 @@ async function download(path: string, fallback: string,
       headers: { "X-IPM-Role": activeRole },
     });
   } catch (error) {
-    const aborted = error instanceof DOMException && error.name === "AbortError";
+    const aborted =
+      error instanceof DOMException && error.name === "AbortError";
     throw new ApiError(
       aborted
         ? "The workbook took too long to generate and the request was stopped."
@@ -2210,7 +2294,8 @@ async function download(path: string, fallback: string,
     let detail: Record<string, unknown> = {};
     try {
       const body = await response.json();
-      const payload = body.detail && typeof body.detail === "object" ? body.detail : body;
+      const payload =
+        body.detail && typeof body.detail === "object" ? body.detail : body;
       code = payload.error ?? code;
       message = payload.message ?? message;
       detail = payload;
@@ -2222,7 +2307,10 @@ async function download(path: string, fallback: string,
 
   return {
     blob: await response.blob(),
-    filename: filenameFrom(response.headers.get("content-disposition"), fallback),
+    filename: filenameFrom(
+      response.headers.get("content-disposition"),
+      fallback,
+    ),
   };
 }
 
@@ -2236,7 +2324,6 @@ export interface ExecuteOptions {
   filters?: Record<string, unknown>;
   persist?: boolean;
 }
-
 
 // ======================================================== workspace and review
 
@@ -2492,7 +2579,12 @@ export interface AssistantAnswer {
  * review is genuinely outstanding, so it is reached by sending the project for
  * review and left when the reviewer decides.
  */
-export type ProjectStatus = "draft" | "active" | "in_review" | "completed" | "archived";
+export type ProjectStatus =
+  | "draft"
+  | "active"
+  | "in_review"
+  | "completed"
+  | "archived";
 
 export interface ProjectRow {
   id: number;
@@ -2688,7 +2780,11 @@ export interface ScoredFacility {
   band: string;
   intercept: number;
   contributions: FactorContribution[];
-  family_contributions: { family: string; label: string; contribution: number }[];
+  family_contributions: {
+    family: string;
+    label: string;
+    contribution: number;
+  }[];
 }
 
 export interface EarlyWarningScores {
@@ -2915,7 +3011,11 @@ export interface PlaybookRun {
     row_count: number;
   }[];
   evaluations: PlaybookEvaluation[];
-  actions_taken: { action: string; investigation_id?: number; detail?: string }[];
+  actions_taken: {
+    action: string;
+    investigation_id?: number;
+    detail?: string;
+  }[];
   alerted: boolean;
   summary: string;
   error: string;
@@ -3196,7 +3296,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ username, password }),
     }),
-  signOut: () => request<{ signed_out: boolean }>("/auth/logout", { method: "POST" }),
+  signOut: () =>
+    request<{ signed_out: boolean }>("/auth/logout", { method: "POST" }),
 
   /**
    * Who work can be sent to. §47's one recipient picker.
@@ -3253,10 +3354,13 @@ export const api = {
       }),
     }),
   setUserPassword: (id: number, password: string) =>
-    request<{ user_id: number; password_set: boolean }>(`/users/${id}/password`, {
-      method: "POST",
-      body: JSON.stringify({ password }),
-    }),
+    request<{ user_id: number; password_set: boolean }>(
+      `/users/${id}/password`,
+      {
+        method: "POST",
+        body: JSON.stringify({ password }),
+      },
+    ),
 
   // ---- system ----
   health: (timeoutMs?: number) =>
@@ -3278,7 +3382,9 @@ export const api = {
     if (opts.category) q.set("category", opts.category);
     if (opts.certifiedOnly) q.set("certified_only", "true");
     const qs = q.toString();
-    return request<AnalysisLibraryResponse>(`/engine/analyses${qs ? `?${qs}` : ""}`);
+    return request<AnalysisLibraryResponse>(
+      `/engine/analyses${qs ? `?${qs}` : ""}`,
+    );
   },
   analysis: (id: string) => request<AnalysisDetail>(`/engine/analyses/${id}`),
   execute: (id: string, options: ExecuteOptions = {}) =>
@@ -3294,7 +3400,9 @@ export const api = {
       timeoutMs: 45_000,
     }),
   periods: (dataset = "portfolio_facility") =>
-    request<PeriodsResponse>(`/engine/periods?dataset=${encodeURIComponent(dataset)}`),
+    request<PeriodsResponse>(
+      `/engine/periods?dataset=${encodeURIComponent(dataset)}`,
+    ),
   dimensions: (dataset = "portfolio_facility", period?: string) => {
     const q = new URLSearchParams({ dataset });
     if (period) q.set("period", period);
@@ -3303,7 +3411,9 @@ export const api = {
 
   // ---- trace ----
   trace: (runId: number, version?: number) =>
-    request<StoredTrace>(`/trace/${runId}${version ? `?version=${version}` : ""}`),
+    request<StoredTrace>(
+      `/trace/${runId}${version ? `?version=${version}` : ""}`,
+    ),
 
   // ---- AI status and the intelligence check ----
   aiStatus: () => request<AiStatus>("/ai/status"),
@@ -3328,10 +3438,14 @@ export const api = {
   // ---- ask CreditProbe ----
   askMode: () => request<PlannerMode>("/ask/mode"),
   askSuggestions: () =>
-    request<{ questions: { question: string; note: string }[] }>("/ask/suggestions"),
+    request<{ questions: { question: string; note: string }[] }>(
+      "/ask/suggestions",
+    ),
   briefing: () => request<Briefing>("/ask/briefing", { timeoutMs: 60_000 }),
   recentInvestigations: (limit = 8) =>
-    request<{ investigations: RecentInvestigation[] }>(`/ask/recent?limit=${limit}`),
+    request<{ investigations: RecentInvestigation[] }>(
+      `/ask/recent?limit=${limit}`,
+    ),
   ask: (
     question: string,
     options: {
@@ -3361,7 +3475,8 @@ export const api = {
     request<StoredInvestigation>(
       `/trace/${runId}/investigation${version ? `?version=${version}` : ""}`,
     ),
-  traceVersions: (runId: number) => request<VersionsResponse>(`/trace/${runId}/versions`),
+  traceVersions: (runId: number) =>
+    request<VersionsResponse>(`/trace/${runId}/versions`),
   previewModification: (runId: number, text: string, version?: number) =>
     request<ProposedChange>(`/trace/${runId}/modify/preview`, {
       method: "POST",
@@ -3416,7 +3531,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  dataset: (name: string) => request<DatasetDetail>(`/data-builder/datasets/${name}`),
+  dataset: (name: string) =>
+    request<DatasetDetail>(`/data-builder/datasets/${name}`),
   uploadFile: (name: string, file: File, sheetName?: string) => {
     const form = new FormData();
     form.append("file", file);
@@ -3442,11 +3558,18 @@ export const api = {
       `/data-builder/datasets/${name}/mappings`,
     ),
   setMappings: (name: string, mappings: Partial<FieldMappingRow>[]) =>
-    request<{ dataset: string; lifecycle: Lifecycle; mappings: FieldMappingRow[] }>(
-      `/data-builder/datasets/${name}/mappings`,
-      { method: "PUT", body: JSON.stringify({ mappings }) },
-    ),
-  upsertField: (name: string, field: Partial<DictionaryField> & { name: string }) =>
+    request<{
+      dataset: string;
+      lifecycle: Lifecycle;
+      mappings: FieldMappingRow[];
+    }>(`/data-builder/datasets/${name}/mappings`, {
+      method: "PUT",
+      body: JSON.stringify({ mappings }),
+    }),
+  upsertField: (
+    name: string,
+    field: Partial<DictionaryField> & { name: string },
+  ) =>
     request<{ dataset: string; field: DictionaryField }>(
       `/data-builder/datasets/${name}/fields`,
       { method: "PUT", body: JSON.stringify(field) },
@@ -3460,13 +3583,17 @@ export const api = {
     request<{ count: number; relationships: RelationshipRow[] }>(
       `/data-builder/relationships${dataset ? `?dataset=${dataset}` : ""}`,
     ),
-  addRelationship: (payload: Omit<RelationshipRow, "id" | "name"> & { name?: string }) =>
+  addRelationship: (
+    payload: Omit<RelationshipRow, "id" | "name"> & { name?: string },
+  ) =>
     request<RelationshipRow>("/data-builder/relationships", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
   validate: (name: string) =>
-    request<ValidationReport>(`/data-builder/datasets/${name}/validate`, { method: "POST" }),
+    request<ValidationReport>(`/data-builder/datasets/${name}/validate`, {
+      method: "POST",
+    }),
   publish: (name: string) =>
     request<PublishResponse>(`/data-builder/datasets/${name}/publish`, {
       method: "POST",
@@ -3510,7 +3637,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ status }),
     }),
-  deleteLens: (id: number) => request<void>(`/lenses/${id}`, { method: "DELETE" }),
+  deleteLens: (id: number) =>
+    request<void>(`/lenses/${id}`, { method: "DELETE" }),
 
   // ---- the dataset viewer ----
   datasetTree: () => request<DatasetTree>("/data-builder/tree"),
@@ -3626,7 +3754,10 @@ export const api = {
   earlyWarning: () => request<EarlyWarningOverview>("/early-warning"),
   earlyWarningMethodology: () =>
     request<EarlyWarningMethodology>("/early-warning/methodology"),
-  earlyWarningScores: (targetId: string, opts: { period?: string; limit?: number } = {}) => {
+  earlyWarningScores: (
+    targetId: string,
+    opts: { period?: string; limit?: number } = {},
+  ) => {
     const query = new URLSearchParams();
     if (opts.period) query.set("period", opts.period);
     if (opts.limit) query.set("limit", String(opts.limit));
@@ -3683,12 +3814,14 @@ export const api = {
     if (opts.status) query.set("status", opts.status);
     if (opts.ownerId !== undefined) query.set("owner_id", String(opts.ownerId));
     const suffix = query.toString() ? `?${query}` : "";
-    return request<{ projects: ProjectRow[]; statuses: Record<string, string> }>(
-      `/projects${suffix}`,
-    );
+    return request<{
+      projects: ProjectRow[];
+      statuses: Record<string, string>;
+    }>(`/projects${suffix}`);
   },
   project: (id: number) => request<ProjectRow>(`/projects/${id}`),
-  projectContents: (id: number) => request<ProjectContents>(`/projects/${id}/contents`),
+  projectContents: (id: number) =>
+    request<ProjectContents>(`/projects/${id}/contents`),
   createProject: (payload: {
     name: string;
     description?: string;
@@ -3750,11 +3883,14 @@ export const api = {
     } = {},
   ) => {
     const query = new URLSearchParams();
-    if (opts.projectId !== undefined) query.set("project_id", String(opts.projectId));
+    if (opts.projectId !== undefined)
+      query.set("project_id", String(opts.projectId));
     if (opts.scope) query.set("scope", opts.scope);
     if (opts.includeArchived) query.set("include_archived", "true");
     const suffix = query.toString() ? `?${query}` : "";
-    return request<{ investigations: ThreadSummary[] }>(`/investigations${suffix}`);
+    return request<{ investigations: ThreadSummary[] }>(
+      `/investigations${suffix}`,
+    );
   },
   thread: (id: number) => request<Thread>(`/investigations/${id}`),
   startThread: (payload: {
@@ -3812,7 +3948,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ project_id: projectId }),
     }),
-  copyThread: (id: number, opts: { projectId?: number | null; title?: string } = {}) =>
+  copyThread: (
+    id: number,
+    opts: { projectId?: number | null; title?: string } = {},
+  ) =>
     request<Thread>(`/investigations/${id}/copy`, {
       method: "POST",
       body: JSON.stringify({
@@ -3841,10 +3980,15 @@ export const api = {
 
   // ---- saved analyses ----
   savedAnalyses: (
-    opts: { projectId?: number; investigationId?: number; analysisId?: string } = {},
+    opts: {
+      projectId?: number;
+      investigationId?: number;
+      analysisId?: string;
+    } = {},
   ) => {
     const query = new URLSearchParams();
-    if (opts.projectId !== undefined) query.set("project_id", String(opts.projectId));
+    if (opts.projectId !== undefined)
+      query.set("project_id", String(opts.projectId));
     if (opts.investigationId !== undefined)
       query.set("investigation_id", String(opts.investigationId));
     if (opts.analysisId) query.set("analysis_id", opts.analysisId);
@@ -3888,16 +4032,19 @@ export const api = {
     title?: string;
     note?: string;
   }) =>
-    request<{ analyses: SavedAnalysis[]; count: number }>("/analyses/from-message", {
-      method: "POST",
-      body: JSON.stringify({
-        investigation_id: payload.investigationId,
-        sequence: payload.sequence,
-        project_id: payload.projectId ?? null,
-        title: payload.title ?? "",
-        note: payload.note ?? "",
-      }),
-    }),
+    request<{ analyses: SavedAnalysis[]; count: number }>(
+      "/analyses/from-message",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          investigation_id: payload.investigationId,
+          sequence: payload.sequence,
+          project_id: payload.projectId ?? null,
+          title: payload.title ?? "",
+          note: payload.note ?? "",
+        }),
+      },
+    ),
   moveAnalysis: (id: number, projectId: number | null) =>
     request<SavedAnalysis>(`/analyses/${id}/move`, {
       method: "POST",
@@ -3912,10 +4059,14 @@ export const api = {
     request<void>(`/analyses/${id}`, { method: "DELETE" }),
 
   // ---- workspace: saved investigations ----
-  savedInvestigations: (params: { projectId?: number; ownerId?: number } = {}) => {
+  savedInvestigations: (
+    params: { projectId?: number; ownerId?: number } = {},
+  ) => {
     const query = new URLSearchParams();
-    if (params.projectId !== undefined) query.set("project_id", String(params.projectId));
-    if (params.ownerId !== undefined) query.set("owner_id", String(params.ownerId));
+    if (params.projectId !== undefined)
+      query.set("project_id", String(params.projectId));
+    if (params.ownerId !== undefined)
+      query.set("owner_id", String(params.ownerId));
     const suffix = query.toString() ? `?${query}` : "";
     return request<{ investigations: SavedInvestigationSummary[] }>(
       `/workspace/investigations${suffix}`,
@@ -3987,7 +4138,9 @@ export const api = {
     }),
   /** Record that a recipient has looked at it. Idempotent. §44. */
   openWorkflow: (id: number) =>
-    request<WorkflowDetail>(`/workspace/workflow/${id}/opened`, { method: "POST" }),
+    request<WorkflowDetail>(`/workspace/workflow/${id}/opened`, {
+      method: "POST",
+    }),
   /** Say something on a workflow item's thread. §45. */
   sayOnWorkflow: (
     id: number,
@@ -4012,15 +4165,23 @@ export const api = {
       `/workspace/workflow/messages/${messageId}/resolve`,
       { method: "POST", body: JSON.stringify({ resolved }) },
     ),
-  workflowItem: (id: number) => request<WorkflowDetail>(`/workspace/workflow/${id}`),
+  workflowItem: (id: number) =>
+    request<WorkflowDetail>(`/workspace/workflow/${id}`),
   moveWorkflow: (id: number, toState: string, comment = "") =>
     request<WorkflowDetail>(`/workspace/workflow/${id}/transition`, {
       method: "POST",
       body: JSON.stringify({ to_state: toState, comment }),
     }),
   comments: (objectType: string, objectId: string) =>
-    request<{ comments: CommentRow[] }>(`/workspace/comments/${objectType}/${objectId}`),
-  addComment: (objectType: string, objectId: string, body: string, notifyUserId?: number) =>
+    request<{ comments: CommentRow[] }>(
+      `/workspace/comments/${objectType}/${objectId}`,
+    ),
+  addComment: (
+    objectType: string,
+    objectId: string,
+    body: string,
+    notifyUserId?: number,
+  ) =>
     request<CommentRow>(`/workspace/comments/${objectType}/${objectId}`, {
       method: "POST",
       body: JSON.stringify({ body, notify_user_id: notifyUserId ?? null }),
@@ -4037,23 +4198,32 @@ export const api = {
 
   // ---- the data control plane ----
   controlPlane: () => request<ControlPlane>("/data-builder/control-plane"),
-  datasetFamilies: () => request<{ families: DatasetFamily[] }>("/data-builder/families"),
-  datasetUsedBy: (name: string) => request<UsedBy>(`/data-builder/datasets/${name}/used-by`),
+  datasetFamilies: () =>
+    request<{ families: DatasetFamily[] }>("/data-builder/families"),
+  datasetUsedBy: (name: string) =>
+    request<UsedBy>(`/data-builder/datasets/${name}/used-by`),
   syncBundled: () =>
     request<{ synced: string[]; skipped: string[]; message: string }>(
       "/data-builder/sync-bundled",
       { method: "POST" },
     ),
   setDatasetOrigin: (name: string, origin: string) =>
-    request<{ dataset: string; origin: string }>(`/data-builder/datasets/${name}/origin`, {
-      method: "POST",
-      body: JSON.stringify({ origin }),
-    }),
-  setAuthoritative: (name: string, purposes: string[]) =>
-    request<{ dataset: string; authoritative_for: string[]; displaced_demo_datasets: string[] }>(
-      `/data-builder/datasets/${name}/authoritative`,
-      { method: "POST", body: JSON.stringify({ purposes }) },
+    request<{ dataset: string; origin: string }>(
+      `/data-builder/datasets/${name}/origin`,
+      {
+        method: "POST",
+        body: JSON.stringify({ origin }),
+      },
     ),
+  setAuthoritative: (name: string, purposes: string[]) =>
+    request<{
+      dataset: string;
+      authoritative_for: string[];
+      displaced_demo_datasets: string[];
+    }>(`/data-builder/datasets/${name}/authoritative`, {
+      method: "POST",
+      body: JSON.stringify({ purposes }),
+    }),
   harmonise: (name: string) =>
     request<Harmonisation>(`/data-builder/datasets/${name}/harmonise`),
   acceptHarmonisation: (name: string, accepted: Record<string, string>) =>
@@ -4063,16 +4233,20 @@ export const api = {
     ),
 
   // ---- relationships ----
-  relationshipMap: () => request<RelationshipMap>("/data-builder/relationships/map"),
+  relationshipMap: () =>
+    request<RelationshipMap>("/data-builder/relationships/map"),
   seedRelationships: () =>
     request<{ declared: string[]; skipped: string[]; total: number }>(
-      "/data-builder/relationships/seed", { method: "POST" }),
+      "/data-builder/relationships/seed",
+      { method: "POST" },
+    ),
   relationship: (id: number) =>
     request<RelationshipDetail>(`/data-builder/relationships/${id}`),
   proposeRelationships: (dataset: string) =>
     request<RelationshipProposals>(
       `/data-builder/relationships/propose?dataset=${encodeURIComponent(dataset)}`,
-      { timeoutMs: 120_000 }),
+      { timeoutMs: 120_000 },
+    ),
   acceptRelationshipProposal: (proposal: RelationshipProposal) =>
     request<{ relationship: RelationshipEdge; note: string }>(
       "/data-builder/relationships/propose/accept",
@@ -4086,21 +4260,32 @@ export const api = {
           cardinality: proposal.cardinality,
           semantic: proposal.semantic ?? "",
         }),
-      }),
+      },
+    ),
   validateRelationship: (id: number, period = "") =>
     request<{ relationship: RelationshipEdge; report: RelationshipValidation }>(
       `/data-builder/relationships/${id}/validate${period ? `?period=${encodeURIComponent(period)}` : ""}`,
-      { method: "POST", timeoutMs: 120_000 }),
+      { method: "POST", timeoutMs: 120_000 },
+    ),
   setRelationshipLifecycle: (id: number, lifecycle: string, note = "") =>
-    request<{ relationship: RelationshipEdge; versions: RelationshipVersionEntry[] }>(
-      `/data-builder/relationships/${id}/lifecycle`,
-      { method: "POST", body: JSON.stringify({ lifecycle, note }) }),
+    request<{
+      relationship: RelationshipEdge;
+      versions: RelationshipVersionEntry[];
+    }>(`/data-builder/relationships/${id}/lifecycle`, {
+      method: "POST",
+      body: JSON.stringify({ lifecycle, note }),
+    }),
 
   // ---- the data inbox ----
   inbox: (status = "") =>
-    request<InboxListing>(`/data-builder/inbox${status ? `?status=${status}` : ""}`),
+    request<InboxListing>(
+      `/data-builder/inbox${status ? `?status=${status}` : ""}`,
+    ),
   inboxItem: (id: number) => request<InboxItem>(`/data-builder/inbox/${id}`),
-  receiveFile: (file: File, options: { publish?: boolean; sheetName?: string } = {}) => {
+  receiveFile: (
+    file: File,
+    options: { publish?: boolean; sheetName?: string } = {},
+  ) => {
     const form = new FormData();
     form.append("file", file);
     form.append("publish", String(options.publish ?? true));
@@ -4112,7 +4297,12 @@ export const api = {
       timeoutMs: 120_000,
     });
   },
-  resolveInboxItem: (id: number, action: "publish" | "reject", note: string, dataset = "") =>
+  resolveInboxItem: (
+    id: number,
+    action: "publish" | "reject",
+    note: string,
+    dataset = "",
+  ) =>
     request<InboxItem>(`/data-builder/inbox/${id}/resolve`, {
       method: "POST",
       body: JSON.stringify({ action, note, dataset }),
@@ -4120,14 +4310,16 @@ export const api = {
     }),
 
   // ---- Analysis Studio ----
-  studioLibrary: (params: {
-    q?: string;
-    category?: string;
-    lifecycle?: string;
-    certifiedOnly?: boolean;
-    runnableOnly?: boolean;
-    limit?: number;
-  } = {}) => {
+  studioLibrary: (
+    params: {
+      q?: string;
+      category?: string;
+      lifecycle?: string;
+      certifiedOnly?: boolean;
+      runnableOnly?: boolean;
+      limit?: number;
+    } = {},
+  ) => {
     const query = new URLSearchParams();
     if (params.q) query.set("q", params.q);
     if (params.category) query.set("category", params.category);
@@ -4180,14 +4372,26 @@ export const api = {
       { method: "POST", body: JSON.stringify({ certified_by: certifiedBy }) },
     ),
   studioFork: (id: string, name: string) =>
-    request<{ method: StudioMethod; forked_from: string; persisted: boolean; note: string }>(
-      `/studio/${encodeURIComponent(id)}/fork`,
-      { method: "POST", body: JSON.stringify({ name }) },
-    ),
-  studioEdit: (id: string, changes: Record<string, string>, changeNote: string) =>
+    request<{
+      method: StudioMethod;
+      forked_from: string;
+      persisted: boolean;
+      note: string;
+    }>(`/studio/${encodeURIComponent(id)}/fork`, {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  studioEdit: (
+    id: string,
+    changes: Record<string, string>,
+    changeNote: string,
+  ) =>
     request<{ method: StudioMethod; changes: string[]; persisted: boolean }>(
       `/studio/${encodeURIComponent(id)}/edit`,
-      { method: "POST", body: JSON.stringify({ changes, change_note: changeNote }) },
+      {
+        method: "POST",
+        body: JSON.stringify({ changes, change_note: changeNote }),
+      },
     ),
   /**
    * The workbook lives at a URL rather than behind a fetch: the browser's own
@@ -4250,9 +4454,16 @@ export const api = {
   // kilobytes and none of it is on screen yet.
   agenticLive: (runId: number) =>
     request<OfficerLive>(`/agentic/runs/${runId}/live`, { timeoutMs: 8_000 }),
-  agenticRun: (runId: number) => request<AgentRunDetail>(`/agentic/runs/${runId}`),
-  agenticRuns: (params: { limit?: number; status?: string; trigger?: string;
-                          mine?: boolean } = {}) =>
+  agenticRun: (runId: number) =>
+    request<AgentRunDetail>(`/agentic/runs/${runId}`),
+  agenticRuns: (
+    params: {
+      limit?: number;
+      status?: string;
+      trigger?: string;
+      mine?: boolean;
+    } = {},
+  ) =>
     request<{ runs: AgentRunSummary[] }>(
       `/agentic/runs?${new URLSearchParams({
         ...(params.limit ? { limit: String(params.limit) } : {}),
@@ -4272,11 +4483,13 @@ export const api = {
       { method: "POST", body: JSON.stringify({ reason }) },
     ),
   agentRegistry: () => request<AgentCatalogue>("/agentic/agents"),
-  agentTools: () => request<{ tools: AgentTool[]; no_tool_exists: string[] }>(
-    "/agentic/tools"),
-  agentSchedules: () => request<{ schedules: AgentSchedule[];
-                                  triggers: { id: string; label: string }[] }>(
-    "/agentic/schedules"),
+  agentTools: () =>
+    request<{ tools: AgentTool[]; no_tool_exists: string[] }>("/agentic/tools"),
+  agentSchedules: () =>
+    request<{
+      schedules: AgentSchedule[];
+      triggers: { id: string; label: string }[];
+    }>("/agentic/schedules"),
   setScheduleEnabled: (id: number, enabled: boolean) =>
     request<AgentSchedule>(`/agentic/schedules/${id}`, {
       method: "PATCH",
@@ -4284,8 +4497,11 @@ export const api = {
     }),
   runSchedule: (id: number) =>
     request<{ job_id: number; queued: boolean; message: string }>(
-      `/agentic/schedules/${id}/run`, { method: "POST" }),
-  agentPolicies: () => request<{ policies: AgentPolicy[] }>("/agentic/policies"),
+      `/agentic/schedules/${id}/run`,
+      { method: "POST" },
+    ),
+  agentPolicies: () =>
+    request<{ policies: AgentPolicy[] }>("/agentic/policies"),
   agentApprovals: () =>
     request<{ approvals: AgentApproval[]; role: string }>("/agentic/approvals"),
   decideApproval: (id: number, decision: string, note = "") =>
@@ -4295,7 +4511,8 @@ export const api = {
     }),
   agentEvents: (limit = 50) =>
     request<{ events: AgentEvent[]; kinds: { id: string; label: string }[] }>(
-      `/agentic/events?limit=${limit}`),
+      `/agentic/events?limit=${limit}`,
+    ),
   // §26, §27 — the coordination behind an analysis, where one produced it.
   // Returns `found: false` for the ordinary case: most analyses are one
   // person's question, answered by one specialist.
@@ -4308,8 +4525,11 @@ export const api = {
       timeoutMs: 60_000,
     }),
   agentWorkers: () =>
-    request<{ workers: AgentWorker[]; queue: Record<string, number>;
-              alive: number }>("/agentic/workers"),
+    request<{
+      workers: AgentWorker[];
+      queue: Record<string, number>;
+      alive: number;
+    }>("/agentic/workers"),
   // §9's first reading, from the sentence alone. Costs nothing on the server —
   // regular expressions and arithmetic — so the officer indicator can appear
   // the instant Ask is pressed rather than when the answer arrives.
@@ -4320,23 +4540,36 @@ export const api = {
       timeoutMs: 8_000,
     }),
   agenticStages: () =>
-    request<{ sequence: string[]; terminal: string[];
-              stages: { id: string; label: string; caption: string }[] }>(
-      "/agentic/stages"),
+    request<{
+      sequence: string[];
+      terminal: string[];
+      stages: { id: string; label: string; caption: string }[];
+    }>("/agentic/stages"),
   // A whole-book review takes minutes, so it is queued by default and the
   // Cockpit hears about it through the notification centre rather than by
   // holding a request open across a proxy that will time it out.
   startReview: (period = "", background = true) =>
-    request<{ queued: boolean; job_id?: number; run_id?: number;
-              period: string; message?: string }>("/agentic/review", {
+    request<{
+      queued: boolean;
+      job_id?: number;
+      run_id?: number;
+      period: string;
+      message?: string;
+    }>("/agentic/review", {
       method: "POST",
       body: JSON.stringify({ period, background }),
       timeoutMs: background ? 30_000 : 600_000,
     }),
 
   // ---- risk cases ----
-  riskCases: (params: { level?: string; period?: string; limit?: number;
-                        mine?: boolean } = {}) =>
+  riskCases: (
+    params: {
+      level?: string;
+      period?: string;
+      limit?: number;
+      mine?: boolean;
+    } = {},
+  ) =>
     request<RiskCaseList>(
       `/risk-cases?${new URLSearchParams({
         ...(params.level ? { level: params.level } : {}),
@@ -4379,8 +4612,11 @@ export const api = {
   investigateRiskCase: (id: number, projectId: number | null = null) =>
     request<{ investigation_id: number; created: boolean; question?: string }>(
       `/risk-cases/${id}/investigate`,
-      { method: "POST", body: JSON.stringify({ project_id: projectId }),
-        timeoutMs: 60_000 },
+      {
+        method: "POST",
+        body: JSON.stringify({ project_id: projectId }),
+        timeoutMs: 60_000,
+      },
     ),
   riskCaseToProject: (id: number, projectId: number | null, name = "") =>
     request<{ project_id: number; created: boolean }>(
@@ -4389,8 +4625,14 @@ export const api = {
     ),
   sendRiskCaseForReview: (
     id: number,
-    body: { recipients?: number[]; teams?: number[]; action?: string;
-            message?: string; priority?: string; due_at?: string },
+    body: {
+      recipients?: number[];
+      teams?: number[];
+      action?: string;
+      message?: string;
+      priority?: string;
+      due_at?: string;
+    },
   ) =>
     request<{ workflow_item_id: number }>(`/risk-cases/${id}/review`, {
       method: "POST",
@@ -4425,7 +4667,8 @@ export const api = {
     request<StudioSections>("/intelligence/studio/knowledge"),
   studioBlueprints: () =>
     request<StudioObjects>("/intelligence/studio/blueprints"),
-  studioJudgment: () => request<StudioJudgment>("/intelligence/studio/judgment"),
+  studioJudgment: () =>
+    request<StudioJudgment>("/intelligence/studio/judgment"),
   studioVisualGrammar: () =>
     request<StudioVisualGrammar>("/intelligence/studio/visual-grammar"),
   studioPermissions: () =>
@@ -4561,6 +4804,48 @@ export const api = {
   learningMetrics: () =>
     request<Record<string, unknown>>("/learning/metrics/learning"),
   learningGuard: () => request<LearningGuard>("/learning/guard"),
+
+  // ------------------------------------------------- the Brain Center. §25
+  //
+  // Reading is separated from changing here for the same reason the backend
+  // separates the permissions: opening a tab must never be a call that could
+  // alter what a Brain is. Every method below that changes something is a
+  // POST with a stated reason, and none of them is called on mount.
+  brainOverview: () => request<BrainOverview>("/brain/overview"),
+  brainLedger: () => request<BrainLedger>("/brain/ledger"),
+  brainExportKinds: () => request<BrainExportKinds>("/brain/export/kinds"),
+  brainBuildExport: (body: BrainExportRequest) =>
+    request<BrainExportReceipt>("/brain/export", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  brainImports: () => request<BrainImportList>("/brain/imports"),
+  brainImport: (importId: string) =>
+    request<BrainImportDetail>(
+      `/brain/imports/${encodeURIComponent(importId)}`,
+    ),
+  brainCompatibility: (importId: string) =>
+    request<Record<string, unknown>>(
+      `/brain/imports/${encodeURIComponent(importId)}/compatibility`,
+      { method: "POST" },
+    ),
+  brainLift: (importId: string) =>
+    request<BrainLift>(`/brain/lift/${encodeURIComponent(importId)}`),
+  brainConflicts: (importId = "") =>
+    request<BrainConflictList>(
+      `/brain/conflicts?import_id=${encodeURIComponent(importId)}`,
+    ),
+  brainResolveConflict: (
+    conflictId: string,
+    body: { resolution: string; reason: string; split_axis?: string },
+  ) =>
+    request<Record<string, unknown>>(
+      `/brain/conflicts/${encodeURIComponent(conflictId)}/resolve`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  brainInstallations: () =>
+    request<BrainInstallationList>("/brain/installations"),
+  brainSecurity: () => request<BrainSecurity>("/brain/security"),
 };
 
 /** §7's prompt, as the backend decided it. */
@@ -4637,7 +4922,10 @@ export type LearningGuard = {
 
 export type FeedbackOptions = {
   ratings: string[];
-  reasons: { GOOD: { code: string; label: string }[]; BAD: { code: string; label: string }[] };
+  reasons: {
+    GOOD: { code: string; label: string }[];
+    BAD: { code: string; label: string }[];
+  };
   acknowledgement: string;
   bad_reason_encouraged: boolean;
   note: string;
@@ -5136,4 +5424,199 @@ export type StudioShapeLabResult = {
   error?: string;
   shapes?: string[];
   message?: string;
+};
+
+// ===========================================================================
+// The Brain Center. §13-§26.
+//
+// The types name what the screen is not allowed to blur. `captured`,
+// `approved` and `activated` are three fields rather than one total, and
+// `measured` is a boolean rather than a zero — because zero improvement and
+// no measurement look identical on a chart and mean opposite things.
+// ===========================================================================
+
+/** What is running, and how honest the numbers on the screen are. */
+export type BrainOverview = {
+  current: {
+    ontology_version: string;
+    package_schema_version: string;
+    ledger_schema_version: string;
+    installed_brain: BrainInstallation | null;
+  };
+  dimensions: string[];
+  learning: Record<string, unknown>;
+  retrieval_policy: { status: string; retrievable: string; may_tune: string }[];
+  installations: number;
+  known_limitations: string[];
+};
+
+export type BrainLedger = {
+  census: Record<string, unknown>;
+  sources: string[];
+  review_statuses: string[];
+  portability_states: string[];
+  /** §14's ten conditions. "Not eligible" tells a reviewer nothing. */
+  eligibility_conditions: { check: string; means: string }[];
+  note: string;
+};
+
+export type BrainExportKind = {
+  id: string;
+  suffix: string;
+  label: string;
+  purpose: string;
+  requires?: string[];
+};
+
+export type BrainExportKinds = {
+  kinds: BrainExportKind[];
+  never_included: string[];
+  exportable_case_status: string;
+};
+
+export type BrainExportRequest = {
+  kind: string;
+  brain_id: string;
+  brain_name: string;
+  brain_version: string;
+  baseline_release_id?: string;
+  known_limitations?: string[];
+};
+
+export type BrainExportReceipt = {
+  package_id: string;
+  kind: string;
+  sha256: string;
+  size_bytes: number;
+  entry_count: number;
+  download: string;
+};
+
+export type BrainImportRow = {
+  import_id: string;
+  package_id: string;
+  stage: string;
+  state: string;
+  blockers: string[];
+  approvals: Record<string, unknown>[];
+  decision: string;
+  uploaded_by: string;
+  created_at: string;
+  /** Always false before activation, and the screen says so out loud. */
+  retrievable: boolean;
+};
+
+export type BrainImportList = {
+  pipeline: string[];
+  quarantined_stages: string[];
+  imports: BrainImportRow[];
+  note: string;
+};
+
+export type BrainImportDetail = {
+  import_id: string;
+  package_id: string;
+  stage: string;
+  state: string;
+  history: Record<string, unknown>[];
+  blockers: string[];
+  security: Record<string, unknown>;
+  compatibility: Record<string, unknown>;
+  diff: Record<string, unknown>;
+  evaluation: Record<string, unknown>;
+  impact: Record<string, unknown>;
+  approvals: Record<string, unknown>[];
+  may_activate: boolean;
+  activation_blocked_by: string[];
+};
+
+export type BrainLift = {
+  import_id: string;
+  /** Not a score of zero. Nothing was measured. */
+  measured: boolean;
+  evaluation: Record<string, unknown>;
+  impact: Record<string, unknown>;
+  rules: {
+    minimum_cases: number;
+    material_points: number;
+    senders_holdout_measures_nothing: boolean;
+    critical_regression_overrides_average: boolean;
+  };
+  note: string;
+};
+
+export type BrainConflictRow = {
+  conflict_id: string;
+  import_id: string;
+  conflict_class: string;
+  severity: string;
+  summary: string;
+  incoming: Record<string, unknown>;
+  existing: Record<string, unknown>;
+  recommendation: string;
+  recommendation_reason: string;
+  resolution: string;
+  resolution_reason: string;
+  split_axis: string;
+  resolved_by: string;
+};
+
+export type BrainConflictList = {
+  classes: { id: string; means: string }[];
+  /** Eight of them, and none is "newer wins". */
+  resolutions: string[];
+  conflicts: BrainConflictRow[];
+  note: string;
+};
+
+export type BrainInstallation = {
+  installation_id: string;
+  date: string;
+  brain: string;
+  source_instance: string;
+  source_user: string;
+  installed_by: string;
+  approved_by: string[];
+  components: Record<string, unknown>[];
+  conflicts: string[];
+  baseline_metrics: Record<string, unknown>;
+  candidate_metrics: Record<string, unknown>;
+  dimension_deltas: Record<string, unknown>;
+  critical_fixes: string[];
+  critical_regressions: string[];
+  release_id: string;
+  state: string;
+  activated_at: string;
+  rolled_back_at: string;
+  rollback_reason: string;
+  retired_at: string;
+  /** One sentence, including when the sentence is "not measured". */
+  improvement: string;
+};
+
+export type BrainInstallationList = {
+  installations: BrainInstallation[];
+  rollbacks: BrainInstallation[];
+  answers: string;
+};
+
+export type BrainSigner = {
+  key_id: string;
+  label: string;
+  organization: string;
+  trust_level: string;
+  added_by: string;
+  added_reason: string;
+  revoked_by: string;
+  revoked_reason: string;
+};
+
+export type BrainSecurity = {
+  limits: Record<string, number>;
+  allowed_formats: string[];
+  never_packaged: string[];
+  enforced: string[];
+  signers: BrainSigner[];
+  untrusted_signer_policy: string;
+  permissions: Record<string, string>;
 };

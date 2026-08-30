@@ -14,6 +14,11 @@ venv/
 
 # ---- runtime data & logs ----
 logs/
+# Brain packages this installation built or received. Bytes, not source:
+# an exported Brain Pack is a build artefact of whatever was approved on the
+# day, and a quarantined upload is somebody else's package that this
+# repository has no business carrying.
+var/
 uploads/
 backups/
 # Data Hub runtime artifacts (user uploads, staged/activated workbooks)

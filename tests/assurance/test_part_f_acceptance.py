@@ -166,10 +166,22 @@ def test_12_permissions_hold():
     assert stranger.allowed is False
 
 
+#: §213's fifteen, by name. Asserted as a set rather than as a count so a
+#: later phase adding a tab does not read as a regression, while removing one
+#: of these still does — which is what the original count was protecting.
+PART_F_TABS = (
+    tb.OVERVIEW, tb.KNOWLEDGE, tb.TEACHING_CASES, tb.BLUEPRINTS,
+    tb.JUDGMENT, tb.VISUAL_GRAMMAR, tb.ROUTING, tb.PROMPTS,
+    tb.EVALUATIONS, tb.REVIEWS, tb.FEEDBACK, tb.AGENTIC, tb.RELEASES,
+    tb.LIVE_HEALTH, tb.SETTINGS,
+)
+
+
 def test_13_the_studio_shows_dimension_trends_and_investigation_reviews():
     """§213's fifteen tabs, with Investigation Reviews among them and
     actually built rather than deferred."""
-    assert len(tb.TABS) == 15
+    assert len(PART_F_TABS) == 15
+    assert set(PART_F_TABS) <= set(tb.TABS)
     assert tb.REVIEWS in tb.TABS
     assert callable(tb.investigation_reviews)
 

@@ -1,8 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import * as React from "react";
 
-import { Explain, Panel, Rules, Validation, Dot } from "@/components/ai-studio/shared";
+import {
+  Explain,
+  Panel,
+  Rules,
+  Validation,
+  Dot,
+} from "@/components/ai-studio/shared";
 import { DimensionStrip } from "@/components/assurance/dimensions";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,12 +48,13 @@ function useLoad<T>(load: () => Promise<T>, deps: unknown[] = []) {
     let live = true;
     load()
       .then((data) => live && setState({ data, error: "" }))
-      .catch((e: unknown) =>
-        live &&
-        setState({
-          data: null,
-          error: e instanceof Error ? e.message : "Could not load this tab.",
-        }),
+      .catch(
+        (e: unknown) =>
+          live &&
+          setState({
+            data: null,
+            error: e instanceof Error ? e.message : "Could not load this tab.",
+          }),
       );
     return () => {
       live = false;
@@ -471,7 +479,10 @@ function ShapeLab({ shapes }: { shapes: string[] }) {
           {result.candidates?.length ? (
             <ul className="divide-y divide-border">
               {result.candidates.map((candidate) => (
-                <li key={candidate.chart} className="flex items-start gap-2 py-1.5">
+                <li
+                  key={candidate.chart}
+                  className="flex items-start gap-2 py-1.5"
+                >
                   <Dot ok={candidate.accepted} />
                   <div>
                     <p className="text-xs text-text-primary">
@@ -496,9 +507,7 @@ function ShapeLab({ shapes }: { shapes: string[] }) {
 // ---------------------------------------------------------------- §119, §120
 
 export function Settings() {
-  const permissions = useLoad<StudioPermissions>(() =>
-    api.studioPermissions(),
-  );
+  const permissions = useLoad<StudioPermissions>(() => api.studioPermissions());
   const holdout = useLoad(() => api.studioHoldout());
 
   if (permissions.error) return <Failed message={permissions.error} />;
@@ -506,7 +515,10 @@ export function Settings() {
 
   return (
     <div className="space-y-4">
-      <Panel title="Who may do what" count={permissions.data.permissions.length}>
+      <Panel
+        title="Who may do what"
+        count={permissions.data.permissions.length}
+      >
         <p className="text-xs text-text-tertiary">
           Enforced in the backend. A tab hidden in the interface is a tab
           reachable with curl.
@@ -577,6 +589,57 @@ export function ComingWithLaterWork({
   );
 }
 
+/**
+ * A tab whose content is a whole area of its own.
+ *
+ * Two of the Studio's tabs open onto screens with their own tab bars — the
+ * Brain Center's eleven and Feedback & Learning's seven. Nesting eleven tabs
+ * inside one tab produces a bar nobody can read, so the tab says what the
+ * area is for and opens it.
+ *
+ * The link is the point. Before this existed, Feedback & Learning was a real,
+ * finished page at a real route with nothing anywhere linking to it, which is
+ * indistinguishable from a page that was never built.
+ */
+export function StudioArea({
+  title,
+  what,
+  href,
+  opens,
+}: {
+  title: string;
+  what: string;
+  href: string;
+  opens: string[];
+}) {
+  return (
+    <Card className="space-y-3 p-5">
+      <h3 className="text-sm font-medium text-text-primary">{title}</h3>
+      <p className="max-w-3xl text-sm leading-relaxed text-text-secondary">
+        {what}
+      </p>
+      <ul className="flex flex-wrap gap-1 text-xs text-text-tertiary">
+        {opens.map((one) => (
+          <li key={one} className="rounded bg-surface-raised px-1.5 py-0.5">
+            {one}
+          </li>
+        ))}
+      </ul>
+      <Link
+        href={href}
+        className={cn(
+          "inline-flex w-fit rounded px-3 py-1.5 text-sm font-medium",
+          "bg-surface-raised text-text-primary transition-colors",
+          "hover:bg-surface-raised/70 focus-visible:outline",
+          "focus-visible:outline-2 focus-visible:outline-offset-2",
+        )}
+      >
+        Open {title}
+      </Link>
+    </Card>
+  );
+}
+
 // ---------------------------------------------------------------------- §106
 
 export function TeachingCases() {
@@ -586,7 +649,10 @@ export function TeachingCases() {
 
   return (
     <div className="space-y-4">
-      <Panel title="Who has actually reviewed this library" explanation={data.explanation}>
+      <Panel
+        title="Who has actually reviewed this library"
+        explanation={data.explanation}
+      >
         <p className="text-sm leading-relaxed text-text-primary">
           {String(data.governance.sentence ?? "")}
         </p>
@@ -616,7 +682,11 @@ export function Routing() {
 
   return (
     <div className="space-y-4">
-      <Panel title="Model roles" count={data.roles.length} explanation={data.explanation}>
+      <Panel
+        title="Model roles"
+        count={data.roles.length}
+        explanation={data.explanation}
+      >
         <ul className="divide-y divide-border">
           {data.roles.map((role) => (
             <li key={role.name} className="py-2">
@@ -769,13 +839,19 @@ export function InvestigationReviews() {
 
   return (
     <div className="space-y-4">
-      <Panel title="How recent Investigations performed" explanation={tab.data.explanation}>
+      <Panel
+        title="How recent Investigations performed"
+        explanation={tab.data.explanation}
+      >
         <p className="text-xs leading-relaxed text-text-tertiary">
           {tab.data.presentation_note}
         </p>
       </Panel>
 
-      <Panel title="The six dimensions across these Investigations" count={tab.data.dimensions.length}>
+      <Panel
+        title="The six dimensions across these Investigations"
+        count={tab.data.dimensions.length}
+      >
         <ul className="divide-y divide-border">
           {tab.data.dimensions.map((tile) => (
             <li key={tile.dimension} className="py-2.5">
@@ -799,7 +875,10 @@ export function InvestigationReviews() {
                 <p className="text-xs text-text-tertiary">
                   Most often failing:{" "}
                   {tile.worst_subcomponents
-                    .map((w) => `${w.subcomponent.replaceAll("_", " ")} (${w.failures})`)
+                    .map(
+                      (w) =>
+                        `${w.subcomponent.replaceAll("_", " ")} (${w.failures})`,
+                    )
                     .join(", ")}
                 </p>
               ) : null}
@@ -809,7 +888,11 @@ export function InvestigationReviews() {
       </Panel>
 
       <Card className="space-y-3 p-5">
-        <div role="tablist" aria-label="Investigation review views" className="flex flex-wrap gap-1">
+        <div
+          role="tablist"
+          aria-label="Investigation review views"
+          className="flex flex-wrap gap-1"
+        >
           {list.data.views.map((one) => (
             <button
               key={one.id}
@@ -991,10 +1074,7 @@ export function Prompts() {
 
   return (
     <div className="space-y-4">
-      <Panel
-        title="What may reach a model"
-        explanation={data.explanation}
-      >
+      <Panel title="What may reach a model" explanation={data.explanation}>
         <Rules rules={(data.pack_policy ?? {}) as Record<string, unknown>} />
       </Panel>
       <Panel title="Prompt caching">

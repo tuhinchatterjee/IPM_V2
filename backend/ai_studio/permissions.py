@@ -49,9 +49,21 @@ RELEASE_APPROVE = "AI_RELEASE_APPROVE"
 LIVE_HEALTH_VIEW = "AI_LIVE_HEALTH_VIEW"
 ADMIN = "AI_ADMIN"
 
+# ------------------------------------------- the AI Brain. §15, §22, §26
+#
+# Split three ways rather than folded into ADMIN, because the actions differ
+# in what they cost when they go wrong. Reading a Brain's provenance costs
+# nothing; activating one changes what every answer in the bank is made of.
+BRAIN_VIEW = "AI_BRAIN_VIEW"
+BRAIN_EXPORT = "AI_BRAIN_EXPORT"
+BRAIN_IMPORT = "AI_BRAIN_IMPORT"
+BRAIN_ACTIVATE = "AI_BRAIN_ACTIVATE"
+
 PERMISSIONS: tuple[str, ...] = (VIEW, TEACHING_AUTHOR, TEACHING_REVIEW,
                                 MODEL_EXPERIMENT, EVALUATION_RUN,
-                                RELEASE_APPROVE, LIVE_HEALTH_VIEW, ADMIN)
+                                RELEASE_APPROVE, LIVE_HEALTH_VIEW, ADMIN,
+                                BRAIN_VIEW, BRAIN_EXPORT, BRAIN_IMPORT,
+                                BRAIN_ACTIVATE)
 
 #: What each one lets somebody do, in the words that would appear beside a
 #: checkbox. A permission nobody can describe gets granted to everybody.
@@ -65,6 +77,14 @@ MEANS: dict[str, str] = {
     RELEASE_APPROVE: "Approve an Intelligence Release for production.",
     LIVE_HEALTH_VIEW: "See live provider state, latency and cost.",
     ADMIN: "Everything, including changing what the other permissions mean.",
+    BRAIN_VIEW: "See the Brain Center: what Brain is running, what it has "
+                "learned, and what has been imported.",
+    BRAIN_EXPORT: "Build a Brain Pack, Learning Bundle or Developer Bundle "
+                  "for another installation.",
+    BRAIN_IMPORT: "Upload a Brain into quarantine and evaluate it. Cannot "
+                  "activate it.",
+    BRAIN_ACTIVATE: "Activate an evaluated Brain, or roll one back. Changes "
+                    "what every answer is made of.",
 }
 
 #: Which roles hold which permission today. Deliberately conservative: the
@@ -80,6 +100,10 @@ GRANTS: dict[str, frozenset[Role]] = {
     RELEASE_APPROVE: frozenset({Role.ADMIN}),
     LIVE_HEALTH_VIEW: frozenset({Role.ADMIN, Role.DATA_STEWARD}),
     ADMIN: frozenset({Role.ADMIN}),
+    BRAIN_VIEW: frozenset({Role.ADMIN, Role.DATA_STEWARD}),
+    BRAIN_EXPORT: frozenset({Role.ADMIN, Role.DATA_STEWARD}),
+    BRAIN_IMPORT: frozenset({Role.ADMIN, Role.DATA_STEWARD}),
+    BRAIN_ACTIVATE: frozenset({Role.ADMIN}),
 }
 
 #: Authoring and approving are separated on purpose, and this records that it
@@ -88,6 +112,10 @@ GRANTS: dict[str, frozenset[Role]] = {
 #: thing the governance report exists to make visible.
 SEPARATED: tuple[tuple[str, str], ...] = (
     (TEACHING_AUTHOR, TEACHING_REVIEW),
+    # §16 puts a measured evaluation before approval precisely so the person
+    # who runs the numbers and the person who accepts them can be different
+    # people. Collapsing these two would quietly remove that.
+    (BRAIN_IMPORT, BRAIN_ACTIVATE),
 )
 
 

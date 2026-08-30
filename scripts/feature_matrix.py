@@ -134,12 +134,23 @@ _JUDGEMENTS: dict[str, Judgement] = {
         "AI Intelligence Studio: the six Intelligence Dimensions, the "
         "current release, evaluations and health.",
         role="Administrator",
-        limitation="15 of the 18 tabs the final brief names. Continuous "
-                   "Learning, Brain Center and Regulatory Learning are the "
-                   "three being added in this phase."),
+        limitation="16 of the 18 tabs the final brief names. Brain Center "
+                   "is present; Continuous Learning and Regulatory Learning "
+                   "are the two still being added in this phase."),
     "/ai-studio/feedback-learning": Judgement(
         "Feedback and the governed learning queue: observations, candidates, "
         "review and releases.", role="Administrator"),
+    "/ai-studio/brain-center": Judgement(
+        "The Brain Center: what Brain is running, the Learning Ledger, the "
+        "three export formats, quarantined imports, the Lift Lab, the Merge "
+        "Lab, installation history, rollbacks, compatibility and security.",
+        role="Administrator",
+        limitation="Imports, Lift Lab, Merge Lab, Installations and "
+                   "Rollbacks read empty on a fresh installation, because "
+                   "nothing has been imported. That is the honest state, not "
+                   "a missing screen: the pipeline, the resolution set and "
+                   "the enforced security rules render regardless so a "
+                   "reviewer can see what would happen before it does."),
     "/agent-operations": Judgement(
         "Agent Operations: runs, workers, schedules, budgets and approvals.",
         role="Administrator"),

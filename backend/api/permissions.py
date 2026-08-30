@@ -167,3 +167,51 @@ RequireAnalyst = Depends(require(RUN_ANALYSIS))
 RequireAdmin = Depends(require(MANAGE_MODELS))
 #: Everybody signed in, including a Viewer. Comments and workflow replies only.
 RequireCommenter = Depends(require(COMMENT))
+
+
+# ==========================================================================
+# Named permissions for the AI Brain. §26, and the permission list in the
+# final consolidation brief.
+#
+# Named rather than folded into MANAGE_MODELS because the actions differ in
+# what they cost if they go wrong, and a single "AI admin" role would price
+# all of them at the highest. Looking at what a package contains costs
+# nothing and stops a reviewer doing their job if refused; activating one
+# changes how every answer in the bank is produced.
+#
+# The split that matters is EVALUATE from ACTIVATE. §16 puts a measured
+# evaluation before approval precisely so that the person who runs the
+# numbers and the person who accepts them can be different people, and
+# collapsing the two permissions would quietly remove that.
+# ==========================================================================
+
+#: Read the Brain Center: current Brain, ledger, history, lift reports.
+AI_BRAIN_VIEW = frozenset({Role.ADMIN, Role.DATA_STEWARD, Role.ANALYST})
+#: Build and download a Brain Pack, Learning Bundle or Developer Bundle.
+#: A steward may: the export contains only approved, redacted material and
+#: the exporter refuses anything else.
+AI_BRAIN_EXPORT = frozenset({Role.ADMIN, Role.DATA_STEWARD})
+#: Upload a package into quarantine. Uploading changes nothing about how
+#: answers are produced, so this is not the narrow one.
+AI_BRAIN_IMPORT = frozenset({Role.ADMIN, Role.DATA_STEWARD})
+#: Run the receiver-specific evaluation against the sealed holdout.
+AI_BRAIN_EVALUATE = frozenset({Role.ADMIN, Role.DATA_STEWARD})
+#: Approve and activate an imported Brain. The narrowest permission here:
+#: this is the one that changes what the bank's answers are made of.
+AI_BRAIN_ACTIVATE = frozenset({Role.ADMIN})
+#: Roll an activation back, or retire an installed Brain.
+AI_BRAIN_ROLLBACK = frozenset({Role.ADMIN})
+#: Add, raise or revoke trust for a signing key. §26: trust is a decision a
+#: named person records, and only an administrator records it.
+AI_BRAIN_SIGNERS = frozenset({Role.ADMIN})
+#: Record and adjudicate Learning Ledger entries.
+AI_LEARNING_REVIEW = frozenset({Role.ADMIN, Role.DATA_STEWARD})
+
+RequireBrainView = Depends(require(AI_BRAIN_VIEW))
+RequireBrainExport = Depends(require(AI_BRAIN_EXPORT))
+RequireBrainImport = Depends(require(AI_BRAIN_IMPORT))
+RequireBrainEvaluate = Depends(require(AI_BRAIN_EVALUATE))
+RequireBrainActivate = Depends(require(AI_BRAIN_ACTIVATE))
+RequireBrainRollback = Depends(require(AI_BRAIN_ROLLBACK))
+RequireBrainSigners = Depends(require(AI_BRAIN_SIGNERS))
+RequireLearningReview = Depends(require(AI_LEARNING_REVIEW))

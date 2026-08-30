@@ -26,6 +26,7 @@ from backend.api import auth as auth_router
 from backend.api.routers import agentic as agentic_router
 from backend.api.routers import ask as ask_router
 from backend.api.routers import assurance as assurance_router
+from backend.api.routers import brain as brain_router
 from backend.api.routers import cases as cases_router
 from backend.api.routers import data_builder as data_builder_router
 from backend.api.routers import early_warning as early_warning_router
@@ -204,6 +205,10 @@ def create_app() -> FastAPI:
     app.include_router(playbooks_router.router, prefix=API_PREFIX)
     app.include_router(studio_router.router, prefix=API_PREFIX)
     app.include_router(intelligence_router.router, prefix=API_PREFIX)
+    # The Brain Center: the Learning Ledger, exports, quarantine, the Lift
+    # Lab, installations and the trusted signer registry. Reading is open to
+    # the Studio's audience; activating a Brain is an administrator's alone.
+    app.include_router(brain_router.router, prefix=API_PREFIX)
     app.include_router(workspace_router.router, prefix=API_PREFIX)
     app.include_router(validation_router.router, prefix=API_PREFIX)
     app.include_router(exports_router.runs_router, prefix=API_PREFIX)

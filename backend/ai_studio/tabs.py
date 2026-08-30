@@ -56,10 +56,13 @@ RELEASES = "RELEASES"
 LIVE_HEALTH = "LIVE_AI_HEALTH"
 SETTINGS = "SETTINGS"
 
+# --------------------------------------------- the final consolidation's new
+BRAIN_CENTER = "BRAIN_CENTER"
+
 TABS: tuple[str, ...] = (
     OVERVIEW, KNOWLEDGE, TEACHING_CASES, BLUEPRINTS, JUDGMENT,
     VISUAL_GRAMMAR, ROUTING, PROMPTS, EVALUATIONS, REVIEWS, FEEDBACK,
-    AGENTIC, RELEASES, LIVE_HEALTH, SETTINGS,
+    BRAIN_CENTER, AGENTIC, RELEASES, LIVE_HEALTH, SETTINGS,
 )
 
 #: On-screen names. The enum is not the label: a reader asked for "the
@@ -72,7 +75,7 @@ LABELS: dict[str, str] = {
     EVALUATIONS: "Evaluations", REVIEWS: "Investigation reviews",
     FEEDBACK: "Feedback & learning", AGENTIC: "Agentic health",
     RELEASES: "Releases", LIVE_HEALTH: "Live AI health",
-    SETTINGS: "Settings",
+    SETTINGS: "Settings", BRAIN_CENTER: "Brain Center",
 }
 
 #: What each tab is FOR, shown at the top of it. §117's principle applied to
@@ -104,6 +107,9 @@ PURPOSE: dict[str, str] = {
               "underneath it.",
     LIVE_HEALTH: "The provider, the roles, and what a live check would cost.",
     SETTINGS: "Who may do what, and what the Studio will never show.",
+    BRAIN_CENTER: "What Brain is running, what this installation has "
+                  "learned, what has been imported from elsewhere, and how "
+                  "much measured improvement each import actually produced.",
 }
 
 #: Which permission a tab needs. Checked backend-side; a tab hidden in the
@@ -114,7 +120,7 @@ NEEDS: dict[str, str] = {
     ROUTING: pm.VIEW, PROMPTS: pm.TEACHING_AUTHOR,
     EVALUATIONS: pm.EVALUATION_RUN, REVIEWS: pm.VIEW, FEEDBACK: pm.TEACHING_REVIEW,
     AGENTIC: pm.VIEW, RELEASES: pm.VIEW, LIVE_HEALTH: pm.LIVE_HEALTH_VIEW,
-    SETTINGS: pm.ADMIN,
+    SETTINGS: pm.ADMIN, BRAIN_CENTER: pm.BRAIN_VIEW,
 }
 
 
