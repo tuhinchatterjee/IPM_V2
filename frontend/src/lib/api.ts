@@ -5089,6 +5089,49 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  // §51-§56, §82, §83. The validation report and its evidence workbook.
+  scorecardGenerateReport: (
+    type: ScorecardType,
+    body: {
+      month?: string;
+      model_kind?: string;
+      history_months?: number;
+      record?: boolean;
+    },
+  ) =>
+    request<ScorecardReport>(`/scorecard/reports/${type}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  scorecardReports: (type: ScorecardType) =>
+    request<ScorecardReportLibrary>(`/scorecard/reports/${type}`),
+  scorecardReportEvidence: (reportId: string) =>
+    request<ScorecardReportEvidenceIndex>(
+      `/scorecard/reports/evidence/${encodeURIComponent(reportId)}`,
+    ),
+  /**
+   * The download URL, not the bytes. The file is a browser navigation so
+   * the Content-Disposition filename the server chose is the one the user
+   * gets; fetching it here and re-naming it in JavaScript would mean two
+   * places deciding what §51's filename is.
+   */
+  scorecardReportDownloadUrl: (
+    type: ScorecardType,
+    fmt: "docx" | "xlsx",
+    params: { month?: string; model_kind?: string; history_months?: number },
+  ) => {
+    const query = new URLSearchParams({ fmt });
+    if (params.month) query.set("month", params.month);
+    if (params.model_kind) query.set("model_kind", params.model_kind);
+    if (params.history_months) {
+      query.set("history_months", String(params.history_months));
+    }
+    return (
+      `${API_BASE_URL}${API_PREFIX}/scorecard/reports/${type}` +
+      `/download?${query}`
+    );
+  },
+
   // §21/§22. The merge that produces a third Brain from two.
   brainMergePreview: (importId: string) =>
     request<BrainMergePreview>(`/brain/merge/${encodeURIComponent(importId)}`),
@@ -5104,6 +5147,104 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+};
+
+/** §52. One section of the CBUAE-aligned report, as the API returns it. */
+export type ScorecardReportSection = {
+  number: string;
+  title: string;
+  level: number;
+  narrative: string;
+  tables: {
+    caption: string;
+    columns: string[];
+    rows: string[][];
+    note: string;
+  }[];
+  /** Non-empty when the section could not be computed, and why. */
+  unavailable: string;
+};
+
+/** §89. Which required topics this report actually addresses. */
+export type ScorecardReportCoverage = {
+  addressed: Record<string, string>;
+  missing: string[];
+  complete: boolean;
+  topics: number;
+};
+
+export type ScorecardReport = {
+  report_id: string;
+  model_id: string;
+  model_version: string;
+  model_name: string;
+  scorecard_type: ScorecardType;
+  model_kind: string;
+  period: string;
+  title: string;
+  structure_version: string;
+  generated_at: string;
+  generated_by: string;
+  opinion: string;
+  document_control: string[][];
+  sections: ScorecardReportSection[];
+  evidence: {
+    section: string;
+    label: string;
+    metric: string;
+    value: number | null;
+    value_text: string;
+    method: string;
+    period: string;
+    model_version: string;
+    validation_state: string;
+    workbook_sheet: string;
+  }[];
+  evidence_count: number;
+  content_hash: string;
+  disclaimer: string;
+  origin: string;
+  not_client_data: string;
+  coverage: ScorecardReportCoverage;
+  downloads: { docx: string; xlsx: string };
+};
+
+/** §82. The report library. */
+export type ScorecardReportLibrary = {
+  scorecard_type: ScorecardType;
+  reports: {
+    report_id: string;
+    model_id: string;
+    model_version: string;
+    period: string;
+    title: string;
+    opinion: string;
+    status: string;
+    structure_version: string;
+    generated_by: string;
+    generated_at: string;
+    sections: number;
+    origin: string;
+  }[];
+  count: number;
+  structure_version: string;
+};
+
+export type ScorecardReportEvidenceIndex = {
+  report_id: string;
+  evidence: {
+    section: string;
+    label: string;
+    metric: string;
+    value: number | null;
+    value_text: string;
+    validation_run_id: string;
+    analysis_id: string;
+    trace_id: string;
+    workbook_sheet: string;
+    workbook_cell: string;
+  }[];
+  count: number;
 };
 
 /** §84. What the Studio can answer, and where the numbers come from. */

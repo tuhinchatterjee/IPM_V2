@@ -59,13 +59,24 @@ MASTER_SEED = 20260830
 
 # ------------------------------------------------------------------ periods
 
-#: §5. Twenty-five application months, and outcomes observable a year past
-#: the last of them.
+#: §5. Thirty-one application months: twenty-five whose twelve-month
+#: performance window has closed by `DATA_END_MONTH`, and six after it that
+#: have not.
+#:
+#: The six matter more than their number suggests. §7's rule — never
+#: calculate actual against predicted on an immature cohort — is only a
+#: real control if there is a month it applies to. A universe where every
+#: month happens to be matured leaves the refusal implemented, unit-tested
+#: and unreachable: the month picker's "stability only" marker never
+#: appears, the dashboard's outcome sections never say when a window
+#: closes, and a validation report can never demonstrate the difference
+#: between "no defaults" and "no outcome yet". These six months are what
+#: make that difference visible on a screen.
 APPLICATION_MONTHS: tuple[str, ...] = tuple(
     f"{year}-{month:02d}"
     for year in (2023, 2024, 2025)
     for month in range(1, 13)
-)[:25]
+)[:31]
 
 #: §6. The behavioral panel runs over the same window.
 BEHAVIORAL_MONTHS: tuple[str, ...] = APPLICATION_MONTHS
@@ -109,6 +120,17 @@ def matured(month: str, *, horizon: int = DEFAULT_HORIZON_MONTHS,
     against actual is undefined for it — not zero, not optimistic, undefined.
     """
     return _month_index(add_months(month, horizon)) <= _month_index(data_end)
+
+
+def window_closes(month: str, *,
+                  horizon: int = DEFAULT_HORIZON_MONTHS) -> str:
+    """The month this cohort's performance window closes in.
+
+    §7's other half. Refusing to report an outcome is only half an answer;
+    the useful half is when the outcome will exist, and a screen that says
+    "not available" without it reads as broken rather than as honest.
+    """
+    return add_months(month, horizon)
 
 
 def latest_matured(months: tuple[str, ...] = APPLICATION_MONTHS, *,

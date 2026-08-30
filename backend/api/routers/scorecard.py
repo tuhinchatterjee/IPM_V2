@@ -34,9 +34,11 @@ from backend.api.permissions import (
     RequireScorecardModelApprove,
     RequireScorecardModelEdit,
     RequireScorecardModelView,
+    RequireScorecardReport,
     RequireScorecardView,
 )
 from backend.db.engine import get_session
+from backend.models.platform import ScorecardReport
 from backend.scorecard import build as build_mod
 from backend.scorecard import catalogue as catalogue_mod
 from backend.scorecard import dashboard as dash
@@ -45,6 +47,8 @@ from backend.scorecard import equation as equation_mod
 from backend.scorecard import metrics as metrics_mod
 from backend.scorecard import policy as policy_mod
 from backend.scorecard import registry as registry_mod
+from backend.scorecard import report as report_mod
+from backend.scorecard import report_docx, report_xlsx
 from backend.scorecard import synthetic as synth
 from backend.scorecard import variables as vars_mod
 
@@ -863,3 +867,199 @@ def delete_pin(scorecard_type: str = Query(...),
             session, user_id=principal.user_id, scorecard_type=resolved,
             kind=kind, reference=reference, model_id=model_id)
     return {"removed": removed}
+
+
+# ---------------------------------------------------------------------------
+# §51-§56, §82, §83. The validation report and its evidence workbook.
+#
+# Generation is one act and download is another. Generating records what was
+# reported, to whom, with what disclaimer and against which run; downloading
+# reproduces that record. Keeping them apart is what makes §82's regenerate
+# meaningful — a second report is a second version, not a silent overwrite —
+# and what makes §56's audit answerable, because the record exists whether
+# or not anybody clicked download.
+# ---------------------------------------------------------------------------
+
+
+class ReportBody(BaseModel):
+    """§54. Which model and which month to report on."""
+
+    month: str = Field(default="", max_length=16)
+    model_kind: str = Field(default="INCUMBENT", max_length=32)
+    #: §54's multi-month history in the evidence workbook. The report itself
+    #: is always about one month; the history is context for it.
+    history_months: int = Field(default=12, ge=1, le=36)
+    record: bool = True
+
+
+def _report_payload(report: Any, coverage: dict[str, Any]) -> dict[str, Any]:
+    payload = report.to_dict()
+    payload["coverage"] = coverage
+    payload["downloads"] = {
+        "docx": report_mod.filename_for(report, "docx"),
+        "xlsx": report_mod.filename_for(report, "xlsx"),
+    }
+    return payload
+
+
+@router.post("/reports/{scorecard_type}")
+def generate_report(scorecard_type: str, body: ReportBody,
+                    principal: Principal = RequireScorecardReport
+                    ) -> dict[str, Any]:
+    """§51/§52. Build the thirteen-section validation report.
+
+    Nothing is recalculated and no provider is called: every figure comes
+    from the deterministic dashboard for the same model and month, and the
+    §89 coverage result is returned alongside so a caller can see which of
+    the required topics this report actually addresses.
+    """
+    kind = _check_type(scorecard_type)
+    registered = None
+    with get_session() as session:
+        model_id = registry_mod.model_id_for(kind, body.model_kind.upper())
+        try:
+            registered = registry_mod.get(session, model_id)
+            session.expunge(registered)
+        except registry_mod.RegistryError:
+            # Not an error. A workspace that built a lake without
+            # registering can still report on it, and section 1 says the
+            # owner and materiality are unavailable rather than inventing
+            # them.
+            registered = None
+
+    try:
+        report = report_mod.build(
+            kind, month=body.month, model_kind=body.model_kind.upper(),
+            generated_by=_actor(principal), registered=registered)
+    except (dash.DashboardError, FileNotFoundError, KeyError) as exc:
+        raise _not_found(exc) from exc
+    except (metrics_mod.MetricError, report_mod.ReportError) as exc:
+        raise _refused(exc) from exc
+
+    covered = report_mod.coverage(report)
+
+    if body.record and registered is not None:
+        with get_session() as session:
+            registry_mod.record_report(
+                session, report_id=report.report_id,
+                model_id=report.model_id, model_version=report.model_version,
+                scorecard_type=kind, period=report.period,
+                title=report.title,
+                structure_version=report.structure_version,
+                disclaimer=report.disclaimer, opinion=report.opinion,
+                sections=[{"number": s.number, "title": s.title,
+                           "unavailable": bool(s.unavailable)}
+                          for s in report.sections],
+                created_by=_actor(principal))
+            registry_mod.add_evidence(
+                session, report.report_id,
+                [e.to_dict() for e in report.evidence])
+
+    logger.info("scorecard report %s generated by %s (%d evidence items)",
+                report.report_id, _actor(principal), len(report.evidence))
+    return _report_payload(report, covered)
+
+
+@router.get("/reports/{scorecard_type}/download")
+def download_report(scorecard_type: str,
+                    fmt: str = Query(default="docx"),
+                    month: str = Query(default=""),
+                    model_kind: str = Query(default="INCUMBENT"),
+                    history_months: int = Query(default=12, ge=1, le=36),
+                    principal: Principal = RequireScorecardReport):
+    """§51/§83. The report as .docx, or its evidence as .xlsx.
+
+    Rebuilt from the same deterministic inputs rather than served from a
+    stored blob: a download that could disagree with the screen it was
+    started from is a worse failure than a slow one.
+    """
+    from fastapi.responses import Response
+
+    kind = _check_type(scorecard_type)
+    if fmt not in ("docx", "xlsx"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "unknown_format",
+                    "message": "fmt must be docx or xlsx."})
+
+    registered = None
+    with get_session() as session:
+        try:
+            registered = registry_mod.get(
+                session,
+                registry_mod.model_id_for(kind, model_kind.upper()))
+            session.expunge(registered)
+        except registry_mod.RegistryError:
+            registered = None
+
+    try:
+        report = report_mod.build(
+            kind, month=month, model_kind=model_kind.upper(),
+            generated_by=_actor(principal), registered=registered)
+    except (dash.DashboardError, FileNotFoundError, KeyError) as exc:
+        raise _not_found(exc) from exc
+
+    if fmt == "docx":
+        body = report_docx.write(report)
+        media = ("application/vnd.openxmlformats-officedocument"
+                 ".wordprocessingml.document")
+    else:
+        body = report_xlsx.write(
+            report,
+            history_months=report_xlsx.default_history(kind, history_months))
+        media = ("application/vnd.openxmlformats-officedocument"
+                 ".spreadsheetml.sheet")
+
+    filename = report_mod.filename_for(report, fmt)
+    return Response(
+        content=body, media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                 "X-CreditProbe-Report-Id": report.report_id,
+                 "X-CreditProbe-Content-Hash": report.content_hash,
+                 "X-CreditProbe-Origin": report.origin})
+
+
+@router.get("/reports/{scorecard_type}")
+def list_reports(scorecard_type: str,
+                 principal: Principal = RequireScorecardView
+                 ) -> dict[str, Any]:
+    """§82's report library."""
+    kind = _check_type(scorecard_type)
+    with get_session() as session:
+        rows = session.query(ScorecardReport).filter(
+            ScorecardReport.tenant == "",
+            ScorecardReport.scorecard_type == kind).order_by(
+            ScorecardReport.created_at.desc()).limit(100).all()
+        payload = [
+            {"report_id": r.report_id, "model_id": r.model_id,
+             "model_version": r.model_version, "period": r.period,
+             "title": r.title, "opinion": r.opinion, "status": r.status,
+             "structure_version": r.structure_version,
+             "generated_by": r.created_by,
+             "generated_at": (r.created_at.isoformat()
+                              if r.created_at else ""),
+             "sections": len(r.sections or []),
+             "origin": r.origin}
+            for r in rows]
+    return {"scorecard_type": kind, "reports": payload,
+            "count": len(payload),
+            "structure_version": report_mod.REPORT_STRUCTURE_VERSION}
+
+
+@router.get("/reports/evidence/{report_id}")
+def report_evidence(report_id: str,
+                    principal: Principal = RequireScorecardView
+                    ) -> dict[str, Any]:
+    """§55. Every figure a stored report printed, and where it came from."""
+    with get_session() as session:
+        rows = registry_mod.evidence_for(session, report_id)
+        payload = [
+            {"section": e.section, "label": e.label, "metric": e.metric,
+             "value": e.value, "value_text": e.value_text,
+             "validation_run_id": e.validation_run_id,
+             "analysis_id": e.analysis_id, "trace_id": e.trace_id,
+             "workbook_sheet": e.workbook_sheet,
+             "workbook_cell": e.workbook_cell}
+            for e in rows]
+    return {"report_id": report_id, "evidence": payload,
+            "count": len(payload)}

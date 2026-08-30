@@ -17,6 +17,8 @@ import type {
   ScorecardOdrTrend,
   ScorecardOverview,
   ScorecardPolicy,
+  ScorecardReport,
+  ScorecardReportLibrary,
   ScorecardType,
   ScorecardVariables,
 } from "@/lib/api";
@@ -64,6 +66,7 @@ const TABS = [
   ["findings", "Findings", "What breached a limit, with the evidence that raised it."],
   ["governance", "Governance", "The validation policy and where each limit came from."],
   ["data", "Data", "Row counts, missingness, key uniqueness and sample sufficiency."],
+  ["reports", "Reports", "Generate and download the CBUAE-aligned validation report and its evidence workbook."],
 ] as const;
 
 type TabId = (typeof TABS)[number][0];
@@ -342,6 +345,7 @@ function Panel({
     drift?: ScorecardDrift;
     lowKs?: ScorecardDiagnosis;
     accuracy?: ScorecardDiagnosis;
+    reports?: ScorecardReportLibrary;
   } | null>(null);
   const [failed, setFailed] = React.useState("");
 
@@ -362,6 +366,8 @@ function Panel({
           };
         case "governance":
           return { policy: await api.scorecardPolicy() };
+        case "reports":
+          return { reports: await api.scorecardReports(type) };
         case "trends":
           return {
             odr: await api.scorecardOdrTrend(type, 20, model),
@@ -450,6 +456,15 @@ function Panel({
       );
     case "data":
       return dashboard ? <DataQuality data={dashboard} /> : <Empty>No data.</Empty>;
+    case "reports":
+      return (
+        <Reports
+          library={state.reports}
+          type={type}
+          model={model}
+          month={month}
+        />
+      );
   }
 }
 
@@ -1414,6 +1429,206 @@ function DataQuality({ data }: { data: ScorecardDashboard }) {
         <div className="mt-2">
           <Limits rows={body.missingness_assessments} />
         </div>
+      </Card>
+    </div>
+  );
+}
+
+/** One labelled value in a definition list. */
+function Pair({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="tabular-nums">{value}</dd>
+    </div>
+  );
+}
+
+/**
+ * §51/§82/§83. The report library, and the two downloads.
+ *
+ * Generating and downloading are separate buttons because they are separate
+ * acts. Generating records what was reported and to whom; downloading
+ * reproduces it. A single button that did both would leave no record of a
+ * report somebody looked at and did not save.
+ *
+ * The coverage line is not decoration either. §89 lists seventeen topics a
+ * validation report has to address, and showing which ones this report
+ * covers — before anybody sends it to a committee — is the difference
+ * between a checklist that ran and a checklist that was filed.
+ */
+function Reports({
+  library,
+  type,
+  model,
+  month,
+}: {
+  library?: ScorecardReportLibrary;
+  type: ScorecardType;
+  model: string;
+  month: string;
+}) {
+  const [built, setBuilt] = React.useState<ScorecardReport | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [failed, setFailed] = React.useState("");
+
+  const generate = React.useCallback(async () => {
+    setBusy(true);
+    setFailed("");
+    try {
+      setBuilt(
+        await api.scorecardGenerateReport(type, {
+          month,
+          model_kind: model,
+          record: true,
+        }),
+      );
+    } catch (error) {
+      setFailed(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }, [type, model, month]);
+
+  const params = { month, model_kind: model };
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-4">
+        <h3 className="text-sm font-medium">Validation report</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Thirteen sections aligned with the CBUAE Model Management Standards
+          and Guidance section list. Every figure is taken from the
+          deterministic engine for this model and month — nothing in the
+          report is recalculated, and no language model is asked for a
+          number. CreditProbe does not provide regulatory certification.
+        </p>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={generate}
+            disabled={busy}
+            className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+          >
+            {busy ? "Generating…" : "Generate validation report"}
+          </button>
+          <a
+            href={api.scorecardReportDownloadUrl(type, "docx", params)}
+            className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+          >
+            Download validation report (DOCX)
+          </a>
+          <a
+            href={api.scorecardReportDownloadUrl(type, "xlsx", {
+              ...params,
+              history_months: 12,
+            })}
+            className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+          >
+            Download validation evidence (XLSX)
+          </a>
+        </div>
+
+        {failed ? (
+          <p className="mt-2 text-xs text-destructive">{failed}</p>
+        ) : null}
+      </Card>
+
+      {built ? (
+        <Card className="p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="text-sm font-medium">{built.title}</h3>
+            <Status status={built.opinion} />
+          </div>
+          <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-4">
+            <Pair label="Report" value={built.report_id} />
+            <Pair label="Model version" value={built.model_version} />
+            <Pair label="Structure" value={built.structure_version} />
+            <Pair label="Evidence items" value={String(built.evidence_count)} />
+            <Pair label="Generated by" value={built.generated_by} />
+            <Pair label="Content hash" value={built.content_hash.slice(0, 16)} />
+          </dl>
+
+          <p className="mt-3 text-xs">
+            <span className="font-medium">Coverage:</span>{" "}
+            {built.coverage.complete
+              ? `all ${built.coverage.topics} required topics are addressed.`
+              : `${built.coverage.missing.length} of ${built.coverage.topics} topics are not addressed: ${built.coverage.missing.join(", ")}.`}
+          </p>
+
+          <table className="mt-3 w-full text-xs">
+            <caption className="sr-only">Sections of {built.title}</caption>
+            <thead className="text-left text-muted-foreground">
+              <tr>
+                <th scope="col" className="pb-1 font-normal">Section</th>
+                <th scope="col" className="pb-1 font-normal">Title</th>
+                <th scope="col" className="pb-1 font-normal">Reported</th>
+              </tr>
+            </thead>
+            <tbody>
+              {built.sections.map((section) => (
+                <tr key={section.number} className="border-t border-border/40">
+                  <td className="py-1 tabular-nums">{section.number}</td>
+                  <td className="py-1">{section.title}</td>
+                  <td className="py-1 text-muted-foreground">
+                    {section.unavailable ? section.unavailable : "Reported"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <p className="mt-3 text-xs text-muted-foreground">
+            {built.not_client_data}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {built.disclaimer}
+          </p>
+        </Card>
+      ) : null}
+
+      <Card className="p-4">
+        <h3 className="text-sm font-medium">Report library</h3>
+        {!library || library.count === 0 ? (
+          <p className="mt-1 text-xs text-muted-foreground">
+            No report has been generated for this scorecard yet. Generating one
+            records what was reported, by whom and with which disclaimer;
+            downloading without generating leaves no such record.
+          </p>
+        ) : (
+          <table className="mt-2 w-full text-xs">
+            <caption className="sr-only">Generated validation reports</caption>
+            <thead className="text-left text-muted-foreground">
+              <tr>
+                <th scope="col" className="pb-1 font-normal">Report</th>
+                <th scope="col" className="pb-1 font-normal">Model</th>
+                <th scope="col" className="pb-1 font-normal">Version</th>
+                <th scope="col" className="pb-1 font-normal">Period</th>
+                <th scope="col" className="pb-1 font-normal">Opinion</th>
+                <th scope="col" className="pb-1 font-normal">Generated by</th>
+                <th scope="col" className="pb-1 font-normal">Generated at</th>
+              </tr>
+            </thead>
+            <tbody>
+              {library.reports.map((entry) => (
+                <tr key={entry.report_id} className="border-t border-border/40">
+                  <td className="py-1">{entry.report_id}</td>
+                  <td className="py-1">{entry.model_id}</td>
+                  <td className="py-1">{entry.model_version}</td>
+                  <td className="py-1 tabular-nums">{entry.period}</td>
+                  <td className="py-1">
+                    <Status status={entry.opinion} />
+                  </td>
+                  <td className="py-1">{entry.generated_by}</td>
+                  <td className="py-1 text-muted-foreground">
+                    {entry.generated_at.slice(0, 19).replace("T", " ")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </Card>
     </div>
   );

@@ -142,3 +142,41 @@ test("the api client sends no rows and asks for summaries", () => {
   // The candidate flow is typed as never activating.
   assert.ok(client.includes("activated: boolean"));
 });
+
+test("the reports tab offers both downloads and a way to record one", () => {
+  // §51/§83. Two files, and generation kept separate from download: a
+  // single button that did both would leave no record of a report somebody
+  // looked at and did not save.
+  const source = page();
+  assert.ok(source.includes('"reports"'));
+  assert.ok(source.includes("Download validation report (DOCX)"));
+  assert.ok(source.includes("Download validation evidence (XLSX)"));
+  assert.ok(source.includes("Generate validation report"));
+  assert.ok(source.includes("scorecardGenerateReport"));
+});
+
+test("the report panel shows coverage and refuses to claim certification", () => {
+  // §89's coverage is shown before the report reaches a committee, and §0's
+  // disclaimer travels with it rather than living only in the file.
+  const source = page();
+  assert.ok(source.includes("built.coverage.complete"));
+  assert.ok(source.includes("required topics are addressed"));
+  assert.ok(source.includes("built.disclaimer"));
+  assert.ok(source.includes("built.not_client_data"));
+  assert.ok(source.includes("does not provide regulatory certification"));
+});
+
+test("a section that was not reported shows its reason in the section list", () => {
+  // §7. A blank cell in that column would read as "nothing to say".
+  const source = page();
+  assert.ok(source.includes("section.unavailable ? section.unavailable"));
+});
+
+test("the download link is a navigation, not a fetch-and-rename", () => {
+  // §51 names the filename. Fetching the bytes and naming the file in the
+  // browser would put that decision in two places.
+  const client = read("lib/api.ts");
+  assert.ok(client.includes("scorecardReportDownloadUrl:"));
+  const page_source = page();
+  assert.ok(page_source.includes("href={api.scorecardReportDownloadUrl("));
+});
