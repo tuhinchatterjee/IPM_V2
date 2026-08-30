@@ -43,7 +43,7 @@ from dataclasses import dataclass
 
 #: Moves when a family is added, removed, or changes what it teaches. A case
 #: validated against an older list is STALE, not wrong (see ``status.py``).
-FAMILY_VERSION = "1.0.0"
+FAMILY_VERSION = "1.1.0"
 
 # ---------------------------------------------------------------- the groups
 # Groups exist for the administrator's eye, not for logic: forty-five rows in
@@ -60,10 +60,11 @@ JUDGMENT = "judgment"
 REFUSAL = "refusal"
 GOVERNANCE = "governance"
 SCOPE = "scope"
+SCORECARD = "scorecard"
 
 GROUPS: tuple[str, ...] = (
     METADATA, CALCULATION, CONVERSATION, STRUCTURE, MIGRATION, ECL,
-    PORTFOLIO, BORROWER, JUDGMENT, REFUSAL, GOVERNANCE, SCOPE,
+    PORTFOLIO, BORROWER, JUDGMENT, REFUSAL, GOVERNANCE, SCOPE, SCORECARD,
 )
 
 # ------------------------------------------------------------- the outcomes
@@ -299,6 +300,122 @@ FAMILIES: tuple[Family, ...] = (
            "Read a question about a planned project against the Project "
            "Planner's governed objects.",
            gated_on="Project Planner"),
+
+    # ------------------------------------------------------------ scorecard
+    # §A2. Retail model validation is its own vocabulary, and the families
+    # below are separated more finely than the topic strictly requires. That
+    # is deliberate: PSI, CSI and "stability" get merged in conversation and
+    # then in code, and a corpus that merged them could not tell whether a
+    # model had learned the difference between a score distribution moving
+    # and one variable's bins moving.
+    Family("SCORECARD_DATA_DISCOVERY", "Scorecard data discovery", SCORECARD,
+           "Say which scorecard datasets, months and models exist, without "
+           "computing a validation metric over them.",
+           scope=RETAIL, outcome=EXECUTE),
+    Family("SCORECARD_MODEL_EQUATION", "Scorecard model equation", SCORECARD,
+           "Report the registered equation — intercept, terms, link and "
+           "score mapping — as the registry holds it, including the declared "
+           "score direction rather than an assumed one.",
+           scope=RETAIL),
+    Family("SCORECARD_VARIABLES", "Scorecard variables", SCORECARD,
+           "Distinguish a variable in the model from a variable in the "
+           "dictionary, and report which are scoreable.",
+           scope=RETAIL),
+    Family("SCORECARD_WOE_BINNING", "Scorecard WoE and binning", SCORECARD,
+           "Read the frozen binning specification: bins, Weight of Evidence "
+           "and Information Value under the approved spec version, never "
+           "recomputed from the validation month.",
+           scope=RETAIL),
+    Family("SCORECARD_DISCRIMINATION", "Scorecard discrimination", SCORECARD,
+           "Compute or explain rank ordering — AUC, Gini, KS — on a matured "
+           "cohort, respecting the registered score direction.",
+           scope=RETAIL),
+    Family("SCORECARD_CALIBRATION", "Scorecard calibration", SCORECARD,
+           "Compare predicted PD against the observed default rate, and keep "
+           "that question separate from rank ordering.",
+           scope=RETAIL),
+    Family("SCORECARD_STABILITY", "Scorecard stability", SCORECARD,
+           "Report population and characteristic movement against the "
+           "development baseline, which needs no outcome and is therefore "
+           "available on an immature month.",
+           scope=RETAIL),
+    Family("SCORECARD_PSI", "Scorecard PSI", SCORECARD,
+           "Population Stability Index on the SCORE distribution, against "
+           "the declared baseline, with the cut-offs named as a convention "
+           "rather than a regulatory requirement.",
+           scope=RETAIL),
+    Family("SCORECARD_CSI", "Scorecard CSI", SCORECARD,
+           "Characteristic Stability Index on ONE VARIABLE's bins — not the "
+           "score, and not the population as a whole.",
+           scope=RETAIL),
+    Family("SCORECARD_VARIABLE_DIAGNOSTICS", "Scorecard variable diagnostics",
+           SCORECARD,
+           "Report a single variable's standalone power and separate it from "
+           "the model's power; a variable's Gini is not the model's Gini.",
+           scope=RETAIL),
+    Family("SCORECARD_IMPLEMENTATION", "Scorecard implementation replication",
+           SCORECARD,
+           "Re-derive bin, WoE, logit, PD and score from the stored "
+           "specification and report where the production value differs.",
+           scope=RETAIL),
+    Family("SCORECARD_SEGMENT_PERFORMANCE", "Scorecard segment performance",
+           SCORECARD,
+           "Report performance within a segment and refuse to rank a segment "
+           "too small to carry the metric.",
+           scope=RETAIL),
+    Family("SCORECARD_CUTOFF", "Scorecard cut-off", SCORECARD,
+           "Answer a decision-performance question only where an approved "
+           "cut-off exists, and say so where none does.",
+           scope=RETAIL),
+    Family("SCORECARD_OVERRIDE", "Scorecard override and usage", SCORECARD,
+           "Answer an override or usage question from recorded data, or "
+           "state that this workspace does not capture it.",
+           scope=RETAIL),
+    Family("SCORECARD_MODEL_COMPARISON", "Scorecard model comparison",
+           SCORECARD,
+           "Compare models on an identical population and period, and say "
+           "when overlapping intervals mean the difference is not "
+           "established.",
+           scope=RETAIL),
+    Family("SCORECARD_RESCORING", "Scorecard candidate and rescoring",
+           SCORECARD,
+           "Treat a proposed equation as a candidate version: validated, "
+           "diffed, scored in memory, never activated.",
+           scope=RETAIL),
+    Family("SCORECARD_MATURITY", "Scorecard outcome maturity", SCORECARD,
+           "Distinguish the latest data month from the latest matured "
+           "performance month, and refuse an outcome metric on a cohort "
+           "whose window has not closed.",
+           scope=RETAIL),
+    Family("SCORECARD_DEFAULT_DEFINITION", "Scorecard default definition",
+           SCORECARD,
+           "Report the governed default definition in full — basis, days "
+           "past due, window, exclusions, indeterminate treatment.",
+           scope=RETAIL),
+    Family("SCORECARD_REPORT", "Scorecard validation report", SCORECARD,
+           "Answer from the governed report and its evidence index, and "
+           "reconcile a reported figure to the dashboard it came from.",
+           scope=RETAIL),
+    Family("SCORECARD_REGULATORY", "Scorecard regulatory framing", SCORECARD,
+           "Describe the report structure as CBUAE MMS/MMG-ALIGNED and "
+           "refuse to present CreditProbe as providing certification, or a "
+           "seeded limit as a regulatory requirement.",
+           scope=RETAIL),
+    Family("SCORECARD_AGENTIC_DIAGNOSIS", "Scorecard agentic diagnosis",
+           SCORECARD,
+           "Run a governed diagnostic investigation — why discrimination "
+           "fell, what changed when accuracy did — and label the claim "
+           "strength honestly.",
+           scope=RETAIL),
+    Family("SCORECARD_AMBIGUITY", "Scorecard ambiguity", SCORECARD,
+           "Ask which model, which month or which metric was meant, rather "
+           "than picking one and computing confidently.",
+           scope=RETAIL, outcome=CLARIFY),
+    Family("SCORECARD_CONTROLLED_FAILURE", "Scorecard controlled failure",
+           SCORECARD,
+           "Refuse a scorecard question the data cannot answer, and say what "
+           "is missing rather than returning a number.",
+           scope=RETAIL),
 )
 
 BY_ID: dict[str, Family] = {f.id: f for f in FAMILIES}

@@ -99,11 +99,14 @@ def test_together_with_migration_every_available_family_has_cases():
 
     The judgment corpus is in here because §95's four new families live only
     there: checking migration and the canonical corpus alone would report the
-    four as gaps while six hundred cases sit in them."""
+    four as gaps while six hundred cases sit in them. The scorecard corpus is
+    in here for the same reason — its twenty-three families live only in
+    `teaching/scorecard.py`."""
     from intelligence_factory.teaching import judgment_blueprints as jb
+    from intelligence_factory.teaching import scorecard as sv
 
     covered = {c.family_id
-               for c in [*mg.cases(), *cn.cases(), *jb.cases()]}
+               for c in [*mg.cases(), *cn.cases(), *jb.cases(), *sv.cases()]}
     missing = sorted(set(fam.AVAILABLE) - covered)
     assert missing == []
 
