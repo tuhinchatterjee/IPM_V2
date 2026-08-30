@@ -19,6 +19,11 @@ Options
     --months N                               build only the first N months,
                                              for a fast smoke run
     --no-catalogue                           skip catalogue registration
+    --register                               also record the built models,
+                                             their binning specification and
+                                             the demonstration validation
+                                             policy in the model registry
+                                             (§12); needs a database
 """
 
 from __future__ import annotations
@@ -48,6 +53,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--months", type=int, default=0,
                         help="build only the first N months (smoke run)")
     parser.add_argument("--no-catalogue", action="store_true")
+    parser.add_argument("--register", action="store_true",
+                        help="record the built models in the §12 registry")
     parser.add_argument("--out", default="docs/retail_scorecard_build.json")
     args = parser.parse_args(argv)
 
@@ -95,6 +102,22 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {len(registered['scorecard_datasets'])} dataset(s), "
               f"{registered['relationships_declared']} relationship(s)")
         report["catalogue"] = registered
+
+    if args.register:
+        # Registration is opt-in because it needs a database, and the build
+        # itself does not: generating the lake on a machine with no
+        # PostgreSQL is a normal thing to do.
+        print("\n> Recording the model registry")
+        from backend.db.engine import get_session  # noqa: PLC0415
+        from backend.scorecard import registry as registry_mod  # noqa: PLC0415
+
+        with get_session() as session:
+            recorded = registry_mod.seed(session)
+        for entry in recorded["models"]:
+            print(f"  {entry['model_id']} {entry['model_version']} "
+                  f"{entry['status']}")
+        print(f"  {recorded['limits']} demonstration policy limit(s)")
+        report["registry"] = recorded
 
     out = ROOT / args.out
     out.parent.mkdir(parents=True, exist_ok=True)

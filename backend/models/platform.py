@@ -4772,3 +4772,555 @@ class EvaluationUse(Base):
         Index("ix_evaluation_use_partition", "tenant", "partition",
               "created_at"),
     )
+
+
+# ---------------------------------------------------------------------------
+# Retail Scorecard Validation. §12, §94.
+#
+# The registry is the answer to "which model produced this number?", and it
+# has to survive the thing being validated. A scorecard's binning
+# specification, its coefficients and its score mapping are currently built
+# into JSON alongside the Parquet lake, which is right for a demonstration
+# universe that is regenerated wholesale. It is wrong for governance: a
+# finding raised in March against version 1.0.0 has to still mean something
+# in September, when 1.1.0 is active and the build has been re-run twice.
+#
+# So these tables record decisions rather than data. No scored rows live
+# here - twelve to nineteen thousand a month belong in the lake. What lives
+# here is the specification, who approved it, what was found against it, and
+# what was reported to whom.
+# ---------------------------------------------------------------------------
+
+
+class ScorecardModel(Base):
+    """§12. One registered retail scorecard version.
+
+    The columns are the registry fields §12 names, and the reason so many of
+    them are strings that could have been enums is that a model registry
+    outlives the vocabulary it was written with. `status` is validated in
+    `backend/scorecard/registry.py` against a named tuple; putting it in a
+    database enum would mean a migration every time a bank adds a state.
+
+    `score_direction` has no default here for the same reason it has none in
+    the equation IR: §13 says the registry defines the sign convention, and a
+    default would be this table quietly choosing one.
+    """
+
+    __tablename__ = "scorecard_models"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    model_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    scorecard_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    model_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+
+    owner: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    developer: Mapped[str] = mapped_column(String(120), nullable=False,
+                                           default="")
+    validator: Mapped[str] = mapped_column(String(120), nullable=False,
+                                           default="")
+
+    development_period: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                    default="")
+    validation_period: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                   default="")
+    performance_horizon_months: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=12)
+    #: The full §9 definition object: basis, days past due, window,
+    #: exclusions and the indeterminate treatment. A sentence in a column
+    #: would lose the part a validator actually argues about.
+    default_definition: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    target: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    population: Mapped[str] = mapped_column(String(240), nullable=False,
+                                            default="")
+    product_scope: Mapped[str] = mapped_column(String(240), nullable=False,
+                                               default="")
+    baseline_population: Mapped[str] = mapped_column(String(240),
+                                                     nullable=False,
+                                                     default="")
+
+    binning_spec_version: Mapped[str] = mapped_column(String(48),
+                                                      nullable=False,
+                                                      default="")
+    woe_spec_version: Mapped[str] = mapped_column(String(48), nullable=False,
+                                                  default="")
+
+    #: The equation. Stored whole rather than reassembled from the variable
+    #: rows, because the thing a validator reproduces is the equation as it
+    #: was, not a join that might have gained a row since.
+    intercept: Mapped[float] = mapped_column(Float, nullable=False,
+                                             default=0.0)
+    equation: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    logit_direction: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                 default="")
+    pd_mapping: Mapped[str] = mapped_column(String(32), nullable=False,
+                                            default="")
+
+    base_score: Mapped[float | None] = mapped_column(Float)
+    pdo: Mapped[float | None] = mapped_column(Float)
+    base_odds: Mapped[float | None] = mapped_column(Float)
+    #: §13. No default: HIGHER_SCORE_IS_BETTER and LOWER_SCORE_IS_BETTER are
+    #: both correct and they invert every discrimination statistic.
+    score_direction: Mapped[str] = mapped_column(String(32), nullable=False)
+    min_score: Mapped[float | None] = mapped_column(Float)
+    max_score: Mapped[float | None] = mapped_column(Float)
+    cutoffs: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    risk_bands: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+
+    implementation_date: Mapped[str] = mapped_column(String(24),
+                                                     nullable=False,
+                                                     default="")
+    last_validation_date: Mapped[str] = mapped_column(String(24),
+                                                      nullable=False,
+                                                      default="")
+    materiality: Mapped[str] = mapped_column(String(32), nullable=False,
+                                             default="")
+    model_risk_rating: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                   default="")
+    regulatory_references: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+
+    #: §2. Every row of this workspace describes generated data. The column
+    #: exists so a report cannot be produced without carrying the marker.
+    origin: Mapped[str] = mapped_column(String(32), nullable=False,
+                                        default="SYNTHETIC_DEMO")
+    #: The model this one was proposed from, if it was. §35's candidates are
+    #: rows here with status CANDIDATE, never an overwrite of the active row.
+    based_on_model_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                   default="")
+    notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_by: Mapped[str] = mapped_column(String(120), nullable=False,
+                                            default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+        onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant", "model_id", "model_version",
+                         name="uq_scorecard_model_version"),
+        Index("ix_scorecard_model_type", "tenant", "scorecard_type", "status"),
+    )
+
+
+class ScorecardModelVariable(Base):
+    """§12's active and candidate variables, one row each.
+
+    Separate from the equation JSON on purpose. The equation is what the
+    model computes; this is what the institution decided each variable is
+    for. A variable can be in the registry as CANDIDATE - considered and not
+    used - and that is a fact a validator asks about, which an equation with
+    five terms cannot express.
+    """
+
+    __tablename__ = "scorecard_model_variables"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    model_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    variable: Mapped[str] = mapped_column(String(120), nullable=False)
+    #: ACTIVE (in the equation) or CANDIDATE (considered, not used).
+    role: Mapped[str] = mapped_column(String(24), nullable=False)
+    coefficient: Mapped[float | None] = mapped_column(Float)
+    transformation: Mapped[str] = mapped_column(String(24), nullable=False,
+                                                default="WOE")
+    information_value: Mapped[float | None] = mapped_column(Float)
+    risk_direction: Mapped[str] = mapped_column(String(24), nullable=False,
+                                                default="")
+    #: §10/§79. False for demographic fields kept for fairness monitoring.
+    #: The registry records it so an equation referencing one is refusable
+    #: against stored governance rather than against a constant in code.
+    scoreable: Mapped[bool] = mapped_column(Boolean, nullable=False,
+                                            default=True)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant", "model_id", "model_version", "variable",
+                         name="uq_scorecard_model_variable"),
+        Index("ix_scorecard_model_variable_model", "tenant", "model_id",
+              "model_version"),
+    )
+
+
+class ScorecardBinningSpec(Base):
+    """§10. One versioned WoE/binning specification.
+
+    Versioned and never edited in place. §10 forbids recalculating WoE from
+    the current validation month unless recalibration is the thing being
+    analysed, and the way that rule survives contact with a deadline is that
+    changing the bins produces a new row somebody has to point a model at.
+    """
+
+    __tablename__ = "scorecard_binning_specs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    spec_version: Mapped[str] = mapped_column(String(48), nullable=False)
+    scorecard_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    development_population: Mapped[str] = mapped_column(String(240),
+                                                        nullable=False,
+                                                        default="")
+    target: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    #: The bins, their WoE and their IV, as `binning.Spec.to_dict()` writes
+    #: them. Whole, so a score can be reproduced from this row alone.
+    spec: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    variable_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                default=0)
+    origin: Mapped[str] = mapped_column(String(32), nullable=False,
+                                        default="SYNTHETIC_DEMO")
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_by: Mapped[str] = mapped_column(String(120), nullable=False,
+                                            default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant", "spec_version",
+                         name="uq_scorecard_binning_spec"),
+        Index("ix_scorecard_binning_spec_type", "tenant", "scorecard_type"),
+    )
+
+
+class ScorecardPolicyLimit(Base):
+    """§26/§80. One monitoring limit, and where it came from.
+
+    `source` is the load-bearing column. §26 forbids presenting conventional
+    PSI and CSI cutoffs as universal regulatory requirements, and the only
+    way a screen can honour that is if every limit carries whether it is a
+    demonstration default, a bank policy, or something a regulator wrote.
+    A metric with no row here reads NO APPROVED LIMIT, which §50 says is not
+    a pass.
+    """
+
+    __tablename__ = "scorecard_policy_limits"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    policy_version: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                default="")
+    metric: Mapped[str] = mapped_column(String(64), nullable=False)
+    scorecard_type: Mapped[str] = mapped_column(String(24), nullable=False,
+                                                default="")
+    #: DEMO_POLICY, BANK_POLICY or REGULATORY. Seeded rows are DEMO_POLICY.
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+    comparison: Mapped[str] = mapped_column(String(16), nullable=False)
+    warn_at: Mapped[float | None] = mapped_column(Float)
+    breach_at: Mapped[float | None] = mapped_column(Float)
+    unit: Mapped[str] = mapped_column(String(24), nullable=False, default="")
+    rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    approved_by: Mapped[str] = mapped_column(String(120), nullable=False,
+                                             default="")
+    approved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True))
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant", "policy_version", "metric",
+                         "scorecard_type", name="uq_scorecard_policy_limit"),
+        Index("ix_scorecard_policy_limit_metric", "tenant", "metric",
+              "active"),
+    )
+
+
+class ScorecardValidationRun(Base):
+    """One validation of one model over one period.
+
+    The `matured` columns are not decoration. §7 forbids computing actual
+    versus predicted on an immature cohort, and a run row that recorded only
+    the period would make an immature run indistinguishable from a mature
+    one six months later, when nobody remembers which it was.
+    """
+
+    __tablename__ = "scorecard_validation_runs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    scorecard_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    period: Mapped[str] = mapped_column(String(16), nullable=False)
+    #: Whether the twelve-month performance window had closed for `period`.
+    #: False means discrimination and stability only, and the outcome
+    #: sections say why rather than showing a zero.
+    matured: Mapped[bool] = mapped_column(Boolean, nullable=False,
+                                          default=False)
+    performance_window_closes: Mapped[str] = mapped_column(String(16),
+                                                           nullable=False,
+                                                           default="")
+    population_rows: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                 default=0)
+    #: The computed metrics, as the deterministic engine produced them.
+    metrics: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    opinion: Mapped[str] = mapped_column(String(48), nullable=False,
+                                         default="")
+    opinion_reasoning: Mapped[str] = mapped_column(Text, nullable=False,
+                                                   default="")
+    policy_version: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                default="")
+    binning_spec_version: Mapped[str] = mapped_column(String(48),
+                                                      nullable=False,
+                                                      default="")
+    #: The Analysis this run was produced by, when it came from one.
+    analysis_id: Mapped[str] = mapped_column(String(48), nullable=False,
+                                             default="")
+    trace_id: Mapped[str] = mapped_column(String(48), nullable=False,
+                                          default="")
+    origin: Mapped[str] = mapped_column(String(32), nullable=False,
+                                        default="SYNTHETIC_DEMO")
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_by: Mapped[str] = mapped_column(String(120), nullable=False,
+                                            default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant", "run_id", name="uq_scorecard_run"),
+        Index("ix_scorecard_run_model", "tenant", "model_id", "period"),
+    )
+
+
+class ScorecardFinding(Base):
+    """§48. A finding, its evidence and what happened to it.
+
+    `evidence` holds the analysis runs and figures the finding was raised
+    from. A finding without them is an assertion, and an assertion in a
+    validation report is the thing the report exists to replace.
+    """
+
+    __tablename__ = "scorecard_findings"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    finding_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    period: Mapped[str] = mapped_column(String(16), nullable=False,
+                                        default="")
+    category: Mapped[str] = mapped_column(String(48), nullable=False)
+    title: Mapped[str] = mapped_column(String(240), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    severity: Mapped[str] = mapped_column(String(24), nullable=False)
+
+    metric: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    observed: Mapped[float | None] = mapped_column(Float)
+    limit_value: Mapped[float | None] = mapped_column(Float)
+    #: Where the limit came from, carried onto the finding so a reader is
+    #: never left assuming a demonstration default was a regulator's number.
+    limit_source: Mapped[str] = mapped_column(String(32), nullable=False,
+                                              default="")
+    breach: Mapped[bool] = mapped_column(Boolean, nullable=False,
+                                         default=False)
+    impact: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    recommendation: Mapped[str] = mapped_column(Text, nullable=False,
+                                                default="")
+    evidence: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    analysis_run_ids: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+
+    owner: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    due_date: Mapped[str] = mapped_column(String(24), nullable=False,
+                                          default="")
+    approved_by: Mapped[str] = mapped_column(String(120), nullable=False,
+                                             default="")
+    approved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    validation_run_id: Mapped[str] = mapped_column(String(48), nullable=False,
+                                                   default="")
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_by: Mapped[str] = mapped_column(String(120), nullable=False,
+                                            default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+        onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant", "finding_id", name="uq_scorecard_finding"),
+        Index("ix_scorecard_finding_model", "tenant", "model_id", "status"),
+        Index("ix_scorecard_finding_severity", "tenant", "severity", "status"),
+    )
+
+
+class ScorecardModelApproval(Base):
+    """Who moved a model between statuses, and on what authority.
+
+    Append-only. A status column on the model row says where it is now; this
+    says how it got there, which is the question an audit asks and the one a
+    mutable column cannot answer.
+    """
+
+    __tablename__ = "scorecard_model_approvals"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    model_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    from_status: Mapped[str] = mapped_column(String(24), nullable=False,
+                                             default="")
+    to_status: Mapped[str] = mapped_column(String(24), nullable=False)
+    decision: Mapped[str] = mapped_column(String(24), nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    conditions: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    committee: Mapped[str] = mapped_column(String(120), nullable=False,
+                                           default="")
+    decided_by: Mapped[str] = mapped_column(String(120), nullable=False,
+                                            default="")
+    decided_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+
+    __table_args__ = (
+        Index("ix_scorecard_approval_model", "tenant", "model_id",
+              "model_version", "decided_at"),
+    )
+
+
+class ScorecardDashboardPin(Base):
+    """A metric a user pinned to their validation cockpit.
+
+    Per user and per model, because a pinned metric is somebody's judgement
+    about what to watch on this scorecard, not a property of the scorecard.
+    """
+
+    __tablename__ = "scorecard_dashboard_pins"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"))
+    scorecard_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                          default="")
+    #: What was pinned: a metric key, a section, or a saved month view.
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    reference: Mapped[str] = mapped_column(String(120), nullable=False)
+    label: Mapped[str] = mapped_column(String(160), nullable=False,
+                                       default="")
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant", "user_id", "scorecard_type", "model_id",
+                         "kind", "reference", name="uq_scorecard_pin"),
+        Index("ix_scorecard_pin_user", "tenant", "user_id", "scorecard_type"),
+    )
+
+
+class ScorecardReport(Base):
+    """§51-§56. One generated validation report.
+
+    `disclaimer` is stored rather than rendered at read time so that a report
+    downloaded in March still carries the words it was issued with. §0
+    forbids claiming CreditProbe certifies anything, and a disclaimer that
+    lives only in a template is one refactor away from not existing.
+    """
+
+    __tablename__ = "scorecard_reports"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    report_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    scorecard_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    period: Mapped[str] = mapped_column(String(16), nullable=False,
+                                        default="")
+    validation_run_id: Mapped[str] = mapped_column(String(48), nullable=False,
+                                                   default="")
+    title: Mapped[str] = mapped_column(String(240), nullable=False,
+                                       default="")
+    #: The structure the report was generated against, so a reader can tell
+    #: a thirteen-section CBUAE-aligned report from a later revision of it.
+    structure_version: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                   default="")
+    opinion: Mapped[str] = mapped_column(String(48), nullable=False,
+                                         default="")
+    status: Mapped[str] = mapped_column(String(24), nullable=False,
+                                        default="DRAFT")
+    docx_path: Mapped[str] = mapped_column(String(512), nullable=False,
+                                           default="")
+    evidence_path: Mapped[str] = mapped_column(String(512), nullable=False,
+                                               default="")
+    sections: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    disclaimer: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    origin: Mapped[str] = mapped_column(String(32), nullable=False,
+                                        default="SYNTHETIC_DEMO")
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_by: Mapped[str] = mapped_column(String(120), nullable=False,
+                                            default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant", "report_id", name="uq_scorecard_report"),
+        Index("ix_scorecard_report_model", "tenant", "model_id", "period"),
+    )
+
+
+class ScorecardReportEvidence(Base):
+    """§55. One figure in a report, and the calculation that produced it.
+
+    This is what makes a report checkable rather than readable. Every number
+    a section prints has a row here naming the run, the metric and the
+    workbook cell it can be found in, so "where does 0.7104 come from?" has
+    an answer that is not somebody's memory.
+    """
+
+    __tablename__ = "scorecard_report_evidence"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    report_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    section: Mapped[str] = mapped_column(String(120), nullable=False)
+    label: Mapped[str] = mapped_column(String(240), nullable=False,
+                                       default="")
+    metric: Mapped[str] = mapped_column(String(64), nullable=False,
+                                        default="")
+    value: Mapped[float | None] = mapped_column(Float)
+    value_text: Mapped[str] = mapped_column(String(120), nullable=False,
+                                            default="")
+    validation_run_id: Mapped[str] = mapped_column(String(48), nullable=False,
+                                                   default="")
+    analysis_id: Mapped[str] = mapped_column(String(48), nullable=False,
+                                             default="")
+    trace_id: Mapped[str] = mapped_column(String(48), nullable=False,
+                                          default="")
+    #: Where in the evidence workbook the reader will find it.
+    workbook_sheet: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                default="")
+    workbook_cell: Mapped[str] = mapped_column(String(24), nullable=False,
+                                               default="")
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_scorecard_report_evidence_report", "tenant", "report_id",
+              "position"),
+    )
