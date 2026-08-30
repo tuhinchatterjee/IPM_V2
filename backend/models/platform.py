@@ -4324,3 +4324,150 @@ class RegulatoryDraft(Base):
         Index("ix_regulatory_draft_req", "requirement_id"),
         Index("ix_regulatory_draft_status", "tenant", "status", "target"),
     )
+
+
+# ==========================================================================
+# Per-answer feedback. §39-§45.
+#
+# `feedback_events` already exists and holds §7's structured prompt — the
+# rating, the categories, the consent. This is the other half the final
+# brief asks for: a thumb on EVERY answer type, and the eleven-field better
+# approach behind a thumbs-down.
+#
+# Two tables rather than one, and the split is the governance:
+#
+#   answer_feedback         what the user said. Immutable. No status column,
+#                           because what somebody said in March does not
+#                           change when we decide what to do about it.
+#   answer_feedback_status  one row per transition through §45's states.
+#                           The history rather than the current value, so
+#                           "how long did this sit at UNDER_REVIEW?" is
+#                           answerable and "who decided not to fix it?" has
+#                           a name against it.
+#
+# Neither table has a `weight` or a `gold` column. §41: good feedback is not
+# automatically gold, and §44: raw thumbs do not change validation scores.
+# A column that could carry a weight is a column somebody eventually
+# multiplies a score by.
+# ==========================================================================
+
+
+class AnswerFeedback(Base):
+    """§39-§41. One thumb on one answer, with what was said behind it.
+
+    Immutable. A correction that turns out to be wrong is answered by a
+    reviewer's decision recorded in `answer_feedback_status`, not by editing
+    what the user wrote — the pair is the record, and an edit destroys the
+    half that says what CreditProbe got wrong.
+    """
+
+    __tablename__ = "answer_feedback"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    feedback_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    answer_id: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    direction: Mapped[str] = mapped_column(String(8), nullable=False)
+    #: §39's eight. Kept so a report can say which SURFACE is disliked —
+    #: a clarification nobody wanted is a different defect from a wrong sum.
+    answer_kind: Mapped[str] = mapped_column(String(32), nullable=False,
+                                             default="analysis")
+    language: Mapped[str] = mapped_column(String(8), nullable=False,
+                                          default="en")
+
+    #: Thumbs-up: which of §41's nine.
+    reasons: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    #: Thumbs-down: §40's eleven fields, whichever were filled. None of them
+    #: is a number — §40 tells the user they need not supply one.
+    correction: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                             default=dict)
+    #: Which part of the answer the user pointed at, of §40's six kinds.
+    anchor_kind: Mapped[str] = mapped_column(String(24), nullable=False,
+                                             default="")
+    anchor_ref: Mapped[str] = mapped_column(String(240), nullable=False,
+                                            default="")
+
+    #: What the answer was produced under, so the correction can be
+    #: reproduced against the same thing the user saw.
+    build_sha: Mapped[str] = mapped_column(String(40), nullable=False,
+                                           default="")
+    plan_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                  default="")
+    teaching_release_id: Mapped[str] = mapped_column(String(64),
+                                                     nullable=False,
+                                                     default="")
+    investigation_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                  default="")
+
+    #: The presentation preferences this feedback changed at once, if any.
+    #: §42's narrow channel, recorded so "why did my charts change?" is
+    #: answerable.
+    immediate_changes: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                    default=dict)
+    #: Which of the eleven fields went to review instead.
+    governed_fields: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                  default=list)
+
+    #: The ledger entry this became, if it became one.
+    ledger_entry_id: Mapped[str] = mapped_column(String(48), nullable=False,
+                                                 default="")
+
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                         default="")
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("feedback_id", name="uq_answer_feedback"),
+        Index("ix_answer_feedback_answer", "answer_id"),
+        Index("ix_answer_feedback_kind", "tenant", "answer_kind",
+              "direction"),
+        Index("ix_answer_feedback_user", "tenant", "user_id", "created_at"),
+    )
+
+
+class AnswerFeedbackStatus(Base):
+    """§45. One row per move through Received → Under Review → Fixed →
+    Released.
+
+    The history rather than the current value. "How long did this sit
+    unreviewed?" and "who decided not to fix it?" are the two questions a
+    user asks when they stop giving feedback, and a single mutable status
+    column answers neither.
+
+    `reason` is required for REVIEWED_NOT_CHANGING. A correction that
+    vanishes teaches the user that feedback achieves nothing, and they stop.
+    """
+
+    __tablename__ = "answer_feedback_status"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    feedback_id: Mapped[str] = mapped_column(String(48), nullable=False)
+
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    by: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+
+    #: What it became, where it became something: a candidate case, a draft
+    #: method, a regulatory requirement, a release.
+    linked_kind: Mapped[str] = mapped_column(String(32), nullable=False,
+                                             default="")
+    linked_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                           default="")
+    release_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+    #: §44's before/after, attached to the transition that earned it. Empty
+    #: on every transition except the one following an evaluation, because
+    #: raw thumbs change no score.
+    score_impact: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                               default=dict)
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_answer_feedback_status_fb", "feedback_id", "created_at"),
+        Index("ix_answer_feedback_status_open", "tenant", "status"),
+    )

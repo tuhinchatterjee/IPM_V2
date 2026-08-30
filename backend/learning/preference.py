@@ -61,6 +61,14 @@ SETTINGS: dict[str, tuple[tuple[str, ...], str, str]] = {
                         "the user be able to reduce or hide it."),
     "chart_palette": (("default", "high_contrast", "print"), "default",
                       "The chart palette."),
+    #: §42 names language among the six preferences that may take effect
+    #: immediately. It belongs here and not with the analytical settings:
+    #: which language an answer is written in does not change what the
+    #: answer says, and a user who has to wait for a governance review to
+    #: read their own reports in Arabic has been told their language is a
+    #: configuration change.
+    "language": (("en", "ar"), "en",
+                 "The language answers are written in."),
 }
 
 NAMES: tuple[str, ...] = tuple(SETTINGS)

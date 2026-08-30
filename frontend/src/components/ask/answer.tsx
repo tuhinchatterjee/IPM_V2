@@ -12,7 +12,10 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
-import { AnalysesConsidered, QuestionsAnswered } from "@/components/ask/coverage";
+import {
+  AnalysesConsidered,
+  QuestionsAnswered,
+} from "@/components/ask/coverage";
 import { DataAndMethod } from "@/components/ask/data-and-method";
 import { DownloadResults } from "@/components/exports/download";
 import {
@@ -28,10 +31,15 @@ import { DynamicAnalysisPanel } from "@/components/ask/dynamic-analysis";
 import { KpiTile } from "@/components/analytics/primitives";
 import { ResultView } from "@/components/analytics/result-view";
 import { AccuracyFeedback } from "@/components/feedback/accuracy-prompt";
+import { answerKindOf } from "@/components/feedback/answer-kind";
+import { Thumbs } from "@/components/feedback/thumbs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { CertificationBadge, CertifiedMark } from "@/components/ui/certified-mark";
+import {
+  CertificationBadge,
+  CertifiedMark,
+} from "@/components/ui/certified-mark";
 import type {
   AnalysisRunResponse,
   ExecutedStep,
@@ -230,7 +238,10 @@ export function StepResult({
           )}
           {trace ? (
             <Button variant="ghost" size="sm" asChild>
-              <Link href={trace} title="See exactly how this result was produced">
+              <Link
+                href={trace}
+                title="See exactly how this result was produced"
+              >
                 <GitBranch aria-hidden />
                 Trace
               </Link>
@@ -361,7 +372,9 @@ export function AnalystReading({
       <SectionLabel>CreditProbe interpretation</SectionLabel>
       {interpretation && (
         <p className="prose-ai text-[15px] leading-relaxed text-text-secondary">
-          <span className="bg-accent-muted/50 text-text-primary">{conclusion}</span>
+          <span className="bg-accent-muted/50 text-text-primary">
+            {conclusion}
+          </span>
           {rest && " "}
           {rest}
         </p>
@@ -373,7 +386,10 @@ export function AnalystReading({
               key={note}
               className="prose-ai flex gap-2 text-sm text-text-secondary"
             >
-              <span aria-hidden className="mt-[0.55em] size-1 shrink-0 rounded-full bg-accent/60" />
+              <span
+                aria-hidden
+                className="mt-[0.55em] size-1 shrink-0 rounded-full bg-accent/60"
+              />
               {note}
             </li>
           ))}
@@ -435,7 +451,10 @@ export function Implications({ points }: { points: string[] }) {
       <SectionLabel>What deserves attention</SectionLabel>
       <ul className="space-y-1.5">
         {points.map((point) => (
-          <li key={point} className="prose-ai flex gap-2 text-sm text-text-secondary">
+          <li
+            key={point}
+            className="prose-ai flex gap-2 text-sm text-text-secondary"
+          >
             <ArrowRight
               className="mt-[0.3em] size-3 shrink-0 text-text-muted"
               aria-hidden
@@ -533,7 +552,9 @@ export function DeepAnalysis({ run }: { run: InvestigationResponse }) {
                     TONE_CLASS[finding.tone] ?? TONE_CLASS.neutral,
                   )}
                 >
-                  <p className="prose-ai text-sm text-text-primary">{finding.text}</p>
+                  <p className="prose-ai text-sm text-text-primary">
+                    {finding.text}
+                  </p>
                   {finding.evidence.length > 0 && (
                     <EvidenceRow className="mt-1" items={finding.evidence} />
                   )}
@@ -548,7 +569,10 @@ export function DeepAnalysis({ run }: { run: InvestigationResponse }) {
             <SectionLabel>Observations</SectionLabel>
             <ul className="space-y-1.5">
               {points.map((point) => (
-                <li key={point} className="prose-ai text-sm text-text-secondary">
+                <li
+                  key={point}
+                  className="prose-ai text-sm text-text-secondary"
+                >
                   {point}
                 </li>
               ))}
@@ -565,7 +589,10 @@ export function DeepAnalysis({ run }: { run: InvestigationResponse }) {
             </SectionLabel>
             <Card className="divide-y divide-border">
               {drivers.map((driver) => (
-                <div key={driver.name} className="flex items-baseline gap-3 px-4 py-2">
+                <div
+                  key={driver.name}
+                  className="flex items-baseline gap-3 px-4 py-2"
+                >
                   <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
                     {driver.name}
                   </span>
@@ -577,7 +604,9 @@ export function DeepAnalysis({ run }: { run: InvestigationResponse }) {
                   <span
                     className={cn(
                       "display-num shrink-0 text-sm font-medium",
-                      (driver.value ?? 0) > 0 ? "text-negative" : "text-positive",
+                      (driver.value ?? 0) > 0
+                        ? "text-negative"
+                        : "text-positive",
                     )}
                   >
                     {byUnit(driver.value, driver.unit)}
@@ -650,13 +679,18 @@ function StepLink({
   const label = step.title || step.analysis_id;
   const target = stepHref(step.analysis_id, step.certification, runId);
   if (!target) {
-    return <span className="text-sm font-medium text-text-primary">{label}</span>;
+    return (
+      <span className="text-sm font-medium text-text-primary">{label}</span>
+    );
   }
   const href = returnTo
     ? withReturnTo(target, returnTo.href, returnTo.label)
     : target;
   return (
-    <Link href={href} className="text-sm font-medium text-text-primary hover:text-accent">
+    <Link
+      href={href}
+      className="text-sm font-medium text-text-primary hover:text-accent"
+    >
       {label}
     </Link>
   );
@@ -693,7 +727,9 @@ export function AnalysesUsed({
               {step.role === "supporting" && " · supporting"}
             </span>
             <span className="mono ml-auto text-[11px] text-text-muted">
-              {step.status === "succeeded" ? `${step.duration_ms}ms` : step.status}
+              {step.status === "succeeded"
+                ? `${step.duration_ms}ms`
+                : step.status}
             </span>
           </div>
         ))}
@@ -761,7 +797,8 @@ export function ActionStrip({
 }) {
   const runId = run.analysis_run_id;
   const certified =
-    run.steps.length > 0 && run.steps.every((s) => s.certification === "certified");
+    run.steps.length > 0 &&
+    run.steps.every((s) => s.certification === "certified");
   const scope = run.plan.scope;
   const trace =
     runId && returnTo
@@ -797,13 +834,23 @@ export function ActionStrip({
           </Button>
         )}
         {onAddToProject && (
-          <Button variant="ghost" size="sm" onClick={onAddToProject} disabled={busy}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onAddToProject}
+            disabled={busy}
+          >
             <FolderPlus aria-hidden />
             Project
           </Button>
         )}
         {onSave && (
-          <Button variant="ghost" size="sm" onClick={onSave} disabled={saved || busy}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onSave}
+            disabled={saved || busy}
+          >
             {saved ? <Check aria-hidden /> : <BookmarkPlus aria-hidden />}
             {saved ? "Saved" : "Save analysis"}
           </Button>
@@ -844,7 +891,8 @@ export function AnswerBlock({
   // the deterministic path summarises what it computed. Showing it twice reads
   // as a stutter, so the reading is dropped when it adds nothing.
   const interpretation =
-    narrative.interpretation && narrative.interpretation.trim() !== answer.trim()
+    narrative.interpretation &&
+    narrative.interpretation.trim() !== answer.trim()
       ? narrative.interpretation
       : "";
 
@@ -863,142 +911,142 @@ export function AnswerBlock({
 
   return (
     <HighlightProvider>
-    <div className={cn(compact ? "space-y-5" : "space-y-6")}>
-      {run.rejected.length > 0 && (
-        <Card className="border-negative/40 p-4">
-          <p className="text-sm font-medium text-negative">
-            CreditProbe refused to run this plan
-          </p>
-          <ul className="mt-2 space-y-1">
-            {run.rejected.map((reason) => (
-              <li key={reason} className="text-xs text-negative">
-                {reason}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
+      <div className={cn(compact ? "space-y-5" : "space-y-6")}>
+        {run.rejected.length > 0 && (
+          <Card className="border-negative/40 p-4">
+            <p className="text-sm font-medium text-negative">
+              CreditProbe refused to run this plan
+            </p>
+            <ul className="mt-2 space-y-1">
+              {run.rejected.map((reason) => (
+                <li key={reason} className="text-xs text-negative">
+                  {reason}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
 
-      {run.unmatched && run.notes.length > 0 && (
-        <Card className="flex items-start gap-2.5 border-warning/30 bg-warning-muted p-3.5">
-          <TriangleAlert
-            className="mt-0.5 size-4 shrink-0 text-warning"
-            aria-hidden
-          />
-          <p className="prose-ai text-xs text-warning">{run.notes[0]}</p>
-        </Card>
-      )}
+        {run.unmatched && run.notes.length > 0 && (
+          <Card className="flex items-start gap-2.5 border-warning/30 bg-warning-muted p-3.5">
+            <TriangleAlert
+              className="mt-0.5 size-4 shrink-0 text-warning"
+              aria-hidden
+            />
+            <p className="prose-ai text-xs text-warning">{run.notes[0]}</p>
+          </Card>
+        )}
 
-      {/* --------------------------------------------------- 1. THE HEADER */}
-      {/* §3/§45: DOWNLOAD RESULTS in the top right of every analysis header,
+        {/* --------------------------------------------------- 1. THE HEADER */}
+        {/* §3/§45: DOWNLOAD RESULTS in the top right of every analysis header,
           which is here — one component renders every answer the product
           shows, so wiring it once puts it on the Cockpit, in a thread, on a
           project analysis, on a saved analysis and on a lens panel alike. */}
-      {runId !== null && runId !== undefined && (
-        <div className="flex justify-end">
-          <DownloadResults runId={runId} version={run.version} />
-        </div>
-      )}
+        {runId !== null && runId !== undefined && (
+          <div className="flex justify-end">
+            <DownloadResults runId={runId} version={run.version} />
+          </div>
+        )}
 
-      {/* --------------------------------- 2. WHAT WAS ASKED, AND COVERED
+        {/* --------------------------------- 2. WHAT WAS ASKED, AND COVERED
           §11 and §36. Above the answer rather than below it: a reader who
           asked three questions needs to know they got two BEFORE they start
           reading the two, or they will read the answer as complete and stop.
           Renders for a single question too, at "1 of 1" - a counter that
           only appears when something is wrong is one nobody has learned to
           read. */}
-      <QuestionsAnswered compound={run.compound} />
+        <QuestionsAnswered compound={run.compound} />
 
-      {/* ---------------------------------------------------- 3. BOTTOM LINE */}
-      <DirectAnswer answer={answer} scope={narrative.scope} />
+        {/* ---------------------------------------------------- 3. BOTTOM LINE */}
+        <DirectAnswer answer={answer} scope={narrative.scope} />
 
-      {/* ----------------------------------------------------- 3. KEY INSIGHT */}
-      <KeyInsight insight={insight} />
+        {/* ----------------------------------------------------- 3. KEY INSIGHT */}
+        <KeyInsight insight={insight} />
 
-      {/* ------------------------------------------------ 4. ANALYST'S READING */}
-      <AnalystReading
-        interpretation={interpretation}
-        points={reading}
-        whyMultiple={narrative.why_multiple}
-      />
+        {/* ------------------------------------------------ 4. ANALYST'S READING */}
+        <AnalystReading
+          interpretation={interpretation}
+          points={reading}
+          whyMultiple={narrative.why_multiple}
+        />
 
-      {/* --------------------------------------------------- 5. PRIMARY VISUAL */}
-      {narrative.metrics.length > 0 && (
-        <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-          {narrative.metrics.map((metric) => (
-            <KpiTile
-              key={metric.label}
-              label={metric.label}
-              value={metric.value}
-              unit={metric.unit}
-              change={metric.change}
-              changeUnit={metric.change_unit}
-              direction={metric.direction}
-              hint={metric.hint}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* §15: an analysis that returned nothing has answered the question. The
-          empty table under it reads as a failure to produce one. */}
-      {primary &&
-        (nothingMatched ? (
-          <NoneMatched answer={answer} />
-        ) : (
-          <StepResult
-            step={primary}
-            runId={runId}
-            compact={compact}
-            returnTo={returnTo}
-            question={run.question}
-            onAsk={onAsk}
-          />
-        ))}
-
-      {/* ----------------------------------------------- 6. SUPPORTING EVIDENCE */}
-      {supporting.length > 0 && (
-        <Disclosure
-          summary={`Supporting analysis (${supporting.length})`}
-          hint="run to help explain the answer, not to answer the question"
-        >
-          <div className="space-y-4">
-            {supporting.map((step) => (
-              <StepResult
-                key={step.index}
-                step={step}
-                runId={runId}
-                compact
-                returnTo={returnTo}
-                onAsk={onAsk}
+        {/* --------------------------------------------------- 5. PRIMARY VISUAL */}
+        {narrative.metrics.length > 0 && (
+          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+            {narrative.metrics.map((metric) => (
+              <KpiTile
+                key={metric.label}
+                label={metric.label}
+                value={metric.value}
+                unit={metric.unit}
+                change={metric.change}
+                changeUnit={metric.change_unit}
+                direction={metric.direction}
+                hint={metric.hint}
               />
             ))}
           </div>
-        </Disclosure>
-      )}
+        )}
 
-      {/* ------------------------------------------------- 7. WHAT DESERVES ATTENTION */}
-      <Implications points={attention} />
+        {/* §15: an analysis that returned nothing has answered the question. The
+          empty table under it reads as a failure to produce one. */}
+        {primary &&
+          (nothingMatched ? (
+            <NoneMatched answer={answer} />
+          ) : (
+            <StepResult
+              step={primary}
+              runId={runId}
+              compact={compact}
+              returnTo={returnTo}
+              question={run.question}
+              onAsk={onAsk}
+            />
+          ))}
 
-      {/* ----------------------------------------------------- 8. LIMITATIONS */}
-      <Limitations caveats={narrative.caveats} />
+        {/* ----------------------------------------------- 6. SUPPORTING EVIDENCE */}
+        {supporting.length > 0 && (
+          <Disclosure
+            summary={`Supporting analysis (${supporting.length})`}
+            hint="run to help explain the answer, not to answer the question"
+          >
+            <div className="space-y-4">
+              {supporting.map((step) => (
+                <StepResult
+                  key={step.index}
+                  step={step}
+                  runId={runId}
+                  compact
+                  returnTo={returnTo}
+                  onAsk={onAsk}
+                />
+              ))}
+            </div>
+          </Disclosure>
+        )}
 
-      {/* ------------------------------------- 9. DEEP ANALYSIS, ON REQUEST */}
-      <DeepAnalysis run={run} />
+        {/* ------------------------------------------------- 7. WHAT DESERVES ATTENTION */}
+        <Implications points={attention} />
 
-      {/* --------------------------------- 11. PROVENANCE / TECHNICAL DETAIL */}
-      <AnalysesUsed steps={run.steps} runId={runId} returnTo={returnTo} />
+        {/* ----------------------------------------------------- 8. LIMITATIONS */}
+        <Limitations caveats={narrative.caveats} />
 
-      <ActionStrip
-        run={run}
-        onSave={onSave}
-        saved={saved}
-        onAddToProject={onAddToProject}
-        busy={busy}
-        returnTo={returnTo}
-      />
+        {/* ------------------------------------- 9. DEEP ANALYSIS, ON REQUEST */}
+        <DeepAnalysis run={run} />
 
-      {/* ------------------------- 11. WAS THIS ACCURATE AND USEFUL?
+        {/* --------------------------------- 11. PROVENANCE / TECHNICAL DETAIL */}
+        <AnalysesUsed steps={run.steps} runId={runId} returnTo={returnTo} />
+
+        <ActionStrip
+          run={run}
+          onSave={onSave}
+          saved={saved}
+          onAddToProject={onAddToProject}
+          busy={busy}
+          returnTo={returnTo}
+        />
+
+        {/* ------------------------- 11. WAS THIS ACCURATE AND USEFUL?
           §7: below the completed answer and ABOVE the suggested follow-ups.
           The order matters more than it looks: a prompt below the follow-ups
           is below the thing a user clicks to leave, so it is a prompt most
@@ -1007,37 +1055,52 @@ export function AnswerBlock({
 
           Deliberately quiet. A prominent button beside an answer nobody
           checked collects agreement rather than correctness. */}
-      <AccuracyFeedback
-        answerId={String(runId ?? run.question ?? "")}
-        agenticRunId={runId ? String(runId) : undefined}
-        question={run.question}
-        className="pt-1"
-      />
+        <AccuracyFeedback
+          answerId={String(runId ?? run.question ?? "")}
+          agenticRunId={runId ? String(runId) : undefined}
+          question={run.question}
+          className="pt-1"
+        />
 
-      {/* ------------------------ 12. WHAT WAS CONSIDERED AND NOT RUN
+        {/* §39: a thumb on EVERY answer, whatever kind it turned out to be.
+          One component renders every answer the product shows, so wiring it
+          here puts it on the Cockpit, in a thread, on a project analysis, on
+          a saved analysis and on a lens panel alike — including the awkward
+          kinds. A clarification with no thumb never hears "you should have
+          known", which is the most useful correction in the system; an
+          unsupported answer with no thumb collects no capability requests,
+          and the silence reads as nobody wanting the capability. */}
+        <Thumbs
+          answerId={String(runId ?? run.question ?? "")}
+          answerKind={answerKindOf(run)}
+          planFingerprint={run.node_hashes?.plan ?? ""}
+          className="pt-1"
+        />
+
+        {/* ------------------------ 12. WHAT WAS CONSIDERED AND NOT RUN
           §12. Collapsed, and below the answer: the reader who wonders why an
           analysis they expected is missing needs it, and putting the
           rejections above the answer would bury the answer under the reasons
           for it. */}
-      <AnalysesConsidered compound={run.compound} />
+        <AnalysesConsidered compound={run.compound} />
 
-      {/* ------------------------------ 13. SUGGESTED NEXT QUESTIONS
+        {/* ------------------------------ 13. SUGGESTED NEXT QUESTIONS
           §40. The compound follow-ups lead - an objective the answer did not
           settle is the most useful thing to ask next, and offering a fresh
           analysis while part of the request sits unanswered is the product
           changing the subject. */}
-      {onAsk && (
-        <FollowUps
-          questions={
-            run.compound?.suggested?.length
-              ? run.compound.suggested
-              : run.follow_ups
-          }
-          onAsk={onAsk}
-          busy={busy}
-        />
-      )}
-    </div>
+        {onAsk && (
+          <FollowUps
+            questions={
+              run.compound?.suggested?.length
+                ? run.compound.suggested
+                : run.follow_ups
+            }
+            onAsk={onAsk}
+            busy={busy}
+          />
+        )}
+      </div>
     </HighlightProvider>
   );
 }

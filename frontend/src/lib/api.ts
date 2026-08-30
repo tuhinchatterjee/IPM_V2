@@ -4912,6 +4912,25 @@ export const api = {
     request<RegulatoryAudit>(
       `/regulatory-intelligence/audit?document_id=${encodeURIComponent(documentId)}`,
     ),
+
+  // -------------------------------- per-answer feedback. §39-§45
+  //
+  // The prompt comes from the backend rather than being held here. Two
+  // lists of eleven fields in two places become two different lists, and
+  // the one users see will be the stale one.
+  thumbsPrompt: (answerKind = "analysis", language = "en") =>
+    request<ThumbsPrompt>(
+      `/feedback/prompt?answer_kind=${encodeURIComponent(answerKind)}&language=${encodeURIComponent(language)}`,
+    ),
+  leaveThumbs: (body: ThumbsRequest) =>
+    request<ThumbsReceipt>("/feedback/thumbs", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  thumbsJourney: (feedbackId: string) =>
+    request<ThumbsJourney>(
+      `/feedback/thumbs/${encodeURIComponent(feedbackId)}`,
+    ),
 };
 
 /** §7's prompt, as the backend decided it. */
@@ -5899,4 +5918,81 @@ export type RegulatoryAudit = {
   contradictions: Record<string, unknown>[];
   drafts: Record<string, unknown>[];
   answers: string;
+};
+
+// ===========================================================================
+// Per-answer feedback. §39-§45.
+//
+// `validation_score_changed` is a field rather than an omission. §44 says
+// raw thumbs do not change validation scores, and a receipt that simply did
+// not mention scores would let a screen imply the opposite by silence.
+// ===========================================================================
+
+export type ThumbsPrompt = {
+  show: boolean;
+  answer_kind: string;
+  kind_means: string;
+  language: string;
+  up: { label: string; reasons: { id: string; label: string }[] };
+  down: {
+    label: string;
+    question: string;
+    /** "You do not need to provide the numerical answer." */
+    explain: string;
+    fields: { id: string; label: string; help: string }[];
+    anchors: { id: string; means: string }[];
+  };
+  what_happens_next: {
+    immediately: string[];
+    through_review: string[];
+    path: string[];
+    note: string;
+  };
+};
+
+export type ThumbsRequest = {
+  answer_id: string;
+  direction: "UP" | "DOWN";
+  answer_kind?: string;
+  language?: string;
+  reasons?: string[];
+  correction?: Record<string, string>;
+  anchor_kind?: string;
+  anchor_ref?: string;
+  investigation_id?: string;
+  plan_fingerprint?: string;
+};
+
+export type ThumbsReceipt = {
+  feedback_id: string;
+  status: string;
+  /** At most two presentation preferences. §42's narrow channel. */
+  changed_immediately: Record<string, string>;
+  under_review: string[];
+  validation_score_changed: false;
+  what_happens_next: string;
+};
+
+export type ThumbsJourney = {
+  feedback_id: string;
+  answer_id: string;
+  direction: string;
+  answer_kind: string;
+  status: string;
+  status_means: string;
+  next_steps: string[];
+  history: {
+    status: string;
+    means: string;
+    reason: string;
+    by: string;
+    linked: { kind: string; id: string };
+    release: string;
+    score_impact: Record<string, unknown>;
+    at: string;
+  }[];
+  changed_immediately: Record<string, string>;
+  under_review: string[];
+  governed_path: string[];
+  raw_feedback_changed_no_score: boolean;
 };

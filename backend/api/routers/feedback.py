@@ -260,3 +260,191 @@ def workflow(principal: Principal = RequireAdmin) -> dict[str, Any]:
 
 
 __all__ = ["router"]
+
+
+# ==========================================================================
+# §39-§45. A thumb on every answer, and what a thumbs-down becomes.
+#
+# The routes below are separate from the structured prompt above rather than
+# folded into it, because they answer a different question. The prompt asks
+# "was this accurate and useful?" once, at a chosen moment. These are always
+# there, on every answer type, and most of the time nobody uses them — which
+# is the point: the ones people do use are the ones that mattered enough.
+#
+# Leaving feedback is open to anyone signed in, including a Viewer. A user
+# who is shown an answer and then refused the ability to say it was wrong
+# has been asked for their trust and denied the means to withdraw it.
+# Reading the queue and moving something along are not open.
+# ==========================================================================
+
+
+class ThumbsRequest(BaseModel):
+    answer_id: str = Field(..., max_length=64)
+    direction: str = Field(..., max_length=8)
+    answer_kind: str = Field(default="analysis", max_length=32)
+    language: str = Field(default="en", max_length=8)
+    reasons: list[str] = Field(default_factory=list)
+    correction: dict[str, Any] = Field(default_factory=dict)
+    anchor_kind: str = Field(default="", max_length=24)
+    anchor_ref: str = Field(default="", max_length=240)
+    investigation_id: str = Field(default="", max_length=64)
+    plan_fingerprint: str = Field(default="", max_length=64)
+
+
+def _feedback_session():
+    from backend.db.engine import SessionLocal
+
+    return SessionLocal()
+
+
+def _who(principal: Principal) -> str:
+    return f"user:{principal.user_id}" if principal.user_id else "anonymous"
+
+
+@router.get("/prompt")
+def answer_prompt(answer_kind: str = "analysis", language: str = "en",
+                  already_given: bool = False,
+                  principal: Principal = RequireCommenter) -> dict[str, Any]:
+    """§39-§41. What to render under one answer, whatever kind it is.
+
+    Every kind gets the control, including the awkward ones. An UNSUPPORTED
+    answer with no thumbs collects no capability requests, and the absence
+    reads as nobody wanting the capability.
+    """
+    from backend.learning import better_approach as ba
+
+    try:
+        return ba.prompt(answer_kind=answer_kind, language=language,
+                         already_given=already_given)
+    except ba.FeedbackError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error": "unknown_answer_kind",
+                    "message": str(exc)}) from exc
+
+
+@router.post("/thumbs", status_code=status.HTTP_201_CREATED)
+def thumbs(body: ThumbsRequest,
+           principal: Principal = RequireCommenter) -> dict[str, Any]:
+    """Record one thumb. Changes no validation score, ever.
+
+    A thumbs-down may change at most two presentation preferences at once.
+    Everything else in the correction becomes a Learning Ledger entry at
+    CAPTURED, with no path to production except §42's.
+    """
+    from backend.learning import better_approach as ba
+    from backend.services import answer_feedback as af
+
+    with _feedback_session() as session:
+        try:
+            row = af.leave(
+                session, answer_id=body.answer_id,
+                direction=body.direction, answer_kind=body.answer_kind,
+                reasons=tuple(body.reasons), correction=body.correction,
+                anchor_kind=body.anchor_kind, anchor_ref=body.anchor_ref,
+                user_id=_who(principal), language=body.language,
+                investigation_id=body.investigation_id,
+                plan_fingerprint=body.plan_fingerprint,
+                build_sha=_sha(), teaching_release_id=_teaching_release())
+        except (ba.FeedbackError, af.AnswerFeedbackError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"error": "feedback_refused",
+                        "message": str(exc)}) from exc
+        session.commit()
+        return {
+            "feedback_id": row.feedback_id,
+            "status": "RECEIVED",
+            "changed_immediately": row.immediate_changes or {},
+            "under_review": row.governed_fields or [],
+            "validation_score_changed": False,
+            "what_happens_next": (
+                "Presentation preferences take effect now. Everything else "
+                "goes through review, regression and release before it "
+                "changes an answer — you can follow it under this feedback."
+                if row.governed_fields else
+                "Recorded. Nothing about how answers are computed has "
+                "changed."
+            ),
+        }
+
+
+@router.get("/thumbs/{feedback_id}")
+def journey(feedback_id: str,
+            principal: Principal = RequireCommenter) -> dict[str, Any]:
+    """§45. What happened to one person's feedback, in their words."""
+    from backend.services import answer_feedback as af
+
+    with _feedback_session() as session:
+        try:
+            return af.journey(session, feedback_id)
+        except af.AnswerFeedbackError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail={"error": "not_found",
+                                        "message": str(exc)}) from exc
+
+
+@router.get("/answers/{answer_id}/thumbs")
+def for_answer(answer_id: str,
+               principal: Principal = RequireCommenter) -> dict[str, Any]:
+    from backend.services import answer_feedback as af
+
+    with _feedback_session() as session:
+        return {"answer_id": answer_id,
+                "feedback": af.for_answer(session, answer_id)}
+
+
+class AdvanceRequest(BaseModel):
+    to: str = Field(..., max_length=32)
+    reason: str = Field(default="", max_length=4000)
+    linked_kind: str = Field(default="", max_length=32)
+    linked_id: str = Field(default="", max_length=64)
+    release_id: str = Field(default="", max_length=64)
+    score_impact: dict[str, Any] = Field(default_factory=dict)
+
+
+@router.post("/thumbs/{feedback_id}/advance")
+def advance(feedback_id: str, body: AdvanceRequest,
+            principal: Principal = RequireAdmin) -> dict[str, Any]:
+    """Move feedback along §45's states. Refuses a skipped step.
+
+    RECEIVED cannot jump to RELEASED: §42's path exists precisely so that
+    nothing reaches production without review and regression, and a route
+    that allowed the jump would make the path a description.
+    """
+    from backend.services import answer_feedback as af
+
+    with _feedback_session() as session:
+        try:
+            row = af.advance(session, feedback_id, body.to,
+                             by=_who(principal), reason=body.reason,
+                             linked_kind=body.linked_kind,
+                             linked_id=body.linked_id,
+                             release_id=body.release_id,
+                             score_impact=body.score_impact)
+        except af.AnswerFeedbackError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"error": "transition_refused",
+                        "message": str(exc)}) from exc
+        session.commit()
+        return {"feedback_id": feedback_id, "status": row.status,
+                "by": row.by, "reason": row.reason}
+
+
+@router.get("/queue")
+def queue(principal: Principal = RequireAdmin) -> dict[str, Any]:
+    """§45's queue, with unopened counted separately from under review."""
+    from backend.services import answer_feedback as af
+
+    with _feedback_session() as session:
+        return af.queue(session)
+
+
+@router.get("/satisfaction")
+def satisfaction(principal: Principal = RequireAnalyst) -> dict[str, Any]:
+    """Thumbs by answer kind. Not an accuracy measure, and it says so."""
+    from backend.services import answer_feedback as af
+
+    with _feedback_session() as session:
+        return af.satisfaction(session)
