@@ -66,10 +66,16 @@ FEEDBACK_CRITICAL = "feedbackcritical"
 REGULATORY_CRITICAL = "regulatorycritical"
 PROJECT_CRITICAL = "projectcritical"
 
+#: §52's Brain import evaluation. Deterministic, and that is not a shortcut:
+#: the Lift Lab compares recorded scores against recorded scores. Running a
+#: model to decide whether an imported Brain helped would measure the model,
+#: not the Brain.
+BRAIN_IMPORT = "brainimport"
+
 MODES: tuple[str, ...] = (DRYRUN, QUICK, CRITICAL, FULL_ROUTING,
                           FULL_CERTIFICATION, AGENTIC_CRITICAL,
                           FEEDBACK_CRITICAL, REGULATORY_CRITICAL,
-                          PROJECT_CRITICAL)
+                          PROJECT_CRITICAL, BRAIN_IMPORT)
 
 #: What each mode is for, in one line, so `--help` and the PowerShell wrapper
 #: say the same thing.
@@ -87,6 +93,8 @@ MODE_MEANS: dict[str, str] = {
                          "Regulatory Assurance. Deterministic — no calls.",
     PROJECT_CRITICAL: "The same agentic work inside a Project, with scope "
                       "isolation.",
+    BRAIN_IMPORT: "Quarantine, compatibility, conflicts and the Lift Lab "
+                  "for an imported Brain. Deterministic — no calls.",
 }
 
 #: What a run amounted to.
@@ -161,6 +169,7 @@ ESTIMATED_CALLS: dict[str, int] = {
     FEEDBACK_CRITICAL: 0,
     REGULATORY_CRITICAL: 0,
     PROJECT_CRITICAL: 18,
+    BRAIN_IMPORT: 0,
 }
 
 # Derived from the catalogue rather than left as the literal above, which is
@@ -1067,7 +1076,7 @@ def _key_free(payload: dict[str, Any]) -> list[str]:
 #: verification; that kept the badge honest and did nothing to stop the
 #: verification itself being destroyed by the cheapest command in the product.
 NON_LIVE_MODES: frozenset[str] = frozenset(
-    {DRYRUN, FEEDBACK_CRITICAL, REGULATORY_CRITICAL})
+    {DRYRUN, FEEDBACK_CRITICAL, REGULATORY_CRITICAL, BRAIN_IMPORT})
 
 
 def report_name(mode: str, git_sha: str) -> str:
@@ -1445,6 +1454,66 @@ def project_critical() -> Report:
     return _finish(report)
 
 
+def _brain_import_checks() -> list[Case]:
+    """§52's Brain import evaluation, as the refusals it depends on.
+
+    Every check here is a thing the import path must REFUSE. A verification
+    that only proved the happy path works would pass on a build where every
+    gate had been removed, which is the build this mode exists to catch.
+    """
+    from backend.brain import compatibility as cb
+    from backend.brain import conflicts as cf
+    from backend.brain import liftlab as ll
+    from backend.brain import quarantine as qn
+
+    candidate = qn.Candidate(uploaded_by="verify")
+    skipped = ""
+    try:
+        qn.advance(candidate, qn.STAGED, by="verify")
+        skipped = "a candidate reached STAGED without passing the pipeline"
+    except qn.QuarantineError:
+        pass
+
+    thin = ll.compare(
+        {ll.UNDERSTANDING: ll.Score(ll.UNDERSTANDING, 0.80, cases=8)},
+        {ll.UNDERSTANDING: ll.Score(ll.UNDERSTANDING, 0.95, cases=8)})
+    senders = ll.compare(
+        {ll.UNDERSTANDING: ll.Score(ll.UNDERSTANDING, 0.80, cases=400)},
+        {ll.UNDERSTANDING: ll.Score(ll.UNDERSTANDING, 0.95, cases=400)},
+        sender_holdout_used=True)
+
+    return [
+        _case("a quarantined candidate cannot skip to STAGED",
+              "brain_quarantine", skipped),
+        _case("eight cases is INSUFFICIENT EVIDENCE, not a large lift",
+              "brain_lift_lab",
+              "" if thin.verdict == ll.INSUFFICIENT_EVIDENCE
+              else f"a lift over 8 cases was reported as {thin.verdict}"),
+        _case("a sender-supplied holdout measures nothing",
+              "brain_lift_lab",
+              "" if senders.verdict == ll.INSUFFICIENT_EVIDENCE
+              else "a package evaluated on its own gold was believed"),
+        _case("no resolution simply deletes the losing position",
+              "brain_conflicts",
+              "" if not any("delete" in r.lower()
+                            for r in cf.RESOLUTIONS)
+              else "a delete-the-other-one resolution exists"),
+        _case("compatibility is read from the live registries",
+              "brain_compatibility",
+              "" if cb.Receiver.here().ontology_version
+              else "the receiver could not read its own ontology version"),
+    ]
+
+
+def brain_import() -> Report:
+    """§52's Brain import evaluation mode. Spends nothing, by design."""
+    return _deterministic(
+        BRAIN_IMPORT,
+        ["brain_quarantine", "brain_compatibility", "brain_conflicts",
+         "brain_lift_lab"],
+        _brain_import_checks)
+
+
 RUNNERS = {
     DRYRUN: dry_run,
     QUICK: quick,
@@ -1455,6 +1524,7 @@ RUNNERS = {
     FEEDBACK_CRITICAL: feedback_critical,
     REGULATORY_CRITICAL: regulatory_critical,
     PROJECT_CRITICAL: project_critical,
+    BRAIN_IMPORT: brain_import,
 }
 
 

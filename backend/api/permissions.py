@@ -275,3 +275,136 @@ AI_LEARNING_CERTIFY = frozenset({Role.ADMIN})
 RequireLearningView = Depends(require(AI_LEARNING_VIEW))
 RequireLearningMeasure = Depends(require(AI_LEARNING_MEASURE))
 RequireLearningCertify = Depends(require(AI_LEARNING_CERTIFY))
+
+
+# ==========================================================================
+# §47's named permission catalogue.
+#
+# Every permission the final brief names, under the name it uses, mapped to
+# the roles that hold it. §47's closing instruction is the reason this
+# exists as data: **do not rely on frontend hiding.** A permission that is
+# only a hidden menu item is a permission an attacker has, and a catalogue
+# that can be enumerated is a catalogue that can be tested — which is what
+# `tests` does with it, route by route.
+#
+# The names are §47's, not ours. Where an internal constant above uses a
+# different word (REGULATORY_INGEST for REGULATORY_DOCUMENT_UPLOAD), both
+# point at the same frozenset, so the brief's vocabulary and the code's
+# never drift into two different answers.
+# ==========================================================================
+
+#: Merging two Brains and deleting a quarantined candidate. §47 names both
+#: separately from ACTIVATE, and they differ in what they destroy: a merge
+#: creates a third thing, a delete removes one that never ran.
+AI_BRAIN_MERGE = frozenset({Role.ADMIN})
+AI_BRAIN_DELETE_CANDIDATE = frozenset({Role.ADMIN, Role.DATA_STEWARD})
+
+#: §47's regulatory names. APPROVE is separated from REVIEW because §16's
+#: two-pairs-of-eyes rule runs through this subsystem too: deciding what a
+#: clause means and accepting that decision for release are different acts.
+REGULATORY_APPROVE = frozenset({Role.ADMIN})
+REGULATORY_RELEASE_APPROVE = frozenset({Role.ADMIN})
+
+#: §47's feedback names. VIEW_OWN is the widest permission in the product
+#: and deliberately so: a user who left feedback is entitled to know what
+#: happened to it, and §45 exists to tell them.
+FEEDBACK_VIEW_OWN = frozenset({Role.ADMIN, Role.DATA_STEWARD, Role.ANALYST,
+                               Role.VIEWER})
+FEEDBACK_REVIEW = frozenset({Role.ADMIN, Role.DATA_STEWARD})
+FEEDBACK_ADJUDICATE = frozenset({Role.ADMIN})
+FEEDBACK_RELEASE = frozenset({Role.ADMIN})
+
+#: The catalogue. §47's names on the left, the roles that hold them on the
+#: right, and a sentence saying what each one lets somebody do — because a
+#: permission nobody can describe gets granted to everybody.
+NAMED: dict[str, tuple[frozenset[Role], str]] = {
+    "AI_BRAIN_VIEW": (AI_BRAIN_VIEW,
+                      "See the Brain Center: what is running, what has been "
+                      "learned, what was imported and what it measured."),
+    "AI_BRAIN_EXPORT": (AI_BRAIN_EXPORT,
+                        "Build a Brain Pack, Learning Bundle or Developer "
+                        "Bundle for another installation."),
+    "AI_BRAIN_IMPORT": (AI_BRAIN_IMPORT,
+                        "Upload a Brain into quarantine. Cannot activate "
+                        "it."),
+    "AI_BRAIN_EVALUATE": (AI_BRAIN_EVALUATE,
+                          "Run the receiver-specific evaluation against "
+                          "this installation's own holdout."),
+    "AI_BRAIN_MERGE": (AI_BRAIN_MERGE,
+                       "Combine learning from two Brains into a third."),
+    "AI_BRAIN_ACTIVATE": (AI_BRAIN_ACTIVATE,
+                          "Make an evaluated Brain the active one. Changes "
+                          "what every answer is made of."),
+    "AI_BRAIN_ROLLBACK": (AI_BRAIN_ROLLBACK,
+                          "Undo an activation, or retire an installed "
+                          "Brain."),
+    "AI_BRAIN_DELETE_CANDIDATE": (AI_BRAIN_DELETE_CANDIDATE,
+                                  "Delete a quarantined candidate that "
+                                  "never activated. The record stays."),
+    "REGULATORY_DOCUMENT_UPLOAD": (REGULATORY_INGEST,
+                                   "Upload a regulatory document and run "
+                                   "the extraction pipeline."),
+    "REGULATORY_REVIEW": (REGULATORY_REVIEW,
+                          "Decide what a clause means: approve, reject, "
+                          "correct, split, merge or defer it."),
+    "REGULATORY_APPROVE": (REGULATORY_APPROVE,
+                           "Accept a reviewer's reading as the bank's "
+                           "position."),
+    "REGULATORY_CONFLICT_RESOLVE": (REGULATORY_RESOLVE,
+                                    "Settle a contradiction between two "
+                                    "regulatory positions."),
+    "REGULATORY_METHOD_PROMOTE": (REGULATORY_PROMOTE,
+                                  "Promote an approved requirement into a "
+                                  "draft change. Where a regulation starts "
+                                  "to affect what the numbers are."),
+    "REGULATORY_RELEASE_APPROVE": (REGULATORY_RELEASE_APPROVE,
+                                   "Approve a versioned Regulatory "
+                                   "Release."),
+    "FEEDBACK_VIEW_OWN": (FEEDBACK_VIEW_OWN,
+                          "Leave feedback and see what happened to it. The "
+                          "widest permission here: a user who was shown an "
+                          "answer is entitled to say it was wrong."),
+    "FEEDBACK_REVIEW": (FEEDBACK_REVIEW,
+                        "Read the feedback queue and work through it."),
+    "FEEDBACK_ADJUDICATE": (FEEDBACK_ADJUDICATE,
+                            "Decide whether a correction is a defect, and "
+                            "record the reason when it is not."),
+    "FEEDBACK_RELEASE": (FEEDBACK_RELEASE,
+                         "Release a fix that came from feedback."),
+    "AI_LEARNING_VIEW": (AI_LEARNING_VIEW,
+                         "See how the product has been performing. Open to "
+                         "an analyst: a claim only administrators can check "
+                         "is a claim."),
+    "AI_LEARNING_MEASURE": (AI_LEARNING_MEASURE,
+                            "Record a learning baseline or a performance "
+                            "snapshot."),
+    "AI_LEARNING_CERTIFY": (AI_LEARNING_CERTIFY,
+                            "Run an evaluation against the sealed holdout. "
+                            "Each run spends some of what makes it "
+                            "meaningful."),
+}
+
+
+def holds(role: Role | str, permission: str) -> bool:
+    """Whether a role holds a named permission.
+
+    An unknown permission is refused rather than granted. The permissive
+    version turns a typo in a route decorator into an open door, and the
+    door is open for exactly as long as nobody reads that line again.
+    """
+    entry = NAMED.get(permission)
+    if entry is None:
+        return False
+    try:
+        return Role(role) in entry[0]
+    except ValueError:
+        return False
+
+
+def catalogue() -> list[dict[str, object]]:
+    """§47's permissions as data, for a settings screen and for tests."""
+    return [{
+        "permission": name,
+        "means": means,
+        "roles": sorted(r.value for r in roles),
+    } for name, (roles, means) in NAMED.items()]

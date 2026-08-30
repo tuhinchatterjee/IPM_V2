@@ -115,6 +115,8 @@
 .EXAMPLE
     .\scripts\verify-live-ai.ps1 -AgenticCritical
 
+    .\scripts\verify-live-ai.ps1 -BrainImport
+
 .EXAMPLE
     .\scripts\verify-live-ai.ps1 -FeedbackCritical
 
@@ -140,6 +142,11 @@ param(
     [Parameter(ParameterSetName = 'FeedbackCritical')][switch]$FeedbackCritical,
     [Parameter(ParameterSetName = 'RegulatoryCritical')][switch]$RegulatoryCritical,
     [Parameter(ParameterSetName = 'ProjectCritical')][switch]$ProjectCritical,
+    # Section 52's Brain import evaluation. Deterministic, and that is not a
+    # shortcut: the Lift Lab compares recorded scores against recorded
+    # scores. Running a model to decide whether an imported Brain helped
+    # would measure the model, not the Brain.
+    [Parameter(ParameterSetName = 'BrainImport')][switch]$BrainImport,
     [switch]$Yes,
     [switch]$Json
 )
@@ -178,6 +185,7 @@ $EstimatedCalls = @{
     'feedbackcritical'   = 0
     'regulatorycritical' = 0
     'projectcritical'    = 18
+    'brainimport'        = 0
 }
 
 # The exit-code contract, shared with backend/validation/live_verify.py.
@@ -221,6 +229,7 @@ switch ($PSCmdlet.ParameterSetName) {
     'FullCertification'  { $Mode = 'fullcertification' }
     'AgenticCritical'    { $Mode = 'agenticcritical' }
     'FeedbackCritical'   { $Mode = 'feedbackcritical' }
+    'BrainImport'        { $Mode = 'brainimport' }
     'RegulatoryCritical' { $Mode = 'regulatorycritical' }
     'ProjectCritical'    { $Mode = 'projectcritical' }
 }
@@ -380,7 +389,7 @@ Write-Head 'Report'
 # command in the product could land on top of - and destroy - the report a
 # paid run had just written. Kept in step with `report_name()` in
 # backend/validation/live_verify.py.
-$DeterministicModes = @('dryrun', 'feedbackcritical', 'regulatorycritical')
+$DeterministicModes = @('dryrun', 'feedbackcritical', 'regulatorycritical', 'brainimport')
 if ($DeterministicModes -contains $Mode) {
     $ReportName = 'verification_{0}_{1}.json' -f $Mode, $ShortSha
 }
