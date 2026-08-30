@@ -134,12 +134,28 @@ _JUDGEMENTS: dict[str, Judgement] = {
         "AI Intelligence Studio: the six Intelligence Dimensions, the "
         "current release, evaluations and health.",
         role="Administrator",
-        limitation="17 of the 18 tabs the final brief names. Brain Center "
-                   "and Regulatory Learning are present; Continuous "
-                   "Learning is the one still being added in this phase."),
+        limitation="All 18 tabs the final brief names. Three of them — "
+                   "Continuous Learning, Brain Center and Regulatory "
+                   "Learning — open onto areas with their own tab bars "
+                   "rather than rendering a panel, because eleven tabs "
+                   "nested inside one tab produce a bar nobody reads."),
     "/ai-studio/feedback-learning": Judgement(
         "Feedback and the governed learning queue: observations, candidates, "
         "review and releases.", role="Administrator"),
+    "/ai-studio/continuous-learning": Judgement(
+        "Continuous Learning: what was captured since a chosen baseline and "
+        "\u2014 separately \u2014 what measurably changed, the six "
+        "dimensions on development against validation, the measurement "
+        "timeline, the three evaluation sets and the thresholds behind "
+        "every figure.",
+        role="Administrator, Data Steward or Analyst",
+        limitation="Reads NO BASELINE on a fresh installation and NOT "
+                   "MEASURED IN THIS WINDOW once a baseline exists but no "
+                   "evaluation has run inside the selected window. Those "
+                   "are different states and are worded differently, "
+                   "because 'nothing to compare against' and 'nobody "
+                   "looked' read identically as a zero. No sealed-holdout "
+                   "question or gold answer appears here, by \u00a758."),
     "/ai-studio/brain-center": Judgement(
         "The Brain Center: what Brain is running, the Learning Ledger, the "
         "three export formats, quarantined imports, the Lift Lab, the Merge "

@@ -59,13 +59,23 @@ SETTINGS = "SETTINGS"
 # --------------------------------------------- the final consolidation's new
 BRAIN_CENTER = "BRAIN_CENTER"
 REGULATORY_LEARNING = "REGULATORY_LEARNING"
+CONTINUOUS_LEARNING = "CONTINUOUS_LEARNING"
 
 TABS: tuple[str, ...] = (
     OVERVIEW, KNOWLEDGE, TEACHING_CASES, BLUEPRINTS, JUDGMENT,
     VISUAL_GRAMMAR, ROUTING, PROMPTS, EVALUATIONS, REVIEWS, FEEDBACK,
-    BRAIN_CENTER, REGULATORY_LEARNING, AGENTIC, RELEASES, LIVE_HEALTH,
-    SETTINGS,
+    CONTINUOUS_LEARNING, BRAIN_CENTER, REGULATORY_LEARNING, AGENTIC,
+    RELEASES, LIVE_HEALTH, SETTINGS,
 )
+
+#: The final consolidation asks for eighteen. Asserted rather than counted
+#: by hand: a tab added without a label, a purpose and a permission is a tab
+#: that renders as a blank panel nobody can explain.
+EXPECTED_TABS = 18
+if len(TABS) != EXPECTED_TABS:
+    raise AssertionError(
+        f"the final brief names {EXPECTED_TABS} Studio tabs; this module "
+        f"has {len(TABS)}.")
 
 #: On-screen names. The enum is not the label: a reader asked for "the
 #: blueprints tab", not INVESTIGATION_BLUEPRINTS.
@@ -79,6 +89,7 @@ LABELS: dict[str, str] = {
     RELEASES: "Releases", LIVE_HEALTH: "Live AI health",
     SETTINGS: "Settings", BRAIN_CENTER: "Brain Center",
     REGULATORY_LEARNING: "Regulatory learning",
+    CONTINUOUS_LEARNING: "Continuous learning",
 }
 
 #: What each tab is FOR, shown at the top of it. §117's principle applied to
@@ -120,6 +131,13 @@ PURPOSE: dict[str, str] = {
                          "extraction live in Analysis Studio; §27 keeps "
                          "them apart so a circular and a certified method "
                          "never look like the same kind of object.",
+    CONTINUOUS_LEARNING: "How much has been learned since a chosen "
+                         "baseline, and — separately, and never added to "
+                         "it — how much measurably changed. An "
+                         "installation that captured four hundred "
+                         "observations and improved by nothing has done "
+                         "something worth knowing, and one number would "
+                         "report it as progress.",
 }
 
 #: Which permission a tab needs. Checked backend-side; a tab hidden in the
@@ -132,6 +150,7 @@ NEEDS: dict[str, str] = {
     AGENTIC: pm.VIEW, RELEASES: pm.VIEW, LIVE_HEALTH: pm.LIVE_HEALTH_VIEW,
     SETTINGS: pm.ADMIN, BRAIN_CENTER: pm.BRAIN_VIEW,
     REGULATORY_LEARNING: pm.VIEW,
+    CONTINUOUS_LEARNING: pm.VIEW,
 }
 
 

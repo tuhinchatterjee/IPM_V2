@@ -1,6 +1,6 @@
 # Full-system feature verification matrix
 
-Generated from the build at `daab398` by `scripts/feature_matrix.py`.
+Generated from the build at `d0f156f` by `scripts/feature_matrix.py`.
 
 This inventory is enumerated, not remembered. Every row comes from a page that exists on disk or an endpoint in the live OpenAPI spec, so a route added and forgotten appears here anyway. Three columns cannot be generated and are curated by hand - expected behaviour, defect and remaining limitation - because each is a claim somebody is accountable for, and deriving them from the code would produce a document that agrees with the code by construction and therefore establishes nothing.
 
@@ -8,12 +8,12 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | | |
 |---|---|
-| Pages | 40 |
-| Reviewed | 40 |
+| Pages | 41 |
+| Reviewed | 41 |
 | Not yet reviewed | 0 |
 | Carrying a known defect | 2 |
 | Not fully OK | 5 |
-| API endpoints | 339 across 29 areas |
+| API endpoints | 356 across 30 areas |
 | Browser-crawled routes | 37 |
 
 ## Pages
@@ -29,8 +29,9 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
 | `/ai-studio/brain-center` | Administrator | The Brain Center: what Brain is running, the Learning Ledger, the three export formats, quarantined imports, the Lift Lab, the Merge Lab, installation history, rollbacks, compatibility and security. | `intelligence` (45) | - | - | OK | - | Imports, Lift Lab, Merge Lab, Installations and Rollbacks read empty on a fresh installation, because nothing has been imported. That is the honest state, not a missing screen: the pipeline, the resolution set and the enforced security rules render regardless so a reviewer can see what would happen before it does. |
+| `/ai-studio/continuous-learning` | Administrator, Data Steward or Analyst | Continuous Learning: what was captured since a chosen baseline and — separately — what measurably changed, the six dimensions on development against validation, the measurement timeline, the three evaluation sets and the thresholds behind every figure. | `intelligence` (45) | - | - | OK | - | Reads NO BASELINE on a fresh installation and NOT MEASURED IN THIS WINDOW once a baseline exists but no evaluation has run inside the selected window. Those are different states and are worded differently, because 'nothing to compare against' and 'nobody looked' read identically as a zero. No sealed-holdout question or gold answer appears here, by §58. |
 | `/ai-studio/feedback-learning` | Administrator | Feedback and the governed learning queue: observations, candidates, review and releases. | `intelligence` (45) | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/ai-studio` | Administrator | AI Intelligence Studio: the six Intelligence Dimensions, the current release, evaluations and health. | `intelligence` (45) | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | 17 of the 18 tabs the final brief names. Brain Center and Regulatory Learning are present; Continuous Learning is the one still being added in this phase. |
+| `/ai-studio` | Administrator | AI Intelligence Studio: the six Intelligence Dimensions, the current release, evaluations and health. | `intelligence` (45) | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | All 18 tabs the final brief names. Three of them — Continuous Learning, Brain Center and Regulatory Learning — open onto areas with their own tab bars rather than rendering a panel, because eleven tabs nested inside one tab produce a bar nobody reads. |
 
 ### analyses
 
@@ -177,11 +178,12 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `brain` | 22 |
 | `build` | 1 |
 | `catalog` | 1 |
+| `continuous-learning` | 10 |
 | `data-builder` | 51 |
 | `demo` | 1 |
 | `early-warning` | 10 |
 | `engine` | 7 |
-| `feedback` | 4 |
+| `feedback` | 11 |
 | `health` | 1 |
 | `intelligence` | 45 |
 | `investigations` | 16 |

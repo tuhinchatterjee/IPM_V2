@@ -4931,6 +4931,31 @@ export const api = {
     request<ThumbsJourney>(
       `/feedback/thumbs/${encodeURIComponent(feedbackId)}`,
     ),
+
+  // ------------------------------------ Continuous Learning. §56-§93
+  //
+  // Every one of these is deterministic and cheap. Opening the cockpit
+  // reads recorded snapshots; it does not run an evaluation and does not
+  // spend anything, because a screen that costs money to open is a screen
+  // nobody opens — and this one exists to be looked at often.
+  learningCockpit: (window = "SINCE_CURRENT_INTELLIGENCE_RELEASE") =>
+    request<LearningCockpit>(
+      `/continuous-learning/cockpit?window=${encodeURIComponent(window)}`,
+    ),
+  learningWindows: () =>
+    request<LearningWindows>("/continuous-learning/windows"),
+  learningTimeline: (window = "LAST_12_MONTHS") =>
+    request<LearningTimeline>(
+      `/continuous-learning/timeline?window=${encodeURIComponent(window)}`,
+    ),
+  learningVelocity: (days = 30) =>
+    request<Record<string, unknown>>(
+      `/continuous-learning/velocity?days=${days}`,
+    ),
+  learningPartitions: () =>
+    request<LearningPartitions>("/continuous-learning/partitions"),
+  learningMeasurementRules: () =>
+    request<LearningMeasurementRules>("/continuous-learning/measurement-rules"),
 };
 
 /** §7's prompt, as the backend decided it. */
@@ -5995,4 +6020,118 @@ export type ThumbsJourney = {
   under_review: string[];
   governed_path: string[];
   raw_feedback_changed_no_score: boolean;
+};
+
+// ===========================================================================
+// Continuous Learning. §56-§93.
+//
+// `learning_captured` and `measured_change` are two fields rather than one
+// total, and no component may add them. An installation that captured four
+// hundred observations and improved by nothing has done something worth
+// knowing, and one number would report it as progress.
+// ===========================================================================
+
+export type LearningDimension = {
+  dimension: string;
+  development: Record<string, unknown>;
+  validation: Record<string, unknown>;
+  /** IMPROVED, UNCHANGED, MIXED, REGRESSED, INSUFFICIENT EVIDENCE or STALE. */
+  verdict: string;
+  learning_items_responsible: string[];
+  releases_responsible: string[];
+  days_since_run: number;
+  reads_as: string;
+};
+
+export type LearningCockpit = {
+  baseline: {
+    baseline_id: string;
+    comparable_to: string;
+    brain?: string;
+    created_at: string;
+  } | null;
+  window: string;
+  windows_available: string[];
+  headline: string;
+  /** §63's quantity. Never added to measured_change. */
+  learning_captured: Record<string, number>;
+  /** §63's quality. */
+  measured_change: Record<string, unknown>;
+  dimensions: LearningDimension[];
+  overfitting?: {
+    possible_overfitting: boolean;
+    development_delta_points: number;
+    validation_delta_points: number;
+    gap_points: number;
+    affected_families: string[];
+    recent_changes: string[];
+    critical_validation_regressions: string[];
+    recommended_review: string;
+  };
+  release_gate?: { may_activate: boolean; because: string };
+  hygiene?: Record<string, unknown>;
+  sealed_holdout?: {
+    version: string;
+    /** Always false. §58 names this screen among the six. */
+    content_shown: boolean;
+    why: string;
+  };
+  these_are_not_the_same_thing?: string;
+  quantity_is_not_quality?: string;
+  /** Set when there is no baseline or no snapshot in the window. */
+  why?: string;
+};
+
+export type LearningWindows = {
+  windows: { id: string; anchored: boolean }[];
+  triggers: { id: string; marks_a_change: boolean }[];
+  note: string;
+};
+
+export type LearningTimeline = {
+  window: string;
+  points: {
+    snapshot_id: string;
+    at: string;
+    trigger: string;
+    marks_a_change: boolean;
+    development: Record<string, number>;
+    validation: Record<string, number>;
+    critical_failures_validation: number;
+    captured: number;
+    activated: number;
+  }[];
+  note: string;
+};
+
+export type LearningPartitions = {
+  partitions: {
+    id: string;
+    means: string;
+    used_for: string[];
+    may_tune_against: boolean;
+    why_not: string;
+  }[];
+  sealed_holdout_never_reaches: { audience: string; because: string }[];
+  aggregate_fields_only: string[];
+  hygiene: {
+    window_days: number;
+    development_runs: number;
+    validation_runs: number;
+    sealed_holdout_runs: number;
+    healthy: boolean;
+    findings: string[];
+    note: string;
+  };
+};
+
+export type LearningMeasurementRules = {
+  labels: string[];
+  evidence_levels: string[];
+  minimum_cases: number;
+  trivial_cases: number;
+  material_points: number;
+  stale_days: number;
+  attribution_sources: string[];
+  rules: Record<string, string>;
 };

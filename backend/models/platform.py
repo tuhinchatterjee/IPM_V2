@@ -4471,3 +4471,304 @@ class AnswerFeedbackStatus(Base):
         Index("ix_answer_feedback_status_fb", "feedback_id", "created_at"),
         Index("ix_answer_feedback_status_open", "tenant", "status"),
     )
+
+
+# ==========================================================================
+# Continuous Learning. §57, §59, §72.
+#
+# Three tables, all append-only, and the reason they are append-only is the
+# whole subsystem: a measurement that can be recomputed after somebody
+# noticed the number looked wrong is not a measurement.
+#
+#   learning_baselines    §57. What this installation was and how it
+#                         performed at the moment a Brain was activated or a
+#                         release went live. Mostly versions, because
+#                         "compared to what?" is answered by an ontology
+#                         version and a case-set version, not by a date.
+#   learning_snapshots    §59. A measurement at a moment, against a
+#                         baseline. Development and validation figures side
+#                         by side in every pair, so a screen cannot show
+#                         only the flattering one — and development is
+#                         always the flattering one, because it is the set
+#                         that was tuned against.
+#   evaluation_uses       §72. Which partition was evaluated, when, and why.
+#                         What makes it visible that the validation set is
+#                         turning into a second development set, which is a
+#                         failure with no symptom until a release lands
+#                         badly.
+#
+# No sealed-holdout content appears in any of them. §58 names six places it
+# may never reach and the continuous-learning UI is one of them; the
+# holdout's VERSION is recorded, which says which exam was sat without
+# circulating the questions.
+# ==========================================================================
+
+
+class LearningBaseline(Base):
+    """§57's LEARNING BASELINE SNAPSHOT. The reference point.
+
+    `sealed_holdout_version` is metadata only, and §57 says so in as many
+    words. Recording which holdout version was in force lets a later
+    certification say whether it is comparable; it does not put a question
+    or a gold answer anywhere a screen could render it.
+    """
+
+    __tablename__ = "learning_baselines"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    baseline_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    instance_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+
+    activated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    build_sha: Mapped[str] = mapped_column(String(40), nullable=False,
+                                           default="")
+    app_version: Mapped[str] = mapped_column(String(32), nullable=False,
+                                             default="")
+    brain_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                          default="")
+    brain_version: Mapped[str] = mapped_column(String(32), nullable=False,
+                                               default="")
+    intelligence_release_id: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="")
+    teaching_release_id: Mapped[str] = mapped_column(String(64),
+                                                     nullable=False,
+                                                     default="")
+    regulatory_release_id: Mapped[str] = mapped_column(String(64),
+                                                       nullable=False,
+                                                       default="")
+    ontology_version: Mapped[str] = mapped_column(String(16), nullable=False,
+                                                  default="")
+    blueprint_version: Mapped[str] = mapped_column(String(16), nullable=False,
+                                                   default="")
+    judgment_policy_version: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="")
+    visualization_grammar_version: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="")
+    routing_policy_version: Mapped[str] = mapped_column(String(16),
+                                                        nullable=False,
+                                                        default="")
+    prompt_versions: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                  default=dict)
+    model_role_configuration: Mapped[dict] = mapped_column(JSONB,
+                                                           nullable=False,
+                                                           default=dict)
+
+    development_set_version: Mapped[str] = mapped_column(String(32),
+                                                         nullable=False,
+                                                         default="")
+    validation_set_version: Mapped[str] = mapped_column(String(32),
+                                                        nullable=False,
+                                                        default="")
+    #: Metadata only. Never the content.
+    sealed_holdout_version: Mapped[str] = mapped_column(String(32),
+                                                        nullable=False,
+                                                        default="")
+
+    development_metrics: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                      default=dict)
+    validation_metrics: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                     default=dict)
+    critical_failure_counts: Mapped[dict] = mapped_column(JSONB,
+                                                          nullable=False,
+                                                          default=dict)
+    coverage_metrics: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                   default=dict)
+    six_dimension_scores: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                       default=dict)
+    subcomponent_scores: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                      default=dict)
+    case_counts: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                              default=dict)
+    learning_ledger_counts: Mapped[dict] = mapped_column(JSONB,
+                                                         nullable=False,
+                                                         default=dict)
+    approved_learning_counts: Mapped[dict] = mapped_column(JSONB,
+                                                           nullable=False,
+                                                           default=dict)
+    known_limitations: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                    default=list)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("baseline_id", name="uq_learning_baseline"),
+        Index("ix_learning_baseline_tenant", "tenant", "created_at"),
+        Index("ix_learning_baseline_brain", "brain_id", "brain_version"),
+    )
+
+
+class LearningSnapshot(Base):
+    """§59's LearningPerformanceSnapshot. Immutable by having no update path.
+
+    Every development figure has its validation twin in the next column.
+    That is not symmetry for its own sake: development is the set that was
+    tuned against and always looks better, and a table that stored only one
+    of each pair would be storing the flattering one.
+
+    The `new_*` counts are §63's LEARNING QUANTITY. They are never added to
+    the score columns, because adding cases is not improving and one number
+    would report a quarter of diligent capture with nothing to show for it
+    as progress.
+    """
+
+    __tablename__ = "learning_snapshots"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    snapshot_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    instance_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+
+    window_start: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    window_end: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    trigger: Mapped[str] = mapped_column(String(32), nullable=False,
+                                         default="MANUAL")
+
+    brain_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                          default="")
+    brain_version: Mapped[str] = mapped_column(String(32), nullable=False,
+                                               default="")
+    intelligence_release_id: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="")
+    development_set_version: Mapped[str] = mapped_column(String(32),
+                                                         nullable=False,
+                                                         default="")
+    validation_set_version: Mapped[str] = mapped_column(String(32),
+                                                        nullable=False,
+                                                        default="")
+
+    development_scores: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                     default=dict)
+    validation_scores: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                    default=dict)
+    six_dimension_scores_dev: Mapped[dict] = mapped_column(JSONB,
+                                                           nullable=False,
+                                                           default=dict)
+    six_dimension_scores_validation: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict)
+    subcomponent_scores_dev: Mapped[dict] = mapped_column(JSONB,
+                                                          nullable=False,
+                                                          default=dict)
+    subcomponent_scores_validation: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict)
+    critical_failures_dev: Mapped[int] = mapped_column(Integer,
+                                                       nullable=False,
+                                                       default=0)
+    critical_failures_validation: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0)
+    coverage_dev: Mapped[float] = mapped_column(Float, nullable=False,
+                                                default=0.0)
+    coverage_validation: Mapped[float] = mapped_column(Float, nullable=False,
+                                                       default=0.0)
+    accepted_answer_precision_dev: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0)
+    accepted_answer_precision_validation: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0)
+    abstention_rate_dev: Mapped[float] = mapped_column(Float, nullable=False,
+                                                       default=0.0)
+    abstention_rate_validation: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0)
+    case_count_dev: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                default=0)
+    case_count_validation: Mapped[int] = mapped_column(Integer,
+                                                       nullable=False,
+                                                       default=0)
+
+    latency_ms: Mapped[float] = mapped_column(Float, nullable=False,
+                                              default=0.0)
+    tokens: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    estimated_cost: Mapped[float] = mapped_column(Float, nullable=False,
+                                                  default=0.0)
+
+    # §63's quantity. Never added to the scores above.
+    new_learning_captured: Mapped[int] = mapped_column(Integer,
+                                                       nullable=False,
+                                                       default=0)
+    new_learning_reviewed: Mapped[int] = mapped_column(Integer,
+                                                       nullable=False,
+                                                       default=0)
+    new_learning_approved: Mapped[int] = mapped_column(Integer,
+                                                       nullable=False,
+                                                       default=0)
+    new_learning_rejected: Mapped[int] = mapped_column(Integer,
+                                                       nullable=False,
+                                                       default=0)
+    new_learning_activated: Mapped[int] = mapped_column(Integer,
+                                                        nullable=False,
+                                                        default=0)
+    new_teaching_cases: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                    default=0)
+    new_regulatory_items: Mapped[int] = mapped_column(Integer,
+                                                      nullable=False,
+                                                      default=0)
+    new_blueprint_changes: Mapped[int] = mapped_column(Integer,
+                                                       nullable=False,
+                                                       default=0)
+    new_policy_changes: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                    default=0)
+    new_method_changes: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                    default=0)
+    new_feedback_regressions: Mapped[int] = mapped_column(Integer,
+                                                          nullable=False,
+                                                          default=0)
+    open_learning_items: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                     default=0)
+
+    known_limitations: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                    default=list)
+    comparison_baseline_id: Mapped[str] = mapped_column(String(48),
+                                                        nullable=False,
+                                                        default="")
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("snapshot_id", name="uq_learning_snapshot"),
+        Index("ix_learning_snapshot_window", "tenant", "created_at"),
+        Index("ix_learning_snapshot_trigger", "tenant", "trigger",
+              "created_at"),
+        Index("ix_learning_snapshot_baseline", "comparison_baseline_id"),
+    )
+
+
+class EvaluationUse(Base):
+    """§72. Which partition was evaluated, when, and what for.
+
+    Exists so validation drifting into a second development set is visible
+    while it is still reversible. There is no enforcement here and there
+    should not be: a hard limit gets worked around by whoever needs one more
+    run before a release, and the honest control is that the ratio is on a
+    screen somebody reviews.
+    """
+
+    __tablename__ = "evaluation_uses"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    partition: Mapped[str] = mapped_column(String(24), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(240), nullable=False,
+                                         default="")
+    by: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    snapshot_id: Mapped[str] = mapped_column(String(48), nullable=False,
+                                             default="")
+    case_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                            default=0)
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_evaluation_use_partition", "tenant", "partition",
+              "created_at"),
+    )

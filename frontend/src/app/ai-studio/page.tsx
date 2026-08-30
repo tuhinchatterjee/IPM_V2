@@ -156,6 +156,20 @@ const PANELS: Record<string, React.ReactNode> = {
       <Failures />
     </div>
   ),
+  CONTINUOUS_LEARNING: (
+    <Area
+      title="Continuous Learning"
+      what="How much has been learned since a chosen baseline, and — separately, and never added to it — how much measurably changed. An installation that captured four hundred observations and improved by nothing has done something worth knowing, and one number would report it as progress."
+      href="/ai-studio/continuous-learning"
+      opens={[
+        "What has been learned",
+        "The six dimensions",
+        "Timeline",
+        "Evaluation sets",
+        "What a number may claim",
+      ]}
+    />
+  ),
   REGULATORY_LEARNING: (
     <Area
       title="Regulatory Intelligence"

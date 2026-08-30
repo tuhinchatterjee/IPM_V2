@@ -249,3 +249,29 @@ RequireRegulatoryIngest = Depends(require(REGULATORY_INGEST))
 RequireRegulatoryReview = Depends(require(REGULATORY_REVIEW))
 RequireRegulatoryResolve = Depends(require(REGULATORY_RESOLVE))
 RequireRegulatoryPromote = Depends(require(REGULATORY_PROMOTE))
+
+
+# ==========================================================================
+# Continuous Learning. §86.
+#
+# Reading how the product is performing is deliberately wide: §77 requires
+# every improvement claim to travel with its sample context, and a claim
+# only administrators can check is a claim. An analyst who was given an
+# answer is entitled to ask how well this system has been doing.
+#
+# Recording a measurement is narrower, because a snapshot is a permanent
+# record other decisions get made against.
+# ==========================================================================
+
+#: See the Continuous Learning cockpit, timeline and dimension deltas.
+AI_LEARNING_VIEW = frozenset({Role.ADMIN, Role.DATA_STEWARD, Role.ANALYST})
+#: Record a baseline or a performance snapshot.
+AI_LEARNING_MEASURE = frozenset({Role.ADMIN, Role.DATA_STEWARD})
+#: Run an evaluation against the sealed holdout. The narrowest: §58 keeps
+#: the holdout for formal certification, and each run spends some of what
+#: makes it meaningful.
+AI_LEARNING_CERTIFY = frozenset({Role.ADMIN})
+
+RequireLearningView = Depends(require(AI_LEARNING_VIEW))
+RequireLearningMeasure = Depends(require(AI_LEARNING_MEASURE))
+RequireLearningCertify = Depends(require(AI_LEARNING_CERTIFY))
