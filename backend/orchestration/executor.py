@@ -182,6 +182,13 @@ class Investigation:
     #: the governed semantic guardrail made of the live reading, and whether the
     #: live path was available. Rendered on the Trace.
     conversation: dict[str, Any] = field(default_factory=dict)
+    #: §11, §12, §35-§40. What the message was read as asking, which analyses
+    #: were considered and chosen, how the answer was sized, and what every
+    #: objective ended up as. Present on every turn, not only compound ones:
+    #: "1 of 1" is what makes the counter legible when it later reads "2 of
+    #: 3", and a counter that only appeared when something went wrong is a
+    #: counter nobody has learned to read.
+    compound: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -204,6 +211,7 @@ class Investigation:
             "rejected": self.rejected,
             "mode": self.mode,
             "conversation": self.conversation,
+            "compound": self.compound,
             "stages": STAGES,
         }
 
@@ -1008,6 +1016,7 @@ def answer_investigation(question: str, *, user_id: int | None = None,
         _check_grounding(investigation, answered.runtime)
 
     _record_conversation(investigation, answered)
+    _record_compound(investigation, answered, question)
     _settle_caveats(investigation)
     _record_presentability(investigation, answered)
     _record_judgment(investigation, answered)
@@ -1279,6 +1288,150 @@ def _interpret_certified(question: str, found: Any, step: ExecutedStep) -> Any:
         _CertifiedResult(step.result or {}),
         plan_note=("This is the bank's CERTIFIED methodology, run as approved. "
                    "Do not describe it as a composed or dynamic analysis."))
+
+
+def _record_compound(investigation: Investigation, answered: Any,
+                     question: str) -> None:
+    """§11, §12, §35-§40: what was asked, what ran, and what came back.
+
+    Never raises. A coverage report is worth having and is not worth losing
+    an answer over - but a FAILURE to build it is recorded as an explicit
+    gap rather than as an empty payload, because an empty coverage block and
+    a coverage block saying "everything was answered" look the same to the
+    interface that renders them, and only one of them is a claim.
+    """
+    from backend.orchestration import compound_trace as ct
+    from backend.orchestration import length as ln
+    from backend.orchestration import objectives as ob
+    from backend.orchestration import suggestions as sg
+
+    try:
+        reading = ob.read(question)
+    except Exception as e:  # noqa: BLE001 - coverage never breaks an answer
+        logger.warning("Objective coverage could not be read: %s", e)
+        investigation.compound = {
+            "available": False,
+            "why": "the request could not be decomposed into objectives, so "
+                   "this answer cannot say which parts of it were covered",
+        }
+        return
+
+    try:
+        # Settle from what actually happened. An objective is only ANSWERED
+        # if the turn produced a result; a turn that clarified, abstained or
+        # failed settles every objective the same way, because none of them
+        # got an answer.
+        chosen = getattr(answered, "portfolio", None)
+        analyses = [s.to_dict() for s in investigation.steps]
+        settled = _objective_outcome(investigation, answered)
+        _settle_objectives(reading, settled, chosen, len(analyses))
+
+        scope = ob.shared_scope(reading)
+        coverage = ob.coverage(reading)
+        decision = ln.decide(ln.Inputs(
+            objective_count=len(reading.objectives) or 1,
+            analysis_count=max(len(analyses), 1),
+            domain_count=len({d for step in analyses
+                              for d in (step.get("params") or {}).get(
+                                  "datasets", []) or []}) or 1,
+            in_case_context=bool(getattr(investigation, "project_id", None)),
+        ))
+
+        offered = sg.after_compound(reading, chosen)
+        offered.extend(list(investigation.plan.follow_ups or []))
+
+        payload: dict[str, Any] = {
+            "available": True,
+            "questions_answered": coverage.headline(),
+            "coverage": coverage.to_dict(),
+            "shared_scope": scope.to_dict(),
+            "length_policy": decision.to_dict(),
+            "layout": decision.layout,
+            "analyses_performed": len(analyses),
+            "suggested": offered[:sg.MAX_SUGGESTIONS],
+            "is_compound": ct.applies(reading, chosen),
+        }
+        if chosen is not None:
+            payload["portfolio"] = chosen.to_dict()
+        investigation.compound = payload
+    except Exception as e:  # noqa: BLE001 - coverage never breaks an answer
+        logger.warning("Objective coverage could not be assembled: %s", e)
+        investigation.compound = {
+            "available": False,
+            "why": "the coverage of this request could not be established",
+        }
+
+
+def _settle_objectives(reading: Any, settled: dict[str, str],
+                       chosen: Any, analyses: int) -> None:
+    """Mark every objective, without claiming more than was established.
+
+    Where the planner tied an objective to an analysis, that objective's
+    outcome is known. Where it did not - the ordinary case today, because a
+    compound request is answered by ONE composed analysis rather than by one
+    analysis per clause - the honest statement is that the first objective
+    was answered and the rest were folded into it and not separately checked.
+
+    Marking them all ANSWERED would be the exact claim §11 forbids: a
+    coverage line reading "2 of 2" over a turn that verified one. PARTIAL
+    keeps the answer presentable, which it is, while the headline says "1 of
+    2 answered; 1 partly answered" - which is what actually happened.
+    """
+    from backend.orchestration import objectives as ob
+
+    tied = {d.candidate.objective_id
+            for d in (getattr(chosen, "selected", None) or [])
+            if getattr(d.candidate, "objective_id", "")}
+    pending = [o for o in reading.objectives if o.status == ob.PLANNED]
+    if not pending:
+        return
+
+    # Anything other than a clean answer applies to the whole turn.
+    if settled["status"] != ob.COMPLETE:
+        for objective in pending:
+            objective.settle(settled["status"], note=settled["note"])
+        return
+
+    verified = len(tied) or analyses
+    for position, objective in enumerate(pending):
+        if objective.objective_id in tied or position < verified:
+            objective.settle(ob.COMPLETE)
+        else:
+            objective.settle(ob.PARTIAL, note=(
+                "answered inside the combined analysis rather than as its "
+                "own step, so it was not separately verified"))
+
+
+def _objective_outcome(investigation: Investigation,
+                       answered: Any) -> dict[str, str]:
+    """How every objective of this turn settled, from what the turn did.
+
+    Deliberately coarse. Per-objective settlement needs the planner to have
+    tied each objective to a task, which happens only where the portfolio
+    ran; everywhere else the honest statement is that the whole turn
+    clarified, abstained or answered, and claiming finer knowledge than that
+    would be inventing a coverage report rather than producing one.
+    """
+    from backend.orchestration import objectives as ob
+
+    if getattr(investigation, "clarification", None) is not None:
+        return {"status": ob.NEEDS_CLARIFICATION,
+                "note": "CreditProbe stopped to ask before answering"}
+    if str(getattr(answered, "unsupported", "") or ""):
+        return {"status": ob.UNAVAILABLE,
+                "note": str(answered.unsupported)}
+    if str(getattr(answered, "failure", "") or ""):
+        return {"status": ob.FAILED, "note": str(answered.failure)}
+    if investigation.status in ("failed", "rejected"):
+        return {"status": ob.FAILED,
+                "note": "the analysis did not complete"}
+    if investigation.status == "needs_clarification":
+        return {"status": ob.NEEDS_CLARIFICATION,
+                "note": "CreditProbe stopped to ask before answering"}
+    if investigation.status == "partial":
+        return {"status": ob.PARTIAL,
+                "note": "part of the analysis did not complete"}
+    return {"status": ob.COMPLETE, "note": ""}
 
 
 def _record_conversation(investigation: Investigation, answered: Any) -> None:

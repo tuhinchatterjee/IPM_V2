@@ -572,3 +572,81 @@ def test_a_case_context_is_offered_as_a_next_step():
     offered = suggestions.after_compound(
         reading, plan, case_context="the Contracting Risk Case")
     assert any("Contracting Risk Case" in s for s in offered)
+
+
+# ======================== the answer actually carries all of this
+
+
+@pytest.fixture(scope="module")
+def _answered():
+    from backend.orchestration.executor import run_investigation
+    return {
+        "simple": run_investigation(
+            "What is total exposure at default by sector?", persist=False),
+        "compound": run_investigation(
+            "What is total ECL, and break the change down by sector?",
+            persist=False),
+    }
+
+
+def test_every_answer_carries_a_coverage_report(_answered):
+    for answer in _answered.values():
+        assert answer.compound.get("available") is True
+        assert answer.compound["questions_answered"]
+
+
+def test_a_single_question_reads_one_of_one(_answered):
+    assert _answered["simple"].compound["questions_answered"] == "1 of 1"
+
+
+def test_a_compound_question_does_not_claim_more_than_it_verified(_answered):
+    """The claim §11 forbids: "2 of 2" over a turn that verified one."""
+    headline = _answered["compound"].compound["questions_answered"]
+    performed = _answered["compound"].compound["analyses_performed"]
+    total = _answered["compound"].compound["coverage"]["total"]
+    if performed < total:
+        assert headline != f"{total} of {total}"
+        assert "partly answered" in headline
+
+
+def test_an_unverified_objective_says_why(_answered):
+    objectives = _answered["compound"].compound["coverage"]["objectives"]
+    partial = [o for o in objectives if o["status"] == obj.PARTIAL]
+    for objective in partial:
+        assert objective["note"], (
+            "an objective marked partial with no reason cannot be acted on")
+
+
+def test_a_compound_answer_is_still_presentable(_answered):
+    """Partial is honest, not fatal. Nothing was silently omitted."""
+    assert _answered["compound"].compound["coverage"]["presentable"]
+
+
+def test_the_answer_carries_its_length_decision(_answered):
+    for answer in _answered.values():
+        policy = answer.compound["length_policy"]
+        assert policy["band"] in length.BANDS
+        assert policy["reasons"]
+        assert policy["inputs"]["objective_count"] >= 1
+
+
+def test_the_layout_reaches_the_interface(_answered):
+    for answer in _answered.values():
+        assert answer.compound["layout"] in (
+            "single", "primary_and_supporting", "grouped",
+            "investigation_review")
+
+
+def test_the_compound_payload_survives_serialisation(_answered):
+    import json
+
+    for answer in _answered.values():
+        body = json.loads(json.dumps(answer.to_dict(), default=str))
+        assert body["compound"]["available"] is True
+
+
+def test_an_investigation_offers_what_the_planner_set_aside():
+    from backend.orchestration.executor import run_investigation
+
+    answer = run_investigation("Investigate Contracting.", persist=False)
+    assert answer.compound["suggested"]

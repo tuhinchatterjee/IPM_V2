@@ -198,6 +198,12 @@ class Answered:
     corrections: list[tuple[str, str]] = field(default_factory=list)
     #: The probes a broad investigation ran, when this turn was one.
     investigation: dict[str, Any] = field(default_factory=dict)
+    #: §12: the Analysis Portfolio the planner chose, as the typed object
+    #: rather than as the dict inside `investigation`. Kept separately because
+    #: the coverage and follow-up code reads the scores and decisions, and
+    #: round-tripping them through a dict would mean re-parsing what is
+    #: already in hand.
+    portfolio: Any = None
     #: What those probes actually did — datasets, periods, grains, invariants,
     #: evidence facts, Trace nodes. Set only on a composed answer. §3.
     composition: Any = None
@@ -673,6 +679,7 @@ def _investigate(answered: Answered, question: str, context: Any,
         return None
     answered.result = result
     answered.investigation = request.to_dict()
+    answered.portfolio = request.portfolio
     answered.composition = getattr(result, "composition", None)
     return answered
 
