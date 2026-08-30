@@ -8,6 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import type {
   BrainConflictList,
+  BrainMergePreview,
+  BrainMergeResult,
   BrainExportKinds,
   BrainImportList,
   BrainInstallationList,
@@ -578,6 +580,8 @@ function Compatibility({ detail }: { detail: Record<string, unknown> }) {
 function Merge({ data }: { data: BrainConflictList }) {
   return (
     <div className="space-y-4">
+      <BuildMerge conflicts={data} />
+
       <Card className="p-4">
         <h2 className="text-sm font-medium">How a contradiction may end</h2>
         <ul className="mt-2 flex flex-wrap gap-1 text-[11px]">
@@ -619,6 +623,131 @@ function Merge({ data }: { data: BrainConflictList }) {
         ))
       )}
     </div>
+  );
+}
+
+// §21/§22. The merge itself: two Brains in, a third out.
+//
+// The button is disabled and says why rather than failing on click. Three
+// things stop a merge, and each is a different job for a different person:
+// a conflict nobody settled, a resolution that asked for wording nobody
+// wrote, and no import to merge with at all.
+
+function BuildMerge({ conflicts }: { conflicts: BrainConflictList }) {
+  const importId = conflicts.conflicts[0]?.import_id ?? "";
+  const [preview, setPreview] = React.useState<BrainMergePreview | null>(null);
+  const [name, setName] = React.useState("");
+  const [result, setResult] = React.useState<BrainMergeResult | null>(null);
+  const [failed, setFailed] = React.useState("");
+  const [building, setBuilding] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!importId) return;
+    let live = true;
+    api
+      .brainMergePreview(importId)
+      .then((found) => live && setPreview(found))
+      .catch(() => live && setPreview(null));
+    return () => {
+      live = false;
+    };
+  }, [importId]);
+
+  if (!importId) {
+    return (
+      <Card className="p-4">
+        <h2 className="text-sm font-medium">Merge two Brains</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          A merge needs an imported Brain to merge with. Nothing has been
+          imported here yet.
+        </p>
+      </Card>
+    );
+  }
+
+  const blocked = preview ? !preview.may_merge : true;
+
+  return (
+    <Card className="p-4">
+      <h2 className="text-sm font-medium">Merge two Brains</h2>
+      {preview && (
+        <>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {preview.local_brain} and {preview.incoming_brain}:{" "}
+            {preview.contested_items} contested item(s) across{" "}
+            {preview.kinds.join(", ") || "nothing"}.
+          </p>
+          {preview.why_not.length > 0 && (
+            <ul className="mt-2 list-disc pl-4 text-xs text-muted-foreground">
+              {preview.why_not.map((one) => (
+                <li key={one}>{one}</li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            {preview.note}
+          </p>
+        </>
+      )}
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!name.trim()) return;
+          setBuilding(true);
+          setFailed("");
+          api
+            .brainBuildMerge(importId, { brain_name: name })
+            .then(setResult)
+            .catch((error: unknown) =>
+              setFailed(
+                error instanceof Error
+                  ? error.message
+                  : "The merge was refused.",
+              ),
+            )
+            .finally(() => setBuilding(false));
+        }}
+        className="mt-3 flex flex-wrap gap-2"
+      >
+        <label htmlFor="merged-brain-name" className="sr-only">
+          Name for the merged Brain
+        </label>
+        <input
+          id="merged-brain-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Name for the merged Brain"
+          className="min-w-0 flex-1 rounded border border-border bg-transparent px-2 py-1 text-xs"
+        />
+        <button
+          type="submit"
+          disabled={blocked || building || !name.trim()}
+          title={
+            blocked
+              ? "Settle every conflict first — a merge will not pick a side."
+              : undefined
+          }
+          className="rounded border border-border px-2 py-1 text-xs disabled:opacity-50"
+        >
+          {building ? "Building…" : "Build the merged Brain"}
+        </button>
+      </form>
+
+      {failed && <p className="mt-2 text-xs text-destructive">{failed}</p>}
+
+      {result && (
+        <div className="mt-3 border-t border-border/40 pt-2">
+          <p className="text-xs">
+            Built {result.brain_name} {result.brain_version} —{" "}
+            {result.entry_count} file(s).
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {result.next_step}
+          </p>
+        </div>
+      )}
+    </Card>
   );
 }
 

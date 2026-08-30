@@ -30,11 +30,13 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from backend import build_info as build_info_mod
 from backend.brain import bundle as bundle_mod
 from backend.brain import compatibility as compat
 from backend.brain import conflicts as conflicts_mod
 from backend.brain import ledger as ledger_mod
 from backend.brain import liftlab, pack, quarantine, security
+from backend.brain import merge as merge_mod
 from backend.models.platform import (
     BrainConflict,
     BrainImport,
@@ -997,3 +999,264 @@ def revoke_signer(session: Session, key_id: str, *, actor: str, reason: str,
     row.revoked_at = _now()
     session.flush()
     return row
+
+
+# ============================================================ §21/§22 MERGE
+
+
+#: Which package path each mergeable kind is read from. The reverse of
+#: `merge_mod.KIND_PATHS`, and checked against it by a test so the two
+#: cannot drift into a merge that reads one layout and writes another.
+_MERGE_SOURCES: dict[str, str] = {
+    "cases": "teaching/cases.jsonl",
+    "blueprints": "blueprints/blueprints.jsonl",
+    "methods": "methods/methods.jsonl",
+    "regulatory": "regulatory/requirements.jsonl",
+}
+
+#: The id field each kind's rows carry, in the order they are tried.
+_MERGE_ID_KEYS: dict[str, tuple[str, ...]] = {
+    "cases": ("case_id", "item_id", "id"),
+    "blueprints": ("blueprint_id", "item_id", "id"),
+    "methods": ("method_id", "item_id", "id"),
+    "regulatory": ("requirement_id", "item_id", "id"),
+}
+
+
+def _row_id(kind: str, row: dict[str, Any]) -> str:
+    for key in _MERGE_ID_KEYS.get(kind, ("item_id", "id")):
+        if row.get(key):
+            return str(row[key])
+    return ""
+
+
+def _items_from_package(opened: pack.OpenedPackage) -> dict[str, dict[str, Any]]:
+    """The mergeable items a package carries, keyed by kind and id."""
+    items: dict[str, dict[str, Any]] = {}
+    for kind, path in _MERGE_SOURCES.items():
+        text = (opened.files or {}).get(path)
+        if not text:
+            continue
+        rows: dict[str, Any] = {}
+        for line in text.splitlines():
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(row, dict):
+                continue
+            item_id = _row_id(kind, row)
+            if item_id:
+                rows[item_id] = row
+        if rows:
+            items[kind] = rows
+    return items
+
+
+def _local_items(session: Session) -> dict[str, dict[str, Any]]:
+    """This installation's own mergeable items, from the same source as an
+    export. Reusing `bundle.collect()` is deliberate: a merge that read a
+    different set from the one this installation would export is a merge
+    against a Brain nobody has.
+    """
+    source = bundle_mod.collect(
+        teaching_cases=_approved_teaching_cases(session))
+    items: dict[str, dict[str, Any]] = {}
+    for kind, rows in (("cases", source.teaching_cases),
+                       ("blueprints", source.blueprints),
+                       ("methods", source.methods),
+                       ("regulatory", source.regulatory)):
+        keyed = {_row_id(kind, row): row for row in rows
+                 if isinstance(row, dict) and _row_id(kind, row)}
+        if keyed:
+            items[kind] = keyed
+    return items
+
+
+def merge_preview(session: Session, import_id: str) -> dict[str, Any]:
+    """What a merge with this import would produce, without producing it.
+
+    Read-only on purpose. The Merge Lab has to be able to show the shape of
+    the outcome — how many items, how many dormant, what is still
+    unsettled — before anybody commits to building a third Brain.
+    """
+    record = _require_import(session, import_id)
+    package = _require_package(session, record.package_id)
+    opened = pack.read(Path(package.storage_path))
+    incoming = _items_from_package(opened)
+    local = _local_items(session)
+
+    settled = _settled_conflicts(session, import_id)
+    blocking = conflicts_mod.blocking(settled)
+    needs_authoring = [c.conflict_id for c in settled
+                       if c.resolution in merge_mod.NEEDS_AUTHORING]
+
+    contested = {(c.kind, c.local.item_id if c.local else "")
+                 for c in settled}
+    return {
+        "import_id": import_id,
+        "local_brain": "this installation",
+        "incoming_brain": f"{package.brain_name} {package.brain_version}".strip(),
+        "kinds": sorted(set(local) | set(incoming)),
+        "local_items": {k: len(v) for k, v in sorted(local.items())},
+        "incoming_items": {k: len(v) for k, v in sorted(incoming.items())},
+        "conflicts_total": len(settled),
+        "conflicts_blocking": [c.conflict_id for c in blocking],
+        "needs_authoring": needs_authoring,
+        "may_merge": not blocking and not needs_authoring,
+        "contested_items": len(contested),
+        "why_not": _merge_blockers(blocking, needs_authoring),
+        "note": (
+            "A merge produces a third Brain that has never been evaluated. "
+            "It goes through quarantine, the Lift Lab and approval like any "
+            "other import, because that is what it now is."),
+    }
+
+
+def _merge_blockers(blocking: list[conflicts_mod.Conflict],
+                    needs_authoring: list[str]) -> list[str]:
+    reasons: list[str] = []
+    if blocking:
+        reasons.append(
+            f"{len(blocking)} conflict(s) are open or deferred at high risk. "
+            "A merge that picked a side for them would produce a Brain "
+            "whose behaviour nobody chose.")
+    if needs_authoring:
+        reasons.append(
+            f"{len(needs_authoring)} conflict(s) were resolved CREATE NEW "
+            "VERSION or MERGE MANUALLY, which are decisions to write "
+            "something. Supply the wording; the merge will not invent it.")
+    return reasons
+
+
+def _settled_conflicts(session: Session,
+                       import_id: str) -> list[conflicts_mod.Conflict]:
+    """Rebuild the conflict objects from what was persisted for an import."""
+    rows = session.execute(
+        select(BrainConflict).where(BrainConflict.import_id == import_id)
+    ).scalars().all()
+
+    out: list[conflicts_mod.Conflict] = []
+    for row in rows:
+        existing = row.existing or {}
+        incoming = row.incoming or {}
+        item_id = str(existing.get("item_id") or incoming.get("item_id")
+                      or row.conflict_id)
+        kind = str(existing.get("kind") or incoming.get("kind") or "cases")
+        conflict = conflicts_mod.Conflict(
+            conflict_id=row.conflict_id,
+            conflict_class=row.conflict_class,
+            kind=kind,
+            risk=(row.severity or "medium").lower(),
+            local=conflicts_mod.Side(
+                origin="local", item_id=item_id,
+                value=existing.get("value"),
+                version=str(existing.get("version") or "")),
+            incoming=conflicts_mod.Side(
+                origin="incoming", item_id=item_id,
+                value=incoming.get("value"),
+                version=str(incoming.get("version") or "")),
+            detail=row.summary or "",
+            resolution=row.resolution or "",
+            resolution_reason=row.resolution_reason or "",
+            resolved_by=row.resolved_by or "",
+            split_axis=row.split_axis or "",
+        )
+        if conflict.resolution:
+            conflict.status = ("DEFERRED"
+                               if conflict.resolution == conflicts_mod.DEFER
+                               else "RESOLVED")
+        out.append(conflict)
+    return out
+
+
+def build_merge(session: Session, import_id: str, *, actor: str,
+                brain_name: str, brain_version: str,
+                authored: dict[str, dict[str, Any]] | None = None,
+                tenant: str = "",
+                storage_root: Path | None = None) -> BrainPackage:
+    """§21/§22. Produce the third Brain, as a package on disk.
+
+    The result is written as an EXPORT package rather than activated. A
+    merged Brain has never been run, so it enters the same path any other
+    unevaluated Brain does.
+    """
+    record = _require_import(session, import_id)
+    package = _require_package(session, record.package_id)
+    opened = pack.read(Path(package.storage_path))
+    if opened.manifest is None:
+        raise BrainCenterError(
+            "the incoming package has no readable manifest, so a merged "
+            "Brain could not name its parents")
+
+    merged = merge_mod.merge(
+        _local_items(session), _items_from_package(opened),
+        _settled_conflicts(session, import_id),
+        by=actor, authored=authored,
+        local_brain_id="local", incoming_brain_id=opened.manifest.brain_id)
+
+    local_manifest = pack.Manifest(
+        brain_id="local", brain_name="This installation",
+        brain_version=build_info_mod.VERSION,
+        created_at=_now().isoformat(), created_by=actor,
+        source_instance_id="local", source_build_sha=_build_sha(),
+        app_version=build_info_mod.VERSION,
+        ontology_version=_ontology_version(),
+        minimum_app_version=build_info_mod.VERSION)
+
+    manifest = merge_mod.manifest_for(
+        merged, brain_name=brain_name, brain_version=brain_version,
+        local_manifest=local_manifest, incoming_manifest=opened.manifest,
+        created_by=actor)
+    manifest.source_build_sha = local_manifest.source_build_sha
+    manifest.source_instance_id = local_manifest.source_instance_id
+    manifest.app_version = local_manifest.app_version
+    manifest.ontology_version = (opened.manifest.ontology_version
+                                 or local_manifest.ontology_version)
+    manifest.minimum_app_version = (manifest.minimum_app_version
+                                    or local_manifest.minimum_app_version)
+
+    contents = merge_mod.package(merged, manifest)
+
+    root = Path(storage_root or STORAGE_ROOT) / "merged"
+    root.mkdir(parents=True, exist_ok=True)
+    package_id = _id("pkg")
+    target = root / f"{package_id}{pack.SUFFIX[pack.BRAIN_PACK]}"
+    pack.write(target, manifest, contents)
+    raw = target.read_bytes()
+
+    row = BrainPackage(
+        package_id=package_id,
+        direction=EXPORT,
+        package_kind=pack.BRAIN_PACK,
+        brain_id=manifest.brain_id,
+        brain_name=manifest.brain_name,
+        brain_version=manifest.brain_version,
+        manifest=_jsonable(manifest.to_dict()),
+        sha256=hashlib.sha256(raw).hexdigest(),
+        size_bytes=len(raw),
+        entry_count=len(contents.files),
+        signature_state="UNSIGNED",
+        storage_path=str(target),
+        tenant=tenant,
+        created_by=actor,
+    )
+    session.add(row)
+    session.flush()
+    logger.info("merged brain %s built from import %s: %d item(s), "
+                "%d dormant", package_id, import_id,
+                sum(len(v) for v in merged.items.values()),
+                len(merged.dormant))
+    return row
+
+
+def _build_sha() -> str:
+    return build_info_mod.build_info().sha or "unknown"
+
+
+def _ontology_version() -> str:
+    from backend.semantics import ontology
+
+    return ontology.ONTOLOGY_VERSION

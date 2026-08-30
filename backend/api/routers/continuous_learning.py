@@ -361,3 +361,130 @@ def learning_report(window: str = Query(default=sn.SINCE_CURRENT_RELEASE),
             "X-CreditProbe-Sheets": str(len(book.manifest["sheets"])),
         },
     )
+
+
+# ==================================================== §84 LEARNING QUESTIONS
+
+
+class QuestionBody(BaseModel):
+    question: str = Field(..., max_length=500)
+    window: str = Field(default=sn.SINCE_CURRENT_RELEASE, max_length=64)
+
+
+@router.get("/questions")
+def question_catalogue(principal: Principal = RequireLearningView
+                       ) -> dict[str, Any]:
+    """§84. The questions this screen can answer, and where from."""
+    from backend.continuous import questions as qs
+
+    return {
+        "questions": qs.catalogue(),
+        "windows_available": list(sn.WINDOWS),
+        "answered_from": "persisted snapshots and evaluations",
+        "no_model_involved": (
+            "§84: do not let an LLM invent performance numbers. Nothing on "
+            "this route calls a model. A question that does not match one "
+            "of these shapes is refused rather than approximated."),
+    }
+
+
+@router.post("/questions")
+def ask_question(body: QuestionBody,
+                 principal: Principal = RequireLearningView
+                 ) -> dict[str, Any]:
+    """§84. Answer one governed question from what is already stored."""
+    from backend.continuous import questions as qs
+
+    with _session() as session:
+        try:
+            answer = cl.answer_question(
+                session, body.question, window=body.window,
+                asker=getattr(principal, "user_id", "") or "")
+        except sn.SnapshotError as exc:
+            raise _refused(exc) from exc
+    answer["catalogue"] = qs.catalogue()
+    return answer
+
+
+# ============================================ §68 CHANGE-ISOLATION EXPERIMENTS
+
+
+class ArmBody(BaseModel):
+    label: str = Field(..., max_length=64)
+    changes: list[str] = Field(default_factory=list, max_length=32)
+    scores: dict[str, float] = Field(default_factory=dict)
+    families: dict[str, str] = Field(default_factory=dict)
+    dimensions: dict[str, float] = Field(default_factory=dict)
+    critical_failures: list[str] = Field(default_factory=list, max_length=500)
+    latency_ms: float = 0.0
+    cost_units: float = 0.0
+
+
+class ExperimentBody(BaseModel):
+    change_kind: str = Field(..., max_length=48)
+    change_id: str = Field(..., max_length=128)
+    baseline: ArmBody
+    treatment: ArmBody
+    partition: str = Field(default=pt.VALIDATION, max_length=32)
+    mode: str = Field(default="DETERMINISTIC", max_length=32)
+    authorization: str = Field(default="", max_length=200)
+
+
+@router.get("/experiments")
+def experiment_kinds(principal: Principal = RequireLearningView
+                     ) -> dict[str, Any]:
+    """§68. What an isolation experiment can attribute, and what it costs."""
+    from backend.continuous import isolation as iso
+
+    return {
+        "change_kinds": [{"id": kind, "attributes_to": source}
+                         for kind, source in iso.CHANGE_KINDS.items()],
+        "modes": list(iso.MODES),
+        "default_mode": iso.DETERMINISTIC,
+        "minimum_cases": ms.MINIMUM_CASES,
+        "live_provider_rule": (
+            "§68: a live-provider A/B may not run without authorization. An "
+            "A/B doubles the call count by construction."),
+        "what_isolation_means": (
+            "Two arms on the same cases, differing in exactly one declared "
+            "change. Anything else is a real measurement of a joint effect, "
+            "and may not be added to a waterfall as if it were additive."),
+    }
+
+
+@router.post("/experiments")
+def run_experiment(body: ExperimentBody,
+                   principal: Principal = RequireLearningMeasure
+                   ) -> dict[str, Any]:
+    """§68. Run one change-isolation experiment and report what it showed.
+
+    Deterministic by default and free by default. The live-provider mode
+    exists, refuses without authorization, and is never the default.
+    """
+    from backend.continuous import isolation as iso
+
+    def _arm(payload: ArmBody) -> iso.Arm:
+        return iso.Arm(
+            label=payload.label, changes=frozenset(payload.changes),
+            scores=dict(payload.scores), families=dict(payload.families),
+            dimensions=dict(payload.dimensions),
+            critical_failures=frozenset(payload.critical_failures),
+            latency_ms=payload.latency_ms, cost_units=payload.cost_units)
+
+    experiment = iso.Experiment(
+        change_kind=body.change_kind, change_id=body.change_id,
+        baseline=_arm(body.baseline), treatment=_arm(body.treatment),
+        partition=body.partition, mode=body.mode)
+    try:
+        result = iso.run(experiment, by=_actor(principal),
+                         authorization=body.authorization)
+    except iso.IsolationError as exc:
+        raise _refused(exc) from exc
+
+    payload = result.to_dict()
+    payload["contribution"] = result.contribution().to_dict()
+    return payload
+
+
+def _actor(principal: Principal) -> str:
+    return getattr(principal, "user_id", "") or "unknown"

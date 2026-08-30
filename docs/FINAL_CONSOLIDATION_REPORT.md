@@ -297,25 +297,78 @@ script never reads, prints, logs or writes the API key.
 
 ## 38. Explicit remaining limitations
 
-1. **Browser acceptance was not performed.** §53's list — the Studio,
-   Brain Center, Lift Lab, Merge Lab, regulatory review, four themes,
-   1440×900, 1366×768, touch, reduced motion — is outstanding.
-2. **Docker was not built or started.**
-3. **No live model call was made**, so nothing here is evidence about the
-   live path. That is what §37's commands are for, and they run on the
-   user's machine.
-4. **Merge Lab is a read surface.** Conflicts are detected, classified and
-   resolved; a two-Brain merge producing a third package is not implemented.
-5. **§84's natural-language learning questions are not implemented.** The
-   snapshots they would read exist; the question-answering over them does
-   not.
-6. **§68's change-isolation experiments are a contract, not a runner.**
-   `Contribution.isolated` is respected everywhere, and nothing yet *runs*
-   an isolation experiment to set it.
-7. **No Brain has been imported and no regulatory document processed** in
+Five of the seven limitations recorded when this report was first written
+have since been closed. What follows is the current state, with the closed
+items kept visible rather than deleted — a limitations section that only ever
+shrinks silently is one nobody can audit.
+
+### Closed
+
+1. **Browser acceptance ran.** `scripts/browser_acceptance.py --start` drove
+   a real Chromium against a built front end and a live backend:
+   **844/844 checks passed** across 15 screens, four viewports (1440x900,
+   1366x768, 834x1112 touch, and 390x844) and four themes
+   (executive-light, midnight, warm-institutional, forest). The theme sweep
+   asserts `data-theme` actually changed, so four identical runs cannot pass
+   as four themes proved. The report is `docs/browser_acceptance.json`.
+2. **Merge Lab produces a third Brain.** `backend/brain/merge.py` takes two
+   item sets and the settled conflicts and builds the merged package, with
+   `POST /api/v1/brain/merge/{import_id}` behind it and a Build control in
+   the Merge Lab. It refuses rather than guessing in three places: any
+   conflict still open or deferred at high risk, any resolution that asked
+   for wording nobody wrote (CREATE NEW VERSION, MERGE MANUALLY), and any
+   merged item kind with no package path. A deferred conflict leaves the
+   item out and reports it dormant rather than falling back to local. The
+   merged manifest names both parents and carries **no** inherited scores.
+3. **The nine §84 questions are answered.** `backend/continuous/questions.py`
+   matches a question to one of nine governed shapes by deterministic
+   keyword scoring and answers it from persisted snapshots. Nothing in the
+   path calls a model. Every figure carries the snapshot id it was read
+   from; an unmatched question is refused with the list of what can be
+   asked; a matched question with no data behind it returns
+   `answerable: false` and names what is missing, because a zero would read
+   as "no improvement" when the truth is "never measured".
+4. **§68 has a runner.** `backend/continuous/isolation.py` runs a controlled
+   two-arm A/B and is the only place `Contribution.isolated` becomes True.
+   It checks both conditions rather than assuming them — same case set,
+   exactly one declared change — and downgrades to a measured-but-joint
+   result otherwise. It refuses a live-provider arm without authorization
+   (§68's rule; an A/B doubles the call count by construction) and refuses
+   the sealed holdout outright.
+5. **The three stale UI tasks were reconciled, not assumed.** Tasks #112,
+   #116 and #117 from the UX remediation brief were verified claim by claim
+   against the source and closed. `frontend/src/lib/__tests__/ux-remediation.test.ts`
+   asserts each one — interpretation before the numbers, supporting analysis
+   collapsed, follow-ups last, a nav that remembers under
+   `creditprobe.nav.collapsed` with `aria-expanded`, a page header of
+   eyebrow/title/actions with the explanation behind the info control,
+   domain tiles, a period-aware grid, the relationship map's three parts,
+   and a compact method grid — so removing any of them fails a test rather
+   than quietly reopening the task.
+
+### Still open
+
+6. **Docker was not built or started**, and nothing was weakened to make it
+   possible in the cloud sandbox. `docs/WINDOWS_LOCAL_VERIFICATION.md`
+   carries the exact PowerShell sequence to close it on the user's laptop:
+   `.\scripts\start-docker.ps1 -Rebuild`, four containers up,
+   `alembic current` printing `0027`, and the four new screens rendering
+   from a built image.
+7. **No live model call was made**, so nothing here is evidence about the
+   live path. `-DryRun` first, then `-Quick` and `-Critical`, per the same
+   document. No API credits were spent on this branch.
+8. **No Brain has been imported and no regulatory document processed** in
    this installation, so the Lift Lab, Merge Lab, Installations, Rollbacks
-   and every regulatory tab read empty. That is the honest state of a fresh
-   installation, and each screen says which it is.
+   and every regulatory tab read empty, and the §84 questions answer
+   "never measured" rather than a figure. That is the honest state of a
+   fresh installation, and each screen says which it is. The merge path is
+   exercised by `tests/brain/test_merge.py`; what has not happened is a real
+   import on this machine.
+9. **The isolation runner has no persistence.** An experiment is run and
+   reported; it is not stored, so there is no history to page through. That
+   was a deliberate scope choice — persisting it means a new table and a
+   migration — and it means `Contribution.isolated` is set from a live run
+   rather than looked up from a past one.
 
 ## 39. Raw feedback does not automatically alter production
 

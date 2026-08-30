@@ -51,12 +51,25 @@ ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = "http://127.0.0.1:3000"
 BACKEND = "http://127.0.0.1:8000"
 
-#: §36's viewports.
+#: §36's viewports, plus §53's touch-sized one. 1440x900 is what the
+#: developer sees; 1366x768 is what most of the bank sees; the last two are
+#: where a dense table stops fitting at all.
 VIEWPORTS: tuple[tuple[str, int, int], ...] = (
     ("desktop", 1440, 900),
     ("laptop", 1366, 768),
     ("tablet", 834, 1112),
+    ("touch", 390, 844),
 )
+
+#: §53's "at least four themes". These four are not arbitrary: two light,
+#: two dark, and between them the widest spread of surface and accent in the
+#: set — a contrast bug that survives all four survives all eight.
+THEMES: tuple[str, ...] = (
+    "executive-light", "midnight", "warm-institutional", "forest",
+)
+
+#: The key `theme-provider.tsx` reads before first paint.
+THEME_STORAGE_KEY = "ipm.theme"
 
 #: §36's screens. Each is (path, what must be visible for it to count as
 #: rendered). The marker is a role or text a broken page would not produce,
@@ -79,6 +92,14 @@ SCREENS: tuple[tuple[str, str], ...] = (
     # of one screen, so the screen is what is checked and the tabs are
     # asserted in the frontend node tests rather than clicked here.
     ("/ai-studio/feedback-learning", "main"),
+    # §53's list. Each of these is a screen the brief names by hand; the
+    # tabs within them are asserted in the frontend node tests, because a
+    # crawler clicking every tab proves the tab strip works and not much
+    # else. Investigation Assurance and Agentic Health are not routes of
+    # their own — they are areas of /ai-studio, which is already above.
+    ("/ai-studio/brain-center", "main"),
+    ("/ai-studio/continuous-learning", "main"),
+    ("/studio/regulatory-intelligence", "main"),
 )
 
 #: Words that may never label a figure with no independent reference. §184.
@@ -180,8 +201,43 @@ def run(report: Report) -> Report:
             for path, marker in SCREENS:
                 _screen(page, report, path, marker, name)
             context.close()
+
+        # §53's "at least four themes". Swept at one viewport rather than
+        # all four: a theme changes colour and never layout, so re-running
+        # every screen at every size in every theme would quadruple the run
+        # to re-prove the same overflow.
+        for theme in THEMES:
+            context = browser.new_context(
+                viewport={"width": 1440, "height": 900},
+                reduced_motion="reduce")
+            context.add_init_script(
+                f"try {{ localStorage.setItem('{THEME_STORAGE_KEY}', "
+                f"'{theme}'); }} catch (e) {{}}")
+            page = context.new_page()
+            for path, marker in SCREENS:
+                _screen(page, report, path, marker, f"theme:{theme}")
+            _theme_applied(page, report, theme)
+            context.close()
+
         browser.close()
     return report
+
+
+def _theme_applied(page: Any, report: Report, theme: str) -> None:
+    """The theme actually took, rather than the sweep testing one theme
+    four times.
+
+    Without this check a broken theme provider would make every theme pass:
+    each context would render the default, and four identical runs read as
+    four themes proved.
+    """
+    applied = page.evaluate(
+        "() => document.documentElement.getAttribute('data-theme')")
+    report.checks.append(Check(
+        screen="(theme)", viewport=f"theme:{theme}", name="theme applied",
+        ok=applied == theme,
+        detail="" if applied == theme
+        else f"asked for {theme}, document says {applied!r}"))
 
 
 def _screen(page: Any, report: Report, path: str, marker: str,

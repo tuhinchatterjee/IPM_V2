@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 
 from backend.continuous import measurement as ms
 from backend.continuous import partitions as pt
+from backend.continuous import questions as qs
 from backend.continuous import snapshots as sn
 from backend.models.platform import (
     EvaluationUse,
@@ -490,3 +491,144 @@ def partition_hygiene(session: Session, *, tenant: str = "",
     uses = [pt.Use(partition=r.partition, at=r.created_at or _now(),
                    purpose=r.purpose, by=r.by) for r in rows]
     return pt.hygiene(uses, window_days=window_days).to_dict()
+
+
+# ====================================================== §84 LEARNING QUESTIONS
+
+
+def learning_facts(session: Session, *, tenant: str = "",
+                   window: str = sn.SINCE_CURRENT_RELEASE,
+                   anchor: datetime | None = None,
+                   asker: str = "") -> qs.Facts:
+    """Assemble what a §84 answer is allowed to read.
+
+    Everything here comes out of the same `cockpit()` the screen shows, so
+    a question and the dashboard beside it cannot disagree. Nothing is
+    recomputed and nothing is estimated: a fact that is not persisted is
+    absent, and an absent fact produces a refusal rather than a zero.
+    """
+    baseline_row = current_baseline(session, tenant=tenant)
+    if baseline_row is None:
+        return qs.Facts(window=window)
+
+    baseline = _baseline_from(baseline_row)
+    rows = snapshots_in(session, tenant=tenant, window=window,
+                        anchor=anchor or baseline_row.created_at)
+    if not rows:
+        return qs.Facts(window=window,
+                        baseline_snapshot_id=baseline.baseline_id)
+
+    latest = _snapshot_from(rows[-1])
+    return qs.Facts(
+        dimensions=_dimension_results(baseline, latest),
+        quantity=_sum_quantity(rows),
+        pending_activation=_pending_activation(session, tenant=tenant),
+        brain_lift=_brain_lift(session, tenant=tenant),
+        feedback_attribution=_feedback_attribution(session, asker=asker,
+                                                   tenant=tenant),
+        window=window,
+        window_label=_window_label(window),
+        baseline_snapshot_id=baseline.baseline_id,
+        current_snapshot_id=latest.snapshot_id,
+    )
+
+
+def _window_label(window: str) -> str:
+    return window.replace("_", " ").lower()
+
+
+def _pending_activation(session: Session, *,
+                        tenant: str = "") -> list[dict[str, Any]]:
+    """Approved learning that is not yet live.
+
+    Approved is not activated. Until it is activated it is changing nothing
+    about the answers users see, and a screen that counted the two together
+    would report intent as effect.
+    """
+    from backend.models.platform import BrainLedgerEntry
+
+    query = select(BrainLedgerEntry).where(
+        BrainLedgerEntry.review_status == "APPROVED",
+        BrainLedgerEntry.activated_at.is_(None))
+    if tenant:
+        query = query.where(BrainLedgerEntry.tenant == tenant)
+    rows = session.execute(query.limit(200)).scalars().all()
+    return [{"id": row.entry_id,
+             "description": row.summary or row.object_kind or row.entry_id}
+            for row in rows]
+
+
+def _brain_lift(session: Session, *,
+                tenant: str = "") -> dict[str, dict[str, Any]]:
+    """Imported Brains that were actually measured in the Lift Lab.
+
+    An import with no evaluation is left out rather than entered with a
+    zero: "imported but never measured" and "measured and moved nothing"
+    are different answers to "did it make us better".
+    """
+    from backend.models.platform import BrainImport, BrainPackage
+
+    query = (select(BrainImport, BrainPackage)
+             .join(BrainPackage,
+                   BrainPackage.package_id == BrainImport.package_id))
+    if tenant:
+        query = query.where(BrainImport.tenant == tenant)
+    rows = session.execute(query.limit(100)).all()
+
+    out: dict[str, dict[str, Any]] = {}
+    for record, package in rows:
+        evaluation = record.evaluation or {}
+        if not evaluation:
+            continue
+        name = package.brain_name or package.brain_id or record.import_id
+        out[name] = {
+            "validation_points": evaluation.get("validation_points"),
+            "verdict": evaluation.get("verdict", ""),
+            "isolated": bool(evaluation.get("isolated")),
+            "reads_as": evaluation.get("reads_as", ""),
+            "evaluation_id": record.import_id,
+        }
+    return out
+
+
+def _feedback_attribution(session: Session, *, asker: str,
+                          tenant: str = "") -> dict[str, Any]:
+    """What one person's feedback led to. Empty when nobody is named.
+
+    Three counts, deliberately kept apart: what they sent, how much of it
+    became governed learning, and how much of that is actually live. The
+    gap between the first and the last is the honest answer to "did my
+    feedback change anything".
+    """
+    if not asker:
+        return {}
+    from backend.models.platform import AnswerFeedback, AnswerFeedbackStatus
+
+    query = select(AnswerFeedback).where(AnswerFeedback.user_id == asker)
+    if tenant:
+        query = query.where(AnswerFeedback.tenant == tenant)
+    rows = session.execute(query.limit(500)).scalars().all()
+    if not rows:
+        return {}
+
+    ids = [row.feedback_id for row in rows]
+    statuses = session.execute(
+        select(AnswerFeedbackStatus)
+        .where(AnswerFeedbackStatus.feedback_id.in_(ids))
+    ).scalars().all()
+    released = {s.feedback_id for s in statuses if s.status == "RELEASED"}
+
+    return {
+        "submitted": len(rows),
+        "became_cases": sum(1 for row in rows if row.ledger_entry_id),
+        "activated": len(released),
+    }
+
+
+def answer_question(session: Session, asked: str, *, tenant: str = "",
+                    window: str = sn.SINCE_CURRENT_RELEASE,
+                    asker: str = "") -> dict[str, Any]:
+    """§84. Answer one governed question from persisted evaluations."""
+    facts = learning_facts(session, tenant=tenant, window=window,
+                           asker=asker)
+    return qs.ask(asked, facts).to_dict()

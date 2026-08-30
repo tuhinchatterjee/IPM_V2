@@ -4956,6 +4956,174 @@ export const api = {
     request<LearningPartitions>("/continuous-learning/partitions"),
   learningMeasurementRules: () =>
     request<LearningMeasurementRules>("/continuous-learning/measurement-rules"),
+
+  // §84. The questions are answered from persisted snapshots. No model is
+  // called on either of these, which is why they are cheap enough to sit
+  // on a screen somebody opens every morning.
+  learningQuestions: () =>
+    request<LearningQuestionCatalogue>("/continuous-learning/questions"),
+  askLearningQuestion: (question: string, window?: string) =>
+    request<LearningAnswer>("/continuous-learning/questions", {
+      method: "POST",
+      body: JSON.stringify(window ? { question, window } : { question }),
+    }),
+
+  // §68. Deterministic by default and free by default. The live-provider
+  // mode exists, refuses without authorization, and is never the default.
+  experimentKinds: () =>
+    request<ExperimentKinds>("/continuous-learning/experiments"),
+  runExperiment: (body: ExperimentRequest) =>
+    request<ExperimentResult>("/continuous-learning/experiments", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  // §21/§22. The merge that produces a third Brain from two.
+  brainMergePreview: (importId: string) =>
+    request<BrainMergePreview>(`/brain/merge/${encodeURIComponent(importId)}`),
+  brainBuildMerge: (
+    importId: string,
+    body: {
+      brain_name: string;
+      brain_version?: string;
+      authored?: Record<string, Record<string, unknown>>;
+    },
+  ) =>
+    request<BrainMergeResult>(`/brain/merge/${encodeURIComponent(importId)}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+};
+
+/** §84. What the Studio can answer, and where the numbers come from. */
+export type LearningQuestionCatalogue = {
+  questions: { question_id: string; question: string }[];
+  windows_available: string[];
+  answered_from: string;
+  no_model_involved: string;
+};
+
+/**
+ * §84. One answered question.
+ *
+ * `answerable: false` is a real answer, not an error. "Never measured" and
+ * "measured and did not move" lead to opposite decisions, and a zero would
+ * render as the second when the truth is the first.
+ */
+export type LearningAnswer = {
+  question_id: string;
+  asked: string;
+  answerable: boolean;
+  headline: string;
+  detail: string[];
+  numbers: {
+    label: string;
+    value: number | string;
+    unit: string;
+    source: string;
+    reads_as: string;
+  }[];
+  basis_snapshots: string[];
+  missing: string[];
+  caveats: string[];
+  source: string;
+  not_generated: string;
+  catalogue?: { question_id: string; question: string }[];
+};
+
+/** §68. What an isolation experiment can attribute, and what it costs. */
+export type ExperimentKinds = {
+  change_kinds: { id: string; attributes_to: string }[];
+  modes: string[];
+  default_mode: string;
+  minimum_cases: number;
+  live_provider_rule: string;
+  what_isolation_means: string;
+};
+
+export type ExperimentArm = {
+  label: string;
+  changes?: string[];
+  scores?: Record<string, number>;
+  families?: Record<string, string>;
+  dimensions?: Record<string, number>;
+  critical_failures?: string[];
+  latency_ms?: number;
+  cost_units?: number;
+};
+
+export type ExperimentRequest = {
+  change_kind: string;
+  change_id: string;
+  baseline: ExperimentArm;
+  treatment: ExperimentArm;
+  partition?: string;
+  mode?: string;
+  authorization?: string;
+};
+
+export type LearningChange = {
+  label: string;
+  points: number;
+  relative_pct: number;
+  error_reduction_pct: number;
+  cases: number;
+  evidence: string;
+  verdict: string;
+  reads_as: string;
+};
+
+export type ExperimentResult = {
+  experiment_id: string;
+  change_kind: string;
+  change_id: string;
+  attributed_source: string;
+  partition: string;
+  mode: string;
+  isolated: boolean;
+  why_not_isolated: string;
+  overall: LearningChange;
+  by_case_family: Record<string, LearningChange>;
+  by_dimension: Record<string, LearningChange>;
+  critical_regressions: string[];
+  critical_fixes: string[];
+  latency_delta_ms: number;
+  cost_delta_units: number;
+  reads_as: string;
+  contribution: {
+    source: string;
+    points: number;
+    isolated: boolean;
+    evidence: string;
+  };
+};
+
+/** §21/§22. What a merge would produce, before anybody commits to it. */
+export type BrainMergePreview = {
+  import_id: string;
+  local_brain: string;
+  incoming_brain: string;
+  kinds: string[];
+  local_items: Record<string, number>;
+  incoming_items: Record<string, number>;
+  conflicts_total: number;
+  conflicts_blocking: string[];
+  needs_authoring: string[];
+  may_merge: boolean;
+  contested_items: number;
+  why_not: string[];
+  note: string;
+};
+
+export type BrainMergeResult = {
+  package_id: string;
+  brain_id: string;
+  brain_name: string;
+  brain_version: string;
+  entry_count: number;
+  size_bytes: number;
+  evaluated: boolean;
+  next_step: string;
 };
 
 /** §7's prompt, as the backend decided it. */

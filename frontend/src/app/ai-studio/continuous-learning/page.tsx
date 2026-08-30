@@ -7,9 +7,11 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import type {
+  LearningAnswer,
   LearningCockpit,
   LearningMeasurementRules,
   LearningPartitions,
+  LearningQuestionCatalogue,
   LearningTimeline,
   LearningWindows,
 } from "@/lib/api";
@@ -66,6 +68,12 @@ const TABS = [
     "Evaluation sets",
     "Development, validation and the sealed holdout: what each is for, and " +
       "whether validation is still out-of-sample.",
+  ],
+  [
+    "ask",
+    "Ask about the learning",
+    "Nine governed questions, answered from stored evaluations. A question " +
+      "with nothing behind it is refused rather than approximated.",
   ],
   [
     "rules",
@@ -207,7 +215,197 @@ function Panel({ tab, window }: { tab: TabId; window: string }) {
   if (tab === "partitions" && state.partitions)
     return <Partitions data={state.partitions} />;
   if (tab === "rules" && state.rules) return <Rules data={state.rules} />;
+  if (tab === "ask") return <Ask window={window} />;
   return <Empty>Nothing to show here yet.</Empty>;
+}
+
+// ------------------------------------------------------------------ §84
+//
+// The whole point of this panel is that it cannot make a number up. Every
+// figure it renders arrives with the snapshot it was read from, and a
+// question the backend does not recognise comes back refused — which is
+// rendered as a refusal, not as an empty result that looks like a zero.
+
+function Ask({ window }: { window: string }) {
+  const [catalogue, setCatalogue] =
+    React.useState<LearningQuestionCatalogue | null>(null);
+  const [asked, setAsked] = React.useState("");
+  const [answer, setAnswer] = React.useState<LearningAnswer | null>(null);
+  const [asking, setAsking] = React.useState(false);
+  const [failed, setFailed] = React.useState("");
+
+  React.useEffect(() => {
+    let live = true;
+    api
+      .learningQuestions()
+      .then((found) => live && setCatalogue(found))
+      .catch(() => live && setCatalogue(null));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const ask = React.useCallback(
+    async (question: string) => {
+      if (!question.trim()) return;
+      setAsking(true);
+      setFailed("");
+      try {
+        setAnswer(await api.askLearningQuestion(question, window));
+      } catch (error: unknown) {
+        setAnswer(null);
+        setFailed(
+          error instanceof Error ? error.message : "That did not load.",
+        );
+      } finally {
+        setAsking(false);
+      }
+    },
+    [window],
+  );
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void ask(asked);
+          }}
+          className="flex flex-wrap gap-2"
+        >
+          <label htmlFor="learning-question" className="sr-only">
+            Ask about the learning
+          </label>
+          <input
+            id="learning-question"
+            value={asked}
+            onChange={(e) => setAsked(e.target.value)}
+            placeholder="How much has CreditProbe improved since last month?"
+            className={cn(
+              "min-w-0 flex-1 rounded border border-border bg-transparent",
+              "px-2 py-1 text-xs",
+            )}
+          />
+          <button
+            type="submit"
+            disabled={asking || !asked.trim()}
+            className={cn(
+              "rounded border border-border px-2 py-1 text-xs",
+              "disabled:opacity-50",
+            )}
+          >
+            {asking ? "Reading the snapshots…" : "Ask"}
+          </button>
+        </form>
+        {catalogue && (
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            {catalogue.no_model_involved}
+          </p>
+        )}
+      </Card>
+
+      {catalogue && (
+        <Card className="p-4">
+          <h2 className="text-sm font-medium">What can be answered</h2>
+          <ul className="mt-2 space-y-1">
+            {catalogue.questions.map((one) => (
+              <li key={one.question_id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAsked(one.question);
+                    void ask(one.question);
+                  }}
+                  className="text-left text-xs text-muted-foreground hover:underline"
+                >
+                  {one.question}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {failed && <Empty>{failed}</Empty>}
+      {answer && <AnswerCard answer={answer} />}
+    </div>
+  );
+}
+
+function AnswerCard({ answer }: { answer: LearningAnswer }) {
+  return (
+    <Card className="p-4">
+      <h2 className="text-sm font-medium">{answer.headline}</h2>
+
+      {!answer.answerable && answer.missing.length > 0 && (
+        <div className="mt-2">
+          <p className="text-xs text-muted-foreground">
+            This cannot be answered yet. What would be needed:
+          </p>
+          <ul className="mt-1 list-disc pl-4 text-xs text-muted-foreground">
+            {answer.missing.map((one) => (
+              <li key={one}>{one}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {answer.numbers.length > 0 && (
+        <table className="mt-3 w-full text-xs">
+          <caption className="sr-only">
+            Every figure, with the stored evaluation it was read from
+          </caption>
+          <thead className="text-left text-muted-foreground">
+            <tr>
+              <th scope="col" className="pb-1 font-normal">
+                Figure
+              </th>
+              <th scope="col" className="pb-1 font-normal">
+                Value
+              </th>
+              <th scope="col" className="pb-1 font-normal">
+                Read from
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {answer.numbers.map((one) => (
+              <tr key={one.label} className="border-t border-border/40">
+                <td className="py-1">{one.label}</td>
+                <td className="py-1 tabular-nums">
+                  {one.value} {one.unit}
+                </td>
+                <td className="py-1 text-muted-foreground">
+                  {one.source || "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {answer.detail.length > 0 && (
+        <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
+          {answer.detail.map((one, i) => (
+            <li key={`${i}-${one.slice(0, 24)}`}>{one}</li>
+          ))}
+        </ul>
+      )}
+
+      {answer.caveats.length > 0 && (
+        <ul className="mt-3 space-y-1 border-t border-border/40 pt-2 text-[11px] text-muted-foreground">
+          {answer.caveats.map((one) => (
+            <li key={one}>{one}</li>
+          ))}
+        </ul>
+      )}
+
+      <p className="mt-3 text-[11px] text-muted-foreground">
+        {answer.not_generated}
+      </p>
+    </Card>
+  );
 }
 
 // ------------------------------------------------------------------ §64

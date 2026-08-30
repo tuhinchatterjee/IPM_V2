@@ -735,3 +735,63 @@ def revoke_signer(key_id: str, payload: RollbackBody,
         return {"key_id": row.key_id, "trust_level": row.trust_level,
                 "revoked_by": row.revoked_by,
                 "activated_brains_unaffected": True}
+
+
+# ================================================== §21/§22 MERGE LAB: MERGE
+
+
+class MergeBody(BaseModel):
+    brain_name: str = Field(..., max_length=120)
+    brain_version: str = Field(default="1.0.0", max_length=32)
+    #: conflict_id -> the body a person wrote for CREATE NEW VERSION or
+    #: MERGE MANUALLY. The merge will not invent these.
+    authored: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
+@router.get("/merge/{import_id}")
+def merge_preview(import_id: str,
+                  principal: Principal = RequireBrainView) -> dict[str, Any]:
+    """§21/§22. What a merge with this import would produce."""
+    with _session() as session:
+        try:
+            return bc.merge_preview(session, import_id)
+        except bc.BrainCenterError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "not_found", "message": str(exc)}) from exc
+
+
+@router.post("/merge/{import_id}", status_code=status.HTTP_201_CREATED)
+def build_merge(import_id: str, payload: MergeBody,
+                principal: Principal = RequireBrainEvaluate) -> dict[str, Any]:
+    """§21/§22. Produce the third Brain from two, as a package.
+
+    It is written, not activated. A merged Brain has never been evaluated,
+    so it takes the same quarantine, Lift Lab and approval path as any
+    other Brain that arrived from somewhere else.
+    """
+    from backend.brain import merge as merge_mod
+
+    with _session() as session:
+        try:
+            row = bc.build_merge(
+                session, import_id, actor=_actor(principal),
+                brain_name=payload.brain_name,
+                brain_version=payload.brain_version,
+                authored=payload.authored)
+        except (bc.BrainCenterError, merge_mod.MergeError,
+                pack.PackError) as exc:
+            raise _refused(exc) from exc
+        session.commit()
+        return {
+            "package_id": row.package_id,
+            "brain_id": row.brain_id,
+            "brain_name": row.brain_name,
+            "brain_version": row.brain_version,
+            "entry_count": row.entry_count,
+            "size_bytes": row.size_bytes,
+            "evaluated": False,
+            "next_step": (
+                "This Brain has never been run. Measure it against your own "
+                "baseline in the Lift Lab before activating any part of it."),
+        }
