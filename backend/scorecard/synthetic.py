@@ -343,9 +343,9 @@ def _enquiry_loading(offset: int) -> float:
     if offset <= ENQUIRY_DECAY_FROM:
         return 1.0
     if offset >= ENQUIRY_DECAY_TO:
-        return 0.08
+        return 0.05
     span = ENQUIRY_DECAY_TO - ENQUIRY_DECAY_FROM
-    return 1.0 - 0.92 * (offset - ENQUIRY_DECAY_FROM) / span
+    return 1.0 - 0.95 * (offset - ENQUIRY_DECAY_FROM) / span
 
 
 def application_month(month: str, *, offset: int,
@@ -421,8 +421,12 @@ def application_month(month: str, *, offset: int,
         0, 360)
 
     # APP-ENQUIRIES-DECAY. The loading, not the values, is what changes.
+    # A load-bearing predictor at development, so its decay actually costs
+    # the incumbent something. At a weaker loading the incumbent barely
+    # leans on it, the decay changes almost nothing, and the challenger
+    # never overtakes — which is a phenomenon the manifest claims.
     enquiries = rng.poisson(np.clip(
-        1.35 - 0.55 * _enquiry_loading(offset) * reading(0.70), 0.03, 9.0))
+        1.35 - 0.62 * _enquiry_loading(offset) * reading(1.20), 0.03, 9.0))
     oldest_trade = np.clip(np.round(76 + 33 * reading(0.30)), 0, 480)
     utilisation = np.round(np.clip(
         44.0 - 12.5 * reading(0.52) + rng.normal(0, 12, rows), 0, 155), 2)

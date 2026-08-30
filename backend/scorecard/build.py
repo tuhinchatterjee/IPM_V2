@@ -107,10 +107,18 @@ MODEL_VARIABLES: dict[str, dict[str, tuple[str, ...]]] = {
                       "employment_tenure_months", "bureau_max_dpd_12m",
                       "bureau_enquiries_6m", "credit_card_utilisation"),
         # The challenger drops the enquiry count — which decays across the
-        # window — for loan-to-income and the age of the bureau file.
+        # window — for two bureau-sourced factors.
+        #
+        # Deliberately NOT loan_to_income, which was the first choice and
+        # was wrong: it is derived from declared income, so it goes missing
+        # with it, and the challenger lost signal in exactly the months the
+        # missing-income drift was supposed to make it win. A challenger
+        # built on a field that degrades with the incumbent is not a
+        # challenger.
         "CHALLENGER": ("bureau_score", "debt_burden_ratio",
                        "employment_tenure_months", "bureau_max_dpd_12m",
-                       "loan_to_income", "bureau_oldest_trade_months"),
+                       "bureau_delinquent_accounts_12m",
+                       "bureau_oldest_trade_months"),
         # Same variables as the incumbent. Only the level is refitted.
         "RECALIBRATED": ("bureau_score", "debt_burden_ratio",
                          "employment_tenure_months", "bureau_max_dpd_12m",
