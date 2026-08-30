@@ -57,6 +57,39 @@ class Dimension:
 # ---------------------------------------------------------------- measures
 
 _MEASURES: tuple[tuple[str, str, str, str], ...] = (
+    # Retail scorecard validation. Registering a governed dataset without
+    # measures would make the corpus skip it, which the guard test in
+    # tests/brain/test_corpus.py exists to catch — a scorecard nobody can
+    # ask a question about is a scorecard the Teaching Factory cannot
+    # teach over.
+    ("retail_application_scorecard_monthly_validation", "score_incumbent", "incumbent score", "score"),
+    ("retail_application_scorecard_monthly_validation", "pd_incumbent", "incumbent PD", "rate"),
+    ("retail_application_scorecard_monthly_validation", "score_challenger", "challenger score", "score"),
+    ("retail_application_scorecard_monthly_validation", "monthly_income", "monthly income", "money"),
+    ("retail_application_scorecard_monthly_validation", "debt_burden_ratio", "debt burden ratio", "ratio"),
+    ("retail_application_scorecard_monthly_validation", "bureau_score", "bureau score", "score"),
+    ("retail_application_scorecard_monthly_validation", "requested_amount", "requested amount", "money"),
+    ("retail_application_scorecard_development_reference", "score_incumbent", "incumbent score", "score"),
+    ("retail_application_scorecard_development_reference", "pd_incumbent", "incumbent PD", "rate"),
+    ("retail_application_scorecard_development_reference", "score_challenger", "challenger score", "score"),
+    ("retail_application_scorecard_development_reference", "monthly_income", "monthly income", "money"),
+    ("retail_application_scorecard_development_reference", "debt_burden_ratio", "debt burden ratio", "ratio"),
+    ("retail_application_scorecard_development_reference", "bureau_score", "bureau score", "score"),
+    ("retail_application_scorecard_development_reference", "requested_amount", "requested amount", "money"),
+    ("retail_behavioral_scorecard_monthly_validation", "score_incumbent", "incumbent score", "score"),
+    ("retail_behavioral_scorecard_monthly_validation", "pd_incumbent", "incumbent PD", "rate"),
+    ("retail_behavioral_scorecard_monthly_validation", "score_challenger", "challenger score", "score"),
+    ("retail_behavioral_scorecard_monthly_validation", "current_balance", "current balance", "money"),
+    ("retail_behavioral_scorecard_monthly_validation", "utilisation_pct", "utilisation", "rate"),
+    ("retail_behavioral_scorecard_monthly_validation", "credit_limit", "credit limit", "money"),
+    ("retail_behavioral_scorecard_monthly_validation", "max_dpd_6m", "worst days past due over six months", "count"),
+    ("retail_behavioral_scorecard_development_reference", "score_incumbent", "incumbent score", "score"),
+    ("retail_behavioral_scorecard_development_reference", "pd_incumbent", "incumbent PD", "rate"),
+    ("retail_behavioral_scorecard_development_reference", "score_challenger", "challenger score", "score"),
+    ("retail_behavioral_scorecard_development_reference", "current_balance", "current balance", "money"),
+    ("retail_behavioral_scorecard_development_reference", "utilisation_pct", "utilisation", "rate"),
+    ("retail_behavioral_scorecard_development_reference", "credit_limit", "credit limit", "money"),
+    ("retail_behavioral_scorecard_development_reference", "max_dpd_6m", "worst days past due over six months", "count"),
     # portfolio_facility - the book itself
     ("portfolio_facility", "exposure", "exposure", "money"),
     ("portfolio_facility", "ead", "EAD", "money"),
@@ -196,6 +229,18 @@ _MEASURES: tuple[tuple[str, str, str, str], ...] = (
 )
 
 _DIMENSIONS: tuple[tuple[str, str, str], ...] = (
+    ("retail_application_scorecard_monthly_validation", "application_channel", "application channel"),
+    ("retail_application_scorecard_monthly_validation", "customer_segment", "customer segment"),
+    ("retail_application_scorecard_monthly_validation", "product_type", "product type"),
+    ("retail_application_scorecard_monthly_validation", "employer_type", "employer type"),
+    ("retail_application_scorecard_development_reference", "application_channel", "application channel"),
+    ("retail_application_scorecard_development_reference", "customer_segment", "customer segment"),
+    ("retail_application_scorecard_development_reference", "product_type", "product type"),
+    ("retail_application_scorecard_development_reference", "employer_type", "employer type"),
+    ("retail_behavioral_scorecard_monthly_validation", "product", "product"),
+    ("retail_behavioral_scorecard_monthly_validation", "vintage", "vintage"),
+    ("retail_behavioral_scorecard_development_reference", "product", "product"),
+    ("retail_behavioral_scorecard_development_reference", "vintage", "vintage"),
     ("portfolio_facility", "sector", "sector"),
     ("portfolio_facility", "region", "region"),
     ("portfolio_facility", "segment", "segment"),

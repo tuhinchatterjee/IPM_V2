@@ -134,10 +134,21 @@ def _data_discovery() -> Iterator[Case]:
 
     n = 0
     for dataset in V.DATASETS:
+        # A dataset the vocabulary carries no curated measure or dimension
+        # for cannot be taught over: every shape below needs something to
+        # aggregate and something to group by. Skipping it is correct and
+        # is not the same as it being absent — DATASETS is read from the
+        # live catalogue, so any newly registered domain lands here before
+        # anybody has decided what its measures are, and crashing on that
+        # made registering a dataset break the Teaching Factory.
+        measures = V.measures_for(dataset)
+        dimensions = V.dimensions_for(dataset)
+        if not measures or not dimensions:
+            continue
         label = V.DATASET_LABEL[dataset]
         grain = V.DATASET_GRAIN[dataset]
-        measure = V.measures_for(dataset)[0]
-        dimension = V.dimensions_for(dataset)[0]
+        measure = measures[0]
+        dimension = dimensions[0]
         partner = (sorted(set(joins.get(dataset, [])))[0]
                    if joins.get(dataset) else "")
 

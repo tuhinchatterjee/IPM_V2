@@ -291,16 +291,24 @@ def _joins(question: str, context: dict[str, Any]) -> Answer | None:
     joinable = {k: v for k, v in shared.items() if len(v) > 1}
     if not joinable:
         return None
+    # Ranked by how many datasets carry the field, not alphabetically.
+    # Breadth is the signal: a field in six datasets across three domains is
+    # a join key, while one in exactly two is usually a column two versions
+    # of the same dataset happen to share. Sorting by name listed whatever
+    # came first in the alphabet, so a wide new domain could push
+    # customer_id off the answer entirely.
+    ranked = sorted(joinable.items(), key=lambda kv: (-len(kv[1]), kv[0]))
     lines = [
         f"`{name}` — {', '.join(sorted(datasets))}"
-        for name, datasets in sorted(joinable.items())[:8]
+        for name, datasets in ranked[:8]
     ]
     return Answer(
         text=(
             "These governed fields appear in more than one dataset, which is what "
             "makes them joinable:\n" + "\n".join(lines)
         ),
-        references=[{"kind": "field", "name": n} for n in sorted(joinable)[:8]],
+        references=[{"kind": "field", "name": n}
+                    for n, _ in ranked[:8]],
     )
 
 

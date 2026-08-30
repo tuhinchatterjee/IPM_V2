@@ -240,7 +240,10 @@ def score_frame(frame: pd.DataFrame, equations: dict[str, equation_mod.Equation]
     scored = spec.apply(frame, variables=columns)
 
     for kind, eq in equations.items():
-        suffix = OUTPUT_SUFFIX[kind]
+        # The equation carries its own output prefix. Looking it up by the
+        # dict key instead meant a candidate model — which has no entry in
+        # the registered-kind table — crashed rather than being scored.
+        suffix = eq.output_prefix or OUTPUT_SUFFIX.get(kind, kind.lower())
         logit = pd.Series(eq.intercept, index=scored.index, dtype="float64")
         for term in eq.terms:
             logit = logit + term.coefficient * scored[term.column()].astype(

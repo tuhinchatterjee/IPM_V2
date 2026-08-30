@@ -46,6 +46,9 @@ from backend.api.routers import regulatory as regulatory_router
 from backend.api.routers import (
     regulatory_intelligence as regulatory_intelligence_router,
 )
+from backend.api.routers import (
+    scorecard as scorecard_router,
+)
 from backend.api.routers import studio as studio_router
 from backend.api.routers import users as users_router
 from backend.api.routers import validation as validation_router
@@ -214,6 +217,7 @@ def create_app() -> FastAPI:
     # to open, because a screen that costs money to look at is a screen
     # nobody looks at.
     app.include_router(continuous_learning_router.router, prefix=API_PREFIX)
+    app.include_router(scorecard_router.router, prefix=API_PREFIX)
     app.include_router(regulatory_router.corpus_router,
                        prefix=API_PREFIX)
     app.include_router(hierarchy_router.projects_router, prefix=API_PREFIX)

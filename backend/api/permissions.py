@@ -277,6 +277,55 @@ RequireLearningMeasure = Depends(require(AI_LEARNING_MEASURE))
 RequireLearningCertify = Depends(require(AI_LEARNING_CERTIFY))
 
 
+# ------------------------------------------- §87 Retail Scorecard Validation
+#
+# Model validation has a governance shape the rest of the product does not:
+# §65 requires the model OWNER, the DEVELOPER and the VALIDATOR to be
+# separable, because a validation signed by the person who built the model
+# is not an independent validation. That is why editing a candidate and
+# approving one are two permissions rather than one, and why generating a
+# report is separate from approving a finding.
+
+#: Read the validation dashboards, models, variables and reports. Open to an
+#: analyst: a validation result only administrators can see is a result the
+#: business cannot act on.
+SCORECARD_VIEW = frozenset({Role.ADMIN, Role.DATA_STEWARD, Role.ANALYST})
+#: Run an analysis — a diagnostic, a segment split, a month comparison.
+SCORECARD_ANALYSE = frozenset({Role.ADMIN, Role.DATA_STEWARD, Role.ANALYST})
+#: Perform a formal validation run and record its opinion.
+SCORECARD_VALIDATE = frozenset({Role.ADMIN, Role.DATA_STEWARD})
+#: See the model registry: equations, coefficients, binning specifications.
+SCORECARD_MODEL_VIEW = frozenset({Role.ADMIN, Role.DATA_STEWARD,
+                                  Role.ANALYST})
+#: Create a CANDIDATE model version. Never touches the active model — §35 is
+#: explicit that a natural-language edit creates a candidate.
+SCORECARD_MODEL_EDIT_CANDIDATE = frozenset({Role.ADMIN, Role.DATA_STEWARD})
+#: Approve a candidate for activation. Deliberately narrower than editing
+#: one: proposing a change and accepting it are different acts, and a role
+#: that can do both alone is a role with no second pair of eyes.
+SCORECARD_MODEL_APPROVE = frozenset({Role.ADMIN})
+#: Generate a validation report.
+SCORECARD_REPORT_GENERATE = frozenset({Role.ADMIN, Role.DATA_STEWARD})
+#: Raise a finding against a model.
+SCORECARD_FINDING_CREATE = frozenset({Role.ADMIN, Role.DATA_STEWARD})
+#: Approve or close a finding. Narrower than raising one for the same reason
+#: as the model permissions above.
+SCORECARD_FINDING_APPROVE = frozenset({Role.ADMIN})
+#: Configure validation policy: limits, thresholds, severity mapping.
+SCORECARD_ADMIN = frozenset({Role.ADMIN})
+
+RequireScorecardView = Depends(require(SCORECARD_VIEW))
+RequireScorecardAnalyse = Depends(require(SCORECARD_ANALYSE))
+RequireScorecardValidate = Depends(require(SCORECARD_VALIDATE))
+RequireScorecardModelView = Depends(require(SCORECARD_MODEL_VIEW))
+RequireScorecardModelEdit = Depends(require(SCORECARD_MODEL_EDIT_CANDIDATE))
+RequireScorecardModelApprove = Depends(require(SCORECARD_MODEL_APPROVE))
+RequireScorecardReport = Depends(require(SCORECARD_REPORT_GENERATE))
+RequireScorecardFindingCreate = Depends(require(SCORECARD_FINDING_CREATE))
+RequireScorecardFindingApprove = Depends(require(SCORECARD_FINDING_APPROVE))
+RequireScorecardAdmin = Depends(require(SCORECARD_ADMIN))
+
+
 # ==========================================================================
 # §47's named permission catalogue.
 #
@@ -378,6 +427,39 @@ NAMED: dict[str, tuple[frozenset[Role], str]] = {
     "AI_LEARNING_MEASURE": (AI_LEARNING_MEASURE,
                             "Record a learning baseline or a performance "
                             "snapshot."),
+    "SCORECARD_VIEW": (SCORECARD_VIEW,
+                       "See the retail scorecard validation dashboards, "
+                       "models and reports."),
+    "SCORECARD_ANALYSE": (SCORECARD_ANALYSE,
+                          "Run a validation analysis: a diagnostic, a "
+                          "segment split, a month comparison."),
+    "SCORECARD_VALIDATE": (SCORECARD_VALIDATE,
+                           "Perform a formal validation run and record its "
+                           "opinion."),
+    "SCORECARD_MODEL_VIEW": (SCORECARD_MODEL_VIEW,
+                             "See the model registry: equations, "
+                             "coefficients and binning specifications."),
+    "SCORECARD_MODEL_EDIT_CANDIDATE": (
+        SCORECARD_MODEL_EDIT_CANDIDATE,
+        "Create a candidate model version. Never touches the active "
+        "model."),
+    "SCORECARD_MODEL_APPROVE": (
+        SCORECARD_MODEL_APPROVE,
+        "Approve a candidate for activation. Narrower than editing one: "
+        "proposing a change and accepting it are different acts."),
+    "SCORECARD_REPORT_GENERATE": (
+        SCORECARD_REPORT_GENERATE,
+        "Generate a validation report from persisted analyses, findings "
+        "and results."),
+    "SCORECARD_FINDING_CREATE": (SCORECARD_FINDING_CREATE,
+                                 "Raise a finding against a model."),
+    "SCORECARD_FINDING_APPROVE": (
+        SCORECARD_FINDING_APPROVE,
+        "Approve or close a validation finding, including accepting the "
+        "risk it describes."),
+    "SCORECARD_ADMIN": (SCORECARD_ADMIN,
+                        "Configure validation policy: limits, thresholds "
+                        "and severity mapping."),
     "AI_LEARNING_CERTIFY": (AI_LEARNING_CERTIFY,
                             "Run an evaluation against the sealed holdout. "
                             "Each run spends some of what makes it "

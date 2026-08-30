@@ -59,6 +59,23 @@ class Allowed:
 #: the number never reaches a reader as a figure.
 ALLOWLIST: tuple[Allowed, ...] = (
     Allowed(
+        "backend/scorecard/metrics.py",
+        "Model-validation statistics on the unit interval: AUC, Gini, KS, "
+        "PSI, CSI, Brier. These DO reach a reader, at four decimals, and "
+        "that is deliberate rather than an oversight. The display contract "
+        "governs business figures — money and rates a committee reads as "
+        "amounts. A Brier score of 0.0523 shown as 0.05 has lost the "
+        "quantity, and a discrimination trend is precisely a question about "
+        "the third and fourth decimal: an AUC that moved 0.7179 to 0.7104 "
+        "is the finding, and at two decimals both months read 0.72. "
+        "Percentages, money and counts in this module go through the "
+        "contract as everywhere else."),
+    Allowed(
+        "backend/scorecard/diagnostics.py",
+        "The same statistics, rendered into the diagnostic sentences a "
+        "validator reads. Same reasoning as metrics.py: the deterioration "
+        "being diagnosed is usually smaller than 0.01."),
+    Allowed(
         "backend/orchestration/evidence.py",
         "Grounding validation. Builds every plausible rendering of a computed "
         "value so a figure in the prose can be matched against the result. "
