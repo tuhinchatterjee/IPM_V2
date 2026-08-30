@@ -89,6 +89,11 @@ class Receiver:
                 "studio", "engine", "agentic", "assurance", "feedback",
                 "learning", "regulatory", "early-warning", "stress",
                 "lenses", "playbooks", "exports", "workflow",
+                # §A8. Registered here rather than in a second mechanism: a
+                # package that needs the Retail Scorecard module and lands
+                # somewhere without it produces MISSING MODULE like any
+                # other, and there is one place to keep correct.
+                "retail-scorecard",
             }),
             datasets=frozenset(datasets),
             relationships=frozenset(edges),
