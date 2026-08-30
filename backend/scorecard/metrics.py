@@ -610,6 +610,25 @@ def variable_discrimination(frame: pd.DataFrame, *, variable: str,
     if column not in frame.columns:
         raise MetricError(f"{variable} is not in this frame")
 
+    # A categorical with no approved WoE has no ordering, so it has no AUC
+    # or KS. That is a fact about the variable, not an error: asking for
+    # every candidate's discrimination legitimately includes variables that
+    # were never binned. Coercing the labels to numbers would rank
+    # "GOVERNMENT" against "SME" by alphabet.
+    if column != woe_column and not pd.api.types.is_numeric_dtype(
+            frame[column]):
+        return {
+            "variable": variable, "measured_on": column,
+            "auc": None, "gini": None, "ks": None,
+            "observations": len(frame), "events": 0,
+            "evidence": NO_EVIDENCE,
+            "why": (
+                f"{variable} is categorical and has no approved weight of "
+                "evidence, so it has no ordering to measure discrimination "
+                "along. Ranking its levels by any other rule would be "
+                "ranking them by that rule."),
+        }
+
     y, x = _clean(frame[target], frame[column])
     events = int(y.sum())
     if events == 0 or events == len(y):
