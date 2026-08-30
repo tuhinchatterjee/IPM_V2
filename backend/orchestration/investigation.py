@@ -90,16 +90,26 @@ class Request:
     subject: str = ""
     subject_kind: str = ""
     probes: list[Probe] = field(default_factory=list)
+    #: §12: what the Analysis Portfolio Planner considered, chose and
+    #: rejected, and why. Kept on the request so the Trace can show the
+    #: choice rather than only its outcome - an investigation that shows five
+    #: probes without saying what it decided not to run is asking to be
+    #: trusted about the part nobody can see.
+    portfolio: Any = None
 
     @property
     def valid(self) -> bool:
         return bool(self.subject and self.probes)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"subject": self.subject, "subject_kind": self.subject_kind,
-                "probes": [{"concept": p.concept_id, "label": p.label,
-                            "question": p.question, "because": p.because}
-                           for p in self.probes]}
+        out: dict[str, Any] = {
+            "subject": self.subject, "subject_kind": self.subject_kind,
+            "probes": [{"concept": p.concept_id, "label": p.label,
+                        "question": p.question, "because": p.because}
+                       for p in self.probes]}
+        if self.portfolio is not None:
+            out["portfolio"] = self.portfolio.to_dict()
+        return out
 
 
 def wants_investigation(question: str) -> bool:
@@ -142,12 +152,14 @@ def read(question: str, context: Any) -> Request:
 
     subject, kind = _population(question, context)
     if subject:
-        return Request(subject=subject, subject_kind=kind,
-                       probes=_probes(subject, kind, context))
+        probes, chosen = _plan_probes(question, subject, kind, context)
+        return Request(subject=subject, subject_kind=kind, probes=probes,
+                       portfolio=chosen)
     if _DANGLING.search(question or ""):
         return Request()
+    probes, chosen = _plan_probes(question, "", "portfolio", context)
     return Request(subject=WHOLE_BOOK, subject_kind="portfolio",
-                   probes=_probes("", "portfolio", context))
+                   probes=probes, portfolio=chosen)
 
 
 def _population(question: str, context: Any) -> tuple[str, str]:
@@ -169,11 +181,18 @@ _PRIORITY = ("ead", "ecl", "stage", "rating", "dpd", "headroom", "utilisation",
 
 
 def _probes(subject: str, kind: str, context: Any) -> list[Probe]:
-    """The governed measures worth asking about, in priority order.
+    """Every governed measure worth PROPOSING, in priority order.
 
     Read from the ontology and filtered by what the catalogue can actually
     compute for this population, so an investigation never promises a line it
     cannot fill in.
+
+    This is the candidate list, not the selection. It used to be both - it
+    stopped at MAX_PROBES and whatever fell off the end was never considered
+    or recorded. Now it proposes everything computable and `_plan_probes`
+    cuts it through the governed planner, which is what makes the rejections
+    real: an investigation that shows five probes and cannot say what it
+    decided against is asking to be trusted about the part nobody can see.
     """
     from backend.semantics import ontology
 
@@ -201,8 +220,6 @@ def _probes(subject: str, kind: str, context: Any) -> list[Probe]:
             concept_id=concept_id, label=contract.business_name,
             question=question,
             because=f"{contract.business_name}: {direction}."))
-        if len(out) >= MAX_PROBES:
-            break
 
     if out:
         # The one probe that is about names rather than totals. An officer
@@ -217,7 +234,74 @@ def _probes(subject: str, kind: str, context: Any) -> list[Probe]:
                         "ECL over the latest year?"),
             because=("A sector total says how much moved; this says who, which "
                      "is what a review acts on.")))
-    return out[:MAX_PROBES + 1]
+    return out
+
+
+def _plan_probes(question: str, subject: str, kind: str,
+                 context: Any) -> tuple[list[Probe], Any]:
+    """Choose the probes through the governed Analysis Portfolio Planner.
+
+    §12 asks for one planner, not one per caller. The probe list this module
+    used to pick by priority-order-and-cap is now a candidate list scored on
+    relevance, availability, independence and cost - which is what stops the
+    investigation running two probes that say the same thing, and what lets
+    the Trace show what it decided against.
+
+    `_PRIORITY` survives as the caller's prior: an officer asks what the
+    exposure is before asking how it is provisioned, and nothing in the
+    request says so.
+    """
+    from backend.orchestration import portfolio as pf
+
+    proposed = _probes(subject, kind, context)
+    if not proposed:
+        return [], None
+
+    candidates = [
+        pf.Candidate(
+            analysis_id=probe.concept_id,
+            title=probe.label,
+            question=probe.question,
+            concept_id=probe.concept_id,
+            datasets=_datasets_for(probe.concept_id),
+            because=probe.because,
+            prior=_prior_for(probe.concept_id),
+        )
+        for probe in proposed
+    ]
+    chosen = pf.plan(question, candidates,
+                     computable=_computable(context) | {"worst"},
+                     max_analyses=MAX_PROBES + 1)
+    keep = {d.candidate.analysis_id for d in chosen.selected}
+    return [p for p in proposed if p.concept_id in keep], chosen
+
+
+def _prior_for(concept_id: str) -> float:
+    """Where this concept sits in the order an officer would ask.
+
+    The one piece of domain knowledge the planner cannot derive from the
+    request, so it is supplied rather than inferred.
+    """
+    if concept_id == "worst":
+        # The probe that names borrowers. A sector total says how much moved;
+        # this says who, which is what a review acts on - so it is rated
+        # highly even though no request ever asks for it by name.
+        return 0.95
+    if concept_id in _PRIORITY:
+        return round(1.0 - _PRIORITY.index(concept_id) / len(_PRIORITY), 4)
+    return 0.3
+
+
+def _datasets_for(concept_id: str) -> tuple[str, ...]:
+    """The datasets a probe would read, for the planner's cost and
+    independence scores. Read from the concept registry, so a probe over two
+    tables is costed as two."""
+    from backend.orchestration import concepts as cx
+
+    for concept in cx.CONCEPTS:
+        if concept.id == concept_id:
+            return tuple(dict.fromkeys(c.dataset for c in concept.candidates))
+    return ()
 
 
 #: How each concept is probed. Written per concept because the right question

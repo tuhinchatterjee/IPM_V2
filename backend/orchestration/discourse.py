@@ -144,7 +144,13 @@ _CLAUSE = re.compile(
     r"which|what|who|whose|whom|when|where|why|how"
     # an imperative that starts a new instruction
     r"|rank|sort|order|list|show|compare|contrast|determine|identify|find"
-    r"|calculate|compute|decompose|attribute|break\s+down|split|group"
+    r"|calculate|compute|decompose|attribute|split|group"
+    # "break down" is separable: "break the change down by sector" is the
+    # way an officer actually says it, and a contiguous "break\s+down"
+    # pattern misses it. Missing it does not drop the clause - it MERGES it
+    # into the previous one, which is worse: coverage then reports one
+    # objective answered out of one, while half the request went unanswered.
+    r"|break(?:\s+(?:the|this|that|it|them|these|those|\w+)){0,3}\s+down"
     r"|tell|give|display|highlight|explain|summarise|summarize|assess"
     r"|quantify|reconcile|rate|score|flag|check|evaluate|analyse|analyze"
     r"|investigate|review|report|say|state|provide|name|return"
@@ -164,7 +170,8 @@ _CLAUSE = re.compile(
 #: text before it already contains an imperative.
 _IMPERATIVE = re.compile(
     r"\b(?:rank|sort|order|list|show|compare|contrast|determine|identify"
-    r"|find|calculate|compute|decompose|attribute|break\s+down|split|group"
+    r"|find|calculate|compute|decompose|attribute|split|group"
+    r"|break(?:\s+(?:the|this|that|it|them|these|those|\w+)){0,3}\s+down"
     r"|tell|give|display|highlight|explain|summarise|summarize|assess"
     r"|quantify|reconcile|score|flag|check|evaluate|analyse|analyze"
     r"|investigate|review|report|say|state|provide|name|return)\b",

@@ -232,6 +232,97 @@ def opening(context: Any) -> list[str]:
         return []
 
 
+# ---------------------------------------------------------------------------
+# After a multi-analysis answer. §40.
+# ---------------------------------------------------------------------------
+
+
+def after_compound(reading: Any, portfolio: Any = None, *,
+                   build: Any = None, runtime: Any = None,
+                   case_context: str = "") -> list[str]:
+    """What is worth asking after a compound answer. §40.
+
+    Two sources a single-analysis answer does not have, and they come first
+    because they are the two the reader is most likely to already be
+    thinking about:
+
+    **An objective that did not get answered.** If one clause of the request
+    needed a word from the user, the most useful next question is the one
+    that supplies it. Offering a fresh analysis instead, while a part of what
+    they asked sits unanswered, is the product changing the subject.
+
+    **The Project or Risk Case this sits in.** Work inside a case has a next
+    step that work outside it does not.
+
+    Everything after that is `after_analysis`'s five, unchanged - they are
+    derived from the result on the screen and that reasoning does not change
+    because several analyses produced it.
+
+    §40's last two rules are structural here rather than aspirational. Thread
+    scope is preserved because every suggestion is phrased against the
+    population already on the screen. Nothing unsupported is suggested
+    because the only analyses offered are ones the portfolio actually
+    proposed - a suggestion the planner already rejected as uncomputable
+    would send the user to a refusal they were invited to ask for.
+    """
+    try:
+        out: list[str] = []
+        objectives = list(getattr(reading, "objectives", None) or [])
+
+        for objective in objectives:
+            status = str(getattr(objective, "status", ""))
+            note = str(getattr(objective, "note", "") or "")
+            label = str(getattr(objective, "description", "") or "").strip()
+            if not label:
+                continue
+            if status == "NEEDS_CLARIFICATION":
+                out.append(_clarifying_prompt(label, note))
+            elif status in ("PARTIAL", "FAILED"):
+                out.append(f"Go back to \u201c{_short(label)}\u201d and "
+                           "finish it.")
+
+        if case_context:
+            out.append(f"Add this to {case_context}.")
+
+        # An analysis the planner proposed, could compute, and did not run.
+        # Offering one of these is safe by construction: it was scored as
+        # available before it was set aside.
+        for decision in getattr(portfolio, "rejected", None) or []:
+            score = getattr(decision, "score", None)
+            if score is None or score.availability < 0.5:
+                continue
+            question = str(getattr(decision.candidate, "question", "")
+                           or "").strip()
+            if question:
+                out.append(question)
+            break
+
+        if build is not None or runtime is not None:
+            out.extend(after_analysis(build, runtime))
+        return _tidy(out)
+    except Exception as e:  # noqa: BLE001 - a suggestion must not lose an answer
+        logger.warning("Could not build compound suggestions: %s", e)
+        return []
+
+
+def _short(label: str, limit: int = 60) -> str:
+    text = " ".join(str(label or "").split()).rstrip(".?")
+    return text if len(text) <= limit else text[:limit - 1] + "\u2026"
+
+
+def _clarifying_prompt(label: str, note: str) -> str:
+    """The question that would settle an objective the answer stopped on.
+
+    Phrased as the user's own next message rather than as a restatement of
+    the problem: "which measure did you mean" is what the product already
+    said, and repeating it as a suggestion is not a suggestion.
+    """
+    hint = " ".join(str(note or "").split())
+    if hint:
+        return f"About \u201c{_short(label)}\u201d: {hint}"
+    return f"Say more about what \u201c{_short(label)}\u201d should mean."
+
+
 def _tidy(questions: list[str]) -> list[str]:
     """In order, without repeats, capped."""
     seen: set[str] = set()
@@ -245,4 +336,5 @@ def _tidy(questions: list[str]) -> list[str]:
     return out[:MAX_SUGGESTIONS]
 
 
-__all__ = ["MAX_SUGGESTIONS", "NAMED_POPULATION", "after_analysis", "opening"]
+__all__ = ["MAX_SUGGESTIONS", "NAMED_POPULATION", "after_analysis",
+           "after_compound", "opening"]

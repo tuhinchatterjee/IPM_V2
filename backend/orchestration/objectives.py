@@ -65,7 +65,14 @@ ACTIONS: tuple[str, ...] = (SELECT, RANK, COMPARE, DECOMPOSE, AGGREGATE,
 #: listed before the general ones so "break down" is DECOMPOSE rather than
 #: DESCRIBE.
 _VERBS: tuple[tuple[str, str], ...] = (
-    (DECOMPOSE, r"decompos\w*|break\s+down|attribut\w*\s+the\s+change|"
+    # "break down" is separable, and "break the change down by sector" is
+    # how it is actually said. Reading that as DESCRIBE rather than DECOMPOSE
+    # loses the dependency on the comparison it decomposes, so the two
+    # objectives would be planned as independent and could run in either
+    # order.
+    (DECOMPOSE, r"decompos\w*|"
+                r"break(?:\s+(?:the|this|that|it|them|these|those|\w+)){0,3}"
+                r"\s+down|attribut\w*\s+the\s+change|"
                 r"split\s+the\s+change|bridge"),
     (COMPARE, r"compar\w*|contrast\w*|versus|vs\.?|benchmark\w*|"
               r"difference\s+between"),
@@ -377,6 +384,32 @@ class Coverage:
             parts.append(f"“{label}” {said}{reason}")
         return "; ".join(parts) + "."
 
+    def headline(self) -> str:
+        """§11's count, in §11's words.
+
+        Shown whether or not anything went wrong. "3 of 3" is the line that
+        makes a dropped third question visible at a glance, and a counter
+        that only appeared when something was missing would be a counter
+        nobody had learned to read.
+        """
+        if not self.objectives:
+            return ""
+        if self.complete == self.total:
+            return f"{self.total} of {self.total}"
+        parts = [f"{self.complete} of {self.total} answered"]
+        counts = self.by_status()
+        for status, one, many in (
+                (NEEDS_CLARIFICATION, "requires clarification",
+                 "require clarification"),
+                (UNAVAILABLE, "cannot be answered", "cannot be answered"),
+                (PARTIAL, "partly answered", "partly answered"),
+                (FAILED, "could not be completed", "could not be completed"),
+                (PLANNED, "was not answered", "were not answered")):
+            found = counts.get(status, 0)
+            if found:
+                parts.append(f"{found} {one if found == 1 else many}")
+        return "; ".join(parts)
+
     @property
     def failed(self) -> list[Objective]:
         return [o for o in self.objectives if o.status == FAILED]
@@ -401,12 +434,74 @@ class Coverage:
             "unmet": [o.objective_id for o in self.unmet],
             "unsettled": [o.objective_id for o in self.unsettled],
             "sentence": self.sentence(),
+            "headline": self.headline(),
             "objectives": [o.to_dict() for o in self.objectives],
         }
 
 
 def coverage(reading: Reading) -> Coverage:
     return Coverage(objectives=list(reading.objectives))
+
+
+@dataclass
+class SharedScope:
+    """What every objective in one message has in common. §11.
+
+    Identified once, before anything runs. Two reasons, and the second is the
+    one that bites: deriving the population separately inside each task is
+    wasteful, and it is also how two clauses of the same sentence end up
+    answered over different populations - each derivation is defensible and
+    the answer silently compares two different books.
+    """
+
+    #: The cohort every objective is about, where there is one.
+    cohort_id: str = ""
+    population: str = ""
+    grain: str = ""
+    #: Objectives that step outside the shared population. A COMPARE against
+    #: a second cohort is the ordinary case and is not a defect - it is
+    #: recorded so the answer can say which figures are on which population.
+    divergent: list[str] = field(default_factory=list)
+
+    @property
+    def shared(self) -> bool:
+        return bool(self.cohort_id or self.population)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"cohort_id": self.cohort_id, "population": self.population,
+                "grain": self.grain, "divergent": list(self.divergent),
+                "shared": self.shared}
+
+
+def shared_scope(reading: Reading) -> SharedScope:
+    """The population, and the grain, the whole message is about."""
+    cohorts = {o.cohort_id for o in reading.objectives if o.cohort_id}
+    divergent = [o.objective_id for o in reading.objectives
+                 if o.against_cohort_id]
+
+    if len(cohorts) == 1:
+        cohort_id = next(iter(cohorts))
+        found = next((c for c in reading.cohorts
+                      if c.cohort_id == cohort_id), None)
+        return SharedScope(
+            cohort_id=cohort_id,
+            population=(found.head if found else ""),
+            grain=(found.grain if found else ""),
+            divergent=divergent)
+
+    if not cohorts:
+        # No clause defines a population, so the scope is whatever the
+        # conversation or the governed default supplies. Saying "none" here
+        # is honest; inventing "the whole book" would be a guess the answer
+        # would then present as a choice.
+        return SharedScope(divergent=divergent)
+
+    # Several cohorts. There is no single shared population, and every
+    # objective's own cohort is what applies - which the answer has to say,
+    # or two figures on two populations will read as comparable.
+    return SharedScope(
+        divergent=sorted({o.objective_id for o in reading.objectives
+                          if o.cohort_id} | set(divergent)))
 
 
 __all__ = [
@@ -429,7 +524,9 @@ __all__ = [
     "SELECT",
     "SETTLED",
     "STATUSES",
+    "SharedScope",
     "UNAVAILABLE",
     "coverage",
     "read",
+    "shared_scope",
 ]

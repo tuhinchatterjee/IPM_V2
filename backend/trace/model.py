@@ -116,6 +116,37 @@ class NodeType(StrEnum):
     LLM_EXPLANATION = "LLM_EXPLANATION"
     VISUALIZATION = "VISUALIZATION"
 
+    # ---------------------------------------------------- compound requests
+    #
+    # §39's stages, for a message that carried several questions. They are
+    # governed rather than interpretive with one exception: the decomposition
+    # is a deterministic parse, the scope is read off it, the portfolio is
+    # chosen by declared scores, the DAG is derived from the objective
+    # actions, and the coverage is counted. Only the synthesis is written.
+
+    #: What the message was read as asking - one entry per objective, with
+    #: the clause it came from. The node that makes a dropped third question
+    #: visible instead of invisible.
+    OBJECTIVE_DECOMPOSITION = "OBJECTIVE_DECOMPOSITION"
+    #: The population, period and grain every objective shares. Recorded
+    #: because two clauses answered over two silently different populations
+    #: read as comparable and are not.
+    SHARED_SCOPE = "SHARED_SCOPE"
+    #: Which analyses depend on which, and what could therefore run at once.
+    TASK_DAG = "TASK_DAG"
+    #: §12: what was considered, what was chosen, what was rejected and why,
+    #: with the value and cost behind each decision.
+    ANALYSIS_PORTFOLIO = "ANALYSIS_PORTFOLIO"
+    #: Where several analyses were reconciled against each other, and what
+    #: was done where they disagreed.
+    COMPARISON = "COMPARISON"
+    #: The paragraph that ties the analyses together. Interpretive: it is the
+    #: one stage a model writes, and it carries no arithmetic of its own.
+    SYNTHESIS = "SYNTHESIS"
+    #: Every objective and its settled status. The node a reader checks to
+    #: see that what they asked for is what they got.
+    OBJECTIVE_COVERAGE = "OBJECTIVE_COVERAGE"
+
 
 # Nodes whose output is a number the bank must be able to defend. These are drawn
 # differently in the UI from the interpretive ones.
@@ -146,13 +177,19 @@ GOVERNED_NODE_TYPES = frozenset(
         NodeType.CALCULATION,
         NodeType.BUSINESS_INVARIANT,
         NodeType.RESULT,
+        NodeType.OBJECTIVE_DECOMPOSITION,
+        NodeType.SHARED_SCOPE,
+        NodeType.TASK_DAG,
+        NodeType.ANALYSIS_PORTFOLIO,
+        NodeType.COMPARISON,
+        NodeType.OBJECTIVE_COVERAGE,
     }
 )
 
 # Nodes produced by the language model. Never carry arithmetic.
 INTERPRETIVE_NODE_TYPES = frozenset(
     {NodeType.USER_PROMPT, NodeType.LLM_INTENT, NodeType.PLAN,
-     NodeType.MODEL_ROUTING, NodeType.LLM_EXPLANATION}
+     NodeType.MODEL_ROUTING, NodeType.LLM_EXPLANATION, NodeType.SYNTHESIS}
 )
 
 
