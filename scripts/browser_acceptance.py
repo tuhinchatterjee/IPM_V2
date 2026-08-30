@@ -100,6 +100,12 @@ SCREENS: tuple[tuple[str, str], ...] = (
     ("/ai-studio/brain-center", "main"),
     ("/ai-studio/continuous-learning", "main"),
     ("/studio/regulatory-intelligence", "main"),
+    # §A11. The Retail Scorecard Validation module. Its thirteen tabs are
+    # asserted in the frontend node tests for the same reason the others
+    # are: a crawler clicking every tab proves the tab strip works and not
+    # much else. What the crawl proves is that the route renders, at four
+    # viewports and four themes, without an error boundary.
+    ("/scorecard-validation", "main"),
 )
 
 #: Words that may never label a figure with no independent reference. §184.

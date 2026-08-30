@@ -1,6 +1,6 @@
 # Full-system feature verification matrix
 
-Generated from the build at `48d278a` by `scripts/feature_matrix.py`.
+Generated from the build at `90bc561` by `scripts/feature_matrix.py`.
 
 This inventory is enumerated, not remembered. Every row comes from a page that exists on disk or an endpoint in the live OpenAPI spec, so a route added and forgotten appears here anyway. Three columns cannot be generated and are curated by hand - expected behaviour, defect and remaining limitation - because each is a claim somebody is accountable for, and deriving them from the code would produce a document that agrees with the code by construction and therefore establishes nothing.
 
@@ -14,7 +14,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 | Carrying a known defect | 2 |
 | Not fully OK | 5 |
 | API endpoints | 390 across 31 areas |
-| Browser-crawled routes | 37 |
+| Browser-crawled routes | 90 |
 
 ## Pages
 
@@ -43,7 +43,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/analysis/[analysisId]` | any signed-in role | One analysis definition: inputs, method, governed datasets, and a run history. | `analyses` (7) | 4 file(s) | `/analysis/approaching_sicr_threshold` ADMIN FAIL, ANALYST pass, VIEWER FAIL | PARTIAL | Opening the page directly logs a console 404: it requests an Assurance record, and Assurance records belong to Investigations rather than to a bare engine run. The page renders correctly. | Reached through Analyses or Trace, this does not arise. |
+| `/analysis/[analysisId]` | any signed-in role | One analysis definition: inputs, method, governed datasets, and a run history. | `analyses` (7) | 4 file(s) | `/analysis/approaching_sicr_threshold` ADMIN pass, ANALYST pass, VIEWER pass | PARTIAL | Opening the page directly logs a console 404: it requests an Assurance record, and Assurance records belong to Investigations rather than to a bare engine run. The page renders correctly. | Reached through Analyses or Trace, this does not arise. |
 
 ### cockpit
 
@@ -81,7 +81,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/engine-builder/[analysisId]` | Administrator, Analyst | One registered analysis. | `engine` (7) | 3 file(s) | - | OK | - | - |
+| `/engine-builder/[analysisId]` | Administrator, Analyst | One registered analysis. | `engine` (7) | 3 file(s) | `/engine-builder/approaching_sicr_threshold` ADMIN pass | OK | - | - |
 | `/engine-builder/new` | Administrator | Register a new engine analysis. | `engine` (7) | - | - | OK | - | - |
 | `/engine-builder` | Administrator, Analyst | Registered engine analyses. | `engine` (7) | 3 file(s) | ADMIN pass | OK | - | - |
 
@@ -89,16 +89,16 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/investigations/[id]` | any signed-in role | One Investigation: its thread, its analyses, its Trace, its assurance record and How CreditProbe Performed. | `investigations` (16) | 12 file(s) | `/investigations/4991` ADMIN pass, ANALYST pass, VIEWER pass; `/investigations/4992` ADMIN pass | OK | - | - |
+| `/investigations/[id]` | any signed-in role | One Investigation: its thread, its analyses, its Trace, its assurance record and How CreditProbe Performed. | `investigations` (16) | 12 file(s) | `/investigations/6541` ADMIN pass, ANALYST pass, VIEWER pass; `/investigations/new` ADMIN pass | OK | - | - |
 | `/investigations` | any signed-in role | Global Investigations, newest first, with their status. | `investigations` (16) | 12 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/investigations/saved/[id]` | any signed-in role | A saved Investigation at a chosen version, refreshable against a new period. | `investigations` (16) | - | - | OK | - | - |
+| `/investigations/saved/[id]` | any signed-in role | A saved Investigation at a chosen version, refreshable against a new period. | `investigations` (16) | - | `/investigations/saved/6542` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 
 ### lenses
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/lenses/[lensId]` | Administrator, Analyst | One Lens and its panels. | `lenses` (9) | 2 file(s) | `/lenses/cro` ADMIN pass, ANALYST pass, VIEWER FAIL; `/lenses/q2-2026-portfolio-position` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/lenses/cro` | Administrator, Analyst | The CRO Lens: the executive story. | `lenses` (9) | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER FAIL | OK | - | - |
+| `/lenses/[lensId]` | Administrator, Analyst | One Lens and its panels. | `lenses` (9) | 2 file(s) | `/lenses/cro` ADMIN pass, ANALYST pass, VIEWER pass; `/lenses/test-lens-69` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/lenses/cro` | Administrator, Analyst | The CRO Lens: the executive story. | `lenses` (9) | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 | `/lenses` | any signed-in role | Saved dashboards of governed analyses. | `lenses` (9) | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | PARTIAL | A Viewer sees the Lenses link and gets a dashboard of refusals: every tile runs an analysis and running one requires an Analyst. | The permission is deliberate; the invitation is the rough edge. Sign in as Analyst or Administrator. |
 
 ### playbooks
@@ -111,14 +111,14 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/projects/[id]` | any signed-in role | One Project: its Investigations, its people, its workflow and its Risk Cases. Project-scoped work stays inside it until published. | `workspace` (18) | 4 file(s) | `/projects/2409` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | A Project holds context, threads, analyses and people but not a structured operating plan; the governed Project Plan is not built. |
+| `/projects/[id]` | any signed-in role | One Project: its Investigations, its people, its workflow and its Risk Cases. Project-scoped work stays inside it until published. | `workspace` (18) | 4 file(s) | `/projects/3194` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | A Project holds context, threads, analyses and people but not a structured operating plan; the governed Project Plan is not built. |
 | `/projects` | any signed-in role | Credit Projects the signed-in user can reach. | `workspace` (18) | 4 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 
 ### scorecard-validation
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/scorecard-validation` | Administrator, Data Steward or Analyst | Retail Scorecard Validation: the application and behavioural scorecards, twelve tabs covering discrimination, calibration, stability, variable diagnostics, implementation replication, the model registry with its exact equations, the two agentic diagnostics, trends, findings and the validation policy. | `scorecard` (28) | 1 file(s) | - | OK | - | Every figure is computed over synthetic demonstration data marked SYNTHETIC_DEMO, which describes no real customer. A month whose twelve-month performance window has not closed shows stability only, and says when the window closes rather than showing a zero. Metrics with no approved limit read NO APPROVED LIMIT, which is not a pass and is not the same as NOT MEASURED. The validation opinion is derived by governed policy and is not regulatory certification. |
+| `/scorecard-validation` | Administrator, Data Steward or Analyst | Retail Scorecard Validation: the application and behavioural scorecards, twelve tabs covering discrimination, calibration, stability, variable diagnostics, implementation replication, the model registry with its exact equations, the two agentic diagnostics, trends, findings and the validation policy. | `scorecard` (28) | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Every figure is computed over synthetic demonstration data marked SYNTHETIC_DEMO, which describes no real customer. A month whose twelve-month performance window has not closed shows stability only, and says when the window closes rather than showing a zero. Metrics with no approved limit read NO APPROVED LIMIT, which is not a pass and is not the same as NOT MEASURED. The validation opinion is derived by governed policy and is not regulatory certification. |
 
 ### settings
 
@@ -136,8 +136,8 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/studio/[methodId]` | Administrator, Analyst | One method: its definition, its validation and its certification. | `studio` (14) | 3 file(s) | `/studio/approaching_sicr` ADMIN pass, ANALYST pass, VIEWER pass; `/studio/new` ADMIN pass | OK | - | - |
-| `/studio/new` | Administrator, Analyst | Define a new method for validation. | `studio` (14) | - | ADMIN pass | OK | - | - |
+| `/studio/[methodId]` | Administrator, Analyst | One method: its definition, its validation and its certification. | `studio` (14) | 3 file(s) | `/studio/alert_stability` ADMIN pass; `/studio/appetite_breach_ageing` ADMIN pass | OK | - | - |
+| `/studio/new` | Administrator, Analyst | Define a new method for validation. | `studio` (14) | - | - | OK | - | - |
 | `/studio` | Administrator, Analyst | Analysis Studio: the certified method library. | `studio` (14) | 3 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 | `/studio/regulatory-intelligence` | Administrator or Data Steward | Regulatory Intelligence: the document library, the sixteen-stage processing pipeline, extracted requirements with their citations and confidence, one-by-one review, contradictions and their governed resolutions, draft method candidates and the audit trail. | `studio` (14) | - | - | OK | - | Reads empty on a fresh installation until a regulatory document has been processed. The pipeline, the fifteen requirement types, the twelve contradiction classes and the ten resolutions render regardless, so a reviewer can see what would happen before it does. Extraction produces proposed requirements only — nothing here changes a method, a policy or the ontology. |
 
@@ -145,7 +145,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/trace/[runId]` | any signed-in role | The Trace for one run: Story, Lineage, Landscape and Audit, with governed and interpretive steps drawn differently. | `trace` (6) | 8 file(s) | `/trace/10265` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/trace/[runId]` | any signed-in role | The Trace for one run: Story, Lineage, Landscape and Audit, with governed and interpretive steps drawn differently. | `trace` (6) | 8 file(s) | - | OK | - | - |
 | `/trace` | any signed-in role | Recent analysis runs, each opening its Trace. | `trace` (6) | 8 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 
 ### users

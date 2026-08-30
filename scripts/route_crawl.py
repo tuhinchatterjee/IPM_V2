@@ -65,6 +65,11 @@ STATIC_ROUTES: tuple[str, ...] = (
     "/data-builder/relationships", "/data-builder/inbox",
     "/trace", "/workflow", "/settings", "/users",
     "/agent-operations", "/ai-studio", "/ai-studio/feedback-learning",
+    # Named rather than left to link discovery: the route is permitted to
+    # Administrator, Data Steward AND Analyst, and a crawl that only reached
+    # it through one role's navigation would report one role's experience as
+    # the route's.
+    "/scorecard-validation",
 )
 
 #: Text a broken page renders. Matched case-insensitively against the body.
@@ -113,8 +118,14 @@ EXPECTED_REFUSALS: dict[tuple[str, str], str] = {
         "Agent Operations is ADMIN and DATA_STEWARD",
     ("VIEWER", "/agent-operations"):
         "Agent Operations is ADMIN and DATA_STEWARD",
-    ("VIEWER", "/studio/approaching_sicr"):
+    # The analysis page runs its analysis on load; execute is RequireAnalyst,
+    # so a Viewer opening it sees the page and a refused execution. Keyed on
+    # the route that actually executes - /studio/<method> renders the method
+    # definition without running it, and refusing there would be wrong.
+    ("VIEWER", "/analysis/approaching_sicr_threshold"):
         "a Viewer is read-only and may not execute an analysis",
+    ("VIEWER", "/scorecard-validation"):
+        "Retail Scorecard Validation is ADMIN, DATA_STEWARD and ANALYST",
 }
 
 #: Console lines that are noise rather than a defect. Kept deliberately short:
@@ -142,6 +153,10 @@ class Visit:
     links: int = 0
     ways_out: int = 0
     source: str = "route"
+    #: Internal hrefs found on this page. Collected during the visit rather
+    #: than by the caller afterwards, because the page does not outlive the
+    #: visit any more. Not serialised - the COUNT is the reportable fact.
+    hrefs: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {"path": self.path, "role": self.role, "status": self.status,
@@ -315,8 +330,34 @@ def _wait(url: str, *, seconds: int = 150) -> bool:
     return False
 
 
-def _visit(page: Any, path: str, role: str, *, source: str) -> Visit:
+def _visit(context: Any, path: str, role: str, *, source: str) -> Visit:
+    """Visit one route on a page of its own.
+
+    A page per visit, not one page reused down the list. Reuse attributed
+    findings to the wrong route twice over: Playwright listeners accumulate on
+    a reused page, so the tenth visit recorded every earlier visit's console
+    lines as well as its own; and a request still in flight when `goto` moved
+    to the next route resolved AFTER the move, so its status was recorded
+    against the page that happened to be open when it landed. That is how a
+    Viewer's intended 403 on /scorecard-validation was reported as a defect on
+    /projects/{id} - a route that makes no scorecard call at all.
+
+    Closing the page ends both. The context is shared, so the role headers and
+    any cookies still carry from route to route.
+    """
     visit = Visit(path=path, role=role, source=source)
+    page = context.new_page()
+    try:
+        return _visit_on(page, visit)
+    finally:
+        try:
+            page.close()
+        except Exception:  # noqa: BLE001 - a page that already went is fine
+            pass
+
+
+def _visit_on(page: Any, visit: Visit) -> Visit:
+    path, role = visit.path, visit.role
     console: list[str] = []
     page.on("pageerror", lambda e: console.append(f"pageerror: {e}"))
     page.on("console",
@@ -395,6 +436,7 @@ def _visit(page: Any, path: str, role: str, *, source: str) -> Visit:
         visit.reason = f"console error: {visit.console[0][:140]}"
 
     visit.ok = not visit.reason
+    visit.hrefs = _links(page)
     return visit
 
 
@@ -436,12 +478,11 @@ def run(report: Report, *, follow_links: bool = True) -> Report:
                 viewport={"width": 1440, "height": 900},
                 extra_http_headers={"X-IPM-Role": role,
                                     "X-IPM-User-Id": user_id})
-            page = context.new_page()
             for path in routes:
-                visit = _visit(page, path, role, source="route")
+                visit = _visit(context, path, role, source="route")
                 report.visits.append(visit)
                 if visit.ok and role == "ADMIN":
-                    discovered.update(_links(page))
+                    discovered.update(visit.hrefs)
             context.close()
 
         if follow_links:
@@ -455,10 +496,9 @@ def run(report: Report, *, follow_links: bool = True) -> Report:
                 viewport={"width": 1440, "height": 900},
                 extra_http_headers={"X-IPM-Role": "ADMIN",
                                     "X-IPM-User-Id": "1"})
-            page = context.new_page()
             for path in extra:
                 report.visits.append(
-                    _visit(page, path, "ADMIN", source="discovered link"))
+                    _visit(context, path, "ADMIN", source="discovered link"))
             context.close()
         browser.close()
     return report
