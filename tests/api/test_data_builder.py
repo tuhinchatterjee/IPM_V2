@@ -198,9 +198,32 @@ def test_mappings_are_suggested_from_source_column_names(client, dataset_name):
     suggested = {m["source_column"]: m for m in onboard(client, dataset_name,
                                                         make_csv())["suggested_mappings"]}
     assert suggested["CUST_NO"]["governed_field"] == "customer_id"
-    assert suggested["FACILITY_ID"]["governed_field"] == "account_id"
     # A suggestion is never auto-accepted — the steward has to confirm it.
     assert all(m["status"] == "unmapped" for m in suggested.values())
+
+
+def test_an_exact_governed_name_outranks_a_synonym(client, dataset_name):
+    """FACILITY_ID lands on `facility_id`, not on the synonym `account_id`.
+
+    `suggest_governed_field` ranks an exact match on a governed field name
+    (confidence 1.0) above a synonym (0.8), deliberately: reusing a name that
+    is already in the catalogue is what makes two datasets join, and offering
+    a steward a different name for the same thing is how a join stops working.
+
+    This assertion used to read `account_id`, which was only right while no
+    governed field was called `facility_id`. It was testing the ABSENCE of an
+    exact match rather than the precedence rule, and it started failing the
+    moment the corporate facilities domain introduced the name. The rule is
+    what is worth pinning, so the rule is what is asserted.
+    """
+    suggested = {m["source_column"]: m for m in onboard(client, dataset_name,
+                                                        make_csv())["suggested_mappings"]}
+    facility = suggested["FACILITY_ID"]
+    assert facility["governed_field"] == "facility_id"
+    assert facility["confidence"] == 1.0
+    # The synonym rule is still there and still fires where nothing matches
+    # exactly - which is what CUST_NO above demonstrates.
+    assert suggested["CUST_NO"]["confidence"] == 0.8
 
 
 def test_two_columns_cannot_claim_the_same_governed_field(client, dataset_name):
