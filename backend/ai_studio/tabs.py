@@ -58,11 +58,13 @@ SETTINGS = "SETTINGS"
 
 # --------------------------------------------- the final consolidation's new
 BRAIN_CENTER = "BRAIN_CENTER"
+REGULATORY_LEARNING = "REGULATORY_LEARNING"
 
 TABS: tuple[str, ...] = (
     OVERVIEW, KNOWLEDGE, TEACHING_CASES, BLUEPRINTS, JUDGMENT,
     VISUAL_GRAMMAR, ROUTING, PROMPTS, EVALUATIONS, REVIEWS, FEEDBACK,
-    BRAIN_CENTER, AGENTIC, RELEASES, LIVE_HEALTH, SETTINGS,
+    BRAIN_CENTER, REGULATORY_LEARNING, AGENTIC, RELEASES, LIVE_HEALTH,
+    SETTINGS,
 )
 
 #: On-screen names. The enum is not the label: a reader asked for "the
@@ -76,6 +78,7 @@ LABELS: dict[str, str] = {
     FEEDBACK: "Feedback & learning", AGENTIC: "Agentic health",
     RELEASES: "Releases", LIVE_HEALTH: "Live AI health",
     SETTINGS: "Settings", BRAIN_CENTER: "Brain Center",
+    REGULATORY_LEARNING: "Regulatory learning",
 }
 
 #: What each tab is FOR, shown at the top of it. §117's principle applied to
@@ -110,6 +113,13 @@ PURPOSE: dict[str, str] = {
     BRAIN_CENTER: "What Brain is running, what this installation has "
                   "learned, what has been imported from elsewhere, and how "
                   "much measured improvement each import actually produced.",
+    REGULATORY_LEARNING: "What the bank learned from the regulations it "
+                         "read: which teaching cases, ontology changes and "
+                         "policies came from a circular, and what measured "
+                         "difference that made. The source library and the "
+                         "extraction live in Analysis Studio; §27 keeps "
+                         "them apart so a circular and a certified method "
+                         "never look like the same kind of object.",
 }
 
 #: Which permission a tab needs. Checked backend-side; a tab hidden in the
@@ -121,6 +131,7 @@ NEEDS: dict[str, str] = {
     EVALUATIONS: pm.EVALUATION_RUN, REVIEWS: pm.VIEW, FEEDBACK: pm.TEACHING_REVIEW,
     AGENTIC: pm.VIEW, RELEASES: pm.VIEW, LIVE_HEALTH: pm.LIVE_HEALTH_VIEW,
     SETTINGS: pm.ADMIN, BRAIN_CENTER: pm.BRAIN_VIEW,
+    REGULATORY_LEARNING: pm.VIEW,
 }
 
 

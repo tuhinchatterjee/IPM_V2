@@ -1,6 +1,6 @@
 # Full-system feature verification matrix
 
-Generated from the build at `b9b1770` by `scripts/feature_matrix.py`.
+Generated from the build at `daab398` by `scripts/feature_matrix.py`.
 
 This inventory is enumerated, not remembered. Every row comes from a page that exists on disk or an endpoint in the live OpenAPI spec, so a route added and forgotten appears here anyway. Three columns cannot be generated and are curated by hand - expected behaviour, defect and remaining limitation - because each is a claim somebody is accountable for, and deriving them from the code would produce a document that agrees with the code by construction and therefore establishes nothing.
 
@@ -8,12 +8,12 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | | |
 |---|---|
-| Pages | 39 |
-| Reviewed | 39 |
+| Pages | 40 |
+| Reviewed | 40 |
 | Not yet reviewed | 0 |
 | Carrying a known defect | 2 |
 | Not fully OK | 5 |
-| API endpoints | 322 across 28 areas |
+| API endpoints | 339 across 29 areas |
 | Browser-crawled routes | 37 |
 
 ## Pages
@@ -30,7 +30,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 |---|---|---|---|---|---|---|---|---|
 | `/ai-studio/brain-center` | Administrator | The Brain Center: what Brain is running, the Learning Ledger, the three export formats, quarantined imports, the Lift Lab, the Merge Lab, installation history, rollbacks, compatibility and security. | `intelligence` (45) | - | - | OK | - | Imports, Lift Lab, Merge Lab, Installations and Rollbacks read empty on a fresh installation, because nothing has been imported. That is the honest state, not a missing screen: the pipeline, the resolution set and the enforced security rules render regardless so a reviewer can see what would happen before it does. |
 | `/ai-studio/feedback-learning` | Administrator | Feedback and the governed learning queue: observations, candidates, review and releases. | `intelligence` (45) | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/ai-studio` | Administrator | AI Intelligence Studio: the six Intelligence Dimensions, the current release, evaluations and health. | `intelligence` (45) | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | 16 of the 18 tabs the final brief names. Brain Center is present; Continuous Learning and Regulatory Learning are the two still being added in this phase. |
+| `/ai-studio` | Administrator | AI Intelligence Studio: the six Intelligence Dimensions, the current release, evaluations and health. | `intelligence` (45) | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | 17 of the 18 tabs the final brief names. Brain Center and Regulatory Learning are present; Continuous Learning is the one still being added in this phase. |
 
 ### analyses
 
@@ -132,6 +132,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 | `/studio/[methodId]` | Administrator, Analyst | One method: its definition, its validation and its certification. | `studio` (14) | 2 file(s) | `/studio/approaching_sicr` ADMIN pass, ANALYST pass, VIEWER pass; `/studio/new` ADMIN pass | OK | - | - |
 | `/studio/new` | Administrator, Analyst | Define a new method for validation. | `studio` (14) | - | ADMIN pass | OK | - | - |
 | `/studio` | Administrator, Analyst | Analysis Studio: the certified method library. | `studio` (14) | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/studio/regulatory-intelligence` | Administrator or Data Steward | Regulatory Intelligence: the document library, the sixteen-stage processing pipeline, extracted requirements with their citations and confidence, one-by-one review, contradictions and their governed resolutions, draft method candidates and the audit trail. | `studio` (14) | - | - | OK | - | Reads empty on a fresh installation until a regulatory document has been processed. The pipeline, the fifteen requirement types, the twelve contradiction classes and the ten resolutions render regardless, so a reviewer can see what would happen before it does. Extraction produces proposed requirements only — nothing here changes a method, a policy or the ontology. |
 
 ### trace
 
@@ -189,6 +190,7 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `playbooks` | 8 |
 | `projects` | 7 |
 | `regulatory` | 13 |
+| `regulatory-intelligence` | 17 |
 | `risk-cases` | 11 |
 | `studio` | 14 |
 | `teaching-corpus` | 3 |

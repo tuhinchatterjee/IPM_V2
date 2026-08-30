@@ -151,6 +151,73 @@ STATUS_MEANS: dict[str, str] = {
 RETRIEVABLE_STATUSES: frozenset[str] = frozenset({APPROVED, SUPERSEDED})
 
 # ---------------------------------------------------------------------------
+# Document type. §28.
+#
+# What KIND of regulatory instrument this is, which is not the same as its
+# format and not derivable from its filename. §28: "Do not rely solely on
+# filename." A supervisory letter and a published rulebook have different
+# confidentiality, different authority and different audiences, and a PDF
+# called "circular_2026.pdf" could be either.
+# ---------------------------------------------------------------------------
+
+CIRCULAR = "CIRCULAR"
+RULEBOOK = "RULEBOOK"
+GUIDELINE = "GUIDELINE"
+SUPERVISORY_LETTER = "SUPERVISORY_LETTER"
+STANDARD = "STANDARD"
+CONSULTATION = "CONSULTATION"
+FAQ = "FAQ"
+INTERNAL_POLICY = "INTERNAL_POLICY"
+#: The honest default. A document whose kind nobody stated is unclassified,
+#: not a circular: defaulting to CIRCULAR would give an internal draft the
+#: standing of a regulator's instrument.
+UNCLASSIFIED = "UNCLASSIFIED"
+
+DOCUMENT_TYPES: tuple[str, ...] = (
+    CIRCULAR, RULEBOOK, GUIDELINE, SUPERVISORY_LETTER, STANDARD,
+    CONSULTATION, FAQ, INTERNAL_POLICY, UNCLASSIFIED,
+)
+
+DOCUMENT_TYPE_MEANS: dict[str, str] = {
+    CIRCULAR: "A dated instruction from a regulator to the institutions it "
+              "supervises.",
+    RULEBOOK: "A published, consolidated body of rules.",
+    GUIDELINE: "Guidance on how a rule is expected to be applied. Persuasive "
+               "rather than binding, and the difference matters in a "
+               "defence.",
+    SUPERVISORY_LETTER: "Addressed to this institution specifically. "
+                        "Restricted by default, and an extract of it "
+                        "discloses it.",
+    STANDARD: "An accounting or international standard — IFRS, Basel — "
+              "rather than a local regulator's instrument.",
+    CONSULTATION: "A proposal. Not in force, and a requirement extracted "
+                  "from one must never read as though it is.",
+    FAQ: "A regulator's answers to questions. Interpretive.",
+    INTERNAL_POLICY: "The bank's own policy. Belongs here because a "
+                     "regulatory contradiction is often against local "
+                     "policy, and that is a decision rather than a defect.",
+    UNCLASSIFIED: "Nobody has said what kind of document this is. Not a "
+                  "default to act on.",
+}
+
+#: Types that are NOT in force whatever their dates say.
+#:
+#: Just the one. A consultation paper's "effective date" is a proposal, and a
+#: requirement extracted from one that reached retrieval would have the bank
+#: complying with a rule that does not exist — which reads, on the page,
+#: exactly like diligence.
+#:
+#: UNCLASSIFIED is deliberately NOT here. "Nobody has said what kind of
+#: document this is" is a finding for a reviewer, not grounds to withdraw a
+#: document from retrieval: every document uploaded before §28 existed
+#: carries that value, and treating it as not-in-force would quietly empty
+#: the corpus and look like data loss rather than caution.
+NOT_IN_FORCE: frozenset[str] = frozenset({CONSULTATION})
+
+#: Types a reviewer should be asked to confirm. Surfaced, not enforced.
+NEEDS_TYPE_CONFIRMATION: frozenset[str] = frozenset({UNCLASSIFIED})
+
+# ---------------------------------------------------------------------------
 # Rule kinds
 # ---------------------------------------------------------------------------
 
@@ -292,6 +359,23 @@ class Circular:
     expires: date | None = None
     jurisdiction: str = ""
     language: str = "en"
+    #: §28. What kind of instrument this is, stated rather than guessed from
+    #: the filename.
+    document_type: str = UNCLASSIFIED
+    #: §28's scope fields. What the document is about, whom it binds and
+    #: over which products — none of which is the same as the jurisdiction.
+    scope: str = ""
+    products: list[str] = field(default_factory=list)
+    portfolio_scope: list[str] = field(default_factory=list)
+    #: The document's own version, where the regulator issues one. Distinct
+    #: from `schema_version`, which is ours.
+    document_version: str = ""
+    #: Where it came from — a regulator's website, a supervisor's email, an
+    #: internal upload. Provenance a reviewer can weigh.
+    source: str = ""
+    #: Which roles may read this document and its extracts. Empty means the
+    #: confidentiality class alone governs.
+    permissions: list[str] = field(default_factory=list)
     file_format: str = ""
     filename: str = ""
     #: The original's SHA-256. The anchor every citation resolves through.
@@ -325,7 +409,15 @@ class Circular:
 
         Fail-closed on a missing effective date: a circular that does not say
         when it starts is not treated as having always applied.
+
+        Fail-closed on a consultation paper too, whatever dates it carries.
+        A consultation's "effective date" is a proposal, and a requirement
+        extracted from one that reached retrieval would have the bank
+        complying with a rule that does not exist — which reads, on the
+        page, exactly like diligence.
         """
+        if self.document_type in NOT_IN_FORCE:
+            return False
         if self.effective is None:
             return False
         if when < self.effective:

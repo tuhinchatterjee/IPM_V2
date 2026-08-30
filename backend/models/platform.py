@@ -3985,3 +3985,342 @@ class BrainSigner(Base):
         UniqueConstraint("tenant", "key_id", name="uq_brain_signer"),
         Index("ix_brain_signer_trust", "tenant", "trust_level"),
     )
+
+
+# ==========================================================================
+# Regulatory Intelligence. §29-§37.
+#
+# `regulatory_documents` and `regulatory_releases` already exist: a document
+# and its extracted rules, and the frozen set production retrieves from.
+# What follows is the layer between them — the part where a person decides
+# what a clause means and what, if anything, this installation should change
+# because of it.
+#
+#   regulatory_runs           where a document is in §29's sixteen stages
+#   regulatory_requirements   §30's schema: what the text requires, and what
+#                             it would touch HERE. A claim, not a reading.
+#   regulatory_corrections    §33: what we thought, what a reviewer said,
+#                             kept side by side because a year from now
+#                             somebody will ask whether we read it right
+#   regulatory_contradictions §34's twelve classes and ten resolutions, none
+#                             of which is "delete the other one"
+#   regulatory_drafts         §35's proposed changes. Addressed to whichever
+#                             subsystem owns the thing; applied by none of
+#                             them until it has been through validation,
+#                             regression, approval and release
+#
+# Nothing in these five tables is retrievable. A requirement reaches a live
+# answer only through an active Regulatory Release.
+# ==========================================================================
+
+
+class RegulatoryRun(Base):
+    """§29's pipeline, per document. Where it is and how it got there.
+
+    One row per RUN rather than per document: re-extracting a circular after
+    an OCR engine is installed is a new run, and collapsing it into the
+    first would lose the fact that the first attempt could not read it.
+    """
+
+    __tablename__ = "regulatory_runs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    document_id: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    stage: Mapped[str] = mapped_column(String(48), nullable=False,
+                                       default="UPLOADED")
+    stage_history: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                default=list)
+    blockers: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                           default=list)
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    started_by: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+        onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("run_id", name="uq_regulatory_run"),
+        Index("ix_regulatory_run_document", "document_id", "created_at"),
+        Index("ix_regulatory_run_stage", "tenant", "stage"),
+    )
+
+
+class RegulatoryRequirement(Base):
+    """§30's schema. What a clause requires, and what it would touch here.
+
+    `interpretation_confidence` is computed from the evidence the extraction
+    actually had — a page, a section, a quoted excerpt, resolved concepts —
+    and `confidence_because` carries the sentences behind it. A reviewer
+    looking at 0.45 can see which four things were missing rather than being
+    asked to trust a classifier's opinion of itself.
+
+    `relevance` may be NOT_CREDIT_RELATED only when a `reviewer` is set.
+    §31 forbids extraction from deciding a clause does not matter, and the
+    two columns together are what makes that checkable rather than promised.
+    """
+
+    __tablename__ = "regulatory_requirements"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    requirement_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    document_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    run_id: Mapped[str] = mapped_column(String(48), nullable=False,
+                                        default="")
+    schema_version: Mapped[str] = mapped_column(String(16), nullable=False,
+                                                default="1.0.0")
+
+    # the citation. §29: every extracted item retains one.
+    page: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    section_number: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                default="")
+    section_title: Mapped[str] = mapped_column(String(320), nullable=False,
+                                               default="")
+    paragraph: Mapped[str] = mapped_column(String(32), nullable=False,
+                                           default="")
+    excerpt: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    excerpt_truncated: Mapped[bool] = mapped_column(Boolean, nullable=False,
+                                                    default=False)
+
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    requirement_type: Mapped[str] = mapped_column(String(24), nullable=False,
+                                                  default="DEFINITION")
+    relevance: Mapped[str] = mapped_column(String(24), nullable=False,
+                                           default="AMBIGUOUS")
+    topics: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
+    jurisdiction: Mapped[str] = mapped_column(String(64), nullable=False,
+                                              default="")
+    effective_from: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    effective_to: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    portfolio_scope: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                  default=list)
+    product_scope: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                default=list)
+
+    #: §30's nine "affected" lists, as one document. Kept together because
+    #: they are read together — the review panel shows them as one block —
+    #: and nine columns of JSONB would be nine migrations the first time a
+    #: tenth kind of thing can be affected.
+    affected: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    interpretation_confidence: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0)
+    confidence_because: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                     default=list)
+
+    validation_status: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                   default="PROPOSED")
+    reviewer: Mapped[str] = mapped_column(String(64), nullable=False,
+                                          default="")
+    decision: Mapped[str] = mapped_column(String(32), nullable=False,
+                                          default="")
+    decision_reason: Mapped[str] = mapped_column(Text, nullable=False,
+                                                 default="")
+    correction: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    conflicts: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                            default=list)
+    promotion_status: Mapped[str] = mapped_column(String(24), nullable=False,
+                                                  default="NOT_PROMOTED")
+    promoted_as: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+        onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("requirement_id", name="uq_regulatory_requirement"),
+        Index("ix_regulatory_req_document", "document_id",
+              "validation_status"),
+        Index("ix_regulatory_req_queue", "tenant", "validation_status",
+              "interpretation_confidence"),
+        Index("ix_regulatory_req_type", "requirement_type", "relevance"),
+    )
+
+
+class RegulatoryCorrection(Base):
+    """§33. What the machine read, what a person said, and neither wins yet.
+
+    `authoritative` is False on every insert and there is no service method
+    that flips it directly. §33: "A correction from one user is not
+    automatically authoritative." It becomes so by travelling the release
+    path like everything else, and a column that could be set on write would
+    make that a convention rather than a rule.
+    """
+
+    __tablename__ = "regulatory_corrections"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    correction_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    requirement_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    document_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+
+    #: The machine's reading, kept verbatim beside the correction rather
+    #: than replaced by it.
+    original_interpretation: Mapped[str] = mapped_column(
+        Text, nullable=False, default="")
+    original_type: Mapped[str] = mapped_column(String(24), nullable=False,
+                                               default="")
+    original_confidence: Mapped[float] = mapped_column(Float, nullable=False,
+                                                       default=0.0)
+
+    correction: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    corrected_type: Mapped[str] = mapped_column(String(24), nullable=False,
+                                                default="")
+    reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                         default="")
+    user_role: Mapped[str] = mapped_column(String(32), nullable=False,
+                                           default="")
+    scope: Mapped[str] = mapped_column(String(160), nullable=False,
+                                       default="")
+    effective_date: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                default="")
+    proposed_target: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                  default=dict)
+
+    review_status: Mapped[str] = mapped_column(String(32), nullable=False,
+                                               default="PROPOSED")
+    conflict_impact: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                  default=list)
+    regression_tests: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                   default=list)
+    authoritative: Mapped[bool] = mapped_column(Boolean, nullable=False,
+                                                default=False)
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("correction_id", name="uq_regulatory_correction"),
+        Index("ix_regulatory_correction_req", "requirement_id"),
+        Index("ix_regulatory_correction_user", "tenant", "user_id"),
+    )
+
+
+class RegulatoryContradiction(Base):
+    """§34. Two regulatory positions that cannot both be applied as written.
+
+    `resolution` has ten permitted values and none of them is "delete the
+    other one" — §34 says explicitly not to ask which one to delete.
+    SUPERSEDES_FROM_DATE carries `effective_from` because supersession
+    without a date IS deletion, and a restatement of a prior period still
+    has to quote what applied then.
+    """
+
+    __tablename__ = "regulatory_contradictions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    contradiction_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    requirement_id: Mapped[str] = mapped_column(String(48), nullable=False,
+                                                default="")
+    document_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+
+    conflict_class: Mapped[str] = mapped_column(String(48), nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False,
+                                          default="MEDIUM")
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    incoming: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    existing: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    available_resolutions: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=list)
+
+    resolution: Mapped[str] = mapped_column(String(40), nullable=False,
+                                            default="")
+    resolution_reason: Mapped[str] = mapped_column(Text, nullable=False,
+                                                   default="")
+    #: Required for SUPERSEDES_FROM_DATE. Without it the resolution is a
+    #: deletion, which §34 forbids.
+    effective_from: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                default="")
+    #: Required for the three scope-splitting resolutions.
+    split_axis: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+    resolved_by: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+    resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("contradiction_id",
+                         name="uq_regulatory_contradiction"),
+        Index("ix_regulatory_contradiction_req", "requirement_id"),
+        Index("ix_regulatory_contradiction_open", "tenant", "severity",
+              "resolution"),
+    )
+
+
+class RegulatoryDraft(Base):
+    """§35/§36. A proposed change, addressed to whoever owns the thing.
+
+    Never applied from here. `target` names one of §35's eighteen
+    subsystems; `gates_passed` records which of §35's five gates —
+    validation, regression, approval, version, release — this proposal has
+    cleared. `status` reaches RELEASED only when all five have.
+
+    A Draft Method carries §36's fifteen parts in `payload`, with the parts
+    the regulation did not establish empty AND named as not established. A
+    blank formula beside "the clause requires a calculation without
+    specifying one" is a finding; the same blank alone reads as a method
+    somebody forgot to finish.
+    """
+
+    __tablename__ = "regulatory_drafts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    draft_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    requirement_id: Mapped[str] = mapped_column(String(48), nullable=False)
+    document_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+
+    target: Mapped[str] = mapped_column(String(64), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    citation: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    effective_from: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                default="")
+    governance_owner: Mapped[str] = mapped_column(String(160),
+                                                  nullable=False, default="")
+
+    status: Mapped[str] = mapped_column(String(32), nullable=False,
+                                        default="DRAFT")
+    gates_passed: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                               default=list)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    release_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_by: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+        onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("draft_id", name="uq_regulatory_draft"),
+        Index("ix_regulatory_draft_req", "requirement_id"),
+        Index("ix_regulatory_draft_status", "tenant", "status", "target"),
+    )

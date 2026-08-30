@@ -134,9 +134,9 @@ _JUDGEMENTS: dict[str, Judgement] = {
         "AI Intelligence Studio: the six Intelligence Dimensions, the "
         "current release, evaluations and health.",
         role="Administrator",
-        limitation="16 of the 18 tabs the final brief names. Brain Center "
-                   "is present; Continuous Learning and Regulatory Learning "
-                   "are the two still being added in this phase."),
+        limitation="17 of the 18 tabs the final brief names. Brain Center "
+                   "and Regulatory Learning are present; Continuous "
+                   "Learning is the one still being added in this phase."),
     "/ai-studio/feedback-learning": Judgement(
         "Feedback and the governed learning queue: observations, candidates, "
         "review and releases.", role="Administrator"),
@@ -151,6 +151,19 @@ _JUDGEMENTS: dict[str, Judgement] = {
                    "a missing screen: the pipeline, the resolution set and "
                    "the enforced security rules render regardless so a "
                    "reviewer can see what would happen before it does."),
+    "/studio/regulatory-intelligence": Judgement(
+        "Regulatory Intelligence: the document library, the sixteen-stage "
+        "processing pipeline, extracted requirements with their citations "
+        "and confidence, one-by-one review, contradictions and their "
+        "governed resolutions, draft method candidates and the audit trail.",
+        role="Administrator or Data Steward",
+        limitation="Reads empty on a fresh installation until a regulatory "
+                   "document has been processed. The pipeline, the fifteen "
+                   "requirement types, the twelve contradiction classes and "
+                   "the ten resolutions render regardless, so a reviewer "
+                   "can see what would happen before it does. Extraction "
+                   "produces proposed requirements only \u2014 nothing here "
+                   "changes a method, a policy or the ontology."),
     "/agent-operations": Judgement(
         "Agent Operations: runs, workers, schedules, budgets and approvals.",
         role="Administrator"),

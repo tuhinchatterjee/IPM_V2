@@ -40,6 +40,9 @@ from backend.api.routers import learning as learning_router
 from backend.api.routers import lenses as lenses_router
 from backend.api.routers import playbooks as playbooks_router
 from backend.api.routers import regulatory as regulatory_router
+from backend.api.routers import (
+    regulatory_intelligence as regulatory_intelligence_router,
+)
 from backend.api.routers import studio as studio_router
 from backend.api.routers import users as users_router
 from backend.api.routers import validation as validation_router
@@ -195,6 +198,13 @@ def create_app() -> FastAPI:
     # adjudicating are not.
     app.include_router(feedback_router.router, prefix=API_PREFIX)
     app.include_router(regulatory_router.router, prefix=API_PREFIX)
+    # Analysis Studio → Regulatory Intelligence. §27 keeps this separate
+    # from the document library above: a source circular and a certified
+    # method are not the same kind of object, and one screen for both is how
+    # a bank ends up telling its regulator that uploading a PDF was an
+    # implementation.
+    app.include_router(regulatory_intelligence_router.router,
+                       prefix=API_PREFIX)
     app.include_router(learning_router.router, prefix=API_PREFIX)
     app.include_router(regulatory_router.corpus_router,
                        prefix=API_PREFIX)

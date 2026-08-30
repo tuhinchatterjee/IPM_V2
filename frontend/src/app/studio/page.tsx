@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { BadgeCheck, Plus, Search, ShieldQuestion } from "lucide-react";
+import {
+  BadgeCheck,
+  Plus,
+  ScrollText,
+  Search,
+  ShieldQuestion,
+} from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { LifecycleMark } from "@/components/studio/lifecycle";
@@ -63,12 +69,24 @@ export default function AnalysisStudioPage() {
         status="live"
         actions={
           canBuild ? (
-            <Button asChild>
-              <Link href="/studio/new">
-                <Plus aria-hidden />
-                Build a method
-              </Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {/* §27 puts Regulatory Intelligence under Analysis Studio,
+                  because this is where a method is defined and certified —
+                  and a requirement that says a figure must be calculated
+                  ends up here as a DRAFT method, not as a certified one. */}
+              <Button asChild variant="outline">
+                <Link href="/studio/regulatory-intelligence">
+                  <ScrollText aria-hidden />
+                  Regulatory Intelligence
+                </Link>
+              </Button>
+              <Button asChild>
+                <Link href="/studio/new">
+                  <Plus aria-hidden />
+                  Build a method
+                </Link>
+              </Button>
+            </div>
           ) : undefined
         }
       />
@@ -89,9 +107,7 @@ export default function AnalysisStudioPage() {
         />
         <Tile
           label="Definitions only"
-          value={
-            stats ? Math.max(stats.total - stats.runnable, 0) : undefined
-          }
+          value={stats ? Math.max(stats.total - stats.runnable, 0) : undefined}
           loading={library.loading}
           note="Written down, not yet built. Shown as such rather than hidden."
         />
@@ -181,7 +197,9 @@ export default function AnalysisStudioPage() {
                       href={`/studio/${encodeURIComponent(m.id)}`}
                       className="block max-w-xl hover:underline"
                     >
-                      <span className="font-medium text-text-primary">{m.name}</span>
+                      <span className="font-medium text-text-primary">
+                        {m.name}
+                      </span>
                       <span className="mt-0.5 block truncate text-xs text-text-muted">
                         {m.definition}
                       </span>
@@ -191,13 +209,20 @@ export default function AnalysisStudioPage() {
                     <Badge variant="outline">{m.category}</Badge>
                   </TableCell>
                   <TableCell>
-                    <LifecycleMark lifecycle={m.lifecycle} label={m.lifecycle_label} />
+                    <LifecycleMark
+                      lifecycle={m.lifecycle}
+                      label={m.lifecycle_label}
+                    />
                   </TableCell>
                   <TableCell className="tabular text-right text-xs">
                     {m.test_count === 0 ? (
                       <span className="text-text-muted">—</span>
                     ) : (
-                      <span className={m.tests_failing ? "text-negative" : "text-positive"}>
+                      <span
+                        className={
+                          m.tests_failing ? "text-negative" : "text-positive"
+                        }
+                      >
                         {m.tests_passing}/{m.test_count}
                       </span>
                     )}
@@ -213,13 +238,14 @@ export default function AnalysisStudioPage() {
       </Card>
 
       <p className="text-xs text-text-muted">
-        A method implemented by a registered engine analysis links straight to it — those
-        analyses are still certified, still versioned and still reachable at{" "}
+        A method implemented by a registered engine analysis links straight to
+        it — those analyses are still certified, still versioned and still
+        reachable at{" "}
         <Link href="/engine-builder" className="underline">
           the engine registry
         </Link>
-        . They are now one kind of implementation behind a method rather than the whole of what
-        CreditProbe can compute.
+        . They are now one kind of implementation behind a method rather than
+        the whole of what CreditProbe can compute.
       </p>
 
       {stats && stats.certification_audit.downgraded_count > 0 && (
@@ -227,20 +253,24 @@ export default function AnalysisStudioPage() {
           <h2 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
             <ShieldQuestion className="size-4 text-text-muted" aria-hidden />
             {stats.certification_audit.downgraded_count} certification{" "}
-            {stats.certification_audit.downgraded_count === 1 ? "claim was" : "claims were"} not
-            upheld
+            {stats.certification_audit.downgraded_count === 1
+              ? "claim was"
+              : "claims were"}{" "}
+            not upheld
           </h2>
           <p className="mt-1 text-xs text-text-muted">
-            Every claim is re-checked when the library loads. A method that claims the tick without
-            a runnable implementation, or with test cases nobody has run, is shown as preconfigured
-            instead — with the reason.
+            Every claim is re-checked when the library loads. A method that
+            claims the tick without a runnable implementation, or with test
+            cases nobody has run, is shown as preconfigured instead — with the
+            reason.
           </p>
           <ul className="mt-3 space-y-1 text-xs">
             {Object.entries(stats.certification_audit.downgraded)
               .slice(0, 6)
               .map(([id, reason]) => (
                 <li key={id} className="text-text-secondary">
-                  <span className="font-mono text-text-primary">{id}</span> — {reason}
+                  <span className="font-mono text-text-primary">{id}</span> —{" "}
+                  {reason}
                 </li>
               ))}
           </ul>
@@ -272,9 +302,13 @@ function Tile({
       {loading ? (
         <Skeleton className="mt-2 h-7 w-16" />
       ) : (
-        <p className="tabular mt-1 text-2xl font-semibold text-text-primary">{value ?? "—"}</p>
+        <p className="tabular mt-1 text-2xl font-semibold text-text-primary">
+          {value ?? "—"}
+        </p>
       )}
-      {note && <p className="mt-1 text-[11px] leading-snug text-text-muted">{note}</p>}
+      {note && (
+        <p className="mt-1 text-[11px] leading-snug text-text-muted">{note}</p>
+      )}
     </Card>
   );
 }

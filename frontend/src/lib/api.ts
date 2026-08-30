@@ -4846,6 +4846,72 @@ export const api = {
   brainInstallations: () =>
     request<BrainInstallationList>("/brain/installations"),
   brainSecurity: () => request<BrainSecurity>("/brain/security"),
+
+  // ------------------------------- Regulatory Intelligence. §29-§38
+  //
+  // Analysis Studio owns this: the source library, the extracted
+  // requirements and the promotion into methods. §27 keeps it apart from
+  // the AI Intelligence Studio's Regulatory LEARNING, because a source
+  // circular and a certified method are not the same kind of object.
+  regulatorySchema: () =>
+    request<RegulatorySchema>("/regulatory-intelligence/schema"),
+  regulatoryRuns: (documentId = "") =>
+    request<RegulatoryRuns>(
+      `/regulatory-intelligence/runs?document_id=${encodeURIComponent(documentId)}`,
+    ),
+  regulatoryRequirements: (documentId = "") =>
+    request<RegulatoryRequirements>(
+      `/regulatory-intelligence/requirements?document_id=${encodeURIComponent(documentId)}`,
+    ),
+  regulatoryReviewPanel: (requirementId: string) =>
+    request<RegulatoryReviewPanel>(
+      `/regulatory-intelligence/requirements/${encodeURIComponent(requirementId)}/review`,
+    ),
+  regulatoryDecide: (
+    requirementId: string,
+    body: { action: string; reason: string; target?: string },
+  ) =>
+    request<Record<string, unknown>>(
+      `/regulatory-intelligence/requirements/${encodeURIComponent(requirementId)}/decide`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  regulatoryCorrect: (
+    requirementId: string,
+    body: { correction: string; reason: string; user_role?: string },
+  ) =>
+    request<Record<string, unknown>>(
+      `/regulatory-intelligence/requirements/${encodeURIComponent(requirementId)}/correct`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  regulatoryCorrections: (requirementId = "") =>
+    request<RegulatoryCorrections>(
+      `/regulatory-intelligence/corrections?requirement_id=${encodeURIComponent(requirementId)}`,
+    ),
+  regulatoryConflicts: (requirementId = "") =>
+    request<RegulatoryConflicts>(
+      `/regulatory-intelligence/conflicts?requirement_id=${encodeURIComponent(requirementId)}`,
+    ),
+  regulatoryResolveConflict: (
+    contradictionId: string,
+    body: {
+      resolution: string;
+      reason: string;
+      effective_from?: string;
+      split_axis?: string;
+    },
+  ) =>
+    request<Record<string, unknown>>(
+      `/regulatory-intelligence/conflicts/${encodeURIComponent(contradictionId)}/resolve`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  regulatoryDrafts: (requirementId = "") =>
+    request<RegulatoryDrafts>(
+      `/regulatory-intelligence/drafts?requirement_id=${encodeURIComponent(requirementId)}`,
+    ),
+  regulatoryAudit: (documentId = "") =>
+    request<RegulatoryAudit>(
+      `/regulatory-intelligence/audit?document_id=${encodeURIComponent(documentId)}`,
+    ),
 };
 
 /** §7's prompt, as the backend decided it. */
@@ -5619,4 +5685,218 @@ export type BrainSecurity = {
   signers: BrainSigner[];
   untrusted_signer_policy: string;
   permissions: Record<string, string>;
+};
+
+// ===========================================================================
+// Regulatory Intelligence. §29-§38.
+//
+// The types name what the screen may not blur. `relevance` has three values
+// and the middle one is AMBIGUOUS — a clause that matched no credit cue is
+// waiting for a reviewer, not dismissed. `authoritative` on a correction is
+// its own field because §33 says a correction from one user is not
+// automatically authoritative, and a screen that omitted it would present
+// one SME's reading as the bank's position.
+// ===========================================================================
+
+export type RegulatorySchema = {
+  document_types: { id: string; means: string }[];
+  never_in_force: string[];
+  requirement_types: { id: string; means: string; configurable: boolean }[];
+  credit_topics: string[];
+  relevance: string[];
+  review_actions: {
+    id: string;
+    means: string;
+    needs_target: boolean;
+    counts_as_reviewed: boolean;
+  }[];
+  contradiction_classes: { id: string; means: string }[];
+  resolutions: {
+    id: string;
+    means: string;
+    needs_date: boolean;
+    needs_axis: boolean;
+    leaves_it_open: boolean;
+  }[];
+  promotion_targets: string[];
+  promotion_gates: { id: string; means: string }[];
+  draft_method_parts: string[];
+  rules: Record<string, string>;
+};
+
+export type RegulatoryRun = {
+  run_id: string;
+  document_id: string;
+  stage: string;
+  stage_means: string;
+  blockers: string[];
+  history: Record<string, unknown>[];
+  /** Never true before RELEASED. There is no setting that changes it. */
+  retrievable: boolean;
+  started_by: string;
+  created_at: string;
+};
+
+export type RegulatoryRuns = {
+  pipeline: {
+    stage: string;
+    means: string;
+    quarantined: boolean;
+    optional: boolean;
+  }[];
+  runs: RegulatoryRun[];
+};
+
+export type RegulatoryRequirement = {
+  requirement_id: string;
+  document_id: string;
+  citation: {
+    page: number;
+    section_number: string;
+    section_title: string;
+    paragraph: string;
+    cited: boolean;
+  };
+  excerpt: string;
+  excerpt_truncated: boolean;
+  summary: string;
+  requirement_type: string;
+  type_means: string;
+  relevance: string;
+  topics: string[];
+  affected: Record<string, string[]>;
+  interpretation_confidence: number;
+  /** Which pieces of evidence were present, and which were missing. */
+  confidence_because: string[];
+  validation_status: string;
+  reviewer: string;
+  decision: string;
+  decision_reason: string;
+  correction: string;
+  version: number;
+  conflicts: string[];
+  promotion_status: string;
+  configurable: boolean;
+  promotable: boolean;
+};
+
+export type RegulatoryRequirements = {
+  progress: {
+    total: number;
+    reviewed: number;
+    /** Deferred and second-review. Not counted as reviewed. */
+    parked: number;
+    untouched: number;
+    complete: boolean;
+    note: string;
+  };
+  census: Record<string, unknown>;
+  requirements: RegulatoryRequirement[];
+};
+
+export type RegulatoryReviewPanel = {
+  requirement_id: string;
+  source: Record<string, unknown>;
+  understanding: Record<string, unknown>;
+  conflicts: Record<string, unknown>[];
+  actions: {
+    id: string;
+    means: string;
+    needs_target: boolean;
+    counts_as_reviewed: boolean;
+  }[];
+};
+
+export type RegulatoryCorrections = {
+  corrections: {
+    correction_id: string;
+    requirement_id: string;
+    we_read_it_as: string;
+    our_confidence: number;
+    they_read_it_as: string;
+    reason: string;
+    by: string;
+    role: string;
+    /** §33. One user's correction is not the bank's position. */
+    authoritative: boolean;
+    created_at: string;
+  }[];
+  note: string;
+};
+
+export type RegulatoryConflict = {
+  contradiction_id: string;
+  requirement_id: string;
+  conflict_class: string;
+  class_means: string;
+  severity: string;
+  summary: string;
+  incoming: Record<string, unknown>;
+  existing: Record<string, unknown>;
+  available_resolutions: string[];
+  resolution: string;
+  resolution_reason: string;
+  effective_from: string;
+  split_axis: string;
+  resolved_by: string;
+  resolved: boolean;
+};
+
+export type RegulatoryConflicts = {
+  classes: { id: string; means: string }[];
+  resolutions: {
+    id: string;
+    means: string;
+    needs_date: boolean;
+    needs_axis: boolean;
+    leaves_it_open: boolean;
+  }[];
+  conflicts: RegulatoryConflict[];
+  outstanding: number;
+  note: string;
+};
+
+export type RegulatoryDraft = {
+  draft_id: string;
+  requirement_id: string;
+  target: string;
+  summary: string;
+  status: string;
+  gates_passed: string[];
+  outstanding_gates: string[];
+  governance_owner: string;
+  effective_from: string;
+  citation: Record<string, unknown>;
+  /** Only true at RELEASED. Approval is permission to release, not one. */
+  applied: boolean;
+  certification: Record<string, unknown>;
+};
+
+export type RegulatoryDrafts = {
+  targets: string[];
+  gates: { id: string; means: string }[];
+  drafts: RegulatoryDraft[];
+  note: string;
+};
+
+export type RegulatoryAudit = {
+  document_id: string;
+  runs: Record<string, unknown>[];
+  decisions: {
+    requirement_id: string;
+    summary: string;
+    page: number;
+    section: string;
+    decision: string;
+    reason: string;
+    reviewer: string;
+    status: string;
+    version: number;
+    confidence: number;
+  }[];
+  undecided: string[];
+  corrections: Record<string, unknown>[];
+  contradictions: Record<string, unknown>[];
+  drafts: Record<string, unknown>[];
+  answers: string;
 };

@@ -156,6 +156,23 @@ const PANELS: Record<string, React.ReactNode> = {
       <Failures />
     </div>
   ),
+  REGULATORY_LEARNING: (
+    <Area
+      title="Regulatory Intelligence"
+      what="What the bank learned from the regulations it read. The source library, the extracted requirements and the promotion into methods live in Analysis Studio — §27 keeps them apart so a source circular and a certified method never look like the same kind of object, which is how a bank ends up telling its regulator that uploading a PDF was an implementation."
+      href="/studio/regulatory-intelligence"
+      opens={[
+        "Documents",
+        "Processing",
+        "Requirements",
+        "Review",
+        "Conflicts",
+        "Method candidates",
+        "Corrections",
+        "Audit",
+      ]}
+    />
+  ),
   BRAIN_CENTER: (
     <Area
       title="Brain Center"

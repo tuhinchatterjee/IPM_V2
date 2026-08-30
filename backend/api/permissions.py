@@ -215,3 +215,37 @@ RequireBrainActivate = Depends(require(AI_BRAIN_ACTIVATE))
 RequireBrainRollback = Depends(require(AI_BRAIN_ROLLBACK))
 RequireBrainSigners = Depends(require(AI_BRAIN_SIGNERS))
 RequireLearningReview = Depends(require(AI_LEARNING_REVIEW))
+
+
+# ==========================================================================
+# Regulatory Intelligence. §27-§38.
+#
+# The same split as the Brain, for the same reason. Reading what a circular
+# requires is analytical work; deciding what a clause means for this bank is
+# a regulatory judgement with a name on it; and promoting that judgement into
+# a change to how figures are computed is the narrowest action of the three.
+#
+# REGULATORY_REVIEW is deliberately not ADMIN-only. The person who should be
+# reading a SAMA circular clause by clause is a credit risk SME, not whoever
+# happens to hold the database password — and a permission that forces the
+# wrong person to do the review produces reviews nobody trusts.
+# ==========================================================================
+
+#: See the regulatory library, requirements and releases.
+REGULATORY_VIEW = frozenset({Role.ADMIN, Role.DATA_STEWARD, Role.ANALYST})
+#: Upload a regulatory document and run the extraction pipeline.
+REGULATORY_INGEST = frozenset({Role.ADMIN, Role.DATA_STEWARD})
+#: Decide what a clause means: approve, reject, correct, split, merge, defer.
+REGULATORY_REVIEW = frozenset({Role.ADMIN, Role.DATA_STEWARD})
+#: Settle a contradiction between two regulatory positions.
+REGULATORY_RESOLVE = frozenset({Role.ADMIN, Role.DATA_STEWARD})
+#: Promote an approved requirement into a draft change, and approve a
+#: Regulatory Release. The narrowest: this is where a regulation starts to
+#: affect what the bank's numbers are.
+REGULATORY_PROMOTE = frozenset({Role.ADMIN})
+
+RequireRegulatoryView = Depends(require(REGULATORY_VIEW))
+RequireRegulatoryIngest = Depends(require(REGULATORY_INGEST))
+RequireRegulatoryReview = Depends(require(REGULATORY_REVIEW))
+RequireRegulatoryResolve = Depends(require(REGULATORY_RESOLVE))
+RequireRegulatoryPromote = Depends(require(REGULATORY_PROMOTE))
