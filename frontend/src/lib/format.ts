@@ -167,6 +167,35 @@ export function byContract(value: unknown, column?: ColumnSpec | null): string {
  * never fire. It is here because "should never" is not "cannot", and one
  * 2.6246841182876173% on screen costs more trust than this costs to run.
  */
+/**
+ * A model internal - a coefficient, a weight, an AUC, a contribution.
+ *
+ * MAX_DECIMALS exists because a portfolio figure at three decimals reads as
+ * false precision. A logistic coefficient at two decimals reads as a
+ * DIFFERENT coefficient: 0.043 and 0.038 are the difference between a driver
+ * and a rounding artefact, and both display as "0.04".
+ *
+ * So this is the escape, and it is deliberately narrow. It caps at four
+ * decimals, and every surface that uses it carries a visible technical label -
+ * that label is the whole justification for the extra precision, not
+ * decoration on top of it.
+ */
+export const MAX_TECHNICAL_DECIMALS = 4;
+
+export function technical(
+  value: number | null | undefined,
+  decimals = 3,
+): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "—";
+  }
+  const places = Math.max(0, Math.min(decimals, MAX_TECHNICAL_DECIMALS));
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: places,
+    maximumFractionDigits: places,
+  });
+}
+
 export function scrubDebris(prose: string): string {
   if (!prose) return prose;
   // Three decimals, not four. P0.12's ceiling is two, so a three-decimal value

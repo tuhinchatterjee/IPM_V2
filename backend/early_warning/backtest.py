@@ -236,7 +236,7 @@ class BacktestResult:
         return (
             f"Out of time, on {self.facilities:,} facilities it never saw, the "
             f"signal separates migrations from non-migrations with an AUC of "
-            f"{self.auc:.3f} — {quality}. The worst-scoring tenth of the book "
+            f"{self.auc:.2f} — {quality}. The worst-scoring tenth of the book "
             f"contains {self.top_decile_capture_pct:.0f}% of the quarter's "
             f"transitions. This is a prototype result on synthetic data and is "
             f"not a validation."

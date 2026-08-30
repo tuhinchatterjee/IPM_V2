@@ -303,6 +303,43 @@ def compact(value: Any, *, currency: str = "", scale: str = "mn") -> str:
 
 
 # ---------------------------------------------------------------------------
+# The one exception, and what it costs to use
+# ---------------------------------------------------------------------------
+
+#: What a technical figure may carry. Four, not six: a model coefficient at
+#: four decimals is a coefficient, and at six it is a float someone forgot to
+#: format.
+MAX_TECHNICAL_DECIMALS = 4
+
+#: The marker a technical figure is written with. Not decoration - it is the
+#: whole justification for the extra precision. §4 permits full precision
+#: "only when explicitly labelled RAW / TECHNICAL", so a caller that wants
+#: three decimals has to accept that the reader is told why.
+TECHNICAL_MARK = "technical"
+
+
+def technical(value: Any, *, decimals: int = 3, unit: str = "") -> str:
+    """A model internal - a coefficient, a weight, an AUC, a contribution.
+
+    The two-decimal ceiling exists because a portfolio figure at three
+    decimals reads as false precision. A logistic coefficient at two decimals
+    reads as a different coefficient: 0.043 and 0.038 are the difference
+    between a driver and a rounding artefact, and both display as "0.04".
+
+    So this is the escape, and it is deliberately awkward to reach. It caps at
+    four decimals, it is not reachable through `text()`, and the surfaces that
+    use it carry a visible technical label. A caller reaching for it to make a
+    portfolio total look precise is using the wrong function, and the name is
+    chosen so that reads oddly in review.
+    """
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return text(value)
+    places = max(0, min(int(decimals), MAX_TECHNICAL_DECIMALS))
+    body = f"{float(value):,.{places}f}"
+    return f"{body} {unit}".strip() if unit else body
+
+
+# ---------------------------------------------------------------------------
 # The safety net
 # ---------------------------------------------------------------------------
 

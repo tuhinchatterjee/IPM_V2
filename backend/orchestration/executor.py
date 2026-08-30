@@ -776,7 +776,7 @@ def _multi_narrative(question: str, request: multi.MultiRequest, result: Any,
         n = row.get("n")
         direct = (f"Across {n:,} {multi._plural(request.grain)}, the two "
                   f"measures moved together with a correlation of "
-                  f"{coefficient:.3f}." if coefficient is not None else
+                  f"{coefficient:.2f}." if coefficient is not None else
                   "There were too few paired observations to measure an "
                   "association.")
         interpretation = (

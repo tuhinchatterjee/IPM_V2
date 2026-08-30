@@ -279,7 +279,9 @@ def _concentration(q, ctx):
     caps = conc.get("sector_caps", [])[:8]
     rows = [[c["sector"], dl.fmt_bn(c["ead"], 2), _pct(c["utilisation"], 0)] for c in caps]
     narrative = (
-        f"Portfolio HHI is {conc['hhi']:.3f} and the top-10 obligors account for "
+        # The engine already rounds HHI to one decimal, so ".3f" wrote two
+        # zeroes of pure debris onto a figure that never had them.
+        f"Portfolio HHI is {conc['hhi']:,.1f} and the top-10 obligors account for "
         f"{conc['top10_pct']:.1f}% of exposure."
         + (f" The tightest sector cap is {caps[0]['sector']} at {caps[0]['utilisation']:.0f}% "
            f"utilisation." if caps else "")

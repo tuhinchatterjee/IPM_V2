@@ -13,6 +13,7 @@ import {
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
+import { technical } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty";
@@ -403,19 +404,22 @@ function Decomposition({
         <span className="text-text-muted">
           Starting point{" "}
           <span className="tabular text-text-secondary">
-            {facility.intercept.toFixed(3)}
+            {technical(facility.intercept)}
           </span>
         </span>
         <span className="text-text-muted">
           plus contributions{" "}
           <span className="tabular text-text-secondary">
-            {facility.contributions
-              .reduce((sum, c) => sum + c.contribution, 0)
-              .toFixed(3)}
+            {technical(
+              facility.contributions.reduce(
+                (sum, c) => sum + c.contribution,
+                0,
+              ),
+            )}
           </span>
         </span>
         <span className="font-medium text-text-primary">
-          = score <span className="tabular">{facility.score.toFixed(3)}</span>
+          = score <span className="tabular">{technical(facility.score)}</span>
         </span>
         <span className="text-text-muted">
           → {facility.probability_pct.toFixed(2)}% over the next quarter
@@ -448,7 +452,7 @@ function Decomposition({
                 )}
               >
                 {family.contribution > 0 ? "+" : ""}
-                {family.contribution.toFixed(3)}
+                {technical(family.contribution)}
               </span>
             </span>
           ))}
@@ -518,7 +522,7 @@ function Decomposition({
                 )}
               >
                 {contribution.contribution > 0 ? "+" : ""}
-                {contribution.contribution.toFixed(3)}
+                {technical(contribution.contribution)}
               </span>
             </div>
           ))}

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { useRole } from "@/components/system/role-switcher";
+import { technical } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -215,7 +216,7 @@ function Versions({
                 {model.target_label} · fitted on{" "}
                 {model.specification.fitted_rows?.toLocaleString() ?? "—"} rows ·{" "}
                 {model.specification.backtest?.auc != null
-                  ? `AUC ${model.specification.backtest.auc.toFixed(3)}`
+                  ? `AUC ${technical(model.specification.backtest.auc)}`
                   : "no backtest stored"}
               </span>
             </button>
@@ -314,7 +315,7 @@ function Weights({ specification }: { specification: SignalSpecification }) {
             </span>
             <span className="w-16 shrink-0 text-right tabular font-medium text-text-primary">
               {weight.weight > 0 ? "+" : ""}
-              {weight.weight.toFixed(3)}
+              {technical(weight.weight)}
             </span>
             {!weight.agrees_with_expectation && Math.abs(weight.weight) > 0.05 && (
               <TriangleAlert className="size-3 shrink-0 text-warning" aria-hidden />
@@ -324,7 +325,7 @@ function Weights({ specification }: { specification: SignalSpecification }) {
       </div>
 
       <p className="mt-3 text-[11px] text-text-muted">
-        Intercept {specification.intercept?.toFixed(3)} · fitted on{" "}
+        Intercept {technical(specification.intercept)} · fitted on{" "}
         {specification.fitted_periods?.length ?? 0} quarters ·{" "}
         {specification.fitted_events?.toLocaleString()} transitions in{" "}
         {specification.fitted_rows?.toLocaleString()} rows (base rate{" "}
@@ -344,8 +345,8 @@ function Backtest({ result }: { result: BacktestResult }) {
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="AUC" value={result.auc?.toFixed(3) ?? "—"} hint="0.5 is chance" />
-        <Stat label="KS" value={result.ks?.toFixed(3) ?? "—"} hint="separation" />
+        <Stat label="AUC" value={technical(result.auc)} hint="0.5 is chance" />
+        <Stat label="KS" value={technical(result.ks)} hint="separation" />
         <Stat
           label="Worst decile capture"
           value={`${result.top_decile_capture_pct.toFixed(0)}%`}
@@ -710,10 +711,10 @@ function ComparePanel({ models }: { models: EarlyWarningModel[] }) {
                     {change.label}
                   </span>
                   <span className="w-16 shrink-0 text-right tabular text-text-muted">
-                    {change.before.toFixed(3)}
+                    {technical(change.before)}
                   </span>
                   <span className="w-16 shrink-0 text-right tabular text-text-muted">
-                    {change.after.toFixed(3)}
+                    {technical(change.after)}
                   </span>
                   <span
                     className={cn(
@@ -724,7 +725,7 @@ function ComparePanel({ models }: { models: EarlyWarningModel[] }) {
                     )}
                   >
                     {change.change > 0 ? "+" : ""}
-                    {change.change.toFixed(3)}
+                    {technical(change.change)}
                   </span>
                 </div>
               ))}

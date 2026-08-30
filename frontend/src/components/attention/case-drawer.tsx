@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type RiskCase } from "@/lib/api";
+import { technical } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import {
@@ -555,7 +556,7 @@ function Severity({ found }: { found: RiskCase }) {
           </p>
           <p className="mt-1 text-[10px] text-text-muted">
             Formula version {detail.version} · score{" "}
-            {detail.score.toFixed(3)}
+            {technical(detail.score)}
           </p>
           <ul className="mt-1.5 space-y-0.5">
             {detail.components.map((component) => (
@@ -568,7 +569,7 @@ function Severity({ found }: { found: RiskCase }) {
                 </span>
                 <span className="mono shrink-0 text-text-muted tabular">
                   {component.value.toFixed(2)} × {component.weight.toFixed(2)} ={" "}
-                  {component.contribution.toFixed(3)}
+                  {technical(component.contribution)}
                 </span>
               </li>
             ))}

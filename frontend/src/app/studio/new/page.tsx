@@ -318,8 +318,17 @@ function Step({ n, title }: { n: number; title: string }) {
 }
 
 function formatValue(value: unknown): string {
+  // Two decimals, not three. This renders a preview of a method's sample
+  // output, which is a figure a reader reads - it is not a model internal,
+  // and three decimals here was the display contract being bypassed by a
+  // helper nobody thought of as formatting.
   if (typeof value === "number") {
-    return Number.isInteger(value) ? String(value) : value.toFixed(3);
+    return Number.isInteger(value)
+      ? value.toLocaleString("en-US")
+      : value.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
   }
   return value === null || value === undefined ? "—" : String(value);
 }
