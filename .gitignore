@@ -61,3 +61,9 @@ intelligence_release/
 # ignored rather than trusted to habit. §63.
 CreditProbe_*.xlsx
 CreditProbe_*.xlsx.*
+
+# The retail scorecard universe is generated, not committed. 817k rows of
+# Parquet belong in a build step, not in git history.
+data/analytics/retail_application_scorecard_*/
+data/analytics/retail_behavioral_scorecard_*/
+data/scorecard/
