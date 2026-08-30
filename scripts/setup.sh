@@ -78,7 +78,16 @@ fi
 # ---------------------------------------------------------------- data lake
 
 step "Building the analytical data"
+# All three universes, in one step.
+#
+# The training vocabulary in backend/brain/vocabulary.py names every governed
+# dataset it can compose a question over, and REFUSES TO IMPORT if the
+# catalogue does not have one of them. metadata/catalog.json is generated, not
+# committed, so skipping any of these builds leaves a clone where the product
+# will not start - not merely one where a demo dataset is missing.
 "$VENV_PY" scripts/generate_saudi_universe.py
+"$VENV_PY" scripts/build_retail_scorecards.py
+"$VENV_PY" scripts/build_corporate_universe.py
 
 # ------------------------------------------------------------------- docker
 

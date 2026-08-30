@@ -1032,8 +1032,14 @@ def build_facilities(entities: pd.DataFrame, spine_df: pd.DataFrame,
                                 + rng.normal(0, 0.14, len(idx)), 0.02, 1.0),
                         np.clip(0.94 + rng.normal(0, 0.05, len(idx)),
                                 0.35, 1.0))
-        drawn = limit[idx] * base
-        undrawn = np.maximum(limit[idx] - drawn, 0.0)
+        # Round FIRST, then take the difference. Rounding drawn and undrawn
+        # independently lets their sum exceed the limit by a cent, and a
+        # facility whose published components do not add up to its published
+        # limit is a defect a reviewer will find before any auditor does.
+        published_limit = _round(limit[idx])
+        drawn = _round(limit[idx] * base)
+        drawn = np.minimum(drawn, published_limit)
+        undrawn = np.maximum(published_limit - drawn, 0.0)
         # Credit conversion on the undrawn commitment, by product.
         ccf = np.where(revolving[idx], 0.40, 0.20)
 
@@ -1044,24 +1050,28 @@ def build_facilities(entities: pd.DataFrame, spine_df: pd.DataFrame,
             "period_end_date": quarter_end(period),
             "product_type": product[idx],
             "currency": currency[idx],
-            "limit_amount": _round(limit[idx]),
-            "drawn_exposure": _round(drawn),
-            "undrawn_commitment": _round(undrawn),
+            "limit_amount": published_limit,
+            "drawn_exposure": drawn,
+            "undrawn_commitment": undrawn,
             "utilisation_pct": _round(
-                np.where(limit[idx] > 0, drawn / limit[idx] * 100, 0.0), 2),
-            "funded_exposure": _round(np.where(funded[idx], drawn, 0.0)),
-            "unfunded_exposure": _round(np.where(funded[idx], 0.0, drawn)),
-            "trade_finance_exposure": _round(np.where(
+                np.where(published_limit > 0,
+                         drawn / np.where(published_limit > 0,
+                                          published_limit, 1.0) * 100,
+                         0.0), 2),
+            "funded_exposure": np.where(funded[idx], drawn, 0.0),
+            "unfunded_exposure": np.where(funded[idx], 0.0, drawn),
+            "trade_finance_exposure": np.where(
                 product[idx] == "Trade Finance - Letters of Credit",
-                drawn, 0.0)),
-            "guarantee_exposure": _round(np.where(
-                product[idx] == "Letter of Guarantee", drawn, 0.0)),
-            "ifrs9_ead": _round(drawn + undrawn * ccf),
+                drawn, 0.0),
+            "guarantee_exposure": np.where(
+                product[idx] == "Letter of Guarantee", drawn, 0.0),
+            "ifrs9_ead": np.minimum(
+                _round(drawn + undrawn * ccf), published_limit),
             "credit_conversion_factor": ccf,
             "is_revolving": revolving[idx],
             "is_secured": secured[idx],
-            "secured_exposure": _round(np.where(secured[idx], drawn, 0.0)),
-            "unsecured_exposure": _round(np.where(secured[idx], 0.0, drawn)),
+            "secured_exposure": np.where(secured[idx], drawn, 0.0),
+            "unsecured_exposure": np.where(secured[idx], 0.0, drawn),
             "origination_quarter_index": origination_quarter[idx],
             "maturity_quarter_index": (
                 origination_quarter[idx] + tenor_quarters[idx]),
@@ -1354,14 +1364,26 @@ def build_covenants(entities: pd.DataFrame, spine_df: pd.DataFrame,
             # Never looser than the market standard where one exists.
             if floor > 0:
                 threshold = np.minimum(threshold, floor * (1.0 + cush))
-            headroom = (threshold - observed) / np.maximum(
-                np.abs(threshold), 1e-9) * 100
         else:
             threshold = np.abs(base) * (1.0 - cush * 0.75)
             if floor > 0:
                 threshold = np.maximum(threshold, floor * (1.0 - cush * 0.75))
-            headroom = (observed - threshold) / np.maximum(
-                np.abs(threshold), 1e-9) * 100
+
+        # Publish first, then decide. Headroom and the breach flag are both
+        # computed from the ROUNDED figures that appear in the row, so the
+        # three columns cannot contradict each other: a row showing a
+        # threshold of 3.09, an observed value of 3.09, a headroom of -0.0 and
+        # a breach is a row nobody can defend, however correct the unrounded
+        # arithmetic behind it was.
+        published_threshold = _round(threshold, 3)
+        published_observed = _round(observed, 3)
+        safe = np.maximum(np.abs(published_threshold), 1e-9)
+        if direction == "MAXIMUM":
+            headroom = (published_threshold - published_observed) / safe * 100
+        else:
+            headroom = (published_observed - published_threshold) / safe * 100
+        published_headroom = _round(headroom, 2)
+
 
         rows.append(pd.DataFrame({
             "borrower_id": part["borrower_id"].to_numpy(),
@@ -1371,10 +1393,10 @@ def build_covenants(entities: pd.DataFrame, spine_df: pd.DataFrame,
             "covenant_name": name,
             "tested_measure": measure,
             "direction": direction,
-            "threshold": _round(threshold, 3),
-            "observed_value": _round(observed, 3),
-            "headroom_pct": _round(headroom, 2),
-            "breach_flag": headroom < 0,
+            "threshold": published_threshold,
+            "observed_value": published_observed,
+            "headroom_pct": published_headroom,
+            "breach_flag": published_headroom < 0,
             "tested_on_statement_date": part[
                 "financial_statement_date"].to_numpy(),
             "statement_age_days": part[
@@ -1782,6 +1804,10 @@ def build_profitability(entities: pd.DataFrame, spine_df: pd.DataFrame,
         "borrower_id": frame["borrower_id"],
         "period": frame["period"],
         "period_end_date": frame["period_end_date"],
+        # Published, because risk_weight_applied is unexplainable without it:
+        # a reader seeing 1.20 has no way to know why unless the stage that
+        # selected it is on the same row.
+        "stage": frame["stage"],
         "net_interest_income": _round(net_interest, 4),
         "fee_income": _round(fees, 4),
         "total_revenue": _round(revenue, 4),

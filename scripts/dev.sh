@@ -126,12 +126,27 @@ ok "Database schema is up to date"
 # ------------------------------------------------------------ 3. data lake
 
 step "Checking the analytical data"
-if [ -d "${DATA_ANALYTICS_DIR:-data/analytics}/portfolio_facility" ]; then
-  ok "Analytical layer already built ($(find "${DATA_ANALYTICS_DIR:-data/analytics}" -name '*.parquet' | wc -l | tr -d ' ') Parquet files)"
-else
-  warn "Not built yet — building it now (this takes a few seconds)"
-  "$PYTHON" scripts/generate_saudi_universe.py
-fi
+# Each universe is checked separately. A single check on portfolio_facility
+# said "already built" on a clone that had the credit book and neither of the
+# other two - and the training vocabulary refuses to import when a governed
+# dataset it names is missing from the catalogue, so the API would not start
+# and the reason would be nowhere near the data step.
+DATA_DIR="${DATA_ANALYTICS_DIR:-data/analytics}"
+build_if_missing() {
+  if [ -d "$DATA_DIR/$1" ]; then
+    return 0
+  fi
+  warn "$2 not built yet — building it now"
+  shift 2
+  "$PYTHON" "$@"
+}
+build_if_missing portfolio_facility "Credit book" \
+  scripts/generate_saudi_universe.py
+build_if_missing retail_application_scorecard_monthly_validation \
+  "Retail scorecards" scripts/build_retail_scorecards.py
+build_if_missing corporate_borrower_360 "Corporate Borrower 360" \
+  scripts/build_corporate_universe.py
+ok "Analytical layer ready ($(find "$DATA_DIR" -name '*.parquet' | wc -l | tr -d ' ') Parquet files)"
 
 # -------------------------------------------------------------- 4. backend
 

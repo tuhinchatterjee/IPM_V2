@@ -94,6 +94,8 @@ class DatasetSummary:
     fields: tuple[dict[str, Any], ...]
     #: Everything a question could plausibly match against, lower-cased.
     haystack: str = ""
+    #: Which book this dataset describes. B44.
+    portfolio_scope: str = "CREDIT_BOOK"
 
     @property
     def period_count(self) -> int:
@@ -110,6 +112,7 @@ class DatasetSummary:
             "purpose": self.purpose,
             "authoritative_for": list(self.authoritative_for),
             "origin": self.origin, "is_synthetic": self.is_synthetic,
+            "portfolio_scope": self.portfolio_scope,
         }
         if not full:
             return brief
@@ -298,6 +301,7 @@ def _all_datasets() -> list[DatasetSummary]:
             origin=str(spec.origin), is_synthetic=bool(spec.is_synthetic),
             authoritative_for=tuple(spec.authoritative_for or ()),
             version=spec.version, fields=fields, haystack=haystack,
+            portfolio_scope=getattr(spec, "portfolio_scope", "CREDIT_BOOK"),
         ))
     return out
 
@@ -459,6 +463,50 @@ def _names(dataset: Any) -> set[str]:
         if len(w) > 3}
 
 
+#: Words that mean the Borrower 360 book and nothing else. Deliberately narrow:
+#: "corporate" is a segment of the credit book as well as the name of this
+#: module, and "customer" and "exposure" belong to both, so neither can select.
+#: Every term here names a thing only the relationship graph carries.
+BORROWER_360_TERMS: frozenset[str] = frozenset({
+    "borrower360", "ubo", "ubos", "beneficial", "shareholding",
+    "shareholder", "shareholders", "ownership", "owns", "parent",
+    "subsidiary", "subsidiaries", "affiliate", "affiliates",
+    "conglomerate", "holdco", "pyramid", "crossholding",
+    "control", "controls", "controlling", "voting",
+    "connected", "connectedness", "counterparty", "counterparties",
+    "group", "groups", "grouping",
+    "graph", "network", "centrality", "pagerank", "betweenness",
+    "louvain", "community", "debtrank", "contagion", "propagation",
+    "supplier", "suppliers", "supply", "buyer", "buyers",
+    "guarantor", "guarantors", "guarantee", "guarantees",
+    "director", "directors", "board",
+    "resolution", "duplicate", "duplicates", "canonical",
+    "relationship", "relationships", "structure", "structures",
+})
+
+
+def _scope_for(question: str, terms: set[str],
+               concepts: list[str]) -> str:
+    """Which book a question is about. B44.
+
+    The credit book unless the question names something only the Borrower 360
+    module has. Defaulting the other way would silently re-point every
+    existing question at a different portfolio.
+    """
+    from backend.data_access.catalog import (
+        BORROWER_360_SCOPE,
+        CREDIT_BOOK_SCOPE,
+    )
+
+    words = terms | _terms(" ".join(concepts))
+    if words & BORROWER_360_TERMS:
+        return BORROWER_360_SCOPE
+    lowered = str(question or "").lower()
+    if "borrower 360" in lowered or "360" in words:
+        return BORROWER_360_SCOPE
+    return CREDIT_BOOK_SCOPE
+
+
 def retrieve(question: str, *, concepts: list[str] | None = None,
              datasets: list[str] | None = None,
              max_datasets: int = MAX_DATASETS,
@@ -475,11 +523,22 @@ def retrieve(question: str, *, concepts: list[str] | None = None,
     every = _catalogue()
     required = set(datasets or [])
 
+    # B44. Which BOOK the question is about, decided before anything else.
+    wanted_scope = _scope_for(question, terms, concepts or [])
+
     # A dataset the question names by name is always retrieved. Ranking on the
     # haystack alone dropped `collateral_register` out of the top eight for
     # "how many quarters of collateral history do you have?", because a dozen
     # other datasets mention collateral in a field somewhere.
-    required |= {d.name for d in every["datasets"] if _names(d) & terms}
+    #
+    # Restricted to the question's own book. `corporate_customer_master`
+    # carries the word "customer" in its TECHNICAL NAME, so without this it is
+    # force-retrieved for every question about customers - including the ones
+    # that mean the credit book - and it displaces the dataset that actually
+    # answers them. A name the CALLER supplied is different and stays
+    # absolute: a concept resolution already knows which dataset it needs.
+    required |= {d.name for d in every["datasets"]
+                 if _names(d) & terms and d.portfolio_scope == wanted_scope}
 
     # A dataset the question names IN FULL leads. "What fields are in the
     # facility limits data?" names `facility_limits` completely, while
@@ -488,9 +547,23 @@ def retrieve(question: str, *, concepts: list[str] | None = None,
     named_in_full = {d.name for d in every["datasets"]
                      if _identifier(d) and _identifier(d) <= terms}
 
+    # The scope decided above orders the ranking.
+    #
+    # Two portfolios share one catalogue and almost all of their vocabulary:
+    # both have customers, exposure at default, an IFRS 9 stage, a covenant.
+    # Ranking on word overlap alone let the Borrower 360 datasets outscore the
+    # credit book on its own questions - twenty new datasets pushed
+    # `portfolio_facility` out of the top eight for "the ten largest customers
+    # by exposure at default", and the answer became a clarification.
+    #
+    # So a question reaches the Borrower 360 book only when it names something
+    # ONLY that book has. Everything else stays on the credit book, which is
+    # what the product has always been about and what an unqualified question
+    # means.
     ranked = sorted(
         every["datasets"],
         key=lambda d: (d.name not in named_in_full, d.name not in required,
+                       d.portfolio_scope != wanted_scope,
                        -_score(d.haystack, terms),
                        # An authoritative source outranks one that merely
                        # mentions the word, so "exposure" reaches the facility

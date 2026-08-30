@@ -131,6 +131,12 @@ def sync_bundled_catalog(session: Session) -> dict[str, Any]:
         dataset.origin = str(entry.get("origin") or DatasetOrigin.DEMO.value)
         dataset.dataset_family = str(entry.get("dataset_family") or name)
         dataset.authoritative_for = list(entry.get("authoritative_for") or [])
+        # B44. Carried through like every other governance field: a database
+        # row overrides the bundled entry of the same name, so a scope left out
+        # here is not merely missing - it is ERASED, and the corporate book
+        # comes back indistinguishable from the credit book.
+        dataset.portfolio_scope = str(
+            entry.get("portfolio_scope") or "CREDIT_BOOK")
         session.flush()
 
         existing = {f.name: f for f in dataset.fields}

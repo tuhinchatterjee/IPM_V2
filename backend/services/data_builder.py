@@ -1168,6 +1168,10 @@ def dataset_catalog_entry(session: Session, dataset: DatasetDefinition) -> dict[
         "origin": dataset.origin,
         "dataset_family": dataset.dataset_family or dataset.name,
         "authoritative_for": list(dataset.authoritative_for or []),
+        # B44. Omitting this erases it exactly as omitting authoritative_for
+        # did: a published corporate dataset would come back as part of the
+        # credit book and be ranked against it on word overlap.
+        "portfolio_scope": dataset.portfolio_scope or "CREDIT_BOOK",
         "fields": [
             {
                 "name": f.name,

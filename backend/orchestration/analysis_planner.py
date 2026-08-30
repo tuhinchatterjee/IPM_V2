@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.orchestration import concepts as cx
+from backend.orchestration import context as governed_context
 from backend.orchestration import conversation as cv
 from backend.orchestration import grain as gr
 from backend.orchestration import multi
@@ -230,8 +231,25 @@ def plan(reading: Reading, context: GovernedContext, *,
 
     catalogue = get_catalog()
     text = question or reading.objective
-    known = {d.name: {f["name"] for f in d.fields} for d in context.datasets}
-    if not known:
+    # Every dataset the installation may plan against - not the handful the
+    # retriever surfaced for this question.
+    #
+    # `context.datasets` is a RELEVANCE window, capped at eight so a prompt
+    # stays inside its budget. Using it here made that budget decide what the
+    # product KNOWS: adding twenty corporate datasets to the catalogue pushed
+    # `portfolio_facility` out of the top eight for "the ten largest customers
+    # by exposure at default", the concept map's resolved candidate was then
+    # judged unavailable, and a question the product had always answered came
+    # back as "which figure should CreditProbe measure?". A retrieval cap must
+    # never remove a governed concept from the vocabulary, and the symptom -
+    # a clarification instead of an error - gives no clue that it did.
+    #
+    # Archived datasets are still excluded, because `cx.all_datasets()`
+    # excludes them: leaving a retired dataset plannable is the separate
+    # governance failure this must not reintroduce.
+    known = {d.name: {f["name"] for f in d.fields}
+             for d in governed_context.all_datasets()}
+    if not known:  # pragma: no cover - an empty catalogue is a broken install
         known = cx.catalogue_fields(catalogue)
 
     carrying = bool(continuation and continuation.carries_context and state

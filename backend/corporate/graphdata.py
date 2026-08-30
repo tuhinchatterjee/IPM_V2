@@ -355,9 +355,19 @@ def build_graph(entities: pd.DataFrame,
             person_rows.append({
                 "node_id": person_id, "node_type": NATURAL_PERSON,
                 "label": name, "detail": "Ultimate shareholder"})
+            # A founder's shares often vote more than they own, and a passive
+            # family shareholder's often vote less. Restricting the voting
+            # bias to corporate holdings would leave the person layer - where
+            # control of a family group is actually decided - with voting
+            # identical to economics, and every control question about the top
+            # of a group would silently be answered with an economic one.
+            person_bias = 0.0
+            if rng.random() < 0.14:
+                person_bias = float(rng.uniform(0.06, 0.30)) * (
+                    1 if k == 0 else -1)
             ownership.append({
                 "from": person_id, "to": top_id,
-                "ownership": float(share * held), "voting_bias": 0.0})
+                "ownership": float(share * held), "voting_bias": person_bias})
 
     grouped_members = {int(m) for group in groups for m in group["members"]}
 
@@ -374,9 +384,13 @@ def build_graph(entities: pd.DataFrame,
             person_rows.append({
                 "node_id": person_id, "node_type": NATURAL_PERSON,
                 "label": name, "detail": "Ultimate shareholder"})
+            person_bias = 0.0
+            if rng.random() < 0.14:
+                person_bias = float(rng.uniform(0.06, 0.30)) * (
+                    1 if k == 0 else -1)
             ownership.append({
                 "from": person_id, "to": borrowers[position],
-                "ownership": float(share * held), "voting_bias": 0.0})
+                "ownership": float(share * held), "voting_bias": person_bias})
 
     nodes.extend(holding_rows)
     nodes.extend(person_rows)

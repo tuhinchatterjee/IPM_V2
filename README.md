@@ -259,10 +259,17 @@ npm install
 cd ..
 copy .env.example .env
 .venv\Scripts\python scripts\generate_saudi_universe.py
+.venv\Scripts\python scripts\build_retail_scorecards.py
+.venv\Scripts\python scripts\build_corporate_universe.py
 ```
 
 This installs everything CreditProbe needs and converts the sample credit data into the
 format the analytics engine reads. It takes a few minutes the first time.
+
+All three builds are needed, not just the first. The governed catalogue is
+generated rather than committed, and the AI Brain's training vocabulary
+refuses to start when a dataset it names is missing from it — so a clone with
+only the credit book will not run at all.
 
 ---
 
@@ -473,7 +480,9 @@ Two log files hold the detail: **`logs/api-dev.log`** and **`logs/web-dev.log`**
 |---|---|
 | Start everything | `./scripts/dev.sh` (Windows: `.\scripts\dev.ps1`) |
 | Run every quality check | `./scripts/check.sh` |
-| Rebuild the demonstration data | `.venv/bin/python scripts/generate_saudi_universe.py` |
+| Rebuild the credit book | `.venv/bin/python scripts/generate_saudi_universe.py` |
+| Rebuild the retail scorecards | `.venv/bin/python scripts/build_retail_scorecards.py` |
+| Rebuild the corporate Borrower 360 universe | `.venv/bin/python scripts/build_corporate_universe.py` |
 | Update the database schema | `.venv/bin/python -m alembic upgrade head` |
 | Start only the database | `docker compose up -d db` |
 | Stop the database | `docker compose down` |
@@ -528,6 +537,7 @@ legacy/dash_app/    the original Dash application, preserved and still tested
 docs/               product spec, architecture, product decisions, demo scope
 docker/             the Dockerfiles and the backend start-up script
 scripts/            setup.sh, dev.sh, dev.ps1, check.sh, generate_saudi_universe.py,
+                    build_retail_scorecards.py, build_corporate_universe.py,
                     start-docker.ps1, stop-docker.ps1
 ```
 

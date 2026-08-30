@@ -1,0 +1,575 @@
+{
+  "origin": "SYNTHETIC_DEMO",
+  "not_client_data": "Synthetic demonstration data. It describes no real company, no real ownership structure and no real bank's book, and must not be presented as client data.",
+  "universe": {
+    "universe_version": "1.0.0",
+    "seed": 20260830,
+    "origin": "SYNTHETIC_DEMO",
+    "not_client_data": "Synthetic demonstration data. It describes no real company, no real ownership structure and no real bank's book, and must not be presented as client data.",
+    "quarters": [
+      "Q3 2022",
+      "Q4 2022",
+      "Q1 2023",
+      "Q2 2023",
+      "Q3 2023",
+      "Q4 2023",
+      "Q1 2024",
+      "Q2 2024",
+      "Q3 2024",
+      "Q4 2024",
+      "Q1 2025",
+      "Q2 2025",
+      "Q3 2025",
+      "Q4 2025",
+      "Q1 2026",
+      "Q2 2026"
+    ],
+    "quarter_count": 16,
+    "distinct_borrowers": 3800,
+    "active_per_quarter": {
+      "Q1 2023": 3331,
+      "Q1 2024": 3337,
+      "Q1 2025": 3325,
+      "Q1 2026": 3261,
+      "Q2 2023": 3340,
+      "Q2 2024": 3332,
+      "Q2 2025": 3300,
+      "Q2 2026": 3253,
+      "Q3 2022": 3300,
+      "Q3 2023": 3348,
+      "Q3 2024": 3327,
+      "Q3 2025": 3286,
+      "Q4 2022": 3318,
+      "Q4 2023": 3342,
+      "Q4 2024": 3331,
+      "Q4 2025": 3267
+    },
+    "smallest_quarter": 3253,
+    "row_counts": {
+      "corporate_collateral": 100943,
+      "corporate_covenants": 162257,
+      "corporate_customer_master": 52998,
+      "corporate_delinquency": 52998,
+      "corporate_entity_resolution": 10092,
+      "corporate_exposure_network": 2120,
+      "corporate_facilities": 141575,
+      "corporate_financials": 19000,
+      "corporate_graph_nodes": 17762,
+      "corporate_guarantees": 2555,
+      "corporate_ifrs9": 52998,
+      "corporate_limits": 52998,
+      "corporate_macro": 16,
+      "corporate_ownership_edges": 38436,
+      "corporate_profitability": 52998,
+      "corporate_ratings": 52998,
+      "corporate_restructuring": 1576,
+      "corporate_supply_chain": 7110,
+      "corporate_watchlist": 14121
+    }
+  },
+  "domains": {
+    "domains_version": "1.0.0",
+    "count": 19,
+    "domains": [
+      {
+        "key": "customer_master",
+        "name": "CORPORATE CUSTOMER MASTER",
+        "owner": "Client Data Management",
+        "purpose": "Who the borrower is: legal identity, aliases, group membership, segment, sector, geography and relationship ownership, as at each quarter.",
+        "kind": "CREDIT",
+        "datasets": [
+          "corporate_customer_master"
+        ],
+        "authoritative_for": [
+          "corporate_identity"
+        ],
+        "notes": "Names, aliases and the Arabic name are the inputs entity resolution works on, so they live here rather than being derived anywhere else."
+      },
+      {
+        "key": "ratings",
+        "name": "CORPORATE RATINGS",
+        "owner": "Credit Risk - Rating Unit",
+        "purpose": "The internal grade on the master scale, the model that produced it, any override, and the movement against the previous assessment.",
+        "kind": "CREDIT",
+        "datasets": [
+          "corporate_ratings"
+        ],
+        "authoritative_for": [
+          "corporate_internal_rating"
+        ],
+        "notes": ""
+      },
+      {
+        "key": "facilities",
+        "name": "CORPORATE FACILITIES / EXPOSURE",
+        "owner": "Credit Administration",
+        "purpose": "Every facility granted to a corporate borrower: limit, drawn and undrawn, funded and unfunded, product, currency and security status, at each quarter end.",
+        "kind": "CREDIT",
+        "datasets": [
+          "corporate_facilities"
+        ],
+        "authoritative_for": [
+          "corporate_exposure"
+        ],
+        "notes": "One row per facility per quarter, not one per borrower."
+      },
+      {
+        "key": "ifrs9",
+        "name": "CORPORATE IFRS 9",
+        "owner": "Impairment",
+        "purpose": "The staging decision and the expected credit loss behind it: PD, LGD, EAD, twelve-month and lifetime ECL, scenario weighting and any management overlay.",
+        "kind": "CREDIT",
+        "datasets": [
+          "corporate_ifrs9"
+        ],
+        "authoritative_for": [
+          "corporate_staging",
+          "corporate_ecl"
+        ],
+        "notes": "The Borrower 360 snapshot copies stage and final_ecl. It is never authoritative over them - B2."
+      },
+      {
+        "key": "delinquency",
+        "name": "CORPORATE DPD / DELINQUENCY",
+        "owner": "Collections",
+        "purpose": "Days past due, the arrears bucket, the amount overdue, missed payments and whether collections have been engaged.",
+        "kind": "CREDIT",
+        "datasets": [
+          "corporate_delinquency"
+        ],
+        "authoritative_for": [
+          "corporate_dpd"
+        ],
+        "notes": ""
+      },
+      {
+        "key": "financials",
+        "name": "CORPORATE FINANCIALS",
+        "owner": "Credit Analysis",
+        "purpose": "Spread financial statements and the credit ratios derived from them, with the statement date and its age so a stale ratio can be recognised as stale.",
+        "kind": "CREDIT",
+        "datasets": [
+          "corporate_financials"
+        ],
+        "authoritative_for": [
+          "corporate_financials"
+        ],
+        "notes": ""
+      },
+      {
+        "key": "covenants",
+        "name": "CORPORATE COVENANTS",
+        "owner": "Credit Administration",
+        "purpose": "Every covenant tested, the threshold, the observed value, the headroom and whether it breached.",
+        "kind": "CREDIT",
+        "datasets": [
+          "corporate_covenants"
+        ],
+        "authoritative_for": [
+          "corporate_covenants"
+        ],
+        "notes": "One row per covenant test per quarter."
+      },
+      {
+        "key": "collateral",
+        "name": "CORPORATE COLLATERAL",
+        "owner": "Credit Administration",
+        "purpose": "Security held: type, market and eligible value, the valuation date and how old it is, and the coverage it provides against the secured exposure.",
+        "kind": "CREDIT",
+        "datasets": [
+          "corporate_collateral"
+        ],
+        "authoritative_for": [
+          "corporate_collateral"
+        ],
+        "notes": "One row per collateral item per quarter."
+      },
+      {
+        "key": "guarantees",
+        "name": "CORPORATE GUARANTEES",
+        "owner": "Credit Administration",
+        "purpose": "Guarantees given and received between counterparties: the guarantor, the beneficiary, the covered amount and the legal form.",
+        "kind": "GRAPH",
+        "datasets": [
+          "corporate_guarantees"
+        ],
+        "authoritative_for": [
+          "corporate_guarantees"
+        ],
+        "notes": "Both a credit fact and a graph edge. Recorded once, here, and read by the guarantee graph rather than copied into it."
+      },
+      {
+        "key": "limits",
+        "name": "CORPORATE LIMITS / LARGE EXPOSURES",
+        "owner": "Portfolio Risk",
+        "purpose": "Single-name and group utilisation against the eligible capital reference, and the large-exposure status that follows from it.",
+        "kind": "CREDIT",
+        "datasets": [
+          "corporate_limits"
+        ],
+        "authoritative_for": [
+          "corporate_large_exposure"
+        ],
+        "notes": "The capital reference and thresholds here are demonstration parameters, not verified regulatory limits - B55."
+      },
+      {
+        "key": "watchlist",
+        "name": "CORPORATE WATCHLIST / QUALITATIVE SIGNALS",
+        "owner": "Credit Risk - Watchlist Committee",
+        "purpose": "Qualitative concerns recorded against a borrower: the signal, its severity, who raised it and when, and the watchlist grade that resulted.",
+        "kind": "CREDIT",
+        "datasets": [
+          "corporate_watchlist"
+        ],
+        "authoritative_for": [
+          "corporate_watchlist"
+        ],
+        "notes": ""
+      },
+      {
+        "key": "restructuring",
+        "name": "CORPORATE RESTRUCTURING / FORBEARANCE",
+        "owner": "Special Assets",
+        "purpose": "Concessions granted for credit reasons: the type, the date, the probation period and whether the exposure is still classified as forborne.",
+        "kind": "CREDIT",
+        "datasets": [
+          "corporate_restructuring"
+        ],
+        "authoritative_for": [
+          "corporate_forbearance"
+        ],
+        "notes": ""
+      },
+      {
+        "key": "profitability",
+        "name": "CORPORATE PROFITABILITY / RAROC",
+        "owner": "Business Finance",
+        "purpose": "Revenue, cost of risk, capital consumed and the risk-adjusted return on it, per borrower per quarter.",
+        "kind": "CREDIT",
+        "datasets": [
+          "corporate_profitability"
+        ],
+        "authoritative_for": [
+          "corporate_raroc"
+        ],
+        "notes": ""
+      },
+      {
+        "key": "ownership",
+        "name": "CORPORATE OWNERSHIP & CONTROL GRAPH",
+        "owner": "Group Risk",
+        "purpose": "Observed shareholding and voting relationships between legal entities and persons, each with the source it was asserted by and the period it is valid for.",
+        "kind": "GRAPH",
+        "datasets": [
+          "corporate_ownership_edges",
+          "corporate_graph_nodes"
+        ],
+        "authoritative_for": [
+          "corporate_ownership"
+        ],
+        "notes": "Observed edges only. Effective ownership, control closure and connected groups are DERIVED and live in their own datasets so the derivation stays inspectable - B14."
+      },
+      {
+        "key": "supply_chain",
+        "name": "CORPORATE SUPPLY CHAIN GRAPH",
+        "owner": "Sector Research",
+        "purpose": "Declared supplier and customer relationships, the share of each party's revenue or cost they represent, and how that was evidenced.",
+        "kind": "GRAPH",
+        "datasets": [
+          "corporate_supply_chain"
+        ],
+        "authoritative_for": [
+          "corporate_supply_chain"
+        ],
+        "notes": "Commercial dependence is not control and is never used to form a regulatory group - B21."
+      },
+      {
+        "key": "exposure_network",
+        "name": "CORPORATE EXPOSURE NETWORK",
+        "owner": "Portfolio Risk",
+        "purpose": "Financial claims between counterparties in the book: intercompany lending, receivables concentration and the guarantee-backed exposure that links two names.",
+        "kind": "GRAPH",
+        "datasets": [
+          "corporate_exposure_network"
+        ],
+        "authoritative_for": [
+          "corporate_exposure_network"
+        ],
+        "notes": ""
+      },
+      {
+        "key": "connected",
+        "name": "CORPORATE CONNECTED COUNTERPARTY GRAPH",
+        "owner": "Group Risk",
+        "purpose": "The derived connected-counterparty groups: which borrowers were grouped, on which basis, and the evidence chain that put each one there.",
+        "kind": "GRAPH",
+        "datasets": [
+          "corporate_connected_groups"
+        ],
+        "authoritative_for": [
+          "corporate_connected_group"
+        ],
+        "notes": "Derived, not observed. Graph connectivity is not regulatory connectedness - B54."
+      },
+      {
+        "key": "entity_resolution",
+        "name": "CORPORATE ENTITY RESOLUTION",
+        "owner": "Client Data Management",
+        "purpose": "Which source records were judged to be the same legal entity, by which rule, with what confidence, and whether a human has reviewed it.",
+        "kind": "QUALITY",
+        "datasets": [
+          "corporate_entity_resolution"
+        ],
+        "authoritative_for": [
+          "corporate_canonical_entity"
+        ],
+        "notes": "Source records are never destructively merged - B7. The mapping is additive and reversible."
+      },
+      {
+        "key": "graph_dq",
+        "name": "CORPORATE GRAPH DATA QUALITY",
+        "owner": "Group Risk",
+        "purpose": "What is wrong with the graph and how much of the answer depends on it: missing ownership, percentages that do not sum, cycles, stale assertions and unresolved duplicates.",
+        "kind": "QUALITY",
+        "datasets": [
+          "corporate_graph_dq"
+        ],
+        "authoritative_for": [
+          "corporate_graph_quality"
+        ],
+        "notes": ""
+      }
+    ],
+    "by_kind": {
+      "CREDIT": [
+        "CORPORATE CUSTOMER MASTER",
+        "CORPORATE RATINGS",
+        "CORPORATE FACILITIES / EXPOSURE",
+        "CORPORATE IFRS 9",
+        "CORPORATE DPD / DELINQUENCY",
+        "CORPORATE FINANCIALS",
+        "CORPORATE COVENANTS",
+        "CORPORATE COLLATERAL",
+        "CORPORATE LIMITS / LARGE EXPOSURES",
+        "CORPORATE WATCHLIST / QUALITATIVE SIGNALS",
+        "CORPORATE RESTRUCTURING / FORBEARANCE",
+        "CORPORATE PROFITABILITY / RAROC"
+      ],
+      "GRAPH": [
+        "CORPORATE GUARANTEES",
+        "CORPORATE OWNERSHIP & CONTROL GRAPH",
+        "CORPORATE SUPPLY CHAIN GRAPH",
+        "CORPORATE EXPOSURE NETWORK",
+        "CORPORATE CONNECTED COUNTERPARTY GRAPH"
+      ],
+      "QUALITY": [
+        "CORPORATE ENTITY RESOLUTION",
+        "CORPORATE GRAPH DATA QUALITY"
+      ]
+    },
+    "datasets": {
+      "corporate_collateral": "CORPORATE COLLATERAL",
+      "corporate_connected_groups": "CORPORATE CONNECTED COUNTERPARTY GRAPH",
+      "corporate_covenants": "CORPORATE COVENANTS",
+      "corporate_customer_master": "CORPORATE CUSTOMER MASTER",
+      "corporate_delinquency": "CORPORATE DPD / DELINQUENCY",
+      "corporate_entity_resolution": "CORPORATE ENTITY RESOLUTION",
+      "corporate_exposure_network": "CORPORATE EXPOSURE NETWORK",
+      "corporate_facilities": "CORPORATE FACILITIES / EXPOSURE",
+      "corporate_financials": "CORPORATE FINANCIALS",
+      "corporate_graph_dq": "CORPORATE GRAPH DATA QUALITY",
+      "corporate_graph_nodes": "CORPORATE OWNERSHIP & CONTROL GRAPH",
+      "corporate_guarantees": "CORPORATE GUARANTEES",
+      "corporate_ifrs9": "CORPORATE IFRS 9",
+      "corporate_limits": "CORPORATE LIMITS / LARGE EXPOSURES",
+      "corporate_ownership_edges": "CORPORATE OWNERSHIP & CONTROL GRAPH",
+      "corporate_profitability": "CORPORATE PROFITABILITY / RAROC",
+      "corporate_ratings": "CORPORATE RATINGS",
+      "corporate_restructuring": "CORPORATE RESTRUCTURING / FORBEARANCE",
+      "corporate_supply_chain": "CORPORATE SUPPLY CHAIN GRAPH",
+      "corporate_watchlist": "CORPORATE WATCHLIST / QUALITATIVE SIGNALS"
+    }
+  },
+  "lineage": {
+    "lineage_version": "1.0.0",
+    "field_count": 137,
+    "groups": [
+      "IDENTITY",
+      "RATING",
+      "FINANCIALS",
+      "EXPOSURE",
+      "IFRS9",
+      "DELINQUENCY",
+      "COVENANTS",
+      "COLLATERAL",
+      "LIMIT",
+      "GRAPH SUMMARY",
+      "DATA QUALITY"
+    ],
+    "fields_per_group": {
+      "IDENTITY": 21,
+      "RATING": 11,
+      "FINANCIALS": 24,
+      "EXPOSURE": 14,
+      "IFRS9": 15,
+      "DELINQUENCY": 8,
+      "COVENANTS": 7,
+      "COLLATERAL": 7,
+      "LIMIT": 6,
+      "GRAPH SUMMARY": 19,
+      "DATA QUALITY": 5
+    },
+    "by_authority": {
+      "AUTHORITATIVE": 0,
+      "COPY": 78,
+      "DERIVED": 59
+    },
+    "authoritative_field_count": 0,
+    "why_no_authoritative_fields": "B2. The Borrower 360 snapshot is a denormalised READ. Every field in it is a copy of, or a derivation from, a field some other domain owns. A field marked AUTHORITATIVE here would be a field the snapshot had taken ownership of, and the domain that owns it would no longer be the last word on its own number.",
+    "source_domains": [
+      "CORPORATE COLLATERAL",
+      "CORPORATE CONNECTED COUNTERPARTY GRAPH",
+      "CORPORATE COVENANTS",
+      "CORPORATE CUSTOMER MASTER",
+      "CORPORATE DPD / DELINQUENCY",
+      "CORPORATE EXPOSURE NETWORK",
+      "CORPORATE FACILITIES / EXPOSURE",
+      "CORPORATE FINANCIALS",
+      "CORPORATE GRAPH DATA QUALITY",
+      "CORPORATE GUARANTEES",
+      "CORPORATE IFRS 9",
+      "CORPORATE LIMITS / LARGE EXPOSURES",
+      "CORPORATE OWNERSHIP & CONTROL GRAPH",
+      "CORPORATE RATINGS",
+      "CORPORATE RESTRUCTURING / FORBEARANCE",
+      "CORPORATE SUPPLY CHAIN GRAPH"
+    ],
+    "source_datasets": [
+      "corporate_collateral",
+      "corporate_connected_groups",
+      "corporate_covenants",
+      "corporate_customer_master",
+      "corporate_delinquency",
+      "corporate_exposure_network",
+      "corporate_facilities",
+      "corporate_financials",
+      "corporate_graph_dq",
+      "corporate_guarantees",
+      "corporate_ifrs9",
+      "corporate_limits",
+      "corporate_ownership_edges",
+      "corporate_ratings",
+      "corporate_restructuring",
+      "corporate_supply_chain"
+    ]
+  },
+  "snapshot": {
+    "snapshot_version": "1.0.0",
+    "rows": 52998,
+    "borrowers": 3800,
+    "quarters": 16,
+    "fields": 137,
+    "authoritative_fields": 0,
+    "authority_note": "B2. Every field here is a copy of, or a derivation from, a field another domain owns. The snapshot is authoritative over nothing.",
+    "graph_fields_pending": 23,
+    "graph_fields_pending_names": [
+      "betweenness",
+      "connected_group_id",
+      "connected_group_size",
+      "control_group_id",
+      "customer_count",
+      "debtrank_impact",
+      "director_count",
+      "dq_issue_count",
+      "effective_ownership_group_id",
+      "exposure_network_links",
+      "graph_confidence",
+      "graph_dq_status",
+      "group_role",
+      "group_utilisation_pct",
+      "guarantee_links",
+      "louvain_community",
+      "network_risk_score",
+      "pagerank_hurt",
+      "pagerank_transmits",
+      "relationship_confidence",
+      "snapshot_validation_status",
+      "supplier_count",
+      "ubo_count"
+    ],
+    "mean_source_completeness_pct": 99.93,
+    "stale_rows": 15153,
+    "origin": "SYNTHETIC_DEMO",
+    "not_client_data": "Synthetic demonstration data. It describes no real company, no real ownership structure and no real bank's book, and must not be presented as client data."
+  },
+  "entity_resolution": {
+    "resolution_version": "1.0.0",
+    "source_records": 10092,
+    "source_systems": {
+      "COMMERCIAL_REGISTRY": 3800,
+      "CORE_BANKING": 3800,
+      "CRM": 2492
+    },
+    "canonical_entities": 3800,
+    "by_method": {
+      "EXACT_REGISTRATION_ID": 7696,
+      "NORMALISED_NAME_AND_ADDRESS": 1474,
+      "FUZZY_NAME_AND_SHARED_DIRECTOR": 504,
+      "REGISTRATION_PREFIX_EVIDENCE": 418
+    },
+    "by_review_status": {
+      "AUTO_ACCEPTED": 9526,
+      "PENDING_REVIEW": 251,
+      "HUMAN_CONFIRMED": 248,
+      "HUMAN_REJECTED": 67
+    },
+    "pending_review": 251,
+    "rejected": 67,
+    "unresolved_source_records": 67,
+    "destructive_merges": 0,
+    "precedence": [
+      "EXACT_REGISTRATION_ID",
+      "NORMALISED_NAME_AND_ADDRESS",
+      "REGISTRATION_PREFIX_EVIDENCE",
+      "FUZZY_NAME_AND_SHARED_DIRECTOR"
+    ],
+    "never_auto_accepted": [
+      "FUZZY_NAME_AND_SHARED_DIRECTOR"
+    ],
+    "origin": "SYNTHETIC_DEMO"
+  },
+  "catalogue": {
+    "catalogue_version": "1.0.0",
+    "path": "/home/user/IPM_V2/metadata/catalog.json",
+    "corporate_datasets": [
+      "corporate_borrower_360",
+      "corporate_collateral",
+      "corporate_covenants",
+      "corporate_customer_master",
+      "corporate_delinquency",
+      "corporate_entity_resolution",
+      "corporate_exposure_network",
+      "corporate_facilities",
+      "corporate_financials",
+      "corporate_graph_nodes",
+      "corporate_guarantees",
+      "corporate_ifrs9",
+      "corporate_limits",
+      "corporate_macro",
+      "corporate_ownership_edges",
+      "corporate_profitability",
+      "corporate_ratings",
+      "corporate_restructuring",
+      "corporate_supply_chain",
+      "corporate_watchlist"
+    ],
+    "dataset_count": 20,
+    "total_datasets": 44,
+    "relationships_declared": 7,
+    "forbidden_joins": 2,
+    "all_synthetic": true,
+    "snapshot_authoritative_for": [],
+    "origin": "SYNTHETIC_DEMO",
+    "not_client_data": "Synthetic demonstration data. It describes no real company, no real ownership structure and no real bank's book, and must not be presented as client data."
+  }
+}

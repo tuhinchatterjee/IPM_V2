@@ -116,12 +116,24 @@ Ok "Database schema is up to date"
 # --------------------------------------------------------------- data lake
 
 Step "Checking the analytical data"
+# Each universe is checked separately. A single check on portfolio_facility
+# said "already built" on a clone that had the credit book and neither of the
+# other two - and the training vocabulary refuses to import when a governed
+# dataset it names is missing from the catalogue, so the API would not start
+# and the reason would be nowhere near the data step.
 $analyticsDir = if ($env:DATA_ANALYTICS_DIR) { $env:DATA_ANALYTICS_DIR } else { "data/analytics" }
-if (Test-Path (Join-Path $analyticsDir "portfolio_facility")) {
-    Ok "Analytical layer already built"
-} else {
-    Warn "Not built yet - building it now (this takes a few seconds)"
-    & $Python scripts/generate_saudi_universe.py
+$universes = @(
+    @{ Marker = "portfolio_facility"; Label = "Credit book"; Script = "scripts/generate_saudi_universe.py" },
+    @{ Marker = "retail_application_scorecard_monthly_validation"; Label = "Retail scorecards"; Script = "scripts/build_retail_scorecards.py" },
+    @{ Marker = "corporate_borrower_360"; Label = "Corporate Borrower 360"; Script = "scripts/build_corporate_universe.py" }
+)
+foreach ($universe in $universes) {
+    if (Test-Path (Join-Path $analyticsDir $universe.Marker)) {
+        Ok ("{0} already built" -f $universe.Label)
+    } else {
+        Warn ("{0} not built yet - building it now" -f $universe.Label)
+        & $Python $universe.Script
+    }
 }
 
 # ----------------------------------------------------------------- backend

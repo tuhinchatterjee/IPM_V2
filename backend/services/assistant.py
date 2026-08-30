@@ -187,6 +187,19 @@ def _fields_index(context: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     return index
 
 
+def _mentions(asked: str, needle: str) -> bool:
+    """Whether a question NAMES a field, rather than merely containing its letters.
+
+    A plain substring test matches a short field name inside an unrelated
+    word: `city` is inside "airspeed velo-CITY", so a question about swallows
+    was answered with the definition of a city column instead of the refusal
+    it deserved. Field names are matched on word boundaries, which is what
+    "the question mentions this field" actually means.
+    """
+    return re.search(rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])",
+                     asked) is not None
+
+
 def _lookup_field(question: str, context: dict[str, Any]) -> Answer | None:
     """"What is X?" and "where is X?" against the data dictionary."""
     asked = _norm(question)
@@ -195,7 +208,7 @@ def _lookup_field(question: str, context: dict[str, Any]) -> Answer | None:
     # Longest name first, so "ecl coverage" beats "ecl".
     for name in sorted(index, key=len, reverse=True):
         needle = _norm(name)
-        if len(needle) < 3 or needle not in asked:
+        if len(needle) < 3 or not _mentions(asked, needle):
             continue
         entries = index[name]
         first = entries[0]

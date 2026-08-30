@@ -580,6 +580,15 @@ class DatasetDefinition(Base):
     # ["credit_facility_position"]. Empty means it answers no governed purpose
     # and no certified analysis will read it by purpose.
     authoritative_for: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    # Which BOOK this dataset describes: CREDIT_BOOK or BORROWER_360. B44.
+    #
+    # Two portfolios now share one catalogue and almost all of their
+    # vocabulary - both have customers, exposure at default, an IFRS 9 stage.
+    # Without this, retrieval ranks them by word overlap and a question about
+    # one is answered from the other. Defaults to CREDIT_BOOK so every dataset
+    # that predates the distinction keeps the behaviour it had.
+    portfolio_scope: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="CREDIT_BOOK")
 
     fields: Mapped[list[FieldDefinition]] = relationship(
         back_populates="dataset", cascade="all, delete-orphan"

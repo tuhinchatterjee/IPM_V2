@@ -109,6 +109,26 @@ GOVERNED_PURPOSES: dict[str, str] = {
 }
 
 
+#: Which book a dataset describes. B44.
+#:
+#: Two portfolios now live in one catalogue, and they share almost every word:
+#: both have customers, exposure at default, an IFRS 9 stage and a covenant.
+#: Without a scope, a question about "the largest customers by exposure" has
+#: two equally good answers and the retriever picks by string overlap - which
+#: is how twenty new corporate datasets pushed the facility book out of the
+#: top eight and turned a working question into "which figure should
+#: CreditProbe measure?".
+#:
+#: The default scope is the credit book the product has always been about. The
+#: Borrower 360 scope is reached when a question names something only that
+#: module has - a group structure, an ultimate beneficial owner, a connected
+#: counterparty, a supply chain, a relationship graph.
+CREDIT_BOOK_SCOPE = "CREDIT_BOOK"
+BORROWER_360_SCOPE = "BORROWER_360"
+
+PORTFOLIO_SCOPES: tuple[str, ...] = (CREDIT_BOOK_SCOPE, BORROWER_360_SCOPE)
+
+
 class DatasetOrigin(StrEnum):
     """Where a dataset came from, and therefore how much it may be trusted.
 
@@ -154,6 +174,10 @@ class DatasetDef:
     # "give me the facility position".
     authoritative_for: list[str] = field(default_factory=list)
 
+    # Which book this dataset describes. Defaults to the credit book, so an
+    # existing entry that says nothing keeps the behaviour it had.
+    portfolio_scope: str = CREDIT_BOOK_SCOPE
+
     @property
     def is_demo(self) -> bool:
         return self.origin == DatasetOrigin.DEMO
@@ -191,6 +215,7 @@ class DatasetDef:
             "is_demo": self.is_demo,
             "dataset_family": self.family,
             "authoritative_for": list(self.authoritative_for),
+            "portfolio_scope": self.portfolio_scope,
             "field_count": len(self.fields),
             "fields": [f.to_dict() for f in self.fields.values()],
         }
@@ -274,6 +299,8 @@ class Catalog:
                                else DatasetOrigin.CLIENT),
                 dataset_family=raw.get("dataset_family", ""),
                 authoritative_for=list(raw.get("authoritative_for") or []),
+                portfolio_scope=raw.get("portfolio_scope",
+                                        CREDIT_BOOK_SCOPE),
             )
         return cls(datasets)
 
