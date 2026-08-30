@@ -12,6 +12,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
+import { AnalysesConsidered, QuestionsAnswered } from "@/components/ask/coverage";
 import { DataAndMethod } from "@/components/ask/data-and-method";
 import { DownloadResults } from "@/components/exports/download";
 import {
@@ -899,7 +900,16 @@ export function AnswerBlock({
         </div>
       )}
 
-      {/* ---------------------------------------------------- 2. BOTTOM LINE */}
+      {/* --------------------------------- 2. WHAT WAS ASKED, AND COVERED
+          §11 and §36. Above the answer rather than below it: a reader who
+          asked three questions needs to know they got two BEFORE they start
+          reading the two, or they will read the answer as complete and stop.
+          Renders for a single question too, at "1 of 1" - a counter that
+          only appears when something is wrong is one nobody has learned to
+          read. */}
+      <QuestionsAnswered compound={run.compound} />
+
+      {/* ---------------------------------------------------- 3. BOTTOM LINE */}
       <DirectAnswer answer={answer} scope={narrative.scope} />
 
       {/* ----------------------------------------------------- 3. KEY INSIGHT */}
@@ -1004,8 +1014,29 @@ export function AnswerBlock({
         className="pt-1"
       />
 
-      {/* ------------------------------ 12. SUGGESTED NEXT QUESTIONS */}
-      {onAsk && <FollowUps questions={run.follow_ups} onAsk={onAsk} busy={busy} />}
+      {/* ------------------------ 12. WHAT WAS CONSIDERED AND NOT RUN
+          §12. Collapsed, and below the answer: the reader who wonders why an
+          analysis they expected is missing needs it, and putting the
+          rejections above the answer would bury the answer under the reasons
+          for it. */}
+      <AnalysesConsidered compound={run.compound} />
+
+      {/* ------------------------------ 13. SUGGESTED NEXT QUESTIONS
+          §40. The compound follow-ups lead - an objective the answer did not
+          settle is the most useful thing to ask next, and offering a fresh
+          analysis while part of the request sits unanswered is the product
+          changing the subject. */}
+      {onAsk && (
+        <FollowUps
+          questions={
+            run.compound?.suggested?.length
+              ? run.compound.suggested
+              : run.follow_ups
+          }
+          onAsk={onAsk}
+          busy={busy}
+        />
+      )}
     </div>
     </HighlightProvider>
   );

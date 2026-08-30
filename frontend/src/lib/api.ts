@@ -1037,6 +1037,119 @@ export interface AiStatus {
   };
 }
 
+/**
+ * What one objective of a compound request ended up as. §11, §39.
+ *
+ * The distinction between COMPLETE and PARTIAL is the one that matters on
+ * screen: PARTIAL means the clause was folded into a combined analysis and
+ * not separately verified, which is a different thing from answered and a
+ * different thing from dropped.
+ */
+export interface ObjectiveCoverageEntry {
+  objective_id: string;
+  description: string;
+  action: string;
+  status: string;
+  note: string;
+  planned_task: string;
+}
+
+export interface ObjectiveCoverage {
+  total: number;
+  complete: number;
+  presentable: boolean;
+  by_status: Record<string, number>;
+  sentence: string;
+  headline: string;
+  objectives: ObjectiveCoverageEntry[];
+  unmet: string[];
+  unsettled: string[];
+  failed: string[];
+}
+
+/** §38: how much analysis was done and how much prose came back, and why. */
+export interface LengthPolicy {
+  band: string;
+  analysis_count: number;
+  task_count: number;
+  depth: string;
+  paragraphs: [number, number];
+  paragraph_band: string;
+  words: [number, number];
+  max_visualizations: number;
+  needs_clarification: boolean;
+  layout: string;
+  reasons: string[];
+}
+
+/** §12: one analysis the planner weighed. */
+export interface PortfolioDecision {
+  analysis_id: string;
+  title: string;
+  question: string;
+  concept_id: string;
+  objective_id: string;
+  datasets: string[];
+  depends_on: string[];
+  because: string;
+  validation_only: boolean;
+  selected: boolean;
+  primary: boolean;
+  reason: string;
+  score: {
+    relevance: number;
+    availability: number;
+    independence: number;
+    cost: number;
+    expected_value_of_information: number;
+    value_per_cost: number;
+  };
+}
+
+export interface AnalysisPortfolio {
+  request: string;
+  candidate_analyses: PortfolioDecision[];
+  selected_analyses: PortfolioDecision[];
+  rejected_analyses: PortfolioDecision[];
+  selection_reason: string;
+  expected_value_of_information: number;
+  cost_estimate: number;
+  dependency_graph: Record<string, string[]>;
+  layers: string[][];
+  parallelism: number;
+  primary: string[];
+  supporting: string[];
+  validation_only: string[];
+  uncovered_objectives: Record<string, string>;
+}
+
+/**
+ * §11, §12, §35-§40. What was asked, what ran, and what came back.
+ *
+ * `available: false` is not the same as an absent block. It means the
+ * coverage of this request could not be established - which the interface
+ * has to say, because silence would read as "everything was answered".
+ */
+export interface CompoundAnswer {
+  available: boolean;
+  why?: string;
+  questions_answered?: string;
+  coverage?: ObjectiveCoverage;
+  shared_scope?: {
+    cohort_id: string;
+    population: string;
+    grain: string;
+    divergent: string[];
+    shared: boolean;
+  };
+  length_policy?: LengthPolicy;
+  layout?: "single" | "primary_and_supporting" | "grouped" | "investigation_review";
+  analyses_performed?: number;
+  suggested?: string[];
+  is_compound?: boolean;
+  portfolio?: AnalysisPortfolio;
+}
+
 export interface InvestigationResponse {
   question: string;
   plan: PlanDef;
@@ -1058,6 +1171,7 @@ export interface InvestigationResponse {
   rejected: string[];
   mode: RunMode;
   stages: Stage[];
+  compound?: CompoundAnswer;
 }
 
 export interface Briefing {
