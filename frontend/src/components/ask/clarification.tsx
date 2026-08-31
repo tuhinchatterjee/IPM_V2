@@ -54,7 +54,12 @@ export function ClarificationCard({
     <Card className="max-w-2xl p-6">
       <p className="meta flex items-center gap-2 text-text-muted">
         <Icon className="size-3.5 text-accent" aria-hidden />
-        {isPeriod ? "One thing first" : "Not understood"}
+        {/* §14: not "Not understood". A competent risk officer asking which
+            of two things you meant has not failed to understand you - and a
+            card that opens by announcing its own failure reads as a fault in
+            the product rather than a normal turn in a conversation. The
+            question itself, immediately below, does the work. */}
+        {isPeriod ? "One thing first" : "One question back"}
       </p>
 
       <h2 className="mt-3 text-xl font-semibold leading-snug tracking-tight text-text-primary">
