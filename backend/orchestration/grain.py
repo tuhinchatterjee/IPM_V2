@@ -116,9 +116,19 @@ _FACILITY_WORDS = re.compile(
     r"\bfacilit(?:y|ies)\b|\baccounts?\b|\bloans?\b|\bexposures? lines?\b|"
     r"\bdrawdowns?\b|\btranches?\b", re.I)
 
+#: `who` and `whose` are borrower words. "Who has both rising utilisation and
+#: weakening debt-service capacity?" asks for a list of companies, and with no
+#: noun in the sentence it fell through to the source's own grain and answered
+#: with five hundred facilities. There is no reading of "who" that means a
+#: facility or the whole book.
+#:
+#: Safe beside the relative pronoun because `_FACILITY_WORDS` is tested first
+#: in `requested`: "facilities whose utilisation rose" still resolves to
+#: facility, on the explicit noun, before this is consulted.
 _CUSTOMER_WORDS = re.compile(
     r"\bcustomers?\b|\bborrowers?\b|\bobligors?\b|\bclients?\b|"
-    r"\bcounterpart(?:y|ies)\b|\bnames?\b|\bgroups?\b", re.I)
+    r"\bcounterpart(?:y|ies)\b|\bnames?\b|\bgroups?\b|"
+    r"\bcompan(?:y|ies)\b|\bwho\b|\bwhose\b", re.I)
 
 #: "for the portfolio", "across the book", "overall", "in total". A request for
 #: one number about everything.

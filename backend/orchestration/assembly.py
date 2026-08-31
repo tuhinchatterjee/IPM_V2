@@ -157,14 +157,22 @@ def _presented(runtime: Any, build: Any) -> list[dict[str, Any]]:
 
 
 def grounded_values(runtime: Any, extra: dict[str, Any] | None = None,
-                    *, asked: str = "") -> set[str]:
+                    *, asked: str = "", plan: dict[str, Any] | None = None
+                    ) -> set[str]:
     """Every figure the answer is entitled to quote, in one normal form.
 
-    Two sources. The result, obviously — a figure the analysis computed. And
-    the **question**, which is less obvious and just as sound: a narrative
-    saying "headroom below 15%" is repeating the user's own threshold back to
-    them, and flagging it as an invented figure trains people to ignore the one
+    Three sources. The result, obviously — a figure the analysis computed. The
+    **question**, which is less obvious and just as sound: a narrative saying
+    "headroom below 15%" is repeating the user's own threshold back to them,
+    and flagging it as an invented figure trains people to ignore the one
     check that catches invented figures.
+
+    And the **plan's own declared thresholds**. A composite ranking says
+    "Debt-service coverage below 1.2x" because 1.2 is written into the
+    governed composite, is on the plan, and is shown on the Trace. It is more
+    traceable than a figure from the result, not less — the result is one run
+    and the threshold is the definition. Excluding it would have the check
+    firing on every composite answer, which is how a check stops being read.
     """
     out: set[str] = set()
 
@@ -190,6 +198,14 @@ def grounded_values(runtime: Any, extra: dict[str, Any] | None = None,
         add(value)
     for number in _numbers(asked or ""):
         out.add(number)
+
+    # The thresholds the analysis itself declared.
+    composite = ((plan or {}).get("meta") or {}).get("composite") or {}
+    for signal in (composite.get("signals") or []):
+        add(signal.get("value"))
+        for number in _numbers(str(signal.get("label") or "")):
+            out.add(number)
+    add(len(composite.get("signals") or []) or None)
     if runtime is not None:
         add(runtime.row_count)
         for row in runtime.rows:
@@ -798,6 +814,16 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
     metrics: list[Metric] = []
     findings: list[Finding] = []
 
+    composite = ((build.plan or {}).get("meta") or {}).get("composite") or {}
+    if composite:
+        # A composite ranking has no single measure, so the ordinary RANKING
+        # branch below - which reads a concept label off `matches` - would
+        # write "the 25 largest customers by the measure". The answer to
+        # "which borrowers show the strongest evidence of liquidity stress" is
+        # a count of signals, and the sentence has to say so or the number in
+        # the first column means nothing.
+        return _composite_narrative(build, runtime, rows, count, composite)
+
     if build.shape == ap.AGGREGATE and "average" in values:
         # An averaged measure has no total. Said as what it is: the mean across
         # the groups on the screen, which is the only figure the rows support.
@@ -977,6 +1003,99 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
         interpretation=interpretation,
         interpretation_points=[], metrics=metrics, caveats=caveats,
     )
+
+
+def _composite_narrative(build: ap.AnalysisBuild, runtime: Any,
+                         rows: list[dict[str, Any]], count: int,
+                         composite: dict[str, Any]) -> Narrative:
+    """The answer to "which borrowers show the strongest evidence of X".
+
+    Three things a reader needs and the generic ranking sentence cannot give
+    them: what the number in the leading column IS, which of the things they
+    asked about it was built from, and which it could not use.
+    """
+    label = str(composite.get("label") or "the composite")
+    signals = list(composite.get("signals") or [])
+    score = str((((build.plan or {}).get("meta")) or {}).get("score_column")
+                or "")
+    dimensions = list(composite.get("dimensions") or [])
+
+    if not rows:
+        return Narrative(
+            direct_answer=(
+                f"No borrower in the book shows any of the {len(signals)} "
+                f"governed {label} signals at {build.period}."),
+            summary="", findings=[], interpretation="",
+            interpretation_points=[], metrics=[], caveats=[])
+
+    top = rows[0]
+    best = int(top.get(score) or 0)
+    named = str(top.get("borrower_name") or top.get("customer_id") or "")
+    direct = (
+        f"{count} borrower{'s' if count != 1 else ''}, ranked by how many of "
+        f"{len(signals)} governed {label} signals each one shows at "
+        f"{build.period}. {named} shows the most, at {best} of "
+        f"{len(signals)}.")
+
+    metrics = [
+        Metric(label=f"Most {label} signals", value=best, unit="signals",
+               direction="negative", hint=named),
+        Metric(label="Signals available", value=len(signals), unit="",
+               direction="neutral"),
+    ]
+
+    findings: list[Finding] = []
+    # Which signals the leading borrower actually trips. A count with no
+    # constituents is a score, and a score nobody can decompose is the thing
+    # this whole layer refuses to produce.
+    fired = [str(s.get("label") or s.get("key"))
+             for s in signals if int(top.get(f"signal_{s.get('key')}") or 0)]
+    if fired:
+        findings.append(Finding(
+            text=f"{named}: {_and_list(fired)}.",
+            tone="negative",
+            evidence=[_evidence(named, best, "signals",
+                                period=build.period or "")]))
+
+    # How the evidence thins out. A ranking whose second row is as bad as its
+    # first is a different finding from one with a clear head, and a reader
+    # cannot see which from the top row alone.
+    counts = [int(r.get(score) or 0) for r in rows]
+    several = sum(1 for c in counts if c >= 4)
+    if several:
+        findings.append(Finding(
+            text=(f"{several} of the {count} shown carry four or more "
+                  f"independent signals."),
+            tone="neutral", evidence=[]))
+
+    if dimensions:
+        findings.append(Finding(
+            text=("Built from " + _and_list(dimensions) + "."),
+            tone="neutral", evidence=[]))
+
+    # `build.warnings` already carries the sentence naming what the catalogue
+    # could not supply. Repeating it here would print it twice under one
+    # answer.
+    caveats: list[str] = list(build.warnings)
+
+    interpretation = (
+        "Each signal counts once and none is weighted, so the ranking is "
+        "breadth of evidence rather than a score. A borrower showing the "
+        "same problem on several facilities counts it once.")
+
+    return Narrative(
+        direct_answer=direct, summary=direct, findings=findings,
+        interpretation=interpretation, interpretation_points=[],
+        metrics=metrics, caveats=caveats)
+
+
+def _and_list(items: list[str]) -> str:
+    found = [str(i) for i in items if str(i)]
+    if not found:
+        return ""
+    if len(found) == 1:
+        return found[0]
+    return ", ".join(found[:-1]) + " and " + found[-1]
 
 
 #: Warnings that describe normal governed behaviour rather than something a

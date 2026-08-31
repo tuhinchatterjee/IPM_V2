@@ -166,8 +166,20 @@ def find_movement(text: str) -> Movement | None:
 
 
 #: Units that make a number a span of time rather than a size of movement.
+#: A length of time, allowing one adjective between the number and the unit.
+#:
+#: "over the last four REPORTING periods" slipped past the bare version: the
+#: guard looked for a time unit immediately after the number, found the word
+#: "reporting", and concluded the 4 was a threshold. Every condition in the
+#: sentence then acquired one — "leverage rose more than 4", "covenant
+#: headroom fell more than 4%", "DSCR fell more than 4x" — and a question
+#: about four quarters of history became a question about a magnitude nobody
+#: named. "calendar quarters", "fiscal years" and "trading days" are the same
+#: shape.
 _TIME_UNIT = re.compile(
-    r"^\s*(?:months?|quarters?|years?|weeks?|days?|periods?)\b", re.I)
+    r"^\s*(?:(?:reporting|calendar|fiscal|financial|trading|business|"
+    r"consecutive|full)\s+)?"
+    r"(?:months?|quarters?|years?|weeks?|days?|periods?)\b", re.I)
 
 
 def _is_a_period(tail: str, magnitude: Any) -> bool:

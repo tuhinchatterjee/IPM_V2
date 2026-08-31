@@ -246,7 +246,13 @@ CONCEPTS: tuple[Concept, ...] = (
         )),
     Concept(
         id="dscr", label="debt service coverage",
-        pattern=r"\bdscr\b|debt service cover(?:age)?|debt.service ratio",
+        # "debt-service capacity" is what a credit officer says for this, and
+        # it resolved to nothing: the pattern required the word "coverage" or
+        # "ratio". "Who has both rising utilisation and weakening debt-service
+        # capacity?" therefore ran on utilisation alone, and the answer said
+        # so about neither.
+        pattern=(r"\bdscr\b|debt.service (?:cover(?:age)?|ratio|capacity|"
+                 r"headroom|ability)|(?:capacity|ability) to service"),
         unit="x", higher_is_worse=False,
         candidates=(
             _c(RATINGS, "dscr",

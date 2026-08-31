@@ -214,10 +214,42 @@ def _within_one(token: str, word: str) -> bool:
     return True
 
 
+#: Ordinary English that the governed vocabulary happens not to contain, and
+#: that sits one keystroke from a word it does.
+#:
+#: The bar above says a correction requires a word "unknown to the governed
+#: vocabulary, so nothing that already means something is ever rewritten".
+#: That is the right rule and the module could only half apply it: it knows
+#: the bank's vocabulary and not English, so a correctly spelled English word
+#: absent from the catalogue looked exactly like a typo.
+#:
+#: "Who is beginning to run short of cash?" became "run SORT of cash" —
+#: `sort` is a governed word, `short` is not, and they are one letter apart.
+#: The question then described nothing the catalogue held and was refused as
+#: out of scope. A corrector that damages a correctly typed question is worse
+#: than no corrector, because the user cannot see why the sentence they typed
+#: was not understood.
+#:
+#: Curated rather than a dictionary: a dictionary would be a dependency and a
+#: download, and the words that actually collide with a credit vocabulary are
+#: few and nameable. Add to it when a real question is damaged.
+_ORDINARY: frozenset[str] = frozenset("""
+short shorter shortage cash trouble troubled names weak weaker weakening
+worse worst worry worried risky heavy heavily light tight tighter loose
+begin beginning start starting stop stopping keep keeping getting going
+under over above below behind ahead across around within without
+running runs ruined ready steady rising rose falling fallen
+strong stronger strongest weakest bigger smaller larger looks look
+vulnerable exposed stretched strained squeeze squeezed crunch
+""".split())
+
+
 def _correct(token: str, lexicon: _Lexicon) -> str:
     """The single governed word this is one keystroke from, or "" for none."""
     lowered = token.lower()
     if len(lowered) < MIN_LENGTH or lowered in lexicon.words:
+        return ""
+    if lowered in _ORDINARY:
         return ""
     matches = {w for w in lexicon.candidates(lowered) if _within_one(lowered, w)}
     return matches.pop() if len(matches) == 1 else ""

@@ -279,6 +279,23 @@ _FAMILIES: tuple[tuple, ...] = (
      lambda i: "Which borrowers show the strongest evidence of liquidity "
                f"stress in {_SECTORS[i % len(_SECTORS)]}?",
      7, ("liquidity",), True),
+    # The phrasings a credit officer uses out loud, none of which contains a
+    # column name. Every one is a question about WHICH BORROWERS, and the
+    # product answered the first of them with one portfolio number.
+    ("liquidity in plain english",
+     lambda i: (
+         "Which companies are running into liquidity trouble?",
+         "Who is beginning to run short of cash?",
+         "Which borrowers are drawing more heavily because they are under "
+         "financial pressure?",
+         "Rank the customers showing the strongest liquidity warning signs.",
+         "Who has both rising utilisation and weakening debt-service "
+         "capacity?",
+         "Which names look most vulnerable to a liquidity squeeze?",
+         "Who is under the most cash flow pressure right now?",
+         "Which borrowers look most exposed to a funding squeeze?",
+     )[i % 8],
+     8, ("liquidity", "borrower-filter"), True),
     ("working capital",
      lambda i: "Where has working capital deteriorated fastest over "
                f"{_PERIODS[i % len(_PERIODS)]}?",

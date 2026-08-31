@@ -30,6 +30,7 @@ import re as _re
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.orchestration import composites as cmp
 from backend.orchestration import concepts as cx
 from backend.orchestration import context as governed_context
 from backend.orchestration import conversation as cv
@@ -295,6 +296,27 @@ def plan(reading: Reading, context: GovernedContext, *,
         # replacing, so a resolver alone cannot tell them apart.
         matches = []
         carried_concepts = []
+
+    # A composite risk concept, before anything else looks at the measures.
+    #
+    # "Which borrowers have the strongest evidence of liquidity stress?" names
+    # a credit judgement with no column behind it. Every path below this point
+    # reasons from resolved MEASURES, so the phrase resolved to nothing and
+    # the only measure left was whichever one the "Consider ..." list happened
+    # to mention - which is how a borrower-ranking question became a single
+    # portfolio figure. The composite has to be recognised before the planner
+    # starts choosing between measures, because by then the question has
+    # already been reduced to one.
+    composite = cmp.find(text, catalogue)
+    if composite is not None:
+        build = _composite_ranking(
+            composite, reading, context, text,
+            _filters(reading, context, text), catalogue,
+            top_n=_explicit_top_n(text),
+            period=(period[1] if period else ""))
+        if continuation is not None:
+            build.continuation = continuation
+        return build
 
     if not matches and not count_grain:
         raise CannotPlan(
@@ -1828,14 +1850,22 @@ def _order_by(measures: list[tuple[str, cx.ConceptMatch]], count_column: str,
 
 
 def _grain(reading: Reading, text: str, dataset: str) -> str:
-    import re
+    """The entity grain the cohort path should key on.
 
-    lowered = (text or "").lower()
-    if re.search(r"\bcustomers?\b|\bborrowers?\b|\bobligors?\b|\bclients?\b|"
-                 r"\bnames?\b|\bgroups?\b", lowered):
-        return "customer"
-    if re.search(r"\bfacilit|\baccounts?\b|\bloans?\b", lowered):
-        return "facility"
+    Defers to `grain.requested` rather than carrying its own copy of the
+    vocabulary. It used to hold a second, shorter regex, and the two drifted:
+    `grain` learned that "who" and "companies" name borrowers and this did
+    not, so "Who has both rising utilisation and weakening debt-service
+    capacity?" was planned at FACILITY grain and answered with five hundred
+    account rows. Two lists of borrower words is one list too many.
+
+    The dataset's own grain remains the fallback, exactly as before, for a
+    question that names no entity at all.
+    """
+    del reading
+    want = gr.requested(text, dataset_grain=multi.DATASET_GRAIN.get(dataset, ""))
+    if want.explicit and want.grain in (gr.CUSTOMER, gr.FACILITY):
+        return want.grain
     return multi.DATASET_GRAIN.get(dataset, "customer")
 
 
@@ -1908,6 +1938,211 @@ def _summary(shape: str, measures: list[cx.ConceptMatch],
         return (f"The {top_n} {grain}s with the largest {names}{where} "
                 f"at {period}.")
     return f"{names}{where} at {period}."
+
+
+#: How many borrowers a composite ranking returns when the question does not
+#: say. Enough that the tail is visible and the reader can see where the
+#: evidence thins out; not so many that the table is the whole book.
+COMPOSITE_ROWS = 25
+
+
+def _composite_ranking(found: cmp.Resolved, reading: Reading,
+                       context: GovernedContext, text: str,
+                       filters: list[tuple[str, str]], catalogue: Any, *,
+                       top_n: int = 0,
+                       period: str = "") -> AnalysisBuild:
+    """Rank borrowers by how much governed evidence of a composite they carry.
+
+    One row per borrower, ordered by how many of the composite's signals
+    fired, then by exposure. Every signal counts once and none is weighted —
+    see `composites` for why breadth rather than a score.
+
+    The shape is deliberately a RANKING and not a COHORT. A cohort requires
+    every condition at once, and eight conditions over this book leave nobody:
+    a true answer to a question nobody asked. "Strongest evidence" ranks the
+    population; it does not filter it.
+    """
+    dataset = found.dataset
+    fields_of = {d.name: set(d.fields) for d in catalogue.all()}
+    available = fields_of.get(dataset, set())
+
+    key = gr.KEY_OF.get(gr.CUSTOMER, "customer_id")
+    if key not in available:
+        raise CannotPlan(
+            f"{dataset} has no borrower key, so it cannot be ranked per "
+            f"borrower.",
+            clarification=(
+                "CreditProbe cannot report that one borrower at a time from "
+                "the governed source it would have to read."))
+
+    at = period or _period_for(reading, context, dataset)
+    name = next((c for c in ("borrower_name", "customer_name", "obligor_name")
+                 if c in available), "")
+    size = next((c for c in ("ead", "exposure", "limit_amount")
+                 if c in available), "")
+
+    read = {key, *([name] if name else []), *([size] if size else [])}
+    for signal in found.available:
+        read.update(signal.columns)
+    for field_name, _ in filters:
+        if field_name in available:
+            read.add(field_name)
+    period_field = _period_field(catalogue, dataset)
+    if period_field and period_field in available:
+        read.add(period_field)
+
+    operations: list[dict[str, Any]] = [{
+        "id": "source", "op": "SCAN",
+        "params": {"dataset": dataset, "period": at,
+                   "fields": sorted(f for f in read if f in available),
+                   "alias": f"{dataset}@{at}"},
+        "label": f"Read {dataset} at {at}",
+    }]
+    current = "source"
+
+    if filters:
+        operations.append({
+            "id": "scoped", "op": "FILTER", "inputs": [current],
+            "params": {"where": _predicates(filters)},
+            "label": "Restrict to " + _filter_label(filters),
+        })
+        current = "scoped"
+
+    # One 0/1 column per signal, at the grain the source is keyed on.
+    flags = [f"signal_{s.key}" for s in found.available]
+    operations.append({
+        "id": "signals", "op": "DERIVE", "inputs": [current],
+        "params": {"columns": [
+            {"as": flag, "expression": _signal_expression(signal)}
+            for flag, signal in zip(flags, found.available, strict=True)]},
+        "label": (f"Flag each of the {len(flags)} governed "
+                  f"{found.composite.label} signals"),
+    })
+    current = "signals"
+
+    # A borrower shows a signal if ANY of its facilities does, so max() and
+    # not sum(): a borrower with the same problem on four lines has one
+    # problem, and summing would rank it above a borrower with four different
+    # ones. Breadth of evidence is the thing being measured.
+    aggregates = [{"function": "max", "column": flag, "as": flag}
+                  for flag in flags]
+    if size:
+        aggregates.append({"function": "sum", "column": size, "as": size})
+    group_by = [key] + ([name] if name else [])
+    operations.append({
+        "id": "per_borrower", "op": "GROUP", "inputs": [current],
+        "params": {"by": group_by, "aggregates": aggregates},
+        "label": "Aggregate to one row per borrower",
+    })
+    current = "per_borrower"
+
+    score = f"{found.composite.key}_signals"
+    operations.append({
+        "id": "breadth", "op": "DERIVE", "inputs": [current],
+        "params": {"columns": [{"as": score, "expression": _sum_of(flags)}]},
+        "label": (f"Count how many of the {len(flags)} signals fired for "
+                  f"each borrower"),
+    })
+    current = "breadth"
+
+    order = [{"column": score, "direction": "desc"}]
+    if size:
+        order.append({"column": size, "direction": "desc"})
+    operations.append({
+        "id": "ranked", "op": "SORT", "inputs": [current],
+        "params": {"by": order},
+        "label": ("Order by weight of evidence, then by exposure"
+                  if size else "Order by weight of evidence"),
+    })
+    cut = min(top_n or COMPOSITE_ROWS, MAX_TOP_N)
+    operations.append({
+        "id": "result", "op": "LIMIT", "inputs": ["ranked"],
+        "params": {"n": cut},
+        "label": f"The {cut} with the most evidence",
+    })
+
+    want = gr.requested(text, dataset_grain=gr.CUSTOMER)
+    got = gr.declared(group_by, key=key)
+    contract = gr.Contract(
+        want=want, got=got,
+        source_grain=multi.DATASET_GRAIN.get(dataset, gr.FACILITY),
+        keys=_grain_keys(got, group_by, ""),
+        aggregated=[f"Aggregate to one row per {gr.MEANS.get(got, got)}"],
+        pre_aggregated=[])
+    if not contract.ok:  # pragma: no cover - the grouping is built to match
+        raise CannotPlan(
+            f"This asks for {gr.MEANS.get(want.grain, want.grain)} and the "
+            f"composite ranking would return {gr.MEANS.get(got, got)}.",
+            clarification=(
+                "CreditProbe could not build that ranking at the level the "
+                "question asked for."))
+
+    warnings: list[str] = []
+    if found.unavailable:
+        warnings.append(
+            f"The governed catalogue holds no measure for "
+            f"{_list_of(found.unavailable)}. This ranking is built from the "
+            f"{len(found.available)} signals it does carry: "
+            f"{_list_of(found.dimensions)}.")
+
+    summary = (
+        f"Borrowers ranked by how many of {len(found.available)} governed "
+        f"{found.composite.label} signals they show at {at}.")
+
+    return AnalysisBuild(
+        plan={"dataset": dataset, "period": at, "operations": operations,
+              "meta": {"composite": found.to_dict(),
+                       "signal_columns": flags, "score_column": score}},
+        shape=RANKING, reading=reading, matches=[], conditions=[],
+        filters=filters, dataset=dataset, grain=gr.CUSTOMER, period=at,
+        dimension="", top_n=cut, warnings=warnings, summary=summary,
+        grain_contract=contract)
+
+
+def _signal_expression(signal: cmp.Signal) -> dict[str, Any]:
+    """One signal, as a CASE returning 1 or 0.
+
+    Built as an expression tree rather than a string, so nothing here can
+    become SQL by accident — see `runtime.ir` on why the IR has no parser.
+    """
+    column = {"type": "column", "name": signal.field}
+    if signal.test == cmp.TRUE:
+        when = {"type": "function", "function": "eq",
+                "args": [column, {"type": "literal", "value": True}]}
+    elif signal.test == cmp.ABOVE:
+        when = {"type": "function", "function": "gte",
+                "args": [column, {"type": "literal", "value": signal.value}]}
+    elif signal.test == cmp.BELOW:
+        when = {"type": "function", "function": "lt",
+                "args": [column, {"type": "literal", "value": signal.value}]}
+    else:  # ROSE_BY
+        when = {"type": "function", "function": "gte",
+                "args": [{"type": "function", "function": "subtract",
+                          "args": [column,
+                                   {"type": "column", "name": signal.against}]},
+                         {"type": "literal", "value": signal.value}]}
+    return {"type": "case",
+            "whens": [{"when": when, "then": {"type": "literal", "value": 1}}],
+            "otherwise": {"type": "literal", "value": 0}}
+
+
+def _sum_of(columns: list[str]) -> dict[str, Any]:
+    """`a + b + c`, as a left-folded expression tree."""
+    tree: dict[str, Any] = {"type": "column", "name": columns[0]}
+    for column in columns[1:]:
+        tree = {"type": "function", "function": "add",
+                "args": [tree, {"type": "column", "name": column}]}
+    return tree
+
+
+def _list_of(items: Any) -> str:
+    """"a, b and c" — for a sentence a credit officer reads."""
+    found = [str(i) for i in items if str(i)]
+    if not found:
+        return ""
+    if len(found) == 1:
+        return found[0]
+    return ", ".join(found[:-1]) + " and " + found[-1]
 
 
 def _movement(reading: Reading, context: GovernedContext, text: str,

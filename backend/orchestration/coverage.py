@@ -251,6 +251,24 @@ def check(question: str, reading: Any = None) -> Coverage:
         if getattr(reading, "datasets", ()) or getattr(reading, "entities", ()):
             return Coverage(covered=True)
 
+    # A governed composite is governed vocabulary. "Which companies are
+    # running into liquidity trouble?" carries no word the catalogue holds —
+    # `liquidity`, `trouble` and `companies` are none of them column names —
+    # so the token scan below concluded the bank had not published anything on
+    # the subject and refused. It has: the composite resolves to eight
+    # published fields on the facility position, which is exactly the "there
+    # is something to compute" test the reading check above applies.
+    try:
+        from backend.data_access import get_catalog
+        from backend.orchestration import composites as cmp
+
+        if cmp.find(text, get_catalog()) is not None:
+            return Coverage(covered=True)
+    except Exception:  # noqa: BLE001 - a catalogue that will not load is not
+        # a reason to refuse; the same reasoning as the empty-universe guard
+        # immediately below.
+        pass
+
     universe = _universe()
     if not universe.words:
         # No catalogue to check against. Refusing on the basis of a universe
