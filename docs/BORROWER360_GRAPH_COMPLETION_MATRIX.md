@@ -134,12 +134,13 @@ minutes for all sixteen.
 | Borrower search by 12 attributes | IMPLEMENTED (service layer) | `search.SEARCHABLE` |
 | Ambiguous names show candidates, never silently chosen | IMPLEMENTED | `ambiguous` / `resolved`, tested |
 | Missing cohort member disclosed | IMPLEMENTED | `not_found` plus an explanation, tested |
-| Borrower 360 screen and its 13 tabs | NOT_IMPLEMENTED | no route under `frontend/src/app` |
-| Corporate API router | NOT_IMPLEMENTED | no router under `backend/api/routers` |
-| Borrower 360 / Graph permissions | NOT_IMPLEMENTED | no permission constant exists |
-| Network views (11 named) | NOT_IMPLEMENTED | |
-| Group & Connectedness shown as six separate groupings | PARTIAL | three of the six are now computed per borrower (effective-ownership group, control group, connected group) with distinct ids and a role; no screen shows them |
-| DOWNLOAD BORROWER 360 PACK (17 sheets) | NOT_IMPLEMENTED | |
+| Borrower 360 screen and its 13 tabs | IMPLEMENTED | `frontend/src/app/borrower-360/page.tsx`; `service.TAB_KEYS` has 13; browser acceptance at 4 viewports |
+| Corporate API router | IMPLEMENTED | `backend/api/routers/corporate.py`, 9 routes; `test_corporate_api.py` (39) |
+| Borrower 360 / Graph permissions | IMPLEMENTED | 4 named permissions; every route called as each of 4 roles with the status read |
+| Network views (11 named) | IMPLEMENTED | `service.NETWORK_VIEWS`, server-side ego expansion with exact omitted counts |
+| Group & Connectedness shown as six separate groupings | IMPLEMENTED | `service.GROUP_CONCEPTS` — six cards, each with Answers / Basis / **Is NOT** |
+| DOWNLOAD BORROWER 360 PACK | IMPLEMENTED | `backend/corporate/pack.py`, 18 sheets (COVER + 17); sentinels survive the export |
+| Pinning, saved cohorts, Data Builder graph-domain viewer | NOT_IMPLEMENTED | the remaining Borrower 360 interactions |
 | Data Builder graph domains expose scope/grain/keys/lineage/authority | IMPLEMENTED | 20 datasets registered; 7 declared relationships including 2 FORBIDDEN |
 
 ## Phases 4–6 — Ask, Brain, agentic
@@ -148,22 +149,35 @@ minutes for all sixteen.
 |---|---|
 | Corporate datasets reachable by Ask without corrupting credit-book retrieval | IMPLEMENTED — `portfolio_scope` separation, 16 tests |
 | Corporate teaching vocabulary | IMPLEMENTED — 187 measures, 121 dimensions |
-| 16 governed graph questions answerable | NOT_VERIFIED |
-| ~33 Brain concepts for graph semantics | NOT_IMPLEMENTED |
-| 10 Investigation Blueprints | NOT_IMPLEMENTED |
-| Development / holdout coverage for 16 graph topics | NOT_IMPLEMENTED |
+| 16 governed graph questions answerable | IMPLEMENTED — 4 certified analyses; 12 named questions route by deterministic overlap, `TestTheTwelveQuestionsRoute` |
+| Brain concepts for graph semantics | IMPLEMENTED — 22 Concepts (62 total), each resolving to a governed field |
+| Semantic contracts for the graph measures | IMPLEMENTED — 8 contracts (45 total), each stating a boundary and forbidding an operation |
+| 10 Investigation Blueprints | IMPLEMENTED — 29 blueprints / 29 families, all graph ones usable |
+| Development coverage for graph topics | IMPLEMENTED — 17 families, 578 cases, no family short |
+| Sealed-holdout coverage for graph topics | IMPLEMENTED — 328 cases, isolation proved and proved able to fail |
+| A specialist that owns the graph | IMPLEMENTED — `relationship_graph`, scoped to 3 data domains |
 
 ---
 
 ## Summary
 
-| Status | Count | Previously |
-|---|---:|---:|
-| IMPLEMENTED | 51 | 21 |
-| PARTIAL | 3 | 6 |
-| BROKEN | 0 | 1 |
-| NOT_IMPLEMENTED | 8 | 34 |
-| NOT_VERIFIED | 1 | 1 |
+Counted from the status column of every table row in this document, not
+from memory:
+
+| Status | Count | Previous revision | First revision |
+|---|---:|---:|---:|
+| IMPLEMENTED | 74 | 51 | 21 |
+| PARTIAL | 3 | 3 | 6 |
+| BROKEN | 0 | 0 | 1 |
+| NOT_IMPLEMENTED | 4 | 8 | 34 |
+| NOT_VERIFIED | 0 | 1 | 1 |
+
+The four remaining NOT_IMPLEMENTED rows are `source_record_id` on observed
+edges, `portfolio_scope` on the edge row (it is on the dataset), a validation
+status on observed edges (the DERIVED products carry one), and the remaining
+Borrower 360 interactions — pinning, saved cohorts and the Data Builder
+graph-domain viewer. Each is a statement about work that does not exist,
+not about work that was not checked.
 
 **What the derived layer now does:** integrated ownership with a per-component
 refusal, control closure that is binary and transitive and refuses to be

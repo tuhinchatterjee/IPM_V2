@@ -53,19 +53,25 @@ three are the sixteen quarters of graph derivation.
 ## 3. The gates
 
 ```powershell
-.venv\Scripts\python -m ruff check backend tests scripts
+.venv\Scripts\python -m ruff check backend tests scripts intelligence_factory
 .venv\Scripts\python -m pytest tests -q
+.venv\Scripts\python -m pytest tests\proof\test_zero_tolerance.py -q
 .venv\Scripts\python scripts\check_decimals.py
 .venv\Scripts\python scripts\feature_matrix.py --check
+.venv\Scripts\python scripts\seed_teaching_library.py --report
 cd frontend ; npx tsc --noEmit ; npx eslint . ; npx next build ; cd ..
 ```
 
-**Pass looks like:** ruff "All checks passed"; pytest exit 0 with 5,823
-collected and **zero** skipped in `tests/corporate` and `tests/api` — a run
-where those skip is a run where the lake was not built, and two tests
+**Pass looks like:** ruff "All checks passed"; pytest exit 0 with **zero**
+skipped in `tests/corporate` and `tests/api` — a run where those skip is a
+run where the lake was not built, and two tests
 (`test_the_lake_is_built_and_this_suite_actually_ran`) will FAIL to tell you
-so; `check_decimals` reporting 49 allowed and 0 unexplained; `feature_matrix
---check` reporting no drift; the Next build listing `/borrower-360`.
+so; the zero-tolerance suite reporting **37 passed, 0 skipped**, its own
+first test failing loudly if the lake or the database is missing;
+`check_decimals` reporting 49 allowed and 0 unexplained; `feature_matrix
+--check` reporting no drift; `seed_teaching_library --report` totalling
+**3,603** across six corpora with `short: {}` for both module corpora; the
+Next build listing `/borrower-360`.
 
 > Do not read "zero lines matched" as a pass. `grep -c "^FAILED"` exits 1
 > when nothing matched, which looks like a failure and is not; and a suite

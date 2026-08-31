@@ -27,9 +27,15 @@ join actually does. A cell reads OK only where something was run.
 | Permissions catalogue | 4 named permissions registered with roles and descriptions | `test_the_named_permissions_are_registered` | OK |
 | Feature matrix | `/borrower-360` enumerated from the filesystem with a curated expected behaviour and its limitations | `test_feature_matrix.py` | OK |
 | Migrations | single head `0029`; no new migration needed — the graph datasets are lake artefacts, not tables | `alembic heads` | OK |
-| AI Brain concepts | — | — | **NOT BUILT** |
-| Investigation Blueprints | — | — | **NOT BUILT** |
-| Graph teaching cases (dev + sealed holdout) | — | — | **NOT BUILT** |
+| AI Brain concepts | 22 graph Concepts (62 total), each resolving to a governed field | `test_graph_brain.py` (31) | OK |
+| Semantic contracts | 8 graph contracts (45 total), each stating a boundary and forbidding at least one operation | `TestSemanticContracts` | OK |
+| Investigation Blueprints | 10 graph blueprints (29 total / 29 families), all usable, 3+ required objectives each | `TestBlueprints` | OK |
+| Graph teaching cases — development | 17 families, 578 cases, no family short, no stored figure | `test_graph_teaching.py` (28) | OK |
+| Graph teaching cases — sealed holdout | 328 cases, 9 generators, `holdout::graph::` clusters, isolation proved AND proved able to fail | `TestHoldout` | OK |
+| Teaching library seeding | both module corpora offered; all 3,603 offered cases validate; 0 retrievable at DRAFT | `test_canonical_cases.py` | OK |
+| Agent registry | `relationship_graph` specialist owns the graph concepts and is scoped to 3 data domains | `test_registry.py` | OK |
+| Brain AGENTIC corpus | the new specialist is teachable at every officer level | corpus build | OK |
+| Zero-tolerance suite | 36 named failure classes, 8 of them graph-specific | `test_zero_tolerance.py` (37) | OK |
 | Docker | — | — | **NOT VERIFIED IN CLAUDE SANDBOX** |
 | Live AI | — | — | **NOT VERIFIED** — forbidden here |
 

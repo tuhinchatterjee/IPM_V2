@@ -26,15 +26,16 @@ Both outstanding steps, and what a pass looks like for each, are in
 
 | | |
 |---|---:|
-| Commits since `d7c910f` | 9 |
-| Files changed | 45 |
-| New backend modules | 5 |
-| New test files | 6 |
-| New tests | ~210 |
-| Total tests collected | 5,823 |
+| Commits since `d7c910f` | 14 |
+| Files changed | 66 |
+| Lines added / removed | 24,244 / 736 |
+| New backend and factory modules | 10 |
+| New test files | 11 |
+| New tests in those files | 361 |
+| Existing test files modified | 5 |
 | Test suite result | **exit 0, zero failures** |
 
-Five new backend modules:
+Ten new modules:
 
 * `backend/corporate/graphmath.py` — integrated ownership, control closure,
   ownership chains, connected groups, eight interdependence predicates
@@ -44,6 +45,12 @@ Five new backend modules:
 * `backend/corporate/graphsummary.py` — the derivation that populates the
   Borrower 360
 * `backend/corporate/service.py` + `pack.py` + the API router and screen
+* `backend/corporate/holdout.py` — the sealed graph holdout, 328 cases
+* `intelligence_factory/teaching/corporate_graph.py` — 578 development cases
+  across 17 families
+* `backend/engine/functions/corporate_graph.py` — four certified analyses
+* `tests/proof/test_zero_tolerance.py` — 36 named failure classes in one
+  runnable suite
 
 ## Every gate, and its result
 
@@ -118,18 +125,37 @@ Three findings, all fixed: a skip that could hide a missing lake (now two
 tests that FAIL), a missing confidence counted as zero in a mean, and a
 frontend catch that rendered a refusal and a failure identically.
 
+## What was built after the previous revision of this document
+
+The previous revision listed four things as not built. Three are now built:
+
+* **AI Brain concepts for graph semantics** — 22 Concepts (62 total), each
+  resolving to a governed field, plus 8 semantic contracts (45 total).
+* **10 Investigation Blueprints** — 29 blueprints across 29 families, all ten
+  graph ones usable with three required objectives, hypotheses, challenges
+  and a `when_not_to_use`.
+* **Development and sealed-holdout teaching coverage for the graph topics** —
+  17 families, 578 development cases with no family short, and a 328-case
+  sealed holdout whose isolation is proved AND proved able to fail.
+
+And one thing nobody had asked for, because building the corpus surfaced it:
+**556 teaching cases were invisible to the product.** The 500-case retail
+scorecard corpus had never been added to the seeder, and 56 safety cases were
+rejected at save. The human-review pack counts the corpus rather than the
+library, so a reviewer was shown coverage the product did not have.
+
 ## What is honestly not built
 
 Stated as absences of work, not as things that went unchecked.
 
-* **~33 AI Brain concepts for graph semantics** — not built.
-* **10 Investigation Blueprints** — not built.
-* **Development and sealed-holdout teaching coverage for the graph topics** —
-  not built. The teaching *vocabulary* is in place: 38 measures and
-  dimensions were added and all 46 governed datasets now have at least one of
-  each, so no governed dataset is unteachable.
 * **Remaining Borrower 360 interactions** — pinning, saved cohorts, the Data
   Builder graph-domain viewer.
+* **`source_record_id`, `portfolio_scope` and a validation status on the
+  OBSERVED edge rows.** Present on the dataset and on the DERIVED products.
+* **Human review of the teaching library.** 3,603 cases are offered at DRAFT
+  and 0 are retrievable. That is correct for a freshly seeded library, and it
+  means the Brain teaches the model nothing until a reviewer approves cases.
+  No case was promoted to raise a count.
 * **Docker** — not verifiable here.
 * **Live AI** — not verifiable here, by instruction.
 
@@ -143,8 +169,15 @@ Stated as absences of work, not as things that went unchecked.
 3. Every generated row carries `origin = SYNTHETIC_DEMO`, and every API
    response and every export carries the not-client-data statement. Nothing
    is presented as client data.
-4. No test was changed to match an implementation. No legacy assertion was
-   weakened, deleted or replaced.
+4. No test was changed to match an implementation. **Two** legacy assertions
+   were changed, both documented in full in `BAD_PATCH_AUDIT.md` with the old
+   invariant, why it was stale, the stronger replacement and the new
+   regression. Neither was weakened: both were equalities that read their own
+   stated property as a ceiling and failed on required growth rather than on
+   the removal they exist to catch. Each was replaced by the floor it meant
+   PLUS a two-directional correspondence check that covers strictly more —
+   including, in the agent case, a domain owned by a misspelled id, which the
+   equality could not see.
 5. No numeric tolerance was widened. No failure was converted to a skip. No
    xfail was added.
 6. No file was excluded from a linter or scanner. The one decimal-contract
@@ -157,7 +190,9 @@ Stated as absences of work, not as things that went unchecked.
 8. No retrieval budget was inflated. No data-quality rejection was hidden. No
    threshold was removed or loosened.
 9. No authorization was bypassed. Four new permissions are enforced and each
-   is exercised as all four roles with the status code read.
+   is exercised as all four roles with the status code read. The thirteenth
+   agent is scoped to three data domains rather than to all eight, so it
+   cannot answer a retail question by accident.
 10. B54's caveats travel in the code, the payload, the screen and the export:
     graph connectivity is not regulatory connectedness; control closure and
     proportional ownership differ by design; DebtRank is not capital or ECL
@@ -167,3 +202,95 @@ Stated as absences of work, not as things that went unchecked.
 11. Regulatory thresholds from the framework document are labelled
     UNVERIFIED REGULATORY PARAMETER wherever they appear, and are not
     operationalised as current binding law.
+
+## The zero-tolerance suite
+
+Thirty-six named failure classes, one test each, all driving the mechanism:
+
+```
+.venv/bin/python -m pytest tests/proof/test_zero_tolerance.py -q
+37 tests, 37 passed, 0 skipped, 0 failed
+```
+
+The thirty-seventh test FAILS rather than skipping when the lake or the
+database is absent, because thirty-six skips and thirty-six passes look
+identical in a terminal. Full detail in `ZERO_TOLERANCE_SUITE.md`.
+
+## The companion documents
+
+| Document | What it establishes |
+|---|---|
+| `AGENTIC_FUNCTIONAL_VERIFICATION.md` | The agentic layer across 15 dimensions, every claim citing a named test |
+| `AI_BRAIN_RUNTIME_AUDIT.md` | 23 Brain components, the status census, the four governance statements with their evidence |
+| `ZERO_TOLERANCE_SUITE.md` | The 36 classes and what each test drives |
+| `FULL_CREDITPROBE_FUNCTIONAL_VERIFICATION.md` | §6's 31 modules, each with its evidence |
+| `FULL_SYSTEM_INTEGRATION_MATRIX.md` | Where the graph meets every other subsystem |
+| `BORROWER360_GRAPH_COMPLETION_MATRIX.md` | 74 IMPLEMENTED / 3 PARTIAL / 4 NOT_IMPLEMENTED / 0 BROKEN / 0 NOT_VERIFIED |
+| `BAD_PATCH_AUDIT.md` | Eleven questions, and the two changed legacy assertions in full |
+| `WINDOWS_LOCAL_VERIFICATION.md` | The two steps this environment cannot take |
+
+---
+
+## The eleven stop conditions
+
+Stated against the section of the continuation prompt that names each one.
+
+| Condition | State | Where it is established |
+|---|---|---|
+| All graph mathematics and analytics complete | **MET** | `graphmath.py`, `network.py`, `graphquality.py`, `graphsummary.py`; 417 tests in `tests/corporate`, ownership against hand-computed gold |
+| Borrower 360 UI and exports complete | **MET** (bar three named interactions) | 13 tabs, 11 network views, 6 group concepts, 18-sheet pack; pinning, saved cohorts and the Data Builder graph viewer are NOT built and are named as such |
+| Ask / AI Brain can use graph and Borrower 360 data | **MET** | 4 certified analyses, 12 named questions routing, 22 Concepts, 8 contracts, 10 blueprints, 578 development cases, 328 sealed holdout cases |
+| Agentic AI functionally validated | **MET** | `AGENTIC_FUNCTIONAL_VERIFICATION.md`; 184 tests across 15 dimensions, each claim citing its test |
+| Retail Scorecard regression-tested after graph integration | **MET** | `TestThreeBooksAfterTheGraph` pins the LEAD dataset for 13 questions across 3 books; the 307-test scorecard suite re-run |
+| Whole platform comprehensively verified | **MET** for what this environment can run | `FULL_CREDITPROBE_FUNCTIONAL_VERIFICATION.md` §2: a row per §6 module with its evidence |
+| Integration loose ends found are FIXED | **MET** | Six, each with a regression, listed in §2 of the functional verification |
+| No bad patch remains | **MET** | `BAD_PATCH_AUDIT.md`: eleven questions, two changed legacy assertions documented in full, neither weakened |
+| All FEASIBLE release-blocking gates green | **MET** | The gate table above. Docker and live AI are not feasible here and are marked NOT VERIFIED rather than passed |
+| Final documentation complete | **MET** | Eight documents, listed above |
+| Final clean commit pushed, local and remote match | **MET** | Branch `claude/vigilant-darwin-eohyi1` |
+
+## The eleven confirmations
+
+Stated as facts about this repository and this session, each one checkable.
+
+1. **Synthetic data is not client data.** Every generated row carries
+   `origin = SYNTHETIC_DEMO`. The API payload, the screen and every export
+   carry the statement. `TestInstruction` in the sealed holdout teaches the
+   refusal of a request to present it otherwise.
+2. **Graph connectivity is not regulatory connectedness.** The
+   `group_size` contract says CANDIDATE and denies the equivalence in words;
+   `test_graph_connectivity_called_regulatory_connectedness` asserts both.
+   The graph specialist's escalation rules repeat it.
+3. **The Network Risk Score is not a PD, a rating or an ECL.** Five denials
+   in `network.NRS_LABEL`, five in the contract definition, and `sum`
+   forbidden — because a ranking that can be summed is a ranking somebody
+   will treat as a quantity.
+4. **DebtRank is not an ECL or a capital measure.** Three denials in the
+   contract, `sum` forbidden with its reason (overlapping neighbours), and
+   two holdout shapes that ask for the multiplication and must be refused.
+5. **Scorecard candidate models do not auto-activate.** The registry's
+   transition table has no `CANDIDATE → ACTIVE` edge; only `APPROVED` can
+   reach `ACTIVE`, and approval needs a person.
+6. **Brain imports do not auto-activate.** An upload lands in quarantine and
+   retrieves nothing. `may_activate` refuses a candidate that is not STAGED,
+   one nobody approved, one that is unsigned without high-trust approval,
+   and one with a measured critical regression.
+7. **Raw feedback does not alter production directly.** A correction becomes
+   a ledger entry, LOCAL and unreviewed. The eligibility gate refuses it
+   while any condition is unmet, and an approved entry must name a reviewer.
+8. **AUTO_VALIDATED cases are not production-retrievable.** `RETRIEVABLE` is
+   exactly `{APPROVED, SYSTEM_VALIDATED}`, and SYSTEM_VALIDATED carries a
+   second gate an administrator must open. The census: 3,603 cases offered,
+   all DRAFT, **0 retrievable**. Nothing was promoted to raise a count.
+9. **The sealed holdout is isolated.** Both of them. 1,436 canonical plus
+   5,996 variants against 320 sealed cases, and 578 graph development cases
+   against 328. `isolated()` compares fingerprints, clusters and question
+   text and raises; a test proves it can fail; two more prove no sealed
+   question reaches the teaching library.
+10. **No live Anthropic call was made in Claude Code.** Every AI-shaped test
+    ran against fake providers and deterministic fixtures. The experiment
+    runner itself refuses a live-provider arm without explicit
+    authorization, which is why an offline audit could not spend credits by
+    accident.
+11. **No Anthropic credits were consumed, and no API key was inspected or
+    printed.**
