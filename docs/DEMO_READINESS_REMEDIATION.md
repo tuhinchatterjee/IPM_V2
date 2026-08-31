@@ -303,10 +303,18 @@ borrower names must still surface.
 
 ## L. Full test suite
 
-**7,104 passed, 21 skipped, 0 failed** on the definitive run
+**7,105 passed, 21 skipped, 0 failed** on the definitive run
 (`pytest tests/ -q -p no:randomly`, exit 0). Frontend: **308 passed, 0
 failed**. `ruff` clean across `backend/`, `tests/`, `scripts/`, `alembic/`;
 `tsc --noEmit` and `eslint` clean.
+
+The suite was run three times: once mid-work, once on what was believed to be
+the final tree, and once after a defect the second run did not catch. That
+middle run was green while a fix for Q1 had silently dropped two of Q3's four
+conditions - "1 borrower meeting all four" had become "500 meeting two", under
+a heading still promising four. It was found by re-running the six questions
+by hand, not by the suite, which is the argument for §20's rule that unit
+tests passing is not the gate. The regression is now pinned by a test.
 
 No existing test was weakened, skipped or xfailed. Three legacy assertions
 were replaced because the string each pinned was itself the defect; each
