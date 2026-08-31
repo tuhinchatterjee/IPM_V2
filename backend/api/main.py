@@ -289,6 +289,7 @@ def create_app() -> FastAPI:
     app.include_router(ask_router.router, prefix=API_PREFIX)
     app.include_router(ask_router.trace_edit_router, prefix=API_PREFIX)
     app.include_router(early_warning_router.router, prefix=API_PREFIX)
+    app.include_router(intelligence_router.router, prefix=API_PREFIX)
     # The governed agentic layer: runs, the live officer indicator,
     # the registry, schedules, policies, approvals — and Risk Cases,
     # which the Cockpit's Requires Attention reads.
@@ -325,7 +326,6 @@ def create_app() -> FastAPI:
     app.include_router(lenses_router.router, prefix=API_PREFIX)
     app.include_router(playbooks_router.router, prefix=API_PREFIX)
     app.include_router(studio_router.router, prefix=API_PREFIX)
-    app.include_router(intelligence_router.router, prefix=API_PREFIX)
     # The Brain Center: the Learning Ledger, exports, quarantine, the Lift
     # Lab, installations and the trusted signer registry. Reading is open to
     # the Studio's audience; activating a Brain is an administrator's alone.

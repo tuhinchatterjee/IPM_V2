@@ -1117,8 +1117,12 @@ def fetch_group_exposure(principal: Principal, **kwargs: Any) -> Observation:
     return _evidence_tool(principal, EVIDENCE["fetch_group_exposure"], **kwargs)
 
 
-def fetch_ifrs9_evidence(principal: Principal, **kwargs: Any) -> Observation:
-    return _evidence_tool(principal, EVIDENCE["fetch_ifrs9_evidence"], **kwargs)
+def fetch_ifrs9_evidence(principal: Principal, customer_id: str = "",
+                         period: str = "", **kwargs: Any) -> Observation:
+    """One borrower's booked IFRS 9 position, and why the book says it. §30."""
+    del kwargs
+    return _reading_tool("fetch_ifrs9_evidence", principal,
+                         customer_id=customer_id, period=period)
 
 
 def fetch_early_warning_evidence(principal: Principal,
@@ -1184,21 +1188,116 @@ def fetch_early_warning_evidence(principal: Principal,
         duration_ms=int((time.perf_counter() - started) * 1000))
 
 
-def fetch_covenant_evidence(principal: Principal, **kwargs: Any) -> Observation:
-    return _evidence_tool(
-        principal, EVIDENCE["fetch_covenant_evidence"], **kwargs)
+def fetch_covenant_evidence(principal: Principal, customer_id: str = "",
+                            period: str = "", **kwargs: Any) -> Observation:
+    """One borrower's covenant position, test by test. §32."""
+    del kwargs
+    return _reading_tool("fetch_covenant_evidence", principal,
+                         customer_id=customer_id, period=period)
 
 
-def fetch_collateral_evidence(principal: Principal,
-                              **kwargs: Any) -> Observation:
-    return _evidence_tool(
-        principal, EVIDENCE["fetch_collateral_evidence"], **kwargs)
+def fetch_collateral_evidence(principal: Principal, customer_id: str = "",
+                              period: str = "", **kwargs: Any) -> Observation:
+    """One borrower's security, asset by asset. §33."""
+    del kwargs
+    return _reading_tool("fetch_collateral_evidence", principal,
+                         customer_id=customer_id, period=period)
 
 
-def fetch_external_intelligence(principal: Principal,
+def fetch_external_intelligence(principal: Principal, customer_id: str = "",
+                                period: str = "",
                                 **kwargs: Any) -> Observation:
-    return _evidence_tool(
-        principal, EVIDENCE["fetch_external_intelligence"], **kwargs)
+    """What the credit file says about one borrower, in its own words. §31."""
+    del kwargs
+    return _reading_tool("fetch_external_intelligence", principal,
+                         customer_id=customer_id, period=period)
+
+
+# ---------------------------------------------------------------------------
+# The four domain readings, as tools
+# ---------------------------------------------------------------------------
+#
+# These four used to return raw rows and leave the model to work out what they
+# meant. That is exactly the arrangement §30-§33 exist to end: a model reading
+# `stage = 2, sicr_flag = true` and writing "this borrower is expected to
+# migrate to stage 2" is not misreading the data, it is doing the only thing
+# available to it. The reader supplies the meaning - booked, not predicted;
+# eligible value, not market value; no memo, not no news - and the tool passes
+# that meaning through rather than re-deriving it.
+#
+# One consequence worth stating: the analyst and the Early Warning screen now
+# answer "why was this flagged" from the same module. Two paths that composed
+# the same evidence separately would eventually word it differently, and the
+# one a client saw would be whichever they happened to open.
+
+#: Which reader answers which tool, and what a caller is asking for.
+READINGS: dict[str, tuple[str, str]] = {
+    "fetch_ifrs9_evidence": (
+        "ifrs9",
+        "the booked IFRS 9 position and the trigger behind it - a "
+        "classification that has happened, never a forecast of one"),
+    "fetch_covenant_evidence": (
+        "covenant",
+        "each covenant tested individually, with its headroom and the age of "
+        "the statements it was tested on"),
+    "fetch_collateral_evidence": (
+        "collateral",
+        "security valued twice over - market value and post-haircut eligible "
+        "value - because only the second one covers exposure"),
+    "fetch_external_intelligence": (
+        "external",
+        "what people wrote about this borrower, as evidence somebody "
+        "recorded rather than as a measurement"),
+}
+
+
+def _reading_tool(name: str, principal: Principal, *, customer_id: str,
+                  period: str) -> Observation:
+    arguments = {"customer_id": customer_id, "period": period}
+    if not customer_id:
+        return _refusal(name, arguments, "name a borrower by customer_id.")
+    if not principal.may(READ_DATA):
+        return _refusal(name, arguments,
+                        f"A {principal.role.title()} may not read this.")
+    domain, purpose = READINGS[name]
+    started = time.perf_counter()
+    try:
+        from backend.api.routers.intelligence import READERS
+
+        module = READERS[domain]
+        if module.DATASET not in _visible(principal):
+            return _refusal(
+                name, arguments,
+                f"This deployment has no {module.DATASET}, so {purpose} "
+                "cannot be supplied. Answer on the evidence that does exist "
+                "and say this one is unavailable.")
+        reading = module.read(customer_id, period)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("%s failed: %s", name, e)
+        return _refusal(name, arguments,
+                        f"that evidence could not be gathered: {_why(e)}")
+
+    rows = [
+        {"finding": f.label, "means": f.means, "severity": f.severity,
+         "value": _plain(f.value), "previous": _plain(f.previous),
+         "threshold": _plain(f.threshold), "field": f.field_name,
+         "booked_accounting": f.booked_accounting}
+        for f in reading.findings
+    ]
+    said = reading.sentence()
+    if reading.missing:
+        # Carried into `purpose` rather than dropped: what could NOT be read
+        # is the half of the evidence a model will otherwise fill in for
+        # itself, and it fills it in optimistically.
+        said += " " + " ".join(m.why for m in reading.missing)
+    return Observation(
+        tool=name, arguments=arguments,
+        rows=rows[:safety.MAX_ROWS_TO_MODEL], total_rows=len(rows),
+        columns=["finding", "means", "severity", "value", "threshold",
+                 "field", "booked_accounting"],
+        datasets=[module.DATASET], period=reading.period,
+        purpose=f"{purpose}. {said}",
+        duration_ms=int((time.perf_counter() - started) * 1000))
 
 
 def run_governed_analysis(principal: Principal, analysis: str = "",
