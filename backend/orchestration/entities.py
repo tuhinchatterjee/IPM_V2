@@ -298,6 +298,13 @@ _NOT_A_NAME = frozenset({
     "compute", "calculate", "measure", "quantify", "attribute", "decompose",
     "rate", "score", "select", "take", "use", "using", "based", "for", "each",
     "every", "their", "these", "those", "them", "both", "any", "all", "some",
+    # -- auxiliaries. "Has Zenith Petrochemical breached a covenant?" opens
+    # with one, and without these the whole phrase "Has Zenith Petrochemical"
+    # is reported as the unknown name — which is worse than reporting nothing,
+    # because the message then names a borrower that does not exist in a form
+    # nobody typed.
+    "has", "have", "had", "was", "were", "will", "would", "should", "shall",
+    "may", "might", "must", "am", "be", "been", "being",
     # -- analytical vocabulary that is a concept, never an obligor
     "sicr", "ecl", "pd", "lgd", "ead", "dpd", "ebitda", "raroc", "npl",
     "watchlist", "covenant", "collateral", "utilisation", "utilization",

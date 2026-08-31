@@ -123,9 +123,26 @@ _PRONOUN_RE = re.compile(
 # Segmentation
 # ---------------------------------------------------------------------------
 
-#: Sentence end. Kept simple on purpose: a decimal point inside a number is the
-#: only common false boundary in this domain, and the lookbehind excludes it.
-_SENTENCE = re.compile(r"(?<![0-9])[.?!]+(?:\s+|$)")
+#: Sentence end.
+#:
+#: A decimal point inside a number is the one common false boundary in this
+#: domain — "a DSCR below 1.2" must not become two sentences. That is already
+#: prevented by requiring WHITESPACE OR END after the terminator: the "." in
+#: "1.2" is followed by a digit, so it never matches.
+#:
+#: There used to be a `(?<![0-9])` lookbehind here as well, and it was doing
+#: real damage. It blocked a terminator after any digit, so a sentence ending
+#: in a period, a year or an amount did not end:
+#:
+#:     "Which borrowers breached a covenant at Q2 2026? Explain what changed
+#:      for each of them."
+#:
+#: stayed one clause. "them" then sat in the SAME clause as the cohort it
+#: refers to, could not bind to it — a mention cannot resolve against its own
+#: defining clause — and the product asked which borrowers were meant, of a
+#: message that had just said. Every question ending "...in 2025." or "...at
+#: Q2 2026?" was affected, which is most of them.
+_SENTENCE = re.compile(r"[.?!]+(?:\s+|$)")
 
 #: Clause boundaries INSIDE a sentence that start a new request. Each one is a
 #: coordinator followed by something that begins a new predicate:
@@ -665,16 +682,22 @@ def resolves_locally(question: str) -> bool:
        no backward reference is the easiest case in the language, and it was
        the one case that failed.
 
-    So: a message resolves locally when it leaves NO unresolved mention and it
-    either resolved one or defined a cohort of its own. A message that does
-    neither — a bare "Rank them by EAD" with nothing before it — still has an
-    unresolved mention and is still, correctly, a question for the
-    conversation.
+    3. It refers to nothing at all:
+
+           "What is ECL for Contracting at Q2 2026?"
+
+       No anaphor, no cohort, nothing pointing anywhere. The most
+       self-contained sentence there is.
+
+    So the condition is simply: nothing in this message points at something
+    the message did not supply. `not found.unresolved` says exactly that, and
+    it covers all three without enumerating them.
+
+    A bare "Rank them by EAD" with nothing before it still has an unresolved
+    mention, so it is still — correctly — a question for the conversation.
     """
     found = read(question)
-    if found.unresolved:
-        return False
-    return bool(found.mentions) or bool(found.cohorts)
+    return not found.unresolved
 
 
 def population_clause(question: str) -> str:
