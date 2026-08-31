@@ -704,7 +704,7 @@ def list_versions(name: str, session: Session = Depends(get_db)) -> dict:
 
 
 class OriginIn(BaseModel):
-    origin: str = Field(max_length=24, description="demo | client | supplementary")
+    origin: str = Field(max_length=24, description='synthetic | client | supplementary')
 
 
 class FamilyIn(BaseModel):
@@ -756,7 +756,7 @@ def dataset_used_by(name: str, session: Session = Depends(get_db)) -> dict:
         raise _fail(e, status.HTTP_404_NOT_FOUND) from e
 
 
-@router.post("/datasets/{name}/origin", summary="Mark a dataset demo or client data")
+@router.post("/datasets/{name}/origin", summary='Mark a dataset synthetic or client data')
 def set_origin(name: str, payload: OriginIn, session: Session = Depends(get_db),
                principal: Principal = RequireDataSteward) -> dict:
     try:
@@ -1005,7 +1005,7 @@ def dataset_export(
             "matching rows."
         )
     if description["is_synthetic"]:
-        notes.append("# SYNTHETIC DEMONSTRATION DATA — not a real portfolio.")
+        notes.append("# SYNTHETIC DATA — not a real portfolio.")
 
     body = csv_text.rstrip("\n") + "\n" + "\n".join(notes) + "\n"
 

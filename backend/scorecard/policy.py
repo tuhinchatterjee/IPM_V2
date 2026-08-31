@@ -43,7 +43,7 @@ POLICY_VERSION = "1.0.0"
 INSTITUTION_POLICY = "INSTITUTION POLICY"
 REGULATORY_REQUIREMENT = "REGULATORY REQUIREMENT"
 DEVELOPMENT_STANDARD = "MODEL DEVELOPMENT STANDARD"
-DEMO_POLICY = "DEMO POLICY"
+DEMO_POLICY = "SEEDED POLICY"
 USER_APPROVED = "USER-APPROVED VALIDATION POLICY"
 
 PROVENANCES: tuple[str, ...] = (INSTITUTION_POLICY, REGULATORY_REQUIREMENT,
@@ -136,9 +136,9 @@ DEMO_LIMITS: tuple[Limit, ...] = (
           AT_MOST, 0.10, 0.05,
           note="Absolute drop from the development Gini."),
     Limit("score_psi", "Score PSI", AT_MOST, 0.25, 0.10,
-          note="The 0.10 and 0.25 cut-offs are a scorecard convention, not "
-               "a regulatory threshold. Seeded here as demonstration "
-               "policy so the dashboard has something to compare against."),
+          note='The 0.10 and 0.25 cut-offs are a scorecard convention, not a '
+               'regulatory threshold. Seeded here as synthetic policy so the '
+               'dashboard has something to compare against.'),
     Limit("variable_csi", "Variable CSI", AT_MOST, 0.25, 0.10,
           note="Same convention as PSI, applied per active variable."),
     Limit("calibration_in_the_large", "Calibration in the large", WITHIN,
@@ -550,9 +550,9 @@ def catalogue() -> dict[str, Any]:
         "every_limit_here_is_demo_policy": all(
             limit.provenance == DEMO_POLICY for limit in DEMO_LIMITS),
         "why": (
-            "§80 and §26: seed demonstration policy only. None of these "
-            "numbers is a regulatory threshold and none is presented as "
-            "one. The conventional PSI and CSI cut-offs in particular are "
-            "scorecard practice, and the provenance field is how that is "
-            "enforced rather than remembered."),
+            '§80 and §26: seed synthetic policy only. None of these numbers is '
+            'a regulatory threshold and none is presented as one. The '
+            'conventional PSI and CSI cut-offs in particular are scorecard '
+            'practice, and the provenance field is how that is enforced rather '
+            'than remembered.'),
     }

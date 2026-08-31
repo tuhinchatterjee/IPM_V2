@@ -254,11 +254,11 @@ READINESS: tuple[str, ...] = (NOT_READY, LIMITED, CONTROLLED_DEMO, VERIFIED,
 READINESS_MEANS: dict[str, str] = {
     NOT_READY: "Something is failing that would be visible to a client. Do "
                "not demonstrate.",
-    LIMITED: "It works, and enough is failing or unmeasured that a "
-             "demonstration should stay on prepared ground.",
-    CONTROLLED_DEMO: "Everything measured is passing, and not enough has been "
-                     "measured to promise more. Safe for a demonstration "
-                     "somebody is driving.",
+    LIMITED: 'It works, and enough is failing or unmeasured that this '
+             'deployment should stay on prepared ground.',
+    CONTROLLED_DEMO: 'Everything measured is passing, and not enough has been '
+                     'measured to promise more. Safe for this deployment '
+                     'somebody is driving.',
     VERIFIED: "An approved release, verified live against it, with a "
               "precision claim the evidence supports.",
     READINESS_STALE: "The verification describes a version of CreditProbe "

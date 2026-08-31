@@ -96,7 +96,7 @@ export function LoginScreen() {
         </form>
 
         <p className="mt-8 text-center text-[11px] leading-relaxed text-text-muted">
-          Demonstration deployment. All portfolio data is synthetic and describes
+          All portfolio data in this deployment is synthetic and describes
           no real borrower.
         </p>
       </div>

@@ -82,7 +82,7 @@ export function DemoBadge() {
     <span
       className="inline-flex items-center gap-1.5 rounded-full border border-warning/40 bg-warning/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-warning"
       title={`${detail} Data release: ${dataRelease}.`}
-      data-testid="demo-badge"
+      data-testid="synthetic-data-badge"
     >
       <span aria-hidden className="size-1.5 rounded-full bg-warning" />
       {label}

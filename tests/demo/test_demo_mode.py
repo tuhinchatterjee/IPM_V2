@@ -16,7 +16,7 @@ import pytest
 
 from backend.demo import mode
 from backend.demo import workspace as ws
-from backend.release import demo_safe
+from backend.release import demo_safe, product_copy
 
 
 @pytest.fixture
@@ -63,7 +63,18 @@ def test_every_guarantee_follows_from_the_one_switch(clean_env):
     found = mode.posture()
 
     assert found.on is True
-    assert found.label == "DEMO - SYNTHETIC DATA"
+    # The label used to read "DEMO - SYNTHETIC DATA". §13 bans "demo" from
+    # every user-facing surface, and this chip is on every screen. The
+    # replacement asserts more than the old literal did: not only that the
+    # label is the governed one, but that it still DISCLOSES -- deleting the
+    # disclosure would have satisfied §13 and would be the one outcome worse
+    # than the wording it replaced.
+    assert found.label == product_copy.SYNTHETIC_LABEL
+    assert "SYNTHETIC" in found.label
+    assert not product_copy.violations(found.label)
+    assert not product_copy.violations(found.detail)
+    assert "synthetic" in found.detail.lower()
+    assert "no client data" in found.detail.lower()
     assert found.data_release == mode.DATA_RELEASE
     assert set(found.guarantees) == set(mode.GUARANTEES)
     assert found.guarantees["synthetic_label"] is True

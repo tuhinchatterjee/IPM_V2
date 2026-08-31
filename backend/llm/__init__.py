@@ -105,19 +105,35 @@ def is_live() -> bool:
 
 
 def health() -> dict[str, Any]:
-    """The observed provider health, safe to show a user.
+    """The observed provider health, INCLUDING which provider and model.
 
     Contains no key and no request body — see backend/llm/telemetry for the
-    closed list of what is recorded.
+    closed list of what is recorded. It does contain the vendor's name and the
+    model identifier, which governance, observability and the reproducibility
+    run key all need, and which §12 forbids a normal product surface from
+    rendering. Use `public_health` for anything a user reads.
     """
     provider = get_provider()
     return telemetry.health(provider=provider.name, model=provider.model,
                             configured=provider.configured)
 
 
+def public_health() -> dict[str, Any]:
+    """`health` with the vendor identity withheld. §12.
+
+    The default for every product surface. `health` remains available to the
+    audit layer and to administrators, and the two shapes are otherwise
+    identical so nothing downstream has to branch.
+    """
+    provider = get_provider()
+    return telemetry.public_health(provider=provider.name,
+                                   model=provider.model,
+                                   configured=provider.configured)
+
+
 __all__ = [
     "DEFAULT_MODEL",
-    "health",
+    "health", "public_health",
     "is_live",
     "telemetry",
     "AnthropicProvider",

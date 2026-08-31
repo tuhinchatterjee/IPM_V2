@@ -245,7 +245,7 @@ def _lookup_dataset(question: str, context: dict[str, Any]) -> Answer | None:
             needle = _norm(candidate)
             if len(needle) < 4 or needle not in asked:
                 continue
-            demo = " It is CreditProbe's demonstration data." if dataset["origin"] == "demo" else ""
+            demo = " It is CreditProbe's synthetic data." if dataset["origin"] == "demo" else ""
             authoritative = (
                 f" It is the authoritative source for "
                 f"{', '.join(dataset['authoritative_for'])}."

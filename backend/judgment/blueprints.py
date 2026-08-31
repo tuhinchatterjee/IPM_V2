@@ -732,7 +732,7 @@ LIBRARY: tuple[Blueprint, ...] = (
                       "is the model")),
 
     _simple("bp-demo-executive", DEMO_EXECUTIVE,
-            "Client-demo executive portfolio review",
+            'Client-synthetic executive portfolio review',
             "The portfolio review shown to a room, where every claim has to "
             "hold and an unproven one costs more than a missing one.",
             [_o("position", "Where the book stands",
@@ -745,7 +745,7 @@ LIBRARY: tuple[Blueprint, ...] = (
                 engine="concentration"),
              _o("appetite", "Position against appetite", mandatory=False)],
             officer=4, minimum_evidence=8,
-            when="Demo Safe Mode, where an unproven claim is more expensive "
+            when="Client Safe Mode, where an unproven claim is more expensive "
                  "than a missing one.",
             when_not="Ordinary internal use — the stricter evidence floor "
                      "makes the answer slower and no more correct."),

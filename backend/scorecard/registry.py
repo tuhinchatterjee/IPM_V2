@@ -674,7 +674,7 @@ def record_finding(session: Session, finding: policy_mod.Finding, *,
         raise RegistryError(
             f"{finding.finding_id} records a breach with no limit source. A "
             "breach of an unattributed limit cannot be defended: the reader "
-            "has no way to tell a demonstration default from a requirement.")
+            "has no way to tell a seeded default from a requirement.")
 
     existing = session.execute(
         select(ScorecardFinding).where(

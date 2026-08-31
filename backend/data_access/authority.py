@@ -186,15 +186,15 @@ def resolve_purpose(purpose: str, catalog: Catalog | None = None) -> Resolution:
     client_exists = any(d.origin == DatasetOrigin.CLIENT for d in candidates)
     if chosen.is_demo and client_exists:  # pragma: no cover - _rank prevents it
         raise GovernedDataUnavailable(
-            f"Demo data would have been used for '{purpose}' while client data "
+            f"Synthetic data would have been used for '{purpose}' while client data "
             "exists. This is refused."
         )
 
     if chosen.is_demo:
         reason = (
-            "The only dataset marked authoritative for this purpose is CreditProbe's "
-            "bundled demonstration data. Onboard client data in Data Builder to "
-            "replace it."
+            'The only dataset marked authoritative for this purpose is '
+            "CreditProbe's bundled synthetic data. Onboard client data in Data "
+            'Builder to replace it.'
         )
     else:
         reason = (
@@ -253,7 +253,7 @@ def resolve_dataset(name_or_purpose: str, catalog: Catalog | None = None) -> Res
                 is_demo=resolution.is_demo,
                 authoritative=True,
                 reason=(
-                    f"'{named.name}' is CreditProbe's demonstration data for this purpose. "
+                    f"'{named.name}' is CreditProbe's synthetic data for this purpose. "
                     f"'{resolution.dataset}' is published and marked authoritative, "
                     "so it was used instead."
                 ),

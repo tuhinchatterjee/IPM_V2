@@ -189,7 +189,7 @@ def build() -> dict:
     changes where you look next.
     """
     from backend.intelligence_release import release
-    from backend.llm import health as ai_health
+    from backend.llm import public_health as ai_health
 
     info = build_info()
     return {
@@ -197,6 +197,9 @@ def build() -> dict:
         "environment": settings.env,
         "started_at": started_at(),
         "build": info.to_dict(),
+        # The public shape: no vendor name, no model identifier. §12. An
+        # administrator reads the same numbers with the identity attached at
+        # /ai/status/audit.
         "ai": ai_health(),
         # Whether this build has been certified against the sealed holdout, and
         # what that evidence supports. UNCERTIFIED is the honest answer for a
@@ -225,7 +228,7 @@ def readiness() -> dict:
         return bootstrap.verify(session).to_dict()
 
 
-@router.get("/demo", summary="Demonstration posture")
+@router.get("/demo", summary="Synthetic-data posture")
 def demo() -> dict:
     """Whether this deployment is a demonstration, and what that guarantees.
 

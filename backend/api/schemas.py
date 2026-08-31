@@ -48,8 +48,9 @@ class AnalyticalDatasetSummary(BaseModel):
     field_count: int
     periods: list[str] = Field(default_factory=list)
     is_synthetic: bool = Field(
-        description="True when the data is synthetic. The UI labels every figure "
-        "derived from it, so nobody mistakes a demo number for a real one."
+        description='True when the data is synthetic. The UI labels every '
+                    'figure derived from it, so nobody mistakes a synthetic '
+                    'number for a real one.'
     )
 
 

@@ -103,9 +103,10 @@ def mode() -> dict[str, Any]:
     full intelligence over an offline reading.
     """
     from backend.build_info import build_info
-    from backend.llm import health as ai_health
+    from backend.llm import public_health as ai_health
     from backend.llm import telemetry
     from backend.orchestration.vocabulary import get_vocabulary
+    from backend.release import product_copy
 
     status = provider_status()
     observed = ai_health()
@@ -113,7 +114,12 @@ def mode() -> dict[str, Any]:
     live = observed["state"] == telemetry.CONNECTED
     configured = bool(observed["configured"])
 
-    return {
+    # §12. This payload is what the Ask screen renders its mode chip from, so
+    # the vendor and the model come out of it here rather than being trusted
+    # not to be displayed. `provider_status()` still knows both, and so does
+    # /ai/status/audit; a normal user reads the STATE, which is the part that
+    # tells them anything.
+    return product_copy.withhold_identity({
         "mode": "model" if live else ("degraded" if configured else "offline"),
         "configured": configured,
         "live": live,
@@ -149,7 +155,7 @@ def mode() -> dict[str, Any]:
              "computes": name in cap.COMPUTES}
             for name in cap.ALL
         ],
-    }
+    })
 
 
 @dataclass
@@ -1062,7 +1068,8 @@ def _redraw_previous(answered: Answered, question: str,
         return None
 
     requested = str(continuation.presentation or "")
-    visual = visualize.choose(cached.columns, cached.rows, requested=requested)
+    visual = visualize.choose(cached.columns, cached.rows, requested=requested,
+                              question=question)
     provenance = ru.provenance_of(cached)
     answered.cached = cached
     answered.provenance = provenance

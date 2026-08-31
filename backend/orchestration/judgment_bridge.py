@@ -62,7 +62,7 @@ RUNTIME_OWNS: tuple[str, ...] = (
 #: What this bridge adds on top.
 BRIDGE_ADDS: tuple[str, ...] = (
     "the Evidence Fact Graph", "the interpretation contract",
-    "the §94 eighteen-dimension rubric", "Demo Safe Mode",
+    "the §94 eighteen-dimension rubric", "Client Safe Mode",
 )
 
 

@@ -431,6 +431,12 @@ def health(*, provider: str, model: str, configured: bool) -> dict[str, Any]:
 
 def _detail(state: str, provider: str, model: str,
             failure: Call | None) -> str:
+    """The internal sentence. Names the provider and the model.
+
+    Shown on the Trace's technical layer and to an administrator, where
+    knowing exactly which model produced an answer is the whole point of
+    recording it. `_public_detail` is what a normal user sees — see §12.
+    """
     if state == OFFLINE:
         return ("No AI provider key is configured. CreditProbe reads questions "
                 "with its deterministic governed semantic reader and computes "
@@ -450,10 +456,66 @@ def _detail(state: str, provider: str, model: str,
             "reachable. Ask a question or run an intelligence check.")
 
 
+def _public_detail(state: str, failure: Call | None) -> str:
+    """The same four states, said without naming a vendor. §12.
+
+    Every sentence still carries the thing a user can act on — whether the
+    intelligence layer is working, and what CreditProbe does when it is not.
+    None of them carries the thing only a competitor benefits from.
+    """
+    if state == OFFLINE:
+        return ("No AI provider is configured. CreditProbe reads questions "
+                "with its deterministic governed semantic reader and computes "
+                "every figure in the governed runtime.")
+    if state == CONNECTED:
+        return ("Questions are read and interpreted by the configured "
+                "intelligence provider. It never calculates a figure.")
+    if state == DEGRADED:
+        because = CATEGORY_DETAIL.get(
+            failure.failure_category if failure else "", "")
+        return ("An intelligence provider is configured, but requests are "
+                "failing. " + because + " CreditProbe is answering with its "
+                "deterministic governed semantic reader in the meantime, and "
+                "says so on every answer.")
+    return ("An intelligence provider is configured, but no request has been "
+            "made yet, so CreditProbe cannot yet confirm it is reachable. "
+            "Ask a question or run an intelligence check.")
+
+
+def public_health(*, provider: str, model: str,
+                  configured: bool) -> dict[str, Any]:
+    """`health`, with every vendor identity removed. §12.
+
+    The provider and the model are not omitted from the SYSTEM — they stay in
+    the ledger, in the Trace's audit layer, in the run key that makes an answer
+    reproducible, and on the administrator's own view. They are omitted from
+    the payload a normal product surface renders, because a header reading
+    "interpreted by claude-opus-5 via anthropic" tells a credit officer
+    nothing they can use and tells everyone else which vendor the bank is
+    committed to.
+
+    The keys stay present and empty rather than disappearing, so a reader
+    written against the internal shape does not fall over — and so a test can
+    assert they are EMPTY rather than merely absent, which is a stronger thing
+    to assert.
+    """
+    body = health(provider=provider, model=model, configured=configured)
+    body["provider"] = ""
+    body["model"] = ""
+    body["detail"] = _public_detail(body["state"], _ledger.last_failure())
+    body["identity_withheld"] = True
+    for call in [body.get("last_success"), body.get("last_failure"),
+                 *(body.get("recent") or [])]:
+        if isinstance(call, dict):
+            call.pop("provider", None)
+            call.pop("model", None)
+    return body
+
+
 __all__ = [
     "AUTH", "CONFIGURED", "CONNECTED", "CONNECTION", "CREDIT", "DEGRADED",
     "MODEL_NOT_FOUND", "NOT_STRUCTURED", "OFFLINE", "OVERLOADED", "RATE_LIMIT",
     "SCHEMA_INVALID", "SERVER", "TIMEOUT", "UNKNOWN",
     "Call", "Ledger", "cache_summary", "classify", "health", "ledger",
-    "record_failure", "record_success", "sanitise",
+    "public_health", "record_failure", "record_success", "sanitise",
 ]

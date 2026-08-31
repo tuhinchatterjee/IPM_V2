@@ -92,9 +92,8 @@ def overview(principal: Principal = RequireScorecardView) -> dict[str, Any]:
         "scorecard_types": list(vars_mod.SCORECARD_TYPES),
         "origin": synth.ORIGIN,
         "not_client_data": (
-            "Every figure in this module is computed over synthetic "
-            "demonstration data. It describes no real customer and no real "
-            "bank's book."),
+            'Every figure in this module is computed over synthetic data. It '
+            "describes no real customer and no real bank's book."),
         "scorecards": {},
         "domains": catalogue_mod.summary(),
     }
@@ -104,7 +103,7 @@ def overview(principal: Principal = RequireScorecardView) -> dict[str, Any]:
         except Exception:  # noqa: BLE001 - an unbuilt lake is a real state
             body["scorecards"][scorecard_type] = {
                 "available": False,
-                "why": ("The demonstration universe has not been built. Run "
+                "why": ("The synthetic universe has not been built. Run "
                         "scripts/build_retail_scorecards.py."),
             }
             continue

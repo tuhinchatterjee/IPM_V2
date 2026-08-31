@@ -125,7 +125,7 @@ def _visual(runtime: Any, build: Any, question: str = "") -> Any:
     requested = (str(getattr(continuation, "presentation", "") or "")
                  or referents.wants(question))
     return visualize.choose(_presented(runtime, build), runtime.rows or [],
-                            requested=requested)
+                            requested=requested, question=question)
 
 
 def _presented(runtime: Any, build: Any) -> list[dict[str, Any]]:

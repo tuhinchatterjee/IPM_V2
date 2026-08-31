@@ -57,7 +57,7 @@ def _load(dataset: str) -> pd.DataFrame:
         raise DataNotBuilt(
             f"{dataset} has not been built. Run "
             "scripts/build_corporate_universe.py to generate the "
-            "demonstration universe. Nothing here is client data.")
+            "synthetic universe. Nothing here is client data.")
     return pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
 
 

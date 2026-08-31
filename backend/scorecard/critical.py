@@ -446,8 +446,8 @@ def _no_certification_claim() -> None:
                 sources = {row[4] for row in table.rows}
                 if not sources or sources == {"—"}:
                     raise CriticalFailure(
-                        "the limits table carries no provenance, so a seeded "
-                        "demonstration default reads as a requirement")
+                        'the limits table carries no provenance, so a seeded '
+                        'seeded default reads as a requirement')
 
 
 def _candidate_not_activated() -> None:

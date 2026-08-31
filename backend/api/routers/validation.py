@@ -26,7 +26,11 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 
-from backend.api.permissions import Principal, RequireAnalyst
+from backend.api.permissions import (
+    Principal,
+    RequireAdmin,
+    RequireAnalyst,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +46,7 @@ def ai_status() -> dict:
     reporting CONNECTED next to a two-week-old score.
     """
     from backend.build_info import build_info
-    from backend.llm import health as ai_health
+    from backend.llm import public_health as ai_health
     from backend.validation import benchmarks, store
 
     observed = ai_health()
@@ -61,9 +65,20 @@ def ai_status() -> dict:
         tone = "neutral"
 
     from backend.intelligence_release import release
+    from backend.release import product_copy
 
     certified = release()
-    return {
+    # §12. Everything below is composed from governed metadata that legitimately
+    # KNOWS which vendor and which model produced each figure — the ledger, the
+    # stored validation runs, the live-verification badge. None of it may reach
+    # a header chip. The identity is withheld here, at the one boundary the
+    # product renders from, rather than in eleven places that build the parts:
+    # a rule enforced once cannot be forgotten in the twelfth.
+    #
+    # An administrator reads the same numbers WITH the identity attached at
+    # /ai/status/audit, because governance has to be able to answer "which
+    # model said this?" and the answer must exist somewhere.
+    return product_copy.withhold_identity({
         "label": label,
         "tone": tone,
         "ai": observed,
@@ -104,7 +119,29 @@ def ai_status() -> dict:
                 "Certification runs at build time, and this build reports what "
                 "that run found."),
         },
-    }
+    })
+
+
+@router.get("/status/audit",
+            summary="The same status, with the intelligence identity attached")
+def ai_status_audit(principal: Principal = RequireAdmin) -> dict:
+    """Which provider and which model, for governance. §12.
+
+    §12 bans vendor identity from PRODUCT copy, not from the system. An
+    institution deploying this has to be able to answer "which model produced
+    that answer, on which build, under which prompt version" — for model risk
+    management, for an internal audit, and because the reproducibility run key
+    (§11) is meaningless if nobody can see what went into it.
+
+    So the identity lives here, behind ADMIN, and nowhere a normal user looks.
+    """
+    del principal
+    from backend.llm import health as ai_health
+
+    body = ai_status()
+    body["ai"] = ai_health()
+    body["identity_withheld"] = False
+    return body
 
 
 def _live_verification() -> dict:

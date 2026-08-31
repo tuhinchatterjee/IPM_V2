@@ -187,8 +187,16 @@ def read_shape(columns: list[dict[str, Any]], rows: list[dict[str, Any]]) -> Sha
 # ---------------------------------------------------------------------------
 
 
+#: Shapes whose CONTENT is a picture, whatever verb introduced the question.
+#: A from/to matrix is a migration; a bucketed count is a distribution; a
+#: measure on a period axis is a time series. §16 names all three as
+#: inherently visual, so the request-intent gate below leaves them alone.
+INHERENTLY_VISUAL: frozenset[str] = frozenset(
+    {HEATMAP, HISTOGRAM, LINE, AREA, SLOPE, WATERFALL, KPI})
+
+
 def choose(columns: list[dict[str, Any]], rows: list[dict[str, Any]], *,
-           requested: str = "") -> Visual:
+           requested: str = "", question: str = "") -> Visual:
     """The shape to draw this in, or the table when nothing clarifies it.
 
     `requested` is what the user asked for — "show this as a graph", "use a
@@ -196,6 +204,15 @@ def choose(columns: list[dict[str, Any]], rows: list[dict[str, Any]], *,
     at their own result knows what they want to see. It cannot invent a chart
     the result has no axes for; asking for a line chart of a single scalar
     returns the KPI and says why.
+
+    `question` is the original wording, and it decides one thing the shape
+    cannot: whether a picture was WANTED. "Which borrowers are on the
+    watchlist?" produces a subject column and a measure column, which is the
+    exact geometry of a bar chart, and the answer came back as a bar chart of
+    twenty-five names over the list somebody had asked for as a list. The
+    chart is still built and still offered — §16 is explicit that a chart
+    supplements the analysis rather than replacing it — it simply does not
+    open. See `viz_intent`.
     """
     try:
         chosen = _choose(columns, rows, requested=requested)
@@ -226,7 +243,37 @@ def choose(columns: list[dict[str, Any]], rows: list[dict[str, Any]], *,
                         f"this result — {verdict.why}"))
     except Exception as e:  # noqa: BLE001 - validation must never lose a chart
         logger.warning("Could not validate the visualisation: %s", e)
-    return chosen
+    return _gate_on_intent(chosen, question=question, requested=requested)
+
+
+def _gate_on_intent(chosen: Visual, *, question: str, requested: str) -> Visual:
+    """Demote a chart the question did not ask for. §16.
+
+    Demote, not delete. The reader gets the rows they asked for and the chart
+    is one click away in the toggle, which is the difference between a
+    presentation default and a decision made on their behalf.
+
+    Three things are never demoted: an explicit request, because a person
+    looking at their own result outranks a classifier; a shape whose content
+    IS a picture; and a result already showing as a table, which has nothing
+    to demote.
+    """
+    if requested or chosen.chart == TABLE or chosen.chart in INHERENTLY_VISUAL:
+        return chosen
+    try:
+        from backend.orchestration import viz_intent
+    except Exception:  # noqa: BLE001 - a missing gate must not lose the answer
+        return chosen
+    if not viz_intent.wants_rows(question):
+        return chosen
+    return Visual(
+        chart=chosen.chart, x=chosen.x, y=list(chosen.y), series=chosen.series,
+        chart_first=False,
+        alternatives=[a for a in chosen.alternatives if a != TABLE],
+        source="intent",
+        reason=("the question asked for rows, so the table is the answer and "
+                f"{LABELS.get(chosen.chart, chosen.chart)} is offered beside "
+                "it"))
 
 
 def _choose(columns: list[dict[str, Any]], rows: list[dict[str, Any]], *,
@@ -335,6 +382,7 @@ def _forced(shape: Shape) -> Visual | None:
 
 
 __all__ = ["AREA", "BAR", "DOT", "GROUPED_BAR", "HEATMAP", "HISTOGRAM",
+           "INHERENTLY_VISUAL",
            "HORIZONTAL_ABOVE", "HORIZONTAL_BAR", "KPI", "LINE", "MAX_CATEGORIES",
            "MAX_SERIES", "SCATTER", "SLOPE", "TABLE", "WATERFALL", "Shape",
            "Visual", "choose", "read_shape"]

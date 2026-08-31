@@ -263,7 +263,7 @@ def reasons(question: str, *, decision: Any = None, reading: Any = None,
             kind="risk")
     if demo_safe and not any(r.id == "route:demo_safe" for r in found):
         add("demo_safe", 2,
-            "Demo Safe Mode is on, where a misunderstanding is expensive.",
+            'Client Safe Mode is on, where a misunderstanding is expensive.',
             kind="risk")
 
     return found

@@ -205,7 +205,7 @@ def _summary_sheet(ws: Any, pack: Pack) -> None:
         ("Result status", _validation_status(pack)),
         ("Generated", pack.generated_at),
         ("Downloaded by", pack.generated_by),
-        ("Data classification", "Synthetic demonstration data"
+        ("Data classification", "Synthetic data"
                                 if _is_demo(pack) else "Client data"),
     ], row)
 

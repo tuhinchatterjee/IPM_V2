@@ -84,8 +84,8 @@ def _load_cached(scorecard_type: str, month: str) -> pd.DataFrame:
         raise DashboardError(
             f"no data for {scorecard_type} {month}. Available months: "
             + (", ".join(available_months(scorecard_type)) or "none") +
-            ". Run scripts/build_retail_scorecards.py to generate the "
-            "demonstration universe.")
+            '. Run scripts/build_retail_scorecards.py to generate this '
+            'deployment universe.')
     return pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
 
 
@@ -543,9 +543,8 @@ class Dashboard:
                                    else None),
             "origin": synth.ORIGIN,
             "not_client_data": (
-                "This dashboard is computed over synthetic demonstration "
-                "data. It describes no real customer and no real bank's "
-                "book."),
+                'This dashboard is computed over synthetic data. It describes '
+                "no real customer and no real bank's book."),
         }
 
 

@@ -113,8 +113,7 @@ class Report:
         if not self.checks:
             return "Nothing was checked, so nothing is known."
         if self.ready:
-            return (f"All {len(self.checks)} demonstration readiness checks "
-                    "passed.")
+            return f"All {len(self.checks)} readiness checks passed."
         bad = self.failures
         return (f"{len(bad)} of {len(self.checks)} readiness checks did not "
                 f"pass: {', '.join(c.key for c in bad)}.")
@@ -159,7 +158,7 @@ def _datasets_check(key: str, title: str, wanted: tuple[str, ...],
 
 def _corporate_scale(present: set[str], why: str) -> Check:
     """The corporate book has to be a book, not a fixture."""
-    key, title = "corporate_scale", "Corporate book is at demonstration scale"
+    key, title = "corporate_scale", "Corporate book is at full scale"
     remedy = "scripts/bootstrap_demo.py --step corporate"
     if why or "corporate_customer_master" not in present:
         return Check(key=key, title=title, status=UNKNOWN if why else MISSING,
@@ -188,7 +187,7 @@ def _corporate_scale(present: set[str], why: str) -> Check:
         return Check(
             key=key, title=title, status=MISSING,
             detail=(f"{borrowers:,} borrower(s) over {quarters} quarter(s). "
-                    f"A demonstration needs at least "
+                    f"A full book needs at least "
                     f"{MINIMUM_CORPORATE_BORROWERS:,} over "
                     f"{MINIMUM_CORPORATE_QUARTERS}; this book has been "
                     "truncated and Borrower 360 search will look empty."),
@@ -298,7 +297,7 @@ def _database_checks(session: Any) -> list[Check]:
     authoritative = [n for n, d in by_name.items() if d.authoritative_for]
     checks.append(Check(
         key="datasets_authoritative",
-        title="Demonstration datasets are authoritative",
+        title="Governed datasets are authoritative",
         status=OK if authoritative else MISSING,
         detail=(f"{len(authoritative)} dataset(s) carry an authoritative "
                 "purpose." if authoritative else
@@ -325,7 +324,7 @@ def _database_checks(session: Any) -> list[Check]:
 
     users = session.execute(select(func.count()).select_from(User)).scalar() or 0
     checks.append(Check(
-        key="demo_users", title="Demonstration accounts exist",
+        key="demo_users", title="Sign-in accounts exist",
         status=OK if users else MISSING,
         detail=f"{users} account(s)." if users else "No users — nobody can sign in.",
         remedy="scripts/bootstrap_demo.py --step users",
@@ -360,7 +359,7 @@ def _scorecard_models(session: Any) -> Check:
 
 
 def _workspace(session: Any) -> Check:
-    key, title = "demo_workspace", "Demonstration workspace is populated"
+    key, title = "demo_workspace", "Workspace is populated"
     remedy = "scripts/bootstrap_demo.py --step workspace"
     try:
         from sqlalchemy import func, select
@@ -471,7 +470,7 @@ def report(session: Any | None = None) -> Report:
         checks.extend(_database_checks(session))
     else:
         checks.append(Check(
-            key="database", title="Database-backed demonstration state",
+            key="database", title="Database-backed synthetic data state",
             status=UNKNOWN,
             detail="No database session was supplied, so nothing that lives "
                    "in PostgreSQL was checked.",

@@ -58,7 +58,7 @@ export function ControlPlanePanel() {
               resolves that to whichever dataset is marked authoritative for it.
             </p>
             <p>
-              That is what lets your own data replace CreditProbe&rsquo;s demonstration book without
+              That is what lets your own data replace CreditProbe&rsquo;s synthetic book without
               anyone changing a line of analysis code. Every read records which dataset it
               actually used on the Trace.
             </p>
@@ -75,7 +75,7 @@ export function ControlPlanePanel() {
         <Card className="mb-3 flex items-start gap-2.5 border-warning/30 bg-warning-muted p-4">
           <CircleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
           <p className="text-xs leading-relaxed text-warning">
-            At least one governed purpose is being answered by CreditProbe&rsquo;s demonstration
+            At least one governed purpose is being answered by CreditProbe&rsquo;s synthetic
             data. Every figure produced from it describes a synthetic book. Onboard your
             own data and mark it authoritative to replace it.
           </p>
@@ -105,7 +105,7 @@ export function ControlPlanePanel() {
                 <>
                   <p className="font-mono text-xs text-text-secondary">{purpose.dataset}</p>
                   <Badge variant={purpose.is_demo ? "warning" : "positive"} className="mt-1">
-                    {purpose.is_demo ? "Demonstration data" : "Client data"}
+                    {purpose.is_demo ? "Synthetic data" : "Client data"}
                   </Badge>
                 </>
               ) : (

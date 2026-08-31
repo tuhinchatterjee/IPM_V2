@@ -1563,11 +1563,11 @@ SINGLE_NAME_LIMIT_PCT = 15.0
 GROUP_LIMIT_PCT = 25.0
 INVESTIGATION_TRIGGER_PCT = 10.0
 UNVERIFIED_REGULATORY_PARAMETER = (
-    "UNVERIFIED REGULATORY PARAMETER: the eligible capital reference and the "
-    "single-name, group and investigation thresholds here are demonstration "
-    "values. They are not a verified statement of any binding limit under any "
+    'UNVERIFIED REGULATORY PARAMETER: the eligible capital reference and the '
+    'single-name, group and investigation thresholds here are seeded value. '
+    'They are not a verified statement of any binding limit under any '
     "regulation, and must be replaced with the institution's own before any "
-    "figure derived from them is relied on."
+    'figure derived from them is relied on.'
 )
 
 
@@ -1755,8 +1755,8 @@ def build_restructuring(entities: pd.DataFrame, spine_df: pd.DataFrame,
             part["quarter_index"].to_numpy()),
         "restructure_flag": True,
         "parameter_caveat": (
-            "The probation period is a demonstration value, not a verified "
-            "regulatory requirement - B55."),
+            'The probation period is a seeded value, not a verified regulatory '
+            'requirement - B55.'),
         "origin": ORIGIN,
     })
 
@@ -1831,9 +1831,9 @@ def build_profitability(entities: pd.DataFrame, spine_df: pd.DataFrame,
         "hurdle_rate_pct": HURDLE_RATE_PCT,
         "above_hurdle": raroc >= HURDLE_RATE_PCT,
         "methodology": (
-            "Demonstration RAROC: (revenue - operating cost - expected loss) "
-            "over regulatory capital at a stage-dependent risk weight. Not "
-            "the institution's own methodology - B55."),
+            'synthetic RAROC: (revenue - operating cost - expected loss) over '
+            'regulatory capital at a stage-dependent risk weight. Not the '
+            "institution's own methodology - B55."),
         "origin": ORIGIN,
     })
 

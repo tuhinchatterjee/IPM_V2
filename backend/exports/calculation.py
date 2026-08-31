@@ -373,7 +373,7 @@ def _method(pack: Pack) -> str:
 
 
 def _confidentiality(pack: Pack) -> str:
-    return ("SYNTHETIC DEMONSTRATION DATA — not client data"
+    return ("SYNTHETIC DATA — not client data"
             if pack.synthetic else "CLIENT DATA — handle per policy")
 
 
@@ -2343,7 +2343,7 @@ def _limitations(ws: Worksheet, pack: Pack, view: planning.PlanView,
         add("Runtime warning", str(warning))
 
     if pack.synthetic:
-        add("Data", "This analysis ran on synthetic demonstration data. The "
+        add("Data", "This analysis ran on synthetic data. The "
                     "figures are structurally realistic and are not a real "
                     "institution's book.")
     add("Methodology",

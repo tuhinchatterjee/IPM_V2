@@ -163,7 +163,7 @@ DOMAINS: tuple[Domain, ...] = (
                  "follows from it."),
         datasets=("corporate_limits",),
         authoritative_for=("corporate_large_exposure",),
-        notes=("The capital reference and thresholds here are demonstration "
+        notes=("The capital reference and thresholds here are synthetic data "
                "parameters, not verified regulatory limits - B55."),
     ),
     Domain(

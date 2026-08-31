@@ -140,18 +140,18 @@ class Verdict:
 
     def sentence(self) -> str:
         if not self.active:
-            return ("Demo Safe Mode is off. Answers are shown under the "
+            return ("Client Safe Mode is off. Answers are shown under the "
                     "ordinary rules, which permit a stated limitation.")
         if self.may_show:
-            return ("Every Demo Safe Mode condition is met. This answer may "
+            return ("Every Client Safe Mode condition is met. This answer may "
                     "be shown to a client.")
         detail = "; ".join(self.reasons.get(c) or ASKS[c] for c in self.unmet)
         if self.outcome == CLARIFY:
             return ("This cannot be answered completely as asked, so "
                     f"CreditProbe asks rather than answering partly: {detail}")
         return ("CreditProbe cannot answer this to the standard a client "
-                f"demonstration requires, and says so rather than showing the "
-                f"part that worked: {detail}")
+                f"presentation requires, and says so rather than showing "
+                f"the part that worked: {detail}")
 
     def to_dict(self) -> dict[str, Any]:
         return {"version": DEMO_SAFE_VERSION, "active": self.active,

@@ -105,7 +105,7 @@ SPECTRAL_WARN = 0.999
 
 UNVERIFIED_POLICY = (
     "UNVERIFIED REGULATORY PARAMETER: the control, de-facto control and "
-    "ultimate-beneficial-owner thresholds used here are demonstration values. "
+    "ultimate-beneficial-owner thresholds used here are seeded values. "
     "They are not a verified statement of any binding requirement in any "
     "jurisdiction and must be replaced with the institution's own approved "
     "policy before any figure derived from them is relied on."

@@ -43,9 +43,9 @@ LIFECYCLE_LABEL = {
 CAPABILITY_LABEL = "Prototype Forward Risk Signal"
 
 CAPABILITY_NOTICE = (
-    "This is a prototype forward risk signal, fitted on CreditProbe's synthetic "
-    "demonstration data. It has not been independently validated, it is not a "
-    "production or regulatory model, and no credit decision should rest on it."
+    "This is a prototype forward risk signal, fitted on CreditProbe's synthetic"
+    ' data. It has not been independently validated, it is not a production or '
+    'regulatory model, and no credit decision should rest on it.'
 )
 
 #: A validation record must carry all of these before the word is permitted.

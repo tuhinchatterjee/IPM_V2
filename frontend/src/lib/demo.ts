@@ -14,7 +14,7 @@
  */
 
 export const DEMO_NOTICE =
-  "Demo record. Documents are not yet persisted; the analytical results inside them are real.";
+  "Placeholder record. Documents are not yet persisted; the analytical results inside them are real.";
 
 // =============================================================== investigations
 

@@ -296,7 +296,16 @@ def test_with_the_mode_off_the_verdict_still_says_what_would_have_failed():
 
     assert verdict.may_show is True
     assert len(verdict.unmet) == 12
-    assert "Demo Safe Mode is off" in verdict.sentence()
+    # "Demo Safe Mode" was the old name. The posture is unchanged -- refuse to
+    # show an answer that cannot be fully validated -- but §13 bans the word,
+    # and the posture is one a bank may want on its own book, which is exactly
+    # why its name should never have said "demo". The stronger assertion: the
+    # sentence names the mode AND still says what turning it on would change.
+    assert "Client Safe Mode is off" in verdict.sentence()
+    assert "ordinary rules" in verdict.sentence()
+    from backend.release import product_copy
+
+    assert not product_copy.violations(verdict.sentence())
 
 
 def test_the_verdict_explains_itself_in_a_sentence_a_person_can_act_on():

@@ -102,7 +102,7 @@ class Result:
                            f"{', '.join(o.key for o in self.failed)}.")
         if self.report and not self.report.ready:
             return head + " " + self.report.sentence()
-        return head + " The demonstration is ready."
+        return head + " The deployment is ready."
 
     def to_dict(self) -> dict[str, Any]:
         return {"version": BOOTSTRAP_VERSION, "ok": self.ok,
@@ -404,7 +404,7 @@ def steps() -> tuple[Step, ...]:
     return (
         Step("migrations", "A", "Apply database migrations",
              _migrations_needed, _run_migrations, needs_database=True),
-        Step("users", "B", "Seed the demonstration accounts",
+        Step("users", "B", "Seed the sign-in accounts",
              _users_needed, _seed_users, needs_database=True),
         # C before D and E: the Saudi builder OVERWRITES metadata/catalog.json
         # and the other two merge into it. Reversed, the corporate and retail
@@ -429,7 +429,7 @@ def steps() -> tuple[Step, ...]:
         # makes every governed read fail at the authority layer.
         Step("relationships", "J", "Declare the governed joins",
              _relationships_needed, _seed_relationships, needs_database=True),
-        Step("workspace", "K", "Seed the demonstration workspace",
+        Step("workspace", "K", "Seed the workspace",
              _workspace_needed, _seed_workspace, needs_database=True),
         Step("review", "L", f"Run the {readiness.PERIOD} portfolio review",
              _review_needed, _run_review, needs_database=True),

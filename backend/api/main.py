@@ -19,8 +19,10 @@ import time
 import uuid
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend.api import auth as auth_router
 from backend.api.routers import agentic as agentic_router
@@ -154,6 +156,90 @@ def create_app() -> FastAPI:
             content=ErrorResponse(error="data_access_error", message=str(exc)).model_dump(),
         )
 
+    @app.exception_handler(StarletteHTTPException)
+    async def _http_error(request: Request, exc: StarletteHTTPException):
+        """A status a route raised deliberately, said in words. §9.
+
+        The house convention is `HTTPException(status, detail={"error": ...,
+        "message": ...})`, and the browser client reads `detail` when it is an
+        OBJECT. Most routes follow it. The ones that do not — a bare
+        `detail="..."` string, and FastAPI's own defaults for 401, 404 and a
+        method mismatch — produced `{"detail": "Not Found"}`, the client found
+        no `message`, and it fell back to printing the transport:
+
+            Request failed with status 500.
+
+        That sentence reached a credit officer on a real acceptance run. So
+        this handler does one narrow thing: it leaves a well-formed detail
+        object alone, and gives every other shape the same object, with a
+        sentence written for a person. It never invents a message over one a
+        route wrote, except at 5xx — where the text is as likely to have come
+        from a driver as from a person, and §9 puts that in the log instead.
+        """
+        from backend.api import failures
+
+        request_id = getattr(request.state, "request_id", "unknown")
+        status_code = int(getattr(exc, "status_code", 500) or 500)
+        detail = exc.detail
+
+        if status_code >= 500:
+            logger.error("HTTP %s on %s (request %s): %s",
+                         status_code, request.url.path, request_id, detail)
+
+        if isinstance(detail, dict):
+            body = dict(detail)
+            body.setdefault("error", f"http_{status_code}")
+            written = str(body.get("message") or "")
+            if (status_code >= 500 or not written
+                    or failures.leaks(written)):
+                body["message"] = failures.for_status(status_code)
+        else:
+            raw = detail if isinstance(detail, str) else ""
+            body = {"error": f"http_{status_code}",
+                    "message": failures.for_status(status_code, raw)}
+
+        body.setdefault("status", status_code)
+        body["request_id"] = request_id
+        body["correlation_id"] = request_id
+        return JSONResponse(
+            status_code=status_code,
+            headers=getattr(exc, "headers", None) or None,
+            content={"detail": body},
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def _request_invalid(request: Request, exc: RequestValidationError):
+        """A malformed request body, in the same envelope. §9.
+
+        Pydantic's own body is a LIST of dicts naming field locations and
+        internal type codes. It is exactly the engineering detail §9 says
+        belongs in the log, and it reached the browser — where the client,
+        finding a list rather than an object, printed the status instead.
+
+        The field NAMES stay: refusing to leak internals is not a licence to
+        make somebody guess which value was wrong.
+        """
+        from backend.api import failures
+
+        request_id = getattr(request.state, "request_id", "unknown")
+        logger.info("Invalid request on %s (request %s): %s",
+                    request.url.path, request_id, exc.errors())
+        fields = sorted({
+            str(part) for error in exc.errors()
+            for part in (error.get("loc") or ())
+            if isinstance(part, str) and part not in ("body", "query", "path")
+        })
+        message = failures.for_status(422)
+        if fields:
+            message += " Check: " + ", ".join(fields[:6]) + "."
+        return JSONResponse(
+            status_code=422,
+            content={"detail": {"error": "invalid_request", "message": message,
+                                "fields": fields[:12], "status": 422,
+                                "request_id": request_id,
+                                "correlation_id": request_id}},
+        )
+
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception):
         # Never leak a stack trace to the browser; log it in full instead.
@@ -170,13 +256,24 @@ def create_app() -> FastAPI:
         logger.exception(
             "%s failure on %s (request %s): %s",
             failure.category, request.url.path, request_id, type(exc).__name__)
+        # `error` and `message` appear BOTH at the top level and inside
+        # `detail`. The house convention for a deliberate refusal is
+        # `HTTPException(status, detail={"error", "message"})`, so the browser
+        # client reads `detail` when it is an object; this handler's own shape
+        # is flat. Two shapes meant two readers, and the second one — the
+        # fallback for "neither" — is what printed "Request failed with status
+        # 500." Carrying the pair in both places costs a few bytes and leaves
+        # exactly one way to read an error.
         return JSONResponse(
             status_code=failure.status,
             content=ErrorResponse(
                 error=failure.category.lower(),
                 message=failure.message,
-                detail={"request_id": request_id,
+                detail={"error": failure.category.lower(),
+                        "message": failure.message,
+                        "request_id": request_id,
                         "correlation_id": request_id,
+                        "status": failure.status,
                         "category": failure.category},
             ).model_dump(),
         )

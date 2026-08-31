@@ -114,7 +114,7 @@ def run_schedule_tick(job: queue.Job, should_stop: Callable[[], bool]) -> None:
     from backend.demo import mode
 
     if not mode.schedules_may_fire():
-        logger.info("Demo Mode is on: schedules do not fire on their own. "
+        logger.info("Synthetic Data Mode is on: schedules do not fire on their own. "
                     "A run started from the screen still runs.")
         return
 

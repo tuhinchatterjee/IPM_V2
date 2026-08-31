@@ -184,7 +184,7 @@ def _catalogue_row(dataset: Any) -> dict[str, Any]:
         "to": dataset.latest_period,
         "origin": dataset.origin,
         "authoritative_for": ", ".join(dataset.authoritative_for),
-        "state": ("Demonstration data" if dataset.is_synthetic
+        "state": ("Synthetic data" if dataset.is_synthetic
                   else "Client data"),
     }
 

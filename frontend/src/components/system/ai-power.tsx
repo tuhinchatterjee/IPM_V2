@@ -482,9 +482,15 @@ function ProviderState({ status }: { status: AiStatus | null }) {
     <section className="rounded-lg border border-border bg-surface-sunken px-3 py-2.5">
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={stateVariant(ai.state)}>{ai.label}</Badge>
-        {ai.model && (
-          <span className="font-mono text-[11px] text-text-muted">{ai.model}</span>
-        )}
+        {/*
+          The model identifier used to be printed here. §12: no normal product
+          surface names the vendor or the model. It has not been deleted from
+          the system — /ai/status/audit carries it for an administrator, the
+          Trace's technical layer records which model produced each answer, and
+          the reproducibility run key hashes it. It is simply not something a
+          credit officer reading a portfolio needs, and it is something a
+          competitor reading over their shoulder would like.
+        */}
         <span className="font-mono text-[11px] text-text-muted">
           build {build.short_sha} · v{build.version}
         </span>
@@ -543,8 +549,8 @@ function RunSummary({
           <p className="mt-0.5 text-[12px] text-text-muted">
             {[
               run.provider && run.provider !== "none"
-                ? run.model || run.provider
-                : "no provider",
+                ? "intelligence provider"
+                : "governed runtime only",
               `benchmark v${run.benchmark_version}`,
               run.data_version,
             ]
@@ -687,7 +693,9 @@ function HistoryList({
               {formatWhen(run.created_at)}
             </span>
             <span className="min-w-0 flex-1 truncate text-text-secondary">
-              {run.model || run.provider || "—"}
+              {run.provider && run.provider !== "none"
+                ? "intelligence provider"
+                : "governed runtime only"}
             </span>
             <span
               className={cn(

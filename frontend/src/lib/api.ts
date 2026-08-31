@@ -2221,18 +2221,36 @@ async function request<T>(
 
   if (!response.ok) {
     let code = "http_error";
-    let message = `Request failed with status ${response.status}.`;
-    let detail: Record<string, unknown> = {};
+    // §9. This used to read `Request failed with status ${response.status}.`
+    // and a real acceptance run put "Request failed with status 500." in front
+    // of a credit officer. The transport is not the product: a status code
+    // names how the message travelled, not what went wrong or what to do
+    // about it. The server now returns a written sentence for every status —
+    // see backend/api/failures.BY_STATUS — and this is the sentence for the
+    // case where even that could not be read, which means the server was not
+    // reached at all.
+    let message =
+      "CreditProbe could not complete that request. Nothing was computed, so " +
+      "no figure you are looking at has changed. Try again in a moment.";
+    let detail: Record<string, unknown> = { status: response.status };
     try {
       const body = await response.json();
-      // FastAPI wraps our structured errors in `detail`; ours are flat.
+      // Our own envelope is flat: { error, message, detail }. FastAPI's
+      // default for a bare HTTPException is { detail: "..." } — a STRING, so
+      // `payload.message` was undefined and the fallback above ran. The
+      // server no longer emits that shape, and this still reads it, because a
+      // route added tomorrow may.
       const payload =
         body.detail && typeof body.detail === "object" ? body.detail : body;
       code = payload.error ?? code;
-      message = payload.message ?? message;
-      detail = payload;
+      if (typeof payload.message === "string" && payload.message.trim()) {
+        message = payload.message;
+      } else if (typeof body.detail === "string" && body.detail.includes(" ")) {
+        message = body.detail;
+      }
+      detail = { status: response.status, ...payload };
     } catch {
-      /* keep the fallback message */
+      /* the body was not JSON — the governed sentence above stands */
     }
     throw new ApiError(message, response.status, code, detail);
   }

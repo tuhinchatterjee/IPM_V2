@@ -131,7 +131,7 @@ export default function BrowseDataPage() {
                   {chosen?.business_name || dataset}
                 </h2>
                 {chosen?.domain && <Badge variant="outline">{chosen.domain}</Badge>}
-                {chosen?.is_synthetic && <Badge variant="warning">Demo data</Badge>}
+                {chosen?.is_synthetic && <Badge variant="warning">Synthetic data</Badge>}
                 <Button
                   variant={comparing ? "outline" : "ghost"}
                   size="sm"

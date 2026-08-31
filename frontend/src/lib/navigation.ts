@@ -79,10 +79,10 @@ export type NavGroup = "Home" | "Work" | "Intelligence" | "Build" | "Govern" | "
 export type DemoScope = "core" | "optional" | "admin" | "hidden";
 
 export const DEMO_SCOPE_LABEL: Record<DemoScope, string> = {
-  core: "Core demo",
+  core: "Core"    ,
   optional: "Optional",
   admin: "Admin preview",
-  hidden: "Hidden in Demo Mode",
+  hidden: "Hidden in Synthetic Data Mode",
 };
 
 export interface NavItem {
@@ -346,7 +346,7 @@ export const NAV_ITEMS: NavItem[] = [
     description: "Users, teams, roles and permissions at capability, object and data level.",
     icon: Users,
     status: "preview",
-    phase: "Demo records",
+    phase: "Placeholder records",
     group: "Admin",
     // Restricted here in the release-candidate phase. The route crawl found
     // an ANALYST and a VIEWER seeing this link and getting a 403 from

@@ -46,8 +46,8 @@ SHEETS: tuple[str, ...] = (
 #: What each sheet carries, so a reader opening the workbook knows what they
 #: are looking at before they read a number.
 SHEET_CONTENTS: dict[str, str] = {
-    "Overview": "The release in force, its state, and the honest demo "
-                "readiness with its reasons.",
+    "Overview": 'The release in force, its state, and the honest synthetic '
+                'readiness with its reasons.',
     "Capability Metrics": "Eighteen capabilities with their intervals and "
                           "sample sizes. No aggregate.",
     "Case Coverage": "Cases by family, status and difficulty, with the gaps "

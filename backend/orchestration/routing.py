@@ -425,7 +425,7 @@ def signals(question: str, *, reading: Any = None, continuation: Any = None,
 
     if demo_safe:
         add("demo_safe", 2,
-            "Demo Safe Mode is on, where a misunderstanding is expensive.")
+            'Client Safe Mode is on, where a misunderstanding is expensive.')
 
     return found
 

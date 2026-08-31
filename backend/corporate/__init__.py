@@ -27,7 +27,7 @@ ORIGIN = "SYNTHETIC_DEMO"
 
 #: Said in full wherever a report, an export or a screen shows these figures.
 NOT_CLIENT_DATA = (
-    "Synthetic demonstration data. It describes no real company, no real "
-    "ownership structure and no real bank's book, and must not be presented "
-    "as client data."
+    "Synthetic data. It describes no real company, no real ownership "
+    "structure and no real bank's book, and must not be presented as client "
+    "data."
 )

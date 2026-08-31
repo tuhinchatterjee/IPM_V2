@@ -32,6 +32,8 @@ import os
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.release import product_copy
+
 DEMO_MODE_VERSION = "1.0.0"
 
 #: The switch. Read from the environment rather than from the database,
@@ -41,16 +43,23 @@ ENV = "CREDITPROBE_DEMO_MODE"
 #: What the user is told, verbatim, wherever data appears. Short enough for a
 #: header chip and unambiguous enough that nobody can later say they thought
 #: the figures were their own.
-LABEL = "DEMO - SYNTHETIC DATA"
+#:
+#: It used to read "DEMO - SYNTHETIC DATA". The second half is the part that
+#: matters and the first half was the part that made the product sound like a
+#: rehearsal, so the first half is gone (§13). Dropping the disclosure
+#: altogether was never an option: presenting a generated portfolio as a
+#: bank's own book is the one thing worse than saying "demo".
+LABEL = product_copy.SYNTHETIC_LABEL
 
-LABEL_DETAIL = (
-    "This deployment runs on a synthetic Saudi corporate credit portfolio "
-    "generated for demonstration. No client data is present.")
+LABEL_DETAIL = product_copy.SYNTHETIC_DETAIL
 
-#: The data release the demonstration is pinned to. A demonstration whose data
-#: can change under it is not repeatable, and "it worked yesterday" is the
-#: least useful sentence in a release war room.
-DATA_RELEASE = "creditprobe-demo-2026Q2"
+#: The data release this deployment is pinned to. A deployment whose data can
+#: change under it is not repeatable, and "it worked yesterday" is the least
+#: useful sentence in a release war room.
+#:
+#: The identifier itself is a version string, not product copy — it is shown
+#: as a release name and nobody reads it as a claim about the product.
+DATA_RELEASE = "creditprobe-synthetic-2026Q2"
 
 #: The truthful values of `_TRUTHS` below, given the switch. Stated as data so
 #: a test can assert the whole policy in one comparison rather than probing
@@ -59,10 +68,10 @@ _TRUTHS: dict[str, tuple[bool, str]] = {
     "synthetic_label": (
         True, "Every screen states that the data is synthetic."),
     "fixed_data_release": (
-        True, "The demonstration is pinned to one named data release."),
+        True, "This deployment is pinned to one named data release."),
     "background_schedules": (
-        False, "Agent schedules do not fire on their own. A presenter starts "
-               "a run deliberately, or nothing runs."),
+        False, "Agent schedules do not fire on their own. Somebody starts a "
+               "run deliberately, or nothing runs."),
     "external_communication": (
         False, "Nothing is emailed, posted or sent outside this host."),
     "automatic_publication": (
@@ -117,10 +126,11 @@ class Posture:
 
     def sentence(self) -> str:
         if not self.on:
-            return ("Demo Mode is OFF. Data is not labelled synthetic, "
-                    "schedules run normally, and nothing is suppressed.")
-        return (f"Demo Mode is ON, pinned to {self.data_release}. "
-                f"{self.detail}")
+            return (f"{product_copy.SYNTHETIC_MODE_LABEL} is OFF. Data is not "
+                    "labelled synthetic, schedules run normally, and nothing "
+                    "is suppressed.")
+        return (f"{product_copy.SYNTHETIC_MODE_LABEL} is ON, pinned to "
+                f"{self.data_release}. {self.detail}")
 
 
 def posture() -> Posture:

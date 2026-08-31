@@ -222,6 +222,53 @@ _SECRET = re.compile(
     re.I)
 
 
+#: What a user is told for an HTTP status raised deliberately by a route, when
+#: that route did not write a sentence of its own. §9: the reader must never
+#: be shown a bare status code, and "Request failed with status 500" is the
+#: worst version of one — it names the transport and says nothing about the
+#: work.
+BY_STATUS: dict[int, str] = {
+    400: "That request could not be understood as asked. Rephrase it, or open "
+         "the Trace to see how it was read.",
+    401: "This session is not signed in. Sign in and try again.",
+    403: "Your role does not permit this. An administrator can grant it.",
+    404: "That does not exist here, or has been removed.",
+    409: "Something else changed this while you were working on it. Reload and "
+         "try again.",
+    413: "That request is larger than this deployment accepts.",
+    422: "That request was understood but is not valid — one of the values it "
+         "carries is outside what the governed contract allows.",
+    429: "Too many requests at once. Wait a moment and try again.",
+    502: "CreditProbe could not reach a service it depends on. Nothing was "
+         "computed, so nothing is wrong with the figures you already have.",
+    503: "CreditProbe is starting up or briefly unavailable. Try again in a "
+         "moment.",
+    504: "That took longer than this deployment allows. Narrowing the "
+         "population or the period usually completes.",
+}
+
+
+def for_status(status: int, detail: str = "") -> str:
+    """The sentence for a deliberately raised HTTP status.
+
+    A route that wrote its own sentence keeps it — that sentence knows what
+    the route was doing. A route that raised a bare status gets the governed
+    one for that status. Either way the reader is never handed a number.
+
+    A 5xx never keeps the route's own text: at that point the text is as
+    likely to be a driver's message as a written one, and §9 is explicit that
+    engineering detail belongs in the log.
+    """
+    written = str(detail or "").strip()
+    if status >= 500 or not written or leaks(written):
+        return BY_STATUS.get(status, MESSAGE[UNKNOWN])
+    # A single word, an enum, or a bare identifier is not a sentence written
+    # for a person. "Not Found" and "forbidden" are FastAPI's defaults.
+    if len(written) < 16 or " " not in written.strip():
+        return BY_STATUS.get(status, written)
+    return written
+
+
 def leaks(message: str) -> bool:
     """Whether a message carries something that must not leave the server."""
     return bool(_SECRET.search(str(message or "")))
@@ -242,7 +289,9 @@ __all__ = [
     "STATUS",
     "UNKNOWN",
     "VALIDATION",
+    "BY_STATUS",
     "classify",
+    "for_status",
     "leaks",
     "of",
 ]

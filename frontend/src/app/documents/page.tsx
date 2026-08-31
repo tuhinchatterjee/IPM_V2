@@ -14,7 +14,7 @@ export default function DocumentsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Documents"
-        description="Board and committee papers authored with live analytical content. Placeholder for this demo — document editing is explicitly out of scope."
+        description="Board and committee papers authored with live analytical content. Document editing is out of scope in this release."
         status="preview"
         phase="Placeholder by design"
       />

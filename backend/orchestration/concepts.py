@@ -978,7 +978,7 @@ def resolve_concept(concept: Concept, question: str, *,
                         f"datasets. CreditProbe used {client.dataset}."
                         f"{client.field} because it is the bank's own data and "
                         "a steward has declared it authoritative; the "
-                        f"demonstration source {chosen.dataset}.{chosen.field} "
+                        f"synthetic source {chosen.dataset}.{chosen.field} "
                         "was not used."))
         others = tuple(c for c in usable if c is not chosen)
         catalogue_note = ""

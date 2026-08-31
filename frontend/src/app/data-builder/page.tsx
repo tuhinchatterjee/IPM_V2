@@ -503,7 +503,7 @@ function DomainCard({
                 </span>
                 {d.is_synthetic && (
                   <span className="shrink-0 text-[10px] uppercase tracking-wide text-text-muted">
-                    demo
+                    synthetic
                   </span>
                 )}
               </li>

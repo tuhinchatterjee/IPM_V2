@@ -334,7 +334,7 @@ FIELDS: tuple[Field, ...] = (
     Field("eligible_capital_reference", "LIMIT",
           "CORPORATE LIMITS / LARGE EXPOSURES", "corporate_limits",
           "eligible_capital_reference", NOT_PERIODIC,
-          "a demonstration value, not a verified regulatory figure - B55",
+          'a seeded value, not a verified regulatory figure - B55',
           COPY, "SAR millions"),
     Field("limit_status", "LIMIT", "CORPORATE LIMITS / LARGE EXPOSURES",
           "corporate_limits", "limit_status", SAME_QUARTER,

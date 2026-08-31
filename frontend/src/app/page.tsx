@@ -280,12 +280,12 @@ function Cockpit() {
             Trace.
           </p>
           <p>
-            The book itself is CreditProbe&rsquo;s synthetic demonstration data
+            The book itself is CreditProbe&rsquo;s synthetic data
             until client data is onboarded and marked authoritative in Data
             Builder.
           </p>
         </InfoPopover>
-        Demonstration data. Every figure carries a Trace.
+        Synthetic data. Every figure carries a Trace.
       </p>
     </div>
   );

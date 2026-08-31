@@ -67,7 +67,7 @@ export const NODE_PRESENTATION: Record<string, NodePresentation> = {
     governed: true,
     blurb:
       "The governed purpose the data was drawn for, and whether the dataset " +
-      "serving it is client data or CreditProbe's demonstration data.",
+      "serving it is client data or CreditProbe's synthetic data.",
   },
   DATASET: {
     label: "Governed data",

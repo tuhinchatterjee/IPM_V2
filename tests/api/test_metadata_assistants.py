@@ -53,7 +53,13 @@ def test_it_describes_a_dataset_including_whether_it_is_demo_data(client):
     body = client.post("/api/v1/data-builder/assistant",
                        json={"question": "Tell me about portfolio_facility"}).json()
     assert "portfolio_facility" in body["text"]
-    assert "demonstration data" in body["text"]
+    # Was "demonstration data". §13: the assistant's answer is product copy.
+    # It must still say the data is SYNTHETIC -- that is the whole point of
+    # the sentence -- and must no longer say "demonstration".
+    from backend.release import product_copy
+
+    assert "synthetic data" in body["text"].lower()
+    assert not product_copy.violations(body["text"])
 
 
 @needs_db

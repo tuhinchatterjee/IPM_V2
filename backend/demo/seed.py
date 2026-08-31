@@ -37,8 +37,8 @@ logger = logging.getLogger(__name__)
 PROJECT = {
     "name": "Contracting sector deep dive",
     "description": (
-        "Standing review of the Contracting book after the Q2 2026 close. "
-        "Synthetic demonstration data."),
+        'Standing review of the Contracting book after the Q2 2026 close. '
+        'synthetic data.'),
     "instructions": (
         "Work at segment grain unless a question names a customer. Compare "
         "against Q1 2026 and flag anything that moved more than the book."),
@@ -98,7 +98,7 @@ def build(session: Any, *, run_review: bool = True) -> ws.Result:
     result = ws.Result(action="seed")
     people = _users(session)
     if "alex.rahman" not in people:
-        result.error = ("The demonstration accounts are missing. Run "
+        result.error = ("The sign-in accounts are missing. Run "
                         "scripts/seed_demo_users.py first.")
         return result
 
@@ -326,5 +326,5 @@ def _lens(session: Any, owner: Any, result: ws.Result) -> None:
         ))
         result.created["lenses"] = 1
     except Exception as e:  # noqa: BLE001
-        result.notes.append(f"The demo Lens was not created: "
+        result.notes.append(f"The starter Lens was not created: "
                             f"{type(e).__name__}: {str(e)[:200]}")

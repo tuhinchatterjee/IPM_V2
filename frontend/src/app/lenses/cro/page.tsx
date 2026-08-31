@@ -439,7 +439,7 @@ export default function CroLensPage() {
       <p className="border-t border-border pt-4 text-xs leading-relaxed text-text-muted">
         Every headline on this page is assembled from figures the CreditProbe Engine returned for the
         section beneath it. Where an analysis returned nothing, the section says so rather than
-        offering a conclusion. Figures are synthetic demonstration data.
+        offering a conclusion. Figures are synthetic data.
       </p>
     </div>
   );
