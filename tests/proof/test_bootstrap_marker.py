@@ -373,3 +373,76 @@ class TestAgainstTheRealDeployment:
         module = _script()
         module.main(["--check", "--json", "--quiet"])
         json.loads(capsys.readouterr().out)
+
+
+# ============================================ every step agrees with the gate
+#
+# A second bootstrap defect, of the same shape as the marker one and found the
+# same way: two pieces of code disagreeing about what "done" means, with the
+# disagreement invisible until a real deployment lands in the gap between them.
+
+
+class TestAStepIsNeededWheneverItsGateWouldFail:
+    """The step's precondition and the readiness check must be one question.
+
+    `_review_needed` used to ask "did a review COMPLETE?" while the gate asked
+    "did a review complete AND leave Risk Cases?". A database whose run row
+    survived while its cases did not was therefore simultaneously "already in
+    place" and "not ready" - and `bootstrap_demo.py --step review` reported
+    success having fixed nothing, which is worse than either failing or
+    working.
+
+    Asserted structurally, over every step that has a gate, rather than for
+    the one step where it was found.
+    """
+
+    def test_the_review_step_asks_the_gate_and_not_a_weaker_question(self):
+        from tests.conftest import database_available
+
+        if not database_available():
+            pytest.skip("PostgreSQL is not reachable")
+
+        from backend.bootstrap import plan, readiness
+        from backend.db.engine import get_session
+
+        with get_session() as session:
+            gate = readiness._review(session)
+        # The step wants to run exactly when the gate would not pass. Whatever
+        # state this database is in, the two must agree about it.
+        assert plan._review_needed() is (not gate.ok)
+
+    def test_a_completed_run_with_no_cases_still_needs_the_step(self,
+                                                                monkeypatch):
+        """The exact state the defect hid in, constructed.
+
+        A review that ran to completion and left nothing is indistinguishable
+        from a healthy quiet book if you only ask whether it ran - and on the
+        bundled book it is not quiet, it is broken.
+        """
+        from backend.bootstrap import plan, readiness
+
+        class Ran:
+            reviewed = True
+
+        monkeypatch.setattr(readiness, "_review_ran", lambda _s: True)
+        monkeypatch.setattr(
+            readiness, "_risk_case_count", lambda _s: 0, raising=False)
+        gate = readiness.Check(
+            key="portfolio_review", title="t", status=readiness.MISSING,
+            detail="ran, left nothing", remedy="r", data={"risk_cases": 0})
+        monkeypatch.setattr(readiness, "_review", lambda _s: gate)
+        monkeypatch.setattr(plan, "_session", _fake_session)
+        assert Ran.reviewed is True
+        assert plan._review_needed() is True
+
+
+class _FakeSession:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def _fake_session():
+    return _FakeSession()

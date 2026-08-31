@@ -20,7 +20,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from backend.api.permissions import Principal, RequireAdmin
+from backend.api.permissions import Principal, RequireAdmin, RequireAnalyst
 from backend.early_warning import lifecycle as lc
 from backend.early_warning import service as ew
 from backend.early_warning.factors import FACTOR_FAMILIES, FACTORS
@@ -131,6 +131,114 @@ def borrower_signals(borrower_id: str, period: str = "") -> dict:
         before.iloc[0].to_dict() if not before.empty else {},
         borrower_id=borrower_id, period=chosen, previous_period=prior)
     return standing.to_dict()
+
+
+# ============================================== raising cases from the signal
+#
+# §26, §27. Reading the signal is one permission; writing findings onto other
+# people's queues is another, and they are separated here rather than in a
+# comment. The preview is deliberately available to anyone who may run an
+# analysis - seeing what a review WOULD raise costs nobody anything, and being
+# able to check the rule before running it is how somebody trusts the queue.
+
+
+@router.get("/review/preview", summary="What a review would raise, without "
+                                       "raising anything")
+def review_preview(period: str = "", limit: int = 25) -> dict:
+    """Run the case rule over the whole book and write nothing. §26.
+
+    Every borrower is evaluated; the ranking is total; the response says how
+    many qualified and how many would sit below the limit for one run. It
+    touches no case and no queue.
+    """
+    from backend.early_warning import cases as ec
+    from backend.early_warning import signals as sg
+
+    try:
+        book = ec.standings_for(period)
+    except Exception as exc:  # noqa: BLE001
+        raise _unavailable(exc) from exc
+
+    standings = book["standings"]
+    if not standings:
+        return {"period": book["period"], "evaluated": 0, "qualified": 0,
+                "would_raise": [], "rules": {},
+                "note": "This book carries no borrowers at that period."}
+
+    rules: dict[str, int] = {}
+    decided = []
+    for standing in standings:
+        reason = ec.worth_a_case(standing)
+        rules[reason.rule] = rules.get(reason.rule, 0) + 1
+        if reason.raise_it:
+            decided.append((standing, reason))
+
+    ranked = sg.rank([s for s, _ in decided])
+    by_id = {s.borrower_id: r for s, r in decided}
+    bounded = max(1, min(int(limit), 200))
+    return {
+        "review_version": ec.REVIEW_VERSION,
+        "period": book["period"],
+        "previous_period": book["previous_period"],
+        "evaluated": len(standings),
+        "with_signals": sum(1 for s in standings if s.fired),
+        "qualified": len(decided),
+        "returned": min(bounded, len(ranked)),
+        "below_the_limit": max(0, len(ranked) - bounded),
+        "rules": rules,
+        "rule_meanings": {
+            "severe": "A condition the taxonomy classes as severe is present.",
+            "breadth": "Two or more independent families agree.",
+            "persistence": "A condition was already firing last period.",
+            "booked_stage": "The booked accounting position is stage 2 or "
+                            "worse.",
+            "single_watch": "One condition, one family, first time. "
+                            "Monitoring, not a finding.",
+            "no_signal": "No governed condition fires.",
+        },
+        "would_raise": [
+            {
+                "borrower_id": s.borrower_id,
+                "rule": by_id[s.borrower_id].rule,
+                "why": by_id[s.borrower_id].sentence,
+                "standing": s.to_dict(),
+            }
+            for s in ranked[:bounded]
+        ],
+    }
+
+
+class ReviewIn(BaseModel):
+    period: str = Field("", max_length=32)
+    budget: int = Field(50, ge=1, le=500)
+
+
+@router.post("/review", summary="Review the book and write the findings")
+def review(body: ReviewIn, principal: Principal = RequireAnalyst) -> dict:
+    """Raise or refresh Risk Cases from the governed signal. §27.
+
+    Replayable: running it twice over the same reporting date refreshes the
+    same cases and leaves every human decision - owner, status, comments -
+    where the person left it. It never closes a case; a borrower whose
+    conditions have cured moves to monitoring, and whether the credit itself
+    recovered stays a judgement for the case owner.
+    """
+    from backend.db.engine import SessionLocal
+    from backend.early_warning import cases as ec
+
+    session = SessionLocal()
+    try:
+        outcome = ec.run(session, period=body.period.strip(),
+                         budget=body.budget,
+                         actor=f"{ec.REVIEWER}:{principal.role.lower()}")
+        session.commit()
+        return outcome.to_dict()
+    except Exception as exc:  # noqa: BLE001
+        session.rollback()
+        logger.warning("The early-warning review could not run: %s", exc)
+        raise _unavailable(exc) from exc
+    finally:
+        session.close()
 
 
 # =================================================================== reading

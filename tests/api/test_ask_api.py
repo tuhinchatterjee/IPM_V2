@@ -262,15 +262,31 @@ def test_an_unrecognised_question_gets_a_question_back_not_a_number(client, demo
 
     clarification = body["clarification"]
     assert clarification["kind"] == "reading"
-    # The old refusal offered a menu of registered analyses and said CreditProbe
-    # "can only answer with analyses the engine has registered". That sentence
-    # described a product that no longer exists, and the menu sent people away
-    # from the question they actually had. What is offered now is composed from
-    # governed CONCEPTS, so every option is a question the composer can answer.
-    assert clarification["options"], "a refusal must leave something to click"
-    for option in clarification["options"]:
-        assert option["question"], "every offer must be a question that can be asked"
-    assert "registered" not in (clarification["detail"] or "").lower()
+    # This used to assert the opposite - that a refusal must leave a menu to
+    # click. Two rounds of that menu showed what it actually does. Offered to
+    # somebody who asked "how is the book doing?", a list of governed concepts
+    # invites them to pick "exposure at default" and accept a confident answer
+    # to a question they did not ask, which is the substitution the whole
+    # orchestration layer exists to prevent; and a menu that cannot contain
+    # their question is a dead end wearing a button.
+    #
+    # So the refusal is now a QUESTION with no options, and the assertions are
+    # stronger than the ones they replaced: nothing is offered, the reply asks
+    # for the missing thing by name, it says what the catalogue does carry so
+    # the person is not guessing, and anything they type is accepted.
+    assert clarification["options"] == [], "a refusal must not offer a menu"
+    assert clarification["allow_custom"], "the person must be able to answer"
+    asked = clarification["question"]
+    assert "?" in asked, "the reply must actually ask something"
+    # Named in prose, not offered as buttons: the examples tell somebody what
+    # kind of thing an answer looks like without inviting them to substitute
+    # one of them for the question they came with.
+    said = (asked + " " + (clarification["detail"] or "")).lower()
+    assert "governed concepts" in said or "catalogue carries measures" in said
+    assert any(concept in said for concept in
+               ("exposure at default", "expected credit loss",
+                "internal rating"))
+    assert "registered" not in said
 
 
 def test_a_question_about_data_creditprobe_does_not_hold_says_so(client, demo_mode):

@@ -303,10 +303,14 @@ SIGNALS: tuple[Signal, ...] = (
        "Coverage has dropped by ten points or more.",
        "corporate_borrower_360", "collateral_coverage_pct", FELL_BY, 10.0),
     _s("collateral_shortfall", COLLATERAL, "Material collateral shortfall",
-       "More than ten million of exposure that the collateral does not reach. "
-       "The materiality is a seeded default, not a regulatory requirement.",
-       "corporate_borrower_360", "collateral_shortfall", ABOVE, 10.0,
-       severity=SEVERE),
+       "A quarter or more of the drawn exposure is not reached by collateral. "
+       "Measured against the borrower's own exposure rather than as a fixed "
+       "amount: ten million uncovered is a rounding error on a large "
+       "facility and the whole facility on a small one, and a threshold that "
+       "cannot tell those apart fires on two fifths of the book. The "
+       "proportion is a seeded default, not a regulatory requirement.",
+       "corporate_borrower_360", "collateral_shortfall", RATIO_ABOVE, 25.0,
+       against="drawn_exposure", severity=SEVERE),
     _s("valuation_stale", COLLATERAL, "Valuation more than two years old",
        "The collateral is carried at a value nobody has revisited in over two "
        "years. A stale value is not a value.",
@@ -397,6 +401,12 @@ def describe() -> dict[str, Any]:
              "unavailable": unavailable(key)}
             for key, label in FAMILIES.items()
         ],
+        # The same signals again, flat. Families are how a screen groups them
+        # and a flat list is how anything searches them; deriving one from the
+        # other at every call site is how two callers end up disagreeing about
+        # how many signals there are.
+        "signals": [s.to_dict() for s in SIGNALS],
+        "unavailable": unavailable(),
         "signal_count": len(SIGNALS),
         "severities": list(SEVERITIES),
     }

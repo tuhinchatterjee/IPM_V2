@@ -376,8 +376,18 @@ def _seed_workspace() -> str:
 
 
 def _review_needed() -> bool:
+    """Needed whenever the readiness gate would not pass, not merely when no
+    run row exists.
+
+    The two used to disagree. The step asked "did a review COMPLETE?" and the
+    gate asked "did a review complete AND leave cases?", so a database whose
+    run row survived while its cases did not was simultaneously "already in
+    place" and "not ready" - and re-running the bootstrap reported success
+    while fixing nothing, which is the worst of the three possible outcomes.
+    One definition of done, and it is the gate's.
+    """
     with _session() as session:
-        return not readiness._review_ran(session)
+        return not readiness._review(session).ok
 
 
 def _run_review() -> str:

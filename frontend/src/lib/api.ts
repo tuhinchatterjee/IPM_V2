@@ -2743,6 +2743,162 @@ export interface SavedAnalysis {
  * derived from a validation record on the backend and are unreachable without
  * one.
  */
+// ---- early warning: the governed signal taxonomy (§20, §23-§28) ----
+//
+// A different object from `EarlyWarningScores`. That one is a fitted model
+// producing a probability; this one is a list of named conditions with
+// thresholds somebody owns. They answer different questions and the product
+// deliberately shows both rather than folding one into the other.
+
+export interface SignalObservation {
+  signal: string;
+  family: string;
+  family_label: string;
+  label: string;
+  fired: boolean;
+  lifecycle: string;
+  lifecycle_means: string;
+  severity: string;
+  value: unknown;
+  previous: unknown;
+  movement: number | null;
+  threshold: unknown;
+  threshold_version: string;
+  threshold_owner: string;
+  dataset: string;
+  field: string;
+  test: string;
+  period: string;
+  previous_period: string;
+  booked_accounting: boolean;
+  unavailable: string;
+  means: string;
+  available: boolean;
+}
+
+export interface SignalStanding {
+  version: string;
+  borrower_id: string;
+  period: string;
+  sentence: string;
+  // Six transparent measures and deliberately no score. §25.
+  breadth: number;
+  severity: string;
+  persistence: number;
+  worsening: number;
+  improving: number;
+  agreement: string[];
+  conflict: string[];
+  booked_accounting_signals: string[];
+  fired: SignalObservation[];
+  cured: SignalObservation[];
+  untested: SignalObservation[];
+  families: Record<string, string[]>;
+}
+
+export interface SignalHeadline {
+  borrowers: number;
+  with_a_new_signal: number;
+  worsening: number;
+  persisting: number;
+  cured: number;
+  severe: number;
+  multi_family: number;
+  booked_stage_2_or_worse: number;
+  covenant_pressure: number;
+  collateral_pressure: number;
+  means: Record<string, string>;
+}
+
+export interface SignalPortfolio {
+  version: string;
+  taxonomy_version?: string;
+  period: string;
+  previous_period?: string;
+  evaluated: number;
+  with_signals?: number;
+  returned?: number;
+  borrowers: SignalStanding[];
+  headline?: SignalHeadline;
+  unavailable?: { family: string; family_label: string; means: string }[];
+  origin?: string;
+  note?: string;
+}
+
+export interface SignalTaxonomy {
+  version: string;
+  owner: string;
+  families: {
+    id: string;
+    label: string;
+    means: string;
+    signals: SignalDefinition[];
+    unavailable: { family: string; family_label: string; means: string }[];
+  }[];
+  signals: SignalDefinition[];
+  unavailable: { family: string; family_label: string; means: string }[];
+  signal_count: number;
+  severities: string[];
+}
+
+export interface SignalDefinition {
+  key: string;
+  family: string;
+  family_label: string;
+  label: string;
+  means: string;
+  dataset: string;
+  field: string;
+  test: string;
+  threshold: unknown;
+  against: string;
+  severity: string;
+  booked_accounting: boolean;
+  owner: string;
+  version: string;
+  sentence: string;
+}
+
+export interface ReviewPreview {
+  review_version?: string;
+  period: string;
+  previous_period?: string;
+  evaluated: number;
+  with_signals?: number;
+  qualified: number;
+  returned?: number;
+  below_the_limit?: number;
+  rules: Record<string, number>;
+  rule_meanings?: Record<string, string>;
+  would_raise: {
+    borrower_id: string;
+    rule: string;
+    why: string;
+    standing: SignalStanding;
+  }[];
+  note?: string;
+}
+
+export interface ReviewOutcome {
+  review_version: string;
+  taxonomy_version: string;
+  signals_version: string;
+  period: string;
+  previous_period: string;
+  evaluated: number;
+  with_signals: number;
+  qualified: number;
+  opened: number;
+  refreshed: number;
+  moved_to_monitoring: number;
+  not_opened: number;
+  budget: number;
+  rules: Record<string, number>;
+  bands: Record<string, number>;
+  case_ids: number[];
+  sentence: string;
+}
+
 export interface EarlyWarningTarget {
   id: string;
   label: string;
@@ -3769,6 +3925,40 @@ export const api = {
     request<void>(`/playbooks/${id}`, { method: "DELETE" }),
 
   // ---- early warning ----
+  earlyWarningTaxonomy: () =>
+    request<SignalTaxonomy>("/early-warning/taxonomy"),
+  earlyWarningSignals: (opts: { period?: string; limit?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (opts.period) query.set("period", opts.period);
+    if (opts.limit) query.set("limit", String(opts.limit));
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<SignalPortfolio>(`/early-warning/signals${suffix}`, {
+      timeoutMs: 90_000,
+    });
+  },
+  borrowerSignals: (borrowerId: string, period?: string) =>
+    request<SignalStanding>(
+      `/early-warning/signals/${encodeURIComponent(borrowerId)}` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+    ),
+  earlyWarningReviewPreview: (opts: { period?: string; limit?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (opts.period) query.set("period", opts.period);
+    if (opts.limit) query.set("limit", String(opts.limit));
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<ReviewPreview>(`/early-warning/review/preview${suffix}`, {
+      timeoutMs: 90_000,
+    });
+  },
+  runEarlyWarningReview: (payload: { period?: string; budget?: number } = {}) =>
+    request<ReviewOutcome>("/early-warning/review", {
+      method: "POST",
+      body: JSON.stringify({
+        period: payload.period ?? "",
+        budget: payload.budget ?? 50,
+      }),
+      timeoutMs: 180_000,
+    }),
   earlyWarning: () => request<EarlyWarningOverview>("/early-warning"),
   earlyWarningMethodology: () =>
     request<EarlyWarningMethodology>("/early-warning/methodology"),
