@@ -47,6 +47,14 @@ MEMOS = "credit_memo_signals"
 FINANCIALS = "borrower_financials"
 LIMITS = "facility_limits"
 COLLATERAL = "collateral_register"
+#: The Borrower 360 book. B44: a second portfolio in the same catalogue, and
+#: the two share almost every word. The concepts below are the ones that
+#: belong ONLY to it - a question that names a group structure, a beneficial
+#: owner, a supply chain or a network position is asking about this book and
+#: nothing in the credit book can answer it.
+GROUPS = "corporate_connected_groups"
+GRAPH_DQ = "corporate_graph_dq"
+BORROWER_360 = "corporate_borrower_360"
 RECOVERIES = "recoveries"
 APPETITE = "risk_appetite_limits"
 PD_MODEL = "pd_model_performance"
@@ -316,6 +324,235 @@ CONCEPTS: tuple[Concept, ...] = (
         candidates=(_c(MEMOS, "signal_strength_pct",
                        "How strong the structured signal from the credit file "
                        "is.", default=True),)),
+
+    # ------------------------------------------- the corporate graph. B44.
+    #
+    # The three GROUP concepts are separate on purpose and are the reason
+    # this block exists at all. "The group" is the single most overloaded
+    # word in corporate credit: it means the economics to a shareholder, the
+    # decision-making to a governance reviewer, and the obligor to a
+    # regulator, and those are three different sets of companies. A concept
+    # map that answered "group" with one column would be confidently wrong
+    # two times in three.
+    Concept(
+        id="connected_group", label="connected counterparty group",
+        pattern=(r"connected (?:counterpart(?:y|ies)|group)|obligor group|"
+                 r"group of connected|single risk"),
+        is_categorical=True,
+        candidates=(
+            _c(GROUPS, "connected_group_id",
+               "The candidate obligor group: control components, then "
+               "validated economic interdependence merged in. A CANDIDATE "
+               "for assessment under the institution's own criteria, never a "
+               "determination.",
+               "connected", "obligor", "counterparty", default=True),
+            _c(GROUPS, "group_name",
+               "The same group by its readable name - its largest member.",
+               "name", "called", "named"),
+        )),
+    Concept(
+        id="control_group", label="control group",
+        pattern=r"control(?:ling)? group|controlled by|who controls|controller",
+        is_categorical=True,
+        candidates=(_c(GROUPS, "control_group_id",
+                       "The control bloc, from binary closure over VOTING "
+                       "rights. NOT proportional ownership: 51% of 51% is "
+                       "26% of the economics and 100% of the control.",
+                       default=True),)),
+    Concept(
+        id="ownership_group", label="effective ownership group",
+        pattern=(r"ownership group|effective ownership|beneficial ownership "
+                 r"group|economic (?:ownership|interest)"),
+        is_categorical=True,
+        candidates=(_c(GROUPS, "effective_ownership_group_id",
+                       "The group formed by integrated ownership at or above "
+                       "25%, solved as A(I-A)^-1. The ECONOMICS, not the "
+                       "control.", default=True),)),
+    Concept(
+        id="group_size", label="connected group size",
+        pattern=r"group size|members? (?:of|in) the group|how (?:many|large)",
+        unit="count",
+        candidates=(_c(GROUPS, "connected_group_size",
+                       "Members of the connected counterparty group.",
+                       default=True),)),
+    Concept(
+        id="group_role", label="group role",
+        pattern=r"group role|parent|subsidiar(?:y|ies)|affiliate|standalone",
+        is_categorical=True,
+        polarity=(("parent", "PARENT"), ("subsidiary", "SUBSIDIARY"),
+                  ("affiliate", "AFFILIATE"), ("standalone", "STANDALONE")),
+        candidates=(_c(GROUPS, "group_role",
+                       "PARENT, SUBSIDIARY, AFFILIATE or STANDALONE, decided "
+                       "over the CORPORATE members of the control bloc. A "
+                       "company owned by its founder is standalone, not a "
+                       "subsidiary.", default=True),)),
+    Concept(
+        id="group_exposure", label="connected group exposure",
+        pattern=r"group exposure|exposure to the group|aggregate exposure",
+        unit="SAR millions",
+        candidates=(_c(GROUPS, "group_exposure",
+                       "Total EAD across the connected group's members - the "
+                       "figure the group limit is measured against.",
+                       default=True),)),
+    Concept(
+        id="group_utilisation", label="group limit utilisation",
+        pattern=(r"group (?:limit )?utilisation|group utilization|"
+                 r"against the group limit|large exposure"),
+        unit="%",
+        candidates=(_c(GROUPS, "group_utilisation_pct",
+                       "The group's exposure over the eligible capital "
+                       "reference. The threshold it is compared against is an "
+                       "UNVERIFIED REGULATORY PARAMETER.", default=True),)),
+    Concept(
+        id="ubo", label="ultimate beneficial owner",
+        pattern=(r"ultimate beneficial owner|\bubo\b|beneficial owner|"
+                 r"who (?:really )?owns|ultimate owner"),
+        # Zero identified owners is the opaque structure. More of them is
+        # not worse, so the direction of concern points down.
+        higher_is_worse=False, unit="count",
+        candidates=(_c(GROUPS, "ubo_count",
+                       "Natural persons whose INTEGRATED ownership reaches "
+                       "25%. Counted through the chain, not from direct "
+                       "shareholdings - which is the whole reason a pyramid "
+                       "is built.", default=True),)),
+    Concept(
+        id="director_count", label="directors",
+        pattern=r"directors?|board (?:members?|seats?)|directorships?",
+        unit="count",
+        candidates=(_c(GROUPS, "director_count",
+                       "Board seats held at this borrower, as filed.",
+                       default=True),)),
+    Concept(
+        id="supplier_count", label="suppliers",
+        pattern=r"suppliers?|supply chain|upstream",
+        unit="count",
+        candidates=(_c(GROUPS, "supplier_count",
+                       "Counterparties supplying this borrower. A supply "
+                       "relationship never forms a regulatory group on its "
+                       "own.", default=True),)),
+    Concept(
+        id="customer_count", label="customers of the borrower",
+        pattern=r"customers of|buyers?|downstream|who (?:it|they) supply",
+        unit="count",
+        candidates=(_c(GROUPS, "customer_count",
+                       "Counterparties this borrower supplies.",
+                       default=True),)),
+    Concept(
+        id="guarantee_links", label="guarantee links",
+        pattern=r"guarantees?|guarantor|stands behind|surety",
+        unit="count",
+        candidates=(_c(GROUPS, "guarantee_links",
+                       "Guarantees given or received, over reified Guarantee "
+                       "nodes - one guarantee can cover several facilities of "
+                       "several borrowers.", default=True),)),
+    Concept(
+        id="network_links", label="network links",
+        pattern=r"network links?|financial claims?|exposed to whom",
+        unit="count",
+        candidates=(_c(GROUPS, "exposure_network_links",
+                       "Financial claims to or from this borrower.",
+                       default=True),)),
+    Concept(
+        id="network_risk_score", label="network risk score",
+        pattern=(r"network risk score|network score|network risk|"
+                 r"structural risk"),
+        unit="index",
+        candidates=(_c(GROUPS, "network_risk_score",
+                       "A RELATIVE RANKING of the borrower's position in the "
+                       "relationship graph. NOT a probability, NOT a PD, NOT "
+                       "a rating, NOT an IFRS 9 stage and NOT an expected "
+                       "credit loss.", default=True),)),
+    Concept(
+        id="debtrank", label="DebtRank impact",
+        pattern=(r"debtrank|debt rank|contagion|network impact|"
+                 r"take (?:the )?(?:most of the )?network down|systemic"),
+        unit="ratio",
+        candidates=(_c(GROUPS, "debtrank_impact",
+                       "How much of the network's value is impaired when this "
+                       "borrower is shocked. Network analytics and early "
+                       "warning - NOT an expected credit loss and NOT a "
+                       "capital methodology.", default=True),)),
+    Concept(
+        id="centrality", label="network centrality",
+        pattern=r"centrality|most central|pagerank|page rank|transmits?",
+        unit="ratio",
+        candidates=(
+            _c(GROUPS, "pagerank_transmits",
+               "Forward PageRank: how central the borrower is as a "
+               "TRANSMITTER - who others are exposed to.",
+               "transmit", "transmits", "spread", "forward", default=True),
+            _c(GROUPS, "pagerank_hurt",
+               "Reverse PageRank: how exposed the borrower is to "
+               "transmission from others.",
+               "hurt", "exposed", "reverse", "receive"),
+            _c(GROUPS, "betweenness",
+               "Betweenness: whether the borrower sits on the paths between "
+               "others - a conduit.",
+               "betweenness", "conduit", "between", "bridge"),
+        )),
+    Concept(
+        id="network_community", label="network community",
+        pattern=r"network community|cluster|community detection|louvain",
+        # An arbitrary integer label. Community 7 is not worse than
+        # community 3, and there is no direction to record.
+        higher_is_worse=False, is_categorical=True,
+        candidates=(_c(GROUPS, "louvain_community",
+                       "A modularity community over the exposure network. "
+                       "Descriptive only - NOT a group in any legal, economic "
+                       "or regulatory sense.", default=True),)),
+    Concept(
+        id="graph_confidence", label="graph evidence confidence",
+        pattern=(r"graph confidence|evidence confidence|how (?:reliable|well "
+                 r"evidenced)|weakest evidence"),
+        higher_is_worse=False, unit="ratio",
+        candidates=(
+            _c(GROUPS, "graph_confidence",
+               "The WEAKEST assertion on the evidence path. A conclusion is "
+               "exactly as good as the worst assertion it depends on.",
+               "weakest", "worst", "minimum", default=True),
+            _c(GROUPS, "relationship_confidence",
+               "The MEAN confidence of the edges touching this borrower - how "
+               "well evidenced it is overall.",
+               "mean", "average", "overall"),
+        )),
+    Concept(
+        id="graph_quality", label="graph data quality",
+        pattern=(r"graph (?:data )?quality|can we trust the graph|"
+                 r"graph dq|relationship data quality"),
+        is_categorical=True,
+        polarity=(("degraded", "DEGRADED"), ("insufficient", "INSUFFICIENT"),
+                  ("ok", "OK")),
+        candidates=(_c(GROUPS, "graph_dq_status",
+                       "OK, DEGRADED or INSUFFICIENT for THIS borrower. A "
+                       "portfolio-wide flag does not reach this field - a "
+                       "status that reads the same for every row tells a "
+                       "reviewer nothing.", default=True),)),
+    Concept(
+        id="dq_issue_count", label="data quality issues",
+        pattern=r"data.quality issues?|dq issues?|open issues?",
+        unit="count",
+        candidates=(_c(GROUPS, "dq_issue_count",
+                       "Entity-scoped data-quality issues naming this "
+                       "borrower.", default=True),)),
+    Concept(
+        id="dq_check_status", label="data quality check verdict",
+        pattern=r"check (?:failed|passed|status)|quality verdict|rejected check",
+        is_categorical=True,
+        polarity=(("pass", "PASS"), ("passed", "PASS"), ("flag", "FLAG"),
+                  ("flagged", "FLAG"), ("reject", "REJECT"),
+                  ("rejected", "REJECT"), ("failed", "REJECT")),
+        candidates=(_c(GRAPH_DQ, "status",
+                       "PASS, FLAG or REJECT for one graph data-quality "
+                       "check. A REJECT blocks the computation that depends "
+                       "on it.", default=True),)),
+    Concept(
+        id="snapshot_validation", label="borrower validation status",
+        pattern=(r"validation status|snapshot validation|"
+                 r"passed with issues"),
+        is_categorical=True,
+        candidates=(_c(GROUPS, "snapshot_validation_status",
+                       "PASSED, PASSED WITH ISSUES or FAILED for this "
+                       "borrower's row.", default=True),)),
 )
 
 

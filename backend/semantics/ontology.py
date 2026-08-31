@@ -1128,7 +1128,214 @@ CONTRACTS_V2: tuple[SemanticContract, ...] = (
         calculation="ebitda_margin_pct"),
 )
 
-_ALL: tuple[SemanticContract, ...] = CONTRACTS + CONTRACTS_V2 + (STAGE_SHARE,)
+
+# ------------------------------------------------ the corporate graph. B44.
+#
+# These exist for the FORBIDDEN clauses more than for the definitions. Every
+# one of these measures reads like something a credit officer already knows -
+# a score between 0 and 100, a fraction that rises with distress, a group -
+# and each one is a different quantity from the thing it resembles. The
+# contract is where "you may not add these" and "this is not a probability"
+# live in a form the runtime can enforce rather than in a paragraph a reader
+# may or may not have seen.
+CONTRACTS_GRAPH: tuple[SemanticContract, ...] = (
+    SemanticContract(
+        concept_id="network_risk_score",
+        business_name="Network Risk Score",
+        definition=(
+            "A RELATIVE RANKING of a borrower's structural position in the "
+            "relationship graph, as 100 x (0.45 x normalised DebtRank + 0.35 "
+            "x normalised forward PageRank + 0.20 x normalised betweenness). "
+            "It is NOT a probability, NOT a probability of default, NOT a "
+            "rating, NOT an IFRS 9 stage and NOT an expected credit loss. It "
+            "ranks borrowers against each other in this population and "
+            "carries no meaning outside it."),
+        aliases=("network risk score", "network score", "NRS",
+                 "structural risk score"),
+        natural_grain="customer", unit="index", higher_is_worse=True,
+        is_ratio=True, operations=RATIO_OPS,
+        forbidden=(
+            (SUM, "Rankings do not add. The sum of ten Network Risk Scores "
+                  "is not a portfolio's network risk and is not a quantity "
+                  "of anything."),
+        ),
+        period_behaviour=SNAPSHOT,
+        calculation=("network_risk_score, from the derived graph. A relative "
+                     "ranking within the scored population, not a "
+                     "probability"),
+        invariants=(
+            Invariant("share_bounds",
+                      "The score is normalised onto 0-100 within the scored "
+                      "population.",
+                      {"minimum": 0.0, "maximum": 100.0}),
+        )),
+    SemanticContract(
+        concept_id="debtrank",
+        business_name="DebtRank impact",
+        definition=(
+            "How much of the network's value is impaired when this borrower "
+            "is shocked, as a fraction. Network analytics and early warning: "
+            "it is NOT an expected credit loss, NOT a capital methodology and "
+            "NOT a regulatory measure of anything. It reads like a loss rate "
+            "- it is a fraction, and it rises with distress - which is "
+            "exactly why it must never be presented as one."),
+        aliases=("DebtRank", "debt rank", "debtrank impact",
+                 "network impact", "contagion impact"),
+        natural_grain="customer", unit="ratio", higher_is_worse=True,
+        is_ratio=True, operations=RATIO_OPS,
+        forbidden=(
+            (SUM, "Impacts do not add. Two borrowers' DebtRank impacts "
+                  "overlap wherever their networks do, so the sum "
+                  "double-counts the shared neighbours."),
+        ),
+        period_behaviour=SNAPSHOT,
+        calculation=("debtrank_impact, from W[i,j] = min(1, X[i,j]/C[i]) "
+                     "with each node propagating exactly once"),
+        invariants=(
+            Invariant("share_bounds",
+                      "A fraction of the network lies between 0 and 1.",
+                      {"minimum": 0.0, "maximum": 1.0}),
+        )),
+    SemanticContract(
+        concept_id="group_utilisation",
+        business_name="Group limit utilisation",
+        definition=(
+            "A connected counterparty group's total exposure at default as a "
+            "share of the eligible capital reference. The threshold it is "
+            "compared against is an UNVERIFIED REGULATORY PARAMETER carried "
+            "from a framework document, not confirmed as currently binding "
+            "law, and a breach here is a candidate for assessment rather "
+            "than a regulatory finding."),
+        aliases=("group utilisation", "group limit utilisation",
+                 "large exposure", "group concentration"),
+        natural_grain="customer", unit="%", higher_is_worse=True,
+        is_ratio=True, operations=RATIO_OPS,
+        forbidden=(
+            (SUM, "Group utilisations do not add across borrowers: every "
+                  "member of a group carries the SAME group figure, so "
+                  "summing them multiplies one group's exposure by its "
+                  "member count."),
+        ),
+        period_behaviour=SNAPSHOT,
+        calculation=("group_utilisation_pct = group EAD / eligible capital "
+                     "reference x 100")),
+    SemanticContract(
+        concept_id="ubo",
+        business_name="Ultimate beneficial owners",
+        definition=(
+            "The number of natural persons whose INTEGRATED ownership of a "
+            "borrower reaches 25%. Counted through the whole chain rather "
+            "than from direct shareholdings, which is the entire reason a "
+            "pyramid structure is built. A borrower whose ownership "
+            "component was rejected by a data-quality check has no count at "
+            "all - which is different from having no owner."),
+        aliases=("UBO", "ubo count", "ultimate beneficial owner",
+                 "beneficial owner", "ultimate owner"),
+        natural_grain="customer", unit="count", higher_is_worse=False,
+        operations=(COUNT, RANK, COMPARE, DISTRIBUTION, MOVEMENT),
+        forbidden=(
+            (AVERAGE, "An average number of beneficial owners is not a "
+                      "quantity anybody acts on. Ask how many borrowers have "
+                      "none, or which have more than one."),
+        ),
+        period_behaviour=SNAPSHOT,
+        calculation=("natural persons with an integrated stake at or above "
+                     "25%, from A(I-A)^-1")),
+    SemanticContract(
+        concept_id="group_size",
+        business_name="Connected group size",
+        definition=(
+            "The number of borrowers in a connected counterparty CANDIDATE "
+            "group. Graph connectivity is not regulatory connectedness: the "
+            "group is formed from effective control and validated economic "
+            "interdependence, and is a candidate for assessment under the "
+            "institution's own approved criteria rather than a "
+            "determination."),
+        aliases=("group size", "connected group size", "obligor group size"),
+        natural_grain="customer", unit="count", higher_is_worse=True,
+        operations=(COUNT, RANK, COMPARE, DISTRIBUTION, MOVEMENT, WORST),
+        forbidden=(
+            (SUM, "Every member of a group carries the same size, so summing "
+                  "over borrowers squares the group rather than counting "
+                  "it."),
+        ),
+        period_behaviour=SNAPSHOT,
+        calculation=("members of the weakly connected component over the "
+                     "CONTROL graph, plus validated interdependence merges")),
+    SemanticContract(
+        concept_id="graph_confidence",
+        business_name="Graph evidence confidence",
+        definition=(
+            "The confidence of the WEAKEST assertion on the evidence path "
+            "behind a derived relationship. Not the average, which lets a "
+            "long chain of registry filings hide one relationship manager's "
+            "note, and not the product, which punishes length rather than "
+            "weakness. A conclusion is exactly as good as the worst "
+            "assertion it depends on."),
+        aliases=("graph confidence", "evidence confidence",
+                 "weakest evidence", "relationship confidence"),
+        natural_grain="customer", unit="ratio", higher_is_worse=False,
+        is_ratio=True, operations=RATIO_OPS,
+        forbidden=(
+            (SUM, "Confidences do not add. Two assertions each believed "
+                  "70% do not make a relationship believed 140%, and the "
+                  "total is not a quantity of evidence."),
+        ),
+        period_behaviour=SNAPSHOT,
+        calculation="min(confidence) over the evidence path",
+        invariants=(
+            Invariant("share_bounds",
+                      "A confidence lies between 0 and 1.",
+                      {"minimum": 0.0, "maximum": 1.0}),
+        )),
+    SemanticContract(
+        concept_id="centrality",
+        business_name="Network centrality",
+        definition=(
+            "A borrower's position in the exposure network. Forward PageRank "
+            "ranks TRANSMITTERS - who others are exposed to; reverse "
+            "PageRank ranks the exposed; betweenness ranks conduits. The "
+            "three answer different questions and the direction is the thing "
+            "most easily got backwards: a measure where forward and reverse "
+            "agree has lost it. Centrality is structural position and "
+            "nothing else - a central borrower is not thereby a large one, "
+            "a weak one, or one whose default is more likely."),
+        aliases=("centrality", "PageRank", "betweenness",
+                 "network centrality", "network position"),
+        natural_grain="customer", unit="ratio", higher_is_worse=True,
+        is_ratio=True, operations=RATIO_OPS,
+        forbidden=(
+            (SUM, "PageRank over the whole population already sums to one. "
+                  "Summing a subset is a share of the network, not a "
+                  "quantity of risk."),
+        ),
+        period_behaviour=SNAPSHOT,
+        calculation=("pagerank_transmits / pagerank_hurt / betweenness, from "
+                     "the derived graph")),
+    SemanticContract(
+        concept_id="network_community",
+        business_name="Network community",
+        definition=(
+            "A community found by modularity optimisation over the exposure "
+            "network. Descriptive only: it is NOT a group in any legal, "
+            "economic or regulatory sense and carries no claim about the "
+            "borrowers in it. Its label is an arbitrary integer that is "
+            "stable between runs and means nothing between quarters."),
+        aliases=("network community", "cluster", "Louvain community"),
+        natural_grain="customer", unit="", higher_is_worse=False,
+        is_categorical=True, operations=CATEGORY_OPS,
+        forbidden=(
+            (SUM, "A community label is an identifier, not a quantity. "
+                  "Adding two of them is a type error."),
+            (AVERAGE, "The average of two community labels names a third "
+                      "community that has nothing to do with either."),
+        ),
+        period_behaviour=SNAPSHOT,
+        calculation="louvain_community, a label rather than a measure"),
+)
+
+_ALL: tuple[SemanticContract, ...] = (
+    CONTRACTS + CONTRACTS_V2 + CONTRACTS_GRAPH + (STAGE_SHARE,))
 
 
 def _index() -> dict[str, SemanticContract]:
@@ -1223,6 +1430,7 @@ def fingerprint() -> str:
 
 __all__ = [
     "CONTRACTS",
+    "CONTRACTS_GRAPH",
     "ONTOLOGY_VERSION",
     "Ambiguity",
     "Invariant",

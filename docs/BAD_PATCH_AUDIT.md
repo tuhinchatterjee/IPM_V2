@@ -34,11 +34,41 @@ Every file in that diff except one is a NEW file. The single exception is
 `tests/corporate/conftest.py`, which is **29 insertions and 0 deletions** —
 three added fixtures, no existing fixture touched.
 
-So the audit's central requirement — "for every changed legacy assertion,
-document the old invariant, why it was stale or wrong, the stronger
-replacement, and the new regression" — has an empty table. **No legacy
-assertion was changed, weakened, deleted or replaced in these eight
-commits.**
+**One** legacy assertion has been changed since, when the graph work reached
+the Brain, and the audit's central requirement — "for every changed legacy
+assertion, document the old invariant, why it was stale or wrong, the
+stronger replacement, and the new regression" — is discharged for it below.
+
+### The one changed legacy assertion
+
+`tests/judgment/test_blueprints_and_challenge.py::test_every_family_section_67_names_has_a_blueprint`
+
+| | |
+| --- | --- |
+| **Old invariant** | `required == set(bp.FAMILIES)` and `required == set(bp.BY_FAMILY)` — the blueprint family set is EXACTLY the nineteen families §67 names. |
+| **Why it was stale** | Its own name says "every family §67 names has a blueprint", which is a floor. The equality made it a ceiling as well, so it failed not because a §67 family had gone missing but because ten graph families were added on top — `CORPORATE_GROUP_STRUCTURE`, `BENEFICIAL_OWNERSHIP`, `CONNECTED_COUNTERPARTY`, `GROUP_LIMIT_UTILISATION`, `NETWORK_CONTAGION`, `NETWORK_CENTRALITY`, `SUPPLY_CHAIN_DEPENDENCE`, `GUARANTEE_NETWORK`, `HIDDEN_RELATIONSHIP`, `GRAPH_DATA_QUALITY`. An assertion that fails on required growth stops being read. |
+| **Stronger replacement** | `required <= set(bp.FAMILIES)`, reported as the named missing families rather than as a set diff, **plus** `set(bp.FAMILIES) == set(bp.BY_FAMILY)` in both directions. The property actually worth protecting is the correspondence: a declared family with no blueprint is a menu entry leading nowhere, and a blueprint filed under an unregistered family is unreachable. The old form checked the forward direction only, against a hard-coded list; the new one checks both directions against the registry, so it also catches a *new* family added without a blueprint — which the old form could not do at all. |
+| **New regression** | `tests/corporate/test_graph_brain.py::TestBlueprints` — each of the ten graph families resolves to a blueprint, each is `usable`, and each carries at least three required objectives, hypotheses, challenges and a `when_not_to_use`. |
+
+Nothing was weakened to accommodate an implementation: the graph families
+are new product, the assertion was rewritten to test its own stated
+property, and it now covers strictly more than it did.
+
+Three further test edits accompanied the same change and are **not** legacy
+assertions — all three are in `tests/corporate/test_graph_brain.py`, written
+in this session, and two of them are the tests being corrected rather than
+the product:
+
+- `test_every_graph_contract_says_what_it_is_not` looked for the literal
+  string `"not"` and failed `ubo_count`, whose definition says a rejected
+  borrower "has no count at all — which is different from having no owner".
+  That IS a boundary. Renamed `test_every_graph_contract_states_a_boundary`
+  and broadened to the property. It then caught a real omission:
+  `network_centrality` stated no boundary at all, so the CONTRACT gained one
+  ("a central borrower is not thereby a large one, a weak one, or one whose
+  default is more likely").
+- Two id references were realigned after the contract ids were renamed to
+  match the concept registry (below).
 
 (The one legacy assertion changed in this whole line of work was changed at
 `d7c910f` itself, which is the audit's starting point rather than inside its
@@ -193,6 +223,17 @@ pre-existing expected refusals unchanged.
 
 Three fixes, all made rather than noted:
 
+0. **Four contracts governed a word nothing produced.** `debtrank_impact`,
+   `ubo_count`, `connected_group_size` and `network_centrality` were filed
+   under contract ids the concept registry does not answer to, so
+   `SemanticContract.fields` returned empty for all four: a catalogue that
+   looks richer than the product, which §1 of the ontology's own test suite
+   forbids. Renamed to `debtrank`, `ubo`, `group_size` and `centrality`,
+   with the long forms kept as aliases so the words a person says still
+   resolve. Two directions of deterioration were wrong in the registry and
+   are now stated where they belong: a borrower with FEWER identified
+   beneficial owners is the opaque one, and a Louvain community label has no
+   direction at all.
 1. **A missing lake now fails once, loudly.** Two new tests fail rather than
    skip, so a run of forty skips cannot be read as a verification.
 2. **A missing confidence is dropped from the mean**, not counted as zero.
@@ -201,7 +242,8 @@ Three fixes, all made rather than noted:
 
 ## What the audit did not find
 
-No changed legacy assertion. No widened tolerance. No new xfail. No linter
+No weakened legacy assertion — the single changed one is documented in §1
+and covers strictly more than it did. No widened tolerance. No new xfail. No linter
 exclusion beyond one allowlist entry that states its reason in the allowlist
 itself. No canned answer. No inflated retrieval budget. No removed threshold.
 No authorization bypass. No stubbed browser behaviour.

@@ -33,8 +33,14 @@ def test_every_family_section_67_names_has_a_blueprint():
         "VINTAGE_COHORT", "DATA_QUALITY_RELATIONSHIP_INVESTIGATION",
         "MODEL_METHOD_PERFORMANCE_REVIEW",
         "CLIENT_DEMO_EXECUTIVE_PORTFOLIO_REVIEW"}
-    assert required == set(bp.FAMILIES)
-    assert required == set(bp.BY_FAMILY)
+    # §67 is a floor, not a ceiling: it names the families that must exist,
+    # and the B-series graph families were added on top of it. What must
+    # never drift is the correspondence in both directions - a declared
+    # family with no blueprint is a menu entry that leads nowhere, and a
+    # blueprint filed under an unregistered family is unreachable.
+    missing = required - set(bp.FAMILIES)
+    assert not missing, f"§67 families with no blueprint: {sorted(missing)}"
+    assert set(bp.FAMILIES) == set(bp.BY_FAMILY)
 
 
 def test_every_blueprint_states_mandatory_and_optional_objectives():

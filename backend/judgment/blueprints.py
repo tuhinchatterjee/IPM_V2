@@ -238,12 +238,32 @@ DATA_QUALITY = "DATA_QUALITY_RELATIONSHIP_INVESTIGATION"
 MODEL_PERFORMANCE = "MODEL_METHOD_PERFORMANCE_REVIEW"
 DEMO_EXECUTIVE = "CLIENT_DEMO_EXECUTIVE_PORTFOLIO_REVIEW"
 
+# ------------------------------------------- the corporate graph. B45-B49.
+#
+# Ten families whose questions cannot be answered from the credit book at
+# all. Each one exists because an analyst asking it would otherwise be
+# offered a blueprint about facilities, which shares its words and answers a
+# different question.
+GROUP_STRUCTURE = "CORPORATE_GROUP_STRUCTURE"
+BENEFICIAL_OWNERSHIP = "BENEFICIAL_OWNERSHIP"
+CONNECTED_COUNTERPARTY = "CONNECTED_COUNTERPARTY_ASSESSMENT"
+GROUP_LIMIT = "GROUP_LIMIT_UTILISATION"
+NETWORK_CONTAGION = "NETWORK_CONTAGION"
+NETWORK_CENTRALITY = "NETWORK_CENTRALITY"
+SUPPLY_CHAIN = "SUPPLY_CHAIN_DEPENDENCE"
+GUARANTEE_NETWORK = "GUARANTEE_NETWORK"
+HIDDEN_RELATIONSHIP = "HIDDEN_RELATIONSHIP_DISCOVERY"
+GRAPH_QUALITY = "GRAPH_DATA_QUALITY_REVIEW"
+
 FAMILIES: tuple[str, ...] = (
     PORTFOLIO_HEALTH, SEGMENT_DETERIORATION, BORROWER_DEEP_DIVE, ECL_MOVEMENT,
     ECL_DECOMPOSITION, STAGE_MIGRATION, RATING_MIGRATION, DPD_MIGRATION,
     CONCENTRATION, EARLY_WARNING, COVENANT_COLLATERAL,
     FINANCIAL_DETERIORATION, CONTRADICTORY, RISK_APPETITE, STRESS, VINTAGE,
     DATA_QUALITY, MODEL_PERFORMANCE, DEMO_EXECUTIVE,
+    GROUP_STRUCTURE, BENEFICIAL_OWNERSHIP, CONNECTED_COUNTERPARTY,
+    GROUP_LIMIT, NETWORK_CONTAGION, NETWORK_CENTRALITY, SUPPLY_CHAIN,
+    GUARANTEE_NETWORK, HIDDEN_RELATIONSHIP, GRAPH_QUALITY,
 )
 
 #: Validations no investigation may skip, whatever its family. Not a per-
@@ -729,6 +749,320 @@ LIBRARY: tuple[Blueprint, ...] = (
                  "than a missing one.",
             when_not="Ordinary internal use — the stricter evidence floor "
                      "makes the answer slower and no more correct."),
+
+    # ---------------------------------------- the corporate relationship graph
+    #
+    # Every one of these carries a `when_not_to_use` that names the blueprint
+    # a reader is likely to reach for instead. That clause is the load-bearing
+    # half: "the group" means three different sets of companies, and a
+    # blueprint that answers the wrong one answers confidently.
+
+    _simple("bp-group-structure", GROUP_STRUCTURE,
+            "Corporate group structure",
+            "Who owns and who controls a borrower, and how the two differ.",
+            [_o("ownership", "Integrated ownership through the chain",
+                concepts=("effective ownership",),
+                datasets=("corporate_ownership_edges",
+                          "corporate_connected_groups"),
+                engine="ownership_and_control_structure",
+                invariants=("register_sums_within_bounds",)),
+             _o("control", "Who can direct decisions, over VOTING rights",
+                concepts=("control group",),
+                datasets=("corporate_connected_groups",)),
+             _o("difference", "Where control and economics disagree, and why",
+                invariants=("control_is_not_ownership",))],
+            [_o("chains", "The ownership chains, with each step",
+                mandatory=False, datasets=("corporate_ownership_edges",)),
+             _o("confidence", "How well evidenced the structure is",
+                mandatory=False, concepts=("graph confidence",))],
+            grains=("borrower", "obligor"), scope=CORPORATE, officer=3,
+            triggers=("group structure", "who owns", "who controls",
+                      "ownership chain", "parent company"),
+            hypotheses=("The control group and the ownership group differ "
+                        "because an intermediate holding company votes more "
+                        "than it economically owns.",),
+            challenges=("Is the difference between control and economics real, "
+                        "or an artefact of a shareholder register that does "
+                        "not sum?",),
+            when="A question about how a borrower sits inside a corporate "
+                 "structure.",
+            when_not="A question about the bank's exposure to that structure "
+                     "— that is the group limit blueprint. This one is about "
+                     "the structure, not the money."),
+
+    _simple("bp-beneficial-ownership", BENEFICIAL_OWNERSHIP,
+            "Ultimate beneficial ownership",
+            "The natural persons behind a borrower, found through the chain "
+            "rather than from direct shareholdings.",
+            [_o("ubo", "Natural persons at or above the 25% threshold",
+                concepts=("ultimate beneficial owner",),
+                datasets=("corporate_connected_groups",),
+                engine="ownership_and_control_structure"),
+             _o("path", "The chain that reaches each of them",
+                datasets=("corporate_ownership_edges",)),
+             _o("evidence", "The weakest assertion on each path",
+                concepts=("graph confidence",),
+                invariants=("weakest_evidence_reported",))],
+            [_o("blocked", "Borrowers whose ownership was refused, and why",
+                mandatory=False, datasets=("corporate_graph_dq",)),
+             _o("shared", "Owners shared with other borrowers",
+                mandatory=False)],
+            grains=("borrower", "obligor"), scope=CORPORATE, officer=3,
+            triggers=("beneficial owner", "ubo", "who really owns",
+                      "ultimate owner", "natural person"),
+            hypotheses=("A borrower with no identified beneficial owner has a "
+                        "chain that terminates in a company rather than a "
+                        "person, not an absence of owners.",),
+            challenges=("Is 'no beneficial owner' a finding about the "
+                        "borrower, or a data-quality refusal reported as "
+                        "one?",),
+            validations=("blocked_is_not_absent",),
+            when="A KYC or beneficial-ownership question about one borrower "
+                 "or a cohort.",
+            when_not="A question about control. A 30% holder facing a "
+                     "dispersed register may control without reaching the "
+                     "beneficial-ownership threshold."),
+
+    _simple("bp-connected-counterparty", CONNECTED_COUNTERPARTY,
+            "Connected counterparty assessment",
+            "Which borrowers should be assessed as one obligor, on what "
+            "basis, and what the evidence for each member is.",
+            [_o("candidates", "The candidate group and its members",
+                concepts=("connected counterparty group",),
+                datasets=("corporate_connected_groups",),
+                engine="connected_group_exposure"),
+             _o("criterion", "Why each member is in it — control or "
+                "validated interdependence",
+                invariants=("every_member_has_a_criterion",)),
+             _o("caveat", "That this is a candidate, not a determination",
+                invariants=("candidate_not_determination",))],
+            [_o("interdependence", "The economic predicates that were tested",
+                mandatory=False),
+             _o("percolation", "Whether the grouping has collapsed into one "
+                "giant component", mandatory=False)],
+            grains=("borrower", "obligor"), scope=CORPORATE, officer=4,
+            triggers=("connected counterparty", "obligor group",
+                      "single risk", "group of connected clients"),
+            hypotheses=("A group that grew unusually large this quarter did "
+                        "so through one new control edge rather than through "
+                        "many.",),
+            challenges=("Would this group survive being built from raw "
+                        "shareholdings instead of control? If so it is not a "
+                        "group, it is a common investor.",),
+            validations=("candidate_not_determination",),
+            when="Assessing whether borrowers form one obligor for limit or "
+                 "regulatory purposes.",
+            when_not="Reporting a limit position — that is the group limit "
+                     "blueprint. Graph connectivity is not regulatory "
+                     "connectedness and this blueprint produces candidates."),
+
+    _simple("bp-group-limit", GROUP_LIMIT, "Group limit utilisation",
+            "What the bank is exposed to at the group level, and where that "
+            "sits against the limit.",
+            [_o("exposure", "Group exposure and its members' shares",
+                concepts=("connected group exposure",),
+                datasets=("corporate_connected_groups",),
+                engine="connected_group_exposure"),
+             _o("utilisation", "Position against the group limit",
+                concepts=("group limit utilisation",),
+                invariants=("group_at_least_single_name",)),
+             _o("parameter", "That the threshold is unverified",
+                invariants=("unverified_parameter_declared",))],
+            [_o("single_name", "How the group compares with its largest "
+                "single name", mandatory=False),
+             _o("movement", "How the group's utilisation has moved",
+                mandatory=False, engine="persistence")],
+            grains=("obligor", "portfolio"), scope=CORPORATE, officer=4,
+            triggers=("group limit", "large exposure", "group utilisation",
+                      "group concentration", "in breach"),
+            hypotheses=("A group crossing the trigger did so through one "
+                        "member's growth rather than through a change in the "
+                        "group's membership.",),
+            challenges=("Did the group's exposure move, or did its "
+                        "membership? A group that gained a member did not "
+                        "gain risk.",),
+            validations=("unverified_parameter_declared",),
+            when="A limit, large-exposure or concentration question at group "
+                 "level.",
+            when_not="Single-name concentration — the credit book answers "
+                     "that, and it answers it about facilities."),
+
+    _simple("bp-network-contagion", NETWORK_CONTAGION,
+            "Network contagion",
+            "What would travel through the network if a borrower failed, and "
+            "how far.",
+            [_o("impact", "DebtRank impact from the borrower as seed",
+                concepts=("DebtRank impact",),
+                datasets=("corporate_connected_groups",),
+                engine="network_risk_ranking"),
+             _o("paths", "The exposures and guarantees it would travel",
+                datasets=("corporate_exposure_network",
+                          "corporate_guarantees")),
+             _o("caveat", "That DebtRank is not an ECL or a capital measure",
+                invariants=("not_a_credit_measure",))],
+            [_o("neighbours", "Who is most affected", mandatory=False),
+             _o("unmeasured", "Borrowers with no network measurement",
+                mandatory=False)],
+            grains=("borrower", "portfolio"), scope=CORPORATE, officer=4,
+            triggers=("contagion", "debtrank", "if they failed",
+                      "knock-on", "systemic"),
+            hypotheses=("A borrower with high impact and low exposure "
+                        "transmits through guarantees rather than through "
+                        "direct claims.",),
+            challenges=("Is the impact concentrated in one neighbour, in "
+                        "which case it is a single-name question wearing a "
+                        "network's clothes?",),
+            validations=("not_a_credit_measure",),
+            when="A question about what a failure would spread to.",
+            when_not="A question about the size of a loss. DebtRank is a "
+                     "propagation measure and is not an expected credit "
+                     "loss."),
+
+    _simple("bp-network-centrality", NETWORK_CENTRALITY,
+            "Network position",
+            "Where a borrower sits in the relationship network: who "
+            "transmits, who is exposed, who is a conduit.",
+            [_o("score", "Network Risk Score and its three components",
+                concepts=("network risk score",),
+                datasets=("corporate_connected_groups",),
+                engine="network_risk_ranking"),
+             _o("direction", "Transmitter against exposed — forward and "
+                "reverse are different questions",
+                concepts=("network centrality",),
+                invariants=("direction_is_stated",)),
+             _o("caveat", "That the score is a ranking, not a probability",
+                invariants=("ranking_not_probability",))],
+            [_o("community", "The network community it sits in",
+                mandatory=False, concepts=("network community",)),
+             _o("conduit", "Whether it is on the only path between others",
+                mandatory=False)],
+            grains=("borrower", "portfolio"), scope=CORPORATE, officer=3,
+            triggers=("most central", "network position", "pagerank",
+                      "betweenness", "network risk score"),
+            hypotheses=("A borrower high on betweenness and low on PageRank "
+                        "is a bridge between two clusters rather than a large "
+                        "counterparty.",),
+            challenges=("Is a high score driven by one component? The "
+                        "composite hides a borrower that is extreme on one "
+                        "measure and unremarkable on the others.",),
+            validations=("ranking_not_probability",),
+            when="A question about a borrower's structural position.",
+            when_not="A question about its credit quality. The score is a "
+                     "relative ranking in this population and is not a PD, a "
+                     "rating or a stage."),
+
+    _simple("bp-supply-chain", SUPPLY_CHAIN, "Supply chain dependence",
+            "Who a borrower depends on and who depends on it, and whether "
+            "that dependence is material.",
+            [_o("suppliers", "Upstream counterparties and revenue shares",
+                concepts=("suppliers",),
+                datasets=("corporate_supply_chain",)),
+             _o("customers", "Downstream counterparties and COGS shares",
+                concepts=("customers of the borrower",),
+                datasets=("corporate_supply_chain",)),
+             _o("boundary", "That a supply relationship forms no regulatory "
+                "group on its own",
+                invariants=("supply_is_not_a_group",))],
+            [_o("concentration", "Whether one counterparty dominates",
+                mandatory=False),
+             _o("substitutability", "Whether the output can be sourced "
+                "elsewhere", mandatory=False)],
+            grains=("borrower",), scope=CORPORATE, officer=2,
+            triggers=("supply chain", "suppliers", "buyers", "upstream",
+                      "downstream", "dependence"),
+            hypotheses=("A borrower with one dominant buyer carries that "
+                        "buyer's credit risk whether or not the two are "
+                        "connected.",),
+            challenges=("Does the dependence clear the interdependence "
+                        "threshold, or is it a commercial fact with no "
+                        "grouping consequence?",),
+            validations=("supply_is_not_a_group",),
+            when="A question about commercial dependence between borrowers.",
+            when_not="A connectedness assessment. A supply relationship is "
+                     "one input to the interdependence test and never forms "
+                     "a group by itself."),
+
+    _simple("bp-guarantee-network", GUARANTEE_NETWORK, "Guarantee network",
+            "Who stands behind whose obligations, and whether the guarantor "
+            "could.",
+            [_o("given", "Guarantees this borrower has given",
+                concepts=("guarantee links",),
+                datasets=("corporate_guarantees",)),
+             _o("received", "Guarantees it benefits from",
+                datasets=("corporate_guarantees",)),
+             _o("guarantor", "The guarantor's own position",
+                datasets=("corporate_borrower_360",))],
+            [_o("joint", "Joint and several arrangements", mandatory=False),
+             _o("correlation", "Whether guarantor and borrower fail together",
+                mandatory=False)],
+            grains=("borrower", "obligor"), scope=CORPORATE, officer=3,
+            triggers=("guarantee", "guarantor", "stands behind", "surety",
+                      "cross guarantee"),
+            hypotheses=("A guarantee from within the borrower's own group "
+                        "transfers less risk than one from outside it, "
+                        "because the two fail together.",),
+            challenges=("Is the guarantor's own exposure large enough that "
+                        "the guarantee is worth less than its face value?",),
+            when="A question about credit support between counterparties.",
+            when_not="A collateral question — collateral is an asset and a "
+                     "guarantee is a counterparty."),
+
+    _simple("bp-hidden-relationship", HIDDEN_RELATIONSHIP,
+            "Hidden relationship discovery",
+            "Borrowers that share enough evidence to be worth a second look, "
+            "and nothing more than that.",
+            [_o("candidates", "Pairs above the similarity threshold",
+                datasets=("corporate_ownership_edges",)),
+             _o("evidence", "What exactly is shared",
+                invariants=("shared_evidence_listed",)),
+             _o("boundary", "That a candidate establishes nothing",
+                invariants=("creates_no_relationship",))],
+            [_o("threshold", "That the threshold is unvalidated",
+                mandatory=False),
+             _o("followup", "What a human would check next",
+                mandatory=False)],
+            grains=("borrower", "portfolio"), scope=CORPORATE, officer=3,
+            triggers=("hidden relationship", "shared director",
+                      "same address", "undisclosed", "similar borrowers"),
+            hypotheses=("Two borrowers sharing a director and an address are "
+                        "more likely to share a controller than two sharing "
+                        "only an address.",),
+            challenges=("Is the shared evidence a serviced office or a "
+                        "nominee director, which thousands share and which "
+                        "identifies nobody?",),
+            validations=("creates_no_relationship",),
+            when="Looking for relationships nobody has declared.",
+            when_not="Establishing a relationship. A candidate creates no "
+                     "control, no beneficial ownership and no group "
+                     "membership, and may not be used as though it did."),
+
+    _simple("bp-graph-quality", GRAPH_QUALITY, "Graph data quality review",
+            "Whether the relationship graph can be trusted this quarter, and "
+            "which derived figures a refusal blocked.",
+            [_o("checks", "Every check and what it observed",
+                concepts=("data quality check verdict",),
+                datasets=("corporate_graph_dq",),
+                engine="graph_data_quality"),
+             _o("blocked", "Which computations a REJECT stopped",
+                invariants=("reject_names_what_it_blocked",)),
+             _o("affected", "Which borrowers carry a blocked field",
+                datasets=("corporate_connected_groups",))],
+            [_o("trend", "Whether quality has moved since the prior quarter",
+                mandatory=False, engine="persistence"),
+             _o("confidence", "How much of the graph rests on weak evidence",
+                mandatory=False, concepts=("graph evidence confidence",))],
+            grains=("portfolio",), scope=CORPORATE, officer=3,
+            triggers=("graph quality", "can we trust", "data quality check",
+                      "which figures were blocked"),
+            hypotheses=("A quarter with more rejections has a source-system "
+                        "change behind it rather than a change in the "
+                        "borrowers.",),
+            challenges=("Does a PASS mean the data is right, or only that "
+                        "this check found nothing it tests for?",),
+            when="Before relying on a derived graph figure, or when one "
+                 "reads DATA_QUALITY_BLOCKED.",
+            when_not="A general data-quality question about the credit book "
+                     "— that is a different register and different checks."),
 )
 
 BY_ID: dict[str, Blueprint] = {b.blueprint_id: b for b in LIBRARY}
