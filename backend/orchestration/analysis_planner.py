@@ -310,6 +310,7 @@ def plan(reading: Reading, context: GovernedContext, *,
     # say so on the screen, not only in the log.
     planning_notes: list[str] = []
     filters = _filters(reading, context, text, planning_notes)
+    _note_unresolved_dimensions(text, matches, planning_notes)
     if carrying:
         filters = _inherit_filters(filters, state, context, continuation)
     inherited_top_n = (state.top_n if carrying and state and not _explicit_top_n(text)
@@ -410,6 +411,84 @@ def plan(reading: Reading, context: GovernedContext, *,
         build.continuation = continuation
     build.warnings.extend(planning_notes)
     return build
+
+
+#: How a question introduces a list of things to weigh together.
+_ENUMERATED = _re.compile(
+    r"\b(?:consider|considering|combin\w*|taking\s+into\s+account|looking\s+at|"
+    r"weigh\w*|across|together\s+with|including)\b\s*[:,]?\s*(.+)",
+    _re.IGNORECASE)
+
+#: Words that are not a dimension: connectives, and the instruction to treat
+#: the list as one thing.
+_NOT_A_DIMENSION = _re.compile(
+    r"^(?:and|or|the|a|an|both|all|each|every|also|then|together|jointly|"
+    r"in\s+combination|at\s+once|as\s+a\s+whole|side\s+by\s+side)$",
+    _re.IGNORECASE)
+
+
+def _note_unresolved_dimensions(text: str, matches: list[cx.ConceptMatch],
+                                notes: list[str]) -> None:
+    """Say which named dimensions the catalogue could not supply. §3.
+
+        "Which borrowers have the strongest evidence of liquidity stress?
+         Consider cash balances, working-capital movements, short-term debt
+         maturities and facility utilisation together."
+
+    Of those four, one is a governed concept. The answer was composed on that
+    one and said so about none of them, so a reader was shown a utilisation
+    figure under a heading about liquidity stress and had nothing on screen
+    telling them that three quarters of what they asked for was not in the
+    book.
+
+    §3 asks for exactly this: "return the supported part and state
+    specifically what cannot be computed. Do not throw the entire question
+    away." The first half already worked. This is the second.
+
+    Reported only where SOMETHING resolved. A question where nothing resolved
+    is a clarification, which is a different and better response than a list
+    of things that are missing.
+    """
+    if not matches:
+        return
+    found = _ENUMERATED.search(text or "")
+    if not found:
+        return
+
+    resolved = " ".join(str(getattr(m, "phrase", "") or "").lower()
+                        for m in matches)
+    missing: list[str] = []
+    for raw in _re.split(r",|\band\b|;", found.group(1)):
+        item = _re.sub(r"[.?!]+$", "", raw).strip(" \t\u2019'\"")
+        if not item or len(item) < 4 or _NOT_A_DIMENSION.match(item):
+            continue
+        if len(item.split()) > 6:
+            # A trailing clause, not an item in the list.
+            continue
+        words = [w for w in _re.findall(r"[a-z-]{4,}", item.lower())
+                 if not _NOT_A_DIMENSION.match(w)]
+        if not words:
+            continue
+        # Resolved if the concept resolver bound any substantive word of it,
+        # or if any governed concept's own pattern matches the phrase.
+        if any(w.rstrip("s") in resolved for w in words):
+            continue
+        if any(_re.search(c.pattern, item, _re.IGNORECASE) for c in cx.CONCEPTS):
+            continue
+        missing.append(item)
+
+    if not missing:
+        return
+    named = ", ".join(missing[:4])
+    kept = ", ".join(sorted({str(getattr(m.concept, "label", "") or "")
+                             for m in matches if getattr(m, "concept", None)}))
+    logger.info("Question named %d dimension(s) with no governed concept: %s",
+                len(missing), missing)
+    notes.append(
+        f"The question asked CreditProbe to weigh {named} as well, and the "
+        f"governed catalogue holds no measure for "
+        f"{'those' if len(missing) > 1 else 'that'}. This answer is composed "
+        f"on {kept or 'the measures it could resolve'} alone.")
 
 
 def _fallback_dataset(state: cv.ConversationState | None) -> str:

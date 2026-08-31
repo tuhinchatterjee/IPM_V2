@@ -393,3 +393,60 @@ class TestTheDeteriorationRanking:
                          "deteriorate over the next 12 months?"):
             assert _period_requirement(question, "ANALYSIS") == "two_period", (
                 question)
+
+
+class TestSayingWhatCouldNotBeComputed:
+    """§3: "return the supported part and state specifically what cannot be
+    computed. Do not throw the entire question away."
+
+    The first half already worked, and that was the problem. Asked to weigh
+    cash balances, working-capital movements, short-term debt maturities and
+    utilisation together, CreditProbe composed on the one of the four the
+    catalogue carries and said so about none of them - so a reader saw a
+    utilisation figure under a heading about liquidity stress with nothing on
+    screen telling them three quarters of the question had gone missing.
+    """
+
+    @staticmethod
+    def _notes(question, labels):
+        from backend.orchestration import analysis_planner as ap
+
+        class _C:
+            def __init__(self, label): self.label = label
+
+        class _M:
+            def __init__(self, label): self.concept, self.phrase = _C(label), label
+
+        notes: list[str] = []
+        ap._note_unresolved_dimensions(question, [_M(x) for x in labels], notes)
+        return notes
+
+    QUESTION = ("Which borrowers have the strongest evidence of liquidity "
+                "stress? Consider cash balances, working-capital movements, "
+                "short-term debt maturities and facility utilisation "
+                "together.")
+
+    def test_the_dimensions_with_no_governed_measure_are_named(self):
+        notes = self._notes(self.QUESTION, ["utilisation"])
+        assert notes, "the answer was composed on one of four and said nothing"
+        said = notes[0].lower()
+        for missing in ("cash balance", "working-capital", "short-term debt"):
+            assert missing in said, f"{missing!r} was dropped silently: {said}"
+
+    def test_what_it_did_use_is_named_too(self):
+        """A limitation with no statement of what WAS used is half an answer."""
+        assert "utilisation" in self._notes(self.QUESTION, ["utilisation"])[0]
+
+    def test_nothing_is_said_where_every_dimension_resolved(self):
+        notes = self._notes(
+            "Rank borrowers by EAD, considering ECL and utilisation together.",
+            ["exposure at default", "expected credit loss", "utilisation"])
+        assert not notes, f"invented a limitation that does not exist: {notes}"
+
+    def test_a_question_that_enumerates_nothing_gets_no_note(self):
+        assert not self._notes("What is total exposure by sector?", ["exposure"])
+
+    def test_a_question_where_nothing_resolved_gets_no_note(self):
+        """That is a clarification, which is a better response than a list of
+        things the catalogue does not have."""
+        assert not self._notes(self.QUESTION, [])
