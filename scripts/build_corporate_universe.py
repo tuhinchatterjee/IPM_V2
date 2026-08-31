@@ -59,6 +59,7 @@ PARTITIONED: frozenset[str] = frozenset({
     "corporate_ifrs9", "corporate_delinquency", "corporate_covenants",
     "corporate_collateral", "corporate_limits", "corporate_profitability",
     graphsummary_mod.GROUPS_DATASET,
+    graphsummary_mod.DQ_DATASET,
     catalogue_mod.SNAPSHOT_DATASET,
 })
 

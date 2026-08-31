@@ -15,6 +15,11 @@ Registry, so every function module must be imported here.
                    Macroeconomic Context
   concentration.py Obligor Concentration, Collateral Coverage,
                    Vintage Performance, Watchlist Movement
+  corporate_graph.py
+                   Connected Group Exposure, Network Risk Ranking,
+                   Ownership and Control Structure, Graph Data Quality -
+                   the graph questions, answered by an analysis rather than
+                   by prose
   stress.py        Basic Management Stress Scenario
                    + High Utilisation Watchlist (deliberately USER_DEFINED, so
                      the product can be seen running an analysis that carries no
@@ -24,6 +29,7 @@ Registry, so every function module must be imported here.
 from backend.engine.functions import (  # noqa: F401
     arrears,
     concentration,
+    corporate_graph,
     ifrs9,
     migration,
     portfolio,

@@ -1,6 +1,6 @@
 # Full-system feature verification matrix
 
-Generated from the build at `90bc561` by `scripts/feature_matrix.py`.
+Generated from the build at `205fc3f` by `scripts/feature_matrix.py`.
 
 This inventory is enumerated, not remembered. Every row comes from a page that exists on disk or an endpoint in the live OpenAPI spec, so a route added and forgotten appears here anyway. Three columns cannot be generated and are curated by hand - expected behaviour, defect and remaining limitation - because each is a claim somebody is accountable for, and deriving them from the code would produce a document that agrees with the code by construction and therefore establishes nothing.
 
@@ -8,13 +8,13 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | | |
 |---|---|
-| Pages | 42 |
-| Reviewed | 42 |
+| Pages | 43 |
+| Reviewed | 43 |
 | Not yet reviewed | 0 |
 | Carrying a known defect | 2 |
 | Not fully OK | 5 |
-| API endpoints | 390 across 31 areas |
-| Browser-crawled routes | 90 |
+| API endpoints | 400 across 32 areas |
+| Browser-crawled routes | 91 |
 
 ## Pages
 
@@ -44,6 +44,12 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
 | `/analysis/[analysisId]` | any signed-in role | One analysis definition: inputs, method, governed datasets, and a run history. | `analyses` (7) | 4 file(s) | `/analysis/approaching_sicr_threshold` ADMIN pass, ANALYST pass, VIEWER pass | PARTIAL | Opening the page directly logs a console 404: it requests an Assurance record, and Assurance records belong to Investigations rather than to a bare engine run. The page renders correctly. | Reached through Analyses or Trace, this does not arise. |
+
+### borrower-360
+
+| Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
+|---|---|---|---|---|---|---|---|---|
+| `/borrower-360` | Every role can open it; the relationship graph is Administrator, Data Steward or Analyst; the named natural persons behind a borrower are Administrator or Data Steward; the export is separate again. | Borrower 360: one corporate borrower and everything the bank knows about it, across thirteen tabs, with eleven views of its relationship network, the six ways of grouping it shown side by side rather than reconciled, its hidden-relationship candidates, the graph data-quality register, and a seventeen-sheet export. | none | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Every figure is computed over synthetic demonstration data marked SYNTHETIC_DEMO, which describes no real company and no real ownership structure. The connected counterparty groups are CANDIDATES for assessment, not determinations - graph connectivity is not regulatory connectedness. The Network Risk Score is a relative ranking within this population and is not a probability, a rating, an IFRS 9 stage or an expected credit loss. The group and single-name limit thresholds are UNVERIFIED REGULATORY PARAMETERS. A quarter the derivation has not been run for reads NOT COMPUTED rather than showing a blank. |
 
 ### cockpit
 
@@ -89,15 +95,15 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/investigations/[id]` | any signed-in role | One Investigation: its thread, its analyses, its Trace, its assurance record and How CreditProbe Performed. | `investigations` (16) | 12 file(s) | `/investigations/6541` ADMIN pass, ANALYST pass, VIEWER pass; `/investigations/new` ADMIN pass | OK | - | - |
+| `/investigations/[id]` | any signed-in role | One Investigation: its thread, its analyses, its Trace, its assurance record and How CreditProbe Performed. | `investigations` (16) | 12 file(s) | `/investigations/7248` ADMIN pass, ANALYST pass, VIEWER pass; `/investigations/new` ADMIN pass | OK | - | - |
 | `/investigations` | any signed-in role | Global Investigations, newest first, with their status. | `investigations` (16) | 12 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/investigations/saved/[id]` | any signed-in role | A saved Investigation at a chosen version, refreshable against a new period. | `investigations` (16) | - | `/investigations/saved/6542` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/investigations/saved/[id]` | any signed-in role | A saved Investigation at a chosen version, refreshable against a new period. | `investigations` (16) | - | `/investigations/saved/7216` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 
 ### lenses
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/lenses/[lensId]` | Administrator, Analyst | One Lens and its panels. | `lenses` (9) | 2 file(s) | `/lenses/cro` ADMIN pass, ANALYST pass, VIEWER pass; `/lenses/test-lens-69` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/lenses/[lensId]` | Administrator, Analyst | One Lens and its panels. | `lenses` (9) | 2 file(s) | `/lenses/cro` ADMIN pass, ANALYST pass, VIEWER pass; `/lenses/test-lens-102` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 | `/lenses/cro` | Administrator, Analyst | The CRO Lens: the executive story. | `lenses` (9) | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 | `/lenses` | any signed-in role | Saved dashboards of governed analyses. | `lenses` (9) | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | PARTIAL | A Viewer sees the Lenses link and gets a dashboard of refusals: every tile runs an analysis and running one requires an Analyst. | The permission is deliberate; the invitation is the rough edge. Sign in as Analyst or Administrator. |
 
@@ -111,7 +117,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/projects/[id]` | any signed-in role | One Project: its Investigations, its people, its workflow and its Risk Cases. Project-scoped work stays inside it until published. | `workspace` (18) | 4 file(s) | `/projects/3194` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | A Project holds context, threads, analyses and people but not a structured operating plan; the governed Project Plan is not built. |
+| `/projects/[id]` | any signed-in role | One Project: its Investigations, its people, its workflow and its Risk Cases. Project-scoped work stays inside it until published. | `workspace` (18) | 4 file(s) | `/projects/3554` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | A Project holds context, threads, analyses and people but not a structured operating plan; the governed Project Plan is not built. |
 | `/projects` | any signed-in role | Credit Projects the signed-in user can reach. | `workspace` (18) | 4 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 
 ### scorecard-validation
@@ -185,6 +191,7 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `build` | 1 |
 | `catalog` | 1 |
 | `continuous-learning` | 14 |
+| `corporate` | 10 |
 | `data-builder` | 51 |
 | `demo` | 1 |
 | `early-warning` | 10 |

@@ -156,6 +156,28 @@ _JUDGEMENTS: dict[str, Judgement] = {
                    "because 'nothing to compare against' and 'nobody "
                    "looked' read identically as a zero. No sealed-holdout "
                    "question or gold answer appears here, by \u00a758."),
+    "/borrower-360": Judgement(
+        "Borrower 360: one corporate borrower and everything the bank knows "
+        "about it, across thirteen tabs, with eleven views of its "
+        "relationship network, the six ways of grouping it shown side by "
+        "side rather than reconciled, its hidden-relationship candidates, "
+        "the graph data-quality register, and a seventeen-sheet export.",
+        role="Every role can open it; the relationship graph is "
+             "Administrator, Data Steward or Analyst; the named natural "
+             "persons behind a borrower are Administrator or Data Steward; "
+             "the export is separate again.",
+        limitation="Every figure is computed over synthetic demonstration "
+                   "data marked SYNTHETIC_DEMO, which describes no real "
+                   "company and no real ownership structure. The connected "
+                   "counterparty groups are CANDIDATES for assessment, not "
+                   "determinations - graph connectivity is not regulatory "
+                   "connectedness. The Network Risk Score is a relative "
+                   "ranking within this population and is not a "
+                   "probability, a rating, an IFRS 9 stage or an expected "
+                   "credit loss. The group and single-name limit thresholds "
+                   "are UNVERIFIED REGULATORY PARAMETERS. A quarter the "
+                   "derivation has not been run for reads NOT COMPUTED "
+                   "rather than showing a blank."),
     "/scorecard-validation": Judgement(
         "Retail Scorecard Validation: the application and behavioural "
         "scorecards, twelve tabs covering discrimination, calibration, "

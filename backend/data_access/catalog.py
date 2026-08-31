@@ -74,6 +74,15 @@ CUSTOMER_RATING_HISTORY = "customer_rating_history"
 MACROECONOMIC_SERIES = "macroeconomic_series"
 FACILITY_DELINQUENCY = "facility_delinquency"
 CREDIT_FILE_COMMENTARY = "credit_file_commentary"
+#: Borrower 360 purposes. B44. Separate constants rather than reusing the
+#: credit-book ones, because a corporate group structure is not a facility
+#: position and an analysis that asked for one and got the other would be
+#: answering a different question with a straight face.
+CORPORATE_CONNECTED_GROUP = "corporate_connected_group"
+CORPORATE_GRAPH_QUALITY = "corporate_graph_quality"
+# There is deliberately no purpose for the Borrower 360 snapshot. B2: the
+# snapshot is a fast denormalised READ and is authoritative for nothing, so a
+# purpose naming it would be a purpose no dataset can honestly serve.
 
 GOVERNED_PURPOSES: dict[str, str] = {
     FACILITY_POSITION: (
@@ -105,6 +114,17 @@ GOVERNED_PURPOSES: dict[str, str] = {
         "What the credit file says, as structured signals: covenant breaches, "
         "liquidity concerns, management changes, sector headwinds and "
         "going-concern language, with the extract that raised each one."
+    ),
+    CORPORATE_CONNECTED_GROUP: (
+        "The derived corporate relationship graph, per borrower per quarter: "
+        "its effective-ownership group, its control group, its connected "
+        "counterparty candidate group, the counts of the relationships "
+        "around it, and the five network measures over them."
+    ),
+    CORPORATE_GRAPH_QUALITY: (
+        "The graph data-quality register: which checks ran for a quarter, "
+        "what each observed, and which derived computations a REJECT "
+        "blocked."
     ),
 }
 
