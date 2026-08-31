@@ -143,9 +143,8 @@ class Ledger:
     def values(self) -> set[str]:
         """Every number that appears anywhere in what the tools returned.
 
-        As STRINGS, canonicalised, because the claim being checked is a string
-        in a sentence. `1234.5`, `1,234.5` and `1234.50` are the same figure
-        and a reader would say so.
+        As strings, in every form a reader might write them, for display and
+        for the Trace. `numbers()` is what the grounding check uses.
         """
         found: set[str] = set()
         for observation in self.observations:
@@ -155,23 +154,40 @@ class Ledger:
             found.update(_forms(observation.total_rows))
         return found
 
+    def numbers(self) -> set[float]:
+        """Every numeric value the tools returned, as numbers."""
+        found: set[float] = set()
+        for observation in self.observations:
+            for row in observation.rows:
+                for value in row.values():
+                    found.update(_numbers(value))
+            found.add(float(observation.total_rows))
+        return found
+
     def ungrounded(self, text: str) -> list[str]:
         """Numbers in `text` that no observation supports. §42.
 
-        The check is deliberately generous about FORM and strict about
-        EXISTENCE: any rounding of a figure that is in the ledger passes, and a
-        figure that is in no observation fails however plausible it looks.
+        The check compares NUMBERS, not strings. A substring rule was tried
+        first and was wrong in the direction that matters: a ledger containing
+        the row count 5 grounded the invented figure 987654321, because "5"
+        appears inside it. A claim is grounded when it equals an observed
+        value, or is that value rounded to the claim's own written precision —
+        which is exactly what a person means by "that figure came from the
+        table".
         """
-        known = self.values()
+        known = self.numbers()
         missing: list[str] = []
         for match in _NUMBER.finditer(text or ""):
             raw = match.group(0)
             plain = raw.replace(",", "")
-            if plain in _UNREMARKABLE or plain.rstrip("0").rstrip(".") == "":
+            if plain in _UNREMARKABLE:
                 continue
-            if plain in known:
+            try:
+                claimed = float(plain)
+            except ValueError:
                 continue
-            if any(plain in form or form in plain for form in known):
+            decimals = len(plain.partition(".")[2])
+            if any(_same(claimed, value, decimals) for value in known):
                 continue
             missing.append(raw)
         return missing
@@ -181,6 +197,41 @@ class Ledger:
                 "datasets": self.datasets,
                 "observations": [o.to_dict() for o in self.observations],
                 "hash": digest([o.hash() for o in self.observations])}
+
+
+def _same(claimed: float, observed: float, decimals: int) -> bool:
+    """Whether `claimed` is `observed`, possibly rounded for writing.
+
+    Rounded at the claim's OWN precision: somebody writing "1,234.6" from a
+    result holding 1234.5678 has quoted it, and somebody writing "1234.5678"
+    from a result holding 1200 has not.
+    """
+    if claimed == observed:
+        return True
+    if round(observed, decimals) == claimed:
+        return True
+    # A figure written to fewer significant digits than it holds — "284,395"
+    # for 284394.674 — is the same quotation by another route.
+    if observed and abs(claimed) >= 1:
+        digits = len(str(int(abs(claimed))))
+        if float(f"{observed:.{digits}g}") == claimed:
+            return True
+    return False
+
+
+def _numbers(value: Any) -> set[float]:
+    """Every numeric value inside `value`, as floats."""
+    if value is None or isinstance(value, bool):
+        return set()
+    if isinstance(value, (int, float)):
+        return {float(value)}
+    out: set[float] = set()
+    for match in _NUMBER.finditer(str(value)):
+        try:
+            out.add(float(match.group(0).replace(",", "")))
+        except ValueError:
+            continue
+    return out
 
 
 def _forms(value: Any) -> set[str]:

@@ -1692,13 +1692,17 @@ def _asking(question: str, answered: Any, mode_now: dict[str, Any],
 #: refusal offered a menu of the twenty-four analyses the engine had been given,
 #: under the sentence "I can only answer with analyses the engine has
 #: registered" — which stopped being true when the composer was built, and which
-#: sent people away from the question they actually had. Every option below is a
-#: question the composer can genuinely answer, generated from the catalogue, so
-#: the list cannot drift out of date either.
-#: `(concept id, option label, question)`. The concept is named rather than
-#: taken positionally, because pairing "the largest exposures" with whichever
-#: concept happened to be third in the catalogue produced offers that read as
-#: nonsense to anybody who knows the vocabulary.
+#: sent people away from the question they actually had.
+#:
+#: These templates are no longer offered as OPTIONS. §6: a suggested response
+#: may be shown only when it directly answers the clarification. A question
+#: about liquidity stress that came back offering "exposure at default by
+#: sector", "the largest exposures", "expected credit loss movement" and "what
+#: data is available" was not offering answers — it was offering four different
+#: questions, and pressing any of them abandons the one that was asked. They
+#: are kept here as EXAMPLES of what the composer can build, shown as prose in
+#: the clarification's detail, because "name the figure you want" is more
+#: useful with an example beside it than without one.
 _OFFER_TEMPLATES: tuple[tuple[str, str, str], ...] = (
     ("ead", "{label} by sector", "What is total {label} by sector in {period}?"),
     ("ead", "The largest exposures",
@@ -1778,25 +1782,30 @@ def _reading_clarification(question: str, answered: Any) -> Any:
     if not by_id:
         return None
 
-    options = []
-    for index, (concept_id, option_label, template) in enumerate(_OFFER_TEMPLATES):
-        label = by_id.get(concept_id) or (spare[index] if index < len(spare) else "")
-        if not label:
-            continue
-        options.append({
-            "id": f"concept-{index}",
-            "label": option_label.format(label=label),
-            "question": template.format(label=label, period=period)})
-    options.append({"id": "catalogue", "label": "What data is available",
-                    "question": "What data do you have?"})
+    # §6. No options. Every one this used to offer was a DIFFERENT QUESTION,
+    # and a person who presses one has abandoned the question they came with.
+    # The examples go into the detail as prose, where they read as "here is
+    # the kind of thing to name" rather than as "pick one of these instead".
+    examples = []
+    for index, (concept_id, _option_label, _template) in enumerate(
+            _OFFER_TEMPLATES):
+        label = by_id.get(concept_id) or (spare[index] if index < len(spare)
+                                          else "")
+        if label and label not in examples:
+            examples.append(label)
+    named = ", ".join(examples[:3])
+    detail = ("Name the figure you want and CreditProbe will build the "
+              "analysis for it.")
+    if named:
+        detail += f" The catalogue carries measures such as {named}."
+    del period
 
     return Clarification(
         kind="reading",
-        question=answered.clarification or "Which figure should CreditProbe measure?",
-        detail=("CreditProbe composes an analysis from the governed concepts in "
-                "the catalogue. Name the figure you want and it will build it — "
-                "or start from one of these."),
-        options=options,
+        question=(answered.clarification
+                  or "Which figure should CreditProbe measure?"),
+        detail=detail,
+        options=[],
         because=(answered.reading.reasoning
                  or "The request did not name a governed measure."),
         allow_custom=True,

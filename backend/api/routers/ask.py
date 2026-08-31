@@ -51,6 +51,12 @@ class AskIn(BaseModel):
     # than interpreted here.
     from_period: str | None = Field(default=None, max_length=64)
     to_period: str | None = Field(default=None, max_length=64)
+    #: §5. The user's reply to a clarification the analyst asked, carried back
+    #: so the SAME investigation continues rather than a new one starting. The
+    #: resolved assumption is part of the run key, so "yes, the 12-month PD"
+    #: and "no, the movement since last quarter" are different answers to the
+    #: same words and neither is served from the other's cache entry.
+    clarification: str | None = Field(default=None, max_length=2000)
 
 
 class ModifyIn(BaseModel):
@@ -187,9 +193,56 @@ def briefing() -> dict:
 # ----------------------------------------------------------------------- ask
 
 
+@router.get("/posture", summary="What answers questions in this deployment")
+def posture() -> dict:
+    """Which path is primary here, and what it is bounded by. §2.
+
+    Named `posture` rather than `mode` because `/ask/mode` already describes
+    the PROVIDER's state and this describes the ARCHITECTURE's: which of the
+    two paths answers first, how many governed tools it can reach, and how
+    many steps it is allowed.
+    """
+    from backend.analyst import route as analyst_route
+
+    return analyst_route.posture()
+
+
+@router.post("/investigate", summary="Investigate a question as an analyst")
+def investigate(payload: AskIn, principal: Principal = RequireAnalyst) -> dict:
+    """The analyst path on its own. §2.
+
+    The model receives the question in the user's own words, inspects the
+    governed catalogue, calls governed tools and answers from what came back.
+    Every figure is grounded against the evidence before it is returned.
+
+    Separate from POST /ask so that the investigation's own shape — its steps,
+    its evidence ledger, its run key — can be read whole, by the Trace and by
+    the acceptance runs, without being folded into the deterministic result's
+    shape first.
+    """
+    from backend.analyst import route as analyst_route
+
+    return analyst_route.answer(
+        payload.question, principal,
+        period=payload.to_period or "",
+        clarification=payload.clarification or "")
+
+
 @router.post("", summary="Ask CreditProbe a question")
 def ask(payload: AskIn, principal: Principal = RequireAnalyst) -> dict:
-    """Plan, execute and narrate one investigation."""
+    """Plan, execute and narrate one investigation.
+
+    §2: when an intelligence provider is configured the ANALYST answers, and
+    the governed semantic reader is the fallback. When one is not — which on a
+    bank's own network may be the only permitted arrangement — the reader is
+    the whole path, exactly as before.
+
+    The deterministic result is returned either way, because it carries the
+    table, the plan and the Trace that the analyst's prose describes. What the
+    analyst adds is the investigation: which tools it called, what came back,
+    and the reading of it. Both are in the response, so no existing consumer
+    has to change to keep working and a new one can use either.
+    """
     try:
         period = (
             (payload.from_period, payload.to_period)
@@ -207,7 +260,45 @@ def ask(payload: AskIn, principal: Principal = RequireAnalyst) -> dict:
         raise HTTPException(status_code=422,
                             detail={"error": "plan_rejected", "message": str(e),
                                     "reasons": e.reasons}) from e
-    return investigation.to_dict()
+    body = investigation.to_dict()
+    # Belt and braces, and both are load-bearing. `_analyst_view` catches what
+    # the analyst can throw; this catches what `_analyst_view` itself can —
+    # an import failure, a missing module in a partial deployment. §9: a
+    # failure in one path is not a failure of the product, and the
+    # deterministic answer above is already computed and correct.
+    try:
+        body["analyst"] = _analyst_view(payload, principal)
+    except Exception as e:  # noqa: BLE001 - the deterministic answer stands
+        logger.warning("The analyst view could not be built: %s", e)
+        body["analyst"] = {"path": "deterministic", "analyst_available": False,
+                           "why": "the governed semantic reader answered"}
+    return body
+
+
+def _analyst_view(payload: AskIn, principal: Principal) -> dict[str, Any]:
+    """The analyst's investigation of the same question, when one is possible.
+
+    Never raises. An analyst that cannot run must not take the deterministic
+    answer down with it — §9's whole point is that a failure in one path is
+    not a failure of the product.
+    """
+    from backend.analyst import route as analyst_route
+
+    if not analyst_route.available():
+        return {"path": analyst_route.DETERMINISTIC,
+                "analyst_available": False,
+                "why": ("no intelligence provider is configured, so the "
+                        "governed semantic reader answered")}
+    try:
+        return analyst_route.answer(
+            payload.question, principal,
+            period=payload.to_period or "",
+            clarification=payload.clarification or "")
+    except Exception as e:  # noqa: BLE001 - the deterministic answer stands
+        logger.warning("The analyst could not run alongside /ask: %s", e)
+        return {"path": analyst_route.DETERMINISTIC,
+                "analyst_available": True,
+                "why": "the analyst did not complete; the reader answered"}
 
 
 # ------------------------------------------------------- trace modification

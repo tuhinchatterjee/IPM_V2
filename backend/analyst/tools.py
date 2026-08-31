@@ -114,6 +114,19 @@ def _rows_of(frame, limit: int) -> tuple[list[dict[str, Any]], int]:
     return rows, total
 
 
+#: Significant figures every numeric a tool returns is rounded to.
+#:
+#: Not cosmetic. DuckDB sums in whatever order its workers finish in, so the
+#: same SUM over the same rows came back as 284394.6739999999 and
+#: 284394.6739999996 on two consecutive runs — a difference in the last bits
+#: of a float, in a figure quoted to two decimals, and enough to make §11's
+#: "the same question returns the same rows" false. Nine significant figures
+#: is far beyond anything a credit report shows and far short of where
+#: summation order lives, and it is the same precision the evidence hash uses,
+#: so a row and its hash cannot disagree.
+FIGURES = 9
+
+
 def _plain(value: Any) -> Any:
     import math
 
@@ -122,7 +135,9 @@ def _plain(value: Any) -> Any:
     if isinstance(value, (str, bool, int)):
         return value
     if isinstance(value, float):
-        return None if math.isnan(value) or math.isinf(value) else value
+        if math.isnan(value) or math.isinf(value):
+            return None
+        return float(f"{value:.{FIGURES}g}")
     try:
         import pandas as pd
 
