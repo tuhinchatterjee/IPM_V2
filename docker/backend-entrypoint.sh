@@ -62,16 +62,23 @@ fi
 # deployment whose corporate book failed to build reports NOT ready instead of
 # reporting healthy with an empty Borrower 360 screen. That silent success is
 # the defect this whole arrangement exists to prevent.
+# The marker is written BY the bootstrap, to a path, from its structured
+# result — not captured off this script's stdout. It used to be captured, and
+# the builders' own progress lines ("> Building the corporate universe") went
+# into the file ahead of the JSON, so the health check's json.loads failed
+# with "Expecting value: line 1 column 1". The API was serving the whole time;
+# the container simply never left `health: starting`, the frontend never
+# started because it waits on backend health, and localhost:3000 refused the
+# connection. Nothing printed anywhere can reach the marker now.
 READY_MARKER="${CREDITPROBE_READY_MARKER:-/tmp/creditprobe-bootstrap.json}"
-rm -f "${READY_MARKER}"
+rm -f "${READY_MARKER}" "${READY_MARKER}.failed"
 
 say "Preparing the demonstration (first start builds the data; later starts skip)..."
-if python scripts/bootstrap_demo.py --json > "${READY_MARKER}.tmp" 2>>/dev/stderr; then
-  mv "${READY_MARKER}.tmp" "${READY_MARKER}"
+if python scripts/bootstrap_demo.py --marker "${READY_MARKER}" >&2; then
   say "Demonstration bootstrap complete and verified."
 else
   status=$?
-  mv "${READY_MARKER}.tmp" "${READY_MARKER}.failed" 2>/dev/null || true
+  cp "${READY_MARKER}" "${READY_MARKER}.failed" 2>/dev/null || true
   say "DEMONSTRATION BOOTSTRAP DID NOT PASS (exit ${status})."
   say "The API will start so the failure can be inspected, but the container"
   say "will report UNHEALTHY until it passes. What failed:"
