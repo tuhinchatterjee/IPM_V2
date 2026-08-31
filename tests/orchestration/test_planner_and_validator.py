@@ -450,3 +450,64 @@ class TestSayingWhatCouldNotBeComputed:
         """That is a clarification, which is a better response than a list of
         things the catalogue does not have."""
         assert not self._notes(self.QUESTION, [])
+
+
+class TestAnExplanationClauseDoesNotSetTheGrain:
+    """§17's "explanation dimensions", and the last of Q1's defects.
+
+    "…Identify the 10 borrowers … For each borrower, explain the top five
+    drivers, distinguish borrower-specific drivers from macroeconomic
+    drivers, and rank the evidence by materiality."
+
+    "macroeconomic" resolves to a governed macro concept published at
+    PORTFOLIO grain. It arrived from the third clause - a request to separate
+    two KINDS of driver in the EXPLANATION - and then set the grain of the
+    whole answer, so a question asking for ten borrowers was refused with "the
+    governed data behind it can only be reported as one row for the whole
+    portfolio". The population clause never mentioned macro at all.
+    """
+
+    QUESTION = ("Identify the 10 borrowers with the highest probability of "
+                "credit deterioration over the next 12 months. For each "
+                "borrower, explain the top five drivers, distinguish "
+                "borrower-specific drivers from macroeconomic drivers, and "
+                "rank the evidence by materiality.")
+
+    @staticmethod
+    def _labels(question, phrases):
+        from backend.orchestration import analysis_planner as ap
+
+        class _C:
+            def __init__(self, label): self.label = label
+
+        class _M:
+            def __init__(self, p): self.concept, self.phrase = _C(p), p
+
+        return [m.phrase for m in
+                ap._drop_explanation_only(question, [_M(p) for p in phrases])]
+
+    def test_a_concept_named_only_in_the_explanation_is_dropped(self):
+        kept = self._labels(
+            self.QUESTION,
+            ["probability of credit deterioration", "macroeconomic"])
+        assert kept == ["probability of credit deterioration"], kept
+
+    def test_the_measure_in_the_population_clause_survives(self):
+        assert "probability of credit deterioration" in self._labels(
+            self.QUESTION, ["probability of credit deterioration",
+                            "macroeconomic"])
+
+    def test_a_single_measure_is_never_dropped(self):
+        """"Rank those by ECL instead" names its only measure inside a ranking
+        clause. Removing it would leave nothing to compute."""
+        assert self._labels("Rank those by ECL instead.", ["ECL"]) == ["ECL"]
+
+    def test_a_measure_named_only_after_the_opening_survives_when_alone(self):
+        kept = self._labels(
+            "Show the customers we discussed. Rank them by ECL.", ["ECL"])
+        assert kept == ["ECL"], kept
+
+    def test_a_single_clause_question_is_untouched(self):
+        kept = self._labels(
+            "Show EAD and ECL by sector at Q2 2026.", ["EAD", "ECL"])
+        assert kept == ["EAD", "ECL"], kept

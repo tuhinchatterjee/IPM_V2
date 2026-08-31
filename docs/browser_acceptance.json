@@ -1,5 +1,5 @@
 {
-  "started": "2026-08-31T11:12:23+0000",
+  "started": "2026-08-31T16:14:06+0000",
   "viewports": [
     {
       "name": "desktop",
@@ -215,7 +215,7 @@
       "viewport": "desktop",
       "check": "navigable",
       "ok": true,
-      "detail": "43 way(s) out"
+      "detail": "25 way(s) out"
     },
     {
       "screen": "/ai-studio",
@@ -411,7 +411,7 @@
       "viewport": "desktop",
       "check": "navigable",
       "ok": true,
-      "detail": "225 way(s) out"
+      "detail": "25 way(s) out"
     },
     {
       "screen": "/analyses",
@@ -5920,7 +5920,7 @@
       "viewport": "theme:forest",
       "check": "navigable",
       "ok": true,
-      "detail": "34 way(s) out"
+      "detail": "38 way(s) out"
     },
     {
       "screen": "/",
@@ -6067,7 +6067,7 @@
       "viewport": "theme:forest",
       "check": "navigable",
       "ok": true,
-      "detail": "43 way(s) out"
+      "detail": "25 way(s) out"
     },
     {
       "screen": "/ai-studio",
@@ -6263,7 +6263,7 @@
       "viewport": "theme:forest",
       "check": "navigable",
       "ok": true,
-      "detail": "225 way(s) out"
+      "detail": "25 way(s) out"
     },
     {
       "screen": "/analyses",
@@ -6704,7 +6704,7 @@
       "viewport": "theme:forest",
       "check": "navigable",
       "ok": true,
-      "detail": "24 way(s) out"
+      "detail": "26 way(s) out"
     },
     {
       "screen": "/borrower-360",

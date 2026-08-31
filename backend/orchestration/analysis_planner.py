@@ -279,6 +279,8 @@ def plan(reading: Reading, context: GovernedContext, *,
             matches.extend(fresh)
             carried_concepts = [m.concept.label for m in fresh]
 
+    matches = _drop_explanation_only(text, matches)
+
     count_grain = _wants_count(text, reading)
     if not count_grain and carrying and not resolved.matches:
         # "Break that down by sector" after a count is still a count. The
@@ -734,6 +736,69 @@ def _without_values(text: str, filters: list[tuple[str, str]]) -> str:
             continue
         out = re.sub(rf"\b{re.escape(value)}\b", " ", out, flags=re.I)
     return out
+
+
+def _drop_explanation_only(text: str, matches: list[cx.ConceptMatch]
+                           ) -> list[cx.ConceptMatch]:
+    """Concepts named only to say HOW to explain are not measures. §17.
+
+        "Identify the 10 borrowers with the highest probability of credit
+         deterioration over the next 12 months. For each borrower, explain the
+         top five drivers, distinguish borrower-specific drivers from
+         macroeconomic drivers, and rank the evidence by materiality."
+
+    "macroeconomic" resolves to a governed macro concept, which is published
+    at PORTFOLIO grain. It arrived from the third clause - a request to
+    separate two KINDS of driver in the explanation - and it then set the
+    grain of the whole answer, so a question asking for ten borrowers was
+    refused with "the governed data behind it can only be reported as one row
+    for the whole portfolio". The population clause never mentioned macro at
+    all.
+
+    §17 lists "explanation dimensions" among the things the reader must
+    distinguish, and this is the mechanism for it: a concept that appears ONLY
+    in a clause whose verb says what to do with the population - explain it,
+    describe it, rank it - is a dimension of the answer, not a measure the
+    population is selected or grained on.
+
+    The last match is never dropped. "Rank those by ECL instead" names its
+    only measure inside a ranking clause, and removing it would leave nothing
+    to compute; that path is unchanged.
+    """
+    if len(matches) < 2:
+        return matches
+    try:
+        from backend.orchestration import objectives as ob
+
+        found = ob.read(text)
+    except Exception:  # noqa: BLE001 - reading must never break a question
+        return matches
+    if len(found.objectives) < 2:
+        return matches
+
+    # The FIRST objective, whatever its verb. `_defining_clauses` cannot be
+    # used here: it drops every RANK, COMPARE and DESCRIBE clause and falls
+    # back to the whole message when that leaves nothing - which is exactly
+    # this question, whose opening clause is itself a ranking. A population is
+    # still defined by the clause that names it first.
+    opening = str(found.objectives[0].description or "").lower()
+    if not opening:
+        return matches
+
+    kept = [m for m in matches
+            if str(getattr(m, "phrase", "") or "").lower() in opening]
+    if not kept:
+        # Nothing was named in the opening clause. That is the "Rank those by
+        # ECL instead" shape - the measure lives in the later clause and is
+        # the only one there is - and it is not this defect.
+        return matches
+    dropped = [str(getattr(m.concept, "label", "") or "")
+               for m in matches if m not in kept]
+    if dropped:
+        logger.info("Concept(s) %s appear only in an explanation clause and "
+                    "are read as dimensions of the answer rather than as "
+                    "measures of the population.", dropped)
+    return kept
 
 
 def _defining_clauses(text: str) -> str:
