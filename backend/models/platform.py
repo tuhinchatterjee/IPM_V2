@@ -4421,6 +4421,21 @@ class AnswerFeedback(Base):
     ledger_entry_id: Mapped[str] = mapped_column(String(48), nullable=False,
                                                  default="")
 
+    #: §11. How the question was READ - the provider telemetry state at the
+    #: time: offline, configured, connected or degraded. Recorded because on a
+    #: deployment with no external provider it is the largest single
+    #: difference between two answers to the same question, and a review
+    #: workflow that cannot separate "the phrasing was not understood" from
+    #: "the analysis was wrong" will work on the wrong one. Taken from the
+    #: provider rather than from the browser: a client can be wrong about it,
+    #: and a rating attributed to the wrong reader is worse than one with no
+    #: reader recorded.
+    planner_mode: Mapped[str] = mapped_column(String(32), nullable=False,
+                                              default="")
+    #: The model that served it, where one did. Empty is the honest value for
+    #: an answer no model touched.
+    model: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+
     user_id: Mapped[str] = mapped_column(String(64), nullable=False,
                                          default="")
     tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
@@ -4433,6 +4448,8 @@ class AnswerFeedback(Base):
         Index("ix_answer_feedback_kind", "tenant", "answer_kind",
               "direction"),
         Index("ix_answer_feedback_user", "tenant", "user_id", "created_at"),
+        Index("ix_answer_feedback_mode", "tenant", "planner_mode",
+              "direction"),
     )
 
 

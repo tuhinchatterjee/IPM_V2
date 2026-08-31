@@ -83,6 +83,7 @@ def leave(session: Session, *, answer_id: str, direction: str,
         plan_fingerprint=thumbs.plan_fingerprint,
         teaching_release_id=thumbs.teaching_release_id,
         investigation_id=str(provenance.get("investigation_id", "")),
+        **_reader(),
         immediate_changes=dict(immediate),
         governed_fields=list(thumbs.governed_fields),
         user_id=user_id,
@@ -120,6 +121,31 @@ def leave(session: Session, *, answer_id: str, direction: str,
                 "under review", thumbs.feedback_id, answer_id,
                 len(immediate), len(thumbs.governed_fields))
     return row
+
+
+def _reader() -> dict[str, str]:
+    """Which reader produced the answer being rated. §11.
+
+    Read from the provider rather than accepted from the request. A browser
+    that sends its own idea of the mode can be stale — the operator can have
+    added or removed a key between the answer and the thumb — and a rating
+    filed under the wrong reader sends a reviewer to the wrong defect, which
+    is worse than one filed under none.
+
+    Never raises. Feedback that cannot be recorded because the telemetry was
+    unavailable would lose the user's actual point over its provenance.
+    """
+    try:
+        from backend.llm import get_provider
+
+        status = get_provider().status()
+        return {"planner_mode": str(status.state or "")[:32],
+                "model": str(getattr(status, "model", "") or "")[:64]}
+    except Exception:  # noqa: BLE001
+        logger.warning("Could not read the provider state for feedback "
+                       "provenance; recording the thumb without it.",
+                       exc_info=True)
+        return {"planner_mode": "", "model": ""}
 
 
 def _ledger_summary(thumbs: ba.Thumbs) -> str:

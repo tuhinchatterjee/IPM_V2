@@ -268,3 +268,92 @@ def test_an_analytical_correction_becomes_a_ledger_entry_that_activates_nothing(
     assert after["census"]["activated"] == before["census"]["activated"]
     assert (after["census"]["by_portability"]["NON_PORTABLE"]
             == before["census"]["by_portability"]["NON_PORTABLE"] + 1)
+
+
+# =========================================== §11 the provenance of a rating
+
+
+class TestWhatIsRecordedBesideTheRating:
+    """§11 names what a thumb has to persist: the user, the investigation,
+    the turn, the answer/run/trace identifier, the timestamp, the rating, the
+    comment, the model/planner mode, and the release identifier.
+
+    Every one of those is a question a reviewer asks about an unhappy answer,
+    and the one that was missing is the one that decides which reviewer it
+    goes to: on a deployment with no external provider, "not helpful" usually
+    means the deterministic reader did not understand the phrasing, which is
+    a different defect from an analysis that came out wrong.
+    """
+
+    @staticmethod
+    def _stored(feedback_id: str):
+        from sqlalchemy import select
+
+        from backend.db.engine import get_session
+        from backend.models.platform import AnswerFeedback
+
+        with get_session() as session:
+            return session.execute(
+                select(AnswerFeedback).where(
+                    AnswerFeedback.feedback_id == feedback_id)).scalar_one()
+
+    def _leave(self, client, **extra):
+        given = client.post(
+            "/api/v1/feedback/thumbs",
+            headers={"X-IPM-Role": "ANALYST", "X-IPM-User-Id": "1"},
+            json={"answer_id": answer_id(), "direction": "DOWN",
+                  "correction": {"additional_comment": "It ignored Q1."},
+                  **extra})
+        assert given.status_code == 201, given.text
+        return self._stored(given.json()["feedback_id"])
+
+    def test_the_rating_records_which_reader_produced_the_answer(self, client):
+        from backend.llm import get_provider
+
+        row = self._leave(client)
+        assert row.planner_mode, (
+            "a thumb was stored with no record of how the question was read, "
+            "so an aggregated view cannot separate a phrasing failure from an "
+            "analytical one")
+        # And it is the truth about this deployment rather than a default: it
+        # must agree with what the provider itself reports.
+        assert row.planner_mode == get_provider().status().state
+
+    def test_the_reader_is_not_taken_from_the_request(self, client):
+        """A client that claims a mode must not be believed.
+
+        The operator can add or remove a provider key between the answer and
+        the thumb, so the browser's idea of the mode is a guess. A rating
+        filed under the wrong reader sends a reviewer to the wrong defect.
+        """
+        from backend.llm import get_provider
+
+        row = self._leave(client, planner_mode="connected",
+                          model="a-model-that-never-ran")
+        assert row.planner_mode == get_provider().status().state
+        assert row.model != "a-model-that-never-ran"
+
+    def test_everything_section_eleven_names_is_on_the_row(self, client):
+        row = self._leave(client, investigation_id="inv-1234")
+
+        assert row.user_id, "no user"
+        assert row.investigation_id == "inv-1234", "no investigation"
+        assert row.answer_id, "no answer identifier"
+        assert row.created_at is not None, "no timestamp"
+        assert row.direction == "DOWN", "no rating"
+        assert row.correction.get("additional_comment"), "no comment"
+        assert row.planner_mode, "no planner mode"
+        # build_sha is the release identifier and is stamped from the running
+        # build, so it is present or the build is unstamped - either is
+        # honest, and neither may be silently absent from the column.
+        assert hasattr(row, "build_sha")
+
+    def test_a_thumb_is_still_recorded_when_the_telemetry_is_unavailable(self):
+        """Losing the user's actual point over its provenance is the wrong
+        trade. The mode is best-effort; the rating is not."""
+        from unittest.mock import patch
+
+        from backend.services import answer_feedback as af
+
+        with patch("backend.llm.get_provider", side_effect=RuntimeError("no")):
+            assert af._reader() == {"planner_mode": "", "model": ""}
