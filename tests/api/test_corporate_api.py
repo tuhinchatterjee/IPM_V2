@@ -432,3 +432,160 @@ class TestThePack:
         book = load_workbook(io.BytesIO(response.content))
         # Title, note, blank, header, then one row per field.
         assert book["LINEAGE"].max_row == len(lineage_mod.FIELDS) + 4
+
+
+# --------------------------------------------------------------- workspace
+# A person's own working set: borrowers they pinned and searches they saved.
+
+
+class TestWorkspace:
+    """Pins and saved cohorts.
+
+    Two properties matter more than the CRUD. A saved cohort stores the
+    QUERY, so running it next quarter answers this quarter's question rather
+    than replaying last quarter's ids. And a working set is one person's:
+    nothing here is visible to anybody else, and nothing here publishes a
+    judgement nobody offered.
+    """
+
+    def _clear(self, client, role: str = "ANALYST") -> None:
+        found = client.get(f"{PREFIX}/workspace", headers=headers(role))
+        if found.status_code != 200:
+            return
+        body = found.json()
+        for pin in body.get("pins", []):
+            client.delete(f"{PREFIX}/workspace/pins/{pin['reference']}",
+                          headers=headers(role))
+        for cohort in body.get("cohorts", []):
+            client.delete(
+                f"{PREFIX}/workspace/cohorts/{cohort['reference']}",
+                headers=headers(role))
+
+    def test_a_new_working_set_is_empty_and_says_what_it_is(self, client):
+        self._clear(client)
+        body = client.get(f"{PREFIX}/workspace",
+                          headers=headers("ANALYST")).json()
+        assert body["pins"] == []
+        assert body["cohorts"] == []
+        assert body["maximum_per_kind"] > 0
+        assert len(body["searchable"]) >= 12
+        assert "yours alone" in body["note"]
+
+    def test_a_pin_survives_and_carries_its_note(self, client):
+        self._clear(client)
+        first = client.get(f"{PREFIX}/borrowers",
+                           headers=headers("ANALYST"))
+        borrower = None
+        if first.status_code == 200:
+            rows = first.json().get("rows") or []
+            borrower = rows[0]["borrower_id"] if rows else None
+        borrower = borrower or "CORP-100000"
+
+        made = client.post(f"{PREFIX}/workspace/pins",
+                           json={"borrower_id": borrower,
+                                 "label": "watch this one",
+                                 "noted": "group utilisation 31%, INVESTIGATE"},
+                           headers=headers("ANALYST"))
+        assert made.status_code == 200, made.text
+        assert made.json()["pin"]["reference"] == borrower
+
+        body = client.get(f"{PREFIX}/workspace",
+                          headers=headers("ANALYST")).json()
+        assert [p["reference"] for p in body["pins"]] == [borrower]
+        assert body["pins"][0]["noted"].startswith("group utilisation"), (
+            "the note a person wrote when they pinned it was dropped, so "
+            "opening the pin later says nothing about whether it moved")
+
+    def test_pinning_the_same_borrower_twice_updates_rather_than_doubles(
+            self, client):
+        self._clear(client)
+        for label in ("first", "second"):
+            client.post(f"{PREFIX}/workspace/pins",
+                        json={"borrower_id": "CORP-100000", "label": label},
+                        headers=headers("ANALYST"))
+        body = client.get(f"{PREFIX}/workspace",
+                          headers=headers("ANALYST")).json()
+        assert len(body["pins"]) == 1
+        assert body["pins"][0]["label"] == "second"
+
+    def test_a_saved_cohort_stores_the_query_not_the_borrowers(self, client):
+        self._clear(client)
+        made = client.post(
+            f"{PREFIX}/workspace/cohorts",
+            json={"label": "Contracting over the trigger",
+                  "query": {"facets": {"sector": "Contracting"}}},
+            headers=headers("ANALYST"))
+        assert made.status_code == 200, made.text
+        saved = made.json()["cohort"]
+        assert saved["query"]["facets"] == {"sector": "Contracting"}
+        assert not saved["query"]["borrower_ids"], (
+            "a saved cohort kept borrower ids, so next quarter it will "
+            "answer last quarter's question under this quarter's name")
+
+    def test_a_cohort_filtering_on_an_undeclared_attribute_is_refused(
+            self, client):
+        self._clear(client)
+        made = client.post(
+            f"{PREFIX}/workspace/cohorts",
+            json={"label": "nonsense",
+                  "query": {"facets": {"favourite_colour": "blue"}}},
+            headers=headers("ANALYST"))
+        assert made.status_code == 422, made.text
+        assert "favourite_colour" in made.text, (
+            "the refusal does not name the facet it refused, so a caller "
+            "cannot tell which part of their cohort was wrong")
+
+    def test_an_empty_cohort_is_refused_rather_than_saved_as_the_book(
+            self, client):
+        self._clear(client)
+        made = client.post(f"{PREFIX}/workspace/cohorts",
+                           json={"label": "everything", "query": {}},
+                           headers=headers("ANALYST"))
+        assert made.status_code == 422, made.text
+
+    def test_a_saved_cohort_runs_against_the_current_book(self, client):
+        self._clear(client)
+        made = client.post(
+            f"{PREFIX}/workspace/cohorts",
+            json={"label": "Contracting names",
+                  "query": {"facets": {"sector": "Contracting"}}},
+            headers=headers("ANALYST"))
+        if made.status_code != 200:
+            pytest.skip("the corporate lake is not built")
+        reference = made.json()["cohort"]["reference"]
+
+        ran = client.get(f"{PREFIX}/workspace/cohorts/{reference}/run",
+                         headers=headers("ANALYST"))
+        assert ran.status_code == 200, ran.text
+        body = ran.json()
+        assert body["cohort"]["reference"] == reference
+        assert "result" in body
+        assert body["origin"] == "SYNTHETIC_DEMO"
+
+    def test_running_a_cohort_nobody_saved_is_a_404(self, client):
+        ran = client.get(f"{PREFIX}/workspace/cohorts/never-saved/run",
+                         headers=headers("ANALYST"))
+        assert ran.status_code == 404
+
+    def test_removing_a_pin_removes_it(self, client):
+        self._clear(client)
+        client.post(f"{PREFIX}/workspace/pins",
+                    json={"borrower_id": "CORP-100000"},
+                    headers=headers("ANALYST"))
+        gone = client.delete(f"{PREFIX}/workspace/pins/CORP-100000",
+                             headers=headers("ANALYST"))
+        assert gone.status_code == 200
+        assert gone.json()["removed"] is True
+        body = client.get(f"{PREFIX}/workspace",
+                          headers=headers("ANALYST")).json()
+        assert body["pins"] == []
+
+    def test_every_role_that_may_view_may_keep_its_own_working_set(
+            self, client):
+        """A working set is the reader's own bookmarks. Refusing somebody
+        their own bookmarks behind an export permission would be governance
+        theatre - it protects nothing and stops the work."""
+        for role in ("ADMIN", "DATA_STEWARD", "ANALYST", "VIEWER"):
+            found = client.get(f"{PREFIX}/workspace", headers=headers(role))
+            assert found.status_code == 200, (
+                f"{role} cannot read their own working set")

@@ -5052,6 +5052,43 @@ export const api = {
       `/corporate/quality` +
         (period ? `?period=${encodeURIComponent(period)}` : ""),
     ),
+  // A person's own working set. Nothing here is shared, and a saved cohort
+  // stores the SEARCH rather than the borrowers it matched - the book is
+  // rebuilt every quarter and a stored id list would go stale silently.
+  borrower360Workspace: () =>
+    request<Borrower360Workspace>("/corporate/workspace"),
+  borrower360Pin: (body: {
+    borrower_id: string;
+    label?: string;
+    noted?: string;
+  }) =>
+    request<{ pin: Borrower360Kept }>("/corporate/workspace/pins", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  borrower360Unpin: (borrowerId: string) =>
+    request<{ removed: boolean }>(
+      `/corporate/workspace/pins/${encodeURIComponent(borrowerId)}`,
+      { method: "DELETE" },
+    ),
+  borrower360SaveCohort: (body: {
+    label: string;
+    query: Record<string, unknown>;
+  }) =>
+    request<{ cohort: Borrower360Kept }>("/corporate/workspace/cohorts", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  borrower360ForgetCohort: (reference: string) =>
+    request<{ removed: boolean }>(
+      `/corporate/workspace/cohorts/${encodeURIComponent(reference)}`,
+      { method: "DELETE" },
+    ),
+  borrower360RunCohort: (reference: string, period?: string) =>
+    request<{ cohort: Borrower360Kept; result: Borrower360Search }>(
+      `/corporate/workspace/cohorts/${encodeURIComponent(reference)}/run` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+    ),
 
   scorecardOverview: () =>
     request<ScorecardOverview>("/scorecard/overview"),
@@ -7237,6 +7274,31 @@ export type Borrower360GroupConcept = {
   /** What this grouping is NOT. The half that stops it being read as one
    *  of the other five. */
   is_not: string;
+};
+
+export type Borrower360Kept = {
+  id: number;
+  kind: string;
+  reference: string;
+  label: string;
+  query: {
+    text?: string;
+    facets?: Record<string, unknown>;
+    flags?: string[];
+    borrower_ids?: string[];
+  };
+  position: number;
+  noted: string;
+  created_at: string;
+};
+
+export type Borrower360Workspace = {
+  version: string;
+  pins: Borrower360Kept[];
+  cohorts: Borrower360Kept[];
+  maximum_per_kind: number;
+  searchable: string[];
+  note: string;
 };
 
 export type Borrower360Meta = {

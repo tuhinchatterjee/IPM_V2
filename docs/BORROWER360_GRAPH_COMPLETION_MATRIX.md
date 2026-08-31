@@ -140,7 +140,8 @@ minutes for all sixteen.
 | Network views (11 named) | IMPLEMENTED | `service.NETWORK_VIEWS`, server-side ego expansion with exact omitted counts |
 | Group & Connectedness shown as six separate groupings | IMPLEMENTED | `service.GROUP_CONCEPTS` — six cards, each with Answers / Basis / **Is NOT** |
 | DOWNLOAD BORROWER 360 PACK | IMPLEMENTED | `backend/corporate/pack.py`, 18 sheets (COVER + 17); sentinels survive the export |
-| Pinning a borrower; saving a cohort | NOT_IMPLEMENTED | the two remaining Borrower 360 interactions |
+| Pinning a borrower | IMPLEMENTED | `backend/corporate/workspace.py`, migration 0030; a pin carries the note it was pinned with, so opening it later shows whether something moved |
+| Saving a cohort | IMPLEMENTED | the SEARCH is stored, not the borrowers it matched - the book is rebuilt quarterly and a stored id list would go stale silently. `/workspace/cohorts/{ref}/run` answers against the current book |
 | Data Builder graph domains expose scope/grain/keys/lineage/authority | IMPLEMENTED | 20 datasets registered; 7 declared relationships including 2 FORBIDDEN |
 
 ## Phases 4–6 — Ask, Brain, agentic
@@ -166,18 +167,17 @@ from memory:
 
 | Status | Count | Previous revision | First revision |
 |---|---:|---:|---:|
-| IMPLEMENTED | 74 | 51 | 21 |
+| IMPLEMENTED | 76 | 51 | 21 |
 | PARTIAL | 3 | 3 | 6 |
 | BROKEN | 0 | 0 | 1 |
-| NOT_IMPLEMENTED | 4 | 8 | 34 |
+| NOT_IMPLEMENTED | 3 | 8 | 34 |
 | NOT_VERIFIED | 0 | 1 | 1 |
 
-The four remaining NOT_IMPLEMENTED rows are `source_record_id` on observed
+The three remaining NOT_IMPLEMENTED rows are `source_record_id` on observed
 edges, `portfolio_scope` on the edge row (it is on the dataset), a validation
-status on observed edges (the DERIVED products carry one), and the two
-remaining Borrower 360 interactions — pinning a borrower and saving a
-cohort. Each is a statement about work that does not exist, not about work
-that was not checked.
+status on observed edges, all three of which the DERIVED products carry.
+Each is a statement about work that does not exist, not about work that was
+not checked.
 
 **What the derived layer now does:** integrated ownership with a per-component
 refusal, control closure that is binary and transitive and refuses to be

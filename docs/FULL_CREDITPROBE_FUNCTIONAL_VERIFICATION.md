@@ -33,7 +33,7 @@ outstanding. `RELEASE_CANDIDATE` is not claimed.
 | Feature matrix | `scripts/feature_matrix.py --check` | **PASS** — every page carries a curated expected behaviour |
 | Browser acceptance | `scripts/browser_acceptance.py --start` | **PASS** — 956/956 checks, 4 viewports, 17 screens, real Chromium |
 | Route crawl | `scripts/route_crawl.py --start` | **PASS** — 153/153 visits across 3 roles, 6 expected refusals |
-| Migrations | `alembic heads` | **PASS** — single head `0029`, 29 migration files |
+| Migrations | `alembic heads` | **PASS** — single head `0030`, 30 migration files |
 | Corporate build | `scripts/build_corporate_universe.py` | **PASS** — 16 quarters, 22 datasets, 176s of graph derivation |
 | Docker | `docker info` | **NOT VERIFIED IN CLAUDE SANDBOX** — no daemon |
 | Live AI | provider status | **NOT VERIFIED** — no key, and no live call is permitted here |
@@ -76,7 +76,7 @@ names the evidence rather than the word "OK". A test count is the number of
 | **Return context** | `tests/api`, browser acceptance | PASS |
 | **Security** | `tests/proof/test_safety.py`, `tests/brain/test_pack_security.py` (31) — injection, path escape, null byte, dotenv, decompression bomb, cross-tenant | PASS |
 | **Performance** | `tests/corporate/test_graph_performance.py` (9), each bound ≥3× the measured cost | PASS |
-| **Migrations** | `alembic heads` — single head `0029`, 29 files | PASS |
+| **Migrations** | `alembic heads` — single head `0030`, 30 files | PASS |
 | **Fresh clone / setup** | `scripts/setup.sh`, `scripts/build_data_lake.py`, `scripts/build_corporate_universe.py` — the lake and the corporate universe were rebuilt in this environment from scratch | PASS |
 | **Windows runbook** | `docs/WINDOWS_LOCAL_VERIFICATION.md` | **NOT EXECUTED HERE** — no Windows host |
 | **Zero-tolerance suite** | `tests/proof/test_zero_tolerance.py` — 37 tests, 36 named classes, 0 skipped; `docs/ZERO_TOLERANCE_SUITE.md` | PASS |
@@ -132,13 +132,12 @@ was auto-activated; the scorecard's activation path was not touched.
 * **Live AI.** Not verifiable here, by instruction. Every AI test is offline
   against fake providers; no key was read and no credit consumed. The product
   is therefore NOT `LIVE_AI_VERIFIED`.
-* **Two Borrower 360 interactions** — pinning a borrower and saving a
-  cohort — are not built. The screen renders, is navigable at four
-  viewports, and every tab it shows is served by a route.
-  Data Builder graph-domain *visibility* IS built: both graph datasets are
+* Nothing on the Borrower 360 screen remains unbuilt. Pinning and saved
+  cohorts were the last two and are now in (migration 0030,
+  `backend/corporate/workspace.py`, eleven tests). Data Builder
+  graph-domain visibility was already built: both graph datasets are
   registered with domain, family, grain, primary keys, `portfolio_scope`
-  and `origin = SYNTHETIC_DEMO`, which is what the Data Builder screen
-  reads.
+  and `origin = SYNTHETIC_DEMO`, which is what that screen reads.
 * **Human review of the teaching library.** 3,603 cases are offered at
   DRAFT and 0 are retrievable. That is the correct state for a freshly
   seeded library, and it means the Brain teaches the model nothing until a
@@ -158,4 +157,4 @@ and one is unchanged:
 | Brain concepts and Investigation Blueprints for the graph | **Built.** 22 Concepts (62 total), 8 semantic contracts (45 total), 10 Investigation Blueprints (29 total / 29 families). `tests/corporate/test_graph_brain.py`, 31 tests |
 | Development teaching coverage for graph topics | **Built.** 17 families, 578 cases, no family short. `intelligence_factory/teaching/corporate_graph.py` |
 | Sealed-holdout coverage for graph topics | **Built.** 328 cases, 9 generators, isolation proved and proved able to FAIL. `backend/corporate/holdout.py` |
-| Borrower 360 pinning and saved cohorts | Unchanged — still not built. Data Builder graph-domain visibility IS built |
+| Borrower 360 pinning and saved cohorts | **Built.** Migration 0030, `workspace.py`, 5 routes, 11 tests. A saved cohort stores the search, not the borrowers it matched |

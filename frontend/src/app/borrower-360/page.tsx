@@ -13,6 +13,7 @@ import type {
   Borrower360Quality,
   Borrower360Row,
   Borrower360Search,
+  Borrower360Workspace,
   Borrower360Similar,
 } from "@/lib/api";
 import { byUnit, humanise } from "@/lib/format";
@@ -122,15 +123,39 @@ function SearchPanel({
   meta,
   period,
   onPick,
+  onSaved,
 }: {
   meta: Borrower360Meta;
   period: string;
   onPick: (id: string) => void;
+  onSaved: () => void;
 }) {
   const [term, setTerm] = React.useState("");
   const [result, setResult] = React.useState<Borrower360Search | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [saveAs, setSaveAs] = React.useState("");
+  const [saveProblem, setSaveProblem] = React.useState("");
+  const [saved, setSaved] = React.useState("");
+
+  async function save() {
+    setSaveProblem("");
+    setSaved("");
+    try {
+      // The search TEXT is what is kept, not the borrowers it matched.
+      // Running this cohort next quarter answers the same question about a
+      // book that has moved, which is the only version worth saving.
+      const kept = await api.borrower360SaveCohort({
+        label: saveAs,
+        query: { text: term },
+      });
+      setSaved(kept.cohort.label);
+      setSaveAs("");
+      onSaved();
+    } catch (caught) {
+      setSaveProblem(refusalOrFailure(caught, "save that search"));
+    }
+  }
 
   const run = React.useCallback(
     async (text: string) => {
@@ -184,6 +209,42 @@ function SearchPanel({
       <p className="mt-2 text-[11px] text-[var(--muted)]">
         Searches {meta.searchable_attributes.length} governed attributes.
       </p>
+
+      {term.trim() ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <input
+            value={saveAs}
+            onChange={(event) => setSaveAs(event.target.value)}
+            placeholder="Save this search as…"
+            aria-label="Name for the saved cohort"
+            className={cn(
+              "flex-1 rounded border border-[var(--line)] bg-transparent",
+              "px-2 py-1 text-xs outline-none focus:border-[var(--accent)]",
+            )}
+          />
+          <button
+            type="button"
+            disabled={!saveAs.trim()}
+            onClick={() => void save()}
+            className={cn(
+              "rounded border border-[var(--line)] px-2 py-1 text-xs",
+              "hover:border-[var(--accent)] disabled:opacity-40",
+            )}
+          >
+            Save cohort
+          </button>
+        </div>
+      ) : null}
+      {saved ? (
+        <p className="mt-1 text-[11px] text-[var(--muted)]">
+          Saved as “{saved}”. It keeps the search, not today&rsquo;s matches.
+        </p>
+      ) : null}
+      {saveProblem ? (
+        <p className="mt-1 text-[11px] text-[var(--negative)]">
+          {saveProblem}
+        </p>
+      ) : null}
 
       {busy ? <Skeleton className="mt-3 h-16 w-full" /> : null}
       {error ? (
@@ -667,6 +728,234 @@ function refusalOrFailure(caught: unknown, what: string): string {
  * page rather than a message inside the product. A VIEWER may read this
  * screen and may not export it, so the refusal has to land here.
  */
+function WorkingSet({
+  workspace,
+  period,
+  onPick,
+  onChanged,
+}: {
+  workspace: Borrower360Workspace | null;
+  period: string;
+  onPick: (id: string) => void;
+  onChanged: () => void;
+}) {
+  const [ran, setRan] = React.useState<{
+    reference: string;
+    label: string;
+    borrowers: Borrower360Search["borrowers"];
+    matched: number;
+  } | null>(null);
+  const [problem, setProblem] = React.useState("");
+
+  if (!workspace) return null;
+  const empty =
+    workspace.pins.length === 0 && workspace.cohorts.length === 0;
+
+  async function forget(kind: "pin" | "cohort", reference: string) {
+    setProblem("");
+    try {
+      if (kind === "pin") await api.borrower360Unpin(reference);
+      else await api.borrower360ForgetCohort(reference);
+      if (ran?.reference === reference) setRan(null);
+      onChanged();
+    } catch (caught) {
+      setProblem(refusalOrFailure(caught, "remove that"));
+    }
+  }
+
+  async function run(reference: string) {
+    setProblem("");
+    try {
+      const answer = await api.borrower360RunCohort(reference, period);
+      setRan({
+        reference,
+        label: answer.cohort.label,
+        borrowers: answer.result.borrowers ?? [],
+        matched: answer.result.matched ?? 0,
+      });
+    } catch (caught) {
+      setRan(null);
+      setProblem(refusalOrFailure(caught, "run that cohort"));
+    }
+  }
+
+  return (
+    <Card className="p-4">
+      <h3 className="text-sm font-medium">Your working set</h3>
+      <p className="mt-1 text-xs text-[var(--muted)]">{workspace.note}</p>
+
+      {empty ? (
+        <p className="mt-3 text-xs text-[var(--muted)]">
+          Nothing kept yet. Pin a borrower from its header, or save a search
+          you will want to run again.
+        </p>
+      ) : null}
+
+      {workspace.pins.length ? (
+        <div className="mt-4">
+          <p className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
+            Pinned borrowers
+          </p>
+          <ul className="mt-2 space-y-1">
+            {workspace.pins.map((kept) => (
+              <li
+                key={kept.reference}
+                className="flex items-start justify-between gap-3 text-sm"
+              >
+                <button
+                  type="button"
+                  onClick={() => onPick(kept.reference)}
+                  className="text-left hover:text-[var(--accent)]"
+                >
+                  {kept.label || kept.reference}
+                  {kept.noted ? (
+                    <span className="block text-xs text-[var(--muted)]">
+                      when pinned: {kept.noted}
+                    </span>
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void forget("pin", kept.reference)}
+                  className="text-xs text-[var(--muted)] hover:text-[var(--fg)]"
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {workspace.cohorts.length ? (
+        <div className="mt-4">
+          <p className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
+            Saved cohorts
+          </p>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            The search is saved, not the borrowers it matched. Running one
+            answers the question against the book as it is now.
+          </p>
+          <ul className="mt-2 space-y-1">
+            {workspace.cohorts.map((kept) => (
+              <li
+                key={kept.reference}
+                className="flex items-start justify-between gap-3 text-sm"
+              >
+                <span>
+                  {kept.label}
+                  <span className="block text-xs text-[var(--muted)]">
+                    {Object.entries(kept.query.facets ?? {})
+                      .map(([key, value]) => `${key} = ${String(value)}`)
+                      .join(", ") || "search text"}
+                  </span>
+                </span>
+                <span className="flex shrink-0 gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => void run(kept.reference)}
+                    className="hover:text-[var(--accent)]"
+                  >
+                    Run
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void forget("cohort", kept.reference)}
+                    className="text-[var(--muted)] hover:text-[var(--fg)]"
+                  >
+                    Forget
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {problem ? (
+        <p className="mt-3 text-xs text-[var(--danger,#b91c1c)]">{problem}</p>
+      ) : null}
+
+      {ran ? (
+        <div className="mt-4 border-t border-[var(--line)] pt-3">
+          <p className="text-xs text-[var(--muted)]">
+            {ran.label} — {ran.matched} borrower
+            {ran.matched === 1 ? "" : "s"} as at{" "}
+            {period || "the latest quarter"}
+          </p>
+          <ul className="mt-2 space-y-1">
+            {ran.borrowers.slice(0, 10).map((entry) => (
+              <li key={entry.borrower_id}>
+                <button
+                  type="button"
+                  onClick={() => onPick(entry.borrower_id)}
+                  className="text-sm hover:text-[var(--accent)]"
+                >
+                  {entry.display_name ?? entry.legal_name ?? entry.borrower_id}
+                </button>
+              </li>
+            ))}
+          </ul>
+          {ran.matched > 10 ? (
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              Showing 10 of {ran.matched}.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+function PinButton({
+  borrowerId,
+  label,
+  noted,
+  pinned,
+  onChanged,
+}: {
+  borrowerId: string;
+  label: string;
+  noted: string;
+  pinned: boolean;
+  onChanged: () => void;
+}) {
+  const [problem, setProblem] = React.useState("");
+
+  async function toggle() {
+    setProblem("");
+    try {
+      if (pinned) await api.borrower360Unpin(borrowerId);
+      else await api.borrower360Pin({ borrower_id: borrowerId, label, noted });
+      onChanged();
+    } catch (caught) {
+      setProblem(refusalOrFailure(caught, pinned ? "unpin" : "pin"));
+    }
+  }
+
+  return (
+    <span className="flex flex-col items-end">
+      <button
+        type="button"
+        onClick={() => void toggle()}
+        className={cn(
+          "rounded border px-3 py-2 text-sm",
+          pinned
+            ? "border-[var(--accent)] text-[var(--accent)]"
+            : "border-[var(--line)] hover:border-[var(--accent)]",
+        )}
+      >
+        {pinned ? "Pinned" : "Pin"}
+      </button>
+      {problem ? (
+        <span className="mt-1 text-xs text-[var(--danger,#b91c1c)]">
+          {problem}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function PackButton({
   borrowerId,
   period,
@@ -740,6 +1029,9 @@ export default function Borrower360Page() {
   const [similarProblem, setSimilarProblem] = React.useState("");
   const [quality, setQuality] = React.useState<Borrower360Quality | null>(null);
   const [tab, setTab] = React.useState("overview");
+  const [workspace, setWorkspace] =
+    React.useState<Borrower360Workspace | null>(null);
+  const [workspaceTick, setWorkspaceTick] = React.useState(0);
   const [rowError, setRowError] = React.useState("");
 
   React.useEffect(() => {
@@ -753,6 +1045,25 @@ export default function Borrower360Page() {
         setMetaError(caught instanceof Error ? caught.message : String(caught)),
       );
   }, []);
+
+  // The working set is the reader's own and does not depend on which
+  // borrower is open, so it loads once and reloads only when they change it.
+  // A failure here leaves it null rather than showing an empty list: an
+  // empty list reads as "you kept nothing", which is a claim about them.
+  React.useEffect(() => {
+    let live = true;
+    api
+      .borrower360Workspace()
+      .then((found) => {
+        if (live) setWorkspace(found);
+      })
+      .catch(() => {
+        if (live) setWorkspace(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, [workspaceTick]);
 
   React.useEffect(() => {
     if (!borrowerId || !period) return;
@@ -873,8 +1184,19 @@ export default function Borrower360Page() {
         {meta.origin} — {meta.not_client_data}
       </p>
 
-      <div className="mt-6">
-        <SearchPanel meta={meta} period={period} onPick={setBorrowerId} />
+      <div className="mt-6 grid gap-4 lg:grid-cols-[2fr_1fr]">
+        <SearchPanel
+          meta={meta}
+          period={period}
+          onPick={setBorrowerId}
+          onSaved={() => setWorkspaceTick((n) => n + 1)}
+        />
+        <WorkingSet
+          workspace={workspace}
+          period={period}
+          onPick={setBorrowerId}
+          onChanged={() => setWorkspaceTick((n) => n + 1)}
+        />
       </div>
 
       {rowError ? (
@@ -897,7 +1219,24 @@ export default function Borrower360Page() {
                   : " · natural persons withheld by permission"}
               </p>
             </div>
-            <PackButton borrowerId={row.borrower_id} period={period} />
+            <div className="flex shrink-0 items-start gap-2">
+              <PinButton
+                borrowerId={row.borrower_id}
+                label={String(
+                  row.fields.display_name?.value ?? row.borrower_id,
+                )}
+                noted={String(
+                  row.fields.group_limit_status?.value ??
+                    row.fields.network_risk_score?.value ??
+                    "",
+                )}
+                pinned={(workspace?.pins ?? []).some(
+                  (kept) => kept.reference === row.borrower_id,
+                )}
+                onChanged={() => setWorkspaceTick((n) => n + 1)}
+              />
+              <PackButton borrowerId={row.borrower_id} period={period} />
+            </div>
           </header>
 
           <nav className="flex flex-wrap gap-1 border-b border-[var(--line)]">

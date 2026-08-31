@@ -47,7 +47,7 @@ three are the sixteen quarters of graph derivation.
 .venv\Scripts\alembic heads
 ```
 
-**Pass looks like:** `0029 (head)`, exactly one head, 29 files in
+**Pass looks like:** `0030 (head)`, exactly one head, 30 files in
 `alembic\versions`.
 
 ## 3. The gates

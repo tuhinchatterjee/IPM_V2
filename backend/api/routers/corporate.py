@@ -30,6 +30,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query, Response, status
+from pydantic import BaseModel, Field
 
 from backend.api.permissions import (
     BORROWER_360_UBO_VIEW,
@@ -44,6 +45,8 @@ from backend.corporate import lineage as lineage_mod
 from backend.corporate import network as net
 from backend.corporate import pack as pack_mod
 from backend.corporate import service as service_mod
+from backend.corporate import workspace as workspace_mod
+from backend.db.engine import get_session
 
 logger = logging.getLogger(__name__)
 
@@ -467,3 +470,128 @@ def pack(borrower_id: str, period: str | None = None,
             "X-CreditProbe-Origin": ORIGIN,
             "X-CreditProbe-Pack-Version": pack_mod.PACK_VERSION,
         })
+
+
+# --------------------------------------------------------------- workspace
+# A person's own working set: borrowers they pinned and searches they saved.
+# Read and written at VIEW permission because it is theirs: nothing here is
+# visible to anybody else, and refusing a person their own bookmarks behind
+# an export permission would be governance theatre.
+
+
+class PinBody(BaseModel):
+    borrower_id: str = Field(min_length=1, max_length=120)
+    label: str = Field(default="", max_length=200)
+    #: What the borrower looked like when it was pinned, so opening the pin
+    #: later shows whether something moved. A note, never a stored figure
+    #: the product will present as current.
+    noted: str = Field(default="", max_length=240)
+    position: int = 0
+
+
+class CohortBody(BaseModel):
+    label: str = Field(min_length=1, max_length=200)
+    #: The facets, not the borrowers. The book is rebuilt every quarter.
+    query: dict[str, Any] = Field(default_factory=dict)
+    position: int = 0
+
+
+@router.get("/workspace")
+def workspace(principal: Principal = RequireBorrower360View) -> dict[str, Any]:
+    """Everything this person kept: pins and saved cohorts."""
+    with get_session() as session:
+        return workspace_mod.summary(session, user_id=principal.user_id)
+
+
+@router.post("/workspace/pins")
+def create_pin(body: PinBody,
+               principal: Principal = RequireBorrower360View
+               ) -> dict[str, Any]:
+    """Keep a borrower to hand. Pinning the same one twice updates it."""
+    with get_session() as session:
+        try:
+            row = workspace_mod.pin(
+                session, user_id=principal.user_id,
+                borrower_id=body.borrower_id, label=body.label,
+                noted=body.noted, position=body.position)
+        except workspace_mod.WorkspaceError as exc:
+            raise _refused(str(exc)) from exc
+        session.commit()
+    return {"pin": row}
+
+
+@router.delete("/workspace/pins/{borrower_id}")
+def delete_pin(borrower_id: str,
+               principal: Principal = RequireBorrower360View
+               ) -> dict[str, Any]:
+    with get_session() as session:
+        removed = workspace_mod.remove(
+            session, user_id=principal.user_id, kind=workspace_mod.PIN,
+            reference=borrower_id)
+        session.commit()
+    return {"removed": removed}
+
+
+@router.post("/workspace/cohorts")
+def create_cohort(body: CohortBody,
+                  principal: Principal = RequireBorrower360View
+                  ) -> dict[str, Any]:
+    """Keep a search worth running again.
+
+    The facets are stored, not the borrowers they matched. A saved id list
+    would keep returning last quarter's answer under this quarter's name.
+    """
+    with get_session() as session:
+        try:
+            row = workspace_mod.save_cohort(
+                session, user_id=principal.user_id, label=body.label,
+                query=body.query, position=body.position)
+        except workspace_mod.WorkspaceError as exc:
+            raise _refused(str(exc)) from exc
+        session.commit()
+    return {"cohort": row}
+
+
+@router.delete("/workspace/cohorts/{reference}")
+def delete_cohort(reference: str,
+                  principal: Principal = RequireBorrower360View
+                  ) -> dict[str, Any]:
+    with get_session() as session:
+        removed = workspace_mod.remove(
+            session, user_id=principal.user_id, kind=workspace_mod.COHORT,
+            reference=reference)
+        session.commit()
+    return {"removed": removed}
+
+
+@router.get("/workspace/cohorts/{reference}/run")
+def run_cohort(reference: str, period: str | None = None,
+               limit: int = Query(default=50, ge=1, le=200),
+               principal: Principal = RequireBorrower360View
+               ) -> dict[str, Any]:
+    """Run a saved cohort against the CURRENT book.
+
+    Which is the whole reason a cohort stores its query: the answer moves,
+    and the saved thing is the question.
+    """
+    with get_session() as session:
+        held = {c["reference"]: c for c in workspace_mod.cohorts(
+            session, user_id=principal.user_id)}
+    found = held.get(reference)
+    if found is None:
+        raise _not_found(ValueError(
+            f"no saved cohort called {reference!r} in your working set"))
+
+    query = found["query"]
+    try:
+        result = service_mod.filter_cohort(
+            period, facets=query.get("facets") or {},
+            flags=query.get("flags") or [],
+            borrower_ids=query.get("borrower_ids") or [], limit=limit)
+    except service_mod.DataNotBuilt as exc:
+        raise _not_built(exc) from exc
+    except service_mod.UnknownFacetError as exc:
+        raise _refused(str(exc)) from exc
+
+    return {"cohort": found, "result": _native(result),
+            "origin": ORIGIN, "note": NOT_CLIENT_DATA}

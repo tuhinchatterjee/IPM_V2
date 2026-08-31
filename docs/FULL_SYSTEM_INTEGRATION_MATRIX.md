@@ -26,7 +26,7 @@ join actually does. A cell reads OK only where something was run.
 | Display contract | every user-facing number through the contract; one allowlisted diagnostic with its reason | `check_decimals.py` | OK |
 | Permissions catalogue | 4 named permissions registered with roles and descriptions | `test_the_named_permissions_are_registered` | OK |
 | Feature matrix | `/borrower-360` enumerated from the filesystem with a curated expected behaviour and its limitations | `test_feature_matrix.py` | OK |
-| Migrations | single head `0029`; no new migration needed — the graph datasets are lake artefacts, not tables | `alembic heads` | OK |
+| Migrations | single head `0030`. The graph datasets are lake artefacts and needed none; 0030 adds the one table the graph work does need - a person's own working set | `alembic heads` | OK |
 | AI Brain concepts | 22 graph Concepts (62 total), each resolving to a governed field | `test_graph_brain.py` (31) | OK |
 | Semantic contracts | 8 graph contracts (45 total), each stating a boundary and forbidding at least one operation | `TestSemanticContracts` | OK |
 | Investigation Blueprints | 10 graph blueprints (29 total / 29 families), all usable, 3+ required objectives each | `TestBlueprints` | OK |

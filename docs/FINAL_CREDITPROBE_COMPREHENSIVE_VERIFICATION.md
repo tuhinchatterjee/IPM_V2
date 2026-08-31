@@ -3,7 +3,7 @@
 **STATUS: `LOCAL_RUNTIME_VERIFICATION_REQUIRED`**
 
 Verified at branch `claude/vigilant-darwin-eohyi1`, working tree clean, local
-and remote identical, Alembic single head `0029`.
+and remote identical, Alembic single head `0030`.
 
 This status is the honest one and is chosen over the two better-sounding ones
 above it for reasons that are facts about this environment, not judgements:
@@ -26,7 +26,7 @@ Both outstanding steps, and what a pass looks like for each, are in
 
 | | |
 |---|---:|
-| Commits since `d7c910f` | 14 |
+| Commits since `d7c910f` | 16 |
 | Files changed | 66 |
 | Lines added / removed | 24,244 / 736 |
 | New backend and factory modules | 10 |
@@ -65,7 +65,7 @@ Ten new modules:
 | `npx next build` | PASS |
 | `scripts/browser_acceptance.py --start` | PASS — 956/956, 4 viewports, 17 screens |
 | `scripts/route_crawl.py --start` | PASS — 153/153, 3 roles, 6 expected refusals |
-| `alembic heads` | PASS — single head `0029` |
+| `alembic heads` | PASS — single head `0030`, 30 files |
 | `scripts/build_corporate_universe.py` | PASS — 16 quarters, 22 datasets |
 | Docker | **NOT VERIFIED IN CLAUDE SANDBOX** |
 | Live AI | **NOT VERIFIED** |
@@ -148,9 +148,8 @@ library, so a reviewer was shown coverage the product did not have.
 
 Stated as absences of work, not as things that went unchecked.
 
-* **Two Borrower 360 interactions** — pinning a borrower and saving a
-  cohort. Data Builder graph-domain visibility is built: both graph datasets
-  are registered with domain, family, grain, keys, scope and origin.
+* Nothing on the Borrower 360 screen. Pinning and saved cohorts were the
+  last two and are now built.
 * **`source_record_id`, `portfolio_scope` and a validation status on the
   OBSERVED edge rows.** Present on the dataset and on the DERIVED products.
 * **Human review of the teaching library.** 3,603 cases are offered at DRAFT
@@ -226,7 +225,7 @@ identical in a terminal. Full detail in `ZERO_TOLERANCE_SUITE.md`.
 | `ZERO_TOLERANCE_SUITE.md` | The 36 classes and what each test drives |
 | `FULL_CREDITPROBE_FUNCTIONAL_VERIFICATION.md` | §6's 31 modules, each with its evidence |
 | `FULL_SYSTEM_INTEGRATION_MATRIX.md` | Where the graph meets every other subsystem |
-| `BORROWER360_GRAPH_COMPLETION_MATRIX.md` | 74 IMPLEMENTED / 3 PARTIAL / 4 NOT_IMPLEMENTED / 0 BROKEN / 0 NOT_VERIFIED |
+| `BORROWER360_GRAPH_COMPLETION_MATRIX.md` | 76 IMPLEMENTED / 3 PARTIAL / 3 NOT_IMPLEMENTED / 0 BROKEN / 0 NOT_VERIFIED |
 | `BAD_PATCH_AUDIT.md` | Eleven questions, and the two changed legacy assertions in full |
 | `WINDOWS_LOCAL_VERIFICATION.md` | The two steps this environment cannot take |
 
@@ -239,7 +238,7 @@ Stated against the section of the continuation prompt that names each one.
 | Condition | State | Where it is established |
 |---|---|---|
 | All graph mathematics and analytics complete | **MET** | `graphmath.py`, `network.py`, `graphquality.py`, `graphsummary.py`; 417 tests in `tests/corporate`, ownership against hand-computed gold |
-| Borrower 360 UI and exports complete | **MET** (bar two named interactions) | 13 tabs, 11 network views, 6 group concepts, 18-sheet pack; pinning and saved cohorts are NOT built and are named as such |
+| Borrower 360 UI and exports complete | **MET** | 13 tabs, 11 network views, 6 group concepts, 18-sheet pack, pinning and saved cohorts |
 | Ask / AI Brain can use graph and Borrower 360 data | **MET** | 4 certified analyses, 12 named questions routing, 22 Concepts, 8 contracts, 10 blueprints, 578 development cases, 328 sealed holdout cases |
 | Agentic AI functionally validated | **MET** | `AGENTIC_FUNCTIONAL_VERIFICATION.md`; 184 tests across 15 dimensions, each claim citing its test |
 | Retail Scorecard regression-tested after graph integration | **MET** | `TestThreeBooksAfterTheGraph` pins the LEAD dataset for 13 questions across 3 books; the 307-test scorecard suite re-run |

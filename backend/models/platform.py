@@ -5239,6 +5239,56 @@ class ScorecardDashboardPin(Base):
     )
 
 
+class Borrower360Workspace(Base):
+    """A borrower somebody pinned, or a cohort somebody saved. B12.
+
+    Both live in one table because they are the same kind of thing: a
+    person's own working set on the Borrower 360, scoped to them and to
+    their tenant. Neither is a property of the borrower, and neither is
+    shared - a pinned name is somebody's judgement about what to watch this
+    week, and publishing one person's watch list to the team is a different
+    feature with a different approval.
+
+    A saved cohort stores the QUERY, not the borrower ids it matched. The
+    book is rebuilt quarterly and a stored id list would quietly stop
+    meaning what it meant: "Contracting names over the group limit" is
+    still that question next quarter, and the ids it returns are not.
+    """
+
+    __tablename__ = "borrower_360_workspace"
+
+    #: A single borrower somebody wants back quickly.
+    KIND_PIN = "PIN"
+    #: A saved search: the facets, not the result.
+    KIND_COHORT = "COHORT"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    #: The borrower id for a pin; a slug for a cohort.
+    reference: Mapped[str] = mapped_column(String(120), nullable=False)
+    label: Mapped[str] = mapped_column(String(200), nullable=False,
+                                       default="")
+    #: The facet query for a cohort. Empty for a pin.
+    query: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: What the borrower looked like when it was pinned, so a reader can see
+    #: that something moved rather than only its value today.
+    noted: Mapped[str] = mapped_column(String(240), nullable=False,
+                                       default="")
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("tenant", "user_id", "kind", "reference",
+                         name="uq_borrower_360_workspace"),
+        Index("ix_borrower_360_workspace_user", "tenant", "user_id", "kind"),
+    )
+
+
 class ScorecardReport(Base):
     """§51-§56. One generated validation report.
 
