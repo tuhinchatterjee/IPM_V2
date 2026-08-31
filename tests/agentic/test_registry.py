@@ -17,14 +17,55 @@ from backend.agentic import registry, tools
 # --------------------------------------------------------- §12 the twelve
 
 
-def test_all_twelve_specialists_are_defined():
-    """§12 names twelve. Missing one is a specialist nothing can delegate to."""
+def test_every_specialist_section_twelve_names_is_defined():
+    """§12 names twelve. Missing one is a specialist nothing can delegate to.
+
+    A floor, not a ceiling: `relationship_graph` was added when the corporate
+    relationship graph became a domain, and an equality here would have
+    failed on the addition rather than on a removal - which is the failure
+    that matters. The correspondence that must hold in both directions is
+    the one below: every domain has an owner, and every owner is a defined
+    agent.
+    """
     expected = {
         "data_steward", "credit_analyst", "ratings_financials", "ifrs9",
         "delinquency", "covenants", "portfolio_risk", "early_warning",
         "stress", "validation", "workflow_coordinator", "chief_orchestrator",
     }
-    assert {a.agent_id for a in registry.AGENTS} == expected
+    defined = {a.agent_id for a in registry.AGENTS}
+    missing = expected - defined
+    assert not missing, f"§12 specialists that no longer exist: {missing}"
+
+
+def test_every_governed_domain_has_a_specialist_that_exists():
+    """The property the equality was really protecting.
+
+    A domain with no owner silently falls to the Credit Analyst, and a
+    domain owned by an id no agent answers to does the same - so a
+    misspelled owner looks exactly like a deliberate generalist decision.
+    """
+    defined = {a.agent_id for a in registry.AGENTS}
+    for domain in registry.DOMAINS:
+        owner = registry.DOMAIN_AGENT.get(domain)
+        assert owner, f"{domain} has no specialist"
+        assert owner in defined, f"{domain} is owned by unknown {owner!r}"
+
+
+def test_the_relationship_graph_reaches_its_own_specialist():
+    """A group, ownership or contagion question is exactly the kind that
+    reads right and is wrong: a community offered as a group, a ranking
+    offered as a probability. It goes to the specialist that carries the
+    caveats, not to the generalist."""
+    found = registry.agents_for(("connected_group", "ubo", "debtrank"))
+    assert {a.agent_id for a in found} == {"relationship_graph"}
+
+
+def test_the_graph_specialist_cannot_read_the_retail_book():
+    """A specialist that CAN read a domain is a scope bleed waiting for a
+    question phrased loosely enough."""
+    agent = registry.RELATIONSHIP_GRAPH
+    assert registry.DOMAIN_RELATIONSHIP in agent.allowed_data_domains
+    assert set(agent.allowed_data_domains) < set(registry.DOMAINS)
 
 
 def test_the_orchestrator_cannot_delegate_to_itself():

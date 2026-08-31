@@ -931,6 +931,15 @@ _AGENT_SUBJECT: dict[str, tuple[str, tuple[str, str, str, str]]] = {
         "who needs to act on this borrower group",
         "who needs to act in the Contracting sector",
         "who needs to act across the book, and by when")),
+    # The specialist list is read from the registry rather than typed here,
+    # so a new specialist without a subject raises at build time. That is the
+    # design working: an agent nothing can teach is an agent nothing can
+    # measure.
+    "relationship_graph": ("corporate_connected_groups", (
+        "who ultimately owns and controls this borrower",
+        "this borrower's connected counterparty group and its exposure",
+        "connected-group concentration across the Contracting sector",
+        "network position and contagion across the whole corporate book")),
 }
 
 _AGENTIC_SHAPES: tuple[tuple[str, str, str], ...] = (

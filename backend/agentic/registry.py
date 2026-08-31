@@ -62,10 +62,12 @@ DOMAIN_IFRS9 = "ifrs9"
 DOMAIN_DELINQUENCY = "delinquency"
 DOMAIN_COVENANTS = "covenants"
 DOMAIN_PORTFOLIO = "portfolio"
+DOMAIN_RELATIONSHIP = "relationship"
 
 DOMAINS: tuple[str, ...] = (
     DOMAIN_DATA, DOMAIN_EXPOSURE, DOMAIN_RATINGS, DOMAIN_IFRS9,
     DOMAIN_DELINQUENCY, DOMAIN_COVENANTS, DOMAIN_PORTFOLIO,
+    DOMAIN_RELATIONSHIP,
 )
 
 DOMAIN_LABELS: dict[str, str] = {
@@ -76,6 +78,7 @@ DOMAIN_LABELS: dict[str, str] = {
     DOMAIN_DELINQUENCY: "Delinquency",
     DOMAIN_COVENANTS: "Covenants & Collateral",
     DOMAIN_PORTFOLIO: "Portfolio",
+    DOMAIN_RELATIONSHIP: "Relationship Graph",
 }
 
 #: Which domain each governed concept belongs to. Concepts come from the
@@ -95,6 +98,23 @@ CONCEPT_DOMAIN: dict[str, str] = {
     "stage_share": DOMAIN_IFRS9,
     "dpd": DOMAIN_DELINQUENCY,
     "headroom": DOMAIN_COVENANTS,
+    # The relationship graph. These belong to a specialist rather than to
+    # the generalist because every one of them has a near-neighbour a
+    # plausible answer could substitute for it - a community for a group, a
+    # ranking for a probability, a fraction for a loss - and the caveat that
+    # separates them is the specialist's job to carry.
+    "connected_group": DOMAIN_RELATIONSHIP,
+    "control_group": DOMAIN_RELATIONSHIP,
+    "group_size": DOMAIN_RELATIONSHIP,
+    "group_exposure": DOMAIN_RELATIONSHIP,
+    "group_utilisation": DOMAIN_RELATIONSHIP,
+    "ubo": DOMAIN_RELATIONSHIP,
+    "network_risk_score": DOMAIN_RELATIONSHIP,
+    "debtrank": DOMAIN_RELATIONSHIP,
+    "centrality": DOMAIN_RELATIONSHIP,
+    "network_community": DOMAIN_RELATIONSHIP,
+    "graph_confidence": DOMAIN_RELATIONSHIP,
+    "graph_quality": DOMAIN_RELATIONSHIP,
 }
 
 
@@ -419,6 +439,47 @@ PORTFOLIO_RISK = Agent(
     owner="Portfolio Risk",
 )
 
+RELATIONSHIP_GRAPH = Agent(
+    agent_id="relationship_graph",
+    business_name="Relationship Graph",
+    purpose=("Ownership, control, connected counterparty groups, beneficial "
+             "ownership and network analytics over the corporate book - and "
+             "the boundary each of those measures stops at."),
+    when_to_use=(
+        "A question about who owns, controls or is grouped with a borrower.",
+        "A question about connected counterparty exposure or a group limit.",
+        "A question about network position, contagion or a hidden "
+        "relationship candidate.",
+    ),
+    when_not_to_use=(
+        "The question is about a retail account - the graph is built over "
+        "the corporate book.",
+        "The question asks for a regulatory determination of connectedness. "
+        "CreditProbe reports a candidate group; the institution decides.",
+    ),
+    allowed_capabilities=_analysis_only(),
+    allowed_tools=_WITH_METHODS,
+    # The graph reads the corporate book and its own derived datasets. It is
+    # not given the retail domains, because a specialist that CAN read them
+    # is a scope bleed waiting for a question phrased loosely enough.
+    allowed_data_domains=(DOMAIN_RELATIONSHIP, DOMAIN_EXPOSURE, DOMAIN_DATA),
+    allowed_methods=("connected_group_exposure", "network_risk_ranking",
+                     "ownership_and_control_structure", "graph_data_quality"),
+    maximum_steps=6,
+    autonomy_level=1,
+    escalation_rules=(
+        "A computation a data-quality check rejected returns "
+        "DATA_QUALITY_BLOCKED rather than a number.",
+        "A similarity match is reported as a candidate for investigation and "
+        "never as control, beneficial ownership or group membership.",
+        "Graph connectivity is reported as connectivity. A determination of "
+        "regulatory connectedness is the institution's, not the product's.",
+    ),
+    validation_requirements=("as_of_date", "graph_data_quality"),
+    model_role_preference="router",
+    owner="Credit Risk - Corporate",
+)
+
 EARLY_WARNING = Agent(
     agent_id="early_warning",
     business_name="Early Warning",
@@ -579,6 +640,7 @@ AGENTS: tuple[Agent, ...] = (
     DELINQUENCY,
     COVENANTS,
     PORTFOLIO_RISK,
+    RELATIONSHIP_GRAPH,
     EARLY_WARNING,
     STRESS,
     VALIDATION,
@@ -599,6 +661,7 @@ DOMAIN_AGENT: dict[str, str] = {
     DOMAIN_COVENANTS: COVENANTS.agent_id,
     DOMAIN_EXPOSURE: CREDIT_ANALYST.agent_id,
     DOMAIN_PORTFOLIO: PORTFOLIO_RISK.agent_id,
+    DOMAIN_RELATIONSHIP: RELATIONSHIP_GRAPH.agent_id,
 }
 
 

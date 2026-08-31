@@ -54,6 +54,23 @@ Nothing was weakened to accommodate an implementation: the graph families
 are new product, the assertion was rewritten to test its own stated
 property, and it now covers strictly more than it did.
 
+### The second changed legacy assertion
+
+`tests/agentic/test_registry.py::test_all_twelve_specialists_are_defined`
+
+| | |
+| --- | --- |
+| **Old invariant** | `{a.agent_id for a in registry.AGENTS} == expected` — the agent set is EXACTLY the twelve §12 names. |
+| **Why it was stale** | Same shape as the family test above, and same failure: it read its own name ("§12 names twelve. Missing one is a specialist nothing can delegate to") as a ceiling. It failed because a thirteenth agent was ADDED — `relationship_graph`, the specialist for the corporate relationship graph, which is now a governed domain like every other. The failure the assertion exists to catch is a specialist going MISSING; it caught growth instead. |
+| **Stronger replacement** | Renamed `test_every_specialist_section_twelve_names_is_defined`, asserting `expected - defined` is empty and reporting the missing names. Added `test_every_governed_domain_has_a_specialist_that_exists`, which checks both directions against the registry: every domain has an owner AND every owner is a defined agent. The old form could not see a domain owned by a misspelled id — that reads exactly like a deliberate generalist decision — and the new one can. |
+| **New regression** | `test_the_relationship_graph_reaches_its_own_specialist` (a group, ownership or contagion question resolves to `relationship_graph` and to nothing else) and `test_the_graph_specialist_cannot_read_the_retail_book` (its data domains are a strict subset of all domains). |
+
+Adding the specialist immediately broke the Brain's AGENTIC corpus with a
+`KeyError`, because `backend/brain/corpus.py` reads the specialist list from
+the registry rather than restating it. That is the design working, not a
+defect: an agent nothing can teach is an agent nothing can measure. The
+subject mapping was added and the Brain suites pass.
+
 Three further test edits accompanied the same change and are **not** legacy
 assertions — all three are in `tests/corporate/test_graph_brain.py`, written
 in this session, and two of them are the tests being corrected rather than
