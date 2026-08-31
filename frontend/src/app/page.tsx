@@ -6,6 +6,7 @@ import * as React from "react";
 import { Composer, useGreeting } from "@/components/ask/composer";
 import { PendingOfficer } from "@/components/agentic/pending";
 import { RequiresAttention } from "@/components/attention/requires-attention";
+import { EarlyWarningStrip } from "@/components/early-warning/cockpit-strip";
 import { BackLink } from "@/components/layout/back-link";
 import { useGreetingName } from "@/components/system/auth";
 import { useCanRunAnalysis } from "@/components/system/role-switcher";
@@ -218,6 +219,31 @@ function Cockpit() {
             router.push(linkBack(`/investigations/${id}`, fromCockpit()))
           }
         />
+      </section>
+
+      {/* ------------------------------------------------------ early warning */}
+      {/* §36. One line, six counts, a link — and deliberately no colour. A row
+          of red numbers on a home page is a row people stop seeing by the
+          second week, and the module's whole argument is that these are
+          countable conditions rather than an alarm.
+
+          Counts of SITUATIONS, not of signals: "new conditions: 4,812" tells
+          nobody anything, while "borrowers with a new condition: 214" is a
+          queue somebody can work through. */}
+      <section>
+        <SectionHeading
+          title="Early warning"
+          info={
+            <p>
+              The governed early-warning taxonomy applied to every borrower on
+              the book: named conditions, in families, each with a threshold
+              somebody owns. Deliberately not a score — the Signals screen
+              shows which conditions fired for whom, and what could not be
+              tested.
+            </p>
+          }
+        />
+        <EarlyWarningStrip period={period} />
       </section>
 
       {/* ------------------------------------------------------- recent work */}

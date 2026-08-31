@@ -2820,6 +2820,7 @@ export interface SignalPortfolio {
   returned?: number;
   borrowers: SignalStanding[];
   headline?: SignalHeadline;
+  signal_count?: number;
   unavailable?: { family: string; family_label: string; means: string }[];
   origin?: string;
   note?: string;

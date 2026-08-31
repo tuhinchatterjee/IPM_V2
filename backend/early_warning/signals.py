@@ -553,6 +553,11 @@ def _book(period: str = "") -> dict[str, Any]:
         "evaluated": len(standings),
         "with_signals": len(ranked),
         "headline": headline(standings),
+        # How many conditions each borrower was tested against, published
+        # rather than left for a screen to hard-code. A caption that says
+        # "34 governed conditions" and a taxonomy that carries thirty-five
+        # is a small lie that nobody notices until somebody counts.
+        "signal_count": len(tx.SIGNALS),
         "unavailable": tx.unavailable(),
         "origin": corporate.ORIGIN,
         # Private, and stripped by `_slice`: the ranked standings themselves,
