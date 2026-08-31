@@ -776,17 +776,28 @@ def _drop_explanation_only(text: str, matches: list[cx.ConceptMatch]
     if len(found.objectives) < 2:
         return matches
 
-    # The FIRST objective, whatever its verb. `_defining_clauses` cannot be
-    # used here: it drops every RANK, COMPARE and DESCRIBE clause and falls
-    # back to the whole message when that leaves nothing - which is exactly
-    # this question, whose opening clause is itself a ranking. A population is
-    # still defined by the clause that names it first.
-    opening = str(found.objectives[0].description or "").lower()
-    if not opening:
+    # Which clauses DEFINE the population, as opposed to saying what to do
+    # with it once defined.
+    #
+    # The opening clause always does, whatever its verb - Q1's opens with a
+    # ranking and still names the population. Every later clause does too
+    # UNLESS it explains, describes or re-ranks: "Which of these also have
+    # covenant pressure or negative rating migration?" is a second SELECT and
+    # narrows the population further, and reading it as an explanation drops
+    # two of the four conditions the question was asked with.
+    #
+    # `_defining_clauses` cannot be used for this: it drops every RANK,
+    # COMPARE and DESCRIBE clause and then falls back to the whole message
+    # when that leaves nothing, which is exactly Q1.
+    population = [found.objectives[0]]
+    population += [o for o in found.objectives[1:]
+                   if o.action not in (ob.DESCRIBE, ob.RANK, ob.COMPARE)]
+    defining = " ".join(str(o.description or "") for o in population).lower()
+    if not defining.strip():
         return matches
 
     kept = [m for m in matches
-            if str(getattr(m, "phrase", "") or "").lower() in opening]
+            if str(getattr(m, "phrase", "") or "").lower() in defining]
     if not kept:
         # Nothing was named in the opening clause. That is the "Rank those by
         # ECL instead" shape - the measure lives in the later clause and is

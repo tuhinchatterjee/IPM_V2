@@ -511,3 +511,28 @@ class TestAnExplanationClauseDoesNotSetTheGrain:
         kept = self._labels(
             "Show EAD and ECL by sector at Q2 2026.", ["EAD", "ECL"])
         assert kept == ["EAD", "ECL"], kept
+
+    def test_a_second_clause_that_narrows_the_population_is_not_an_explanation(
+            self):
+        """The regression this rule caused on its first attempt.
+
+        "Find borrowers whose leverage has increased, EBITDA margins have
+         declined and debt-service capacity has weakened over the last four
+         reporting periods. Which of these also have covenant pressure or
+         negative rating migration?"
+
+        Both clauses are SELECT. The second narrows the population further,
+        and reading it as an explanation dropped two of the four conditions
+        the question was asked with - so a question that returned one borrower
+        meeting all four returned five hundred meeting two, under a heading
+        that still promised four. Only DESCRIBE, RANK and COMPARE clauses are
+        explanations.
+        """
+        question = ("Find borrowers whose leverage has increased, EBITDA "
+                    "margins have declined and debt-service capacity has "
+                    "weakened over the last four reporting periods. Which of "
+                    "these also have covenant pressure or negative rating "
+                    "migration?")
+        kept = self._labels(question, ["leverage", "covenant pressure"])
+        assert "covenant pressure" in kept, (
+            f"a condition from a second SELECT clause was dropped: {kept}")
