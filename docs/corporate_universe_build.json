@@ -50,20 +50,20 @@
       "corporate_covenants": 162257,
       "corporate_customer_master": 52998,
       "corporate_delinquency": 52998,
-      "corporate_entity_resolution": 10092,
-      "corporate_exposure_network": 2120,
+      "corporate_entity_resolution": 10083,
+      "corporate_exposure_network": 2145,
       "corporate_facilities": 141575,
       "corporate_financials": 19000,
-      "corporate_graph_nodes": 17762,
-      "corporate_guarantees": 2555,
+      "corporate_graph_nodes": 17751,
+      "corporate_guarantees": 2505,
       "corporate_ifrs9": 52998,
       "corporate_limits": 52998,
       "corporate_macro": 16,
-      "corporate_ownership_edges": 38436,
+      "corporate_ownership_edges": 38451,
       "corporate_profitability": 52998,
       "corporate_ratings": 52998,
       "corporate_restructuring": 1576,
-      "corporate_supply_chain": 7110,
+      "corporate_supply_chain": 7130,
       "corporate_watchlist": 14121
     }
   },
@@ -504,28 +504,28 @@
   },
   "entity_resolution": {
     "resolution_version": "1.0.0",
-    "source_records": 10092,
+    "source_records": 10083,
     "source_systems": {
       "COMMERCIAL_REGISTRY": 3800,
       "CORE_BANKING": 3800,
-      "CRM": 2492
+      "CRM": 2483
     },
     "canonical_entities": 3800,
     "by_method": {
-      "EXACT_REGISTRATION_ID": 7696,
-      "NORMALISED_NAME_AND_ADDRESS": 1474,
-      "FUZZY_NAME_AND_SHARED_DIRECTOR": 504,
-      "REGISTRATION_PREFIX_EVIDENCE": 418
+      "EXACT_REGISTRATION_ID": 7699,
+      "NORMALISED_NAME_AND_ADDRESS": 1458,
+      "FUZZY_NAME_AND_SHARED_DIRECTOR": 511,
+      "REGISTRATION_PREFIX_EVIDENCE": 415
     },
     "by_review_status": {
-      "AUTO_ACCEPTED": 9526,
-      "PENDING_REVIEW": 251,
-      "HUMAN_CONFIRMED": 248,
-      "HUMAN_REJECTED": 67
+      "AUTO_ACCEPTED": 9509,
+      "HUMAN_CONFIRMED": 296,
+      "PENDING_REVIEW": 225,
+      "HUMAN_REJECTED": 53
     },
-    "pending_review": 251,
-    "rejected": 67,
-    "unresolved_source_records": 67,
+    "pending_review": 225,
+    "rejected": 53,
+    "unresolved_source_records": 53,
     "destructive_merges": 0,
     "precedence": [
       "EXACT_REGISTRATION_ID",
@@ -537,6 +537,11 @@
       "FUZZY_NAME_AND_SHARED_DIRECTOR"
     ],
     "origin": "SYNTHETIC_DEMO"
+  },
+  "lake": {
+    "root": "/home/user/IPM_V2/data/analytics",
+    "parts": 170,
+    "datasets": 20
   },
   "catalogue": {
     "catalogue_version": "1.0.0",

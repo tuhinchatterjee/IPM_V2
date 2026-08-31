@@ -192,6 +192,24 @@ PYRAMID_SHARE = 0.38
 #: Groups where one member holds a stake in another. Cross-holdings are what
 #: make (I - A) worth inverting rather than a chain worth multiplying.
 CROSS_HOLDING_SHARE = 0.12
+#: Groups where an operating member holds shares in its own parent, closing a
+#: RECIPROCAL loop.
+#:
+#: Without this the ownership graph is a pure DAG: every component's matrix is
+#: nilpotent, rho(A) is exactly zero everywhere, and the whole (I - A) solve
+#: degenerates into a path sum that a simpler algorithm would get right by
+#: accident. The convergence check could then never fire on any real data,
+#: and "circular ownership" - a case the framework calls out specifically -
+#: would have no example in the universe to reason about.
+RECIPROCAL_HOLDING_SHARE = 0.06
+#: Groups deliberately given an OVER-CLAIMED register: shareholdings summing
+#: past 100% around a loop, so rho(A) >= 1.
+#:
+#: Generated on purpose and kept rare. The refusal path is the most important
+#: behaviour in the ownership mathematics and the one most likely to rot
+#: unnoticed, because nothing exercises it unless the data contains a
+#: structure that actually breaks. Two of them do.
+DEFECTIVE_REGISTER_GROUPS = 2
 
 PERSON_FIRST: tuple[str, ...] = (
     "Abdullah", "Mohammed", "Fahad", "Khalid", "Saud", "Turki", "Nasser",
@@ -336,13 +354,34 @@ def build_graph(entities: pd.DataFrame,
                     "from": parent, "to": borrowers[child],
                     "ownership": pct, "voting_bias": bias})
 
-        # Cross-holding: a member holds a stake in a sibling.
+        # Cross-holding: a member holds a stake in a sibling. Still a DAG.
         if len(members) >= 3 and rng.random() < CROSS_HOLDING_SHARE:
             a, b = rng.choice(len(members), 2, replace=False)
             ownership.append({
                 "from": borrowers[members[a]], "to": borrowers[members[b]],
                 "ownership": float(rng.uniform(0.04, 0.19)),
                 "voting_bias": 0.0})
+
+        # Reciprocal holding: a member holds shares in its own parent, which
+        # closes a genuine cycle. The stake is small, so the loop product
+        # stays well below one and the series converges - the point is that
+        # it is a series at all.
+        if rng.random() < RECIPROCAL_HOLDING_SHARE:
+            ownership.append({
+                "from": borrowers[members[0]], "to": top_id,
+                "ownership": float(rng.uniform(0.03, 0.12)),
+                "voting_bias": 0.0})
+
+        # A deliberately over-claimed register on the first few groups: a
+        # reciprocal loop whose product exceeds one, so rho(A) >= 1 and the
+        # component is refused rather than solved.
+        if g < DEFECTIVE_REGISTER_GROUPS and len(members) >= 2:
+            ownership.append({
+                "from": borrowers[members[0]], "to": top_id,
+                "ownership": 1.0, "voting_bias": 0.0, "deliberate": True})
+            ownership.append({
+                "from": top_id, "to": borrowers[members[0]],
+                "ownership": 1.0, "voting_bias": 0.0, "deliberate": True})
 
         # Natural persons at the top of the group.
         ubo_count = int(rng.integers(1, 5))
@@ -396,7 +435,7 @@ def build_graph(entities: pd.DataFrame,
     nodes.extend(person_rows)
 
     # ---- ownership edges --------------------------------------------------
-    own = pd.DataFrame(ownership)
+    own = _reconcile_registers(pd.DataFrame(ownership))
     sources, confidence = _source_draw(rng, len(own))
     dates = _dates(rng, len(own), closes=0.09)
     voting = np.clip(own["ownership"].to_numpy() + own["voting_bias"].to_numpy(),
@@ -551,6 +590,53 @@ def build_people_edges(entities: pd.DataFrame, nodes: pd.DataFrame,
     return frame
 
 
+def _reconcile_registers(own: pd.DataFrame) -> pd.DataFrame:
+    """Make each shareholder register sum to at most 100%.
+
+    Sibling cross-holdings and reciprocal holdings were being ADDED to a
+    child whose parent already held most of it, so 41 of 9,333 entities ended
+    up with a register claiming up to 188% of themselves. Nothing detected it:
+    the spectral radius bounds CONVERGENCE, not the column totals, so the
+    solve returned a perfectly well-conditioned effective stake above 100%.
+
+    The excess is taken off the LARGEST holder, which is the parent - a
+    minority stake asserted by a named sibling is the specific fact, and the
+    parent's balance is the residual that should absorb it.
+
+    Rows flagged `deliberate` are exempt. Those are the two over-claimed
+    registers generated on purpose so the refusal path has something real to
+    refuse; repairing them would remove the only data that exercises it.
+    """
+    if own.empty:
+        return own
+    if "deliberate" not in own.columns:
+        own["deliberate"] = False
+    own["deliberate"] = own["deliberate"].fillna(False).astype(bool)
+
+    # Reconcile the values that will actually be PUBLISHED.
+    #
+    # The edge carries ownership_pct rounded to four decimals. Repairing the
+    # unrounded fractions left nineteen registers summing to 100.0001% -
+    # rounding dust, not over-claiming, but indistinguishable from it to any
+    # check downstream. Rounding first means the register a reader adds up is
+    # the register that was reconciled.
+    own["ownership"] = (own["ownership"] * 100.0).round(4) / 100.0
+
+    totals = own.groupby("to")["ownership"].sum()
+    over = totals[totals > 1.0].index
+    protected = set(own.loc[own["deliberate"], "to"])
+
+    for target in over:
+        if target in protected:
+            continue
+        rows = own.index[own["to"] == target]
+        excess = float(own.loc[rows, "ownership"].sum()) - 1.0
+        largest = own.loc[rows, "ownership"].idxmax()
+        own.loc[largest, "ownership"] = round(
+            max(float(own.loc[largest, "ownership"]) - excess, 0.0001), 6)
+    return own.drop(columns=["deliberate"])
+
+
 def _director_weights(rng: np.random.Generator, pool: int) -> np.ndarray:
     """A few people sit on many boards; most sit on one or two."""
     weights = rng.gamma(1.1, 1.0, pool)
@@ -691,7 +777,20 @@ def build_guarantees(entities: pd.DataFrame, facilities: pd.DataFrame,
     for member, group_index in member_of.items():
         by_group.setdefault(group_index, []).append(member)
 
-    latest = facilities[facilities["period"] == QUARTERS[-1]]
+    # The last quarter THIS BUILD produced, not the last quarter the module
+    # constant names.
+    #
+    # Reading QUARTERS[-1] meant a build over any other window silently
+    # produced no guarantees at all: `build(periods=QUARTERS[:2])` filtered
+    # every facility away and returned an empty frame with no columns and no
+    # error. A short build is exactly what a test or a smoke run uses, so the
+    # guarantee graph was absent precisely where it was most likely to be
+    # checked.
+    if facilities.empty:  # pragma: no cover - a build always has facilities
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    built = list(facilities["period"].unique())
+    last = max(built, key=QUARTERS.index)
+    latest = facilities[facilities["period"] == last]
     per_borrower = latest.groupby("borrower_id")["facility_id"].apply(list)
 
     nodes: list[dict[str, Any]] = []
