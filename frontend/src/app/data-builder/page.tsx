@@ -114,7 +114,24 @@ export default function DataBuilderPage() {
   const refresh = React.useCallback(() => setNonce((n) => n + 1), []);
   const domains = useAsync(() => api.domainOverview(), [nonce]);
 
-  const known = new Set(domains.data?.domains.map((d) => d.name) ?? []);
+  const all = domains.data?.domains ?? [];
+  // §7: "Show the DATA DOMAINS. Under each domain show WHAT DATASETS HAVE
+  // BEEN INSTALLED."
+  //
+  // The page rendered every domain row the API returns. On a bootstrapped
+  // installation that is forty-five cards, thirty-eight of them archived
+  // remnants of the bundled catalogue's own headings, and the summary tile
+  // read "Domains defined 45 of 7" - a number that is both wrong-looking and
+  // useless. A retired heading is not a data domain a client is looking for.
+  //
+  // Retired is not DELETED, and it is not hidden either: a steward can still
+  // see and restore one below. It is off the primary screen because the
+  // primary screen answers "what data does CreditProbe hold", and thirty-eight
+  // empty headings are not an answer to that.
+  const live = all.filter((d) => d.status !== "ARCHIVED");
+  const retired = all.filter((d) => d.status === "ARCHIVED");
+
+  const known = new Set(live.map((d) => d.name));
   const missing = STANDARD_DOMAINS.filter((s) => !known.has(s.name));
 
   const loading = domains.loading && !domains.data;
@@ -169,7 +186,7 @@ export default function DataBuilderPage() {
           <div className="grid gap-3 sm:grid-cols-3">
             <SummaryTile
               label="Domains defined"
-              value={domains.data?.domains.length ?? 0}
+              value={live.length}
               of={STANDARD_DOMAINS.length}
               loading={loading}
             />
@@ -191,7 +208,7 @@ export default function DataBuilderPage() {
               ? [0, 1, 2, 3, 4, 5].map((i) => (
                   <Skeleton key={i} className="h-56 w-full" />
                 ))
-              : (domains.data?.domains ?? []).map((domain) => (
+              : live.map((domain) => (
                   <DomainCard
                     key={domain.name}
                     domain={domain}
@@ -204,6 +221,33 @@ export default function DataBuilderPage() {
                 <UncreatedDomainCard key={domain.name} domain={domain} />
               ))}
           </div>
+
+          {!loading && retired.length > 0 && canEdit && (
+            <details className="rounded-lg border border-border bg-surface-sunken px-4 py-3">
+              <summary className="cursor-pointer list-none text-xs font-medium text-text-secondary hover:text-text-primary">
+                Retired domains
+                <span className="ml-2 font-normal text-text-muted">
+                  {retired.length} heading{retired.length === 1 ? "" : "s"} from
+                  the bundled catalogue, now empty
+                </span>
+              </summary>
+              <p className="mt-2.5 max-w-prose text-xs text-text-muted">
+                These held datasets that have since been filed under a business
+                domain. They are kept rather than deleted so lineage on an
+                older analysis still resolves, and a steward can restore one.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {retired.map((domain) => (
+                  <span
+                    key={domain.name}
+                    className="rounded border border-border bg-surface px-2 py-1 text-xs text-text-muted"
+                  >
+                    {domain.name}
+                  </span>
+                ))}
+              </div>
+            </details>
+          )}
 
           {datasets.data?.count === 0 && (
             <EmptyState

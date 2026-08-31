@@ -348,6 +348,40 @@ class TestWhatAPresenterFinds:
 
     @needs_deployment
     @needs_db
+    def test_the_only_live_domains_are_the_seven(self):
+        """§6/§7: "Domains Defined: 0 of 7" and every card "Not created".
+
+        The contradiction is fixed by creating the seven, but the screen also
+        has to SHOW seven. The bundled catalogue carries thirty-eight headings
+        of its own; once their datasets are re-filed those headings are empty,
+        and leaving them live turns the primary Data Builder screen into
+        forty-five cards under a tile reading "Domains defined 45 of 7".
+        Retired is not deleted - they are still restorable - but a domain
+        holding nothing is not one a client came to look at.
+        """
+        from sqlalchemy import select
+
+        from backend.db.engine import get_session
+        from backend.models.platform import DataDomain, DatasetDefinition
+
+        with get_session() as session:
+            live = [d.name for d in session.execute(
+                select(DataDomain)).scalars() if d.status != "ARCHIVED"]
+            assert sorted(live) == sorted(dd.NAMES), (
+                f"{len(live)} live domain(s) where seven were expected: "
+                f"{sorted(set(live) - set(dd.NAMES))[:8]}")
+
+            # And nothing was archived while it still held something.
+            occupied = {r.domain for r in session.execute(
+                select(DatasetDefinition)).scalars()}
+            buried = [d.name for d in session.execute(
+                select(DataDomain)).scalars()
+                if d.status == "ARCHIVED" and d.name in occupied]
+            assert not buried, (
+                f"domain(s) archived while still holding datasets: {buried}")
+
+    @needs_deployment
+    @needs_db
     def test_the_q2_review_has_been_run_and_left_something_to_look_at(self, bootstrapped):
         """Cockpit said: no portfolio review of Q2 2026 has been completed."""
         from backend.db.engine import get_session
