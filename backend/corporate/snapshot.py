@@ -25,6 +25,7 @@ means "measured, and it is nothing", and a screen cannot tell that apart from
 from __future__ import annotations
 
 import logging
+from decimal import Decimal
 from typing import Any
 
 import numpy as np
@@ -59,7 +60,8 @@ class SnapshotContractError(RuntimeError):
     """The assembled snapshot and the lineage table disagree."""
 
 
-def assemble(universe: Universe) -> pd.DataFrame:
+def assemble(universe: Universe,
+             graph: pd.DataFrame | None = None) -> pd.DataFrame:
     """One row per borrower per quarter, carrying every B4 field.
 
     Built by joining the authoritative domains at their own grain and
@@ -67,6 +69,13 @@ def assemble(universe: Universe) -> pd.DataFrame:
     aggregations are named in the lineage table, not chosen here, so a reader
     can see that `valuation_age_days` is the OLDEST valuation and not the
     newest without reading this code.
+
+    `graph` is `corporate_connected_groups` from `graphsummary.build`. Where
+    it is given, the twenty graph fields carry real values or one of the
+    three sentinels that say WHICH kind of absent they are. Where it is not
+    given - or for a quarter it does not cover - they stay NOT COMPUTED,
+    which is the fourth and different statement: the derivation did not run
+    at all in this build.
     """
     master = universe["corporate_customer_master"]
     keys = ["borrower_id", "period"]
@@ -80,6 +89,7 @@ def assemble(universe: Universe) -> pd.DataFrame:
     frame = _join_covenants(frame, universe)
     frame = _join_collateral(frame, universe)
     frame = _join_limits(frame, universe)
+    frame = _join_graph(frame, graph)
     frame = _fill_pending_graph_fields(frame)
     frame = _data_quality(frame, universe)
 
@@ -276,17 +286,114 @@ def _join_limits(frame: pd.DataFrame, universe: Universe) -> pd.DataFrame:
         on=["borrower_id", "period"], how="left")
 
 
+#: Snapshot field <- column in `corporate_connected_groups`, where the two
+#: names differ. Everything else joins on its own name.
+GRAPH_FIELD_SOURCE: dict[str, str] = {
+    "group_id": "connected_group_id",
+}
+
+
+def _join_graph(frame: pd.DataFrame,
+                graph: pd.DataFrame | None) -> pd.DataFrame:
+    """Bring the derived graph fields onto the snapshot, per quarter.
+
+    Joined on (borrower_id, period), never forward-filled. A borrower's group
+    is a fact about a date; carrying Q2's group into Q1 because Q1 was not
+    derived would put a structure on the screen that did not exist yet, which
+    is the same class of error as reading a statement before it was filed.
+    """
+    if graph is None or graph.empty:
+        return frame
+
+    from backend.corporate import graphsummary as graphsummary_mod
+
+    wanted = [f.name for f in lineage_mod.FIELDS
+              if f.group in GRAPH_GROUPS or f.name in GRAPH_DEPENDENT_FIELDS]
+    keyed = graph.set_index(["borrower_id", "period"])
+    index = pd.MultiIndex.from_arrays(
+        [frame["borrower_id"].astype(str), frame["period"].astype(str)])
+
+    for name in wanted:
+        column = GRAPH_FIELD_SOURCE.get(name, name)
+        if column not in keyed.columns:
+            continue
+        values = pd.Series(index.map(keyed[column]), index=frame.index)
+
+        # `corporate_connected_groups` keeps its measures numeric and null
+        # where absent, so that they can be averaged and ranked. The snapshot
+        # is a read for a screen, and a screen must never show a blank cell
+        # where a number would go - so the number and its status are folded
+        # back into one displayable value here, and nowhere else.
+        status_column = graphsummary_mod.MEASURE_STATUS.get(column)
+        if status_column and status_column in keyed.columns:
+            status = pd.Series(index.map(keyed[status_column]),
+                               index=frame.index)
+            absent = status.notna() & (status != graphsummary_mod.AVAILABLE)
+            frame[name] = values.map(_render).where(~absent, status)
+        else:
+            frame[name] = values.map(_render)
+    return frame
+
+
+def _render(value: Any) -> Any:
+    """A graph cell, as text, at the precision it was computed to.
+
+    Every graph column on the snapshot is a STRING. A cell may hold a number
+    or one of four sentinels, and a column that holds both cannot be written
+    to Parquet at all - the build failed on exactly that, with
+    `Could not convert 'NOT_APPLICABLE' with type str: tried to convert to
+    double`. Making the column numeric instead would mean dropping the
+    sentinels, which is the one thing this module exists to prevent, so the
+    column is text and `corporate_connected_groups` carries the numbers for
+    anything that needs to aggregate them.
+
+    No precision is created here. The values arrive already rounded to their
+    published precision, and this only turns them into their own decimal
+    representation - `113.0` prints as `113` because a community label is not
+    a quantity with a fractional part.
+    """
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return value
+    if isinstance(value, (int, float)):
+        number = float(value)
+        if number.is_integer():
+            return str(int(number))
+        # Positional, never scientific. A DebtRank impact of 5e-05 on a
+        # screen reads as an error message, not as a number.
+        return format(Decimal(str(number)), "f")
+    return value
+
+
 def _fill_pending_graph_fields(frame: pd.DataFrame) -> pd.DataFrame:
     """Every graph-derived field, marked as not yet computed. B2.
 
     Filled with a sentinel and not with zero. A network risk score of zero is
     a measurement; "no graph has run" is not, and a screen that cannot tell
     them apart will present the second as the first.
+
+    Runs AFTER `_join_graph`, and fills only what is still missing - per CELL,
+    not per column. A build that derived the graph for the last four quarters
+    must keep those four and mark the other twelve, and the whole-column test
+    that was here before would have thrown all sixteen away.
+
+    An EMPTY STRING counts as missing, not as a value. `build_customer_master`
+    writes `group_id = ""` and `group_name = ""` because the group is derived
+    and it cannot know it; the previous version tested only for null, so those
+    two fields left the assembler blank rather than sentinelled - the exact
+    "blank reads as a measurement" failure the rest of this module exists to
+    prevent, hiding in the one place nobody looked.
     """
     for entry in lineage_mod.FIELDS:
-        if entry.group in GRAPH_GROUPS or entry.name in GRAPH_DEPENDENT_FIELDS:
-            if entry.name not in frame.columns or frame[entry.name].isna().all():
-                frame[entry.name] = NOT_COMPUTED
+        if entry.group not in GRAPH_GROUPS and (
+                entry.name not in GRAPH_DEPENDENT_FIELDS):
+            continue
+        if entry.name not in frame.columns:
+            frame[entry.name] = NOT_COMPUTED
+            continue
+        column = frame[entry.name]
+        blank = column.isna() | (column.astype("string").fillna("").str.strip()
+                                 == "")
+        frame[entry.name] = column.where(~blank, NOT_COMPUTED)
     return frame
 
 

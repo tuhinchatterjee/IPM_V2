@@ -208,7 +208,8 @@ def impact_matrix(graph: DirectedGraph, capital: dict[str, float]) -> np.ndarray
 
 def debtrank(graph: DirectedGraph, capital: dict[str, float], seed: str, *,
              shock: float = DEFAULT_SHOCK,
-             max_iterations: int = MAX_ITERATIONS) -> DebtRankResult:
+             max_iterations: int = MAX_ITERATIONS,
+             weights: np.ndarray | None = None) -> DebtRankResult:
     """Deterministic DebtRank from one seed. Phase 2.12.
 
     Three states, and the rule that gives the measure its name: a node
@@ -223,7 +224,12 @@ def debtrank(graph: DirectedGraph, capital: dict[str, float], seed: str, *,
             seed=seed, shock=shock, impact=0.0, iterations=0, converged=True,
             distress={}, states={}, as_of=graph.as_of, nodes_touched=0)
 
-    weights = impact_matrix(graph, capital)
+    # The impact matrix depends only on the graph and the capital, never on
+    # the seed. Rebuilding it per seed made the all-seeds sweep allocate a
+    # 3,000 x 3,000 matrix three thousand times - the sweep's whole cost, and
+    # none of it arithmetic anyone needed.
+    if weights is None:
+        weights = impact_matrix(graph, capital)
     size = graph.size
     distress = np.zeros(size, dtype=float)
     state = np.full(size, UNDISTRESSED, dtype=object)
@@ -278,7 +284,9 @@ def debtrank_all(graph: DirectedGraph, capital: dict[str, float], *,
                  seeds: list[str] | None = None) -> dict[str, float]:
     """Network impact for every seed, for ranking. Phase 2.14's input."""
     chosen = seeds if seeds is not None else list(graph.nodes)
-    return {name: debtrank(graph, capital, name).impact for name in chosen}
+    shared = impact_matrix(graph, capital)
+    return {name: debtrank(graph, capital, name, weights=shared).impact
+            for name in chosen}
 
 
 # ---------------------------------------------------------------- PageRank

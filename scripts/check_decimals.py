@@ -76,6 +76,18 @@ ALLOWLIST: tuple[Allowed, ...] = (
         "validator reads. Same reasoning as metrics.py: the deterioration "
         "being diagnosed is usually smaller than 0.01."),
     Allowed(
+        "backend/corporate/graphmath.py",
+        "The spectral radius of an ownership component, in the refusal "
+        "message that explains why effective ownership was not computed. "
+        "The whole question is whether rho crossed 1, and the interesting "
+        "cases sit in the sixth decimal: a component at 0.999999 converges "
+        "and one at 1.000001 does not, and at two decimals both read 1.00 "
+        "and the message stops explaining anything. It is a numerical "
+        "diagnostic in a data-quality refusal, not a business figure — this "
+        "module deals only in ownership fractions and never in money, and "
+        "the percentages it publishes go through the contract as everywhere "
+        "else."),
+    Allowed(
         "backend/orchestration/evidence.py",
         "Grounding validation. Builds every plausible rendering of a computed "
         "value so a figure in the prose can be matched against the result. "

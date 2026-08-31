@@ -1,24 +1,15 @@
 # Borrower 360 / Corporate Graph — completion matrix
 
-**Verified at** `d7c910f`, branch `claude/vigilant-darwin-eohyi1`, working tree clean,
-local and remote identical (0 ahead / 0 behind), Alembic single head `0029`.
+**Verified by running the code in this commit**, branch
+`claude/vigilant-darwin-eohyi1`. The previous edition of this file was verified
+at `d7c910f`, before any of the derived layer existed; every row that changed
+below changed because code was written and run, not because a plan was
+written down.
 
-Nothing here is inferred from a filename. Every IMPLEMENTED row was confirmed by
-running the code and reading what it produced; every NOT_IMPLEMENTED row was
-confirmed by searching for the symbol and finding nothing that constructs it.
-
-## How the checkpoint was verified
-
-| Check | Result |
-|---|---|
-| `git rev-parse HEAD` | `d7c910f96f750dc131056a3290ac286280f0411f` |
-| Commits since `d7c910f` | none |
-| Working tree | clean |
-| `HEAD` vs `origin/claude/vigilant-darwin-eohyi1` | identical |
-| `alembic heads` | `0029` (single head) |
-| `alembic current` | `0029` — database is at head |
-| Migration files | 29 |
-| Smoke: corporate + scorecard + Data Builder + teaching + Brain | 965 tests, exit 0 |
+Nothing here is inferred from a filename. Every IMPLEMENTED row was confirmed
+by running the code and reading what it produced; every NOT_IMPLEMENTED row
+was confirmed by searching for the symbol and finding nothing that constructs
+it.
 
 Statuses used: **IMPLEMENTED**, **PARTIAL**, **NOT_IMPLEMENTED**, **BROKEN**,
 **NOT_VERIFIED**.
@@ -30,114 +21,133 @@ Statuses used: **IMPLEMENTED**, **PARTIAL**, **NOT_IMPLEMENTED**, **BROKEN**,
 | Requirement | Status | Evidence |
 |---|---|---|
 | 12 observed edge types defined | IMPLEMENTED | `graphdata.OBSERVED_EDGE_TYPES` has all 12 |
-| Observed edges actually generated | PARTIAL | 11 of 12 present in data: OWNS 7,298; DIRECTOR_OF 16,738; SUPPLIES_TO 7,110; FUNDED_BY 6,800; IN_SECTOR 3,800; REGISTERED_AT 3,800; COVERS 1,459; HOLDS 1,330; PROVIDES 1,096; LENT_TO 410; EXPOSED_TO 380. **`CONTROLS` is declared but nothing constructs it** |
+| Observed edges actually generated | PARTIAL | 11 of 12 present in data. **`CONTROLS` is declared but nothing constructs it** — control is *derived* here, from voting percentages, and the observed assertion channel exists (`control_closure(explicit=…)`) but no source system in this synthetic book files one |
 | `valid_from`, `valid_to`, `recorded_at`, `source`, `confidence` | IMPLEMENTED | present on every observed edge frame |
 | `source_record_id` on observed edges | NOT_IMPLEMENTED | column absent from all four edge frames |
 | `portfolio_scope` on observed edges | NOT_IMPLEMENTED | present on the *dataset* (B44) but not on the edge row |
-| `validation status` on observed edges | NOT_IMPLEMENTED | no such column |
-| Derived edge types UBO_OF / CONTROLS_EFFECTIVELY / MEMBER_OF / CONNECTED_TO / SIMILAR_TO | NOT_IMPLEMENTED | no constant, no producer, no dataset |
-| Derived edge provenance (`computed_at`, `pipeline_version`, `derivation_method`, `inputs`, `policy_version`, validation status) | NOT_IMPLEMENTED | nothing derived exists to carry it |
+| `validation status` on observed edges | NOT_IMPLEMENTED | no such column; the *derived* products carry one |
+| Derived edge types UBO_OF / CONTROLS_EFFECTIVELY / MEMBER_OF / CONNECTED_TO / SIMILAR_TO | IMPLEMENTED | `graphmath.DERIVED_EDGE_TYPES` names all five; `network.SIMILAR_TO` is produced with its own edge payload |
+| Derived edge provenance (`computed_at`, `pipeline_version`, `derivation_method`, `inputs`, `policy_version`, validation status) | IMPLEMENTED | `EffectiveOwnership.provenance()`, `ControlClosure.provenance()`, `ConnectedGroups.provenance()`, `DebtRankResult.to_dict()`, `SimilarityCandidate.to_edge()` each carry method, policy version, as-of and validation status |
 
 ## Phase 2.2 — Bitemporal point-in-time
 
 | Requirement | Status | Evidence |
 |---|---|---|
 | Three-clause as-of predicate | IMPLEMENTED | `graphdata.as_of()`, one implementation, imported everywhere |
-| Look-ahead test proves the third clause excludes something | IMPLEMENTED | `test_the_third_clause_actually_excludes_something` compares validity-only against the full predicate and asserts the counts differ — a guard that never fires is untested |
+| Look-ahead test proves the third clause excludes something | IMPLEMENTED | validity-only vs. full predicate counts asserted different — a guard that never fires is untested |
 | Recording genuinely lags validity | IMPLEMENTED | median lag > 30 days, max > 365, asserted |
-| Derived products reproducible as-of | NOT_APPLICABLE yet | no derived products exist |
+| Derived products reproducible as-of | IMPLEMENTED | every derived object carries `as_of`; `GQ-07` REJECTS if any edge in an as-of view was recorded after that date, and it passes on the real book |
 
 ## Phase 2.3–2.5 — Ownership mathematics and control
 
-| Requirement | Status |
-|---|---|
-| `ownership_pct` separate from `voting_pct` | IMPLEMENTED — both columns, divergent in ~9% of holdings, tested in both directions |
-| Ownership matrix `A` | NOT_IMPLEMENTED |
-| `(I−A)X = A` linear solve | NOT_IMPLEMENTED |
-| Spectral radius ρ(A) computed before solve | NOT_IMPLEMENTED |
-| `GRAPH_DATA_QUALITY_REJECTED` on ρ(A) ≥ 1 | NOT_IMPLEMENTED |
-| Ownership chain explanation, depth 6, cycle exclusion | NOT_IMPLEMENTED |
-| Matrix-vs-path disagreement warning | NOT_IMPLEMENTED |
-| Binary control graph, SCC condensation, reachability | NOT_IMPLEMENTED |
-| `CONTROLS_EFFECTIVELY` | NOT_IMPLEMENTED |
-
-Structure to make this non-trivial **is** present and tested: pyramids (>50
-intermediate holdings), cross-holdings (>20 corporate→corporate stakes), and a
-largest raw-ownership component under 20% of nodes.
+| Requirement | Status | Evidence |
+|---|---|---|
+| `ownership_pct` separate from `voting_pct` | IMPLEMENTED | both columns, divergent in ~9% of holdings, tested both ways |
+| Ownership matrix `A` | IMPLEMENTED | `build_ownership_graph`, 9,333 nodes as at Q2 2026 |
+| `(I−A)X = A` linear solve | IMPLEMENTED | per weakly connected component; 2.6s over the full book |
+| Spectral radius ρ(A) computed before solve | IMPLEMENTED | per component, recorded in provenance |
+| `GRAPH_DATA_QUALITY_REJECTED` on ρ(A) ≥ 1 | IMPLEMENTED | refusal is per component; `stake()` and `owners_of()` raise rather than return the zero block |
+| Ownership chain explanation, depth 6, cycle exclusion | IMPLEMENTED | `ownership_chains`, `MAX_CHAIN_DEPTH = 6` |
+| Matrix-vs-path disagreement warning | IMPLEMENTED | `CHAIN_DISAGREEMENT_PCT = 1.0`, reported on the explanation |
+| Binary control graph, SCC condensation, reachability | IMPLEMENTED | iterative Tarjan, condensation, Warshall per component — 2.5s, down from >600s for the dense form |
+| `CONTROLS_EFFECTIVELY` | IMPLEMENTED | `ControlClosure.effective` |
+| Integrated stake above 100% under reciprocity | IMPLEMENTED | reported and FLAGGED, never capped; a >100% stake in an acyclic component would be a genuine defect and the regression asserts it never happens |
 
 ## Phase 2.6–2.8 — Connected counterparties, percolation, interdependence
 
-| Requirement | Status |
-|---|---|
-| Connected-group formation pipeline (control candidates → WCC → interdependence → merge) | NOT_IMPLEMENTED |
-| `criterion_hit` preserved | NOT_IMPLEMENTED |
-| Giant-component / percolation regression (raw OWNS WCC vs control WCC) | PARTIAL — the raw-OWNS side exists (`test_the_graph_is_not_one_giant_blob`, largest component < 20%); the control side does not exist to compare against |
-| Review threshold for large candidate groups | NOT_IMPLEMENTED |
-| Economic-interdependence predicates | NOT_IMPLEMENTED |
-| Predicate persistence (threshold, source, effective date, policy version, evidence) | NOT_IMPLEMENTED |
-| Supply chain never forms a regulatory group | IMPLEMENTED (as a governance declaration) — `corporate_supply_chain → corporate_connected_groups` is registered FORBIDDEN with B21 as the reason, and a caveat is carried on every supply row |
+| Requirement | Status | Evidence |
+|---|---|---|
+| Connected-group formation pipeline (control candidates → WCC → interdependence → merge) | IMPLEMENTED | `connected_groups`; never weak components over raw OWNS, and the docstring says why |
+| `criterion_hit` preserved | IMPLEMENTED | `criterion_hits` per member, `evidence` per group |
+| Giant-component / percolation regression | IMPLEMENTED | `GIANT_COMPONENT_SHARE = 0.05`; raw-OWNS and control components both measured |
+| Review threshold for large candidate groups | IMPLEMENTED | `REVIEW_GROUP_SIZE = 60`, `needs_review` on the provenance |
+| Economic-interdependence predicates | IMPLEMENTED | 8 predicates, each with threshold, inputs, source, as-of, policy version and VALIDATED / CANDIDATE / REJECTED |
+| Supply chain never forms a regulatory group | IMPLEMENTED | `corporate_supply_chain → corporate_connected_groups` registered FORBIDDEN with B21 as the reason |
 
 ## Phase 2.9–2.11 — Guarantee, supply, exposure networks
 
 | Requirement | Status | Evidence |
 |---|---|---|
-| Reified Guarantee nodes; Guarantor→PROVIDES→Guarantee→COVERS→Facility | IMPLEMENTED | 1,096 PROVIDES and 1,459 COVERS over reified nodes; a test asserts at least one guarantee covers more than one facility, so reifying it is doing work |
+| Reified Guarantee nodes; Guarantor→PROVIDES→Guarantee→COVERS→Facility | IMPLEMENTED | and now actually resolvable — see the defect below |
+| **Facility nodes exist for COVERS to point at** | IMPLEMENTED (was BROKEN) | `FACILITY` was a declared node type and `COVERS` edges always pointed at facility ids, but the node table never contained them: **1,303 of 2,274 guarantee edges pointed at nothing**. Found by `GQ-04` on its first run. `build_facility_nodes` now emits one node per distinct facility |
 | Cross / shared / joint-and-several guarantees | IMPLEMENTED | `joint_and_several` set when multiple guarantors |
-| **Guarantees respect the build window** | **BROKEN** | `build_guarantees` filters facilities on the module constant `QUARTERS[-1]` rather than the periods actually built. A full build yields 2,555 rows; `build(periods=QUARTERS[:2])` yields **0**, silently. Fix scheduled in Phase 2 |
-| SUPPLIES_TO with revenue share, COGS share, validity, source, confidence | PARTIAL | `share_of_supplier_revenue` and `share_of_buyer_cogs` present and asymmetric; `annual_value`, `substitutability`, `product/service` absent |
-| Exposure network directed and weighted, u→v = u carries exposure to v | IMPLEMENTED | three claim types kept apart; asserted indirect exposure capped below a booked claim |
-| Exposure amount/type/currency/as-of/source/confidence | PARTIAL | amount, instrument, as-of, source, confidence present; **currency absent** |
+| Guarantees respect the build window | IMPLEMENTED (was BROKEN) | fixed at `e28bf63`; uses the built window's last quarter, not the module constant |
+| SUPPLIES_TO with revenue share, COGS share, validity, source, confidence | PARTIAL | shares present and asymmetric; `annual_value`, `substitutability`, `product/service` absent |
+| Exposure network directed and weighted, u→v = u carries exposure to v | IMPLEMENTED | convention stated in `exposure_graph`, because the opposite one silently inverts every downstream answer |
+| Exposure amount/type/currency/as-of/source/confidence | PARTIAL | **currency absent** |
+| **FUNDED_BY draws distinct channels** | IMPLEMENTED (was defective) | drawn with replacement, so a borrower could be funded by the same channel twice. Duplicate assertions fell 1.34% → 0.07% |
 
 ## Phase 2.12–2.16 — Network analytics
 
-Every row here is NOT_IMPLEMENTED. No DebtRank, PageRank (forward, reverse or
-personalised), betweenness, Louvain, Network Risk Score, or SIMILAR_TO exists;
-no module computes them and no dataset carries them.
-
-Graph confidence is **PARTIAL**: source confidence is persisted and is a
-property of the source rather than a per-edge invention (asserted), but no
-derived relationship yet shows a weakest-evidence path.
+| Requirement | Status | Evidence |
+|---|---|---|
+| DebtRank, deterministic, three states, propagate once | IMPLEMENTED | verified against hand-computed values (A→B→C, capital 100: B=0.5, A=0.25, impact 0.375); the cycle case terminates in 2 iterations at 1.0 without amplifying |
+| DebtRank persists seed, shock, iterations, distress, impact, versions, as-of, validation status | IMPLEMENTED | `DebtRankResult.to_dict()` |
+| DebtRank labelled as not ECL / not capital | IMPLEMENTED | `DEBTRANK_CAVEAT` on every payload, asserted |
+| PageRank forward (transmitters), reverse (hurt), personalised | IMPLEMENTED | the tests assert forward and reverse **disagree** — a run where they agree has lost the direction |
+| Dangling nodes do not leak mass | IMPLEMENTED | redistributed; sum asserted 1.0 |
+| Betweenness, deterministic, exploits components, no heavy dependency | IMPLEMENTED | Brandes per component, numpy only |
+| Louvain: terminates, deterministic, improves modularity, handles disconnected and isolated nodes | IMPLEMENTED | all five asserted separately |
+| Network Risk Score = 100·(0.45·nDebtRank + 0.35·nFwdPageRank + 0.20·nBetweenness) | IMPLEMENTED | weights are constants, components stored not discarded, flat population normalises to 0 rather than to the top |
+| NRS banner: RANKING / NOT PD / NOT A RATING / NOT IFRS 9 STAGE / NOT ECL | IMPLEMENTED | `NRS_LABEL` on every payload and on every row of `corporate_connected_groups`, asserted phrase by phrase |
+| SIMILAR_TO via Jaccard on shared evidence, dotted, distinct, "HIDDEN RELATIONSHIP CANDIDATE" | IMPLEMENTED | found through an inverted index rather than 7.2M pairwise comparisons |
+| SIMILAR_TO never creates control, UBO or group membership | IMPLEMENTED | three explicit `False` flags on the edge, asserted |
+| Graph confidence with weakest evidence path | IMPLEMENTED | `WEAKEST_EVIDENCE_ON_PATH`; the tests assert it is not the mean and not the product, and that length alone does not reduce it |
 
 ## Phase 2.17 — Graph data quality
 
-NOT_IMPLEMENTED. The `CORPORATE GRAPH DATA QUALITY` domain is declared and the
-`corporate_graph_dq` dataset is named in the domain registry and in 5 lineage
-entries, but **no rows are produced** and no check runs. None of the fourteen
-required checks exists.
+| Requirement | Status | Evidence |
+|---|---|---|
+| ≥14 checks | IMPLEMENTED | 15: GQ-01 … GQ-15 |
+| PASS / FLAG / REJECT | IMPLEMENTED | `STATUSES` |
+| **REJECT blocks the dependent computation** | IMPLEMENTED | `QualityReport.blocked()`, closed over `DEPENDS_ON` to a fixed point so a two-step chain cannot leave the far end computing on blocked input |
+| Rejects are scoped | IMPLEMENTED | 4 impossible registers out of 4,179 block effective ownership for the 12 entities in their contaminated components and for nobody else. A gate that blanks the whole book over four rows gets switched off |
+| The register is persisted | IMPLEMENTED | `corporate_graph_dq`, one row per check per quarter |
+| A check that raises does not take the gate down | IMPLEMENTED | becomes a REJECT naming its own failure; the other checks still run |
+
+Current verdict on the real book as at Q2 2026: **1 REJECT** (GQ-01, the two
+deliberately planted defective register groups, 12 entities), **2 FLAG**
+(GQ-11 evidence recency 64%, GQ-14 one component holds 95% of borrowers),
+**12 PASS**.
 
 ## Phase 2.18 — Borrower 360 graph summary
 
-| Requirement | Status |
-|---|---|
-| 19 GRAPH SUMMARY fields declared with lineage | IMPLEMENTED |
-| Populated with validated values | NOT_IMPLEMENTED — **23 snapshot fields are still `NOT COMPUTED`** |
-| Truthful placeholder rather than a manufactured value | IMPLEMENTED | the sentinel is `NOT COMPUTED`, never zero, and `snapshot.summary()` reports how many fields are pending. `corporate_limits.group_utilisation_pct` is null with status `NOT YET COMPUTED` for the same reason |
+| Requirement | Status | Evidence |
+|---|---|---|
+| 20 graph fields declared with lineage | IMPLEMENTED | |
+| Populated with validated values | IMPLEMENTED (was NOT_IMPLEMENTED) | **all 24 graph and graph-dependent fields carry values for a derived quarter**; the census asserts none reads `NOT COMPUTED` |
+| `NOT_AVAILABLE` / `NOT_APPLICABLE` / `DATA_QUALITY_BLOCKED` vocabulary | IMPLEMENTED (was a single sentinel) | all three appear, and a test fails if any one of them never does — a distinction nothing exercises is a distinction not being made |
+| `corporate_connected_groups` produced | IMPLEMENTED | 3,253 borrower-quarter rows for Q2 2026, 36 columns |
+| `corporate_graph_dq` produced | IMPLEMENTED | 15 issues per quarter |
+| `corporate_limits.group_utilisation_pct` | IMPLEMENTED (was `NOT YET COMPUTED`) | filled for derived quarters only, never back-filled into a quarter the derivation did not cover. 157 groups now read INVESTIGATE against the group limit — a finding only the graph could produce |
+| **Blank strings treated as measurements** | IMPLEMENTED (was a latent defect) | `group_id` and `group_name` were written as `""` by the customer master and the sentinel filler tested only for null, so those two fields left the assembler blank — the exact "blank reads as a measurement" failure the module exists to prevent |
 
-The vocabulary required by the brief is `NOT_AVAILABLE` / `NOT_APPLICABLE` /
-`DATA_QUALITY_BLOCKED`. The current single sentinel is truthful but does not
-distinguish those three cases; aligning it is Phase 2 work.
+Timings, full book, one quarter: ownership graph 4.3s, effective ownership
+2.6s, control closure 2.5s, connected groups 0.2s, DebtRank all-seeds 4.0s,
+centrality 1.2s, NRS 1.3s, quality gate 1.0s — **18s per quarter**, about five
+minutes for all sixteen.
 
 ## Phase 3 — Borrower 360 user experience
 
 | Requirement | Status | Evidence |
 |---|---|---|
-| Borrower search by 12 attributes | IMPLEMENTED (service layer) | `search.SEARCHABLE` covers id, customer number, name, alias, Arabic name, group, segment, sector, rating, Stage, region, watchlist, relationship manager |
-| Ambiguous names show candidates, never silently chosen | IMPLEMENTED | `ambiguous` / `resolved` in the result contract, tested |
-| Missing cohort member disclosed | IMPLEMENTED | `not_found` list plus an explanation, tested |
-| Borrower 360 screen and its 13 tabs | NOT_IMPLEMENTED | no route under `frontend/src/app` for borrower/corporate/graph |
+| Borrower search by 12 attributes | IMPLEMENTED (service layer) | `search.SEARCHABLE` |
+| Ambiguous names show candidates, never silently chosen | IMPLEMENTED | `ambiguous` / `resolved`, tested |
+| Missing cohort member disclosed | IMPLEMENTED | `not_found` plus an explanation, tested |
+| Borrower 360 screen and its 13 tabs | NOT_IMPLEMENTED | no route under `frontend/src/app` |
 | Corporate API router | NOT_IMPLEMENTED | no router under `backend/api/routers` |
 | Borrower 360 / Graph permissions | NOT_IMPLEMENTED | no permission constant exists |
-| Network views (11 named) | NOT_IMPLEMENTED |
-| Group & Connectedness shown as six separate groupings | NOT_IMPLEMENTED |
-| DOWNLOAD BORROWER 360 PACK (17 sheets) | NOT_IMPLEMENTED |
-| Data Builder graph domains expose scope/grain/keys/lineage/authority | IMPLEMENTED | 20 datasets registered with grain, keys, period field, authority and `portfolio_scope`; 7 declared relationships including 2 FORBIDDEN |
+| Network views (11 named) | NOT_IMPLEMENTED | |
+| Group & Connectedness shown as six separate groupings | PARTIAL | three of the six are now computed per borrower (effective-ownership group, control group, connected group) with distinct ids and a role; no screen shows them |
+| DOWNLOAD BORROWER 360 PACK (17 sheets) | NOT_IMPLEMENTED | |
+| Data Builder graph domains expose scope/grain/keys/lineage/authority | IMPLEMENTED | 20 datasets registered; 7 declared relationships including 2 FORBIDDEN |
 
 ## Phases 4–6 — Ask, Brain, agentic
 
 | Requirement | Status |
 |---|---|
 | Corporate datasets reachable by Ask without corrupting credit-book retrieval | IMPLEMENTED — `portfolio_scope` separation, 16 tests |
-| Corporate teaching vocabulary (so no governed dataset is unteachable) | IMPLEMENTED — 187 measures, 121 dimensions; every catalogue dataset has at least one of each |
+| Corporate teaching vocabulary | IMPLEMENTED — 187 measures, 121 dimensions |
 | 16 governed graph questions answerable | NOT_VERIFIED |
 | ~33 Brain concepts for graph semantics | NOT_IMPLEMENTED |
 | 10 Investigation Blueprints | NOT_IMPLEMENTED |
@@ -147,23 +157,33 @@ distinguish those three cases; aligning it is Phase 2 work.
 
 ## Summary
 
-| Status | Count |
-|---|---:|
-| IMPLEMENTED | 21 |
-| PARTIAL | 6 |
-| BROKEN | 1 |
-| NOT_IMPLEMENTED | 34 |
-| NOT_VERIFIED | 1 |
+| Status | Count | Previously |
+|---|---:|---:|
+| IMPLEMENTED | 51 | 21 |
+| PARTIAL | 3 | 6 |
+| BROKEN | 0 | 1 |
+| NOT_IMPLEMENTED | 8 | 34 |
+| NOT_VERIFIED | 1 | 1 |
 
-**What is genuinely done:** the observed graph, its bitemporal semantics, the
-ownership/voting separation, entity resolution, the snapshot with lineage and
-its authority discipline, search, the governed catalogue registration, and the
-two-book scope separation.
+**What the derived layer now does:** integrated ownership with a per-component
+refusal, control closure that is binary and transitive and refuses to be
+confused with proportional ownership, connected-counterparty candidate groups
+built from control rather than from raw shareholdings, eight interdependence
+predicates that record their own test, five families of network measure with
+their disclaimers attached, fifteen quality checks that actually block, and
+twenty Borrower 360 fields that say which kind of absent they are when they
+are absent.
 
-**The one defect found during verification:** `build_guarantees` reads a module
-constant instead of the built window, so a partial build silently produces no
-guarantees. It is fixed first in Phase 2.
+**Three real defects the new checks found, all fixed:**
 
-**What remains is the whole derived layer** — every matrix, closure, grouping
-and centrality computation, the data-quality checks that gate them, and every
-user-facing surface that would show them.
+1. Facility nodes were never emitted, so 1,303 of 2,274 guarantee edges
+   pointed at a node that did not exist. Invisible to every edge-first query.
+2. `FUNDED_BY` drew funding channels with replacement, producing duplicate
+   assertions that double-count wherever funding edges are aggregated.
+3. `group_id` and `group_name` left the snapshot as blank strings rather than
+   sentinels, because the filler tested for null and the customer master
+   writes `""`.
+
+**What remains is the user-facing surface** — the Borrower 360 screen, its
+tabs and network views, the corporate API router and its permissions, the
+export pack, and the Ask/Brain integration over the graph.
