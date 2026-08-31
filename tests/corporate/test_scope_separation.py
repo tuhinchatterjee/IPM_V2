@@ -148,3 +148,85 @@ class TestMetadataAssistantWordBoundaries:
     def test_the_longest_matching_name_still_wins(self):
         answer = assistant_mod.ask("What does ecl coverage mean?")
         assert "ecl_coverage" in answer.text
+
+
+class TestThreeBooksAfterTheGraph:
+    """The corporate graph must not steal a retail or credit-book question.
+
+    Twenty-two BORROWER_360 datasets now sit in the same catalogue as
+    twenty-four CREDIT_BOOK ones, and they share almost every word: both have
+    customers, exposure, a stage and a covenant. The failure this pins is not
+    hypothetical - it happened once already, when twenty new corporate
+    datasets pushed the facility book out of the retrieval window and turned
+    a working question into a clarification.
+
+    The assertion is on the LEAD dataset rather than on the whole window. A
+    lower-ranked candidate from the other book is harmless; the lead is what
+    the planner builds on.
+    """
+
+    RETAIL = (
+        "What is the application scorecard AUC this month?",
+        "Show me the behavioural scorecard PSI by segment.",
+        "Which retail variables have the highest information value?",
+        "What is the observed default rate by score band?",
+    )
+    CREDIT_BOOK = (
+        "What is the IFRS 9 stage distribution?",
+        "Who are our largest exposures?",
+        "Show me the arrears position.",
+        "What is the ECL coverage by stage?",
+        "Which borrowers are approaching the SICR threshold?",
+    )
+    CORPORATE = (
+        "Which connected groups carry the most exposure?",
+        "Who are the ultimate beneficial owners?",
+        "Show me the supply chain relationships.",
+        "Which borrowers are most central in the network?",
+    )
+
+    def _lead(self, question: str) -> str:
+        from backend.orchestration import context as ctx_mod
+
+        found = ctx_mod.retrieve(question)
+        assert found.datasets, f"nothing retrieved for {question!r}"
+        return found.datasets[0].name
+
+    def test_a_retail_question_leads_with_a_retail_dataset(self):
+        for question in self.RETAIL:
+            lead = self._lead(question)
+            assert lead.startswith("retail_"), f"{question!r} -> {lead}"
+
+    def test_a_credit_book_question_leads_with_the_credit_book(self):
+        from backend.data_access.catalog import CREDIT_BOOK_SCOPE, get_catalog
+
+        catalog = get_catalog()
+        for question in self.CREDIT_BOOK:
+            lead = self._lead(question)
+            assert not lead.startswith("corporate_"), (
+                f"{question!r} led with {lead}, a Borrower 360 dataset")
+            assert catalog.dataset(lead).portfolio_scope == CREDIT_BOOK_SCOPE
+
+    def test_a_corporate_question_leads_with_the_corporate_book(self):
+        from backend.data_access.catalog import BORROWER_360_SCOPE, get_catalog
+
+        catalog = get_catalog()
+        for question in self.CORPORATE:
+            lead = self._lead(question)
+            assert catalog.dataset(lead).portfolio_scope == BORROWER_360_SCOPE, (
+                f"{question!r} led with {lead}")
+
+    def test_the_catalogue_holds_both_books(self):
+        from backend.data_access.catalog import (
+            BORROWER_360_SCOPE,
+            CREDIT_BOOK_SCOPE,
+            get_catalog,
+        )
+
+        scopes: dict[str, int] = {}
+        for dataset in get_catalog().all():
+            scopes[dataset.portfolio_scope] = (
+                scopes.get(dataset.portfolio_scope, 0) + 1)
+        assert scopes.get(CREDIT_BOOK_SCOPE, 0) >= 20
+        assert scopes.get(BORROWER_360_SCOPE, 0) >= 20
+        assert set(scopes) == {CREDIT_BOOK_SCOPE, BORROWER_360_SCOPE}

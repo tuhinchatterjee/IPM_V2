@@ -1,225 +1,155 @@
-# Windows local verification
+# Windows local verification runbook
 
-Two things cannot be closed from the cloud sandbox where this branch was
-built, and this file is the exact sequence for closing them on your laptop:
+Everything this environment could not verify, in the order to run it on a
+Windows machine. Each step says what a pass looks like, so a step that runs
+and produces nothing cannot be read as a pass.
 
-1. **Docker build and start.** The sandbox has no Docker daemon, and the
-   honest options were to weaken the container or networking setup until
-   something ran, or to leave it. It was left. Nothing in `docker-compose.yml`
-   or the Dockerfiles was relaxed to make a cloud run possible.
-2. **Live Sonnet / Opus verification.** No live provider call was made
-   anywhere on this branch, and no API credits were spent. Every AI-shaped
-   result in the test suite came from a fake provider and a deterministic
-   fixture.
-
-Everything else — the full backend suite, ruff, TypeScript, ESLint, the
-frontend tests, the migrations, the PowerShell checker, and browser
-acceptance across four viewports and four themes — ran in the sandbox and is
-green. Those do not need repeating here unless you want to see them.
+Two of these are the reason the release status is
+`LOCAL_RUNTIME_VERIFICATION_REQUIRED` rather than `RELEASE_CANDIDATE`:
+**Docker** and **live AI**. Neither can run in the Claude sandbox — there is
+no Docker daemon and no API key, and this session is forbidden from making
+live provider calls or consuming credits.
 
 ---
 
-## Before you start
-
-* **Docker Desktop** installed and showing **Running**.
-* **PowerShell**. Both Windows PowerShell 5.1 and PowerShell 7 work; the
-  scripts are pinned to `Set-StrictMode -Version 2.0` so they behave
-  identically on the two.
-* If Windows refuses to run a script, allow local scripts once:
-
-  ```powershell
-  Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-  ```
-
-* Open PowerShell **at the repository root** (the folder containing
-  `docker-compose.yml`). Every command below is written from there.
+## 0. Prerequisites
 
 ```powershell
-cd C:\path\to\IPM_V2
-git fetch origin claude/vigilant-darwin-eohyi1
+git clone <repo> ; cd IPM_V2
 git checkout claude/vigilant-darwin-eohyi1
-git pull origin claude/vigilant-darwin-eohyi1
 ```
 
----
+* Python 3.13, Node 20+, Docker Desktop running, PostgreSQL 16 (or use the
+  Compose one).
+* An Anthropic API key, for step 5 only.
 
-## 1. Docker build and start
-
-### 1a. The one command
+## 1. Fresh-clone setup
 
 ```powershell
-.\scripts\start-docker.ps1 -Rebuild
+.\scripts\dev.ps1 setup
 ```
 
-`-Rebuild` forces a full image build rather than reusing a cached layer,
-which is the point of this run: you are verifying that the images *build*,
-not just that they start. Add `-Logs` if you want to follow the output:
+**Pass looks like:** the script builds all three universes — the credit book,
+the retail scorecards and the corporate Borrower 360 — writes
+`metadata/catalog.json`, and exits 0. Both `metadata/catalog.json` and
+`data/analytics/` are gitignored and generated, so a clone that skips this
+step has no catalogue and every import that reads it will fail. That is the
+single most likely fresh-clone failure and it is the reason all three builds
+are in the setup path.
+
+**Expect:** the corporate build takes about four minutes, of which roughly
+three are the sixteen quarters of graph derivation.
+
+## 2. Migrations
 
 ```powershell
-.\scripts\start-docker.ps1 -Rebuild -Logs
+.venv\Scripts\alembic upgrade head
+.venv\Scripts\alembic heads
 ```
 
-### 1b. What it should leave running
+**Pass looks like:** `0029 (head)`, exactly one head, 29 files in
+`alembic\versions`.
+
+## 3. The gates
 
 ```powershell
+.venv\Scripts\python -m ruff check backend tests scripts
+.venv\Scripts\python -m pytest tests -q
+.venv\Scripts\python scripts\check_decimals.py
+.venv\Scripts\python scripts\feature_matrix.py --check
+cd frontend ; npx tsc --noEmit ; npx eslint . ; npx next build ; cd ..
+```
+
+**Pass looks like:** ruff "All checks passed"; pytest exit 0 with 5,823
+collected and **zero** skipped in `tests/corporate` and `tests/api` — a run
+where those skip is a run where the lake was not built, and two tests
+(`test_the_lake_is_built_and_this_suite_actually_ran`) will FAIL to tell you
+so; `check_decimals` reporting 49 allowed and 0 unexplained; `feature_matrix
+--check` reporting no drift; the Next build listing `/borrower-360`.
+
+> Do not read "zero lines matched" as a pass. `grep -c "^FAILED"` exits 1
+> when nothing matched, which looks like a failure and is not; and a suite
+> that skipped everything prints dots too. Read pytest's own exit code and
+> its skip count.
+
+## 4. Browser and route verification
+
+```powershell
+.venv\Scripts\python scripts\browser_acceptance.py --start
+.venv\Scripts\python scripts\route_crawl.py --start
+```
+
+**Pass looks like:** "956/956 browser checks passed across 4 viewports and 17
+screens" and "153/153 visits passed across 3 roles" with exactly six
+permission refusals, each on a route that role has no link to.
+
+If Chromium is unavailable both scripts **exit non-zero with a message**
+rather than reporting success. That is deliberate: a browser check that
+cannot run is not a browser check that passed.
+
+## 5. Live AI verification — THE STEP THIS SANDBOX CANNOT DO
+
+```powershell
+$env:ANTHROPIC_API_KEY = "<your key>"
+.\scripts\verify-live-ai.ps1
+```
+
+**This is the only step that spends money.** It is also the only evidence
+that would justify the status `LIVE_AI_VERIFIED`. Until it has been run and
+its output recorded, that status must not be claimed for this build — and it
+is not claimed anywhere in this repository.
+
+**Pass looks like:** the script reporting a CONNECTED provider, the model
+roles it actually used, and the validation results it stored. A run against
+an OFFLINE provider is a run of the fake provider and proves nothing about
+the live one.
+
+## 6. Docker — THE OTHER STEP THIS SANDBOX CANNOT DO
+
+```powershell
+docker compose build
+docker compose up -d
 docker compose ps
+curl http://localhost:8000/api/v1/health
+curl http://localhost:3000
+docker compose down
 ```
 
-Expect four containers up: `ipm-postgres`, `ipm-backend`, `ipm-frontend`,
-`ipm-agent-worker`. (`ipm-pgadmin` is optional and only appears if you
-started its profile.)
+**Pass looks like:** every service `healthy` in `docker compose ps`, the
+health endpoint returning 200, and the front end serving on 3000.
 
-### 1c. Prove each tier answers
+**Do not** change a Docker security or networking setting to make this pass.
+If it fails, the failure is the finding. This repository records Docker as
+`NOT VERIFIED IN CLAUDE SANDBOX` and does not claim otherwise.
 
-```powershell
-# The API is up and reports its build.
-Invoke-RestMethod http://localhost:8000/api/v1/health | ConvertTo-Json -Depth 4
+## 7. The Borrower 360, by hand
 
-# The migrations are at the head this branch expects.
-docker compose exec backend alembic current
-```
+With the stack up, open `http://localhost:3000/borrower-360`.
 
-`alembic current` must print **`0027`**. Anything lower means the migration
-step did not run; anything higher means you are on a different branch.
+1. **Search** a full trading name. One borrower should resolve. Search
+   "Company" alone: nothing should match, and the screen should say why a
+   legal-form word identifies nobody.
+2. **Search** a shared stem. Several candidates should appear and the screen
+   should say none has been chosen for you.
+3. **Open** a borrower. Thirteen tabs; every field carries its source dataset
+   and its authority; no cell is blank.
+4. **Group tab.** Six cards, each with what it answers, what it is computed
+   from, and — in its own colour — what it is NOT.
+5. **Network tab.** Change the view and the depth. The node and edge counts
+   should change, and a deep "Everything" view should say what it truncated.
+6. As an **Analyst**, the UBO, Directors and Addresses views should refuse
+   with a message saying the view exists and that not being permitted to see
+   owners is different from there being none.
+7. **Download the pack.** Eighteen sheets. As an Analyst the two people
+   sheets should be present and say WITHHELD. As a Viewer the download should
+   be refused, with the refusal next to the button.
+8. **Data quality tab.** Fifteen checks. At Q2 2026 expect one REJECT (the
+   two deliberately planted defective shareholder registers), two FLAGs
+   (evidence recency, component concentration) and twelve PASS.
 
-```powershell
-# The front end serves.
-Start-Process http://localhost:3000
-```
+## 8. What to record
 
-### 1d. The screens added on this branch
-
-Open each and confirm it renders rather than showing an error boundary:
-
-| URL | What it is |
-| --- | --- |
-| `http://localhost:3000/ai-studio/brain-center` | Brain Center, including **Merge Lab** |
-| `http://localhost:3000/ai-studio/continuous-learning` | Continuous Learning, including the new **Ask about the learning** tab |
-| `http://localhost:3000/studio/regulatory-intelligence` | Regulatory Intelligence |
-| `http://localhost:3000/ai-studio/feedback-learning` | Feedback & Learning |
-
-These four all passed browser acceptance in the sandbox at 1440×900,
-1366×768, 834×1112 and 390×844, and in four themes. What Docker adds is
-proof that they do it from a built image rather than a dev server.
-
-### 1e. Stopping
-
-```powershell
-.\scripts\stop-docker.ps1
-```
-
-### If the build fails
-
-Report the failing step and the last twenty lines of output. Do not work
-around it by editing `docker-compose.yml` or a Dockerfile — a build that only
-succeeds after the container definition is loosened has not been verified.
-
----
-
-## 2. Live AI verification
-
-`scripts\verify-live-ai.ps1` is the only thing on this branch that can make a
-real provider call. It never reads, prints or logs the value of
-`ANTHROPIC_API_KEY` — it checks that the variable is present and stops there.
-
-### 2a. Set the key for this session only
-
-```powershell
-$env:ANTHROPIC_API_KEY = "sk-ant-..."
-```
-
-Setting it on the session rather than the machine means it disappears when
-you close the window.
-
-### 2b. Cost nothing first
-
-```powershell
-.\scripts\verify-live-ai.ps1 -DryRun
-```
-
-`-DryRun` makes **no** call. It prints what every other mode would cost in
-calls before you commit to one. Run this first, every time.
-
-### 2c. The free mode added on this branch
-
-```powershell
-.\scripts\verify-live-ai.ps1 -BrainImport
-```
-
-Zero provider calls by design. The Lift Lab compares recorded scores against
-recorded scores, so running a model to decide whether an imported Brain
-helped would measure the model rather than the Brain.
-
-### 2d. The modes that do spend
-
-Each prompts for confirmation and reports its own call count. Run them in
-this order and stop at the first failure:
-
-```powershell
-.\scripts\verify-live-ai.ps1 -Quick               # smallest real check
-.\scripts\verify-live-ai.ps1 -Critical            # the critical safety set
-.\scripts\verify-live-ai.ps1 -AgenticCritical     # the agentic layer, end to end
-.\scripts\verify-live-ai.ps1 -FeedbackCritical    # feedback to governed learning
-.\scripts\verify-live-ai.ps1 -RegulatoryCritical  # regulatory ingestion and review
-.\scripts\verify-live-ai.ps1 -ProjectCritical     # project-scoped investigation
-.\scripts\verify-live-ai.ps1 -FullRouting         # model-role routing
-.\scripts\verify-live-ai.ps1 -FullCertification   # the full certification run
-```
-
-`-FullCertification` is the expensive one. It is last for that reason.
-
-Add `-Yes` to skip the confirmation prompt in an unattended run, and `-Json`
-for machine-readable output:
-
-```powershell
-.\scripts\verify-live-ai.ps1 -Quick -Yes -Json
-```
-
-### 2e. Before a client demonstration
-
-```powershell
-.\scripts\demo-check.ps1
-```
-
-Spends nothing. Answers one question: can this machine give the
-demonstration right now?
-
----
-
-## 3. Optional: re-run the sandbox gates locally
-
-All of these are already green on this commit. Repeat them only if you want
-to see them on your own machine.
-
-```powershell
-# Backend
-.\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe -m ruff check backend\ tests\ scripts\ alembic\
-.\.venv\Scripts\python.exe scripts\check_decimals.py
-
-# Frontend
-cd frontend
-npx tsc --noEmit
-npx eslint .
-npm test
-cd ..
-
-# PowerShell script checker
-.\.venv\Scripts\python.exe scripts\check_powershell.py
-
-# Browser acceptance (needs a built frontend)
-.\.venv\Scripts\python.exe scripts\browser_acceptance.py --start
-```
-
----
-
-## What "verified" means when you are done
-
-Docker is closed when `start-docker.ps1 -Rebuild` completes, `docker compose
-ps` shows four containers up, `alembic current` prints `0027`, and the four
-screens in 1d render.
-
-Live AI is closed when `-DryRun` runs clean and at least `-Quick` and
-`-Critical` pass against a real key. The deeper modes are worth running
-before a client demonstration and are not required to call the branch
-verified.
+For each step: the command, the exit code, and the headline number. A step
+that was not run is recorded as not run. A step that failed is recorded as
+failed, with its output. Neither is recorded as a pass, and neither is
+omitted.
