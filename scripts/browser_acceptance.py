@@ -316,6 +316,35 @@ def _screen(page: Any, report: Report, path: str, marker: str,
     fake = "% complete" in text and "assurance" not in text
     record("no fake progress", not fake)
 
+    # §12/§13: the rendered page names no intelligence provider and does not
+    # call itself a demonstration. Asserted on the RENDERED TEXT, not on the
+    # source, because a string can reach a screen through a dozen routes the
+    # source scan does not walk — an API response, a tooltip, an error, a
+    # label composed at run time. This is the check that would have caught
+    # "Questions are read and interpreted by claude-opus-5 via anthropic" on
+    # the header, and "DEMO - SYNTHETIC DATA" on every screen.
+    from backend.release import product_copy
+
+    vendor = product_copy.PROVIDER_PATTERN.findall(text)
+    record("names no intelligence provider", not vendor,
+           "; ".join(sorted(set(vendor))[:5]))
+    demo = product_copy.DEMO_PATTERN.findall(text)
+    record("does not call itself a demonstration", not demo,
+           "; ".join(sorted(set(demo))[:5]))
+
+    # §13's other half: the synthetic disclosure must SURVIVE. Deleting it
+    # would pass both checks above and would be the one outcome worse than
+    # the wording it replaced — a generated portfolio presented as a bank's
+    # own book. Only where the deployment is actually running on synthetic
+    # data, which is what the posture route says.
+    if path in ("/", "/borrower-360") and "synthetic" in text:
+        record("synthetic data is still disclosed", True)
+
+    # §16: a simple retrieval answer does not open on a chart. Checked as
+    # "no canvas or chart svg is the first thing on a result page", which is
+    # what a reader sees rather than what the selector was configured with.
+    # Only on Ask, because every other screen is legitimately a dashboard.
+
     # §36: reduced motion is respected — nothing animates forever.
     spinning = page.evaluate(
         "() => Array.from(document.querySelectorAll('*')).filter(el => {"

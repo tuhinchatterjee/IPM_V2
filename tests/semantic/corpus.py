@@ -296,6 +296,109 @@ _FAMILIES: tuple[tuple, ...] = (
          "Which borrowers look most exposed to a funding squeeze?",
      )[i % 8],
      8, ("liquidity", "borrower-filter"), True),
+    # ---- what the overnight mandate's twenty-two acceptance questions are
+    # made of, as STRUCTURES rather than as those twenty-two sentences.
+    #
+    # Each family below is a shape the reader had not been asked for before
+    # this release, and each one came out of a question somebody actually
+    # typed: an early-warning question that names a lifecycle rather than a
+    # measure, a question about the METHOD rather than the book, a question
+    # whose answer is a picture, and a question that names a borrower and
+    # asks why it was flagged.
+    ("early warning lifecycle",
+     lambda i: (
+         "Which signals have persisted for at least three reporting periods?",
+         "Which borrowers have recovered and may deserve removal from watch?",
+         "Which warnings are new since last quarter?",
+         "Which borrowers are getting worse rather than staying where they "
+         "were?",
+         "Show me the names where something has just started going wrong.",
+         "Which conditions cured this quarter?",
+         "Where has a warning been firing for a year without anybody acting?",
+         "Which borrowers have more warnings than they did last quarter?",
+     )[i % 8],
+     8, ("early-warning", "borrower-filter", "lifecycle"), True),
+    ("early warning breadth",
+     lambda i: (
+         "Where are several weak signals combining into a serious problem?",
+         "Which borrowers show deterioration in more than three different "
+         "areas?",
+         "Who has both covenant pressure and collateral pressure?",
+         "Which names are weak on liquidity and on ratings at the same time?",
+         "Find situations where the evidence conflicts.",
+         "Which borrowers have something improving and something worsening "
+         "at once?",
+         "Where does the behavioural evidence disagree with the financials?",
+         "Which borrowers look worse on breadth of evidence than on any one "
+         "measure?",
+     )[i % 8],
+     8, ("early-warning", "borrower-filter", "composite"), True),
+    ("why was this flagged",
+     lambda i: (
+         "Why was Al Rajhi Contracting 4471 flagged?",
+         "What changed for Al Rajhi Contracting 4471 since last quarter?",
+         "Which threshold did Al Rajhi Contracting 4471 cross?",
+         "What evidence contradicts the warning on Al Rajhi Contracting 4471?",
+         "What would cause the covenant signal on Al Rajhi Contracting 4471 "
+         "to cure?",
+         "Which of Al Rajhi Contracting 4471's warnings are new?",
+         "What data feeds the utilisation signal?",
+         "When did the covenant headroom threshold last change?",
+     )[i % 8],
+     8, ("early-warning", "method", "entity"), True),
+    ("method and governance",
+     lambda i: (
+         "What model or rule produces the IFRS 9 stage allocation?",
+         "What threshold does the covenant headroom signal cross?",
+         "What are the limitations of the early warning taxonomy?",
+         "Which datasets does a Borrower 360 answer read?",
+         "Who owns the covenant headroom threshold?",
+         "What version of the early warning thresholds is in force?",
+         "Which measures does the catalogue not carry?",
+         "What cannot be computed for a borrower with no filed accounts?",
+     )[i % 8],
+     8, ("method", "governance"), True),
+    ("inherently visual",
+     lambda i: (
+         "How has ECL coverage trended over the last eight quarters?",
+         "Show me the distribution of debt-service coverage across the book.",
+         "How have internal ratings migrated over the last year?",
+         "What is the sector concentration of the portfolio?",
+         "Show the composition of stage 2 by sector.",
+         "Compare expected credit loss across the three scenarios.",
+         "Is there a correlation between utilisation and days past due?",
+         "Break the book down by segment.",
+     )[i % 8],
+     8, ("visualisation", "portfolio"), True),
+    ("plainly a list",
+     lambda i: (
+         "List the facilities in arrears.",
+         "Give me the stage 3 names.",
+         "Show the ten largest exposures.",
+         "Which customers are on the watchlist?",
+         "Find borrowers whose collateral coverage is below half.",
+         "Rank borrowers by 12-month probability of default.",
+         "Who is near covenant breach?",
+         "Name the borrowers with a rating downgrade this quarter.",
+     )[i % 8],
+     8, ("visualisation", "borrower-filter", "retrieval"), True),
+    ("partial evidence",
+     lambda i: (
+         "Which borrowers have the strongest evidence of liquidity stress? "
+         "Consider cash balances, working-capital movements, short-term debt, "
+         "utilisation, repayment patterns, interest burden and upcoming "
+         "maturities.",
+         "Rank borrowers on receivable stretch, inventory build and payable "
+         "stretch.",
+         "Which borrowers have the most refinancing pressure over the next "
+         "twelve months?",
+         "Show me borrowers whose insurance or documentation has expired.",
+         "Which borrowers had a returned payment this quarter?",
+         "Rank borrowers by external rating outlook.",
+         "Which borrowers had a covenant waiver granted?",
+         "Show the borrowers with the largest maturity concentration.",
+     )[i % 8],
+     8, ("partial-evidence", "borrower-filter"), True),
     ("working capital",
      lambda i: "Where has working capital deteriorated fastest over "
                f"{_PERIODS[i % len(_PERIODS)]}?",

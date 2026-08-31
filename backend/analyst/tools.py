@@ -436,9 +436,27 @@ def get_threshold_definition(principal: Principal, name: str = "",
     questions the analyst must answer from metadata rather than invent.
     """
     del principal
+    from backend.early_warning import taxonomy as ews
     from backend.orchestration import composites as cmp
 
     rows = []
+    # §37: "what threshold was crossed", "when did that threshold change",
+    # "what model or rule produced this result". All three are questions about
+    # governed metadata, and the analyst must answer them from metadata rather
+    # than invent a methodology. The early-warning taxonomy is where most of
+    # the thresholds a credit officer will ask about actually live.
+    for signal in ews.SIGNALS:
+        if name and name.lower() not in (
+                f"{signal.key} {signal.label} {signal.family}".lower()):
+            continue
+        rows.append({"threshold": signal.key, "means": signal.sentence(),
+                     "family": ews.FAMILIES.get(signal.family, signal.family),
+                     "dataset": signal.dataset, "field": signal.field,
+                     "test": signal.test, "value": signal.threshold,
+                     "severity": signal.severity,
+                     "booked_accounting": signal.booked_accounting,
+                     "owner": signal.to_dict()["owner"],
+                     "version": signal.version})
     for composite in cmp.COMPOSITES:
         for signal in composite.signals:
             if name and name.lower() not in (
@@ -1104,9 +1122,66 @@ def fetch_ifrs9_evidence(principal: Principal, **kwargs: Any) -> Observation:
 
 
 def fetch_early_warning_evidence(principal: Principal,
+                                 customer_id: str = "", period: str = "",
                                  **kwargs: Any) -> Observation:
-    return _evidence_tool(
-        principal, EVIDENCE["fetch_early_warning_evidence"], **kwargs)
+    """Which governed early-warning conditions fire for one borrower. §37.
+
+    The governed TAXONOMY rather than the watchlist register: "why was this
+    borrower flagged" is answered by the conditions that fired and the
+    thresholds they crossed, not by the fact that somebody raised it. The
+    watchlist is one of the conditions.
+    """
+    del kwargs
+    arguments = {"customer_id": customer_id, "period": period}
+    if not customer_id:
+        return _refusal("fetch_early_warning_evidence", arguments,
+                        "name a borrower by customer_id.")
+    if not principal.may(READ_DATA):
+        return _refusal("fetch_early_warning_evidence", arguments,
+                        f"A {principal.role.title()} may not read this.")
+    started = time.perf_counter()
+    try:
+        from backend.corporate import service as corporate
+        from backend.early_warning import signals as sg
+
+        snapshot = corporate._load(corporate.SNAPSHOT)
+        periods = sorted((str(p) for p in snapshot["period"].unique()),
+                         key=sg._period_key)
+        chosen = period or (periods[-1] if periods else "")
+        index = periods.index(chosen) if chosen in periods else -1
+        prior = periods[index - 1] if index > 0 else ""
+        rows = snapshot[(snapshot["period"] == chosen)
+                        & (snapshot["borrower_id"] == customer_id)]
+        if rows.empty:
+            return _refusal(
+                "fetch_early_warning_evidence", arguments,
+                f"{customer_id} is not on book at {chosen}.")
+        before = snapshot[(snapshot["period"] == prior)
+                          & (snapshot["borrower_id"] == customer_id)]
+        standing = sg.stand(
+            rows.iloc[0].to_dict(),
+            before.iloc[0].to_dict() if not before.empty else {},
+            borrower_id=customer_id, period=chosen, previous_period=prior)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Early-warning evidence failed: %s", e)
+        return _refusal("fetch_early_warning_evidence", arguments,
+                        f"that evidence could not be gathered: {_why(e)}")
+
+    out = [{"signal": o.signal, "family": o.family, "condition": o.label,
+            "value": _plain(o.value), "previous": _plain(o.previous),
+            "threshold": o.threshold, "lifecycle": o.lifecycle,
+            "severity": o.severity, "booked_accounting": o.booked_accounting}
+           for o in standing.fired]
+    return Observation(
+        tool="fetch_early_warning_evidence", arguments=arguments,
+        rows=out[:safety.MAX_ROWS_TO_MODEL], total_rows=len(out),
+        columns=["signal", "family", "condition", "value", "threshold",
+                 "lifecycle", "severity"],
+        datasets=["corporate_borrower_360"], period=standing.period,
+        purpose=(f"{standing.sentence()} "
+                 f"{len(standing.cured)} condition(s) have cured; "
+                 f"{len(standing.untested)} could not be tested here."),
+        duration_ms=int((time.perf_counter() - started) * 1000))
 
 
 def fetch_covenant_evidence(principal: Principal, **kwargs: Any) -> Observation:
@@ -1362,9 +1437,12 @@ REGISTRY: tuple[Tool, ...] = (
          {"customer_id": "the borrower's customer id",
           "period": "a reporting period"}, (), fetch_ifrs9_evidence),
     Tool("fetch_early_warning_evidence",
-         "The early-warning signals raised against a borrower.", READ_DATA,
+         "Which governed early-warning conditions fire for a borrower, the "
+         "threshold each one crossed, and whether it is new, persisting, "
+         "worsening or improving.", READ_DATA,
          {"customer_id": "the borrower's customer id",
-          "period": "a reporting period"}, (), fetch_early_warning_evidence),
+          "period": "a reporting period; empty means latest"},
+         ("customer_id",), fetch_early_warning_evidence),
     Tool("fetch_covenant_evidence",
          "Covenant tests, headroom and breaches.", READ_DATA,
          {"customer_id": "the borrower's customer id",
