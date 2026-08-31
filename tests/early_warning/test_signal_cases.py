@@ -25,7 +25,6 @@ from backend.early_warning import cases as ec
 from backend.early_warning import signals as sg
 from backend.early_warning import taxonomy as tx
 
-
 # ------------------------------------------------------------ building blocks
 
 
