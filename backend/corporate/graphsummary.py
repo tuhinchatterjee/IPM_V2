@@ -344,6 +344,10 @@ def _weakest_confidence(frames: dict[str, Any],
         frame = frames.get(key)
         if frame is None or frame.empty or "confidence" not in frame:
             continue
+        # The WEAKEST is different: a missing confidence is the weakest
+        # possible evidence, so filling it with zero is the honest reading
+        # here and the conservative one. Named, so the asymmetry with the
+        # mean above is deliberate rather than an oversight.
         values = pd.to_numeric(frame["confidence"], errors="coerce").fillna(0.0)
         for side in ("from_node", "to_node"):
             grouped = pd.DataFrame({
@@ -373,11 +377,18 @@ def _mean_confidence(frames: dict[str, Any],
         frame = frames.get(key)
         if frame is None or frame.empty or "confidence" not in frame:
             continue
-        values = pd.to_numeric(frame["confidence"], errors="coerce").fillna(0.0)
+        # NOT filled with zero. A missing confidence counted as zero drags
+        # the MEAN down and reads as weak evidence rather than as absent
+        # evidence - two different statements, and only one of them is about
+        # the borrower. GQ-09 REJECTS a missing confidence outright, so this
+        # cannot arise in a passing build; the code should not depend on that
+        # being true for it to be correct.
+        values = pd.to_numeric(frame["confidence"], errors="coerce")
         for side in ("from_node", "to_node"):
             block = pd.DataFrame({
                 "node": frame[side].astype(str).to_numpy(),
-                "confidence": values.to_numpy()}).groupby("node")[
+                "confidence": values.to_numpy()}).dropna(
+                    subset=["confidence"]).groupby("node")[
                     "confidence"].agg(["sum", "count"])
             for name, row in block.iterrows():
                 totals[str(name)] = totals.get(str(name), 0.0) + float(row["sum"])

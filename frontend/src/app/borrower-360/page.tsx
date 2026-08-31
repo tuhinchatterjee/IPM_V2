@@ -636,6 +636,26 @@ function QualityPanel({ quality }: { quality: Borrower360Quality | null }) {
   );
 }
 
+/**
+ * A refusal and a failure are different sentences.
+ *
+ * A 403 means the panel exists and this reader may not see it, which is a
+ * fact about the reader. Anything else means the panel could not be built,
+ * which is a fact about the system. Rendering both as an empty panel would
+ * make either read as a fact about the BORROWER.
+ */
+function refusalOrFailure(caught: unknown, what: string): string {
+  const status =
+    caught && typeof caught === "object" && "status" in caught
+      ? Number((caught as { status: unknown }).status)
+      : 0;
+  const message = caught instanceof Error ? caught.message : String(caught);
+  if (status === 403) {
+    return `${message} You are not permitted to see ${what}, which is not the same as there being none.`;
+  }
+  return `${what} could not be loaded: ${message}`;
+}
+
 /* ----------------------------------------------------------------- export */
 
 /**
@@ -716,6 +736,8 @@ export default function Borrower360Page() {
   const [row, setRow] = React.useState<Borrower360Row | null>(null);
   const [groups, setGroups] = React.useState<Borrower360Groups | null>(null);
   const [similar, setSimilar] = React.useState<Borrower360Similar | null>(null);
+  const [groupsProblem, setGroupsProblem] = React.useState("");
+  const [similarProblem, setSimilarProblem] = React.useState("");
   const [quality, setQuality] = React.useState<Borrower360Quality | null>(null);
   const [tab, setTab] = React.useState("overview");
   const [rowError, setRowError] = React.useState("");
@@ -751,14 +773,38 @@ export default function Borrower360Page() {
           );
         }
       });
+    // A 403 is expected - the graph and the people behind it are narrower
+    // permissions than the borrower itself - and is recorded as a refusal
+    // rather than as a failure. Anything else is a failure and says so: a
+    // bare `.catch(() => setNull())` turns a 500 into an empty panel, and an
+    // empty panel reads as "this borrower has no group".
     api
       .borrower360Groups(borrowerId, period)
-      .then((found) => live && setGroups(found))
-      .catch(() => live && setGroups(null));
+      .then((found) => {
+        if (live) {
+          setGroups(found);
+          setGroupsProblem("");
+        }
+      })
+      .catch((caught) => {
+        if (!live) return;
+        setGroups(null);
+        setGroupsProblem(refusalOrFailure(caught, "the group view"));
+      });
     api
       .borrower360Similar(borrowerId, period)
-      .then((found) => live && setSimilar(found))
-      .catch(() => live && setSimilar(null));
+      .then((found) => {
+        if (live) {
+          setSimilar(found);
+          setSimilarProblem("");
+        }
+      })
+      .catch((caught) => {
+        if (!live) return;
+        setSimilar(null);
+        setSimilarProblem(
+          refusalOrFailure(caught, "hidden relationship candidates"));
+      });
     return () => {
       live = false;
     };
@@ -873,8 +919,16 @@ export default function Borrower360Page() {
           </nav>
 
           <div className="mt-5">
-            {tab === "group" && groups ? (
-              <GroupsPanel groups={groups} />
+            {tab === "group" ? (
+              groups ? (
+                <GroupsPanel groups={groups} />
+              ) : (
+                <Card className="border-[var(--warning)] p-4">
+                  <p className="text-sm">
+                    {groupsProblem || "Loading the group view…"}
+                  </p>
+                </Card>
+              )
             ) : tab === "network" ? (
               <>
                 <GraphPanel
@@ -882,7 +936,13 @@ export default function Borrower360Page() {
                   borrowerId={row.borrower_id}
                   period={period}
                 />
-                <SimilarPanel similar={similar} />
+                {similar ? (
+                  <SimilarPanel similar={similar} />
+                ) : similarProblem ? (
+                  <Card className="mt-4 border-[var(--warning)] p-4">
+                    <p className="text-sm">{similarProblem}</p>
+                  </Card>
+                ) : null}
                 <p className="mt-4 text-[10px] uppercase tracking-wide text-[var(--warning)]">
                   {meta.network_risk_score_label}
                 </p>

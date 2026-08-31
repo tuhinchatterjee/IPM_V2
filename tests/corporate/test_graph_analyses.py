@@ -27,6 +27,22 @@ GRAPH_ANALYSES = (
 )
 
 
+def test_the_lake_is_built_and_this_suite_actually_ran():
+    """FAILS - does not skip - when the corporate lake is absent.
+
+    Every other test here skips when the derivation has not been built,
+    which is right locally and dangerous in a gate: twenty silent skips and
+    a green run look identical to twenty passes in a summary line. The
+    absence is reported once, by a test that fails.
+    """
+    found = run_analysis("graph_data_quality", params={"period": "latest"})
+    assert found is not None and found.status == "succeeded", (
+        "the corporate lake is not built, so no graph analysis was "
+        "exercised. Run scripts/build_corporate_universe.py. This failure "
+        "exists so a run of skips cannot be read as a verification. "
+        f"Error: {getattr(found, 'error', 'no result')}")
+
+
 def run(analysis_id: str, **params):
     try:
         found = run_analysis(analysis_id, params={"period": "latest",

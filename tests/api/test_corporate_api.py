@@ -30,13 +30,33 @@ def client():
     return TestClient(app)
 
 
+def test_the_lake_is_built_and_this_suite_actually_ran(client):
+    """FAILS - does not skip - when the corporate lake is absent.
+
+    Every other test in this file skips when the lake is missing, which is
+    right on a developer's machine and dangerous everywhere else: forty
+    silent skips and a green run look identical to forty passes in a summary
+    line. So the absence is reported ONCE, loudly, by a test that fails; the
+    rest then skip without anyone mistaking the run for a verification.
+    """
+    response = client.get(f"{PREFIX}/meta")
+    assert response.status_code == 200, (
+        "the corporate lake is not built, so none of the Borrower 360 routes "
+        "were exercised. Run scripts/build_corporate_universe.py. This "
+        "failure exists so a run with forty skipped tests cannot be read as "
+        f"a passing verification. Response: {response.status_code} "
+        f"{response.text[:200]}")
+
+
 @pytest.fixture(scope="module")
 def built(client):
     """Skip cleanly when the lake has not been built.
 
     Not an xfail and not a silent pass: the routes are real and the reason
     they cannot be exercised here is an absent artefact, which is a different
-    statement from "these routes do not work".
+    statement from "these routes do not work". The absence is reported by
+    `test_the_lake_is_built_and_this_suite_actually_ran` above, which FAILS -
+    so the skips here are never the whole story.
     """
     response = client.get(f"{PREFIX}/meta")
     if response.status_code == 503:
