@@ -12,8 +12,23 @@ The commits audited, in order:
 | `8f6a628` | The Borrower 360 screen |
 | `205fc3f` | The Borrower 360 pack: a cover and seventeen sheets |
 | `1fe98fb` | Graph questions answered by an analysis, not by prose |
+| `1895741` | Bad-patch audit of every commit since d7c910f, and the three fixes it found |
+| `71af148` | Verification documents, and the scope regression the graph made necessary |
+| `476f608` | The graph reaches the Brain: concepts, contracts and blueprints |
+| `1e0445c` | Graph teaching corpus, its sealed holdout, and 556 cases that were invisible |
+| `38ed6b5` | The relationship graph gets a specialist, and two verification documents |
+| `1b78923` | Thirty-six failure classes in one runnable suite |
+| `26e1494` | The final documents, brought up to what the code now does |
+| `4397147` | Data Builder graph-domain visibility is built; say so |
+| `0275c22` | The last two Borrower 360 interactions: pinning, and saved cohorts |
 
-40 files changed, 17,925 insertions, 538 deletions.
+**Seventeen commits. 69 files changed, 25,438 insertions, 736 deletions.**
+
+The audit was first written at `1895741`, when the range held eight commits.
+It has been re-run over the whole range since, and every section below states
+what the mechanical filter returns across all seventeen — not across the
+eight it originally covered. Where a later commit added something a section
+must account for, the section names it and the commit it came from.
 
 The audit is mechanical where it can be — `git diff d7c910f..HEAD` filtered
 for each pattern — and read by eye where it cannot. Each section states what
@@ -24,22 +39,26 @@ was.
 
 ## 1. Was any existing test changed to match a new implementation?
 
-**No. Not one.**
+**No. Not one.** Across the whole seventeen-commit range, exactly three
+pre-existing test files contain a deleted line:
 
 ```
-git diff d7c910f..HEAD --stat -- 'tests/**'
+git diff d7c910f..HEAD --numstat -- 'tests/**' | awk '$2>0'
+44  3  tests/agentic/test_registry.py
+42  1  tests/factory/test_canonical_cases.py
+ 8  2  tests/judgment/test_blueprints_and_challenge.py
 ```
 
-Every file in that diff except one is a NEW file. The single exception is
-`tests/corporate/conftest.py`, which is **29 insertions and 0 deletions** —
-three added fixtures, no existing fixture touched.
+Every other file in that diff is new, and `tests/corporate/conftest.py` is
+**29 insertions and 0 deletions** — three added fixtures, no existing fixture
+touched. Three changed lines in three files, over 25,438 inserted lines, is
+the number the audit has to account for, and it accounts for all three below.
 
-**One** legacy assertion has been changed since, when the graph work reached
-the Brain, and the audit's central requirement — "for every changed legacy
-assertion, document the old invariant, why it was stale or wrong, the
-stronger replacement, and the new regression" — is discharged for it below.
+The audit's central requirement — "for every changed legacy assertion,
+document the old invariant, why it was stale or wrong, the stronger
+replacement, and the new regression" — is discharged for each.
 
-### The one changed legacy assertion
+### The first changed legacy assertion
 
 `tests/judgment/test_blueprints_and_challenge.py::test_every_family_section_67_names_has_a_blueprint`
 
@@ -87,6 +106,22 @@ the product:
 - Two id references were realigned after the contract ids were renamed to
   match the concept registry (below).
 
+### The third changed line
+
+`tests/factory/test_canonical_cases.py::test_together_with_migration_every_available_family_has_cases`
+
+| | |
+| --- | --- |
+| **Old invariant** | `covered = {c.family_id for c in [*mg.cases(), *cn.cases(), *jb.cases(), *sv.cases()]}` — the union of four named corpora must cover every family in `fam.AVAILABLE`. |
+| **Why it was stale** | Not wrong; incomplete. `fam.AVAILABLE` grew by the seventeen `GRAPH` families, and the corpus that covers them (`intelligence_factory/teaching/corporate_graph.py`) was not in the union. The assertion would have failed on `missing != []` — a true report of a real gap, reported against the wrong cause: the families were covered, by a corpus this line did not read. |
+| **Stronger replacement** | `*cg.cases()` added to the union, so the assertion's own claim — "every available family has cases" — is evaluated against every corpus that exists rather than against four of the five. Nothing was removed and no assertion was relaxed: the passing condition is still `missing == []`. |
+| **New regression** | Two tests added in the same commit, both of which the old file had no equivalent of. `test_the_seeder_offers_every_corpus_the_factory_builds` fails if a built corpus is not in `scripts/seed_teaching_library.py::corpus()` — the exact defect that hid 500 reviewed scorecard cases from the library. `test_every_case_the_seeder_offers_can_actually_be_saved` runs every offered case through `backend.teaching.schema.validate` and fails on any rejection — the defect that dropped 56 safety cases at save while the seeder printed a line and carried on. The old file counted the corpus; these two count what can reach the library. |
+
+This is the opposite of the forbidden pattern. The forbidden pattern narrows
+an assertion until a new implementation fits inside it; this widened the
+assertion's input until it saw the whole product, and then added two tests
+that fail on a gap the original could not express at all.
+
 (The one legacy assertion changed in this whole line of work was changed at
 `d7c910f` itself, which is the audit's starting point rather than inside its
 window: `FACILITY_ID → account_id` was replaced by
@@ -126,6 +161,21 @@ than argued away. Two new tests —
 The absence is now reported once, loudly, and the remaining skips can never
 be the whole story.
 
+**Two more `skipif` markers were added later**, at `1b78923`, in
+`tests/proof/test_zero_tolerance.py`: `needs_lake` and `needs_db`. They carry
+the same hazard in a sharper form — a suite whose whole purpose is to answer
+"did any of thirty-six things go wrong?" is worthless if thirty-six skips
+read as thirty-six passes. So that suite carries its own sentinel:
+
+`TestTheSuiteRan::test_the_lake_and_the_database_are_both_present` **FAILS**
+— it does not skip — when either is missing. A green run of that file
+therefore means the other thirty-six tests executed. In this environment both
+are present and the file reports **37 passed, 0 skipped**.
+
+No assertion anywhere in the range was turned from a failure into a skip. Every
+skip added is an environment precondition guarded by a test that fails on that
+same precondition.
+
 ## 4. Were linters, scanners or formatters excluded from anything?
 
 **No exclusion was added.** `pyproject.toml`, `ruff.toml` and
@@ -156,7 +206,10 @@ defeat the regex — was not used. `scripts/check_decimals.py` still reports
 
 ## 5. Broad catch-and-ignore exception handlers?
 
-Two `except Exception` were added, both in `graphquality.run()`, both
+Across the whole range, **four** `except Exception` were added. Two are in
+production code and two are in tests, and the audit accounts for all four.
+
+*Production code, both in `graphquality.run()`.* Both
 `# pragma: no cover - defensive`, and both doing the OPPOSITE of swallowing:
 a check that raises becomes a **REJECT** naming its own failure and blocking
 every dependent computation. It is the most severe verdict the module has.
@@ -164,6 +217,16 @@ every dependent computation. It is the most severe verdict the module has.
 Pinned by `test_a_check_that_raises_becomes_a_reject_not_a_crash`, which
 plants a raising check and asserts the REJECT, the exception type in the
 message, and that the surviving checks still ran.
+
+*Test code, both in environment detection, neither in an assertion.*
+`tests/proof/test_zero_tolerance.py::_lake` and
+`tests/corporate/test_graph_analyses.py::run` catch broadly to answer one
+question: is the analytical lake present? Neither wraps an assertion, and
+neither can hide a product failure — because both files carry a test that
+**fails** when the lake is absent, so a run in which those handlers fired is a
+run that reports the absence rather than passing quietly. Catching narrowly
+there would be worse, not better: a lake that is absent for an unanticipated
+reason must still be reported as absent rather than crashing the collection.
 
 **One genuine swallow was found and fixed.** The Borrower 360 screen had
 `.catch(() => setGroups(null))` on two panels. A 403 there is expected — the
@@ -268,11 +331,79 @@ Three fixes, all made rather than noted:
 2. **A missing confidence is dropped from the mean**, not counted as zero.
 3. **A refusal and a failure are now different sentences on the screen**,
    instead of both rendering as an empty panel.
+4. **A working set's privacy was claimed and not tested.** The re-run over
+   the last two commits found `TestWorkspace`'s docstring asserting that
+   nothing in a working set is visible to anybody else, with no test driving
+   it — every case in that file calls as the same caller, so dropping the
+   `user_id` filter would have leaked one person's pinned borrowers to their
+   team and left the suite green.
+   `test_one_persons_working_set_is_invisible_to_another` now drives it at
+   the mechanism with two real users, and was confirmed to fail under exactly
+   that mutation.
+
+## The last two commits, audited separately
+
+`4397147` and `0275c22` post-date the audit's first writing, so they get
+their own paragraph rather than being covered by a re-run alone.
+
+**`4397147` — "Data Builder graph-domain visibility is built; say so"** is
+documentation only: three files, all under `docs/`, 17 insertions and 12
+deletions, no code. It is a correction in the honest direction — a document
+had listed a "Data Builder graph viewer" among the unbuilt work, which was my
+phrasing rather than the requirement. The requirement is graph-domain
+visibility, which is built and registered. Nothing was claimed that the code
+does not do; a claim of *absence* was corrected to match the code, and the
+same commit narrowed the remaining unbuilt list from three items to the two
+that were genuinely unbuilt. A document that under-reports is still a
+document that is wrong.
+
+**`0275c22` — Borrower 360 pinning and saved cohorts** is new product: a
+model, migration `0030`, `backend/corporate/workspace.py`, five routes, a
+frontend panel and **157 inserted lines of tests with no deletions**. Four
+things the audit checks specifically:
+
+* *Authorization.* All five routes carry `RequireBorrower360View` — the
+  permission the rest of the screen already requires. No route is open, and
+  no test grants itself a role to reach one.
+* *Tenant and user scoping.* Every query filters on `(tenant, user_id, kind)`
+  and the table's unique constraint is `(tenant, user_id, kind, reference)`.
+  The audit found this claimed in a docstring and **proved by nothing** —
+  every HTTP test in the file calls as the same caller, so a query that
+  dropped `user_id` would have leaked one officer's watch list to their whole
+  team with the suite still green. Fixed:
+  `test_one_persons_working_set_is_invisible_to_another` pins a borrower and
+  saves a cohort as one real user, reads the working set as a second, and
+  asserts both are empty and that the second cannot delete the first's pin.
+  It was verified to FAIL by removing the `user_id` filter from
+  `workspace._rows`: *"another user can read this person's pinned borrowers —
+  a watch list published to a team that nobody agreed to share."* It also
+  asserts the fixture actually saved, so it cannot pass because nothing was
+  written.
+* *No silent widening.* `_validate_query` **refuses** a facet the search does
+  not declare, by name, rather than dropping it. A dropped facet would
+  produce a cohort wider than the one somebody saved, under the name they
+  gave the narrower one — which is the export-mismatch failure class wearing
+  different clothes.
+* *No stale-result hazard.* A cohort stores the query, not the borrower ids
+  it matched. The corporate book is rebuilt quarterly; a stored id list would
+  keep answering last quarter's question under this quarter's name.
+
+Neither commit changed a test, a tolerance, a threshold or a linter
+configuration.
 
 ## What the audit did not find
 
-No weakened legacy assertion — the single changed one is documented in §1
-and covers strictly more than it did. No widened tolerance. No new xfail. No linter
-exclusion beyond one allowlist entry that states its reason in the allowlist
-itself. No canned answer. No inflated retrieval budget. No removed threshold.
-No authorization bypass. No stubbed browser behaviour.
+No weakened legacy assertion — all three changed lines are documented in §1,
+and each covers strictly more than it did. No widened tolerance. No new
+xfail, and no failure turned into a skip: every skip in the range is an
+environment precondition guarded by a test that FAILS on that same
+precondition. No linter exclusion beyond one allowlist entry that states its
+reason in the allowlist itself. No canned answer. No inflated retrieval
+budget. No removed threshold. No authorization bypass. No stubbed browser
+behaviour. No synthetic truth manifest edited to match engine output.
+
+**Re-run over all seventeen commits**, not the eight the audit originally
+covered. Three additions the first pass could not have seen are named where
+they belong: the third changed test line (§1), the zero-tolerance suite's two
+guarded `skipif` markers and its failing sentinel (§3), and the two test-side
+broad handlers (§5).

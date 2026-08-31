@@ -57,15 +57,16 @@ Ten new modules:
 | Gate | Result |
 |---|---|
 | `ruff check backend tests scripts` | PASS |
-| `pytest tests -q` | PASS — 5,823 collected, exit 0 |
+| `pytest tests -q` | PASS — exit 0; 5,973 tests, 5,952 passed, **21 skipped**, 0 failed. Every skip is an absent AI key (8), an absent PowerShell runtime (12) or an opt-in live eval (1) — none is a converted failure |
 | `scripts/check_decimals.py` | PASS — 49 allowed with a reason, 0 unexplained |
 | `scripts/feature_matrix.py --check` | PASS |
 | `npx tsc --noEmit` | PASS |
 | `npx eslint` | PASS |
 | `npx next build` | PASS |
-| `scripts/browser_acceptance.py --start` | PASS — 956/956, 4 viewports, 17 screens |
-| `scripts/route_crawl.py --start` | PASS — 153/153, 3 roles, 6 expected refusals |
+| `scripts/browser_acceptance.py --start` | PASS — exit 0; 956/956 checks, 0 failed, 4 viewports, 17 screens, real Chromium (`docs/browser_acceptance.json`) |
+| `scripts/route_crawl.py --start` | PASS — exit 0; 153 visits, 0 failed, 147 passed, 6 refused as intended, 3 roles, 60 of 426 links followed (`docs/route_crawl.json`) |
 | `alembic heads` | PASS — single head `0030`, 30 files |
+| `pytest tests/proof/test_zero_tolerance.py -q` | PASS — 37 passed, **0 skipped**, 0 failed |
 | `scripts/build_corporate_universe.py` | PASS — 16 quarters, 22 datasets |
 | Docker | **NOT VERIFIED IN CLAUDE SANDBOX** |
 | Live AI | **NOT VERIFIED** |
@@ -110,20 +111,38 @@ Every one was found by a check written in this phase, not by inspection.
 
 ## The bad-patch audit
 
-`docs/BAD_PATCH_AUDIT.md` covers all nine commits. Its central finding:
+`docs/BAD_PATCH_AUDIT.md` covers **all seventeen commits since `d7c910f`** —
+69 files, 25,438 insertions, 736 deletions — and was re-run over the whole
+range rather than left at the eight commits it originally covered. Its
+central finding:
 
-> **No legacy assertion was changed.** Every test file in the window is new
-> except `tests/corporate/conftest.py`, which is 29 insertions and zero
-> deletions.
+> **No legacy assertion was weakened.** Across 25,438 inserted lines, exactly
+> **three** pre-existing test lines were changed, in three files. Each is
+> documented with its old invariant, why it was stale, the stronger
+> replacement, and the new regression — and each replacement covers strictly
+> more than the line it replaced. `tests/corporate/conftest.py` is 29
+> insertions and zero deletions.
 
-No widened tolerance, no new xfail, no linter exclusion beyond one allowlist
-entry that states its reason in the allowlist itself, no canned answer, no
+No widened tolerance. No new xfail, and no failure turned into a skip: every
+skip added in the range is an environment precondition guarded by a test that
+FAILS on that same precondition. No linter exclusion beyond one allowlist
+entry that states its reason in the allowlist itself. No canned answer, no
 inflated retrieval budget, no removed threshold, no authorization bypass, no
-stubbed browser behaviour.
+stubbed browser behaviour, no truth manifest edited to match engine output.
 
-Three findings, all fixed: a skip that could hide a missing lake (now two
-tests that FAIL), a missing confidence counted as zero in a mean, and a
-frontend catch that rendered a refusal and a failure identically.
+Four findings, all fixed rather than noted:
+
+1. A skip that could hide a missing lake — now tests that **FAIL**, in three
+   files including the zero-tolerance suite's own sentinel.
+2. A missing confidence counted as zero in a mean.
+3. A frontend catch that rendered a refusal and a failure identically.
+4. **A working set's privacy was claimed in a docstring and driven by no
+   test.** Every HTTP case in that file calls as the same caller, so a query
+   that dropped `user_id` would have published one officer's pinned
+   borrowers to their whole team with the suite still green.
+   `test_one_persons_working_set_is_invisible_to_another` now drives it at
+   the mechanism with two real users, and was confirmed to FAIL under exactly
+   that mutation.
 
 ## What was built after the previous revision of this document
 
@@ -243,8 +262,8 @@ Stated against the section of the continuation prompt that names each one.
 | Agentic AI functionally validated | **MET** | `AGENTIC_FUNCTIONAL_VERIFICATION.md`; 184 tests across 15 dimensions, each claim citing its test |
 | Retail Scorecard regression-tested after graph integration | **MET** | `TestThreeBooksAfterTheGraph` pins the LEAD dataset for 13 questions across 3 books; the 307-test scorecard suite re-run |
 | Whole platform comprehensively verified | **MET** for what this environment can run | `FULL_CREDITPROBE_FUNCTIONAL_VERIFICATION.md` §2: a row per §6 module with its evidence |
-| Integration loose ends found are FIXED | **MET** | Six, each with a regression, listed in §2 of the functional verification |
-| No bad patch remains | **MET** | `BAD_PATCH_AUDIT.md`: eleven questions, two changed legacy assertions documented in full, neither weakened |
+| Integration loose ends found are FIXED | **MET** | Seven, each with a regression, listed in §2 of the functional verification — the seventh is the untested working-set privacy the bad-patch re-run found |
+| No bad patch remains | **MET** | `BAD_PATCH_AUDIT.md`, re-run over all seventeen commits: eleven questions, three changed test lines documented in full, none weakened |
 | All FEASIBLE release-blocking gates green | **MET** | The gate table above. Docker and live AI are not feasible here and are marked NOT VERIFIED rather than passed |
 | Final documentation complete | **MET** | Eight documents, listed above |
 | Final clean commit pushed, local and remote match | **MET** | Branch `claude/vigilant-darwin-eohyi1` |

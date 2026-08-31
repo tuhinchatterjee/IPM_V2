@@ -28,12 +28,13 @@ outstanding. `RELEASE_CANDIDATE` is not claimed.
 | TypeScript | `npx tsc --noEmit` | **PASS** — no diagnostics |
 | Frontend lint | `npx eslint` | **PASS** |
 | Frontend build | `npx next build` | **PASS** — every route compiled, `/borrower-360` in the manifest |
-| Test suite | `pytest tests -q` | **PASS** — 5,823 collected, exit 0, 0 failures |
+| Test suite | `pytest tests -q` | **PASS** — exit 0. **5,973 tests: 5,952 passed, 21 skipped, 0 failed, 0 errors.** All 21 skips are the two environment constraints this document already names, and not one is a converted failure: 8 in `tests/llm/test_live_smoke.py` (no AI provider key configured), 12 in `tests/scripts/test_powershell_script.py` (no PowerShell runtime here), 1 in `tests/evals/test_ask_evaluation.py` (live LLM evals are opt-in via `RUN_LIVE_LLM_EVALS=1`) |
 | Display contract | `scripts/check_decimals.py` | **PASS** — 49 allowed sites with a stated reason, 0 unexplained |
 | Feature matrix | `scripts/feature_matrix.py --check` | **PASS** — every page carries a curated expected behaviour |
-| Browser acceptance | `scripts/browser_acceptance.py --start` | **PASS** — 956/956 checks, 4 viewports, 17 screens, real Chromium |
-| Route crawl | `scripts/route_crawl.py --start` | **PASS** — 153/153 visits across 3 roles, 6 expected refusals |
+| Browser acceptance | `scripts/browser_acceptance.py --start` | **PASS** — exit 0; 956/956 checks, 0 failed, across 4 viewports and 17 screens in real Chromium. Report: `docs/browser_acceptance.json` |
+| Route crawl | `scripts/route_crawl.py --start` | **PASS** — exit 0; 153 visits across 3 roles, 0 failed, 147 passed and 6 refused as intended; 60 of 426 discovered links followed (cap 60). Report: `docs/route_crawl.json` |
 | Migrations | `alembic heads` | **PASS** — single head `0030`, 30 migration files |
+| Zero-tolerance suite | `pytest tests/proof/test_zero_tolerance.py -q` | **PASS** — 37 passed, **0 skipped**, 0 failed. The 37th test fails rather than skips when the lake or database is absent, so a green run means the other 36 executed |
 | Corporate build | `scripts/build_corporate_universe.py` | **PASS** — 16 quarters, 22 datasets, 176s of graph derivation |
 | Docker | `docker info` | **NOT VERIFIED IN CLAUDE SANDBOX** — no daemon |
 | Live AI | provider status | **NOT VERIFIED** — no key, and no live call is permitted here |
@@ -103,6 +104,18 @@ Not listed — fixed, each with a regression:
 6. **`network_centrality` stated no boundary** — it now says a central
    borrower is not thereby a large one, a weak one, or one more likely to
    default.
+7. **A working set's privacy was claimed and tested by nothing.** The
+   Borrower 360 working set (pins and saved cohorts) is scoped to
+   `(tenant, user_id)`, and its test class said so in a docstring — but every
+   case in that file calls as the same caller, so a query that lost `user_id`
+   would have published one credit officer's watch list to their whole team
+   with the suite still green. Found by re-running the bad-patch audit over
+   the last two commits rather than by inspection.
+   `tests/api/test_corporate_api.py::TestWorkspace::test_one_persons_working_set_is_invisible_to_another`
+   now pins and saves as one real user, reads as a second, and asserts the
+   second sees nothing and cannot delete the first's pin. It was verified to
+   FAIL by removing the `user_id` filter from `workspace._rows`, and it
+   asserts the fixture actually wrote, so it cannot pass on an empty table.
 
 ## 3. The Retail Scorecard after the corporate work
 
@@ -134,7 +147,7 @@ was auto-activated; the scorecard's activation path was not touched.
   is therefore NOT `LIVE_AI_VERIFIED`.
 * Nothing on the Borrower 360 screen remains unbuilt. Pinning and saved
   cohorts were the last two and are now in (migration 0030,
-  `backend/corporate/workspace.py`, eleven tests). Data Builder
+  `backend/corporate/workspace.py`, twelve tests including cross-user isolation). Data Builder
   graph-domain visibility was already built: both graph datasets are
   registered with domain, family, grain, primary keys, `portfolio_scope`
   and `origin = SYNTHETIC_DEMO`, which is what that screen reads.
@@ -157,4 +170,4 @@ and one is unchanged:
 | Brain concepts and Investigation Blueprints for the graph | **Built.** 22 Concepts (62 total), 8 semantic contracts (45 total), 10 Investigation Blueprints (29 total / 29 families). `tests/corporate/test_graph_brain.py`, 31 tests |
 | Development teaching coverage for graph topics | **Built.** 17 families, 578 cases, no family short. `intelligence_factory/teaching/corporate_graph.py` |
 | Sealed-holdout coverage for graph topics | **Built.** 328 cases, 9 generators, isolation proved and proved able to FAIL. `backend/corporate/holdout.py` |
-| Borrower 360 pinning and saved cohorts | **Built.** Migration 0030, `workspace.py`, 5 routes, 11 tests. A saved cohort stores the search, not the borrowers it matched |
+| Borrower 360 pinning and saved cohorts | **Built.** Migration 0030, `workspace.py`, 5 routes, 12 tests. A saved cohort stores the search, not the borrowers it matched |

@@ -580,6 +580,89 @@ class TestWorkspace:
                           headers=headers("ANALYST")).json()
         assert body["pins"] == []
 
+    def test_one_persons_working_set_is_invisible_to_another(self):
+        """The property the docstring claims, driven rather than asserted.
+
+        Every route reads `principal.user_id`, so a bug that dropped the
+        user from the query would leak one officer's watch list to their
+        whole team and no HTTP test in this file would notice - each of them
+        calls as the same caller. So this one goes to the mechanism with two
+        distinct ids and a real session.
+
+        A pinned name is somebody's judgement about what to watch this week.
+        Publishing it is a different feature with a different approval.
+        """
+        from backend.config import settings
+        if not settings.has_database:
+            pytest.skip("a working set lives in PostgreSQL")
+
+        from sqlalchemy import select
+
+        from backend.corporate import workspace as ws
+        from backend.db.engine import get_session
+        from backend.db.models import User
+
+        def _person(session, username: str) -> int:
+            """A real row, because the working set has a real foreign key.
+
+            Two invented ids would not exercise the property at all: the
+            table refuses a user_id that names nobody, which is itself the
+            behaviour that stops one person's pins being filed against an id
+            that later belongs to somebody else.
+            """
+            found = session.execute(
+                select(User).where(User.username == username)
+            ).scalar_one_or_none()
+            if found is None:
+                found = User(username=username, role="ANALYST",
+                             password_hash="not-a-login")
+                session.add(found)
+                session.flush()
+            return found.id
+
+        with get_session() as session:
+            mine = _person(session, "corp360_isolation_a")
+            theirs = _person(session, "corp360_isolation_b")
+            assert mine != theirs
+            for who in (mine, theirs):
+                ws.remove(session, user_id=who, kind=ws.PIN,
+                          reference="CORP-ISOLATION")
+                ws.remove(session, user_id=who, kind=ws.COHORT,
+                          reference="contracting-over-limit")
+
+            ws.pin(session, user_id=mine, borrower_id="CORP-ISOLATION",
+                   noted="group utilisation 31%, INVESTIGATE")
+            ws.save_cohort(session, user_id=mine,
+                           label="Contracting over limit",
+                           query={"facets": {"sector": "CONTRACTING"}})
+
+            ours = ws.summary(session, user_id=mine)
+            assert [p["reference"] for p in ours["pins"]] == ["CORP-ISOLATION"]
+            assert len(ours["cohorts"]) == 1, (
+                "the fixture did not save, so the isolation assertion below "
+                "would pass for the wrong reason")
+
+            other = ws.summary(session, user_id=theirs)
+            assert other["pins"] == [], (
+                "another user can read this person's pinned borrowers - a "
+                "watch list published to a team that nobody agreed to share")
+            assert other["cohorts"] == [], (
+                "another user can read this person's saved searches")
+
+            assert ws.remove(session, user_id=theirs, kind=ws.PIN,
+                             reference="CORP-ISOLATION") is False, (
+                "another user can DELETE this person's pin")
+            assert [p["reference"]
+                    for p in ws.pins(session, user_id=mine)] == [
+                        "CORP-ISOLATION"]
+
+            for who in (mine, theirs):
+                ws.remove(session, user_id=who, kind=ws.PIN,
+                          reference="CORP-ISOLATION")
+                ws.remove(session, user_id=who, kind=ws.COHORT,
+                          reference="contracting-over-limit")
+            session.commit()
+
     def test_every_role_that_may_view_may_keep_its_own_working_set(
             self, client):
         """A working set is the reader's own bookmarks. Refusing somebody
