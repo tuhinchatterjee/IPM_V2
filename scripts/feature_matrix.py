@@ -239,6 +239,12 @@ _JUDGEMENTS: dict[str, Judgement] = {
     "/early-warning": Judgement(
         "The Forward Risk Signal: which facilities are deteriorating and "
         "what is driving each score.", role="Administrator, Analyst"),
+    "/early-warning/signals": Judgement(
+        "The governed early-warning taxonomy, borrower by borrower: which "
+        "named conditions fire, in which families, with the threshold each "
+        "crossed and who owns it. Deliberately carries no score, and names "
+        "both what could not be tested and what this deployment cannot watch "
+        "for at all.", role="Administrator, Analyst"),
     "/early-warning/lab": Judgement(
         "The signal's specification, weights and out-of-time backtest. "
         "Model internals are labelled technical.",

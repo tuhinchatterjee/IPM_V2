@@ -1262,7 +1262,7 @@ def _reading_tool(name: str, principal: Principal, *, customer_id: str,
     domain, purpose = READINGS[name]
     started = time.perf_counter()
     try:
-        from backend.api.routers.intelligence import READERS
+        from backend.api.routers.domain_intelligence import READERS
 
         module = READERS[domain]
         if module.DATASET not in _visible(principal):

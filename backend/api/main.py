@@ -35,6 +35,7 @@ from backend.api.routers import (
 )
 from backend.api.routers import corporate as corporate_router
 from backend.api.routers import data_builder as data_builder_router
+from backend.api.routers import domain_intelligence as domain_intelligence_router
 from backend.api.routers import early_warning as early_warning_router
 from backend.api.routers import engine as engine_router
 from backend.api.routers import exports as exports_router
@@ -289,7 +290,8 @@ def create_app() -> FastAPI:
     app.include_router(ask_router.router, prefix=API_PREFIX)
     app.include_router(ask_router.trace_edit_router, prefix=API_PREFIX)
     app.include_router(early_warning_router.router, prefix=API_PREFIX)
-    app.include_router(intelligence_router.router, prefix=API_PREFIX)
+    app.include_router(domain_intelligence_router.router,
+                       prefix=API_PREFIX)
     # The governed agentic layer: runs, the live officer indicator,
     # the registry, schedules, policies, approvals — and Risk Cases,
     # which the Cockpit's Requires Attention reads.
@@ -326,6 +328,10 @@ def create_app() -> FastAPI:
     app.include_router(lenses_router.router, prefix=API_PREFIX)
     app.include_router(playbooks_router.router, prefix=API_PREFIX)
     app.include_router(studio_router.router, prefix=API_PREFIX)
+    # The AI Intelligence Studio, on /intelligence. Distinct from the four
+    # borrower-level domain readings on /domain-intelligence above: this one
+    # is about how the product is performing, that one about a name.
+    app.include_router(intelligence_router.router, prefix=API_PREFIX)
     # The Brain Center: the Learning Ledger, exports, quarantine, the Lift
     # Lab, installations and the trusted signer registry. Reading is open to
     # the Studio's audience; activating a Brain is an administrator's alone.
