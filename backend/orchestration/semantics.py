@@ -112,6 +112,18 @@ class Movement:
     phrase: str = ""
 
 
+def _mask(clause: str, phrase: str) -> str:
+    """The clause with the concept's own phrase blanked out.
+
+    Same length, so any offset a caller derived from the clause still points
+    where it did.
+    """
+    at = _where(clause, phrase)
+    if at < 0:
+        return clause
+    return clause[:at] + (" " * len(phrase)) + clause[at + len(phrase):]
+
+
 def find_movement(text: str) -> Movement | None:
     """The movement word in a fragment, and any number attached to it."""
     lowered = text.lower()
@@ -312,6 +324,19 @@ def movement_near(question: str, phrase: str, *,
         return None
     for clause in clauses(question):
         if _mentions(clause, phrase):
+            # A movement word INSIDE the concept's own phrase is part of the
+            # measure's NAME, not an assertion about how the measure moved.
+            #
+            # "the 10 borrowers with the highest probability of credit
+            # deterioration over the next 12 months" resolves to twelve-month
+            # PD, and the word "deterioration" that made it resolve was then
+            # read a second time as "PD deteriorated". A request for a ranking
+            # became a cohort of everyone whose PD rose - five hundred rows
+            # where ten were asked for, under a heading that did not say so.
+            #
+            # Masked rather than skipped: the rest of the clause is still
+            # read, so "ECL deterioration fell this quarter" keeps its "fell".
+            clause = _mask(clause, phrase)
             # The clause the phrase sits in is FINAL, including when its
             # verdict is "no movement". Falling through to a window search
             # here let a neighbouring clause lend its verb: in "…a rating

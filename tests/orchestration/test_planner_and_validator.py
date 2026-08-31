@@ -290,3 +290,106 @@ class TestATransitionIsNotAConjunction:
         question = "Show Stage 2 and Stage 3 exposure at Q2 2026."
         ap._filters(self._reading(question), self._context(), question, notes)
         assert not notes, f"a caveat was invented for an untouched plan: {notes}"
+
+
+# ---------------------------------------------------------------------------
+# "the 10 borrowers with the highest probability of credit deterioration
+# over the next 12 months" - one of §17's six, and four defects deep. §3.
+# ---------------------------------------------------------------------------
+
+
+class TestTheDeteriorationRanking:
+    """The acceptance run asked this and got a clarification.
+
+    Underneath it were four separate failures, each of which alone produces a
+    confidently wrong answer to a question the catalogue can answer:
+
+      1. The phrase named no governed measure, so the planner refused and
+         listed four concepts that do not include the one being described.
+      2. Once it resolved, "the 10 borrowers with the highest X" was not read
+         as a count, because the count and the superlative are not adjacent.
+      3. "deterioration" - the word that made the measure resolve - was read a
+         SECOND time as an assertion that the measure had deteriorated, so a
+         ranking became a cohort of everyone whose PD rose.
+      4. The same word made the question a two-period comparison, so the
+         answer compared the portfolio's PD across two historical quarters
+         and contained no borrower list at all.
+
+    Each is pinned separately, because a fix for one that quietly undoes
+    another would otherwise pass.
+    """
+
+    QUESTION = ("Identify the 10 borrowers with the highest probability of "
+                "credit deterioration over the next 12 months. For each "
+                "borrower, explain the top five drivers.")
+
+    def test_the_phrase_resolves_to_the_twelve_month_pd(self):
+        """A forward-looking likelihood of a credit outcome over twelve
+        months IS the twelve-month PD. Understanding only "12-month PD" is a
+        vocabulary gap, not a governed limit."""
+        import re
+
+        from backend.orchestration.concepts import CONCEPTS
+
+        found = {c.id for c in CONCEPTS if re.search(c.pattern, self.QUESTION,
+                                                     re.IGNORECASE)}
+        assert "pd_12m" in found, found
+
+    def test_a_past_deterioration_does_not_resolve_to_pd(self):
+        """So the vocabulary addition cannot pass by matching everything.
+
+        "Which borrowers deteriorated?" is a movement question about what has
+        already happened. Resolving it to a forward-looking probability would
+        answer a different question with confidence.
+        """
+        import re
+
+        from backend.orchestration.concepts import CONCEPTS
+
+        found = {c.id for c in CONCEPTS
+                 if re.search(c.pattern,
+                              "Which borrowers deteriorated last quarter?",
+                              re.IGNORECASE)}
+        assert "pd_12m" not in found, found
+
+    def test_ten_borrowers_is_a_count_of_ten(self):
+        from backend.orchestration.analysis_planner import _explicit_top_n
+
+        assert _explicit_top_n(self.QUESTION) == 10, (
+            "the population was sized by the 'top five drivers' in the second "
+            "sentence rather than by the ten borrowers in the first")
+
+    def test_a_count_is_not_read_across_a_conjunction(self):
+        from backend.orchestration.analysis_planner import _explicit_top_n
+
+        assert _explicit_top_n(
+            "Show 3 sectors and the highest rated borrowers.") == 0
+
+    def test_the_measures_own_name_is_not_also_its_movement(self):
+        from backend.orchestration.semantics import movement_near
+
+        assert movement_near(self.QUESTION,
+                             "probability of credit deterioration") is None
+
+    def test_a_movement_outside_the_phrase_is_still_read(self):
+        """The mask must not have switched movement detection off."""
+        from backend.orchestration.semantics import movement_near
+
+        assert movement_near(
+            "borrowers whose ECL deteriorated this quarter", "ECL") is not None
+
+    def test_a_forward_looking_question_is_not_a_two_period_comparison(self):
+        from backend.orchestration.router import _period_requirement
+
+        assert _period_requirement(self.QUESTION, "ANALYSIS") == "point_in_time"
+
+    def test_a_retrospective_question_still_is(self):
+        from backend.orchestration.router import _period_requirement
+
+        for question in ("Which borrowers deteriorated between Q1 2026 and "
+                         "Q2 2026?",
+                         "How has ECL changed over the last four quarters?",
+                         "PD rose last quarter; who is most likely to "
+                         "deteriorate over the next 12 months?"):
+            assert _period_requirement(question, "ANALYSIS") == "two_period", (
+                question)

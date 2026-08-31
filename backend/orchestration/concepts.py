@@ -567,7 +567,27 @@ CONCEPTS: tuple[Concept, ...] = (
 CONCEPTS_V2: tuple[Concept, ...] = (
     Concept(
         id="pd_12m", label="twelve-month PD",
-        pattern=r"12[- ]?month pd|twelve[- ]?month pd|one[- ]?year pd|\bpd12\b",
+        # "the 10 borrowers with the highest probability of credit
+        # deterioration over the next 12 months" is one of the six questions
+        # the acceptance run asked, and it was refused: no governed measure
+        # was named, so the planner asked which figure to use and listed four
+        # that do not include the one the sentence is describing.
+        #
+        # It IS describing this concept. A forward-looking LIKELIHOOD of a
+        # credit outcome, over twelve months, is the twelve-month PD - the
+        # candidate below defines itself in those exact words. The phrase is
+        # what a credit officer says; "12-month PD" is what the catalogue
+        # calls it, and a product that only understands the second has a
+        # vocabulary gap, not a governed limit.
+        #
+        # Deliberately anchored on PROBABILITY (or likelihood/chance/risk OF).
+        # "Which borrowers deteriorated?" is a movement question about what
+        # already happened and must not resolve here; the forward-looking
+        # likelihood of it is a different sentence and a different measure.
+        pattern=(r"12[- ]?month pd|twelve[- ]?month pd|one[- ]?year pd|\bpd12\b"
+                 r"|(?:probabilit(?:y|ies)|likelihood|chance|risk)\s+of\s+"
+                 r"(?:\w+\s+){0,2}?"
+                 r"(?:deteriorat\w*|default\w*|downgrad\w*|migrat\w*)"),
         unit="%",
         candidates=(
             _c(IFRS9, "pd_12m_pct",

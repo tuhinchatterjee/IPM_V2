@@ -790,15 +790,39 @@ def _explicit_top_n(text: str) -> int:
     words = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
              "seven": 7, "eight": 8, "nine": 9, "ten": 10, "twenty": 20,
              "fifty": 50, "hundred": 100}
-    match = re.search(
+    #: Both forms, and the EARLIEST wins rather than the first form tried.
+    #:
+    #: "Identify the 10 borrowers with the highest PD. For each borrower,
+    #: explain the top five drivers." names two counts of two different
+    #: things: ten borrowers, and five drivers each. Trying the adjacent form
+    #: first found "top five" - the count belonging to the sub-analysis - and
+    #: cut the POPULATION to five, so a question that asked for ten names
+    #: answered with five. A population is defined before it is elaborated,
+    #: so the count that comes first in the sentence is the one that sizes
+    #: it. §3.
+    adjacent = re.search(
         r"\b(?:top|largest|biggest|smallest|bottom|worst|best|first)\s+"
         r"(\d+|" + "|".join(words) + r")\b", lowered)
-    if not match:
-        match = re.search(
-            r"\b(\d+|" + "|".join(words) + r")\s+(?:largest|biggest|smallest|"
-            r"worst|best|top|highest|lowest)\b", lowered)
-    if not match:
+    # "the 10 borrowers with the highest PD" is the ordinary English form
+    # of a top-N request and this used to miss it, because the count and the
+    # superlative are not adjacent - the thing being counted sits between
+    # them. The question was then planned with no limit at all, and "the 10
+    # borrowers with the highest probability of credit deterioration" came
+    # back as five hundred rows. §3.
+    #
+    # Up to three intervening words, none of them a conjunction: enough for
+    # "borrowers with the", "names by", "of the sectors by", and not enough
+    # to reach across a clause and attach a count to a superlative belonging
+    # to a different question.
+    separated = re.search(
+        r"\b(\d+|" + "|".join(words) + r")\s+"
+        r"(?:(?!\b(?:and|or|but|then|while|because)\b)[\w-]+[ ,]+){0,3}"
+        r"(?:largest|biggest|smallest|"
+        r"worst|best|top|highest|lowest)\b", lowered)
+    found = [m for m in (adjacent, separated) if m]
+    if not found:
         return 0
+    match = min(found, key=lambda m: m.start())
     raw = match.group(1)
     value = int(raw) if raw.isdigit() else words.get(raw, 0)
     return min(value, MAX_TOP_N)

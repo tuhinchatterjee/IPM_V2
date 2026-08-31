@@ -455,12 +455,40 @@ def _periods(question: str, context: GovernedContext,
     return both[-1:]
 
 
+#: Phrases that describe the FUTURE. A comparison window is retrospective by
+#: definition - it needs two periods that have both happened - so a movement
+#: word inside one of these is not asking for one.
+#:
+#: "the 10 borrowers with the highest probability of credit deterioration over
+#: the next 12 months" was planned as a two-period comparison because it
+#: contains "deteriorat". It is a forward-looking LIKELIHOOD at one date, and
+#: the answer that came back compared the portfolio's PD across two historical
+#: quarters - a different question, with no borrower list in it at all. §3.
+#: Compiled on first use, because `re` is imported inside the function.
+_FORWARD = None
+
+
 def _period_requirement(question: str, intent: str) -> str:
     import re
+
+    global _FORWARD
+    if _FORWARD is None:
+        _FORWARD = re.compile(
+            r"over the next\s+\w+\s+\w+"
+            r"|(?:probabilit(?:y|ies)|likelihood|chance|risk)\s+of\s+"
+            r"(?:\w+\s+){0,2}?(?:deteriorat\w*|default\w*|downgrad\w*"
+            r"|migrat\w*)"
+            r"|(?:expected|forecast\w*|projected|predicted|forward[- ]looking)"
+            r"\s+(?:\w+\s+){0,2}?(?:deteriorat\w*|downgrad\w*|migrat\w*)",
+            re.IGNORECASE)
 
     if intent not in cap.COMPUTES:
         return "none"
     text = (question or "").lower()
+    # Blanked, not stripped: the rest of the sentence is still read, so
+    # "PD rose last quarter; who is most likely to deteriorate next year?"
+    # keeps its "rose" and stays a two-period question.
+    text = _FORWARD.sub(lambda m: " " * len(m.group(0)), text)
     if re.search(r"\b(?:increase|decrease|rose|fell|grew|declin|worsen|improv|"
                  r"deteriorat|downgrade|upgrade|change|movement|compare|versus|"
                  r"\bvs\b|over the (?:latest|last|past)|year on year|"
