@@ -320,9 +320,19 @@ Stated plainly rather than described as finished.
   of that was started.
 - **§17 Data Builder domain detail** is partly pre-existing: the domain page
   already carries Overview, Datasets, Dictionary, Relationships, Quality and
-  Versions tabs. It has no Lineage tab, though `corporate.lineage` and
-  `/corporate/lineage` both exist, so that is a wiring task rather than a
-  build.
+  Versions tabs. It has no Lineage tab.
+
+  An earlier draft of this report called that "a wiring task rather than a
+  build" on the grounds that `corporate.lineage` and `/corporate/lineage`
+  already exist. Checking it properly, that is wrong and the correction
+  matters: `corporate.lineage` is field lineage for the Borrower 360 SNAPSHOT
+  specifically — 137 fields in eleven groups — and no equivalent exists for
+  the other domains. A Lineage tab on the generic domain page would therefore
+  show real lineage for one domain and nothing for the rest.
+
+  The right build is the one this work used everywhere else: show what is
+  recorded, and say plainly for each domain where nothing is. That is a
+  build, not wiring, and it was not started.
 - **Docker verification cannot be executed in this environment.** See
   section I.
 - **The covenant-breach base rate** in section G is a data-realism problem
