@@ -19,7 +19,6 @@ import type {
   StudioJudgment,
   StudioObjects,
   StudioPermissions,
-  StudioReadiness,
   StudioSections,
   StudioShapeLabResult,
   StudioVisualGrammar,
@@ -86,52 +85,36 @@ function Failed({ message }: { message: string }) {
 
 // ---------------------------------------------------------------- §103, §104
 
+/**
+ * The Studio Overview.
+ *
+ * There used to be a "Client-demo readiness" card at the top of this screen,
+ * reading READY FOR CONTROLLED DEMO over a paragraph beginning "everything
+ * measured is passing". It was accurate. It was also the product grading
+ * itself, at the top of a screen a client is shown, and the first thing a
+ * reader took from it was that they were watching a demo rather than a
+ * product.
+ *
+ * The state it reported has not been deleted and is not less honest: it is
+ * release evidence, `/api/v1/intelligence/readiness` still serves it, and the
+ * release tooling still reads it. It simply no longer opens a screen whose
+ * subject is the bank's intelligence rather than ours.
+ *
+ * Capability health stays. Eighteen dimensions with NOT_EVALUATED rows shown
+ * as NOT_EVALUATED is intelligence management — it tells a steward what has
+ * never been measured, which is a thing they can act on. That is a different
+ * object from a self-awarded grade.
+ */
 export function Overview() {
-  const readiness = useLoad<StudioReadiness>(() => api.studioReadiness());
   const health = useLoad<StudioCapabilityHealth>(() =>
     api.studioCapabilities(),
   );
 
-  if (readiness.error) return <Failed message={readiness.error} />;
-  if (!readiness.data || !health.data) return <Loading />;
-
-  const ready = readiness.data;
+  if (health.error) return <Failed message={health.error} />;
+  if (!health.data) return <Loading />;
 
   return (
     <div className="space-y-4">
-      <Card className="space-y-3 p-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="text-sm font-medium text-text-primary">
-            Client-demo readiness
-          </h3>
-          <span className="text-xs font-medium text-text-primary">
-            {ready.state.replaceAll("_", " ")}
-          </span>
-        </div>
-        <p className="text-sm leading-relaxed text-text-secondary">
-          {ready.means}
-        </p>
-        {ready.reasons.length ? (
-          <ul className="space-y-1 text-xs text-text-secondary">
-            {ready.reasons.map((reason) => (
-              <li key={reason}>· {reason}</li>
-            ))}
-          </ul>
-        ) : null}
-        {ready.to_improve.length ? (
-          <div>
-            <p className="text-xs font-medium text-text-primary">
-              What would move it up
-            </p>
-            <ul className="mt-1 space-y-1 text-xs text-text-secondary">
-              {ready.to_improve.map((step) => (
-                <li key={step}>· {step}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-      </Card>
-
       <Panel title="Capability health" count={health.data.capabilities.length}>
         <p className="text-xs text-text-tertiary">
           There is no overall score. Averaging eighteen dimensions of which one

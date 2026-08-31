@@ -45,6 +45,11 @@ import { cn } from "@/lib/utils";
  * shape of the estate is visible from the first screen.
  */
 
+//: How many installed datasets a card lists before it says "and N more".
+//: Eight fills the card without making the grid scroll; the domain page shows
+//: all of them.
+const INSTALLED_SHOWN = 8;
+
 const STANDARD_DOMAINS = [
   {
     name: "Core Portfolio / Facility",
@@ -157,8 +162,6 @@ export default function DataBuilderPage() {
 
       {!canEdit && <ReadOnlyNotice action="create, edit or publish datasets" />}
 
-      <ControlPlanePanel />
-
       {domains.error ? (
         <Card className="border-negative/40 p-4 text-sm text-negative">{domains.error}</Card>
       ) : (
@@ -223,6 +226,38 @@ export default function DataBuilderPage() {
       )}
 
       <MetadataAssistant scope="data" />
+
+      {/*
+        Governed-purpose resolution — which dataset answers each purpose, and
+        which purposes nothing answers.
+
+        This used to open the screen. It rendered as a wall of forty rows,
+        most of them a purpose name beside a red "Unresolved" badge, above
+        the domains a reader had come to look at. It is genuine and important
+        diagnostic information: an unresolved purpose means every analysis
+        needing it refuses to run. It is also the wrong first thing to show
+        somebody, and on a deployment mid-onboarding it reads as a broken
+        product rather than an unfinished estate.
+
+        So it moved to the bottom, collapsed, and only for the two roles that
+        can act on it. Nothing was removed and nothing is hidden from the
+        people whose job it is: a Data Steward opens one disclosure. An
+        Analyst, who cannot mark a dataset authoritative anyway, is no longer
+        shown a diagnostic they cannot act on.
+      */}
+      {canEdit && (
+        <details className="group rounded-lg border border-border bg-surface-sunken">
+          <summary className="cursor-pointer list-none px-5 py-3 text-sm font-medium text-text-secondary hover:text-text-primary">
+            Advanced diagnostics — governed purpose resolution
+            <span className="ml-2 text-xs font-normal text-text-muted">
+              which dataset answers each governed purpose
+            </span>
+          </summary>
+          <div className="border-t border-border p-5">
+            <ControlPlanePanel />
+          </div>
+        </details>
+      )}
 
       <Card className="p-5">
         <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-text-primary">
@@ -386,9 +421,61 @@ function DomainCard({
         </Link>
       )}
 
-      <p className="mt-1.5 flex-1 text-xs leading-relaxed text-text-muted">
+      <p className="mt-1.5 text-xs leading-relaxed text-text-muted">
         {domain.description || "No description recorded."}
       </p>
+
+      {/*
+        What is actually installed in this domain, by name.
+
+        The card used to say "26 datasets" and stop. A reader looking at
+        "Core Portfolio / Facility · 26 datasets" cannot tell whether their
+        collateral register is in there, which is the only question they came
+        to the screen with. A count is a fact about the estate; the names are
+        the estate.
+
+        A domain with nothing installed says so plainly, with the reason. That
+        is a true statement about the deployment — the Documents domain is
+        real and empty until somebody onboards a document — and it is more
+        useful than hiding the heading, which would leave a reader unable to
+        tell "none installed" from "not supported".
+      */}
+      <div className="mt-3 flex-1">
+        {domain.datasets && domain.datasets.length > 0 ? (
+          <ul className="space-y-1">
+            {domain.datasets.slice(0, INSTALLED_SHOWN).map((d) => (
+              <li key={d.name} className="flex items-baseline gap-1.5 text-xs">
+                <span
+                  className={cn(
+                    "size-1.5 shrink-0 rounded-full",
+                    d.readable && d.lifecycle === "published"
+                      ? "bg-positive"
+                      : "bg-text-muted",
+                  )}
+                  aria-hidden
+                />
+                <span className="truncate text-text-secondary">
+                  {d.business_name || d.name}
+                </span>
+                {d.is_synthetic && (
+                  <span className="shrink-0 text-[10px] uppercase tracking-wide text-text-muted">
+                    demo
+                  </span>
+                )}
+              </li>
+            ))}
+            {domain.datasets.length > INSTALLED_SHOWN && (
+              <li className="text-xs text-text-muted">
+                and {domain.datasets.length - INSTALLED_SHOWN} more
+              </li>
+            )}
+          </ul>
+        ) : (
+          <p className="text-xs italic text-text-muted">
+            Nothing installed in this domain yet.
+          </p>
+        )}
+      </div>
 
       {error && <p className="mt-2 text-[11px] text-negative">{error}</p>}
 

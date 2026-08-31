@@ -89,9 +89,9 @@ def main(argv: list[str] | None = None) -> int:
             from backend.db.engine import get_session
 
             with get_session() as session:
-                report = bootstrap.readiness(session)
+                report = bootstrap.verify(session)
         else:
-            report = bootstrap.readiness(None)
+            report = bootstrap.verify(None)
         _print(report, as_json=args.json)
         return EXIT_OK if report.ready else EXIT_NOT_READY
 

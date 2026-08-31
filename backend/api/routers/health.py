@@ -218,11 +218,11 @@ def readiness() -> dict:
     from backend import bootstrap
 
     if not settings.has_database:
-        return bootstrap.readiness(None).to_dict()
+        return bootstrap.verify(None).to_dict()
     from backend.db.engine import get_session
 
     with get_session() as session:
-        return bootstrap.readiness(session).to_dict()
+        return bootstrap.verify(session).to_dict()
 
 
 @router.get("/demo", summary="Demonstration posture")
