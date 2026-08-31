@@ -146,6 +146,20 @@ def _refresh_data_access() -> None:
     except Exception as e:  # noqa: BLE001
         logger.warning("Could not reset the data-access caches: %s", e)
 
+    # The Early Warning book is memoised per period on top of those caches -
+    # standing three thousand borrowers up against thirty-four conditions
+    # takes a little over two seconds, so a screen that paid it on every load
+    # is a screen people stop opening. A bootstrap that regenerated the lake
+    # and left the memo in place would serve the OLD book from the new
+    # deployment, which is the worst possible direction for a cache to be
+    # wrong in.
+    try:
+        from backend.early_warning import signals
+
+        signals.reset()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Could not reset the early-warning caches: %s", e)
+
 
 def _session():
     from backend.db.engine import get_session

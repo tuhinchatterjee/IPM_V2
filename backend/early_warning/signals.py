@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any
 
 from backend.early_warning import taxonomy as tx
@@ -472,12 +473,45 @@ def portfolio(period: str = "", *, limit: int = 100,
     Bounded by `limit` rows RETURNED, never by rows evaluated: a screen
     showing the twenty worst names must have looked at all of them, or the
     twenty are the twenty it happened to load.
+
+    Memoised per period. Standing up three thousand borrowers against
+    thirty-four conditions takes a little over two seconds, and a screen that
+    pays that on every load is a screen people stop opening - so the ranked
+    result is held and sliced. The cache is keyed on the period and inherits
+    the lifetime of `corporate._load`, which is itself memoised for the life
+    of the process; `reset()` clears both, and the bootstrap calls it after
+    regenerating the lake. Nothing here caches a figure the snapshot could
+    have changed underneath.
     """
+    del source
+    return _slice(_book(period), limit)
+
+
+def reset() -> None:
+    """Forget the memoised book. Called after the lake is regenerated."""
+    from backend.corporate import service as corporate
+    from backend.early_warning import cases as ews_cases
+
+    _book.cache_clear()
+    ews_cases._standings.cache_clear()
+    corporate._load.cache_clear()
+
+
+def _slice(book: dict[str, Any], limit: int) -> dict[str, Any]:
+    ranked: list[Standing] = book.get("_ranked") or []
+    out = {k: v for k, v in book.items() if not k.startswith("_")}
+    out["returned"] = min(limit, len(ranked))
+    out["borrowers"] = [s.to_dict() for s in ranked[:limit]]
+    return out
+
+
+@lru_cache(maxsize=8)
+def _book(period: str = "") -> dict[str, Any]:
+    """Every borrower stood up at one period, ranked, without the slicing."""
     import pandas as pd
 
     from backend.corporate import service as corporate
 
-    del source
     snapshot: pd.DataFrame = corporate._load(corporate.SNAPSHOT)
     # Sorted by (year, quarter), never as strings. "Q4 2025" sorts after
     # "Q2 2026" alphabetically, so a string sort put the latest period a year
@@ -487,13 +521,13 @@ def portfolio(period: str = "", *, limit: int = 100,
     periods = sorted((str(p) for p in snapshot["period"].unique()),
                      key=_period_key)
     if not periods:
-        return {"version": SIGNALS_VERSION, "period": "", "borrowers": [],
-                "evaluated": 0, "note": "This book carries no periods."}
+        return {"version": SIGNALS_VERSION, "period": "", "evaluated": 0,
+                "note": "This book carries no periods.", "_ranked": []}
     chosen = period or periods[-1]
     if chosen not in periods:
-        return {"version": SIGNALS_VERSION, "period": chosen, "borrowers": [],
-                "evaluated": 0,
-                "note": f"{chosen} is not a period this book holds."}
+        return {"version": SIGNALS_VERSION, "period": chosen, "evaluated": 0,
+                "note": f"{chosen} is not a period this book holds.",
+                "_ranked": []}
     index = periods.index(chosen)
     prior = periods[index - 1] if index else ""
 
@@ -518,11 +552,12 @@ def portfolio(period: str = "", *, limit: int = 100,
         "previous_period": prior,
         "evaluated": len(standings),
         "with_signals": len(ranked),
-        "returned": min(limit, len(ranked)),
-        "borrowers": [s.to_dict() for s in ranked[:limit]],
         "headline": headline(standings),
         "unavailable": tx.unavailable(),
         "origin": corporate.ORIGIN,
+        # Private, and stripped by `_slice`: the ranked standings themselves,
+        # held so a second request for the same period pays nothing.
+        "_ranked": ranked,
     }
 
 

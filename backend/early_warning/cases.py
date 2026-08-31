@@ -31,6 +31,7 @@ the status, the comments - exactly where the human left it.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 from backend.agentic import cases as rc
@@ -375,7 +376,17 @@ def standings_for(period: str = "") -> dict[str, Any]:
 
     Separated from ``run`` so the ranking can be tested without a database,
     and so the screen and the review cannot disagree about who is worst.
+
+    Memoised for the same reason `signals.portfolio` is: standing up three
+    thousand borrowers takes a little over two seconds, and the preview route
+    is a screen. `signals.reset()` clears this too, so the two caches cannot
+    disagree about which book they are holding.
     """
+    return _standings(period)
+
+
+@lru_cache(maxsize=8)
+def _standings(period: str = "") -> dict[str, Any]:
     import pandas as pd
 
     from backend.corporate import service as corporate
