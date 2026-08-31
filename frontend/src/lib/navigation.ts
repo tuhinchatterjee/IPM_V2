@@ -11,6 +11,7 @@ import {
   Gauge,
   GitBranch,
   LayoutGrid,
+  ListChecks,
   Network,
   Radar,
   Search,
@@ -207,6 +208,19 @@ export const NAV_ITEMS: NavItem[] = [
     demo: "optional",
     demoNote:
       "Real and honestly labelled a prototype fitted on synthetic data. Show it only if the audience asks about predictive signals, and read the label out.",
+  },
+  {
+    href: "/early-warning/signals",
+    label: "Early Warning Signals",
+    description:
+      "The governed conditions this book is watched for, borrower by borrower. Not one score: 34 named tests across eight families, each with a threshold, an owner and a version, and each traceable to the field it read. The screen also names what it cannot watch for.",
+    icon: ListChecks,
+    status: "live",
+    phase: "",
+    group: "Intelligence",
+    demo: "core",
+    demoNote:
+      "The transparency argument in one screen. Open a borrower and read a condition out: the value, the previous value, the threshold and who owns it.",
   },
   {
     href: "/playbooks",

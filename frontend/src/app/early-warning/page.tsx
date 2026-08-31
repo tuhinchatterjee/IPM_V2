@@ -6,6 +6,7 @@ import * as React from "react";
 import {
   ChevronDown,
   FlaskConical,
+  ListChecks,
   Radar,
   Sparkles,
   TriangleAlert,
@@ -87,12 +88,20 @@ function EarlyWarning() {
         status="partial"
         phase="Prototype signal on synthetic data"
         actions={
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/early-warning/lab">
-              <FlaskConical aria-hidden />
-              Model Lab
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/early-warning/signals">
+                <ListChecks aria-hidden />
+                Signals
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/early-warning/lab">
+                <FlaskConical aria-hidden />
+                Model Lab
+              </Link>
+            </Button>
+          </div>
         }
       />
 
