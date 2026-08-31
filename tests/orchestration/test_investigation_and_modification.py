@@ -90,11 +90,25 @@ def test_a_question_the_composer_cannot_read_is_asked_about_not_substituted(
 
     clarification = unreadable.clarification
     assert clarification is not None
-    # It still leaves something to click — built from governed CONCEPTS, so
-    # every offer is a question the composer can actually answer.
-    assert clarification.options
-    for option in clarification.options:
-        assert option["question"]
+
+    # The options are GONE, and that is the requirement changing rather than
+    # the guarantee weakening. §6: a suggested response may be offered only
+    # when it directly answers the clarification. This one asked "which figure
+    # do you want?", and the four things it offered — exposure by sector, the
+    # largest exposures, ECL movement, what data is available — were four
+    # DIFFERENT questions. A person who pressed one had abandoned the question
+    # they came with, which is a dead end wearing a menu.
+    #
+    # What replaces the assertion is stronger, because an empty card would
+    # also have passed "no irrelevant options": the clarification must still
+    # ASK something, must still say what to do, and must still name real
+    # governed measures as examples so "name the figure you want" is
+    # actionable.
+    assert clarification.options == []
+    assert clarification.allow_custom is True
+    assert clarification.question
+    assert "Name the figure" in (clarification.detail or "")
+    assert "catalogue carries measures such as" in (clarification.detail or "")
     assert "registered" not in (clarification.detail or "").lower()
 
 

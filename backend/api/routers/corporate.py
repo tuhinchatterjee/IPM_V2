@@ -207,9 +207,18 @@ def cohort(period: str | None = None,
            breach_flag: bool = False,
            default_flag: bool = False,
            borrower_ids: str | None = None,
+           order_by: str = "",
+           descending: bool | None = None,
            limit: int = Query(50, ge=1, le=200),
            principal: Principal = RequireBorrower360View) -> dict[str, Any]:
-    """A faceted cohort, or a named list of borrowers. Phase 3.3.
+    """A faceted cohort, or a named list of borrowers. Phase 3.3, §18.
+
+    With no facet and no name this is THE WHOLE BOOK at the latest period,
+    ordered by 12-month PD, highest first, with the borrower id as the
+    tie-break. That is what Borrower 360 opens on: a screen that opens on a
+    search box and nothing else makes a credit officer think of a name before
+    it will show them anything, and the names worth thinking of are the ones
+    the ranking would have put at the top.
 
     A named list that contains an id this book does not have comes back with
     that id in `not_found`. Returning the nine that matched and staying quiet
@@ -227,8 +236,9 @@ def cohort(period: str | None = None,
     try:
         return _envelope(service_mod.filter_cohort(
             period, facets=facets, flags=flags, borrower_ids=names,
-            limit=limit))
-    except service_mod.UnknownFacetError as exc:
+            order_by=order_by, descending=descending, limit=limit))
+    except (service_mod.UnknownFacetError,
+            service_mod.UnknownOrderError) as exc:
         raise _refused(str(exc)) from exc
     except service_mod.DataNotBuilt as exc:
         raise _not_built(exc) from exc

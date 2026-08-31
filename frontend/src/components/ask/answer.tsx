@@ -27,7 +27,10 @@ import {
 } from "@/components/ask/insight";
 import { EvidenceRow } from "@/components/analytics/evidence";
 import { HighlightProvider } from "@/components/analytics/highlight";
-import { DynamicAnalysisPanel } from "@/components/ask/dynamic-analysis";
+import {
+  DynamicAnalysisPanel,
+  SaveAsMethod,
+} from "@/components/ask/dynamic-analysis";
 import { KpiTile } from "@/components/analytics/primitives";
 import { ResultView } from "@/components/analytics/result-view";
 import { AccuracyFeedback } from "@/components/feedback/accuracy-prompt";
@@ -229,6 +232,14 @@ export function StepResult({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
+          {/* §15. "Save as a method" was at the bottom of the composed-analysis
+              disclosure, under the SQL — a first-class action buried inside
+              the technical detail nobody was meant to have to read. It is an
+              action on the RESULT, so it sits with the other actions on the
+              result. */}
+          {dynamic && step.result && (
+            <SaveAsMethod result={step.result} question={question ?? ""} />
+          )}
           {method && (
             <Button variant="ghost" size="sm" asChild>
               <Link href={method} title="Open the analysis definition">
@@ -271,7 +282,7 @@ export function StepResult({
       {step.result && <DataAndMethod result={step.result} />}
 
       {dynamic && step.result && (
-        <DynamicAnalysisPanel result={step.result} question={question ?? ""} />
+        <DynamicAnalysisPanel result={step.result} traceHref={trace ?? undefined} />
       )}
 
       {(step.result?.warnings.length ?? 0) > 0 && (

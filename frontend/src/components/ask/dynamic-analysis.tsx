@@ -1,143 +1,60 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Check, Loader2, Save } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { ApiError, api, type EngineResult } from "@/lib/api";
 
 /**
- * What a composed analysis actually did.
+ * That this analysis was composed, and where to read how. §14.
  *
- * A certified analysis can point at its definition in the library; a dynamic
- * one has no definition to point at, because it did not exist until the
- * question was asked. So it carries its own: how the question was read, the
- * plan the runtime executed, and the statement with its bound parameters shown
- * separately — that separation is the safety property, so it is shown as one.
+ * It used to carry the working itself: "How the question was read" with its
+ * filter chips, "View analytical plan (7 steps)" as a table, "View SQL" with
+ * its bound parameters. All of it true, all of it available, and all of it
+ * underneath every answer — so a credit officer reading a portfolio scrolled
+ * past an operations table to reach the next thing they cared about.
  *
- * Behind disclosures rather than always open. The claim is that the working is
- * always available, not that everybody has to read it.
+ * None of it is gone. Every piece is on the Trace, which is the surface built
+ * to hold it and the one an auditor opens. What stays here is the one fact a
+ * reader of the ANSWER needs: this calculation was composed for this question
+ * and nobody has reviewed it. That is a caveat about the result, so it belongs
+ * beside the result.
  */
 export function DynamicAnalysisPanel({
   result,
-  question,
+  traceHref,
 }: {
   result: EngineResult;
-  question: string;
+  traceHref?: string;
 }) {
   const reading = result.reading;
   const plan = result.plan;
-  const query = result.query;
 
   if (!reading && !plan) return null;
 
   return (
-    <div className="space-y-4 border-t border-border bg-surface-sunken px-5 py-4">
-      <div>
-        <p className="text-xs font-medium text-text-secondary">
-          Composed for this question
-        </p>
-        <p className="mt-1 text-xs leading-relaxed text-text-muted">
-          No certified analysis answers this combination of conditions, so
-          CreditProbe composed one. It ran through the same governed runtime as
-          every certified analysis — the same catalogue, the same validator, the
-          same parameterised SQL — but nobody has reviewed the calculation
-          itself.
-        </p>
-      </div>
-
-      {reading && (
-        <div>
-          <p className="text-xs font-medium text-text-secondary">
-            How the question was read
-          </p>
-          <p className="mt-1 text-sm leading-relaxed text-text-primary">
-            {reading.summary}
-          </p>
-          {/* Defensive on both: a reading arrives from either the single- or
-              the multi-dataset planner, and a missing key must not take the
-              whole answer down with it. */}
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {(reading.filters ?? []).map((f) => (
-              <Badge key={`${f.field}-${f.value}`} variant="outline">
-                {f.field} = {f.value}
-              </Badge>
-            ))}
-            {(reading.conditions ?? []).map((c) => (
-              <Badge key={c.column} variant="accent">
-                {c.description}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {plan && plan.operations.length > 0 && (
-        <details className="group">
-          <summary className="cursor-pointer list-none text-xs font-medium text-text-muted hover:text-text-primary">
-            View analytical plan ({plan.operations.length} steps)
-          </summary>
-          <Card className="mt-2 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-8">#</TableHead>
-                  <TableHead>Step</TableHead>
-                  <TableHead>Operation</TableHead>
-                  <TableHead>What it does</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {plan.operations.map((op, index) => (
-                  <TableRow key={op.id}>
-                    <TableCell className="tabular text-xs text-text-muted">
-                      {index + 1}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{op.id}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{op.op}</Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-text-muted">
-                      {op.label ?? ""}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        </details>
-      )}
-
-      {query?.sql && (
-        <details className="group">
-          <summary className="cursor-pointer list-none text-xs font-medium text-text-muted hover:text-text-primary">
-            View SQL
-          </summary>
-          <pre className="mt-2 max-h-72 overflow-auto rounded-md border border-border bg-surface p-3 font-mono text-[11px] leading-relaxed text-text-secondary">
-            {query.sql}
-          </pre>
-          <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
-            {query.parameters.length} bound parameter
-            {query.parameters.length === 1 ? "" : "s"}:{" "}
-            <span className="font-mono">{JSON.stringify(query.parameters)}</span>. Every
-            value is a placeholder in the statement and a parameter beside it. Nothing was
-            concatenated into the SQL, which is what makes a composed analysis safe to run.
-          </p>
-        </details>
-      )}
-
-      <SaveAsMethod result={result} question={question} />
+    <div className="border-t border-border bg-surface-sunken px-5 py-3">
+      <p className="text-xs leading-relaxed text-text-muted">
+        No certified analysis answers this combination of conditions, so
+        CreditProbe composed one. It ran through the same governed runtime as
+        every certified analysis — the same catalogue, the same validator, the
+        same parameterised SQL — but nobody has reviewed the calculation
+        itself.{" "}
+        {traceHref ? (
+          <Link href={traceHref} className="underline hover:text-text-primary">
+            The Trace shows how the question was read, the{" "}
+            {plan?.operations.length ?? 0}-step plan, and the statement it ran.
+          </Link>
+        ) : (
+          <>
+            The Trace shows how the question was read, the plan, and the
+            statement it ran.
+          </>
+        )}
+      </p>
     </div>
   );
 }
@@ -149,7 +66,7 @@ export function DynamicAnalysisPanel({
  * periods is not evidence that a calculation is right, and a saved analysis
  * that arrived carrying a tick would make the tick mean nothing.
  */
-function SaveAsMethod({
+export function SaveAsMethod({
   result,
   question,
 }: {

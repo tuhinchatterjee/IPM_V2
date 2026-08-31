@@ -17,6 +17,7 @@ import type {
   Borrower360Similar,
 } from "@/lib/api";
 import { byUnit, humanise } from "@/lib/format";
+import { useAsync } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 
 /**
@@ -1017,6 +1018,268 @@ function PackButton({
 
 /* ------------------------------------------------------------------- page */
 
+/* ------------------------------------------------------- the landing table */
+
+/**
+ * The book, ranked, before anybody types anything. §18.
+ *
+ * Borrower 360 opened on a search box. A screen that will not show you a
+ * borrower until you can name one is a screen that assumes you already know
+ * which borrower is the problem — and the names worth knowing are exactly the
+ * ones a ranking would have put at the top.
+ *
+ * So it opens on all eligible borrowers at the latest reporting period,
+ * ordered by 12-month PD, highest first, with the borrower id as the tie-break
+ * so the tenth row is the same tenth row on a second visit (§11).
+ *
+ * The presets are ORDERINGS AND FILTERS over governed fields, never scores.
+ * "Liquidity pressure" sorts by single-name limit utilisation; it does not
+ * invent a liquidity score, because a number a bank cannot explain to its
+ * regulator is worse than no number — and §18 says so.
+ */
+const PRESETS: {
+  id: string;
+  label: string;
+  orderBy?: string;
+  descending?: boolean;
+  flags?: { watchlist_flag?: boolean; breach_flag?: boolean };
+  stage?: string;
+  means: string;
+}[] = [
+  {
+    id: "pd",
+    label: "Highest PD",
+    orderBy: "pd_12m",
+    means: "12-month probability of default, highest first.",
+  },
+  {
+    id: "ead",
+    label: "Largest exposure",
+    orderBy: "ifrs9_ead",
+    means: "Exposure at default, largest first.",
+  },
+  {
+    id: "ecl",
+    label: "Highest ECL",
+    orderBy: "final_ecl",
+    means: "The booked impairment charge, largest first.",
+  },
+  {
+    id: "stage2",
+    label: "Stage 2",
+    stage: "2",
+    orderBy: "final_ecl",
+    means: "Booked at IFRS 9 stage 2, ordered by ECL.",
+  },
+  {
+    id: "stage3",
+    label: "Stage 3",
+    stage: "3",
+    orderBy: "final_ecl",
+    means: "Booked at IFRS 9 stage 3, ordered by ECL.",
+  },
+  {
+    id: "watchlist",
+    label: "Watchlist",
+    flags: { watchlist_flag: true },
+    orderBy: "pd_12m",
+    means: "On the watchlist, ordered by PD.",
+  },
+  {
+    id: "arrears",
+    label: "In arrears",
+    orderBy: "current_dpd",
+    means: "Days past due, worst first.",
+  },
+  {
+    id: "liquidity",
+    label: "Liquidity pressure",
+    orderBy: "single_name_utilisation_pct",
+    means:
+      "Single-name limit utilisation, highest first. An ordering over a " +
+      "governed field, not a liquidity score.",
+  },
+  {
+    id: "covenant",
+    label: "Covenant pressure",
+    orderBy: "average_headroom_pct",
+    descending: false,
+    means: "Average covenant headroom, lowest first.",
+  },
+  {
+    id: "collateral",
+    label: "Collateral pressure",
+    orderBy: "collateral_coverage_pct",
+    descending: false,
+    means: "Collateral coverage, lowest first.",
+  },
+];
+
+const PAGE = 25;
+
+function PortfolioTable({
+  period,
+  onPick,
+}: {
+  period: string;
+  onPick: (id: string) => void;
+}) {
+  const [preset, setPreset] = React.useState(PRESETS[0]);
+  // The page size is keyed by the preset rather than reset in an effect:
+  // pressing "Watchlist" while showing seventy-five rows should show
+  // twenty-five of the watchlist, and deriving that during render is both
+  // correct and one fewer render than resetting it afterwards.
+  const [paging, setPaging] = React.useState({ preset: PRESETS[0].id, shown: PAGE });
+  const shown = paging.preset === preset.id ? paging.shown : PAGE;
+
+  const found = useAsync(
+    () =>
+      api.borrower360Cohort({
+        period,
+        order_by: preset.orderBy,
+        descending: preset.descending,
+        stage: preset.stage,
+        ...(preset.flags ?? {}),
+        limit: 200,
+      }),
+    [period, preset.id],
+  );
+  const rows: Borrower360Search | null = found.data ?? null;
+  const busy = found.loading;
+  const error = found.error ?? "";
+
+  const borrowers = (rows?.borrowers ?? []).slice(0, shown);
+
+  return (
+    <Card className="mt-6 p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-sm font-medium">Borrowers</h2>
+        <p className="text-xs text-[var(--muted)]">
+          {rows ? `${rows.matched.toLocaleString()} on book at ${rows.period}` : ""}
+          {rows?.order_label ? ` · ${rows.order_label}` : ""}
+          {rows?.ordered_by
+            ? rows.ordered_descending
+              ? ", highest first"
+              : ", lowest first"
+            : ""}
+        </p>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {PRESETS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            title={option.means}
+            onClick={() => setPreset(option)}
+            className={cn(
+              "rounded-md border px-2 py-1 text-[11px] transition-colors",
+              option.id === preset.id
+                ? "border-[var(--accent)] bg-[var(--accent)]/10"
+                : "border-[var(--border)] hover:bg-[var(--surface-hover)]",
+            )}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] text-[var(--muted)]">{preset.means}</p>
+
+      {error ? <p className="mt-3 text-sm">{error}</p> : null}
+      {busy && !rows ? <Skeleton className="mt-3 h-40 w-full" /> : null}
+
+      {rows ? (
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[52rem] text-left text-xs">
+            <thead className="text-[var(--muted)]">
+              <tr>
+                <th className="py-1.5 pr-3 font-medium">Borrower</th>
+                <th className="py-1.5 pr-3 font-medium">Customer ID</th>
+                <th className="py-1.5 pr-3 font-medium">Sector</th>
+                <th className="py-1.5 pr-3 font-medium">Rating</th>
+                <th className="py-1.5 pr-3 font-medium">Stage</th>
+                <th className="py-1.5 pr-3 text-right font-medium">12m PD</th>
+                <th className="py-1.5 pr-3 text-right font-medium">EAD</th>
+                <th className="py-1.5 pr-3 text-right font-medium">ECL</th>
+                <th className="py-1.5 pr-3 text-right font-medium">
+                  Utilisation
+                </th>
+                <th className="py-1.5 font-medium">Flags</th>
+              </tr>
+            </thead>
+            <tbody>
+              {borrowers.map((borrower) => (
+                <tr
+                  key={borrower.borrower_id}
+                  onClick={() => onPick(borrower.borrower_id)}
+                  className="cursor-pointer border-t border-[var(--border)] hover:bg-[var(--surface-hover)]"
+                >
+                  <td className="py-1.5 pr-3">
+                    {borrower.display_name ??
+                      borrower.legal_name ??
+                      borrower.borrower_id}
+                  </td>
+                  <td className="py-1.5 pr-3 font-mono text-[11px] text-[var(--muted)]">
+                    {borrower.borrower_id}
+                  </td>
+                  <td className="py-1.5 pr-3">{borrower.sector ?? ""}</td>
+                  <td className="py-1.5 pr-3">
+                    {borrower.internal_rating ?? ""}
+                  </td>
+                  <td className="py-1.5 pr-3">{borrower.stage ?? ""}</td>
+                  <td className="tabular py-1.5 pr-3 text-right">
+                    {byUnit(borrower.pd_12m, "%")}
+                  </td>
+                  <td className="tabular py-1.5 pr-3 text-right">
+                    {byUnit(borrower.ifrs9_ead, "SAR mn")}
+                  </td>
+                  <td className="tabular py-1.5 pr-3 text-right">
+                    {byUnit(borrower.final_ecl, "SAR mn")}
+                  </td>
+                  <td className="tabular py-1.5 pr-3 text-right">
+                    {byUnit(borrower.single_name_utilisation_pct, "%")}
+                  </td>
+                  <td className="py-1.5">
+                    <span className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
+                      {[
+                        borrower.watchlist_flag ? "watchlist" : "",
+                        borrower.breach_flag ? "breach" : "",
+                        borrower.default_flag ? "default" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {rows.borrowers.length > shown ? (
+            <button
+              type="button"
+              onClick={() =>
+              setPaging({ preset: preset.id, shown: shown + PAGE })
+            }
+              className="mt-3 rounded-md border border-[var(--border)] px-2 py-1 text-[11px] hover:bg-[var(--surface-hover)]"
+            >
+              Show {Math.min(PAGE, rows.borrowers.length - shown)} more
+            </button>
+          ) : null}
+          {rows.truncated ? (
+            <p className="mt-2 text-[11px] text-[var(--muted)]">
+              {rows.matched.toLocaleString()} borrowers match. The first{" "}
+              {rows.returned} are shown — narrow with a preset or a search
+              rather than scrolling a book this size.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+
 export default function Borrower360Page() {
   const [meta, setMeta] = React.useState<Borrower360Meta | null>(null);
   const [metaError, setMetaError] = React.useState("");
@@ -1203,6 +1466,13 @@ export default function Borrower360Page() {
         <Card className="mt-6 p-4">
           <p className="text-sm">{rowError}</p>
         </Card>
+      ) : null}
+
+      {/* §18. Below the search, and only when no borrower is open: a screen
+          showing one borrower's whole position does not also need the book
+          underneath it. */}
+      {!row && !rowError ? (
+        <PortfolioTable period={period} onPick={setBorrowerId} />
       ) : null}
 
       {row ? (

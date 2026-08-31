@@ -65,6 +65,50 @@ SEARCHABLE: tuple[str, ...] = (
     *FLAG_FIELDS,
 )
 
+#: Fields a cohort may be ordered by, and what each one means on screen. §18.
+#:
+#: A closed list, for two reasons. A caller cannot ask the snapshot to order
+#: by a column it happens to carry but nobody governs — `betweenness` is real,
+#: is numeric, and ranking a credit book by it would be nonsense on a screen.
+#: And each entry says which DIRECTION is the worrying one, so "highest PD
+#: first" does not have to be spelled by every caller and cannot be spelled
+#: backwards by one.
+ORDERABLE: dict[str, str] = {
+    "pd_12m": "12-month probability of default",
+    "pd_lifetime": "Lifetime probability of default",
+    "final_ecl": "Expected credit loss",
+    "ecl_coverage": "ECL coverage",
+    "ifrs9_ead": "Exposure at default",
+    "stage": "IFRS 9 stage",
+    "current_dpd": "Days past due",
+    "max_dpd_12m": "Worst days past due in 12 months",
+    "arrears_amount": "Arrears",
+    "single_name_utilisation_pct": "Single-name limit utilisation",
+    "group_utilisation_pct": "Group limit utilisation",
+    "average_headroom_pct": "Average covenant headroom",
+    "minimum_headroom_pct": "Minimum covenant headroom",
+    "collateral_coverage_pct": "Collateral coverage",
+    "collateral_shortfall": "Collateral shortfall",
+    "covenants_breached": "Covenants breached",
+    "connected_group_size": "Connected group size",
+}
+
+#: Where a LOW value is the worrying one, so a preset asking for "the worst"
+#: sorts ascending without every caller having to know which way round it is.
+LOWER_IS_WORSE: frozenset[str] = frozenset({
+    "average_headroom_pct", "minimum_headroom_pct", "collateral_coverage_pct",
+})
+
+#: What a cohort is ordered by when nobody says. §18: a Borrower 360 landing
+#: page that opens on an arbitrary slice of the book is a search box with rows
+#: under it, and the first thing a credit officer wants is the riskiest names.
+DEFAULT_ORDER = "pd_12m"
+
+#: Every ordering ends here. Two borrowers on the same PD must not come back
+#: in whichever order the frame happened to hold them, or the same page shows
+#: a different tenth name on a second visit. §11.
+TIE_BREAK = "borrower_id"
+
 #: Above this many matches a segment answer leads with the aggregate.
 AGGREGATE_FIRST_ABOVE = 25
 #: Never return more rows than this in one page.
@@ -81,6 +125,11 @@ class Query:
     flags: list[str] = field(default_factory=list)
     period: str = ""
     limit: int = 50
+    #: Empty means DEFAULT_ORDER for a cohort, and no reordering for a name
+    #: lookup — which is already ranked by how well each row matched.
+    order_by: str = ""
+    #: None means "whichever direction is the worrying one for this field".
+    descending: bool | None = None
 
     def kind(self) -> str:
         if len(self.borrower_ids) > 1:
@@ -92,6 +141,10 @@ class Query:
 
 class UnknownFacetError(ValueError):
     """A filter was asked for on a field the snapshot does not carry."""
+
+
+class UnknownOrderError(ValueError):
+    """A cohort was asked to be ordered by something ungoverned."""
 
 
 def search(snapshot: pd.DataFrame, query: Query) -> dict[str, Any]:
@@ -132,6 +185,7 @@ def search(snapshot: pd.DataFrame, query: Query) -> dict[str, Any]:
             ["true", "1"])]
 
     kind = query.kind()
+    frame, ordered_by, ordered_desc = _order(frame, query, kind)
     total = len(frame)
     limit = min(max(query.limit, 1), PAGE_LIMIT)
     rows = frame.head(limit)
@@ -145,12 +199,11 @@ def search(snapshot: pd.DataFrame, query: Query) -> dict[str, Any]:
         "period": (str(frame["period"].iloc[0]) if len(frame)
                    else query.period),
         "lead_with_aggregate": kind == SEGMENT and total > AGGREGATE_FIRST_ABOVE,
+        "ordered_by": ordered_by,
+        "ordered_descending": ordered_desc,
+        "order_label": ORDERABLE.get(ordered_by, ""),
         "borrowers": rows[[
-            c for c in ("borrower_id", "legal_name", "display_name",
-                        "arabic_name", "segment", "sector", "region",
-                        "internal_rating", "stage", "ifrs9_ead",
-                        "watchlist_flag")
-            if c in rows.columns]].to_dict("records"),
+            c for c in COHORT_COLUMNS if c in rows.columns]].to_dict("records"),
     }
     if kind == SEGMENT and total:
         result["aggregate"] = aggregate(frame)
@@ -176,6 +229,61 @@ def search(snapshot: pd.DataFrame, query: Query) -> dict[str, Any]:
             "not yet arrived is absent by design, not missing."
             if result["not_found"] else "")
     return result
+
+
+#: What a cohort row carries, in reading order. §18 asks for the borrower,
+#: its identity, where it sits, how it is rated, what it owes, what it is
+#: provisioned at, how drawn it is, and whether anybody has flagged it — which
+#: is what a credit officer scans a list of names for.
+COHORT_COLUMNS: tuple[str, ...] = (
+    "borrower_id", "legal_name", "display_name", "arabic_name",
+    "segment", "sector", "region", "internal_rating", "stage",
+    "pd_12m", "ifrs9_ead", "final_ecl", "ecl_coverage",
+    "single_name_utilisation_pct", "current_dpd", "arrears_amount",
+    "average_headroom_pct", "collateral_coverage_pct",
+    "connected_group_id", "group_name",
+    "watchlist_flag", "breach_flag", "default_flag",
+)
+
+
+def _order(frame: pd.DataFrame, query: Query,
+           kind: str) -> tuple[pd.DataFrame, str, bool]:
+    """Put a cohort in a governed, repeatable order. §18, §11.
+
+    A NAME LOOKUP is left alone: it is already ordered by how well each row
+    matched, and re-sorting it by exposure would bury the borrower somebody
+    typed the name of. Everything else is a cohort, INCLUDING the empty query
+    — which is the whole book, and is exactly what the Borrower 360 landing
+    page asks for. `Query.kind()` calls that SINGLE because it names no facet;
+    the test here is whether TEXT was typed, which is the thing that makes an
+    order meaningful in the first place.
+    """
+    del kind
+    wanted = str(query.order_by or "").strip()
+    if wanted and wanted not in ORDERABLE:
+        raise UnknownOrderError(
+            f"'{wanted}' is not a field a cohort can be ordered by. "
+            f"Governed orderings: {', '.join(sorted(ORDERABLE))}.")
+    if query.text and not wanted:
+        return frame, "", False
+
+    column = wanted or DEFAULT_ORDER
+    if column not in frame.columns:
+        return frame, "", False
+    descending = (query.descending if query.descending is not None
+                  else column not in LOWER_IS_WORSE)
+
+    keys = [column]
+    ascending = [not descending]
+    if TIE_BREAK in frame.columns and TIE_BREAK != column:
+        keys.append(TIE_BREAK)
+        ascending.append(True)
+    # `na_position="last"` on purpose: a borrower with no PD is not the
+    # riskiest borrower in the book, and putting nulls first is exactly how a
+    # ranking screen opens on the rows that carry the least information.
+    return (frame.sort_values(keys, ascending=ascending, kind="mergesort",
+                              na_position="last"),
+            column, descending)
 
 
 def _text_mask(frame: pd.DataFrame, text: str) -> pd.Series:

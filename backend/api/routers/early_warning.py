@@ -55,6 +55,84 @@ def _refused(exc: Exception, code: str) -> HTTPException:
     )
 
 
+# ================================================== the governed signal taxonomy
+#
+# §19: Early Warning "is NOT one opaque score". These routes serve the other
+# half of the module — named conditions on named governed fields against named
+# thresholds — beside the fitted Forward Risk Signal, not instead of it. A
+# credit officer asked to act on a number cannot argue with it; asked to act on
+# "utilisation rose 14 points and covenant headroom fell below 10%", they can.
+
+
+@router.get("/taxonomy", summary="Every governed early-warning signal")
+def taxonomy() -> dict:
+    """The eight families, their signals, thresholds, owner and version. §20.
+
+    Also what this deployment CANNOT watch for and why (§7). A watchlist
+    missing a whole family because a column was never loaded is worse than one
+    that says which family it is missing.
+    """
+    from backend.early_warning import taxonomy as tx
+
+    return tx.describe()
+
+
+@router.get("/signals", summary="The book, by governed signal")
+def signals(period: str = "", limit: int = 100) -> dict:
+    """Every borrower's early-warning standing at one reporting period. §28.
+
+    Ranked by breadth of independent evidence, then severity, then
+    persistence, then how many conditions are getting worse — every step a
+    count somebody can check, and the borrower id last so the ordering is
+    total (§11).
+
+    There is deliberately no score in the response.
+    """
+    from backend.early_warning import signals as sg
+
+    try:
+        return sg.portfolio(period, limit=max(1, min(int(limit), 500)))
+    except Exception as exc:  # noqa: BLE001 - said, never substituted
+        logger.warning("The signal portfolio could not be built: %s", exc)
+        raise _unavailable(exc) from exc
+
+
+@router.get("/signals/{borrower_id}", summary="One borrower's signal standing")
+def borrower_signals(borrower_id: str, period: str = "") -> dict:
+    """What fires for this borrower, what has cured, and what was not tested.
+
+    All three, because "nothing fires" and "nothing could be tested" are
+    different answers and only one of them is reassuring.
+    """
+    from backend.corporate import service as corporate
+    from backend.early_warning import signals as sg
+
+    try:
+        snapshot = corporate._load(corporate.SNAPSHOT)
+    except Exception as exc:  # noqa: BLE001
+        raise _unavailable(exc) from exc
+
+    periods = sorted((str(p) for p in snapshot["period"].unique()),
+                     key=sg._period_key)
+    chosen = period or (periods[-1] if periods else "")
+    index = periods.index(chosen) if chosen in periods else -1
+    prior = periods[index - 1] if index > 0 else ""
+
+    rows = snapshot[(snapshot["period"] == chosen)
+                    & (snapshot["borrower_id"] == borrower_id)]
+    if rows.empty:
+        raise _not_found(LookupError(
+            f"{borrower_id} is not on book at {chosen}."))
+    before = snapshot[(snapshot["period"] == prior)
+                      & (snapshot["borrower_id"] == borrower_id)]
+
+    standing = sg.stand(
+        rows.iloc[0].to_dict(),
+        before.iloc[0].to_dict() if not before.empty else {},
+        borrower_id=borrower_id, period=chosen, previous_period=prior)
+    return standing.to_dict()
+
+
 # =================================================================== reading
 
 

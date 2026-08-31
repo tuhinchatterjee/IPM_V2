@@ -69,6 +69,7 @@ def load(dataset: str) -> pd.DataFrame:
 #: Re-exported so a caller does not have to know that search lives elsewhere.
 SEARCHABLE: tuple[str, ...] = search_mod.SEARCHABLE
 UnknownFacetError = search_mod.UnknownFacetError
+UnknownOrderError = search_mod.UnknownOrderError
 
 
 def periods() -> list[str]:
@@ -576,6 +577,7 @@ def filter_cohort(period: str | None = None, *,
                   facets: dict[str, Any] | None = None,
                   flags: list[str] | None = None,
                   borrower_ids: list[str] | None = None,
+                  order_by: str = "", descending: bool | None = None,
                   limit: int = 50) -> dict[str, Any]:
     """A faceted search. Phase 3.2, 3.3.
 
@@ -589,7 +591,8 @@ def filter_cohort(period: str | None = None, *,
         _load(SNAPSHOT),
         search_mod.Query(borrower_ids=list(borrower_ids or []),
                          facets=dict(facets or {}), flags=list(flags or []),
-                         period=chosen, limit=limit)))
+                         period=chosen, limit=limit,
+                         order_by=order_by, descending=descending)))
     payload["period"] = chosen
     payload["origin"] = ORIGIN
     return payload

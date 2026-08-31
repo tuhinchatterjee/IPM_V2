@@ -5019,14 +5019,23 @@ export const api = {
     internal_rating?: string;
     stage?: string;
     watchlist_flag?: boolean;
+    breach_flag?: boolean;
+    default_flag?: boolean;
     borrower_ids?: string;
+    /** A governed orderable field. Empty means 12-month PD. §18. */
+    order_by?: string;
+    descending?: boolean;
     limit?: number;
   }) => {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== "" && value !== false) {
-        query.set(key, String(value));
-      }
+      // `descending: false` is a REQUEST — "lowest first" — and dropping it
+      // with the other falsy values turned every ascending preset back into a
+      // descending one. Flags are different: `watchlist_flag=false` means "do
+      // not filter", so it stays dropped.
+      if (value === undefined || value === "") return;
+      if (value === false && key !== "descending") return;
+      query.set(key, String(value));
     });
     const suffix = query.toString();
     return request<Borrower360Search>(
@@ -7343,8 +7352,21 @@ export type Borrower360SearchRow = {
   region?: string;
   internal_rating?: string;
   stage?: string;
+  /** §18. What a credit officer scans a list of borrowers for. */
+  pd_12m?: number;
   ifrs9_ead?: number;
+  final_ecl?: number;
+  ecl_coverage?: number;
+  single_name_utilisation_pct?: number;
+  current_dpd?: number;
+  arrears_amount?: number;
+  average_headroom_pct?: number;
+  collateral_coverage_pct?: number;
+  connected_group_id?: string;
+  group_name?: string;
   watchlist_flag?: boolean;
+  breach_flag?: boolean;
+  default_flag?: boolean;
 };
 
 export type Borrower360Search = {
@@ -7355,6 +7377,10 @@ export type Borrower360Search = {
   truncated: boolean;
   period: string;
   lead_with_aggregate: boolean;
+  /** §18. Which governed field the rows are in, and which way round. */
+  ordered_by?: string;
+  ordered_descending?: boolean;
+  order_label?: string;
   borrowers: Borrower360SearchRow[];
   /** Present for a single-name lookup. Never silently resolved. */
   ambiguous?: boolean;
