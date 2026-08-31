@@ -1,5 +1,5 @@
 {
-  "started": "2026-08-30T18:54:55+0000",
+  "started": "2026-08-31T06:35:40+0000",
   "error": "",
   "roles": [
     "ADMIN",
@@ -7,14 +7,14 @@
     "VIEWER"
   ],
   "resolved_ids": {
-    "project": "3194",
-    "investigation": "6541",
-    "saved_investigation": "6542",
-    "saved_analysis": "864",
+    "project": "3554",
+    "investigation": "7248",
+    "saved_investigation": "7216",
+    "saved_analysis": "960",
     "analysis_definition": "approaching_sicr_threshold",
     "studio_method": "approaching_sicr",
     "dataset": "borrower_financials",
-    "lens": "test-lens-69",
+    "lens": "test-lens-102",
     "trace_run": "",
     "risk_case": ""
   },
@@ -28,8 +28,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -41,8 +41,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -54,8 +54,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -67,298 +67,12 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
       "path": "/documents",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 22,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/lenses",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/lenses/cro",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 22,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/early-warning",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/playbooks",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/stress",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/studio",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 322,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/data-builder",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 23,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/data-builder/browse",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/data-builder/relationships",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 21,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/data-builder/inbox",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/trace",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 32,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/workflow",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/settings",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/users",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/agent-operations",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/ai-studio",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/ai-studio/feedback-learning",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/scorecard-validation",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/projects/3194",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/investigations/6541",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/investigations/saved/6542",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": true,
-      "reason": "",
-      "console": [],
-      "failed_requests": [],
-      "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
-      "source": "route"
-    },
-    {
-      "path": "/analysis/approaching_sicr_threshold",
       "role": "ADMIN",
       "status": 200,
       "ok": true,
@@ -371,7 +85,46 @@
       "source": "route"
     },
     {
-      "path": "/studio/approaching_sicr",
+      "path": "/lenses",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 21,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/lenses/cro",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 23,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/early-warning",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 21,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/playbooks",
       "role": "ADMIN",
       "status": 200,
       "ok": true,
@@ -380,7 +133,267 @@
       "failed_requests": [],
       "refused_as_intended": "",
       "links": 20,
-      "ways_out": 19,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/stress",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 20,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/studio",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 23,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/data-builder",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 24,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/data-builder/browse",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 21,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/data-builder/relationships",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 22,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/data-builder/inbox",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 21,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/trace",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 21,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/workflow",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 20,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/settings",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 20,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/users",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 20,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/agent-operations",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 20,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/ai-studio",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 20,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/ai-studio/feedback-learning",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 20,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/scorecard-validation",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 20,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/borrower-360",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 20,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/projects/3554",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 20,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/investigations/7248",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 20,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/investigations/saved/7216",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 22,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/analysis/approaching_sicr_threshold",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 24,
+      "ways_out": 21,
+      "source": "route"
+    },
+    {
+      "path": "/studio/approaching_sicr",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -392,12 +405,12 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
-      "path": "/lenses/test-lens-69",
+      "path": "/lenses/test-lens-102",
       "role": "ADMIN",
       "status": 200,
       "ok": true,
@@ -405,8 +418,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -418,8 +431,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -431,8 +444,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -444,8 +457,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -457,8 +470,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -470,8 +483,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 22,
-      "ways_out": 19,
+      "links": 23,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -483,8 +496,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -496,8 +509,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 22,
-      "ways_out": 19,
+      "links": 23,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -509,8 +522,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -522,8 +535,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -535,8 +548,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -548,8 +561,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 22,
-      "ways_out": 19,
+      "links": 323,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -561,8 +574,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 23,
-      "ways_out": 19,
+      "links": 24,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -574,8 +587,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -587,8 +600,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 21,
-      "ways_out": 19,
+      "links": 22,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -600,8 +613,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -613,8 +626,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 32,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -626,8 +639,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -639,8 +652,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -656,8 +669,8 @@
         "403 http://127.0.0.1:8000/api/v1/users"
       ],
       "refused_as_intended": "Users & Teams is ADMIN-only",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -669,8 +682,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -682,8 +695,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -695,8 +708,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -708,12 +721,12 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
-      "path": "/projects/3194",
+      "path": "/borrower-360",
       "role": "ANALYST",
       "status": 200,
       "ok": true,
@@ -721,12 +734,12 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
-      "path": "/investigations/6541",
+      "path": "/projects/3554",
       "role": "ANALYST",
       "status": 200,
       "ok": true,
@@ -734,12 +747,12 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
-      "path": "/investigations/saved/6542",
+      "path": "/investigations/7248",
       "role": "ANALYST",
       "status": 200,
       "ok": true,
@@ -747,8 +760,21 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/investigations/saved/7216",
+      "role": "ANALYST",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 22,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -760,8 +786,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 23,
-      "ways_out": 20,
+      "links": 24,
+      "ways_out": 21,
       "source": "route"
     },
     {
@@ -773,8 +799,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -786,12 +812,12 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
-      "path": "/lenses/test-lens-69",
+      "path": "/lenses/test-lens-102",
       "role": "ANALYST",
       "status": 200,
       "ok": true,
@@ -799,8 +825,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -812,8 +838,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -825,8 +851,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -838,8 +864,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -851,8 +877,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -864,8 +890,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 22,
-      "ways_out": 19,
+      "links": 23,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -877,8 +903,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -890,8 +916,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 22,
-      "ways_out": 19,
+      "links": 23,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -903,8 +929,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -916,8 +942,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -929,8 +955,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -942,8 +968,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 322,
-      "ways_out": 19,
+      "links": 23,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -955,8 +981,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 23,
-      "ways_out": 19,
+      "links": 24,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -968,8 +994,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -981,8 +1007,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 21,
-      "ways_out": 19,
+      "links": 22,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -994,8 +1020,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -1007,8 +1033,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -1020,8 +1046,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -1033,8 +1059,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -1050,8 +1076,8 @@
         "403 http://127.0.0.1:8000/api/v1/users"
       ],
       "refused_as_intended": "Users & Teams is ADMIN-only",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -1063,8 +1089,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -1080,8 +1106,8 @@
         "403 http://127.0.0.1:8000/api/v1/intelligence/studio/tabs"
       ],
       "refused_as_intended": "the AI Studio is ADMIN and DATA_STEWARD",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -1099,8 +1125,8 @@
         "403 http://127.0.0.1:8000/api/v1/learning/inbox?rating=&limit=50"
       ],
       "refused_as_intended": "the AI Studio is ADMIN and DATA_STEWARD",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -1115,17 +1141,17 @@
         "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
       ],
       "failed_requests": [
+        "403 http://127.0.0.1:8000/api/v1/scorecard/overview",
         "403 http://127.0.0.1:8000/api/v1/scorecard/dashboard/APPLICATION?model=INCUMBENT&segment_by=application_channel&curves=false",
-        "403 http://127.0.0.1:8000/api/v1/scorecard/months/APPLICATION",
-        "403 http://127.0.0.1:8000/api/v1/scorecard/overview"
+        "403 http://127.0.0.1:8000/api/v1/scorecard/months/APPLICATION"
       ],
       "refused_as_intended": "Retail Scorecard Validation is ADMIN, DATA_STEWARD and ANALYST",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
-      "path": "/projects/3194",
+      "path": "/borrower-360",
       "role": "VIEWER",
       "status": 200,
       "ok": true,
@@ -1133,12 +1159,12 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 21,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
-      "path": "/investigations/6541",
+      "path": "/projects/3554",
       "role": "VIEWER",
       "status": 200,
       "ok": true,
@@ -1146,12 +1172,12 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
-      "path": "/investigations/saved/6542",
+      "path": "/investigations/7248",
       "role": "VIEWER",
       "status": 200,
       "ok": true,
@@ -1159,8 +1185,21 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 21,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
+      "source": "route"
+    },
+    {
+      "path": "/investigations/saved/7216",
+      "role": "VIEWER",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 22,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -1176,8 +1215,8 @@
         "403 http://127.0.0.1:8000/api/v1/engine/analyses/approaching_sicr_threshold/execute"
       ],
       "refused_as_intended": "a Viewer is read-only and may not execute an analysis",
-      "links": 23,
-      "ways_out": 20,
+      "links": 24,
+      "ways_out": 21,
       "source": "route"
     },
     {
@@ -1189,8 +1228,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -1202,12 +1241,12 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "route"
     },
     {
-      "path": "/lenses/test-lens-69",
+      "path": "/lenses/test-lens-102",
       "role": "VIEWER",
       "status": 200,
       "ok": true,
@@ -1215,8 +1254,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "route"
     },
     {
@@ -1228,8 +1267,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1241,8 +1280,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1254,8 +1293,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1267,8 +1306,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1280,8 +1319,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1293,8 +1332,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 45,
-      "ways_out": 19,
+      "links": 46,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1306,8 +1345,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1319,8 +1358,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 20,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1332,8 +1371,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1345,8 +1384,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1358,8 +1397,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1371,8 +1410,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1384,8 +1423,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1398,7 +1437,7 @@
       "failed_requests": [],
       "refused_as_intended": "",
       "links": 20,
-      "ways_out": 19,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1410,8 +1449,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1423,8 +1462,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1436,8 +1475,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1449,8 +1488,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1462,8 +1501,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1475,8 +1514,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1489,7 +1528,7 @@
       "failed_requests": [],
       "refused_as_intended": "",
       "links": 20,
-      "ways_out": 19,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1501,8 +1540,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1514,8 +1553,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1527,8 +1566,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 21,
-      "ways_out": 19,
+      "links": 22,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1540,8 +1579,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1553,8 +1592,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1566,8 +1605,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1579,8 +1618,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1592,8 +1631,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1605,8 +1644,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1618,8 +1657,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1631,8 +1670,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1644,8 +1683,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1657,8 +1696,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1670,8 +1709,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1683,8 +1722,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1696,8 +1735,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1709,8 +1748,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1722,8 +1761,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1735,8 +1774,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1748,8 +1787,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1761,8 +1800,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1774,8 +1813,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1787,8 +1826,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1800,8 +1839,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1814,7 +1853,7 @@
       "failed_requests": [],
       "refused_as_intended": "",
       "links": 20,
-      "ways_out": 19,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1826,8 +1865,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1839,8 +1878,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1852,8 +1891,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 19,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1866,7 +1905,7 @@
       "failed_requests": [],
       "refused_as_intended": "",
       "links": 20,
-      "ways_out": 19,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1879,7 +1918,7 @@
       "failed_requests": [],
       "refused_as_intended": "",
       "links": 20,
-      "ways_out": 19,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1891,8 +1930,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1904,8 +1943,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1917,8 +1956,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1930,8 +1969,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1943,8 +1982,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1956,8 +1995,8 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1970,7 +2009,7 @@
       "failed_requests": [],
       "refused_as_intended": "",
       "links": 20,
-      "ways_out": 19,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1983,7 +2022,7 @@
       "failed_requests": [],
       "refused_as_intended": "",
       "links": 20,
-      "ways_out": 19,
+      "ways_out": 20,
       "source": "discovered link"
     },
     {
@@ -1995,16 +2034,16 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 20,
-      "ways_out": 19,
+      "links": 21,
+      "ways_out": 20,
       "source": "discovered link"
     }
   ],
-  "total": 150,
+  "total": 153,
   "failed": 0,
   "refused_as_intended": 6,
-  "passed": 144,
-  "links_discovered": 322,
+  "passed": 147,
+  "links_discovered": 323,
   "links_followed": 60,
   "max_discovered": 60
 }

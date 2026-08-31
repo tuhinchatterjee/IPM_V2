@@ -106,6 +106,7 @@ SCREENS: tuple[tuple[str, str], ...] = (
     # much else. What the crawl proves is that the route renders, at four
     # viewports and four themes, without an error boundary.
     ("/scorecard-validation", "main"),
+    ("/borrower-360", "main"),
 )
 
 #: Words that may never label a figure with no independent reference. §184.

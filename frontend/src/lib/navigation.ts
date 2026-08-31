@@ -11,6 +11,7 @@ import {
   Gauge,
   GitBranch,
   LayoutGrid,
+  Network,
   Radar,
   Search,
   Settings,
@@ -233,6 +234,17 @@ export const NAV_ITEMS: NavItem[] = [
   },
 
   // ---- BUILD: what the product is capable of, and what it may read ----
+  {
+    href: "/borrower-360",
+    label: "Borrower 360",
+    description:
+      "One corporate borrower and everything the bank knows about it: exposure, ratings, IFRS 9, covenants, collateral and limits, its ownership, control, guarantee and supply relationships, and the quality of the evidence underneath. The six ways of grouping a borrower are shown side by side rather than reconciled into one, because they answer different questions and do not agree.",
+    icon: Network,
+    status: "live",
+    phase: "",
+    group: "Intelligence",
+    demo: "core",
+  },
   {
     href: "/scorecard-validation",
     label: "Scorecard Validation",

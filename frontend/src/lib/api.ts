@@ -4984,6 +4984,69 @@ export const api = {
   // a month is 12,000-19,000 rows and none of them crosses the wire —
   // the aggregation happens on the server and the browser gets band
   // tables and sampled curves.
+  // ---- Borrower 360 and the corporate graph. Phase 3.
+  borrower360Meta: () => request<Borrower360Meta>("/corporate/meta"),
+  borrower360Lineage: () =>
+    request<Borrower360Lineage>("/corporate/lineage"),
+  borrower360Search: (q: string, period?: string, limit = 25) =>
+    request<Borrower360Search>(
+      `/corporate/search?q=${encodeURIComponent(q)}&limit=${limit}` +
+        (period ? `&period=${encodeURIComponent(period)}` : ""),
+    ),
+  borrower360Cohort: (params: {
+    period?: string;
+    sector?: string;
+    region?: string;
+    segment?: string;
+    internal_rating?: string;
+    stage?: string;
+    watchlist_flag?: boolean;
+    borrower_ids?: string;
+    limit?: number;
+  }) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== "" && value !== false) {
+        query.set(key, String(value));
+      }
+    });
+    const suffix = query.toString();
+    return request<Borrower360Search>(
+      `/corporate/cohort${suffix ? `?${suffix}` : ""}`,
+    );
+  },
+  borrower360Row: (borrowerId: string, period?: string) =>
+    request<Borrower360Row>(
+      `/corporate/borrowers/${encodeURIComponent(borrowerId)}` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+    ),
+  borrower360Groups: (borrowerId: string, period?: string) =>
+    request<Borrower360Groups>(
+      `/corporate/borrowers/${encodeURIComponent(borrowerId)}/groups` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+    ),
+  borrower360Graph: (
+    borrowerId: string,
+    view: string,
+    depth: number,
+    period?: string,
+  ) =>
+    request<Borrower360Graph>(
+      `/corporate/borrowers/${encodeURIComponent(borrowerId)}/graph` +
+        `?view=${encodeURIComponent(view)}&depth=${depth}` +
+        (period ? `&period=${encodeURIComponent(period)}` : ""),
+    ),
+  borrower360Similar: (borrowerId: string, period?: string) =>
+    request<Borrower360Similar>(
+      `/corporate/borrowers/${encodeURIComponent(borrowerId)}/similar` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+    ),
+  borrower360Quality: (period?: string) =>
+    request<Borrower360Quality>(
+      `/corporate/quality` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+    ),
+
   scorecardOverview: () =>
     request<ScorecardOverview>("/scorecard/overview"),
   scorecardPolicy: () => request<ScorecardPolicy>("/scorecard/policy"),
@@ -7139,4 +7202,242 @@ export type LearningMeasurementRules = {
   stale_days: number;
   attribution_sources: string[];
   rules: Record<string, string>;
+};
+
+// ==========================================================================
+// Borrower 360 and the corporate relationship graph. Phase 3.
+
+export type Borrower360Tab = {
+  key: string;
+  label: string;
+  datasets: string[];
+  is_graph_tab: boolean;
+};
+
+export type Borrower360NetworkView = {
+  key: string;
+  label: string;
+  purpose: string;
+  requires_ubo_permission: boolean;
+  permitted: boolean;
+};
+
+export type Borrower360GroupConcept = {
+  key: string;
+  label: string;
+  column: string;
+  question: string;
+  basis: string;
+  /** What this grouping is NOT. The half that stops it being read as one
+   *  of the other five. */
+  is_not: string;
+};
+
+export type Borrower360Meta = {
+  periods: string[];
+  latest_period: string | null;
+  tabs: Borrower360Tab[];
+  network_views: Borrower360NetworkView[];
+  group_concepts: Borrower360GroupConcept[];
+  max_graph_depth: number;
+  may_see_natural_persons: boolean;
+  network_risk_score_label: string;
+  searchable_attributes: string[];
+  origin: string;
+  not_client_data: string;
+};
+
+export type Borrower360SearchRow = {
+  borrower_id: string;
+  legal_name?: string;
+  display_name?: string;
+  arabic_name?: string;
+  segment?: string;
+  sector?: string;
+  region?: string;
+  internal_rating?: string;
+  stage?: string;
+  ifrs9_ead?: number;
+  watchlist_flag?: boolean;
+};
+
+export type Borrower360Search = {
+  search_version: string;
+  cohort_kind: string;
+  matched: number;
+  returned: number;
+  truncated: boolean;
+  period: string;
+  lead_with_aggregate: boolean;
+  borrowers: Borrower360SearchRow[];
+  /** Present for a single-name lookup. Never silently resolved. */
+  ambiguous?: boolean;
+  resolved?: boolean;
+  /** Present for a named cohort. The members this quarter does not have. */
+  requested?: number;
+  not_found?: string[];
+  not_found_note?: string;
+  aggregate?: Record<string, number | null>;
+  origin: string;
+};
+
+export type Borrower360Field = {
+  value: string | number | boolean | null;
+  group: string;
+  unit: string;
+  authority: string;
+  source_dataset: string;
+  source_field: string;
+  source_period: string;
+  /** Set when the caller may not see this field, instead of a zero. */
+  withheld_reason?: string;
+};
+
+export type Borrower360Row = {
+  borrower_id: string;
+  period: string;
+  period_end_date: string;
+  fields: Record<string, Borrower360Field>;
+  tabs: { key: string; label: string; fields: string[] }[];
+  may_see_natural_persons: boolean;
+  origin: string;
+  not_client_data: string;
+};
+
+export type Borrower360GroupValue = Borrower360GroupConcept & {
+  value: string;
+  size?: number;
+  name?: string;
+  role?: string;
+  utilisation_pct?: number | null;
+  limit_pct?: number;
+  status?: string;
+  parameter_caveat?: string;
+};
+
+export type Borrower360Groups = {
+  borrower_id: string;
+  period: string;
+  as_of?: string;
+  status: string;
+  reason?: string;
+  concepts: Borrower360GroupValue[];
+  graph_dq_status?: string;
+  note?: string;
+  origin: string;
+};
+
+export type Borrower360GraphNode = {
+  node_id: string;
+  node_type: string;
+  label: string;
+  detail: string;
+};
+
+export type Borrower360GraphEdge = {
+  edge_id?: string;
+  edge_type: string;
+  from_node: string;
+  to_node: string;
+  family: string;
+  ownership_pct?: number | null;
+  voting_pct?: number | null;
+  amount?: number | null;
+  role?: string | null;
+  source?: string | null;
+  confidence?: number | null;
+};
+
+export type Borrower360Graph = {
+  centre: string;
+  period: string;
+  as_of: string;
+  view: string;
+  view_label: string;
+  view_purpose: string;
+  requested_depth: number;
+  reached_depth: number;
+  node_count: number;
+  edge_count: number;
+  truncated: boolean;
+  omitted_nodes: number;
+  omitted_edges: number;
+  truncation_note: string;
+  nodes: Borrower360GraphNode[];
+  edges: Borrower360GraphEdge[];
+  origin: string;
+};
+
+export type Borrower360SimilarEdge = {
+  edge_type: string;
+  from_node: string;
+  to_node: string;
+  similarity: number;
+  shared_evidence: string[];
+  shared_evidence_count: number;
+  label: string;
+  presentation: string;
+  creates_control: boolean;
+  creates_ubo: boolean;
+  creates_group_membership: boolean;
+  caveat: string;
+  threshold: number;
+  threshold_status: string;
+};
+
+export type Borrower360Similar = {
+  borrower_id: string;
+  period: string;
+  as_of: string;
+  candidates: Borrower360SimilarEdge[];
+  candidate_count: number;
+  threshold: number;
+  threshold_status: string;
+  caveat: string;
+};
+
+export type Borrower360QualityIssue = {
+  issue_id: string;
+  period: string;
+  check_id: string;
+  check: string;
+  status: string;
+  observed: string;
+  threshold: string;
+  scope: string;
+  affected_entities: number;
+  blocks: string;
+};
+
+export type Borrower360Quality = {
+  period: string;
+  checks_run: number;
+  passed: number;
+  flagged: number;
+  rejected: number;
+  overall_status: string;
+  issues: Borrower360QualityIssue[];
+  blocking_rule: string;
+  quality_version: string;
+};
+
+export type Borrower360LineageField = {
+  field: string;
+  group: string;
+  source_domain: string;
+  source_dataset: string;
+  source_field: string;
+  source_period: string;
+  transformation: string;
+  authority: string;
+  unit: string;
+  view_source: { dataset: string; field: string; domain: string };
+};
+
+export type Borrower360Lineage = {
+  fields: Borrower360LineageField[];
+  field_count: number;
+  lineage_version: string;
+  authoritative_field_count: number;
+  note: string;
 };

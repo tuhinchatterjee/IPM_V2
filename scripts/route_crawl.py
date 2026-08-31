@@ -70,6 +70,10 @@ STATIC_ROUTES: tuple[str, ...] = (
     # it through one role's navigation would report one role's experience as
     # the route's.
     "/scorecard-validation",
+    # Same reasoning: Borrower 360 is permitted to every role, and the graph
+    # inside it is not. A crawl that reached it only through an Analyst's
+    # navigation would report an Analyst's experience as the route's.
+    "/borrower-360",
 )
 
 #: Text a broken page renders. Matched case-insensitively against the body.
