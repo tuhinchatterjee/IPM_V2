@@ -140,7 +140,7 @@ minutes for all sixteen.
 | Network views (11 named) | IMPLEMENTED | `service.NETWORK_VIEWS`, server-side ego expansion with exact omitted counts |
 | Group & Connectedness shown as six separate groupings | IMPLEMENTED | `service.GROUP_CONCEPTS` — six cards, each with Answers / Basis / **Is NOT** |
 | DOWNLOAD BORROWER 360 PACK | IMPLEMENTED | `backend/corporate/pack.py`, 18 sheets (COVER + 17); sentinels survive the export |
-| Pinning, saved cohorts, Data Builder graph-domain viewer | NOT_IMPLEMENTED | the remaining Borrower 360 interactions |
+| Pinning a borrower; saving a cohort | NOT_IMPLEMENTED | the two remaining Borrower 360 interactions |
 | Data Builder graph domains expose scope/grain/keys/lineage/authority | IMPLEMENTED | 20 datasets registered; 7 declared relationships including 2 FORBIDDEN |
 
 ## Phases 4–6 — Ask, Brain, agentic
@@ -174,10 +174,10 @@ from memory:
 
 The four remaining NOT_IMPLEMENTED rows are `source_record_id` on observed
 edges, `portfolio_scope` on the edge row (it is on the dataset), a validation
-status on observed edges (the DERIVED products carry one), and the remaining
-Borrower 360 interactions — pinning, saved cohorts and the Data Builder
-graph-domain viewer. Each is a statement about work that does not exist,
-not about work that was not checked.
+status on observed edges (the DERIVED products carry one), and the two
+remaining Borrower 360 interactions — pinning a borrower and saving a
+cohort. Each is a statement about work that does not exist, not about work
+that was not checked.
 
 **What the derived layer now does:** integrated ownership with a per-component
 refusal, control closure that is binary and transitive and refuses to be

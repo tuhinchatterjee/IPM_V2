@@ -132,9 +132,13 @@ was auto-activated; the scorecard's activation path was not touched.
 * **Live AI.** Not verifiable here, by instruction. Every AI test is offline
   against fake providers; no key was read and no credit consumed. The product
   is therefore NOT `LIVE_AI_VERIFIED`.
-* **The remaining Borrower 360 interactions** — pinning, saved cohorts, the
-  Data Builder graph-domain viewer — are not built. The screen renders, is
-  navigable at four viewports, and every tab it shows is served by a route.
+* **Two Borrower 360 interactions** — pinning a borrower and saving a
+  cohort — are not built. The screen renders, is navigable at four
+  viewports, and every tab it shows is served by a route.
+  Data Builder graph-domain *visibility* IS built: both graph datasets are
+  registered with domain, family, grain, primary keys, `portfolio_scope`
+  and `origin = SYNTHETIC_DEMO`, which is what the Data Builder screen
+  reads.
 * **Human review of the teaching library.** 3,603 cases are offered at
   DRAFT and 0 are retrievable. That is the correct state for a freshly
   seeded library, and it means the Brain teaches the model nothing until a
@@ -154,4 +158,4 @@ and one is unchanged:
 | Brain concepts and Investigation Blueprints for the graph | **Built.** 22 Concepts (62 total), 8 semantic contracts (45 total), 10 Investigation Blueprints (29 total / 29 families). `tests/corporate/test_graph_brain.py`, 31 tests |
 | Development teaching coverage for graph topics | **Built.** 17 families, 578 cases, no family short. `intelligence_factory/teaching/corporate_graph.py` |
 | Sealed-holdout coverage for graph topics | **Built.** 328 cases, 9 generators, isolation proved and proved able to FAIL. `backend/corporate/holdout.py` |
-| Borrower 360 pinning, saved cohorts, Data Builder graph viewer | Unchanged — still not built |
+| Borrower 360 pinning and saved cohorts | Unchanged — still not built. Data Builder graph-domain visibility IS built |

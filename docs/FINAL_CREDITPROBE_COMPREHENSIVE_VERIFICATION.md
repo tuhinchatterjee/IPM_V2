@@ -148,8 +148,9 @@ library, so a reviewer was shown coverage the product did not have.
 
 Stated as absences of work, not as things that went unchecked.
 
-* **Remaining Borrower 360 interactions** — pinning, saved cohorts, the Data
-  Builder graph-domain viewer.
+* **Two Borrower 360 interactions** — pinning a borrower and saving a
+  cohort. Data Builder graph-domain visibility is built: both graph datasets
+  are registered with domain, family, grain, keys, scope and origin.
 * **`source_record_id`, `portfolio_scope` and a validation status on the
   OBSERVED edge rows.** Present on the dataset and on the DERIVED products.
 * **Human review of the teaching library.** 3,603 cases are offered at DRAFT
@@ -238,7 +239,7 @@ Stated against the section of the continuation prompt that names each one.
 | Condition | State | Where it is established |
 |---|---|---|
 | All graph mathematics and analytics complete | **MET** | `graphmath.py`, `network.py`, `graphquality.py`, `graphsummary.py`; 417 tests in `tests/corporate`, ownership against hand-computed gold |
-| Borrower 360 UI and exports complete | **MET** (bar three named interactions) | 13 tabs, 11 network views, 6 group concepts, 18-sheet pack; pinning, saved cohorts and the Data Builder graph viewer are NOT built and are named as such |
+| Borrower 360 UI and exports complete | **MET** (bar two named interactions) | 13 tabs, 11 network views, 6 group concepts, 18-sheet pack; pinning and saved cohorts are NOT built and are named as such |
 | Ask / AI Brain can use graph and Borrower 360 data | **MET** | 4 certified analyses, 12 named questions routing, 22 Concepts, 8 contracts, 10 blueprints, 578 development cases, 328 sealed holdout cases |
 | Agentic AI functionally validated | **MET** | `AGENTIC_FUNCTIONAL_VERIFICATION.md`; 184 tests across 15 dimensions, each claim citing its test |
 | Retail Scorecard regression-tested after graph integration | **MET** | `TestThreeBooksAfterTheGraph` pins the LEAD dataset for 13 questions across 3 books; the 307-test scorecard suite re-run |
