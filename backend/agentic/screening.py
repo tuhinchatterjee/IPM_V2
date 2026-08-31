@@ -73,6 +73,38 @@ BORROWER_CONTRIBUTION = 0.05
 MAX_SEGMENTS = 6
 MAX_BORROWERS = 12
 
+# -- what counts as a borrower-level signal ---------------------------------
+#
+# §1 asks the review to produce cases across the categories a credit committee
+# actually works through - rating movement, Stage 2 migration, delinquency,
+# covenant pressure, collateral deterioration, concentration, ECL movement -
+# rather than only the two the screen used to look at. Every threshold below
+# is a comparison of two PUBLISHED figures at the customer grain, on columns
+# the screen already reads; none of them adds a query and none of them is a
+# judgement about what the change means.
+#
+# They are deliberately not tight. A signal is a reason to LOOK, and the
+# severity model downstream decides what is worth a case; a threshold set so
+# high that only a crisis trips it produces a review that finds nothing and
+# reads as though nobody ran it.
+
+#: A relative rise in a borrower's expected credit loss. 25% on a small number
+#: is still a large move in the thing the whole IFRS 9 book is about.
+ECL_RISE = 0.25
+
+#: …but not on a rounding error. Below this the percentage is arithmetic on
+#: noise, in the currency the book is published in.
+ECL_FLOOR = 100_000.0
+
+#: A rise in facility utilisation, in percentage points. A borrower drawing
+#: down its committed lines is the classic early sign of liquidity pressure,
+#: and it moves before the rating does.
+UTILISATION_RISE = 5.0
+
+#: Utilisation this high is worth reporting even where it did not move, because
+#: a borrower with no headroom left has no room to absorb anything.
+UTILISATION_HIGH = 95.0
+
 #: Datasets the screen reads. Every one is governed and published; the screen
 #: never reaches for anything else.
 FACILITIES = "portfolio_facility"
@@ -614,7 +646,13 @@ def _by_customer(dal: Any, context: Any,
             FACILITIES, context=scoped,
             group_by=["customer_id", "borrower_name", "sector",
                       "ifrs9_stage", "risk_rating"],
-            measures={"ead": "sum", "total_ecl": "sum", "dpd_days": "max"})
+            # `max` on the flags and the ratio: a relationship is on the
+            # watchlist if any facility is, is non-performing if any facility
+            # is, and is as drawn as its most-drawn line. Summing a percentage
+            # across facilities would produce a number with no meaning.
+            measures={"ead": "sum", "total_ecl": "sum", "dpd_days": "max",
+                      "utilisation_pct": "max", "watchlist": "max",
+                      "npl": "max"})
     except Exception:  # noqa: BLE001
         logger.warning("borrower screen could not read %s",
                        getattr(context, "period", "?"), exc_info=True)
@@ -628,11 +666,17 @@ def _by_customer(dal: Any, context: Any,
         bucket = found.setdefault(key, {
             "customer_id": key, "name": row.get("borrower_name") or key,
             "sector": row.get("sector") or "", "ead": 0.0, "ecl": 0.0,
-            "stage": "", "rating": row.get("risk_rating") or "", "dpd": 0})
+            "stage": "", "rating": row.get("risk_rating") or "", "dpd": 0,
+            "utilisation": 0.0, "watchlist": False, "npl": False})
         bucket["ead"] += float(row.get("ead") or 0)
         bucket["ecl"] += float(row.get("total_ecl") or 0)
         bucket["dpd"] = max(int(bucket["dpd"] or 0),
                             int(row.get("dpd_days") or 0))
+        bucket["utilisation"] = max(float(bucket["utilisation"] or 0.0),
+                                    float(row.get("utilisation_pct") or 0.0))
+        bucket["watchlist"] = bucket["watchlist"] or _truthy(
+            row.get("watchlist"))
+        bucket["npl"] = bucket["npl"] or _truthy(row.get("npl"))
         # Worst stage wins: a customer with one Stage 3 facility is a Stage 3
         # customer, whatever the rest of the relationship looks like.
         stage = str(row.get("ifrs9_stage") or "")
@@ -657,6 +701,37 @@ def _signals(now: dict[str, Any], before: dict[str, Any]) -> list[str]:
                 and now["rating"] != before["rating"]):
             found.append(
                 f"Rating moved from {before['rating']} to {now['rating']}")
+
+        # ECL movement. The book's own headline measure, and the one a
+        # committee asks about first; reported as the move rather than the
+        # level, because a large ECL that has not moved is last quarter's
+        # conversation.
+        was, is_now = float(before.get("ecl") or 0.0), float(now.get("ecl") or 0.0)
+        if was >= ECL_FLOOR and is_now > was * (1.0 + ECL_RISE):
+            found.append(
+                f"Expected credit loss rose {_pct(is_now - was, was):.0%} "
+                f"from {was:,.0f} to {is_now:,.0f}"
+                if _pct(is_now - was, was) is not None else
+                f"Expected credit loss rose from {was:,.0f} to {is_now:,.0f}")
+
+        # Liquidity pressure, which shows up in the drawing behaviour before it
+        # shows up in the rating.
+        drawn = float(now.get("utilisation") or 0.0)
+        drawn_before = float(before.get("utilisation") or 0.0)
+        if drawn_before and drawn - drawn_before >= UTILISATION_RISE:
+            found.append(
+                f"Utilisation rose from {drawn_before:.1f}% to {drawn:.1f}%")
+        elif drawn >= UTILISATION_HIGH:
+            found.append(f"Utilisation at {drawn:.1f}% leaves no headroom")
+
+        # Entering the watchlist is a decision somebody recorded, not a
+        # measurement, and it is worth a case precisely because a human already
+        # thought so. Leaving it is not a signal to escalate.
+        if _truthy(now.get("watchlist")) and not _truthy(before.get("watchlist")):
+            found.append("Added to the watchlist this period")
+        if _truthy(now.get("npl")) and not _truthy(before.get("npl")):
+            found.append("Classified non-performing this period")
+
     if int(now.get("dpd") or 0) > 0:
         found.append(f"{int(now['dpd'])} days past due")
     return found
