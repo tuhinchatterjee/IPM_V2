@@ -179,16 +179,38 @@ def search(snapshot: pd.DataFrame, query: Query) -> dict[str, Any]:
 
 
 def _text_mask(frame: pd.DataFrame, text: str) -> pd.Series:
-    """Identifier equality, Latin contains, Arabic contains - in that order."""
+    """Identifier equality, then EXACT name, then contains, then Arabic.
+
+    The exact-name tier exists because without it a full legal name is
+    ambiguous with its own siblings. Names in this book share stems -
+    "Al Nahda Ventures Company" and "Al Nahda Ventures Company 3" - and a
+    pure substring match makes typing a borrower's complete name return
+    several candidates and resolve none of them. Typing the whole name is the
+    least ambiguous thing a user can do, and it was the worst-served.
+
+    An exact match SUPPRESSES the substring tier rather than adding to it.
+    Ranking them together would still leave the answer among candidates,
+    which is the same failure with better ordering.
+    """
     wanted = str(text).strip()
     mask = pd.Series(False, index=frame.index)
 
     for name in IDENTIFIER_FIELDS:
         if name in frame.columns:
             mask |= frame[name].astype(str).str.casefold() == wanted.casefold()
+    if mask.any():
+        return mask
 
     normalised = normalise(wanted)
     if normalised:
+        exact = pd.Series(False, index=frame.index)
+        for name in NAME_FIELDS:
+            if name in frame.columns:
+                exact |= (frame[name].astype(str).map(normalise)
+                          == normalised)
+        if exact.any():
+            return exact
+
         for name in NAME_FIELDS:
             if name in frame.columns:
                 mask |= (frame[name].astype(str).map(normalise)

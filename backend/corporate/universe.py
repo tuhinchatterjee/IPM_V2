@@ -409,12 +409,22 @@ def build_entities(rng: np.random.Generator) -> pd.DataFrame:
         seen[name] = count + 1
         unique.append(name if count == 0 else f"{name} {count + 1}")
     legal_name = np.array(unique)
+    # The trading name drops the legal form and KEEPS the disambiguating
+    # suffix. Stripping it too gave three different borrowers the identical
+    # display name and the identical alias - the label a screen actually
+    # shows - so a relationship manager saw three rows reading "Al Nahda
+    # Ventures" and had no way to tell which was which. The suffix exists
+    # precisely to disambiguate; removing it from the visible name undoes the
+    # work of adding it.
+    suffix = [name.rsplit(" ", 1)[1] if name.rsplit(" ", 1)[-1].isdigit()
+              else "" for name in legal_name]
     display_name = np.array([
-        n.replace(" Company", "").replace(" 2", "").replace(" 3", "")
-        for n in legal_name])
+        f"{NAME_FIRST[a]} {NAME_SECOND[b]}{' ' + tail if tail else ''}"
+        for a, b, tail in zip(first, second, suffix, strict=True)])
     alias = np.array([
         f"{NAME_FIRST[a]} {NAME_SECOND[b][:4].upper()}"
-        for a, b in zip(first, second, strict=True)])
+        f"{' ' + tail if tail else ''}"
+        for a, b, tail in zip(first, second, suffix, strict=True)])
     arabic_name = np.array([
         f"شركة {ARABIC_FIRST[a]} {ARABIC_SECOND[b]}"
         for a, b in zip(first, second, strict=True)])

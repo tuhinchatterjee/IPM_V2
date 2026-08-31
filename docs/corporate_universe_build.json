@@ -909,15 +909,15 @@
           "debtrank_caveat": "DebtRank is network analytics and early warning. It measures how much of the network's value is impaired when a borrower is shocked. It is NOT an expected credit loss, NOT a capital methodology and NOT a regulatory measure of anything."
         },
         "timings_seconds": {
-          "quality": 1.11,
-          "ownership_graph": 1.87,
-          "effective_ownership": 1.203,
-          "control_closure": 1.161,
-          "connected_groups": 0.124,
-          "exposure_graph": 0.043,
-          "debtrank": 1.949,
-          "centrality": 0.335,
-          "network_risk_score": 0.286
+          "quality": 1.079,
+          "ownership_graph": 2.134,
+          "effective_ownership": 1.075,
+          "control_closure": 1.045,
+          "connected_groups": 0.116,
+          "exposure_graph": 0.048,
+          "debtrank": 1.711,
+          "centrality": 0.32,
+          "network_risk_score": 0.265
         },
         "summary_version": "1.0.0"
       },
@@ -1295,15 +1295,15 @@
           "debtrank_caveat": "DebtRank is network analytics and early warning. It measures how much of the network's value is impaired when a borrower is shocked. It is NOT an expected credit loss, NOT a capital methodology and NOT a regulatory measure of anything."
         },
         "timings_seconds": {
-          "quality": 0.932,
-          "ownership_graph": 0.312,
-          "effective_ownership": 0.115,
-          "control_closure": 0.917,
-          "connected_groups": 0.136,
-          "exposure_graph": 0.047,
-          "debtrank": 1.972,
-          "centrality": 0.39,
-          "network_risk_score": 0.333
+          "quality": 0.986,
+          "ownership_graph": 0.298,
+          "effective_ownership": 0.111,
+          "control_closure": 0.992,
+          "connected_groups": 0.137,
+          "exposure_graph": 0.045,
+          "debtrank": 2.035,
+          "centrality": 0.346,
+          "network_risk_score": 0.325
         },
         "summary_version": "1.0.0"
       },
@@ -1681,15 +1681,15 @@
           "debtrank_caveat": "DebtRank is network analytics and early warning. It measures how much of the network's value is impaired when a borrower is shocked. It is NOT an expected credit loss, NOT a capital methodology and NOT a regulatory measure of anything."
         },
         "timings_seconds": {
-          "quality": 1.29,
-          "ownership_graph": 1.968,
-          "effective_ownership": 1.294,
-          "control_closure": 1.171,
+          "quality": 1.163,
+          "ownership_graph": 1.554,
+          "effective_ownership": 1.06,
+          "control_closure": 1.169,
           "connected_groups": 0.122,
-          "exposure_graph": 0.046,
-          "debtrank": 1.762,
-          "centrality": 0.39,
-          "network_risk_score": 0.415
+          "exposure_graph": 0.059,
+          "debtrank": 1.785,
+          "centrality": 0.363,
+          "network_risk_score": 0.299
         },
         "summary_version": "1.0.0"
       },
@@ -2067,15 +2067,15 @@
           "debtrank_caveat": "DebtRank is network analytics and early warning. It measures how much of the network's value is impaired when a borrower is shocked. It is NOT an expected credit loss, NOT a capital methodology and NOT a regulatory measure of anything."
         },
         "timings_seconds": {
-          "quality": 1.31,
-          "ownership_graph": 1.648,
-          "effective_ownership": 1.257,
-          "control_closure": 1.399,
-          "connected_groups": 0.17,
-          "exposure_graph": 0.043,
-          "debtrank": 2.362,
-          "centrality": 0.459,
-          "network_risk_score": 0.385
+          "quality": 1.045,
+          "ownership_graph": 1.305,
+          "effective_ownership": 1.123,
+          "control_closure": 1.211,
+          "connected_groups": 0.168,
+          "exposure_graph": 0.049,
+          "debtrank": 2.075,
+          "centrality": 0.467,
+          "network_risk_score": 0.35
         },
         "summary_version": "1.0.0"
       },
@@ -2458,15 +2458,15 @@
           "debtrank_caveat": "DebtRank is network analytics and early warning. It measures how much of the network's value is impaired when a borrower is shocked. It is NOT an expected credit loss, NOT a capital methodology and NOT a regulatory measure of anything."
         },
         "timings_seconds": {
-          "quality": 1.083,
-          "ownership_graph": 0.407,
-          "effective_ownership": 0.148,
-          "control_closure": 1.293,
-          "connected_groups": 0.169,
-          "exposure_graph": 0.054,
-          "debtrank": 2.482,
-          "centrality": 0.504,
-          "network_risk_score": 0.413
+          "quality": 1.128,
+          "ownership_graph": 0.396,
+          "effective_ownership": 0.163,
+          "control_closure": 1.283,
+          "connected_groups": 0.166,
+          "exposure_graph": 0.051,
+          "debtrank": 2.618,
+          "centrality": 0.489,
+          "network_risk_score": 0.406
         },
         "summary_version": "1.0.0"
       },
@@ -2851,15 +2851,15 @@
           "debtrank_caveat": "DebtRank is network analytics and early warning. It measures how much of the network's value is impaired when a borrower is shocked. It is NOT an expected credit loss, NOT a capital methodology and NOT a regulatory measure of anything."
         },
         "timings_seconds": {
-          "quality": 1.315,
-          "ownership_graph": 1.609,
-          "effective_ownership": 1.576,
-          "control_closure": 1.547,
-          "connected_groups": 0.163,
-          "exposure_graph": 0.059,
-          "debtrank": 2.997,
-          "centrality": 0.528,
-          "network_risk_score": 0.472
+          "quality": 1.254,
+          "ownership_graph": 1.204,
+          "effective_ownership": 1.674,
+          "control_closure": 1.637,
+          "connected_groups": 0.188,
+          "exposure_graph": 0.054,
+          "debtrank": 2.857,
+          "centrality": 0.575,
+          "network_risk_score": 0.443
         },
         "summary_version": "1.0.0"
       },
@@ -3245,15 +3245,15 @@
           "debtrank_caveat": "DebtRank is network analytics and early warning. It measures how much of the network's value is impaired when a borrower is shocked. It is NOT an expected credit loss, NOT a capital methodology and NOT a regulatory measure of anything."
         },
         "timings_seconds": {
-          "quality": 1.34,
-          "ownership_graph": 1.908,
-          "effective_ownership": 1.787,
-          "control_closure": 1.648,
-          "connected_groups": 0.159,
-          "exposure_graph": 0.061,
-          "debtrank": 3.223,
-          "centrality": 0.622,
-          "network_risk_score": 0.482
+          "quality": 1.306,
+          "ownership_graph": 1.556,
+          "effective_ownership": 1.751,
+          "control_closure": 1.842,
+          "connected_groups": 0.192,
+          "exposure_graph": 0.099,
+          "debtrank": 2.928,
+          "centrality": 0.63,
+          "network_risk_score": 0.483
         },
         "summary_version": "1.0.0"
       },
@@ -3639,15 +3639,15 @@
           "debtrank_caveat": "DebtRank is network analytics and early warning. It measures how much of the network's value is impaired when a borrower is shocked. It is NOT an expected credit loss, NOT a capital methodology and NOT a regulatory measure of anything."
         },
         "timings_seconds": {
-          "quality": 1.304,
-          "ownership_graph": 1.62,
-          "effective_ownership": 1.586,
-          "control_closure": 1.665,
-          "connected_groups": 0.172,
-          "exposure_graph": 0.069,
-          "debtrank": 2.847,
-          "centrality": 0.692,
-          "network_risk_score": 0.545
+          "quality": 1.272,
+          "ownership_graph": 1.49,
+          "effective_ownership": 1.711,
+          "control_closure": 1.871,
+          "connected_groups": 0.188,
+          "exposure_graph": 0.07,
+          "debtrank": 2.793,
+          "centrality": 0.658,
+          "network_risk_score": 0.435
         },
         "summary_version": "1.0.0"
       },
@@ -4033,15 +4033,15 @@
           "debtrank_caveat": "DebtRank is network analytics and early warning. It measures how much of the network's value is impaired when a borrower is shocked. It is NOT an expected credit loss, NOT a capital methodology and NOT a regulatory measure of anything."
         },
         "timings_seconds": {
-          "quality": 1.268,
-          "ownership_graph": 1.362,
-          "effective_ownership": 1.672,
-          "control_closure": 1.784,
-          "connected_groups": 0.194,
-          "exposure_graph": 0.06,
-          "debtrank": 3.223,
-          "centrality": 0.646,
-          "network_risk_score": 0.534
+          "quality": 1.058,
+          "ownership_graph": 0.984,
+          "effective_ownership": 1.875,
+          "control_closure": 1.897,
+          "connected_groups": 0.173,
+          "exposure_graph": 0.055,
+          "debtrank": 2.926,
+          "centrality": 0.62,
+          "network_risk_score": 0.468
         },
         "summary_version": "1.0.0"
       },
@@ -4428,15 +4428,15 @@
           "debtrank_caveat": "DebtRank is network analytics and early warning. It measures how much of the network's value is impaired when a borrower is shocked. It is NOT an expected credit loss, NOT a capital methodology and NOT a regulatory measure of anything."
         },
         "timings_seconds": {
-          "quality": 1.14,
-          "ownership_graph": 1.149,
-          "effective_ownership": 2.0,
-          "control_closure": 2.11,
-          "connected_groups": 0.235,
-          "exposure_graph": 0.066,
-          "debtrank": 3.581,
-          "centrality": 0.672,
-          "network_risk_score": 0.616
+          "quality": 1.064,
+          "ownership_graph": 1.057,
+          "effective_ownership": 1.965,
+          "control_closure": 2.164,
+          "connected_groups": 0.201,
+          "exposure_graph": 0.063,
+          "debtrank": 3.505,
+          "centrality": 0.755,
+          "network_risk_score": 0.665
         },
         "summary_version": "1.0.0"
       },
@@ -4823,14 +4823,14 @@
           "debtrank_caveat": "DebtRank is network analytics and early warning. It measures how much of the network's value is impaired when a borrower is shocked. It is NOT an expected credit loss, NOT a capital methodology and NOT a regulatory measure of anything."
         },
         "timings_seconds": {
-          "quality": 1.125,
-          "ownership_graph": 0.553,
-          "effective_ownership": 0.163,
-          "control_closure": 1.81,
-          "connected_groups": 0.199,
-          "exposure_graph": 0.055,
-          "debtrank": 3.612,
-          "centrality": 0.907,
+          "quality": 1.148,
+          "ownership_graph": 0.556,
+          "effective_ownership": 0.177,
+          "control_closure": 2.1,
+          "connected_groups": 0.214,
+          "exposure_graph": 0.067,
+          "debtrank": 4.233,
+          "centrality": 0.902,
           "network_risk_score": 0.774
         },
         "summary_version": "1.0.0"
@@ -5218,15 +5218,15 @@
           "debtrank_caveat": "DebtRank is network analytics and early warning. It measures how much of the network's value is impaired when a borrower is shocked. It is NOT an expected credit loss, NOT a capital methodology and NOT a regulatory measure of anything."
         },
         "timings_seconds": {
-          "quality": 1.196,
-          "ownership_graph": 0.616,
-          "effective_ownership": 0.347,
-          "control_closure": 2.616,
-          "connected_groups": 0.267,
+          "quality": 1.156,
+          "ownership_graph": 0.65,
+          "effective_ownership": 0.696,
+          "control_closure": 2.554,
+          "connected_groups": 0.237,
           "exposure_graph": 0.068,
-          "debtrank": 4.337,
-          "centrality": 1.048,
-          "network_risk_score": 0.906
+          "debtrank": 3.921,
+          "centrality": 0.994,
+          "network_risk_score": 0.84
         },
         "summary_version": "1.0.0"
       },
@@ -5613,15 +5613,15 @@
           "debtrank_caveat": "DebtRank is network analytics and early warning. It measures how much of the network's value is impaired when a borrower is shocked. It is NOT an expected credit loss, NOT a capital methodology and NOT a regulatory measure of anything."
         },
         "timings_seconds": {
-          "quality": 1.031,
-          "ownership_graph": 0.651,
-          "effective_ownership": 0.228,
-          "control_closure": 2.478,
-          "connected_groups": 0.234,
-          "exposure_graph": 0.079,
-          "debtrank": 4.51,
-          "centrality": 1.061,
-          "network_risk_score": 0.841
+          "quality": 0.976,
+          "ownership_graph": 0.606,
+          "effective_ownership": 0.191,
+          "control_closure": 1.885,
+          "connected_groups": 0.252,
+          "exposure_graph": 0.071,
+          "debtrank": 4.17,
+          "centrality": 1.04,
+          "network_risk_score": 0.814
         },
         "summary_version": "1.0.0"
       },
@@ -6013,15 +6013,15 @@
           "debtrank_caveat": "DebtRank is network analytics and early warning. It measures how much of the network's value is impaired when a borrower is shocked. It is NOT an expected credit loss, NOT a capital methodology and NOT a regulatory measure of anything."
         },
         "timings_seconds": {
-          "quality": 0.954,
-          "ownership_graph": 0.695,
-          "effective_ownership": 0.192,
-          "control_closure": 1.84,
-          "connected_groups": 0.222,
-          "exposure_graph": 0.076,
-          "debtrank": 4.012,
-          "centrality": 0.979,
-          "network_risk_score": 0.862
+          "quality": 1.26,
+          "ownership_graph": 0.7,
+          "effective_ownership": 2.265,
+          "control_closure": 2.803,
+          "connected_groups": 0.279,
+          "exposure_graph": 0.077,
+          "debtrank": 4.56,
+          "centrality": 1.291,
+          "network_risk_score": 0.974
         },
         "summary_version": "1.0.0"
       },
@@ -6413,15 +6413,15 @@
           "debtrank_caveat": "DebtRank is network analytics and early warning. It measures how much of the network's value is impaired when a borrower is shocked. It is NOT an expected credit loss, NOT a capital methodology and NOT a regulatory measure of anything."
         },
         "timings_seconds": {
-          "quality": 0.994,
-          "ownership_graph": 0.652,
-          "effective_ownership": 0.21,
-          "control_closure": 2.044,
-          "connected_groups": 0.217,
-          "exposure_graph": 0.061,
-          "debtrank": 4.174,
-          "centrality": 1.117,
-          "network_risk_score": 0.9
+          "quality": 1.134,
+          "ownership_graph": 0.659,
+          "effective_ownership": 0.58,
+          "control_closure": 2.856,
+          "connected_groups": 0.269,
+          "exposure_graph": 0.072,
+          "debtrank": 4.679,
+          "centrality": 1.259,
+          "network_risk_score": 1.016
         },
         "summary_version": "1.0.0"
       },
@@ -6826,15 +6826,15 @@
           "debtrank_caveat": "DebtRank is network analytics and early warning. It measures how much of the network's value is impaired when a borrower is shocked. It is NOT an expected credit loss, NOT a capital methodology and NOT a regulatory measure of anything."
         },
         "timings_seconds": {
-          "quality": 0.987,
-          "ownership_graph": 0.685,
-          "effective_ownership": 0.205,
-          "control_closure": 2.2,
-          "connected_groups": 0.25,
-          "exposure_graph": 0.075,
-          "debtrank": 4.753,
-          "centrality": 1.169,
-          "network_risk_score": 0.953
+          "quality": 1.077,
+          "ownership_graph": 0.72,
+          "effective_ownership": 0.869,
+          "control_closure": 2.655,
+          "connected_groups": 0.273,
+          "exposure_graph": 0.065,
+          "debtrank": 4.253,
+          "centrality": 1.09,
+          "network_risk_score": 1.135
         },
         "summary_version": "1.0.0"
       }

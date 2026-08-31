@@ -314,6 +314,37 @@ SCORECARD_FINDING_APPROVE = frozenset({Role.ADMIN})
 #: Configure validation policy: limits, thresholds, severity mapping.
 SCORECARD_ADMIN = frozenset({Role.ADMIN})
 
+# ==========================================================================
+# Borrower 360 and the corporate relationship graph.
+#
+# The graph carries identity: named natural persons, their addresses, their
+# board seats, and who they are ultimately behind. That is a different class
+# of data from an exposure table, and the permissions say so - seeing a
+# borrower's exposure and seeing the people behind it are separate acts, and
+# an institution that cannot separate them cannot answer an audit about who
+# looked at beneficial-ownership data.
+
+#: Open the Borrower 360: exposure, ratings, IFRS 9, covenants, limits.
+BORROWER_360_VIEW = frozenset({Role.ADMIN, Role.DATA_STEWARD, Role.ANALYST,
+                               Role.VIEWER})
+#: See the relationship graph: ownership, control, supply, guarantees and
+#: the network measures over them.
+BORROWER_360_GRAPH_VIEW = frozenset({Role.ADMIN, Role.DATA_STEWARD,
+                                     Role.ANALYST})
+#: See the natural persons: ultimate beneficial owners, directors, the
+#: addresses they share. Narrower than the graph itself. A relationship
+#: manager needs to know a borrower sits in a group; knowing which named
+#: individual is behind it is a further step, and one worth recording.
+BORROWER_360_UBO_VIEW = frozenset({Role.ADMIN, Role.DATA_STEWARD})
+#: Export a Borrower 360 pack. Separate from viewing, because an export
+#: leaves the system and stops being governed by it.
+BORROWER_360_EXPORT = frozenset({Role.ADMIN, Role.DATA_STEWARD, Role.ANALYST})
+
+RequireBorrower360View = Depends(require(BORROWER_360_VIEW))
+RequireBorrower360Graph = Depends(require(BORROWER_360_GRAPH_VIEW))
+RequireBorrower360Ubo = Depends(require(BORROWER_360_UBO_VIEW))
+RequireBorrower360Export = Depends(require(BORROWER_360_EXPORT))
+
 RequireScorecardView = Depends(require(SCORECARD_VIEW))
 RequireScorecardAnalyse = Depends(require(SCORECARD_ANALYSE))
 RequireScorecardValidate = Depends(require(SCORECARD_VALIDATE))
@@ -427,6 +458,22 @@ NAMED: dict[str, tuple[frozenset[Role], str]] = {
     "AI_LEARNING_MEASURE": (AI_LEARNING_MEASURE,
                             "Record a learning baseline or a performance "
                             "snapshot."),
+    "BORROWER_360_VIEW": (
+        BORROWER_360_VIEW,
+        "Open the Borrower 360 for a corporate borrower."),
+    "BORROWER_360_GRAPH_VIEW": (
+        BORROWER_360_GRAPH_VIEW,
+        "See the relationship graph and the network measures over it."),
+    "BORROWER_360_UBO_VIEW": (
+        BORROWER_360_UBO_VIEW,
+        "See the natural persons behind a borrower - ultimate beneficial "
+        "owners, directors and shared addresses. Narrower than the graph: "
+        "knowing a borrower sits in a group and knowing which named "
+        "individual is behind it are different acts."),
+    "BORROWER_360_EXPORT": (
+        BORROWER_360_EXPORT,
+        "Export a Borrower 360 pack. Separate from viewing, because an "
+        "export leaves the system and stops being governed by it."),
     "SCORECARD_VIEW": (SCORECARD_VIEW,
                        "See the retail scorecard validation dashboards, "
                        "models and reports."),

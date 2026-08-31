@@ -31,6 +31,7 @@ from backend.api.routers import cases as cases_router
 from backend.api.routers import (
     continuous_learning as continuous_learning_router,
 )
+from backend.api.routers import corporate as corporate_router
 from backend.api.routers import data_builder as data_builder_router
 from backend.api.routers import early_warning as early_warning_router
 from backend.api.routers import engine as engine_router
@@ -217,6 +218,7 @@ def create_app() -> FastAPI:
     # to open, because a screen that costs money to look at is a screen
     # nobody looks at.
     app.include_router(continuous_learning_router.router, prefix=API_PREFIX)
+    app.include_router(corporate_router.router, prefix=API_PREFIX)
     app.include_router(scorecard_router.router, prefix=API_PREFIX)
     app.include_router(regulatory_router.corpus_router,
                        prefix=API_PREFIX)
