@@ -5041,6 +5041,12 @@ export const api = {
       `/corporate/borrowers/${encodeURIComponent(borrowerId)}/similar` +
         (period ? `?period=${encodeURIComponent(period)}` : ""),
     ),
+  downloadBorrower360Pack: (borrowerId: string, period?: string) =>
+    download(
+      `/corporate/borrowers/${encodeURIComponent(borrowerId)}/pack` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+      `borrower-360-${borrowerId}.xlsx`,
+    ),
   borrower360Quality: (period?: string) =>
     request<Borrower360Quality>(
       `/corporate/quality` +

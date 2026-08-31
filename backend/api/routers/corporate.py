@@ -29,11 +29,12 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from backend.api.permissions import (
     BORROWER_360_UBO_VIEW,
     Principal,
+    RequireBorrower360Export,
     RequireBorrower360Graph,
     RequireBorrower360View,
 )
@@ -41,6 +42,7 @@ from backend.corporate import NOT_CLIENT_DATA, ORIGIN
 from backend.corporate import graphquality as gq
 from backend.corporate import lineage as lineage_mod
 from backend.corporate import network as net
+from backend.corporate import pack as pack_mod
 from backend.corporate import service as service_mod
 
 logger = logging.getLogger(__name__)
@@ -425,3 +427,43 @@ def quality(period: str | None = None,
             "than carrying a number computed from rejected input."),
         "quality_version": gq.QUALITY_VERSION,
     })
+
+
+# ------------------------------------------------------------------ export
+
+
+@router.get("/borrowers/{borrower_id}/pack")
+def pack(borrower_id: str, period: str | None = None,
+         principal: Principal = RequireBorrower360Export) -> Response:
+    """The Borrower 360 pack: a cover and seventeen sheets. Phase 3.12.
+
+    Permission is separate from viewing, because an export leaves the system
+    and stops being governed by it. The two people sheets are PRESENT for a
+    caller without BORROWER_360_UBO_VIEW and say they were withheld - a
+    missing sheet reads as "there is nothing here", which is a claim about
+    the borrower rather than about the reader.
+    """
+    try:
+        chosen = period or service_mod.latest_period()
+        body = pack_mod.build(
+            borrower_id, chosen,
+            include_people=principal.role in BORROWER_360_UBO_VIEW)
+    except service_mod.DataNotBuilt as exc:
+        raise _not_built(exc) from exc
+    except service_mod.BorrowerNotFound as exc:
+        raise _not_found(exc) from exc
+    except pack_mod.PackError as exc:
+        raise _refused(str(exc)) from exc
+
+    safe = "".join(ch for ch in borrower_id if ch.isalnum() or ch in "-_")
+    stamp = chosen.replace(" ", "-")
+    return Response(
+        content=body,
+        media_type=("application/vnd.openxmlformats-officedocument"
+                    ".spreadsheetml.sheet"),
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="borrower-360-{safe}-{stamp}.xlsx"',
+            "X-CreditProbe-Origin": ORIGIN,
+            "X-CreditProbe-Pack-Version": pack_mod.PACK_VERSION,
+        })

@@ -636,6 +636,76 @@ function QualityPanel({ quality }: { quality: Borrower360Quality | null }) {
   );
 }
 
+/* ----------------------------------------------------------------- export */
+
+/**
+ * DOWNLOAD BORROWER 360 PACK.
+ *
+ * A fetch rather than a link, for the same reason as everywhere else in the
+ * product: a plain `<a download>` cannot carry the role header the export
+ * authorises against, and a 403 arriving through a link is a browser error
+ * page rather than a message inside the product. A VIEWER may read this
+ * screen and may not export it, so the refusal has to land here.
+ */
+function PackButton({
+  borrowerId,
+  period,
+}: {
+  borrowerId: string;
+  period: string;
+}) {
+  const [phase, setPhase] = React.useState<"idle" | "working" | "failed">(
+    "idle",
+  );
+  const [problem, setProblem] = React.useState("");
+
+  const run = React.useCallback(async () => {
+    setPhase("working");
+    setProblem("");
+    try {
+      const { blob, filename } = await api.downloadBorrower360Pack(
+        borrowerId,
+        period,
+      );
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+      setPhase("idle");
+    } catch (caught) {
+      setPhase("failed");
+      setProblem(caught instanceof Error ? caught.message : String(caught));
+    }
+  }, [borrowerId, period]);
+
+  return (
+    <div className="text-right">
+      <button
+        type="button"
+        onClick={() => void run()}
+        disabled={phase === "working"}
+        className={cn(
+          "rounded border border-[var(--line)] px-3 py-1.5 text-xs",
+          "hover:border-[var(--accent)] disabled:opacity-60",
+        )}
+      >
+        {phase === "working"
+          ? "Preparing workbook…"
+          : "Download Borrower 360 pack"}
+      </button>
+      {problem ? (
+        <p className="mt-1 max-w-xs text-[11px] text-[var(--negative)]">
+          {problem}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------- page */
 
 export default function Borrower360Page() {
@@ -769,16 +839,19 @@ export default function Borrower360Page() {
 
       {row ? (
         <section className="mt-8">
-          <header className="mb-4">
-            <h2 className="text-lg font-medium">
-              {String(row.fields.display_name?.value ?? row.borrower_id)}
-            </h2>
-            <p className="text-xs text-[var(--muted)]">
-              {row.borrower_id} · {row.period} · as at {row.period_end_date}
-              {row.may_see_natural_persons
-                ? ""
-                : " · natural persons withheld by permission"}
-            </p>
+          <header className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-medium">
+                {String(row.fields.display_name?.value ?? row.borrower_id)}
+              </h2>
+              <p className="text-xs text-[var(--muted)]">
+                {row.borrower_id} · {row.period} · as at {row.period_end_date}
+                {row.may_see_natural_persons
+                  ? ""
+                  : " · natural persons withheld by permission"}
+              </p>
+            </div>
+            <PackButton borrowerId={row.borrower_id} period={period} />
           </header>
 
           <nav className="flex flex-wrap gap-1 border-b border-[var(--line)]">

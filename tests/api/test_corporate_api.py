@@ -306,3 +306,109 @@ class TestSimilarityAndQuality:
         assert payload["checks_run"] >= 14
         assert payload["overall_status"] in ("PASS", "FLAG", "REJECT")
         assert "REJECT blocks" in payload["blocking_rule"]
+
+
+class TestThePack:
+    """The export. Phase 3.12."""
+
+    def test_it_downloads_a_workbook(self, client, borrower_id):
+        response = client.get(f"{PREFIX}/borrowers/{borrower_id}/pack")
+        assert response.status_code == 200
+        assert response.content[:2] == b"PK"
+        assert "borrower-360" in response.headers["content-disposition"]
+        assert response.headers["x-creditprobe-origin"] == "SYNTHETIC_DEMO"
+
+    def test_it_has_a_cover_and_seventeen_sheets(self, client, borrower_id):
+        import io
+
+        from openpyxl import load_workbook
+
+        from backend.corporate import pack as pack_mod
+
+        response = client.get(f"{PREFIX}/borrowers/{borrower_id}/pack")
+        book = load_workbook(io.BytesIO(response.content))
+        assert book.sheetnames == list(pack_mod.SHEETS)
+        assert book.sheetnames[0] == "COVER"
+        assert len(book.sheetnames) == 18
+
+    def test_the_cover_says_what_the_pack_is_not(self, client, borrower_id):
+        import io
+
+        from openpyxl import load_workbook
+
+        response = client.get(f"{PREFIX}/borrowers/{borrower_id}/pack")
+        book = load_workbook(io.BytesIO(response.content))
+        text = "\n".join(
+            str(cell.value)
+            for row in book["COVER"].iter_rows()
+            for cell in row if cell.value)
+        for phrase in ("NOT A PROBABILITY", "NOT an expected credit loss",
+                       "not regulatory connectedness",
+                       "UNVERIFIED REGULATORY PARAMETER",
+                       "does NOT establish control", "SYNTHETIC_DEMO"):
+            assert phrase in text, phrase
+
+    def test_a_sentinel_survives_the_export(self, client, built):
+        """Exported as a blank, four different statements become one empty
+        cell - and Excel reads an empty cell as zero.
+
+        Exported for a borrower that HAS one, found from the derived data
+        rather than assumed: the first borrower in the book may legitimately
+        be in every graph, and a test that happens to pass on it proves
+        nothing about the rendering of an absence.
+        """
+        import io
+
+        from openpyxl import load_workbook
+
+        from backend.corporate import graphsummary as gs
+        from backend.corporate import service as service
+
+        period = built["latest_period"]
+        frame = service.load(gs.GROUPS_DATASET)
+        block = frame[(frame["period"] == period)
+                      & (frame["debtrank_status"] == gs.NOT_AVAILABLE)]
+        assert len(block), (
+            "no borrower in this quarter is outside the exposure network, so "
+            "the sentinel path cannot be exercised")
+        subject = str(block.iloc[0]["borrower_id"])
+
+        response = client.get(f"{PREFIX}/borrowers/{subject}/pack")
+        book = load_workbook(io.BytesIO(response.content))
+        text = "\n".join(
+            str(cell.value)
+            for name in book.sheetnames
+            for row in book[name].iter_rows()
+            for cell in row if cell.value)
+        assert gs.NOT_AVAILABLE in text
+        assert "NETWORK RISK SCORE" in text
+
+    def test_the_people_sheets_are_present_but_withheld(self, client,
+                                                        borrower_id):
+        import io
+
+        from openpyxl import load_workbook
+
+        response = client.get(f"{PREFIX}/borrowers/{borrower_id}/pack",
+                              headers=headers("ANALYST"))
+        assert response.status_code == 200
+        book = load_workbook(io.BytesIO(response.content))
+        assert "CONTROL AND UBO" in book.sheetnames
+        assert "WITHHELD" in str(book["CONTROL AND UBO"]["A1"].value)
+
+    def test_a_viewer_may_not_export(self, client, borrower_id):
+        assert client.get(f"{PREFIX}/borrowers/{borrower_id}/pack",
+                          headers=headers("VIEWER")).status_code == 403
+
+    def test_the_lineage_sheet_carries_every_field(self, client,
+                                                   borrower_id):
+        import io
+
+        from openpyxl import load_workbook
+
+        from backend.corporate import lineage as lineage_mod
+
+        response = client.get(f"{PREFIX}/borrowers/{borrower_id}/pack")
+        book = load_workbook(io.BytesIO(response.content))
+        # Title, note, blank, header, then one row per field.
+        assert book["LINEAGE"].max_row == len(lineage_mod.FIELDS) + 4
