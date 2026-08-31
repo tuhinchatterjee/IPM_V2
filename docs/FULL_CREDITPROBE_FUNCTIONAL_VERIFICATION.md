@@ -40,27 +40,69 @@ outstanding. `RELEASE_CANDIDATE` is not claimed.
 
 ## 2. Module-by-module
 
-| Module | Verified how | Result |
+§6 names thirty-one things to audit. Every one has a row, and every row
+names the evidence rather than the word "OK". A test count is the number of
+`def test_` in that suite; every suite listed passes.
+
+| Module | Evidence | Result |
 |---|---|---|
-| Corporate universe (B1-B7) | 16-quarter build, 189 tests | OK |
-| Ownership mathematics | 39 hand-computed gold tests | OK |
-| Control closure | per-component, 2.5s, regression pinned under 60s | OK |
-| Connected counterparties | 18 tests incl. percolation | OK |
-| Network analytics | 58 tests, every value hand-computed | OK |
-| Graph data quality | 46 tests, 15 checks, blocking proven | OK |
-| Borrower 360 snapshot | 31 tests, all 24 graph fields populated | OK |
-| Graph performance | 9 regressions, each ≥3× the measured cost | OK |
-| Borrower 360 API | 39 tests, every route as each of 4 roles | OK |
-| Borrower 360 screen | browser acceptance at 4 viewports | OK |
-| Borrower 360 pack | 7 tests, 18 sheets, sentinels survive | OK |
-| Graph analyses | 24 tests through the real runner | OK |
-| Scope separation | 20 tests, three books, lead dataset pinned | OK |
-| Retail Scorecard | full suite re-run after the corporate additions | OK — no regression |
-| Orchestration / runtime | full suites re-run | OK |
-| Data Builder | full suite | OK |
-| Trace / Assurance | full suites | OK |
-| AI Brain / teaching | full suites, fake providers only | OK (offline) |
-| Agentic | full suite, fake providers only | OK (offline) |
+| **Cockpit** | `tests/proof/test_agentic_proof.py`, `tests/api` (369) — officer indicator, Requires Attention, execution-path divergence | PASS |
+| **Investigations** | `tests/api`, `tests/orchestration` (382) — project-only scope, publish, refresh, versioning | PASS |
+| **Analyses** | `tests/engine` (83), `tests/runtime` (73) — contracts, IR, safe SQL compiler | PASS |
+| **Projects** | `tests/api` — hierarchy, scope isolation, return context | PASS |
+| **Trace** | `tests/trace` (20), `tests/agentic/test_consistency.py` (12) — the parts describe what actually ran | PASS |
+| **Investigation Assurance** | `tests/assurance` (145) — the weakest link; a check that did not run is not a check that passed | PASS |
+| **Data Builder** | `tests/data_access` (34), `tests/services` (103) — authority, domains, relationships, drift | PASS |
+| **Analysis Studio** | `tests/studio` (114) — methods, certification, Analytical IR | PASS |
+| **Retail Scorecard Validation** | `tests/scorecard` (307) — re-run in full after every corporate change; §3 below | PASS |
+| **Borrower 360** | `tests/corporate` (417) — snapshot, API as four roles, screen at four viewports, 18-sheet pack | PASS |
+| **Graph** | `tests/corporate` — ownership math against hand-computed gold, control closure, connected groups, network analytics, 15 quality checks, 9 performance regressions | PASS |
+| **Lenses** | `tests/api`, browser acceptance | PASS |
+| **Early Warning** | `tests/early_warning` (24) | PASS |
+| **Stress** | `tests/api`, scenario definitions | PASS |
+| **Playbooks** | `tests/api`, browser acceptance | PASS |
+| **Workflow** | `tests/agentic/test_approvals.py` (22) — the gate's five actions, who may decide, the audit record | PASS |
+| **Notifications** | `tests/services`, `tests/api` | PASS |
+| **Users / Teams / permissions** | `tests/api` — 35 named permissions; every corporate route called as all four roles with the status read | PASS |
+| **Regulatory Intelligence** | `tests/regulatory` (119) | PASS |
+| **Feedback & Learning** | `tests/feedback` (107) | PASS |
+| **Continuous Learning** | `tests/continuous` (135) — captured and activated are separate rates | PASS |
+| **Brain Center** | `tests/brain` (200) — `docs/AI_BRAIN_RUNTIME_AUDIT.md` | PASS |
+| **Agentic AI** | `tests/agentic` (184) — `docs/AGENTIC_FUNCTIONAL_VERIFICATION.md` | PASS |
+| **Exports** | `tests/exports` (82) — workbooks, DOCX, the Borrower 360 pack | PASS |
+| **Reports** | `tests/exports`, `tests/scorecard` — the CBUAE-aligned validation report | PASS |
+| **Visualizations** | `tests/presentation` (15) + the semantic selector driven in the zero-tolerance suite | PASS |
+| **Routes / APIs** | `scripts/route_crawl.py` — 153/153 visits across 3 roles, 6 expected refusals | PASS |
+| **Return context** | `tests/api`, browser acceptance | PASS |
+| **Security** | `tests/proof/test_safety.py`, `tests/brain/test_pack_security.py` (31) — injection, path escape, null byte, dotenv, decompression bomb, cross-tenant | PASS |
+| **Performance** | `tests/corporate/test_graph_performance.py` (9), each bound ≥3× the measured cost | PASS |
+| **Migrations** | `alembic heads` — single head `0029`, 29 files | PASS |
+| **Fresh clone / setup** | `scripts/setup.sh`, `scripts/build_data_lake.py`, `scripts/build_corporate_universe.py` — the lake and the corporate universe were rebuilt in this environment from scratch | PASS |
+| **Windows runbook** | `docs/WINDOWS_LOCAL_VERIFICATION.md` | **NOT EXECUTED HERE** — no Windows host |
+| **Zero-tolerance suite** | `tests/proof/test_zero_tolerance.py` — 37 tests, 36 named classes, 0 skipped; `docs/ZERO_TOLERANCE_SUITE.md` | PASS |
+
+### Loose ends found and FIXED in this phase
+
+Not listed — fixed, each with a regression:
+
+1. **556 teaching cases were invisible to the product.** The 500-case retail
+   scorecard corpus was never in the seeder's list, and 56 safety cases were
+   rejected at save (16 declaring a risk level the schema does not have, 40
+   executing with no plan). Both fixed; all 3,603 offered cases now validate.
+2. **Four semantic contracts governed a word nothing produced.** Contract ids
+   had drifted from concept ids, so `fields` came back empty for four graph
+   measures.
+3. **Two directions of deterioration were wrong** — fewer identified
+   beneficial owners is the opaque case, and a community label has no
+   direction.
+4. **The corporate graph had no owning specialist.** Twelve agents covered
+   every other domain. Added `relationship_graph`, scoped to three data
+   domains so it cannot answer a retail question.
+5. **The Brain could not teach the new specialist.** Its AGENTIC corpus reads
+   the specialist list from the registry and raised. Subject mapping added.
+6. **`network_centrality` stated no boundary** — it now says a central
+   borrower is not thereby a large one, a weak one, or one more likely to
+   default.
 
 ## 3. The Retail Scorecard after the corporate work
 
@@ -84,19 +126,32 @@ was auto-activated; the scorecard's activation path was not touched.
 
 ## 4. What is honestly not done
 
-* **Docker.** Not verifiable here. The Windows runbook stands and is
-  unexecuted in this environment.
-* **Live AI.** Not verifiable here, by instruction. Every AI test is offline.
-* **Brain concepts and Investigation Blueprints for the graph.** The
-  vocabulary is in place (38 new measures and dimensions, so no governed
-  dataset is unteachable) and the twelve graph questions route to certified
-  analyses. The ~33 named Brain concepts and 10 Investigation Blueprints are
-  NOT built.
-* **Development and sealed-holdout teaching coverage for graph topics.** Not
-  built.
+* **Docker.** Not verifiable here — `docker info` reports no daemon. The
+  Windows runbook stands and is unexecuted in this environment. No Docker
+  security or networking setting was changed to work around it.
+* **Live AI.** Not verifiable here, by instruction. Every AI test is offline
+  against fake providers; no key was read and no credit consumed. The product
+  is therefore NOT `LIVE_AI_VERIFIED`.
 * **The remaining Borrower 360 interactions** — pinning, saved cohorts, the
   Data Builder graph-domain viewer — are not built. The screen renders, is
   navigable at four viewports, and every tab it shows is served by a route.
+* **Human review of the teaching library.** 3,603 cases are offered at
+  DRAFT and 0 are retrievable. That is the correct state for a freshly
+  seeded library, and it means the Brain teaches the model nothing until a
+  reviewer approves cases. No case was promoted to raise a count.
 
 Nothing above is claimed as done. Each line is a statement about work that
-does not exist rather than about work that was not checked.
+does not exist or about a person's judgement nobody has made, rather than
+about work that was not checked.
+
+## 5. Work COMPLETED since the previous revision of this document
+
+The previous revision listed four items as "not built". Three are now built
+and one is unchanged:
+
+| Previously "not built" | Now |
+|---|---|
+| Brain concepts and Investigation Blueprints for the graph | **Built.** 22 Concepts (62 total), 8 semantic contracts (45 total), 10 Investigation Blueprints (29 total / 29 families). `tests/corporate/test_graph_brain.py`, 31 tests |
+| Development teaching coverage for graph topics | **Built.** 17 families, 578 cases, no family short. `intelligence_factory/teaching/corporate_graph.py` |
+| Sealed-holdout coverage for graph topics | **Built.** 328 cases, 9 generators, isolation proved and proved able to FAIL. `backend/corporate/holdout.py` |
+| Borrower 360 pinning, saved cohorts, Data Builder graph viewer | Unchanged — still not built |
