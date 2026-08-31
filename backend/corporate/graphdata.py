@@ -557,9 +557,16 @@ def build_people_edges(entities: pd.DataFrame, nodes: pd.DataFrame,
         "origin": ORIGIN,
     }))
 
-    funding_count = np.clip(1 + rng.poisson(0.8, n), 1, 4)
+    funding_count = np.clip(1 + rng.poisson(0.8, n), 1, len(FUNDING_SOURCES))
     total_funding = int(funding_count.sum())
-    which = rng.integers(0, len(FUNDING_SOURCES), total_funding)
+
+    # DISTINCT channels per borrower. Drawing with replacement produced the
+    # same borrower FUNDED_BY the same channel twice - an assertion that says
+    # nothing and double-counts wherever funding edges are aggregated. Taking
+    # the first k of a per-borrower random permutation is the vectorised way
+    # to draw without replacement.
+    order = np.argsort(rng.random((n, len(FUNDING_SOURCES))), axis=1)
+    which = np.concatenate([order[i, :funding_count[i]] for i in range(n)])
     borrower_of = np.repeat(borrowers, funding_count)
     sources, confidence = _source_draw(rng, total_funding)
     dates = _dates(rng, total_funding, closes=0.14)
@@ -748,6 +755,33 @@ GUARANTEE_FORMS: tuple[tuple[str, float], ...] = (
     ("Cross guarantee", 0.09),
     ("Personal guarantee", 0.05),
 )
+
+
+def build_facility_nodes(facilities: pd.DataFrame) -> pd.DataFrame:
+    """Facility nodes for every distinct facility. B13.
+
+    FACILITY has always been a declared node type and COVERS edges have always
+    pointed at facility ids, but the node table never contained them: the
+    guarantee builder emitted Guarantee nodes and left the other end of its own
+    edges undeclared. 1,303 of 2,274 guarantee edges therefore pointed at
+    nothing, and the failure was invisible to every query that starts from an
+    edge - which is all of them except a node-first traversal.
+
+    Facilities are quarterly rows, so the node is the DISTINCT facility, dated
+    from its earliest observed quarter. A node per row would put the same
+    facility in the graph sixteen times.
+    """
+    if facilities.empty:  # pragma: no cover - a build always has facilities
+        return pd.DataFrame(columns=["node_id", "node_type", "label", "detail"])
+    first = facilities.sort_values("period_end_date").groupby(
+        "facility_id", as_index=False).first()
+    return pd.DataFrame({
+        "node_id": first["facility_id"].to_numpy(),
+        "node_type": FACILITY,
+        "label": first["product_type"].to_numpy(),
+        "detail": [f"{row.product_type} of {row.borrower_id}"
+                   for row in first.itertuples()],
+    })
 
 
 def build_guarantees(entities: pd.DataFrame, facilities: pd.DataFrame,

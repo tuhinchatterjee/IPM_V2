@@ -1875,7 +1875,8 @@ def build(*, periods: list[str] | None = None, seed: int = SEED) -> Universe:
     entity_resolution = resolution.build(entities, people, rng)
 
     nodes = pd.concat(
-        [graph["_nodes"], people.attrs["director_nodes"], guarantee_nodes],
+        [graph["_nodes"], people.attrs["director_nodes"], guarantee_nodes,
+         graphdata.build_facility_nodes(facilities)],
         ignore_index=True)
     nodes["origin"] = ORIGIN
 
