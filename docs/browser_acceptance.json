@@ -1,5 +1,5 @@
 {
-  "started": "2026-08-31T21:41:10+0000",
+  "started": "2026-08-31T22:17:58+0000",
   "viewports": [
     {
       "name": "desktop",
@@ -3742,15 +3742,15 @@
       "screen": "/analyses",
       "viewport": "touch",
       "check": "no horizontal overflow",
-      "ok": false,
-      "detail": "19px beyond the viewport"
+      "ok": true,
+      "detail": "-15px beyond the viewport"
     },
     {
       "screen": "/analyses",
       "viewport": "touch",
       "check": "navigable",
       "ok": true,
-      "detail": "226 way(s) out"
+      "detail": "26 way(s) out"
     },
     {
       "screen": "/analyses",
@@ -8696,7 +8696,7 @@
     }
   ],
   "total": 1236,
-  "failed": 1,
-  "passed": 1235,
+  "failed": 0,
+  "passed": 1236,
   "error": ""
 }

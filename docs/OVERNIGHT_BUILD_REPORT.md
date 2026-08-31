@@ -1,7 +1,6 @@
 # Overnight build — morning report
 
-Branch `claude/vigilant-darwin-eohyi1`. Twelve commits, 120 files,
-+14,295 / −383.
+Branch `claude/vigilant-darwin-eohyi1`. 14 commits; 128 files changed, 17571 insertions(+), 546 deletions(-).
 
 This report is written to be read before the code. It says what changed, what
 broke while changing it, what the gates actually executed, and what is still
@@ -120,7 +119,27 @@ written to look for it rather than by luck.
 11. **A test fixture truncated `risk_cases`**, which broke the fresh-clone
     acceptance suite two files away with a failure that read like a product
     defect. Fixtures now remove only the rows they created.
-12. **I overwrote the AI Intelligence Studio router** by creating a new file
+12. **The same question returned its rows in a different order** on the second
+    ask — same seventy-nine borrowers, shuffled. An `ORDER BY` inside a CTE
+    does not bind the outer `SELECT`, and a plan with no SORT never expressed
+    one at all. Two attempted fixes were themselves wrong (one destroyed
+    rankings, the other reinstated the defect) and both are kept as tests; the
+    outer order now refines the plan's own rather than replacing it.
+13. **Two refusals were dead ends.** A coverage refusal named the gap and
+    stopped; a withheld answer said only "CreditProbe could not complete that
+    request" while the actual reason sat in a caveat below the fold. Both now
+    lead with the reason and name a next move.
+14. **The §13 scanner could not tell prose from an identifier.** It flagged
+    `origin: "demo"` — a governance enum, stored and compared against, never
+    rendered — on five of twenty-two answers. A scanner that flags every
+    answer is one somebody switches off; it now checks the keys that carry
+    sentences.
+15. **Browser acceptance could not run.** My own §12/§13 additions imported
+    `backend.release` from a script executed as a file, so it crashed a third
+    of the way through and reported a crash rather than a verdict.
+16. **A row did not fit a phone.** `/analyses` ran 19px past a 390-wide
+    viewport, caught by the acceptance run and invisible on any desktop.
+17. **I overwrote the AI Intelligence Studio router** by creating a new file
     at a name that was already taken — 1,081 lines of router and 385 lines of
     its tests, replaced wholesale. Caught by its own tests, restored from the
     previous commit, and the new work moved to `/domain-intelligence`.
@@ -212,7 +231,81 @@ answering from the previous one is worse than the slow screen it replaced.
 
 ## I. Gates — what ran, and what did not
 
-**PLACEHOLDER — filled from the final run.**
+This section separates what was executed from what was not, and does not
+describe the second kind as passing. §52 asks for exactly that separation.
+
+### Executed, and passed
+
+**§48 — full backend regression on the FINAL tree.** Run twice on the final
+commit, both identical: **8,456 passed, 21 skipped, 0 failed, 0 errors**
+across 8,477 tests. The two runs agree character for character in their
+progress output.
+
+One honest note about how that number was read. Both runs reach `[100%]`,
+print the warnings summary, and then the process lingers rather than exiting
+promptly, so pytest's closing "N passed" line was never flushed to the log.
+The counts above are therefore taken from the progress output itself — one
+character per test — and cross-checked between two independent runs. The
+lingering exit is a test-harness annoyance, not a product defect, and it is
+reproducible; a run WITH a failure prints its summary normally, which is how
+every failure in this session was read.
+
+**§47 — browser acceptance.** Real Chromium, real backend, real front end.
+The first run passed 1,235 of 1,236 checks across four viewports and seventeen
+screens; the one failure was real — the saved-analyses row ran 19px past a
+390-wide viewport. After the fix, a full re-run on the rebuilt front end
+passes **1,236 of 1,236**.
+
+The wording checks in these runs read the RENDERED page text rather than the
+source: no page named an intelligence provider or a model, none called the
+product a demonstration, and the synthetic disclosure survived on every
+screen.
+
+Before it could run at all it had to be repaired — the §12/§13 checks import
+the governed vocabulary from `backend.release`, and the script runs as a file
+rather than a module, so it import-errored a third of the way through and
+reported a crash instead of a verdict.
+
+**§39/§49 — the twenty-two questions, through the real Ask path.** A new
+harness (`scripts/question_walkthrough.py`) asks each one twice.
+**22 of 22 pass** the checks this environment can make: no 5xx, no status code
+printed to a reader, no provider or model named, no "demonstration", every
+reply either answers or asks, every refusal names a next move, and the same
+question returns the same reply.
+
+**Frontend gates.** `tsc --noEmit` clean, `eslint` clean, **332 of 332**
+`node --test` tests pass.
+
+**Lint.** `ruff check backend tests scripts` clean.
+
+### Executed, and found something
+
+The walkthrough is the reason four defects in section C exist at all — the
+non-deterministic row order, the two dead-end refusals, and the wording
+scanner that could not tell an identifier from a sentence. None of them was
+visible from a unit test, and all four were visible on the first run of
+twenty-two real questions.
+
+### NOT executed
+
+**Docker.** Not verified in this sandbox. No container was built, started or
+health-checked here. The bootstrap marker work of §1 is covered by 23 unit
+tests that reproduce the original failure and assert the compose contract
+(`start_period == "480s"`, `service_healthy` dependency), but that is a test
+of the CONTRACT, not of a running container. **NOT VERIFIED IN CLAUDE
+SANDBOX.**
+
+**Answer quality on the twenty-two questions.** This environment has no
+intelligence provider configured and none was called — no live call was made
+and no credits were spent at any point in this run. The walkthrough checks the
+properties that hold WITHOUT a provider, which are the ones that were broken;
+it does not and cannot check whether the answers are good. The harness says so
+in its own output rather than implying otherwise.
+
+**§46 clean-room.** No fresh clone was taken and bootstrapped from empty in
+this session. `tests/proof/test_fresh_clone_acceptance.py` runs against this
+deployment and passes, and the readiness gate reports 15 of 15 checks green,
+but that is this deployment rather than a new one.
 
 ---
 
