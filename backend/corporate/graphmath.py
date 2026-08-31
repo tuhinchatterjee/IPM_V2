@@ -714,6 +714,29 @@ def control_closure(graph: OwnershipGraph, *,
         as_of=graph.as_of, rule_hits=hits)
 
 
+def _weak_components(direct: np.ndarray) -> list[list[int]]:
+    """Weakly connected components of the direct-control graph."""
+    size = direct.shape[0]
+    parent = list(range(size))
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    rows, cols = np.nonzero(direct)
+    for i, j in zip(rows, cols, strict=True):
+        a, b = find(int(i)), find(int(j))
+        if a != b:
+            parent[a] = b
+
+    groups: dict[int, list[int]] = {}
+    for node in range(size):
+        groups.setdefault(find(node), []).append(node)
+    return [g for g in groups.values() if len(g) > 1]
+
+
 def _transitive_closure(direct: np.ndarray) -> tuple[list[int], np.ndarray]:
     """SCCs, condensation, then reachability. Phase 2.5.
 
@@ -722,33 +745,45 @@ def _transitive_closure(direct: np.ndarray) -> tuple[list[int], np.ndarray]:
     everything the bloc reaches. Running reachability on the raw graph gets
     the same answer here but loses the bloc, which is the thing a user needs
     to see: these entities are not a chain, they are one controlling unit.
+
+    Done PER WEAKLY CONNECTED COMPONENT, because control cannot cross one.
+    Dense Warshall over all ~9,000 blocs is 81 million booleans rewritten
+    9,000 times, and the closure that follows it was 87 million Python-level
+    iterations; the first version of this did not finish inside ten minutes.
+    Components here have at most a few dozen members, so the same exact answer
+    costs almost nothing.
     """
     size = direct.shape[0]
     component_of = _tarjan(direct)
-    blocs = max(component_of) + 1 if size else 0
-
-    # Reachability between blocs, on the condensation.
-    condensed = np.zeros((blocs, blocs), dtype=bool)
-    rows, cols = np.nonzero(direct)
-    for i, j in zip(rows, cols, strict=True):
-        a, b = component_of[i], component_of[j]
-        if a != b:
-            condensed[a, b] = True
-
-    # Warshall over the condensation. It is a DAG, so this terminates, and
-    # the bloc count is far below the node count.
-    reach = condensed.copy()
-    for k in range(blocs):
-        reach |= np.outer(reach[:, k], reach[k, :])
-
     effective = np.zeros((size, size), dtype=bool)
-    if size:
-        member = component_of
-        for i in range(size):
-            for j in range(size):
-                a, b = member[i], member[j]
-                if i != j and (a == b or reach[a, b]):
-                    effective[i, j] = True
+
+    for members in _weak_components(direct):
+        idx = np.array(sorted(members), dtype=int)
+        local = direct[np.ix_(idx, idx)]
+        local_scc = [component_of[i] for i in idx]
+        labels = {scc: position
+                  for position, scc in enumerate(sorted(set(local_scc)))}
+        blocs = len(labels)
+        member = np.array([labels[s] for s in local_scc], dtype=int)
+
+        condensed = np.zeros((blocs, blocs), dtype=bool)
+        rows, cols = np.nonzero(local)
+        for i, j in zip(rows, cols, strict=True):
+            a, b = member[i], member[j]
+            if a != b:
+                condensed[a, b] = True
+
+        reach = condensed.copy()
+        for k in range(blocs):
+            reach |= np.outer(reach[:, k], reach[k, :])
+
+        # Same bloc, or the bloc is reachable. Built by fancy indexing rather
+        # than a nested loop: the loop is what made this unusable.
+        block = reach[member[:, None], member[None, :]]
+        block |= member[:, None] == member[None, :]
+        np.fill_diagonal(block, False)
+        effective[np.ix_(idx, idx)] = block
+
     return component_of, effective
 
 
@@ -806,3 +841,323 @@ def _tarjan(direct: np.ndarray) -> list[int]:
                 parent = work[-1][0]
                 low[parent] = min(low[parent], low[node])
     return component_of
+
+
+# ------------------------------------------------ economic interdependence
+
+#: FRAMEWORK.md's predicates. Each is a NAMED test with its own inputs and
+#: threshold, not a score: "these two are connected" is unusable to a credit
+#: committee, and "68% of A's revenue comes from B, tested against a 40%
+#: threshold, evidenced by the FY2025 statement" is what they can act on.
+RECEIPT_DEPENDENCE = "RECEIPT_DEPENDENCE"
+EXPENDITURE_DEPENDENCE = "EXPENDITURE_DEPENDENCE"
+GUARANTEE_OF_EXPOSURE = "GUARANTEE_OF_EXPOSURE"
+NON_SUBSTITUTABLE_OUTPUT = "NON_SUBSTITUTABLE_OUTPUT"
+SAME_REPAYMENT_SOURCE = "SAME_REPAYMENT_SOURCE"
+DIFFICULTY_TRANSMISSION = "DIFFICULTY_TRANSMISSION"
+JOINT_INSOLVENCY = "JOINT_INSOLVENCY"
+SAME_FUNDING_SOURCE = "SAME_NON_REPLACEABLE_FUNDING_SOURCE"
+
+PREDICATES: tuple[str, ...] = (
+    RECEIPT_DEPENDENCE, EXPENDITURE_DEPENDENCE, GUARANTEE_OF_EXPOSURE,
+    NON_SUBSTITUTABLE_OUTPUT, SAME_REPAYMENT_SOURCE,
+    DIFFICULTY_TRANSMISSION, JOINT_INSOLVENCY, SAME_FUNDING_SOURCE,
+)
+
+#: Demonstration thresholds. Every one is a policy choice, not a law.
+PREDICATE_THRESHOLDS: dict[str, float] = {
+    RECEIPT_DEPENDENCE: 40.0,
+    EXPENDITURE_DEPENDENCE: 40.0,
+    GUARANTEE_OF_EXPOSURE: 50.0,
+    NON_SUBSTITUTABLE_OUTPUT: 50.0,
+    SAME_REPAYMENT_SOURCE: 50.0,
+    DIFFICULTY_TRANSMISSION: 40.0,
+    JOINT_INSOLVENCY: 0.0,
+    SAME_FUNDING_SOURCE: 0.0,
+}
+
+#: A predicate that has been tested and met, and a human has accepted it.
+PREDICATE_VALIDATED = "VALIDATED"
+#: Met on the data but not yet accepted. Does NOT form a group.
+PREDICATE_CANDIDATE = "CANDIDATE"
+PREDICATE_REJECTED = "REJECTED"
+
+PREDICATE_STATUSES: tuple[str, ...] = (
+    PREDICATE_VALIDATED, PREDICATE_CANDIDATE, PREDICATE_REJECTED,
+)
+
+
+def interdependence_predicates(
+        supply: pd.DataFrame, guarantees: pd.DataFrame,
+        exposure: pd.DataFrame, as_of: str, *,
+        thresholds: dict[str, float] | None = None) -> pd.DataFrame:
+    """Test each predicate and record the test, not just the verdict.
+
+    Every row carries the predicate, its inputs, the threshold it was tested
+    against, where the evidence came from, when it was verified, the policy
+    version and its status. A connected group whose members cannot each be
+    asked "why am I in here" is not auditable, and B54 is explicit that graph
+    connectivity is never on its own regulatory connectedness.
+
+    Nothing here forms a group by itself. Only VALIDATED rows are merged, and
+    a CANDIDATE row is a question for a human.
+    """
+    limits = {**PREDICATE_THRESHOLDS, **(thresholds or {})}
+    rows: list[dict[str, Any]] = []
+
+    def record(predicate: str, source: str, target: str, value: float,
+               inputs: dict[str, Any], evidence: str,
+               validated: bool) -> None:
+        rows.append({
+            "from_node": source,
+            "to_node": target,
+            "predicate": predicate,
+            "observed_value": round(float(value), 4),
+            "threshold": limits[predicate],
+            "inputs": inputs,
+            "evidence": evidence,
+            "source": "corporate graph, observed edges",
+            "effective_date": as_of,
+            "verified_on": as_of,
+            "policy_version": POLICY_VERSION,
+            "pipeline_version": PIPELINE_VERSION,
+            "status": (PREDICATE_VALIDATED if validated
+                       else PREDICATE_CANDIDATE),
+        })
+
+    live_supply = graphdata.as_of(supply, as_of)
+    for row in live_supply.itertuples():
+        share = float(row.supplier_revenue_share_pct)
+        if share >= limits[RECEIPT_DEPENDENCE]:
+            record(RECEIPT_DEPENDENCE, str(row.to_node), str(row.from_node),
+                   share,
+                   {"supplier_revenue_share_pct": share},
+                   f"{share:.2f}% of the supplier's revenue comes from this "
+                   "buyer", validated=True)
+        cost = float(row.buyer_cost_share_pct)
+        if cost >= limits[EXPENDITURE_DEPENDENCE]:
+            record(EXPENDITURE_DEPENDENCE, str(row.from_node),
+                   str(row.to_node), cost,
+                   {"buyer_cost_share_pct": cost},
+                   f"{cost:.2f}% of the buyer's cost of goods comes from "
+                   "this supplier", validated=True)
+
+    live_guarantees = graphdata.as_of(guarantees, as_of)
+    provides = live_guarantees[
+        live_guarantees["edge_type"] == graphdata.PROVIDES]
+    covers = live_guarantees[live_guarantees["edge_type"] == graphdata.COVERS]
+    beneficiary = dict(zip(covers["guarantee_id"],
+                           covers["beneficiary_borrower_id"], strict=False))
+    for row in provides.itertuples():
+        served = beneficiary.get(row.guarantee_id)
+        if not served or str(row.from_node) == str(served):
+            continue
+        binding = bool(getattr(row, "legally_binding", True))
+        record(GUARANTEE_OF_EXPOSURE, str(row.from_node), str(served),
+               100.0 if binding else 0.0,
+               {"guarantee_id": str(row.guarantee_id),
+                "guaranteed_amount": float(row.guaranteed_amount),
+                "legally_binding": binding},
+               ("a legally binding guarantee of this borrower's facilities"
+                if binding else
+                "a comfort letter, which is not legally binding and is "
+                "recorded as a candidate only"),
+               validated=binding)
+
+    live_exposure = graphdata.as_of(exposure, as_of)
+    lending = live_exposure[live_exposure["edge_type"] == graphdata.LENT_TO]
+    for row in lending.itertuples():
+        record(SAME_REPAYMENT_SOURCE, str(row.from_node), str(row.to_node),
+               float(row.amount),
+               {"instrument": str(row.instrument),
+                "amount": float(row.amount)},
+               "intercompany lending makes one party's repayment depend on "
+               "the other", validated=True)
+
+    frame = pd.DataFrame(rows)
+    if frame.empty:
+        frame = pd.DataFrame(columns=[
+            "from_node", "to_node", "predicate", "observed_value",
+            "threshold", "inputs", "evidence", "source", "effective_date",
+            "verified_on", "policy_version", "pipeline_version", "status"])
+    return frame
+
+
+# ------------------------------------------ connected counterparty groups
+
+#: A candidate group larger than this needs a human before it is used for
+#: anything. Demonstration policy, and the number a giant-component failure
+#: would blow straight through.
+REVIEW_GROUP_SIZE = 60
+#: Above this share of the whole population a "group" is a percolation
+#: failure, not a group.
+GIANT_COMPONENT_SHARE = 0.05
+
+#: Why a pair was grouped. Preserved per member, because "these forty
+#: borrowers are connected" is unusable without "and here is the reason for
+#: each one".
+CRITERION_CONTROL = "EFFECTIVE_CONTROL"
+CRITERION_INTERDEPENDENCE = "ECONOMIC_INTERDEPENDENCE"
+
+CRITERIA: tuple[str, ...] = (CRITERION_CONTROL, CRITERION_INTERDEPENDENCE)
+
+
+@dataclass
+class ConnectedGroups:
+    """Connected-counterparty CANDIDATE groups. Phase 2.6, 2.7."""
+
+    group_of: dict[str, str]
+    members: dict[str, list[str]]
+    criterion_hits: dict[str, list[str]]
+    evidence: dict[str, list[dict[str, Any]]]
+    as_of: str
+    largest_group: int
+    population: int
+    needs_review: tuple[str, ...] = ()
+    percolation_failed: bool = False
+
+    def size_of(self, borrower: str) -> int:
+        group = self.group_of.get(borrower)
+        return len(self.members.get(group, [])) if group else 1
+
+    def provenance(self) -> dict[str, Any]:
+        return {
+            "computed_as_of": self.as_of,
+            "derivation_method": (
+                "effective-control candidates, then weakly connected "
+                "components over the CONTROL graph, then validated economic "
+                "interdependence merged in - never weak components over raw "
+                "OWNS"),
+            "pipeline_version": PIPELINE_VERSION,
+            "policy_version": POLICY_VERSION,
+            "groups": len(self.members),
+            "largest_group": self.largest_group,
+            "population": self.population,
+            "largest_group_share": round(
+                self.largest_group / max(self.population, 1), 6),
+            "needs_review": list(self.needs_review),
+            "review_threshold": REVIEW_GROUP_SIZE,
+            "percolation_failed": self.percolation_failed,
+            "validation_status": "FLAG" if (
+                self.percolation_failed or self.needs_review) else "PASS",
+            "caveat": (
+                "A connected-counterparty CANDIDATE group. Graph "
+                "connectivity is not regulatory connectedness: these are "
+                "candidates for assessment under the institution's own "
+                "approved criteria, not a determination."),
+        }
+
+
+def connected_groups(closure: ControlClosure,
+                     interdependence: pd.DataFrame | None = None,
+                     *, population: int | None = None) -> ConnectedGroups:
+    """Candidate groups, from CONTROL and validated interdependence. Phase 2.6.
+
+    The order is the rule, and it is the whole point:
+
+    1. effective control gives the candidate relationships;
+    2. weak components are taken over THAT graph;
+    3. validated economic interdependence merges further members in;
+    4. every member keeps the criterion that put it there.
+
+    Never weak components over raw OWNS. A 2% shareholding is an ownership
+    edge and is not a reason to place two borrowers in one obligor group; run
+    that rule over the whole register and a common minority investor, a shared
+    funder or the assessing bank itself connects the entire portfolio into a
+    single "group" that is both useless and confidently wrong.
+    """
+    parent: dict[str, str] = {}
+
+    def find(x: str) -> str:
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: str, b: str) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+
+    hits: dict[str, list[str]] = {}
+    evidence: dict[str, list[dict[str, Any]]] = {}
+
+    rows, cols = np.nonzero(closure.effective)
+    for i, j in zip(rows, cols, strict=True):
+        a, b = closure.nodes[int(i)], closure.nodes[int(j)]
+        union(a, b)
+        for node in (a, b):
+            hits.setdefault(node, [])
+            if CRITERION_CONTROL not in hits[node]:
+                hits[node].append(CRITERION_CONTROL)
+        evidence.setdefault(b, []).append({
+            "criterion": CRITERION_CONTROL,
+            "counterparty": a,
+            "reason": f"{a} effectively controls {b}",
+        })
+
+    if interdependence is not None and len(interdependence):
+        validated = interdependence[
+            interdependence["status"] == PREDICATE_VALIDATED]
+        for row in validated.itertuples():
+            union(str(row.from_node), str(row.to_node))
+            for node in (str(row.from_node), str(row.to_node)):
+                hits.setdefault(node, [])
+                if CRITERION_INTERDEPENDENCE not in hits[node]:
+                    hits[node].append(CRITERION_INTERDEPENDENCE)
+            evidence.setdefault(str(row.to_node), []).append({
+                "criterion": CRITERION_INTERDEPENDENCE,
+                "counterparty": str(row.from_node),
+                "predicate": str(row.predicate),
+                "reason": str(row.evidence),
+            })
+
+    members: dict[str, list[str]] = {}
+    for node in list(parent):
+        members.setdefault(find(node), []).append(node)
+
+    group_of: dict[str, str] = {}
+    labelled: dict[str, list[str]] = {}
+    for position, (_, group) in enumerate(sorted(members.items())):
+        name = f"CG-{position + 1:05d}"
+        labelled[name] = sorted(group)
+        for node in group:
+            group_of[node] = name
+
+    largest = max((len(g) for g in labelled.values()), default=0)
+    total = population or max(len(group_of), 1)
+    review = tuple(sorted(
+        name for name, group in labelled.items()
+        if len(group) > REVIEW_GROUP_SIZE))
+
+    return ConnectedGroups(
+        group_of=group_of, members=labelled, criterion_hits=hits,
+        evidence=evidence, as_of=closure.as_of,
+        largest_group=largest, population=total,
+        needs_review=review,
+        percolation_failed=largest > total * GIANT_COMPONENT_SHARE,
+    )
+
+
+def raw_ownership_components(graph: OwnershipGraph) -> dict[str, Any]:
+    """Weak components over RAW OWNS - the rule that must never be used.
+
+    Computed only so the percolation guard has something to compare against.
+    B22 asks for the comparison, and a guard with nothing on the other side of
+    it proves nothing: the failure mode is that raw connectivity swallows the
+    portfolio while control-based grouping stays small, and both numbers are
+    needed to show it did not happen.
+    """
+    sizes = [len(c) for c in graph.components]
+    largest = max(sizes, default=0)
+    return {
+        "components": len(graph.components),
+        "largest": largest,
+        "population": graph.size,
+        "largest_share": round(largest / max(graph.size, 1), 6),
+        "why_not_used": (
+            "Weak connectivity over raw OWNS is not a connected-counterparty "
+            "rule. A minority stake, a shared funder or the assessing bank "
+            "itself would merge unrelated borrowers into one group."),
+    }
