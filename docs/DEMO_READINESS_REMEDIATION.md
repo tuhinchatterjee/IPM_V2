@@ -93,11 +93,21 @@ named only in a clause asking to SEPARATE two kinds of driver, resolves to a
 governed macro concept published at portfolio grain — and then decided that
 one row was the whole book, so a question asking for ten borrowers was refused.
 
+**A13 — A phrase with no single column behind it became whichever column
+survived.** "Evidence of liquidity stress" is not a measure. The planner could
+only resolve named measures, so it kept the one term in the sentence that
+happened to map — utilisation — and then took the grain of the answer from
+that measure's dataset rather than from the population the question asked
+for. A question naming borrowers returned one portfolio row. The same shape
+would have degraded any composite credit phrase: distress, fragility, stretch,
+squeeze. This is the mechanism behind A11 and A12 rather than a third
+instance of them, and it is what §J's Q5 was waiting on.
+
 ---
 
 ## B. Files changed
 
-49 files, +5,076 / −283, across 12 commits.
+55 files, +6,382 / −299, across 13 commits, this report aside.
 
 **New**
 - `backend/bootstrap/{__init__,plan,readiness}.py` — the governed bootstrap
@@ -108,11 +118,16 @@ one row was the whole book, so a question asking for ten borrowers was refused.
 - `tests/semantic/{corpus,test_question_acceptance}.py` — §17
 - `frontend/src/components/trace/__tests__/validation-status.test.ts` — §9
 - `alembic/versions/0031_feedback_planner_mode.py`
+- `backend/orchestration/composites.py` — governed composite phrases and the
+  signals that evidence them
+- `tests/orchestration/test_composite_ranking.py` — borrower grain, the
+  composite, its plan, and what the reader sees
 
 **Changed (backend)** `agentic/screening.py`, `api/routers/health.py`,
 `llm/{base,telemetry}.py`, `models/platform.py`, `orchestration/{analysis_planner,
-concepts,discourse,entities,executor,invariants,orchestrator,referents,router,
-semantics}.py`, `services/{answer_feedback,governance}.py`, `trace/model.py`
+assembly,concepts,coverage,discourse,entities,executor,grain,invariants,
+orchestrator,referents,router,semantics,spelling}.py`,
+`services/{answer_feedback,governance}.py`, `trace/model.py`
 
 **Changed (frontend)** `app/data-builder/page.tsx`,
 `components/ai-studio/panels.tsx`, `components/ask/clarification.tsx`,
@@ -258,7 +273,12 @@ contradictory filters.)*
 declined and debt-service capacity has weakened over the last four reporting
 periods. Which of these also have covenant pressure or negative rating
 migration?"
-→ **succeeded, 1 borrower** meeting all four conditions.
+→ **succeeded, 79 borrowers** meeting all five conditions. This read "1
+borrower meeting all four" earlier. Two mechanism fixes moved it: "debt-service
+capacity has weakened" now resolves to the governed DSCR concept instead of
+being dropped, which is the fifth condition; and "four reporting periods" is no
+longer read as a magnitude, which had been attaching a phantom "more than 4" to
+every one of them. Five stated conditions, all applied.
 
 **Q4** "Which borrowers currently appear acceptable on headline financial
 ratios but show hidden deterioration when I combine collateral coverage,
@@ -270,12 +290,18 @@ is a correct question to ask, not a failure.
 **Q5** "Which borrowers have the strongest evidence of liquidity stress?
 Consider cash balances, working-capital movements, short-term debt maturities
 and facility utilisation together."
-→ **succeeded, but the answer is at the wrong grain.** It reports a
-portfolio-level utilisation movement where a borrower-level ranking was asked
-for. It now states what it could not compute — "the governed catalogue holds
-no measure for cash balances, working-capital movements, short-term debt
-maturities; this answer is composed on utilisation alone" — which is honest,
-but the population grain is still wrong. **This is an open defect** (§O).
+→ **succeeded, 25 borrowers, ranked.** Each borrower is placed by how many
+of eight governed liquidity-stress signals it shows at Q2 2026 — drawn to 90%
+or more of its limit, utilisation up 5 points or more on the prior period, in
+arrears, rolled over three times or more, debt-service coverage below 1.2x,
+covenant headroom below 10%, on the watchlist, classified non-performing —
+running from 8 of 8 at the top to 4 of 8 at the cut. The answer still names
+the dimensions it cannot compute (cash and liquidity balances, working-capital
+movement, short-term debt, upcoming maturities — the catalogue carries no
+measure for any of them), but those absences no longer decide the grain: it
+ranks borrowers on the evidence that does exist. Verified deterministic across
+three runs, and identical to an independently written DuckDB query. **This
+defect is closed**; what remains of it is a coverage limitation, §O.1.
 
 **Q6** "Find something in this portfolio that a human credit officer could
 easily miss."
@@ -286,7 +312,7 @@ measure at all; asking is the right response.
 
 ## K. Semantic evaluation
 
-**539 distinct questions across 82 structural families**, 1,091 assertions,
+**547 distinct questions across 83 structural families**, 1,107 assertions,
 all passing. Checked against the reader's INTERMEDIATE reading — the cohorts it
 found, the mentions it bound, whether it believes it needs a previous result,
 and which words it took for borrower names — not the HTTP status. The question
@@ -299,11 +325,16 @@ rather than obligor lookups. Counter-tests keep the guards honest — five
 genuinely ambiguous questions must still ask, and four genuinely unknown
 borrower names must still surface.
 
+The eighty-third family is liquidity asked in plain English — "who is running
+short of cash", "which names look squeezed on liquidity", "who has the most
+signs of a cash squeeze" — eight variants, none of which names a measure, all
+of which must stay at borrower grain.
+
 ---
 
 ## L. Full test suite
 
-**7,105 passed, 21 skipped, 0 failed** on the definitive run
+**7,159 passed, 21 skipped, 0 failed** on the definitive run
 (`pytest tests/ -q -p no:randomly`, exit 0). Frontend: **308 passed, 0
 failed**. `ruff` clean across `backend/`, `tests/`, `scripts/`, `alembic/`;
 `tsc --noEmit` and `eslint` clean.
@@ -315,6 +346,14 @@ conditions - "1 borrower meeting all four" had become "500 meeting two", under
 a heading still promising four. It was found by re-running the six questions
 by hand, not by the suite, which is the argument for §20's rule that unit
 tests passing is not the gate. The regression is now pinned by a test.
+
+A fourth run followed the Q5 fix: 7,159 passing, the 54 additional tests being
+the borrower-grain and composite suite. That fix also moved Q3 (§J), which the
+suite did not flag either, because no test asserted anything about Q3's shape.
+Two now do: Q3's five conditions must each carry no threshold the question did
+not state, and Q5's population must stay at borrower grain. Neither pins a row
+count — a count pinned to demonstration data is a test of the fixture, not of
+the mechanism.
 
 No existing test was weakened, skipped or xfailed. Three legacy assertions
 were replaced because the string each pinned was itself the defect; each
@@ -352,11 +391,16 @@ screens directly.
 
 ## O. Remaining limitations
 
-1. **Q5 answers at the wrong grain.** "Which borrowers have the strongest
-   evidence of liquidity stress" returns a portfolio-level utilisation
-   movement. The answer states which dimensions it could not compute, so it is
-   not silently wrong, but it does not answer "which borrowers". The fix is the
-   same class as Q1's and is not done.
+1. **Liquidity stress is evidenced on eight dimensions, not twelve.** The
+   ranking is built from what the catalogue carries: utilisation level and
+   movement, arrears, rollovers, debt service, covenant headroom, watchlist and
+   non-performing status. Cash and liquidity balances, working-capital
+   movement, short-term debt and upcoming maturities have no governed measure
+   behind them, so no borrower is ranked on them. The answer says this in
+   place, and the ranking counts signals rather than weighting them — a
+   weighted score would need weights, and a weight nobody owns does not belong
+   in a credit answer. Adding those four dimensions is a data question, not an
+   engine one.
 
 2. **Docker was not exercised.** No Docker daemon is available in this
    environment. The entrypoint, healthcheck and compose changes are
@@ -380,6 +424,7 @@ screens directly.
 
 ---
 
-**This is not a claim of demo readiness.** Q5 is an open defect on one of the
-six acceptance questions, and the Docker path is unverified in this
-environment. Both are listed above rather than absorbed into a summary.
+**This is not a claim of demo readiness.** All six acceptance questions now
+answer at the grain they were asked at, but the Docker path is unverified in
+this environment and four liquidity dimensions have no data behind them. Both
+are listed above rather than absorbed into a summary.
