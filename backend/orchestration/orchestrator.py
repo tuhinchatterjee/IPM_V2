@@ -117,8 +117,13 @@ def mode() -> dict[str, Any]:
         "mode": "model" if live else ("degraded" if configured else "offline"),
         "configured": configured,
         "live": live,
+        # "LIMITED OFFLINE MODE" reads as a fault. It is a mode: the governed
+        # local reader, which answers the supported banking questions
+        # deterministically and traceably. "AI DEGRADED" stays, because a key
+        # that is configured and failing IS a fault and an administrator needs
+        # to know.
         "label": ("CreditProbe AI" if live else
-                  ("AI DEGRADED" if configured else "LIMITED OFFLINE MODE")),
+                  ("AI DEGRADED" if configured else "GOVERNED LOCAL READER")),
         "provider": status.provider,
         "model_name": status.model or None,
         "state": observed["state"],

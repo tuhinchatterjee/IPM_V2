@@ -579,11 +579,17 @@ def unresolved(question: str, state: cv.ConversationState) -> str:
         return ""
     if _self_referential(question, read_back.population):
         return ""
+    # Written as a credit officer would ask it, not as the parser would.
+    # The old wording — "no previous result in this investigation returned a
+    # set of names to carry forward" — described the mechanism that failed
+    # rather than the thing the reader has to decide, and it read as a bug
+    # report in front of a client. What is actually needed is one short
+    # question: which borrowers do you mean?
     return (
-        f"CreditProbe could not work out what {read_back.population!r} refers "
-        "to — no previous result in this investigation returned a set of names "
-        "to carry forward. Ask the question with the population named, or run "
-        "the analysis that produces it first.")
+        f"Which borrowers do you mean by {read_back.population!r}? Nothing "
+        "earlier in this investigation names a set I can carry forward, so "
+        "tell me the population — a sector, a rating band, a stage, or a "
+        "question that produces the list — and I will take it from there.")
 
 
 __all__ = ["Reference", "read", "resolve", "unresolved", "wants"]

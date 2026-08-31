@@ -41,6 +41,20 @@ BUILD_PHASE = "Credit intelligence"
 # Worst-first, so the overall status is the worst component present.
 _SEVERITY = {"unavailable": 3, "not_configured": 2, "degraded": 2, "empty": 1, "ok": 0}
 
+#: Components that describe the SERVICE — whether this deployment can read its
+#: data, run its engine and store a result. `status` is computed from these
+#: alone.
+#:
+#: `ai_provider` is deliberately not among them. An external model provider is
+#: a capability, not a dependency: with no key configured the deterministic
+#: reader still parses questions, the governed runtime still executes them and
+#: every screen still works. Counting it made a laptop with no ANTHROPIC_API_KEY
+#: report the whole backend "degraded" — an orange badge, in front of a client,
+#: while every request was returning 200. The provider's own state is still
+#: reported, in full, as its own component and under `ai`; it simply no longer
+#: speaks for the service.
+INFRASTRUCTURE = ("postgresql", "analytical_store", "catalog", "ipm_engine")
+
 
 def _check_analytical_store() -> ComponentHealth:
     """DuckDB over the Parquet analytics layer."""
@@ -191,6 +205,26 @@ def build() -> dict:
     }
 
 
+@router.get("/readiness", summary="Is this deployment demonstrable?")
+def readiness() -> dict:
+    """Every demonstration readiness check, with its remedy.
+
+    The same checks the Docker health check reads and the same ones the
+    acceptance test asserts — one authority, so "the container says healthy"
+    and "the product is usable" cannot disagree again.
+
+    Open to any signed-in reader: it names datasets and counts, never data.
+    """
+    from backend import bootstrap
+
+    if not settings.has_database:
+        return bootstrap.readiness(None).to_dict()
+    from backend.db.engine import get_session
+
+    with get_session() as session:
+        return bootstrap.readiness(session).to_dict()
+
+
 @router.get("/demo", summary="Demonstration posture")
 def demo() -> dict:
     """Whether this deployment is a demonstration, and what that guarantees.
@@ -216,7 +250,12 @@ def demo() -> dict:
 def health() -> HealthResponse:
     components = [_check_database(), _check_analytical_store(), _check_catalog(),
                   _check_engine(), _check_ai()]
-    worst = max(_SEVERITY.get(c.status, 0) for c in components) if components else 0
+    # Only the infrastructure decides the headline. See INFRASTRUCTURE above:
+    # "no AI provider configured" is a mode this product supports, not a fault
+    # in the service, and reporting it as one frightened a client away from a
+    # backend that was answering every request.
+    service = [c for c in components if c.name in INFRASTRUCTURE]
+    worst = max(_SEVERITY.get(c.status, 0) for c in service) if service else 0
     # "empty" is an expected Phase 1 state, not a fault — a system with no engine
     # functions registered yet is working exactly as designed.
     overall = "ok" if worst <= 1 else ("degraded" if worst == 2 else "unavailable")

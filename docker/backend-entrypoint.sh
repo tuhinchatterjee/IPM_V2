@@ -1,22 +1,28 @@
 #!/usr/bin/env bash
 #
-# What has to be true before the CreditProbe API can serve a request, in order.
+# What has to be true before the CreditProbe API serves a request.
 #
 #   1. PostgreSQL is accepting connections, with these credentials
-#   2. The database schema is up to date
-#   3. The analytical Parquet layer exists
+#   2. The demonstration bootstrap has run and passed its readiness checks
 #
-# Compose already waits for the database's own health check, so step 1 is a
-# short belt-and-braces retry rather than the primary mechanism. It connects
-# with the application's real DATABASE_URL rather than only probing the port,
-# so a wrong password fails here with a clear message instead of surfacing as a
-# mysterious 500 on the first request.
+# Step 2 used to be three separate things done here, in shell, with the rest
+# of the setup living in scripts a presenter was expected to run by hand. A
+# fresh Mac ran `docker compose up --build`, got the Saudi portfolio and
+# nothing else, and the API came up reporting itself healthy on an empty
+# product: no corporate book, no scorecard months, no registered catalogue, no
+# Data Builder domains, no workspace, no portfolio review.
 #
-# Nothing here destroys anything. `alembic upgrade head` only applies migrations
-# that have not run yet, and the data lake is built only when it is missing.
+# So the sequence lives in `backend/bootstrap`, as data, with a probe per step
+# and a verification pass at the end — and this file runs it. One command, and
+# it is the same command a developer runs locally, so the thing that is tested
+# is the thing that ships.
+#
+# Nothing here destroys anything. Every step asks whether it is needed before
+# doing anything, so a restart does the work once and a volume half-built by
+# an interrupted start finishes the half that is missing.
 set -euo pipefail
 
-say() { echo "[ipm] $*"; }
+say() { echo "[creditprobe] $*"; }
 
 # ------------------------------------------------------------ 1. the database
 
@@ -36,78 +42,45 @@ for _ in range(60):
     except Exception as e:  # not ready yet, or wrong credentials
         last = str(e).strip().splitlines()[0] if str(e).strip() else repr(e)
         time.sleep(1)
-print(f"[ipm] Could not connect to PostgreSQL after 60 seconds: {last}", file=sys.stderr)
-print("[ipm] Check it with:  docker compose logs db", file=sys.stderr)
+print(f"[creditprobe] Could not connect to PostgreSQL after 60 seconds: {last}", file=sys.stderr)
+print("[creditprobe] Check it with:  docker compose logs db", file=sys.stderr)
 sys.exit(1)
 PY
   say "PostgreSQL is ready."
-
-  # ---------------------------------------------------------- 2. the schema
-  say "Applying database migrations..."
-  python -m alembic upgrade head
-  say "Database schema is up to date."
 else
   say "No DATABASE_URL set — starting without a database. History and Trace"
-  say "versions will not be stored."
+  say "versions will not be stored, and the demonstration cannot be seeded."
 fi
 
-# ------------------------------------------------------- 3. the analytics layer
+# --------------------------------------------------- 2. the demonstration
 
-# The demonstration book is SIMULATED rather than read from a file: it is a
-# Saudi corporate portfolio of ~16,000 facilities across 15 quarters, with the
-# IFRS 9 staging, rating history and macroeconomic series that go with it. One
-# fixed seed, so every machine gets the identical universe.
+# The first start builds three synthetic universes and runs a portfolio
+# review, which takes a few minutes. Every later start finds them and skips.
 #
-# The raw workbook under data/raw is left alone. `scripts/build_data_lake.py`
-# still turns it into the same governed shape, which is how a client dataset is
-# onboarded — the generated universe is only what is there before one is.
-ANALYTICS_DIR="${DATA_ANALYTICS_DIR:-data/analytics}"
+# The exit code is not ignored. A required step that fails stops the
+# bootstrap, and the marker file below is what the health check reads — so a
+# deployment whose corporate book failed to build reports NOT ready instead of
+# reporting healthy with an empty Borrower 360 screen. That silent success is
+# the defect this whole arrangement exists to prevent.
+READY_MARKER="${CREDITPROBE_READY_MARKER:-/tmp/creditprobe-bootstrap.json}"
+rm -f "${READY_MARKER}"
 
-# Every dataset the generator produces. Checking the whole list rather than one
-# of them matters on an UPGRADE: a volume built by an earlier version has
-# portfolio_facility and would pass a single-directory check, while the datasets
-# added since would silently not exist — and the analyses that read them would
-# report no data rather than an error.
-EXPECTED_DATASETS="portfolio_facility ifrs9_staging customer_ratings macro_saudi \
-borrower_financials facility_delinquency credit_memo_signals collateral_register \
-covenant_tests facility_limits watchlist_register recoveries payment_history \
-group_structure rating_transitions risk_appetite_limits pd_model_performance \
-scenario_definitions facility_profitability climate_risk"
-
-missing=""
-for dataset in ${EXPECTED_DATASETS}; do
-  if [ ! -d "${ANALYTICS_DIR}/${dataset}" ]; then
-    missing="${missing} ${dataset}"
-  fi
-done
-
-if [ -z "${missing}" ]; then
-  say "Analytical layer already built."
+say "Preparing the demonstration (first start builds the data; later starts skip)..."
+if python scripts/bootstrap_demo.py --json > "${READY_MARKER}.tmp" 2>>/dev/stderr; then
+  mv "${READY_MARKER}.tmp" "${READY_MARKER}"
+  say "Demonstration bootstrap complete and verified."
 else
-  say "Building the demonstration universe (~20 seconds). Missing:${missing}"
-  python scripts/generate_saudi_universe.py
-  say "Analytical layer built."
+  status=$?
+  mv "${READY_MARKER}.tmp" "${READY_MARKER}.failed" 2>/dev/null || true
+  say "DEMONSTRATION BOOTSTRAP DID NOT PASS (exit ${status})."
+  say "The API will start so the failure can be inspected, but the container"
+  say "will report UNHEALTHY until it passes. What failed:"
+  python scripts/bootstrap_demo.py --check 2>/dev/null | sed 's/^/[creditprobe]   /' || true
+  say "Re-run one step with:  docker compose exec backend \\"
+  say "    python scripts/bootstrap_demo.py --step <name>"
 fi
 
-# --------------------------------------------------- 3b. the demo accounts
-
-# Idempotent, and it NEVER changes a password that already exists — so a
-# restart cannot undo a password somebody set, and this can run on every boot.
-if [ -n "${DATABASE_URL:-}" ]; then
-  python scripts/seed_demo_users.py || say "Could not seed the demonstration users."
-fi
-
-# ------------------------------------------------- 3c. the governed joins
-
-# The demonstration book ships with its relationships declared, because a
-# twenty-domain book whose joins a steward has to draw by hand is a
-# twenty-domain book nobody joins. Idempotent and additive: it never removes a
-# relationship somebody declared themselves.
-if [ -n "${DATABASE_URL:-}" ]; then
-  python scripts/seed_relationships.py || say "Could not declare the governed joins."
-fi
-
-# ------------------------------------------------------------------ 4. serve
+# ------------------------------------------------------------------ 3. serve
 
 say "Starting the CreditProbe API on 0.0.0.0:${API_PORT:-8000}"
 exec "$@"

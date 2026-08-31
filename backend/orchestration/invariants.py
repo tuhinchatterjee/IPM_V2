@@ -308,7 +308,7 @@ def _from_question(question: str, build: Any) -> list[Check]:
     # "Rank by EAD" promises an order. A ranking whose rows are not in that
     # order is a list, and the reader will still read the first row as the
     # largest.
-    ranked = _ranking_column(build)
+    ranked = _ranking_column(build, question)
     if ranked:
         checks.append(Check(
             rule="ordering",
@@ -318,18 +318,53 @@ def _from_question(question: str, build: Any) -> list[Check]:
     return checks
 
 
-def _ranking_column(build: Any) -> str:
-    """The measure a ranking promised to be ordered by, if it promised one."""
+#: Words with which a question actually PROMISES an order. Checked against the
+#: question, not inferred from the plan, because the promise is something the
+#: reader made — not something the planner decided on their behalf.
+_RANKING_WORDS = re.compile(
+    r"\b(top|bottom|rank(?:ed|ing)?|largest|biggest|smallest|highest|lowest|"
+    r"worst|best|most|least|leading|order(?:ed)?\s+by|sort(?:ed)?\s+by|"
+    r"greatest|first\s+\d+|last\s+\d+)\b", re.IGNORECASE)
+
+
+def _ranking_column(build: Any, question: str = "") -> str:
+    """The measure a ranking promised to be ordered by, if it promised one.
+
+    Why the QUESTION is consulted and not only the plan
+    ---------------------------------------------------
+    This used to end `return matches[0].field` for anything the planner shaped
+    as a "ranking" — so a plan with more than one row and no ordering
+    condition was treated as having promised to be ordered by whichever
+    measure happened to be listed first.
+
+        "Show expected credit loss and Stage 2 share for Financial Services
+         between Q1 2026 and Q2 2026."
+
+    That is a two-period comparison for one sector. The rows come back in
+    period order, which is the only order that makes sense. The check asserted
+    "ranked by total ecl, largest first", found row 3 larger than row 2, and
+    the answer was WITHHELD — a correct calculation blocked by a promise
+    nobody made, which is what a presenter then has to explain.
+
+    An ordering invariant is a real correctness check and it stays. It now
+    fires on the two things that genuinely promise an order: an explicit
+    ordering condition in the plan, or ranking language in the question. A
+    plain "show me X and Y" promises a list, and a list is not out of order.
+    """
     if str(getattr(build, "shape", "") or "") != "ranking":
         return ""
     matches = list(getattr(build, "matches", None) or [])
     if not matches:
         return ""
     # An explicit ordering condition wins over the first measure: "show the
-    # five largest by EAD, with their ECL" names two and orders by one.
+    # five largest by EAD, with their ECL" names two and orders by one. It is
+    # also proof on its own that an order was asked for.
     for condition in (getattr(build, "conditions", None) or []):
         if str(getattr(condition, "kind", "")) == "order":
             return str(getattr(condition, "column", "") or "")
+    # No explicit order. Only claim one if the reader asked for one.
+    if not _RANKING_WORDS.search(question or ""):
+        return ""
     return str(getattr(matches[0], "field", "") or "")
 
 

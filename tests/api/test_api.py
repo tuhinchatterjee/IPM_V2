@@ -51,12 +51,73 @@ def test_every_component_explains_itself_in_plain_english(client):
         assert component["detail"].strip(), f"{component['name']} reports no explanation"
 
 
-def test_overall_status_is_the_worst_component(client):
+SEVERITY = {"ok": 0, "empty": 1, "not_configured": 2, "degraded": 2,
+            "unavailable": 3}
+
+
+def test_overall_status_is_the_worst_INFRASTRUCTURE_component(client):
+    """The headline reports the SERVICE, not every capability beside it.
+
+    This used to take the worst of ALL components, `ai_provider` included. A
+    laptop with no ANTHROPIC_API_KEY therefore reported the whole backend
+    "degraded" — an orange badge in front of a client, while every request was
+    returning 200 and every screen worked. No external provider is a supported
+    mode of this product, and on some bank networks the only permitted one.
+
+    The replacement is narrower where it was wrong and stricter everywhere
+    else: it pins the roll-up to the four infrastructure components AND
+    asserts the provider cannot move it, which the old form could not express
+    at all.
+    """
+    from backend.api.routers.health import INFRASTRUCTURE
+
     body = client.get("/api/v1/health").json()
-    severity = {"ok": 0, "empty": 1, "not_configured": 2, "degraded": 2, "unavailable": 3}
-    worst = max(severity[c["status"]] for c in body["components"])
+    service = [c for c in body["components"] if c["name"] in INFRASTRUCTURE]
+    assert service, "no infrastructure component was reported"
+    worst = max(SEVERITY[c["status"]] for c in service)
     expected = "ok" if worst <= 1 else ("degraded" if worst == 2 else "unavailable")
     assert body["status"] == expected
+
+
+def test_an_absent_ai_provider_does_not_degrade_the_service(client):
+    """The specific regression: no key must not read as a broken backend."""
+    body = client.get("/api/v1/health").json()
+    provider = next((c for c in body["components"]
+                     if c["name"] == "ai_provider"), None)
+    assert provider is not None, "the provider must still be reported"
+    if provider["status"] == "ok":
+        pytest.skip("a provider is configured and healthy here")
+    # It is reported honestly...
+    assert provider["status"] in ("not_configured", "degraded", "unavailable")
+    assert provider["detail"].strip()
+    # ...and it does not speak for the service.
+    from backend.api.routers.health import INFRASTRUCTURE
+
+    service = [c for c in body["components"] if c["name"] in INFRASTRUCTURE]
+    if all(SEVERITY[c["status"]] <= 1 for c in service):
+        assert body["status"] == "ok", (
+            "every infrastructure component is healthy and the overall status "
+            "is not ok, so something outside the service is still degrading it")
+
+
+def test_a_broken_infrastructure_component_still_degrades_the_service(client):
+    """So the test above cannot pass because nothing can degrade anything.
+
+    Drives the roll-up directly with a substituted component list rather than
+    breaking the real database: the property under test is the arithmetic, and
+    a test that has to take PostgreSQL down to check it is a test nobody runs.
+    """
+    from backend.api.routers import health as health_mod
+
+    real = health_mod._check_database
+    try:
+        health_mod._check_database = lambda: health_mod.ComponentHealth(
+            name="postgresql", status="unavailable", detail="forced for test")
+        body = client.get("/api/v1/health").json()
+        assert body["status"] == "unavailable", (
+            "an unavailable database must still degrade the service")
+    finally:
+        health_mod._check_database = real
 
 
 def test_health_identifies_the_build_phase(client):

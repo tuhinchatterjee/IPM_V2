@@ -30,7 +30,7 @@ import type { AiStatus, ValidationCase, ValidationRun } from "@/lib/api";
  *   AI POWERED · DEGRADED below 60
  *   AI POWERED · STALE    the model, build, benchmark or data has moved on
  *   AI UNVERIFIED         a key is configured and no case reached the model
- *   AI OFFLINE            no provider is configured at all
+ *   GOVERNED LOCAL READER no external provider is configured at all
  *
  * The last two matter most. A check where every case fell through to the
  * deterministic reader can still score a hundred — it measures the governed
@@ -69,7 +69,15 @@ export function AiPowerControl() {
       >
         <Sparkles className="size-3.5" aria-hidden />
         <span className="hidden font-display tracking-[0.02em] sm:inline">
-          {offline ? "AI OFFLINE" : label}
+          {/*
+            "AI OFFLINE" described a component as broken. Nothing is broken:
+            with no external provider configured the deterministic reader
+            parses the question, the governed runtime executes it and the
+            answer is traceable — it is a MODE this product supports, and on
+            a bank's own network it may be the only permitted one. So the
+            chip names the mode the product is actually running in.
+          */}
+          {offline ? "GOVERNED LOCAL READER" : label}
         </span>
       </button>
 

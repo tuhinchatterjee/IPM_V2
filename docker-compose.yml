@@ -144,14 +144,27 @@ services:
         condition: service_healthy
     healthcheck:
       # Defined in the image (docker/healthcheck.py) and repeated here so the
-      # timings are visible where the stack is described. Generous, because the
-      # first start also runs the migrations and builds the Parquet layer
-      # before the API answers.
+      # timings are visible where the stack is described.
+      #
+      # The check asks two things: is the API answering, AND did the
+      # demonstration bootstrap pass its readiness checks. The second matters
+      # because an empty deployment answers 200 on every route — the screens
+      # load, they are simply blank — so an HTTP-only check reported a healthy
+      # container with no corporate book in it.
+      #
+      # `start_period` is 8 minutes because a FIRST start generates three
+      # synthetic universes and runs a portfolio review. A measured clean-room
+      # run of exactly that work took 319 seconds; 480 leaves room for a
+      # slower laptop without leaving a genuinely broken start hanging for
+      # ever. Failures during start_period do not count against `retries`, so
+      # this costs a healthy machine nothing.
+      #
+      # Later starts find everything already built and pass in seconds.
       test: ["CMD", "python", "/usr/local/bin/ipm-healthcheck.py"]
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 30
-      start_period: 90s
+      start_period: 480s
     networks: [ipm]
     restart: unless-stopped
 

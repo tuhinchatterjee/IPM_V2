@@ -66,6 +66,124 @@ VALID_ORIGINS = {o.value for o in DatasetOrigin}
 # never overwrites a decision a steward has made about a CLIENT dataset.
 
 
+#: What the previous registration wrote when it had nothing to say. Replaced
+#: rather than preserved: it is a placeholder, not somebody's description.
+_PLACEHOLDER_DESCRIPTIONS = frozenset({
+    "Created from CreditProbe's bundled catalogue.",
+    "Registered from CreditProbe's bundled catalogue.",
+})
+
+
+def _ensure_domain(session: Session, name: str) -> None:
+    """Create the business domain if it is not there, with its real text.
+
+    Description and owner come from the map rather than from whichever
+    dataset happened to be registered first — that is why the seven cards
+    used to read "Created from CreditProbe's bundled catalogue." instead of
+    saying what the domain holds.
+    """
+    from backend.models.platform import DataDomain
+    from backend.services import data_domains
+
+    existing = session.execute(
+        select(DataDomain).where(DataDomain.name == name)).scalar_one_or_none()
+    known = data_domains.get(name)
+    if existing is None:
+        session.add(DataDomain(
+            name=name,
+            description=known.description if known else
+            "Registered from CreditProbe's bundled catalogue.",
+            owner=known.owner if known else "",
+            sort_order=(data_domains.NAMES.index(name)
+                        if known and name in data_domains.NAMES else 90),
+        ))
+        session.flush()
+        return
+    # Fill in a blank, and replace the placeholder the OLD registration wrote
+    # — "Created from CreditProbe's bundled catalogue." is not a steward's
+    # description of a domain, it is the absence of one, and leaving it there
+    # is why two of the seven cards said nothing about what they hold.
+    # Anything else a person has written is left exactly as they left it.
+    if known is not None:
+        if not (existing.description or "").strip() or \
+                existing.description.strip() in _PLACEHOLDER_DESCRIPTIONS:
+            existing.description = known.description
+        if not (existing.owner or "").strip():
+            existing.owner = known.owner
+        if name in data_domains.NAMES:
+            existing.sort_order = data_domains.NAMES.index(name)
+        existing.status = "ACTIVE"
+    session.flush()
+
+
+def install_business_domains(session: Session) -> dict[str, Any]:
+    """Create the seven Data Builder domains and file every dataset in one.
+
+    Separate from `sync_bundled_catalog` because the two answer different
+    questions. Registration asks "what datasets exist?"; this asks "where
+    would a person look for them?" Running it alone re-homes an estate whose
+    datasets were registered before the map existed, which is every
+    deployment built before this release.
+    """
+    from backend.models.platform import DatasetDefinition
+    from backend.services import data_domains
+
+    for name in data_domains.NAMES:
+        _ensure_domain(session, name)
+
+    moved: list[str] = []
+    unplaced: list[str] = []
+    for dataset in session.execute(select(DatasetDefinition)).scalars().all():
+        if dataset.origin == DatasetOrigin.CLIENT.value:
+            # A steward's own dataset keeps the domain the steward chose.
+            continue
+        where = data_domains.business_domain(dataset=dataset.name,
+                                             catalogue_domain=dataset.domain)
+        if where == data_domains.UNPLACED:
+            unplaced.append(dataset.name)
+            continue
+        if dataset.domain != where:
+            dataset.domain = where
+            moved.append(dataset.name)
+    session.flush()
+
+    # The catalogue's thirty-eight fine-grained domains are now empty: every
+    # dataset that named one has been re-homed. Left ACTIVE they would render
+    # as thirty-eight cards reading "0 datasets" beside the seven real ones,
+    # which is the long-list problem this mapping exists to remove.
+    #
+    # ARCHIVED, not deleted. Archiving takes a domain off the working list and
+    # touches nothing it contained; a steward who wants the old taxonomy back
+    # can restore it, and a domain somebody has since put a dataset into is
+    # left alone because the query only reaches empty ones.
+    from backend.models.platform import DataDomain
+
+    occupied = {d.domain for d in session.execute(
+        select(DatasetDefinition)).scalars().all()}
+    retired: list[str] = []
+    for domain in session.execute(select(DataDomain)).scalars().all():
+        if domain.name in data_domains.NAMES or domain.name in occupied:
+            continue
+        if domain.status != "ARCHIVED":
+            domain.status = "ARCHIVED"
+            retired.append(domain.name)
+    session.flush()
+
+    return {
+        "domains": len(data_domains.NAMES),
+        "placed": len(moved),
+        "retired": retired,
+        "unplaced": unplaced,
+        "message": (
+            f"{len(data_domains.NAMES)} business domain(s) installed; "
+            f"{len(moved)} dataset(s) re-homed"
+            + (f"; {len(retired)} emptied legacy domain(s) archived"
+               if retired else "")
+            + (f"; {len(unplaced)} unplaced: {', '.join(unplaced[:4])}"
+               if unplaced else ".")),
+    }
+
+
 def sync_bundled_catalog(session: Session) -> dict[str, Any]:
     """Register the bundled datasets in Data Builder so they can be governed.
 
@@ -76,7 +194,8 @@ def sync_bundled_catalog(session: Session) -> dict[str, Any]:
     import json
 
     from backend.config import settings
-    from backend.models.platform import DataDomain, FieldDefinition
+    from backend.models.platform import FieldDefinition
+    from backend.services import data_domains
 
     path = settings.metadata_dir / "catalog.json"
     if not path.exists():
@@ -86,22 +205,28 @@ def sync_bundled_catalog(session: Session) -> dict[str, Any]:
     catalogue = json.loads(path.read_text(encoding="utf-8"))
     synced: list[str] = []
     skipped: list[str] = []
+    unplaced: list[str] = []
 
     for entry in catalogue.get("datasets") or []:
         name = str(entry.get("name") or "")
         if not name:
             continue
 
-        domain_name = str(entry.get("domain") or "Ungoverned")
-        if not session.execute(
-            select(DataDomain).where(DataDomain.name == domain_name)
-        ).scalar_one_or_none():
-            session.add(DataDomain(
-                name=domain_name,
-                description="Created from CreditProbe's bundled catalogue.",
-                owner=str(entry.get("owner") or ""),
-            ))
-            session.flush()
+        # The catalogue's own domain is the GENERATOR's taxonomy - thirty-nine
+        # headings for forty-six datasets, one of them per dataset in places.
+        # Data Builder is a business screen, so the dataset is filed under the
+        # business domain the map places it in. The fine-grained catalogue
+        # domain is not lost: it stays in metadata/catalog.json and is what
+        # /health/catalog still reports.
+        catalogue_domain = str(entry.get("domain") or "")
+        domain_name = data_domains.business_domain(
+            dataset=name, catalogue_domain=catalogue_domain)
+        if domain_name == data_domains.UNPLACED:
+            # Named, never silently bucketed. A dataset with no business home
+            # is a dataset nobody can find on the screen, which is the defect
+            # this mapping exists to fix, coming back quietly.
+            unplaced.append(f"{name} (catalogue domain {catalogue_domain!r})")
+        _ensure_domain(session, domain_name)
 
         dataset = session.execute(
             select(DatasetDefinition).where(DatasetDefinition.name == name)
@@ -163,10 +288,13 @@ def sync_bundled_catalog(session: Session) -> dict[str, Any]:
     return {
         "synced": synced,
         "skipped": skipped,
+        "unplaced": unplaced,
         "message": (
             f"{len(synced)} bundled dataset(s) registered in Data Builder"
             + (f"; {len(skipped)} left alone because they now hold client data."
                if skipped else ".")
+            + (f" {len(unplaced)} could not be placed in a business domain: "
+               f"{', '.join(unplaced[:4])}" if unplaced else "")
         ),
     }
 
@@ -590,6 +718,7 @@ def replace_dataset(session: Session, *, outgoing: str, incoming: str,
 
 __all__ = [
     "Dependant",
+    "install_business_domains",
     "sync_bundled_catalog",
     "UsedBy",
     "archive_dataset",

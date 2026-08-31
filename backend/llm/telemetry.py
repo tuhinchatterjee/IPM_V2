@@ -48,7 +48,12 @@ CONNECTED = "connected"
 DEGRADED = "degraded"
 
 LABELS: dict[str, str] = {
-    OFFLINE: "AI OFFLINE",
+    # Not "AI OFFLINE". Nothing is off: with no external provider the
+    # deterministic reader parses the question and the governed runtime
+    # executes it, which is a supported mode and on some bank networks the
+    # only permitted one. The label names the mode rather than reporting a
+    # fault the deployment does not have.
+    OFFLINE: "GOVERNED LOCAL READER",
     CONFIGURED: "AI CONFIGURED",
     CONNECTED: "AI CONNECTED",
     DEGRADED: "AI DEGRADED",

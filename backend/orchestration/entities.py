@@ -183,11 +183,20 @@ def unresolved_names(question: str, context: Any) -> list[str]:
     # proper noun and refuses a question about a sector CreditProbe knows well.
     sentences = [part for part in re.split(r"(?<=[.!?])\s+", text) if part]
 
+    # Each phrase is kept WITH the sentence it came from. The rule that a
+    # capitalised word opening a sentence is ordinary English is a rule about
+    # sentences, and applying it only to the first one is how "Explain the
+    # SICR evidence for every borrower" — the second sentence of a perfectly
+    # clear question — was reported as a borrower nobody had heard of.
+    found: list[tuple[str, str]] = [
+        (sentence, match)
+        for sentence in sentences
+        for match in re.findall(
+            r"\b(?:[A-Z][a-z0-9&'-]+)(?:\s+[A-Z][a-z0-9&'-]+)*\b", sentence)]
+
     candidates: list[str] = []
-    for phrase in [m for sentence in sentences
-                   for m in re.findall(
-                       r"\b(?:[A-Z][a-z0-9&'-]+)(?:\s+[A-Z][a-z0-9&'-]+)*\b",
-                       sentence)]:
+    for sentence, phrase in found:
+        opens_sentence = sentence.startswith(phrase)
         # "Summit Power's exposure" names Summit Power. The possessive is
         # grammar, and reporting it as part of the name makes the "we have
         # never heard of this borrower" message look like a parsing bug.
@@ -208,8 +217,11 @@ def unresolved_names(question: str, context: Any) -> list[str]:
         words = set(re.findall(r"[a-z0-9]+", phrase.lower()))
         if words and words <= governed:
             continue
-        # A capitalised word at the start of a sentence is usually just English.
-        if text.startswith(phrase) and " " not in phrase:
+        # A capitalised word at the start of a sentence is usually just
+        # English — an imperative verb, most often. True of EVERY sentence,
+        # not only the first: "Explain", "Consider", "Separate" and "Rank" all
+        # open a clause in the questions a credit officer actually types.
+        if opens_sentence and " " not in phrase:
             continue
         candidates.append(phrase)
     return candidates
@@ -262,6 +274,16 @@ def _borrower_names() -> tuple[str, ...]:
 #: sector came back as "CreditProbe could not find Only Contracting in the
 #: published data" — a refusal, on a turn where everything was recognised
 #: except the first word.
+#: Words that are never a borrower, however they are capitalised.
+#:
+#: Two jobs. A single word here is not reported as an unknown name, and a
+#: phrase STARTING with one has it stripped — so "Explain SICR evidence"
+#: becomes "SICR evidence" rather than a company called Explain.
+#:
+#: Everything added below is an ordinary instruction verb or an analytical
+#: term a credit officer types constantly. None of them is a plausible
+#: borrower name, and a bank that genuinely has an obligor called "Separate"
+#: has a naming problem this list is not the place to solve.
 _NOT_A_NAME = frozenset({
     "what", "which", "show", "list", "how", "why", "when", "where", "who",
     "creditprobe", "ifrs", "stage", "the", "give", "find", "identify", "tell",
@@ -269,6 +291,20 @@ _NOT_A_NAME = frozenset({
     "only", "just", "now", "also", "add", "rank", "sort", "order", "open",
     "and", "but", "then", "keep", "include", "exclude", "restrict", "narrow",
     "filter", "replace", "compare", "investigate", "display", "return",
+    # -- instruction verbs the reported questions actually opened with
+    "explain", "consider", "separate", "distinguish", "summarise", "summarize",
+    "describe", "assess", "evaluate", "review", "analyse", "analyze",
+    "highlight", "flag", "group", "break", "split", "focus", "look", "check",
+    "compute", "calculate", "measure", "quantify", "attribute", "decompose",
+    "rate", "score", "select", "take", "use", "using", "based", "for", "each",
+    "every", "their", "these", "those", "them", "both", "any", "all", "some",
+    # -- analytical vocabulary that is a concept, never an obligor
+    "sicr", "ecl", "pd", "lgd", "ead", "dpd", "ebitda", "raroc", "npl",
+    "watchlist", "covenant", "collateral", "utilisation", "utilization",
+    "leverage", "liquidity", "concentration", "materiality", "macroeconomic",
+    "quantitative", "qualitative", "forward", "looking", "borrower",
+    "borrowers", "customer", "customers", "counterparty", "counterparties",
+    "portfolio", "sector", "sectors", "exposure", "facility", "facilities",
 })
 
 

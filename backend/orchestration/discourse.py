@@ -642,9 +642,39 @@ def resolves_locally(question: str) -> bool:
 
     The one call `referents.unresolved` needs: when this is true, refusing the
     question for want of a previous result is the defect P0.2 names.
+
+    Two ways a message can answer itself, and the second was missing
+    -----------------------------------------------------------------
+    1. Every anaphor binds to a cohort an earlier clause defined. That is
+       `self_contained`, and it is what "Rank THEM by EAD" needs.
+
+    2. The message DEFINES its population and never refers back to it at all:
+
+           "Identify the 10 borrowers with the highest probability of credit
+            deterioration over the next 12 months."
+
+       "the 10 borrowers" is not an anaphor. It is the head of the noun
+       phrase that defines the cohort, and the restrictive modifier that
+       defines it is in the same clause. There is nothing to carry forward
+       because nothing points backwards.
+
+       `self_contained` returns False here — it requires `bool(self.mentions)`
+       and there are no mentions — so a question that could not be more
+       self-contained was refused with "no previous result in this
+       investigation returned a set of names to carry forward". A message with
+       no backward reference is the easiest case in the language, and it was
+       the one case that failed.
+
+    So: a message resolves locally when it leaves NO unresolved mention and it
+    either resolved one or defined a cohort of its own. A message that does
+    neither — a bare "Rank them by EAD" with nothing before it — still has an
+    unresolved mention and is still, correctly, a question for the
+    conversation.
     """
     found = read(question)
-    return found.self_contained
+    if found.unresolved:
+        return False
+    return bool(found.mentions) or bool(found.cohorts)
 
 
 def population_clause(question: str) -> str:

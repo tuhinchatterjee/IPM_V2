@@ -23,93 +23,35 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from backend.config import settings  # noqa: E402
-
-#: One person per role, so the demonstration can show what each of them sees.
-DEMO_USERS: list[dict[str, str]] = [
-    {
-        "username": "alex.rahman",
-        "password": "creditprobe-demo",
-        "first_name": "Alex",
-        "last_name": "Rahman",
-        "email": "alex.rahman@example-bank.com",
-        "role": "ADMIN",
-        "team": "Credit Risk Analytics",
-    },
-    {
-        "username": "sara.qahtani",
-        "password": "creditprobe-demo",
-        "first_name": "Sara",
-        "last_name": "Al Qahtani",
-        "email": "sara.qahtani@example-bank.com",
-        "role": "DATA_STEWARD",
-        "team": "Risk Data Management",
-    },
-    {
-        "username": "omar.nasser",
-        "password": "creditprobe-demo",
-        "first_name": "Omar",
-        "last_name": "Nasser",
-        "email": "omar.nasser@example-bank.com",
-        "role": "ANALYST",
-        "team": "Portfolio Management",
-    },
-    {
-        "username": "layla.haddad",
-        "password": "creditprobe-demo",
-        "first_name": "Layla",
-        "last_name": "Haddad",
-        "email": "layla.haddad@example-bank.com",
-        "role": "VIEWER",
-        "team": "Board Risk Committee",
-    },
-]
+from backend.services.demo_users import DEMO_PASSWORD, DEMO_USERS, seed  # noqa: E402,F401
 
 
 def main() -> int:
+    """Seed the four demonstration accounts. Idempotent, and it never changes
+    an existing password.
+
+    The accounts and the seeding rule live in `backend/services/demo_users.py`
+    so that this script and the Docker bootstrap run the same code. Two copies
+    of a credential list is one copy that goes stale.
+    """
     if not settings.has_database:
         print("No DATABASE_URL configured; nothing to seed.")
         return 0
 
-    from backend.auth.security import hash_password
     from backend.db.engine import get_session
-    from backend.db.models import User
 
-    created, kept = [], []
     with get_session() as session:
-        for spec in DEMO_USERS:
-            existing = (
-                session.query(User).filter(User.username == spec["username"]).first()
-            )
-            if existing is not None:
-                # Fill in only what is genuinely missing. A password is never
-                # touched: overwriting one would be a published back door.
-                for field in ("first_name", "last_name", "email", "team"):
-                    if not getattr(existing, field, ""):
-                        setattr(existing, field, spec[field])
-                kept.append(spec["username"])
-                continue
-
-            session.add(User(
-                username=spec["username"],
-                password_hash=hash_password(spec["password"]),
-                first_name=spec["first_name"],
-                last_name=spec["last_name"],
-                email=spec["email"],
-                role=spec["role"],
-                team=spec["team"],
-                is_active=True,
-            ))
-            created.append(spec["username"])
+        result = seed(session)
         session.commit()
 
-    for username in created:
+    for username in result.created:
         print(f"  created {username}")
-    for username in kept:
+    for username in result.kept:
         print(f"  kept    {username} (already exists; password unchanged)")
-    if created:
+    if result.created:
         print()
         print("  Demonstration password for the accounts just created: "
-              "creditprobe-demo")
+              f"{DEMO_PASSWORD}")
         print("  Synthetic data only. Change these before any real use.")
     return 0
 

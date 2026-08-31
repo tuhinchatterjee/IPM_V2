@@ -56,18 +56,38 @@ def monkeypatch_module():
 
 
 def test_mode_reports_how_questions_are_planned(client, demo_mode):
-    """With no provider key the product must say it is degraded.
+    """With no provider key the product must say WHICH READER is planning.
 
-    Not "demo mode" in the old sense — that name described which planner was
-    selected. This says what a user needs to know: natural-language
-    understanding is constrained, and here is how.
+    The old assertion pinned the literal string "LIMITED OFFLINE MODE", and
+    that label was the defect rather than the contract. "Limited" and
+    "offline" describe a fault; no external provider is not a fault, it is a
+    supported mode in which the deterministic reader parses the question and
+    the governed runtime executes it — traceably, and on some bank networks
+    it is the only permitted arrangement. A client shown an orange
+    fault-sounding badge over a working product asks the wrong question for
+    ten minutes.
+
+    So the replacement stops pinning a marketing string and pins the
+    properties that actually matter, which the old form left untested: the
+    mode is machine-readable and stable, the label does not claim a fault, and
+    the product still states its limitations rather than hiding them behind a
+    friendlier word. That last assertion is the important one — the honest
+    part of the old behaviour is now protected explicitly instead of
+    incidentally.
     """
     body = client.get("/api/v1/ask/mode").json()
     assert body["mode"] == "offline"
     assert body["configured"] is False
-    assert body["label"] == "LIMITED OFFLINE MODE"
+    label = body["label"]
+    assert label and label.strip(), "the mode must be named"
+    # Named as a mode, not reported as a breakage.
+    for fault_word in ("degraded", "offline", "limited", "error", "failed",
+                       "unavailable", "broken"):
+        assert fault_word not in label.lower(), (
+            f"the no-provider label {label!r} describes a fault; nothing is "
+            "faulty, and a client reads this on the header of a working "
+            "product")
     assert body["limitations"], "an offline product must say what it cannot do"
-    assert "LIMITED OFFLINE MODE" == body["label"]
     assert "deterministic" in body["description"]
     assert body["ai"]["state"] == "offline"
     assert body["build"]["version"]

@@ -164,7 +164,15 @@ def test_changing_the_status_clears_the_cache_the_engine_reads():
         domains = db.list_domains(session)
         if not domains:
             pytest.skip("no domains defined")
-        name, was = domains[0].name, domains[0].status
+        # An ACTIVE one, chosen rather than assumed. This used to take
+        # domains[0] and assert it was not archived - true only for as long as
+        # no deployment ever archived its first domain alphabetically. The
+        # demonstration bootstrap archives the emptied legacy catalogue
+        # domains, and the test then failed on a product behaving correctly.
+        active = [d for d in domains if d.status == "ACTIVE"]
+        if not active:
+            pytest.skip("every domain is archived")
+        name, was = active[0].name, active[0].status
 
         try:
             domain_status.forget()
@@ -192,3 +200,34 @@ def test_an_unknown_status_is_refused():
             pytest.skip("no domains defined")
         with pytest.raises(db.DataBuilderError, match="not a domain status"):
             db.set_domain_status(session, domains[0].name, "DELETED")
+
+
+@pytest.mark.skipif(not database_available(), reason="Domain status needs PostgreSQL")
+def test_no_governed_dataset_sits_in_an_archived_domain():
+    """Archiving a domain takes it out of engine resolution. §58.
+
+    So a dataset left inside one silently stops being readable — every
+    analysis over it reports "no data" rather than an error, which is the
+    hardest failure to notice from a screen.
+
+    The demonstration bootstrap archives the catalogue's emptied fine-grained
+    domains after re-homing their datasets into the seven business ones. This
+    asserts the two halves stayed in step: it fails if a future edit archives
+    a domain that still holds something, which the archiving code guards
+    against by only ever touching an empty one.
+    """
+    from sqlalchemy import select
+
+    from backend.db.engine import get_session
+    from backend.models.platform import DataDomain, DatasetDefinition
+
+    with get_session() as session:
+        archived = {d.name for d in session.execute(select(DataDomain)).scalars()
+                    if d.status == "ARCHIVED"}
+        if not archived:
+            pytest.skip("nothing is archived in this database")
+        stranded = sorted(d.name for d in session.execute(
+            select(DatasetDefinition)).scalars() if d.domain in archived)
+        assert not stranded, (
+            f"{len(stranded)} governed dataset(s) sit in an archived domain "
+            f"and have silently left engine resolution: {stranded[:5]}")
