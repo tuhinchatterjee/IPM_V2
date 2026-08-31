@@ -117,10 +117,13 @@ function Row({
   );
   const period = periodLabel(analysis.period);
 
+  // The row wraps below `sm`. The action cluster is five buttons wide and
+  // does not shrink; on a 390-wide phone that pushed the row 19px past the
+  // viewport, which browser acceptance caught and no desktop ever would.
   return (
     <div
       id={analysisAnchor(analysis.id)}
-      className="flex scroll-mt-24 items-start gap-3 px-5 py-4"
+      className="flex scroll-mt-24 flex-wrap items-start gap-3 px-5 py-4"
     >
       <BarChart3 className="mt-0.5 size-4 shrink-0 text-text-muted" aria-hidden />
       <div className="min-w-0 flex-1">
@@ -171,7 +174,7 @@ function Row({
         </p>
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5">
+      <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-0.5 sm:w-auto sm:flex-nowrap">
         {/* §4: a saved Analysis is a persisted Analysis Run, so its results
             workbook is available from the list without opening it first. */}
         {analysis.analysis_run_id !== null && (

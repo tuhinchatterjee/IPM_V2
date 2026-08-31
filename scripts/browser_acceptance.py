@@ -42,12 +42,19 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+# The §12/§13 checks read the governed vocabulary from `backend.release`, and
+# this script is run as a file rather than as a module - so without this the
+# wording checks import-error a third of the way through a browser run and the
+# whole acceptance reports a crash rather than a verdict.
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 FRONTEND = "http://127.0.0.1:3000"
 BACKEND = "http://127.0.0.1:8000"
 
