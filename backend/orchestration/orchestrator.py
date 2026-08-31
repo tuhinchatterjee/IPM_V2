@@ -860,12 +860,18 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
         # measure, and it is said instead of the menu.
         if _nothing_to_measure(question, continuation):
             held = cov.check(question)
+            # §8: no dead ends. A refusal that names the gap and stops is
+            # still one — the reader is told what cannot be done and left with
+            # nothing to do about it, which is the moment somebody closes the
+            # tab. `Coverage.next_move` names what the catalogue does carry,
+            # in prose rather than as a menu, and both branches carry it so
+            # the two refusals cannot say different things.
             answered.unsupported = held.sentence() if held.out_of_scope else (
                 "CreditProbe has no governed data about what that asks for. It "
                 "answers from the figures a steward has published — exposure, "
                 "impairment, ratings, delinquency, covenants — and it holds "
                 "nothing that measures this. It has NOT answered a different "
-                "question instead.")
+                "question instead. " + held.next_move())
             answered.coverage = held.to_dict()
             return answered
         answered.clarification = e.clarification

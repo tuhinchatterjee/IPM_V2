@@ -1849,6 +1849,32 @@ def _period_clarification(question: str, answered: Any) -> Any:
         return None
 
 
+def _withheld_sentence(failure: str) -> str:
+    """Why the figure was withheld, and what to do, in one line. §9, §53.
+
+    The failures this path carries are already written for a person - the
+    presentability gate says things like "the question restricted ifrs9 stage
+    to 1, and 10 of 10 rows are not". Withholding that behind a generic
+    sentence and putting it in a caveat is how a governed refusal reads as a
+    crash.
+    """
+    said = str(failure or "").strip()
+    if not said:
+        return ("CreditProbe could not complete that request, and has not "
+                "substituted a different analysis. Try naming the figure and "
+                "the period you want, and it will compose the analysis again.")
+    if not said.endswith("."):
+        said += "."
+    # The reason is quoted as it was written rather than lower-cased into the
+    # sentence: these strings frequently begin with the product's own name,
+    # and "creditProbe computed an answer" is the kind of small wrongness that
+    # makes a reader distrust the rest of the paragraph.
+    return ("CreditProbe withheld this answer. " + said +
+            " Nothing was substituted in its place. Narrowing the question - "
+            "one figure, one population, one period - is usually enough for it "
+            "to compose a plan it can stand behind.")
+
+
 def _controlled_failure(question: str, answered: Any,
                         mode_now: dict[str, Any],
                         started: float) -> Investigation:
@@ -1859,6 +1885,7 @@ def _controlled_failure(question: str, answered: Any,
     this message knows they have not been given an answer — rather than being
     given a real, certified, reconciled figure for a question they did not ask.
     """
+
     reading = answered.reading
     scope = Scope(focus=reading.label, output="level",
                   period_requirement=reading.period_requirement,
@@ -1870,8 +1897,14 @@ def _controlled_failure(question: str, answered: Any,
         notes=["CreditProbe could not complete this request and has not "
                "substituted a different analysis."],
     )
+    # The direct answer is the line a reader sees first, and "CreditProbe
+    # could not complete that request." on its own is the §9 failure wearing
+    # different words: a refusal with no reason and no next move. The reason
+    # was already computed — it sat in `summary` and `caveats`, one scroll
+    # below where anybody reads — so it is said first, and followed by
+    # something to do.
     narrative = Narrative(
-        direct_answer="CreditProbe could not complete that request.",
+        direct_answer=_withheld_sentence(answered.failure),
         summary=answered.failure,
         findings=[], interpretation="", interpretation_points=[],
         caveats=[answered.failure],

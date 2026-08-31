@@ -141,6 +141,16 @@ def _join_pairs(on: Any) -> list[tuple[str, str]]:
     return pairs
 
 
+#: Operations whose OUTPUT ORDER is itself the answer. A ranking's rows mean
+#: "first, second, third"; re-sorting them by their first column would keep
+#: every number and destroy the claim. These emit no outer ordering.
+_ORDER_IS_THE_ANSWER: frozenset = frozenset({
+    OpType.SORT, OpType.TOP_N, OpType.BOTTOM_N, OpType.RANK,
+    OpType.PERCENTILE, OpType.QUANTILE, OpType.WATERFALL, OpType.FLOW,
+    OpType.TREND, OpType.VINTAGE, OpType.COHORT,
+})
+
+
 class Compiler:
     """Turns one validated plan into one parameterised statement."""
 
@@ -158,6 +168,10 @@ class Compiler:
         self._ctes: list[str] = []
         self._steps: dict[str, str] = {}
         self._kernels: list[Operation] = []
+        #: The ordering the PLAN itself expressed, captured as it is emitted.
+        #: The outer SELECT refines it rather than replacing it — see
+        #: `_final_order` for why both of those matter.
+        self._plan_order: str = ""
 
         from backend.data_access.duckdb_source import DuckDBSource
 
@@ -201,8 +215,22 @@ class Compiler:
         body = ",\n".join(self._ctes)
         # A hard cap on what comes back, regardless of what the plan asked for.
         # The plan's own LIMIT is usually smaller; this one is the backstop.
+        #
+        # And a TOTAL order on the way out. An ORDER BY inside a CTE is not
+        # binding on the outer SELECT, and a plan with no SORT never had one at
+        # all - so the same question returned the same 79 borrowers in a
+        # different order on the second run. Same set, shuffled: which names
+        # appear "at the top" changes between two identical asks, and §11 says
+        # the same question gets the same answer.
+        #
+        # `ORDER BY ALL` orders by every projected column left to right, which
+        # is total whenever the projection contains a key - and every governed
+        # projection does. Where the plan HAS a sort, its columns are the
+        # leading ones in the projection, so this preserves that ordering and
+        # only breaks the ties the plan left open.
         sql = (
             f"WITH {body}\nSELECT * FROM {final}\n"
+            f"{self._final_order(sql_ops)}\n"
             f"LIMIT {int(self.limits.max_output_rows)}"
         )
 
@@ -214,6 +242,33 @@ class Compiler:
             datasets=self.plan.datasets(),
             cte_body=body,
         )
+
+    def _final_order(self, sql_ops: list[Operation]) -> str:
+        """A TOTAL order on the outer SELECT, refining the plan's own.
+
+        Two wrong versions preceded this one and both are worth recording.
+
+        The first imposed `ORDER BY ALL` unconditionally. A top-ten-by-PD plan
+        whose last step is a projection then came back re-sorted by its first
+        column: every number correct, and the claim "these are the ten
+        highest" destroyed. The invariant gate caught it, which is what it is
+        for, but the compiler should not have needed catching.
+
+        The second suppressed the outer order whenever the plan ordered
+        anywhere - which put the original defect straight back, because an
+        ORDER BY inside a CTE does not bind the outer SELECT. The same
+        question returned the same rows in a different order on the second
+        run.
+
+        The order here REFINES rather than replaces: the plan's own ordering
+        first, then `COLUMNS(*)` to break whatever ties it left open. A
+        ranking stays a ranking and a tie stops being resolved by whichever
+        way the join happened to come back.
+        """
+        del sql_ops
+        if self._plan_order:
+            return f"ORDER BY {self._plan_order}, COLUMNS(*)"
+        return "ORDER BY COLUMNS(*)"
 
     # ---- emitting ----------------------------------------------------------
 
@@ -410,11 +465,14 @@ class Compiler:
     def _op_sort(self, op: Operation) -> str:
         order = self._order_clause(op.params.get("by") or op.params.get("columns")
                                    or op.params.get("order_by"))
+        self._plan_order = order
         return f"SELECT *\nFROM {self._input(op)}\nORDER BY {order}"
 
     def _op_limit(self, op: Operation) -> str:
         count = int(op.params.get("n") or op.params.get("count") or op.params.get("limit"))
         order = self._order_clause(op.params.get("order_by") or [])
+        if order:
+            self._plan_order = order
         clause = f"\nORDER BY {order}" if order else ""
         # A literal integer, already bounds-checked by validation. DuckDB does
         # not accept a parameter in LIMIT.
@@ -427,6 +485,7 @@ class Compiler:
         within = [str(c) for c in
                   (op.params.get("within") or op.params.get("partition_by") or [])]
         direction = "DESC" if descending else "ASC"
+        self._plan_order = f"{ident(measure)} {direction} NULLS LAST"
 
         if not within:
             return (f"SELECT *\nFROM {self._input(op)}\n"

@@ -110,18 +110,85 @@ class Coverage:
         return not self.covered
 
     def sentence(self) -> str:
-        """The one-sentence refusal, naming what was asked and what is held."""
+        """The refusal, naming what was asked, what is held, and a way on.
+
+        §8: no dead ends. A refusal that names the gap and stops is still a
+        dead end - the reader is told what cannot be done and left with
+        nothing to do about it, which is the moment somebody closes the tab.
+
+        So the sentence has three parts, and the third is not decoration:
+        what was looked for, why it is not there, and what the catalogue DOES
+        hold that is nearest. Said in prose rather than offered as a menu -
+        §6 removed the menu for a reason, and a list of buttons here would
+        invite the reader to accept a confident answer to a question they did
+        not ask.
+        """
         subject = self.subject or " and ".join(self.unknown_terms[:3])
-        return (
+        said = (
             f"CreditProbe has no governed data about {subject}. It answers only "
             "from the datasets a steward has published and marked "
             "authoritative, so it cannot look this up, estimate it, or infer it "
             "from what it does hold.")
+        return said + " " + self.next_move()
+
+    def next_move(self) -> str:
+        """What the reader can do instead, from what is actually published.
+
+        Drawn from the catalogue rather than written down here, so a bank that
+        publishes a domain between two questions is offered it immediately -
+        the same reason `_universe()` is rebuilt per call.
+        """
+        recognised = [t for t in self.known_terms if len(t) > 3][:4]
+        if recognised:
+            return ("It did recognise " + _and_list(recognised) +
+                    ", so a question framed around those can be answered. "
+                    "Name the figure you want and the period you want it for.")
+        measures = _published_measures()
+        if measures:
+            return ("The catalogue carries measures such as "
+                    + _and_list(measures[:4]) +
+                    ". Name the one you want and the period you want it for, "
+                    "and CreditProbe will compose the analysis.")
+        return ("Nothing is published that would answer this. A data steward "
+                "can publish the dataset it would need in the Data Builder.")
 
     def to_dict(self) -> dict[str, Any]:
         return {"covered": self.covered, "subject": self.subject,
                 "unknown_terms": list(self.unknown_terms),
-                "known_terms": list(self.known_terms)}
+                "known_terms": list(self.known_terms),
+                "next_move": self.next_move()}
+
+
+def _and_list(items: Any) -> str:
+    kept = [str(i) for i in items if str(i).strip()]
+    if not kept:
+        return ""
+    if len(kept) == 1:
+        return kept[0]
+    return ", ".join(kept[:-1]) + " and " + kept[-1]
+
+
+def _published_measures() -> list[str]:
+    """Governed measures a reader could ask about, from the live catalogue."""
+    try:
+        from backend.orchestration import ontology
+
+        found = [str(c) for c in getattr(ontology, "MEASURE_NAMES", ())]
+        if found:
+            return sorted(found)
+    except Exception:  # noqa: BLE001 - the refusal must not itself fail
+        pass
+    try:
+        from backend.orchestration import concepts as cx
+
+        # The same source the reading clarification names its examples from
+        # (`executor._reading_clarification`). Two refusals drawing their
+        # examples from two places is how a product ends up offering a
+        # measure on one screen that another screen says it does not have.
+        return [c.label for c in cx.CONCEPTS
+                if not c.is_categorical and not c.is_ordinal][:12]
+    except Exception:  # noqa: BLE001
+        return []
 
 
 @dataclass

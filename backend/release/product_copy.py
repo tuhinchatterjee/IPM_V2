@@ -219,3 +219,65 @@ __all__ = [
     "IDENTITY_KEYS", "clean", "neutralise", "scrub",
     "violations", "withhold_identity",
 ]
+
+
+# ============================================ prose, as distinct from an id
+#
+# §13 forbids the word "demonstration" in user-facing product copy. Enforcing
+# that by scanning every string in a payload does not work, and the way it
+# fails is instructive: `origin: "demo"` is a governance enum identifier -
+# stored in the catalogue, written to database rows, compared against in
+# permission checks - and it is never rendered. A scanner that cannot tell an
+# identifier from a sentence flags it on every answer, and a scanner that
+# flags every answer is a scanner somebody switches off.
+#
+# So the rule is drawn where the rule actually lives: PROSE. A value under a
+# key that carries a sentence is copy somebody reads; a value under a key that
+# carries an identifier is a token a machine compares. The provider check is
+# NOT narrowed this way - a vendor name has no business being any value in any
+# payload, identifier or not.
+
+#: Keys whose values are written for a person to read.
+PROSE_KEYS: frozenset[str] = frozenset({
+    "answer", "body", "caption", "conclusion", "description", "detail",
+    "explanation", "headline", "label", "means", "message", "narrative",
+    "note", "notice", "purpose", "question", "reason", "recommendation",
+    "sentence", "subtitle", "summary", "text", "title", "why",
+})
+
+#: Keys whose values are stored identifiers. Listed rather than inferred,
+#: because "everything not in PROSE_KEYS" would silently exempt the next key
+#: somebody adds that does carry a sentence.
+IDENTIFIER_KEYS: frozenset[str] = frozenset({
+    "id", "key", "kind", "name", "origin", "slug", "status", "type",
+    "dataset", "field", "column", "signal", "family", "domain", "role",
+    "action", "op", "operation", "state", "mode", "version", "fingerprint",
+})
+
+
+def prose(value: Any, key: str = "") -> list[tuple[str, str]]:
+    """Every sentence in a payload, with the path it sits at.
+
+    Walks a decoded JSON structure and returns only what a person would read.
+    A list value inherits its parent's key, because `options: [...]` is a list
+    of prose under one prose key.
+    """
+    found: list[tuple[str, str]] = []
+    if isinstance(value, dict):
+        for name, inner in value.items():
+            found.extend(
+                (f"{key}.{name}{path}" if path else f"{key}.{name}", text)
+                for path, text in prose(inner, str(name)))
+    elif isinstance(value, list):
+        for index, inner in enumerate(value):
+            found.extend(
+                (f"[{index}]{path}", text) for path, text in prose(inner, key))
+    elif isinstance(value, str) and key in PROSE_KEYS:
+        found.append(("", value))
+    return found
+
+
+def demonstration_in_prose(payload: Any) -> list[tuple[str, str]]:
+    """§13, checked where §13 applies: what a reader is shown."""
+    return [(path, text) for path, text in prose(payload)
+            if DEMO_PATTERN.search(text)]
