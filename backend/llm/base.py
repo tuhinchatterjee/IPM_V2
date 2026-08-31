@@ -162,10 +162,18 @@ class NullProvider:
         return ProviderStatus(
             provider="none", model="", configured=False,
             state=telemetry.OFFLINE,
-            detail=(self.reason + " CreditProbe is running in LIMITED OFFLINE "
-                    "MODE: questions are read by a deterministic semantic "
-                    "planner over the governed catalogue, which understands "
-                    "credit concepts but not arbitrary phrasing."),
+            # Not "LIMITED OFFLINE MODE". A deployment with no external
+            # provider is not a broken deployment: the deterministic reader
+            # parses the question and the governed runtime executes it, and
+            # on a bank network that refuses egress it is the only permitted
+            # configuration. The detail names the mode and its one real
+            # limitation - phrasing, not capability - rather than reading to
+            # a client as an outage.
+            detail=(self.reason + " CreditProbe is running as a GOVERNED "
+                    "LOCAL READER: questions are read by a deterministic "
+                    "semantic planner over the governed catalogue, which "
+                    "understands credit concepts but not arbitrary "
+                    "phrasing."),
             health=telemetry.health(provider="none", model="",
                                     configured=False))
 

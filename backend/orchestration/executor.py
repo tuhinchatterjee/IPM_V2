@@ -1058,7 +1058,9 @@ def _record_judgment(investigation: Investigation, answered: Any) -> None:
     try:
         verdict = (block.get("demo_safe") or {})
         node = graph.add_node(TraceNode(
-            id="analytical_judgment", type=NodeType.BUSINESS_INVARIANT,
+            # A rubric over the ANSWER, not a check against the rows. Same
+            # reasoning as the presentability node below. §9.
+            id="analytical_judgment", type=NodeType.PRESENTATION_GATE,
             label=str((block.get("rubric") or {}).get("sentence")
                       or "The judgment layer could not assess this answer."),
             config={
@@ -2036,7 +2038,10 @@ def _record_presentability(investigation: Investigation, answered: Any) -> None:
         return
     try:
         node = graph.add_node(TraceNode(
-            id="presentability", type=NodeType.BUSINESS_INVARIANT,
+            # Not BUSINESS_INVARIANT. This gate judges the ANSWER, not the
+            # rows; typing it as an invariant made the Trace's Validated
+            # stage report FAILED beside its own "4 of 4 checks passed". §9.
+            id="presentability", type=NodeType.PRESENTATION_GATE,
             label=gate.sentence(),
             config={
                 "verdict": gate.verdict,

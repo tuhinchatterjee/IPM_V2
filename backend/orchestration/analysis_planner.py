@@ -24,6 +24,7 @@ is not duplicated, it is driven from the reading instead of from a regex.
 
 from __future__ import annotations
 
+import functools
 import logging
 import re as _re
 from dataclasses import dataclass, field
@@ -302,7 +303,13 @@ def plan(reading: Reading, context: GovernedContext, *,
                 "loss, internal rating, days past due — and it will compose "
                 "the analysis."))
 
-    filters = _filters(reading, context)
+    # Limitations the FILTER resolution created, which the build does not
+    # otherwise learn about because it only receives the surviving pairs.
+    # Carried to `build.warnings` at every return below, where assembly turns
+    # them into the answer's caveats: a plan that narrowed the question must
+    # say so on the screen, not only in the log.
+    planning_notes: list[str] = []
+    filters = _filters(reading, context, text, planning_notes)
     if carrying:
         filters = _inherit_filters(filters, state, context, continuation)
     inherited_top_n = (state.top_n if carrying and state and not _explicit_top_n(text)
@@ -368,6 +375,7 @@ def plan(reading: Reading, context: GovernedContext, *,
                                        dimension, catalogue, period=period)
             if continuation is not None:
                 build.continuation = continuation
+            build.warnings.extend(planning_notes)
             return build
         except CannotPlan as e:
             logger.info("A conditional share could not be composed (%s); "
@@ -400,6 +408,7 @@ def plan(reading: Reading, context: GovernedContext, *,
         build.carried_concepts = carried_concepts
     if continuation is not None:
         build.continuation = continuation
+    build.warnings.extend(planning_notes)
     return build
 
 
@@ -533,15 +542,107 @@ def _shape(reading: Reading, conditions: list[Condition],
     return RANKING if reading.operation == "list" else AGGREGATE
 
 
-def _filters(reading: Reading, context: GovernedContext) -> list[tuple[str, str]]:
-    """Governed filters from the entities the reading resolved."""
+#: "moved from Stage 1 to Stage 2", "migrate from BB to B", "downgraded from
+#: investment grade". A question with this shape names two values of one
+#: dimension because it is describing a TRANSITION between them, not asking
+#: for rows that are both at once.
+_TRANSITION = _re.compile(
+    r"\b(?:migrat\w*|mov\w*|transition\w*|shift\w*|slip\w*|fell|fall\w*|"
+    r"rose|ris\w*|downgrad\w*|upgrad\w*|went)\b[^.?!]{0,60}?\bfrom\b",
+    _re.IGNORECASE)
+
+
+def _filters(reading: Reading, context: GovernedContext,
+             question: str = "",
+             warnings: list[str] | None = None) -> list[tuple[str, str]]:
+    """Governed filters from the entities the reading resolved.
+
+    Two values of ONE dimension are never both filters
+    --------------------------------------------------
+        "Which borrowers are most likely to migrate from IFRS 9 Stage 1 to
+         Stage 2?"
+
+    resolved `ifrs9_stage = 1` AND `ifrs9_stage = 2` and emitted both, as a
+    conjunction, on the same rows. No row can satisfy it. The engine ran, the
+    invariant check correctly found that the rows did not match the filters
+    the question was recorded as carrying, and the user was told "CreditProbe
+    could not complete that request" — for a governed IFRS 9 question the
+    catalogue can answer.
+
+    A question naming two values of one dimension means one of two things,
+    and neither is a conjunction:
+
+        a TRANSITION   "moved from Stage 1 to Stage 2" — the two values are
+                       the endpoints of a movement, and the row is at the
+                       DESTINATION now.
+        a SET          "Stage 2 and Stage 3 exposure" — membership of either.
+
+    Transition language decides. On a transition the destination is kept —
+    the last value named, which is what "to X" leaves — and the origin is
+    dropped with the limitation stated, because a governed stage MOVEMENT is
+    a different analysis from a stage FILTER and answering the second while
+    claiming the first is the substitution this whole layer exists to
+    prevent. Without transition language the values are left as they were:
+    that path is unchanged, and a genuine single-value filter is untouched.
+    """
     permitted = context.dimensions
     out: list[tuple[str, str]] = []
     for entity in reading.entities:
         kind, value = entity.get("kind", ""), entity.get("value", "")
         if kind in permitted and value in permitted[kind]:
             out.append((kind, value))
-    return out
+
+    seen: dict[str, list[str]] = {}
+    for kind, value in out:
+        seen.setdefault(kind, []).append(value)
+    clashing = {k for k, vs in seen.items() if len(set(vs)) > 1}
+    if not clashing:
+        return out
+
+    if not _TRANSITION.search(question or reading.objective or ""):
+        # A set, not a transition. Left alone: turning it into one filter
+        # would silently narrow the population, and the plan layer below
+        # already knows how to refuse what it cannot express.
+        logger.info("Question names %d values of %s and reads as a set, not a "
+                    "transition; filters left as resolved.",
+                    max(len(v) for v in seen.values()), sorted(clashing))
+        return out
+
+    kept: list[tuple[str, str]] = []
+    dropped: list[str] = []
+    for kind, value in out:
+        if kind in clashing and value != seen[kind][-1]:
+            dropped.append(f"{kind}={value}")
+            continue
+        kept.append((kind, value))
+    logger.info(
+        "Question describes a transition and named %s; keeping the "
+        "destination and dropping the origin(s) %s, which cannot hold on the "
+        "same row.", sorted(clashing), dropped)
+    if warnings is not None and dropped:
+        # Declared, not silent. The question asked about a MOVEMENT and this
+        # answers about the DESTINATION, which is a narrower thing: it cannot
+        # distinguish a borrower that arrived in Stage 2 this quarter from one
+        # that has been there all year. Dropping the origin quietly and letting
+        # the answer read as the movement is precisely the near-miss
+        # substitution the governance layer exists to catch, so the answer says
+        # what it did.
+        from backend.orchestration.dynamic import FIELD_LABELS
+
+        def _say(field_name: str, value: str) -> str:
+            # The caveat is client-facing prose. "ifrs9_stage 1" is a column
+            # name; a credit officer reads "IFRS 9 stage 1". §19.
+            return f"{FIELD_LABELS.get(field_name, field_name.replace('_', ' '))} {value}"
+
+        arrived = ", ".join(_say(k, v) for k, v in kept if k in clashing)
+        left = ", ".join(_say(*d.split("=", 1)) for d in dropped)
+        warnings.append(
+            f"The question describes a movement out of {left}. This answer "
+            f"reports the population now at {arrived}, which includes any "
+            f"borrower already there before the period, because a single row "
+            f"cannot hold both endpoints of a movement. For arrivals only, "
+            f"ask for the change between two periods.")
+    return kept
 
 
 def _without_values(text: str, filters: list[tuple[str, str]]) -> str:
@@ -703,18 +804,76 @@ def _explicit_top_n(text: str) -> int:
     return min(value, MAX_TOP_N)
 
 
+#: Declared data types an arithmetic aggregation is defined for. Anything
+#: else — a flag, a code, a category, a free-text sentiment — cannot be summed
+#: or averaged, whatever unit the concept carries.
+_NUMERIC_TYPES = frozenset({
+    "number", "numeric", "integer", "int", "bigint", "float", "double",
+    "decimal", "percentage", "percent", "currency", "amount", "ratio",
+})
+
+
+@functools.lru_cache(maxsize=4096)
+def _declared_type(dataset: str, field: str) -> str:
+    """The catalogue's declared type for one field, or "" if unknown.
+
+    Cached: this is asked once per measure per plan and the catalogue does not
+    change inside a process.
+    """
+    try:
+        from backend.data_access import get_catalog
+
+        return str(getattr(get_catalog().dataset(dataset).field(field),
+                           "data_type", "") or "").strip().lower()
+    except Exception:  # noqa: BLE001 - an unknown field is not a crash here
+        return ""
+
+
 def _rollup_for(match: cx.ConceptMatch) -> str:
     """How this measure aggregates, decided by what it is.
 
     Summing a coverage percentage produces a number with no meaning, and
     averaging exposure hides the size of the book. Neither is a default worth
     having, so the unit decides.
+
+    And the TYPE has a veto
+    -----------------------
+    The unit decided alone, with `sum` as the fallback for a measure whose
+    unit the table does not list. `sicr_any_trigger` is declared boolean and
+    `sentiment` is declared string; both carry no unit, both got `sum`, and
+
+        "Which borrowers are most likely to migrate from IFRS 9 Stage 1 to
+         Stage 2? Explain the SICR evidence for every borrower..."
+
+    reached DuckDB as `SUM("sicr_any_trigger")` and came back
+
+        Binder Error: No function matches the given name and argument types
+        'sum(VARCHAR)'
+
+    which the user saw as "CreditProbe could not complete that request." A
+    governed IFRS 9 question, refused by a type error.
+
+    So a measure whose declared type is not numeric aggregates with `max`,
+    which is the same choice already made for an ordinal and for the same
+    reason: the highest value present. On a trigger flag that is "any of them
+    fired", on a grade it is the worst grade, and on a category it is a
+    representative value rather than an invented arithmetic one. `max` is
+    defined for every type DuckDB has, so this cannot fail the way `sum` did.
     """
     if match.concept.id == COUNT_CONCEPT:
         return "count_distinct"
     if match.concept.is_ordinal:
         return "max"
-    return _ROLLUP.get(match.concept.unit or "", "sum")
+    chosen = _ROLLUP.get(match.concept.unit or "", "sum")
+    if chosen in ("sum", "avg"):
+        declared = _declared_type(match.dataset, match.field)
+        if declared and declared not in _NUMERIC_TYPES:
+            logger.info(
+                "%s.%s is declared %s, so %r is not defined for it; "
+                "aggregating with max instead.",
+                match.dataset, match.field, declared, chosen)
+            return "max"
+    return chosen
 
 
 #: The grain each identity column implies. The inverse of `_grain_key`.

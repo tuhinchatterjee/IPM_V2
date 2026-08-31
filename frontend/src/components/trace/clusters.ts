@@ -48,6 +48,7 @@ export type ClusterId =
   | "derivations"
   | "execution"
   | "validation"
+  | "presentation"
   | "answer";
 
 export const CLUSTER_ORDER: ClusterId[] = [
@@ -58,6 +59,7 @@ export const CLUSTER_ORDER: ClusterId[] = [
   "derivations",
   "execution",
   "validation",
+  "presentation",
   "answer",
 ];
 
@@ -69,6 +71,7 @@ export const CLUSTER_TITLES: Record<ClusterId, string> = {
   derivations: "Derivations & calculation",
   execution: "Execution",
   validation: "Validation & evidence",
+  presentation: "Presentation gates",
   answer: "Answer & interpretation",
 };
 
@@ -80,7 +83,8 @@ export const CLUSTER_PURPOSE: Record<ClusterId, string> = {
   relationships: "How those sources were aligned, on which declared relationship.",
   derivations: "What was computed from the data, and by which definition.",
   execution: "What actually ran, and what it ran against.",
-  validation: "What was checked before the answer was allowed on screen.",
+  validation: "What was checked against the rows themselves.",
+  presentation: "Whether the written answer was fit to put in front of a client.",
   answer: "What came out, and what was said about it.",
 };
 
@@ -128,6 +132,11 @@ export const CLUSTER_OF: Record<string, ClusterId> = {
   BUSINESS_INVARIANT: "validation",
   RECONCILIATION: "validation",
   FINGERPRINT: "validation",
+
+  // §9. Kept out of "validation" so its status can never contradict that
+  // cluster's own "N of N checks passed" - see stages.ts for the full
+  // reasoning. The two answer different questions and are shown separately.
+  PRESENTATION_GATE: "presentation",
 
   RESULT: "answer",
   LLM_EXPLANATION: "answer",
@@ -181,7 +190,7 @@ export function clustersOf(graph: TraceGraph): Cluster[] {
       summary: summaryFor(id, nodes),
       nodes,
       represents: representsFor(id, nodes),
-      status: worst(statuses),
+      status: statusFor(id, nodes, statuses),
       issues: nodes.filter((n) => STATUS[statusOf(n)].attention),
       durationMs: durations.length ? durations.reduce((a, b) => a + b, 0) : null,
       rowsIn: firstNumber(nodes.map((n) => n.rows_in)),
@@ -354,12 +363,36 @@ function summaryFor(id: ClusterId, nodes: TraceNode[]): string {
       }
       return labelsOf(nodes, "FINGERPRINT")[0] ?? "Recorded so this run can be reproduced.";
     }
+    case "presentation": {
+      // The gates' own sentences. A count would say something is wrong and
+      // nothing about what, which is the whole complaint in §9.
+      const said = unique(nodes.map((n) => n.label?.trim() ?? "").filter(Boolean));
+      return said.length ? said.slice(0, 2).join(" ") : CLUSTER_PURPOSE.presentation;
+    }
     case "answer": {
       const result = labelsOf(nodes, "RESULT")[0];
       const explained = labelsOf(nodes, "LLM_EXPLANATION")[0];
       return result || explained || CLUSTER_PURPOSE.answer;
     }
   }
+}
+
+/**
+ * A cluster's status word, which must agree with the sentence beside it.
+ *
+ * §9: "Never simultaneously display FAILED and '4 of 4 checks passed'." The
+ * same rule and the same reasoning as `statusFor` in stages.ts - VALIDATION
+ * summarises itself as a COUNT, so its word comes from that count rather than
+ * from the worst thing that happens to sit in the cluster.
+ */
+function statusFor(id: ClusterId, nodes: TraceNode[],
+                   statuses: TraceStatus[]): TraceStatus {
+  if (id !== "validation") return worst(statuses);
+  const { passed, total } = checkCounts(nodes);
+  if (!total) return worst(statuses);
+  if (passed < total) return "failed";
+  const rest = statuses.filter((s) => s !== "failed");
+  return worst(rest.length ? rest : ["passed"]);
 }
 
 function checkCounts(nodes: TraceNode[]): { passed: number; total: number } {

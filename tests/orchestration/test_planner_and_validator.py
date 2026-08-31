@@ -197,3 +197,96 @@ def test_the_planner_is_chosen_by_whether_a_key_is_configured(monkeypatch):
         planner_module, "settings", replace(settings, anthropic_api_key="sk-ant-not-real")
     )
     assert planner_mode()["mode"] == "model"
+
+
+# ---------------------------------------------------------------------------
+# Two values of one dimension. §8.
+# ---------------------------------------------------------------------------
+
+
+class TestATransitionIsNotAConjunction:
+    """"Migrate from Stage 1 to Stage 2" resolved BOTH stages as filters.
+
+    They were emitted as a conjunction on the same rows, so no row could
+    satisfy the plan. The engine ran, the post-result invariant correctly
+    observed that the rows did not match the filters the question was recorded
+    as carrying, and the presenter was shown "CreditProbe could not complete
+    that request" for a governed IFRS 9 question the catalogue can answer. It
+    is one of the six questions in the acceptance run.
+    """
+
+    @staticmethod
+    def _reading(objective: str):
+        from backend.orchestration.capability import Reading
+
+        return Reading(intent="ANALYSIS", objective=objective,
+                       entities=({"kind": "ifrs9_stage", "value": "1"},
+                                 {"kind": "ifrs9_stage", "value": "2"}))
+
+    @staticmethod
+    def _context():
+        from backend.orchestration import context as ctx_mod
+
+        return ctx_mod.retrieve("What is total exposure by IFRS 9 stage?")
+
+    def test_the_destination_survives_and_the_origin_does_not(self):
+        from backend.orchestration import analysis_planner as ap
+
+        question = ("Which borrowers are most likely to migrate from IFRS 9 "
+                    "Stage 1 to Stage 2?")
+        got = ap._filters(self._reading(question), self._context(), question)
+        assert got == [("ifrs9_stage", "2")], (
+            "a transition must leave one filter - the destination")
+
+    def test_a_set_of_two_stages_is_left_exactly_as_resolved(self):
+        """The fix must not have become "always drop all but the last".
+
+        "Stage 2 and Stage 3 exposure" names two values of one dimension and
+        is not a movement; both belong, and the layer below decides whether it
+        can express the disjunction. Narrowing it here would silently answer
+        about Stage 3 alone.
+        """
+        from backend.orchestration import analysis_planner as ap
+
+        question = "Show Stage 2 and Stage 3 exposure at Q2 2026."
+        got = ap._filters(self._reading(question), self._context(), question)
+        assert got == [("ifrs9_stage", "1"), ("ifrs9_stage", "2")], (
+            "a set was narrowed as though it were a transition")
+
+    def test_one_value_of_one_dimension_is_untouched(self):
+        from backend.orchestration import analysis_planner as ap
+        from backend.orchestration.capability import Reading
+
+        reading = Reading(intent="ANALYSIS",
+                          objective="Which borrowers are in Stage 2?",
+                          entities=({"kind": "ifrs9_stage", "value": "2"},))
+        got = ap._filters(reading, self._context(),
+                          "Which borrowers moved into Stage 2 from elsewhere?")
+        assert got == [("ifrs9_stage", "2")]
+
+    def test_dropping_the_origin_is_declared_not_silent(self):
+        """The substitution must reach the answer, not only the log.
+
+        Reporting who is AT Stage 2 in place of who MOVED to Stage 2 is a
+        near-miss: it includes every borrower that was already there. That is
+        an acceptable answer only if the answer says so.
+        """
+        from backend.orchestration import analysis_planner as ap
+
+        question = "Which borrowers moved from Stage 1 to Stage 2?"
+        notes: list[str] = []
+        ap._filters(self._reading(question), self._context(), question, notes)
+        assert notes, "the narrowing was performed without stating it"
+        said = " ".join(notes)
+        assert "IFRS 9 stage 1" in said and "IFRS 9 stage 2" in said, (
+            f"the caveat does not name both endpoints: {said!r}")
+        assert "ifrs9_stage" not in said, (
+            f"the caveat shows a column name to a credit officer: {said!r}")
+
+    def test_a_set_produces_no_caveat_because_nothing_was_dropped(self):
+        from backend.orchestration import analysis_planner as ap
+
+        notes: list[str] = []
+        question = "Show Stage 2 and Stage 3 exposure at Q2 2026."
+        ap._filters(self._reading(question), self._context(), question, notes)
+        assert not notes, f"a caveat was invented for an untouched plan: {notes}"

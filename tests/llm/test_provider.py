@@ -81,11 +81,64 @@ def test_no_key_means_no_pretending():
                             tool_name="plan", tool_description="")
 
 
-def test_the_offline_status_says_what_is_degraded():
+#: Words that describe a fault. A deployment that was never given an external
+#: provider key does not have one, and a client reading the header must not be
+#: told it does. §13.
+_FAULT_WORDS = ("degraded", "limited", "offline", "unavailable", "error",
+                "failed", "down", "broken", "disabled")
+
+
+def test_the_offline_status_names_the_mode_and_does_not_report_a_fault():
+    """Replaces `test_the_offline_status_says_what_is_degraded`.
+
+    That test pinned the two literals "AI OFFLINE" and "LIMITED OFFLINE MODE".
+    Both were wrong for the deployment they describe, and pinning them meant
+    the product could not be corrected without the suite objecting: on the
+    acceptance Mac, which had no provider key by design, the header read
+    "AI OFFLINE" beside an orange "Backend degraded" badge while the backend
+    was returning healthy 200s.
+
+    The old assertion is obsolete because the string it pinned was the defect.
+    What replaces it is stronger, not weaker: the old test allowed any label
+    at all as long as it was that one, and said nothing about the rest of the
+    status. This one holds the state machine (`offline` is still the state, so
+    routing and telemetry are unchanged), requires the label to come from the
+    one governed label table rather than a literal duplicated here, and adds
+    the constraint the old test did not make - that neither the label nor the
+    detail may describe a fault, in ANY of nine words, while still requiring
+    the detail to state the real limitation so nobody can pass it by saying
+    nothing.
+    """
+    from backend.llm import telemetry
+
     status = NullProvider().status()
-    assert status.state == "offline"
-    assert status.label == "AI OFFLINE"
-    assert "LIMITED OFFLINE MODE" in status.detail
+    assert status.state == telemetry.OFFLINE
+    assert status.configured is False
+    assert status.label == telemetry.LABELS[telemetry.OFFLINE]
+
+    surfaced = f"{status.label} {status.detail}".lower()
+    for word in _FAULT_WORDS:
+        assert word not in surfaced, (
+            f"the no-provider status calls the deployment {word!r}, which a "
+            f"client reads as an outage: {status.label!r} / {status.detail!r}")
+
+    # And it must still say what is actually different, or "no fault" would
+    # be satisfiable by saying nothing at all.
+    assert "governed" in surfaced and "phrasing" in surfaced, (
+        f"the status does not state the real limitation: {status.detail!r}")
+
+
+def test_a_configured_provider_that_is_failing_still_reports_degraded():
+    """The guard above must not have made every state sound fine.
+
+    `degraded` means a key exists and calls to it are failing. That IS a
+    fault, it IS actionable by an administrator, and it must keep saying so.
+    """
+    from backend.llm import telemetry
+
+    assert telemetry.LABELS[telemetry.DEGRADED] == "AI DEGRADED"
+    assert telemetry.LABELS[telemetry.DEGRADED] != telemetry.LABELS[
+        telemetry.OFFLINE]
 
 
 def test_a_provider_without_a_key_is_not_configured():

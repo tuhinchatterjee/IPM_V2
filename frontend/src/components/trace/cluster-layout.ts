@@ -123,6 +123,7 @@ const KIND_OF: Record<string, EdgeKind> = {
   CERTIFIED_METHOD: "computes",
   KERNEL: "computes",
   BUSINESS_INVARIANT: "checks",
+  PRESENTATION_GATE: "checks",
   RECONCILIATION: "checks",
   FINGERPRINT: "checks",
   PREVIOUS_RESULT: "reuses",

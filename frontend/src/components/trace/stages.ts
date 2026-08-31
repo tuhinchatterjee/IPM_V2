@@ -1,6 +1,6 @@
 import type { TraceGraph, TraceNode } from "@/lib/api";
 
-import { STATUS, statusOf, worst, type TraceStatus } from "./status";
+import { STATUS, statusOf, worst, type TraceStatus } from "./status.ts";
 
 /**
  * A Trace, as six stages a person can read in seconds.
@@ -32,6 +32,7 @@ export type StageId =
   | "connected"
   | "calculated"
   | "validated"
+  | "presented"
   | "answered";
 
 export interface Stage {
@@ -91,6 +92,17 @@ const STAGE_OF: Record<string, StageId> = {
   BUSINESS_INVARIANT: "validated",
   FINGERPRINT: "validated",
 
+  // §9. The presentation gate judges the ANSWER — is it direct, is every
+  // figure grounded, are the limitations stated, does the chart reconcile.
+  // It used to be typed as a business invariant and so landed in VALIDATED,
+  // whose status is the worst of everything in it and whose sentence counts
+  // only the invariant checks. A blocked presentation over a correct
+  // calculation therefore rendered as "Validated — Failed · 4 checks · 4 of
+  // 4 checks passed", which is two true statements about different things
+  // printed as though they were one contradictory statement about one. It
+  // gets its own stage so it can say what actually failed.
+  PRESENTATION_GATE: "presented",
+
   RESULT: "answered",
   LLM_EXPLANATION: "answered",
   VISUALIZATION: "answered",
@@ -102,6 +114,7 @@ const ORDER: StageId[] = [
   "connected",
   "calculated",
   "validated",
+  "presented",
   "answered",
 ];
 
@@ -111,6 +124,7 @@ const TITLES: Record<StageId, string> = {
   connected: "Connected",
   calculated: "Calculated",
   validated: "Validated",
+  presented: "Presented",
   answered: "Answered",
 };
 
@@ -136,7 +150,7 @@ export function stagesOf(graph: TraceGraph): Stage[] {
       id,
       title: TITLES[id],
       summary: summaryFor(id, nodes),
-      status: worst(statuses),
+      status: statusFor(id, nodes, statuses),
       count,
       counts,
       issues: statuses.filter((s) => STATUS[s].attention).length,
@@ -182,6 +196,36 @@ function countFor(id: StageId, nodes: TraceNode[]): { count: number; counts: str
   return { count: nodes.length, counts: nodes.length === 1 ? "step" : "steps" };
 }
 
+/**
+ * The status word for a stage, which must never contradict its own sentence.
+ *
+ * §9: "Never simultaneously display FAILED and '4 of 4 checks passed'."
+ *
+ * Everywhere else the worst node status is the right answer, because the
+ * summary is prose about those same nodes. VALIDATED is the exception: its
+ * sentence is a COUNT of business-invariant checks, so its word has to come
+ * from the same count or the two can disagree in front of a reader with no
+ * way to tell which is true. A skipped or not-applicable check is not a
+ * failure and does not make one — §9 again — so a stage whose invariants all
+ * held reads Passed even where something beside them did not, and that
+ * something now has its own stage to say so in.
+ *
+ * A genuinely failed invariant still fails the stage, and loudly: `passed <
+ * total` is exactly the condition the sentence already reports as "N did
+ * not".
+ */
+function statusFor(id: StageId, nodes: TraceNode[],
+                   statuses: TraceStatus[]): TraceStatus {
+  if (id !== "validated") return worst(statuses);
+  const { passed, total } = checkCounts(nodes);
+  if (!total) return worst(statuses);
+  if (passed < total) return "failed";
+  // The invariants held. A node here may still be stale or have been
+  // repaired, and both are worth surfacing; neither is a failure.
+  const rest = statuses.filter((s) => s !== "failed");
+  return worst(rest.length ? rest : ["passed"]);
+}
+
 function checkCounts(nodes: TraceNode[]): { passed: number; total: number } {
   let passed = 0;
   let total = 0;
@@ -218,6 +262,8 @@ function summaryFor(id: StageId, nodes: TraceNode[]): string {
       return calculated(nodes);
     case "validated":
       return validated(nodes);
+    case "presented":
+      return presented(nodes);
     case "answered":
       return answered(nodes);
   }
@@ -284,6 +330,21 @@ function validated(nodes: TraceNode[]): string {
       : `${passed} of ${total} checks passed — ${total - passed} did not.`;
   }
   return labelOf(nodes, "FINGERPRINT") || "Recorded so this run can be reproduced.";
+}
+
+/**
+ * What the presentation gates said about the answer.
+ *
+ * Their own sentences, not a count. A gate that blocked says which dimension
+ * blocked it and why; "1 of 2 gates passed" would tell a reader that
+ * something is wrong and nothing about what.
+ */
+function presented(nodes: TraceNode[]): string {
+  const said = nodes
+    .map((n) => n.label?.trim())
+    .filter((label): label is string => Boolean(label));
+  if (said.length) return unique(said).slice(0, 2).join(" ");
+  return "The answer was checked before it was shown.";
 }
 
 function answered(nodes: TraceNode[]): string {

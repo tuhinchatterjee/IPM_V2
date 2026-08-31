@@ -68,6 +68,25 @@ class NodeType(StrEnum):
     #: this is the node that says the answer matches the question that was
     #: asked, and that a failure would have blocked it.
     BUSINESS_INVARIANT = "BUSINESS_INVARIANT"
+    #: Whether the ANSWER was fit to put on a screen: directness, grounding,
+    #: limitations, formatting, the chart. §9.
+    #:
+    #: Split out of BUSINESS_INVARIANT, which the type above defines as what
+    #: was checked "against the rows themselves". The presentability gate is
+    #: not that. It judges the prose over a result whose arithmetic has
+    #: already been validated, and filing it under the same type made the
+    #: Trace contradict itself: the Validated stage took the worst status of
+    #: everything in it and reported FAILED, while its own sentence — which
+    #: counts only the invariant checks — read "4 of 4 checks passed". A
+    #: reader was shown a red FAILED beside a green count of the same stage
+    #: and could not tell which was true. Neither was wrong; they were
+    #: answering different questions, and only one of them was the one the
+    #: stage claimed to be about.
+    #:
+    #: A blocked presentation is still serious and still blocks the answer.
+    #: It is reported as its own thing, which is what lets it say what
+    #: actually failed instead of implying the calculation did.
+    PRESENTATION_GATE = "PRESENTATION_GATE"
     #: The catalogue itself answering, for a question about the data rather
     #: than about the portfolio.
     GOVERNED_METADATA = "GOVERNED_METADATA"
@@ -176,6 +195,7 @@ GOVERNED_NODE_TYPES = frozenset(
         NodeType.REUSED_RESULT,
         NodeType.CALCULATION,
         NodeType.BUSINESS_INVARIANT,
+        NodeType.PRESENTATION_GATE,
         NodeType.RESULT,
         NodeType.OBJECTIVE_DECOMPOSITION,
         NodeType.SHARED_SCOPE,
