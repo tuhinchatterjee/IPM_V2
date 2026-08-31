@@ -102,13 +102,54 @@ def test_together_with_migration_every_available_family_has_cases():
     four as gaps while six hundred cases sit in them. The scorecard corpus is
     in here for the same reason — its twenty-three families live only in
     `teaching/scorecard.py`."""
+    from intelligence_factory.teaching import corporate_graph as cg
     from intelligence_factory.teaching import judgment_blueprints as jb
     from intelligence_factory.teaching import scorecard as sv
 
     covered = {c.family_id
-               for c in [*mg.cases(), *cn.cases(), *jb.cases(), *sv.cases()]}
+               for c in [*mg.cases(), *cn.cases(), *jb.cases(), *sv.cases(),
+                         *cg.cases()]}
     missing = sorted(set(fam.AVAILABLE) - covered)
     assert missing == []
+
+
+def test_every_case_the_seeder_offers_can_actually_be_saved():
+    """The library only holds what the seeder can write.
+
+    This is the check that was missing, and its absence hid two things at
+    once. Five hundred reviewed scorecard cases were never in the seeder's
+    corpus at all, and fifty-six safety cases were in it and rejected at
+    save - sixteen for declaring a risk level the schema does not have,
+    forty for executing with no plan. Nothing failed, because the seeder
+    prints a rejection and carries on, and the review pack counts the CORPUS
+    rather than the library. A reviewer was therefore shown coverage the
+    product did not have.
+    """
+    from backend.teaching import schema as tsc
+    from scripts.seed_teaching_library import corpus
+
+    offered = corpus()
+    rejected = {case.case_id: [str(p) for p in tsc.validate(case)]
+                for case in offered}
+    rejected = {k: v for k, v in rejected.items() if v}
+    assert not rejected, (
+        f"{len(rejected)} of {len(offered)} offered cases cannot be saved: "
+        f"{dict(list(rejected.items())[:5])}")
+
+
+def test_the_seeder_offers_every_corpus_the_factory_builds():
+    """A corpus built and not offered is a corpus no reviewer can approve
+    and no runtime can retrieve, however carefully it was written."""
+    from intelligence_factory.teaching import corporate_graph as cg
+    from intelligence_factory.teaching import scorecard as sv
+    from scripts.seed_teaching_library import corpus
+
+    offered = {case.case_id for case in corpus()}
+    for built in (sv.cases(), cg.cases()):
+        missing = [c.case_id for c in built if c.case_id not in offered]
+        assert not missing, (
+            f"{len(missing)} built cases the seeder never offers: "
+            f"{missing[:5]}")
 
 
 # ---------------------------------------------------------- the trap is the case

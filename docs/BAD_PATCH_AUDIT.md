@@ -223,6 +223,18 @@ pre-existing expected refusals unchanged.
 
 Three fixes, all made rather than noted:
 
+-1. **Five hundred and fifty-six teaching cases never reached the library.**
+   The retail scorecard corpus (500 cases) was built and left out of
+   `scripts/seed_teaching_library.py::corpus()` entirely, and 56 safety
+   cases were in it and rejected at save — 16 declaring `risk="STANDARD"`,
+   which is not one of the schema's four levels, and 40 executing with an
+   empty plan contract. Nothing failed: the seeder prints a rejection and
+   carries on, and the human-review pack counts the CORPUS rather than the
+   library, so a reviewer was shown coverage the product did not have. The
+   five orchestration builders now declare the plan each case is actually
+   about, the risk levels are real ones, both module corpora are offered,
+   and two tests in `tests/factory/test_canonical_cases.py` fail if either
+   regresses.
 0. **Four contracts governed a word nothing produced.** `debtrank_impact`,
    `ubo_count`, `connected_group_size` and `network_centrality` were filed
    under contract ids the concept registry does not answer to, so

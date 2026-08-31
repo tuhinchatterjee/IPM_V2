@@ -1,5 +1,5 @@
 """
-The forty-five case families a teaching library has to cover. §7.
+The case families a teaching library has to cover. §7.
 
 Why a family is a governed object rather than a string
 ------------------------------------------------------
@@ -43,10 +43,10 @@ from dataclasses import dataclass
 
 #: Moves when a family is added, removed, or changes what it teaches. A case
 #: validated against an older list is STALE, not wrong (see ``status.py``).
-FAMILY_VERSION = "1.1.0"
+FAMILY_VERSION = "1.2.0"
 
 # ---------------------------------------------------------------- the groups
-# Groups exist for the administrator's eye, not for logic: forty-five rows in
+# Groups exist for the administrator's eye, not for logic: eighty-nine rows in
 # one flat list is a list nobody reads. Nothing branches on a group.
 METADATA = "metadata"
 CALCULATION = "calculation"
@@ -61,10 +61,12 @@ REFUSAL = "refusal"
 GOVERNANCE = "governance"
 SCOPE = "scope"
 SCORECARD = "scorecard"
+GRAPH = "graph"
 
 GROUPS: tuple[str, ...] = (
     METADATA, CALCULATION, CONVERSATION, STRUCTURE, MIGRATION, ECL,
     PORTFOLIO, BORROWER, JUDGMENT, REFUSAL, GOVERNANCE, SCOPE, SCORECARD,
+    GRAPH,
 )
 
 # ------------------------------------------------------------- the outcomes
@@ -416,6 +418,96 @@ FAMILIES: tuple[Family, ...] = (
            "Refuse a scorecard question the data cannot answer, and say what "
            "is missing rather than returning a number.",
            scope=RETAIL),
+
+    # ------------------------------------------------------------- graph
+    # B45-B49. The relationship graph is the part of the product where a
+    # confident wrong answer is most expensive, because every one of these
+    # families has a near-neighbour a plausible answer could substitute for
+    # it: connectivity for connectedness, a community for a group, a
+    # DebtRank fraction for a loss rate, a ranking for a probability. The
+    # families are cut so those substitutions are separable in the score
+    # rather than averaged away.
+    Family("GRAPH_DATA_DISCOVERY", "Graph data discovery", GRAPH,
+           "Say which graph datasets, edge types, quarters and derived "
+           "measures exist, answered from the catalogue rather than by "
+           "traversing the graph.",
+           scope=CORPORATE, outcome=EXECUTE),
+    Family("GRAPH_OWNERSHIP_STRUCTURE", "Ownership structure", GRAPH,
+           "Report INTEGRATED ownership through the whole chain, and keep it "
+           "distinct from the direct shareholding it is computed from.",
+           scope=CORPORATE),
+    Family("GRAPH_BENEFICIAL_OWNERSHIP", "Beneficial ownership", GRAPH,
+           "Identify natural persons at or above the declared threshold, "
+           "state the threshold as policy rather than law, and say that no "
+           "owner was FOUND rather than that none exists.",
+           scope=CORPORATE),
+    Family("GRAPH_CONTROL_CLOSURE", "Control closure", GRAPH,
+           "Apply the control test and its transitive closure, and keep it "
+           "separate from proportional ownership: the two answer different "
+           "questions and differ by design.",
+           scope=CORPORATE),
+    Family("GRAPH_CONNECTED_GROUP", "Connected counterparty group", GRAPH,
+           "Report a connected counterparty CANDIDATE group and refuse to "
+           "present graph connectivity as a regulatory determination of "
+           "connectedness.",
+           scope=CORPORATE),
+    Family("GRAPH_GROUP_LIMIT", "Group limit utilisation", GRAPH,
+           "Aggregate exposure at the group and compare it against the "
+           "reference, naming the threshold as an UNVERIFIED REGULATORY "
+           "PARAMETER rather than as binding law.",
+           scope=CORPORATE),
+    Family("GRAPH_GROUP_CONCEPTS", "Six group concepts", GRAPH,
+           "Answer for the group concept that was actually asked about - "
+           "legal, ownership, control, connected, community or reporting - "
+           "and never silently substitute one for another.",
+           scope=CORPORATE),
+    Family("GRAPH_CONTAGION", "Network contagion", GRAPH,
+           "Report DebtRank as a fraction of network value impaired under a "
+           "stated shock, and refuse to present it as an expected credit "
+           "loss, a capital number or a regulatory measure.",
+           scope=CORPORATE),
+    Family("GRAPH_CENTRALITY", "Network centrality", GRAPH,
+           "Distinguish who transmits from who is exposed from who is a "
+           "conduit, and keep the direction of the measure straight.",
+           scope=CORPORATE),
+    Family("GRAPH_NETWORK_RISK_SCORE", "Network Risk Score", GRAPH,
+           "Report the score as a RELATIVE RANKING within the scored "
+           "population, never as a probability, a PD, a rating, an IFRS 9 "
+           "stage or an ECL.",
+           scope=CORPORATE),
+    Family("GRAPH_COMMUNITY", "Network community", GRAPH,
+           "Describe a modularity community as descriptive only, and refuse "
+           "to treat it as a group in any legal, economic or regulatory "
+           "sense.",
+           scope=CORPORATE),
+    Family("GRAPH_SIMILARITY", "Hidden relationship candidate", GRAPH,
+           "Present a similarity match as a HIDDEN RELATIONSHIP CANDIDATE "
+           "for investigation, and refuse to let it create control, "
+           "beneficial ownership or group membership on its own.",
+           scope=CORPORATE),
+    Family("GRAPH_EVIDENCE_CONFIDENCE", "Graph evidence confidence", GRAPH,
+           "Report the confidence of the WEAKEST assertion on the evidence "
+           "path, and name the assertion that set it.",
+           scope=CORPORATE),
+    Family("GRAPH_DATA_QUALITY", "Graph data quality", GRAPH,
+           "Report a check's status and what it blocks, and return the "
+           "blocked sentinel rather than a number when a computation the "
+           "question needs was rejected.",
+           scope=CORPORATE),
+    Family("GRAPH_ENTITY_RESOLUTION", "Graph entity resolution", GRAPH,
+           "State that a resolution error propagates into every derived "
+           "figure downstream, and disclose an ambiguous match rather than "
+           "resolving it silently.",
+           scope=CORPORATE),
+    Family("GRAPH_AMBIGUITY", "Graph ambiguity", GRAPH,
+           "Ask which group, which borrower or which measure was meant, "
+           "rather than picking one and computing confidently.",
+           scope=CORPORATE, outcome=CLARIFY),
+    Family("GRAPH_CONTROLLED_FAILURE", "Graph controlled failure", GRAPH,
+           "Refuse a graph question the data cannot answer - a rejected "
+           "component, an absent as-at date, an entity outside the book - "
+           "and say what is missing rather than returning a number.",
+           scope=CORPORATE),
 )
 
 BY_ID: dict[str, Family] = {f.id: f for f in FAMILIES}
@@ -483,7 +575,8 @@ def from_legacy(family: str) -> str:
 
 __all__ = [
     "AVAILABLE", "BY_ID", "CALCULATION", "CLARIFY", "CORPORATE", "EXECUTE",
-    "FAIL", "FAMILIES", "FAMILY_VERSION", "GATED", "GROUPS", "IDS",
+    "FAIL", "FAMILIES", "FAMILY_VERSION", "GATED", "GRAPH", "GROUPS",
+    "IDS",
     "LEGACY_FAMILIES", "NO_SCOPE", "OUTCOMES", "PORTFOLIO_SCOPES", "RETAIL",
     "UNSUPPORTED", "Family", "from_legacy", "get", "in_group",
     "METADATA", "CONVERSATION", "STRUCTURE", "MIGRATION", "ECL", "PORTFOLIO",

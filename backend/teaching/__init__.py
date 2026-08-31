@@ -3,7 +3,7 @@ The Credit-Risk Teaching Factory's governed contract. Part A §2, §4-§7.
 
 Three modules, and the split is the governance:
 
-``families``  The forty-five case families a library has to cover, and the
+``families``  The case families a library has to cover, and the
               rule each one puts on a case that claims it.
 ``status``    What a case is allowed to be, and the one decision that matters:
               whether it may be retrieved into a live prompt.

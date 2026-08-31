@@ -36,16 +36,27 @@ from backend.services import teaching_library as tl
 from backend.teaching import schema as sc
 from intelligence_factory.teaching import (
     canonical,
+    corporate_graph,
     judgment_blueprints,
     migrate,
     safety,
+    scorecard,
 )
 
 
 def corpus() -> list[sc.TeachingCase]:
-    """Every case the factory offers the library."""
+    """Every case the factory offers the library.
+
+    The two module corpora belong here for the same reason the general one
+    does: a case that is never offered to the library is a case no reviewer
+    can approve and no runtime can retrieve, however carefully it was
+    written. The retail scorecard corpus had been built and left out of this
+    list, which made 500 reviewed cases invisible to the product; the graph
+    corpus joins on the same footing rather than repeating the omission.
+    """
     return [*migrate.cases(), *canonical.cases(),
-            *judgment_blueprints.cases(), *safety.cases()]
+            *judgment_blueprints.cases(), *safety.cases(),
+            *scorecard.cases(), *corporate_graph.cases()]
 
 
 def seed(*, actor: str = "seed") -> dict[str, int]:
@@ -85,7 +96,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.report:
         print(json.dumps({"migrated": migrate.report(),
                           "canonical": canonical.report(),
-                          "judgment": judgment_blueprints.report()},
+                          "judgment": judgment_blueprints.report(),
+                          "scorecard": scorecard.report(),
+                          "corporate_graph": corporate_graph.report(),
+                          "total": len(corpus())},
                          indent=2, sort_keys=True))
         return 0
 

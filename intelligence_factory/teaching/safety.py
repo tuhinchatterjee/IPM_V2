@@ -214,6 +214,10 @@ def _agentic_cockpit(seed: str) -> sc.TeachingCase:
         difficulty=sc.EXPERT, risk="HIGH", officer=4,
         expected_agent_roles=["portfolio_reviewer", "ifrs9", "ratings"],
         required_datasets=[FACILITY, IFRS9, RATINGS, DELINQUENCY],
+        analytical_plan_contract={
+            "coordinates_specialists": ["portfolio_reviewer", "ifrs9",
+                                        "ratings"],
+            "every_finding_from_a_governed_analysis": True},
         trace_contract={"specialist_reads_aggregated": True,
                         "every_finding_traceable_to_an_analysis": True},
         invariants=["composition_reports_its_sources"],
@@ -248,6 +252,10 @@ def _agentic_project(seed: str) -> sc.TeachingCase:
         difficulty=sc.EXPERT, risk="HIGH", officer=4,
         expected_agent_roles=["portfolio_reviewer", "ifrs9"],
         required_datasets=[FACILITY, IFRS9],
+        analytical_plan_contract={
+            "coordinates_specialists": ["portfolio_reviewer", "ifrs9"],
+            "stays_inside_project_scope": True,
+            "publishes_nothing_globally": True},
         security_constraints=["project scope isolation"],
         invariants=["project_scope_respected",
                     "composition_reports_its_sources"],
@@ -291,7 +299,9 @@ def _officer(seed: str) -> sc.TeachingCase:
         objectives=(f"officer level {level}",
                     "the recorded reason for that level",
                     "the answer itself"),
-        difficulty=sc.COMPLEX, risk="STANDARD", officer=level,
+        difficulty=sc.COMPLEX, risk="MEDIUM", officer=level,
+        analytical_plan_contract={"selects_officer_level": level,
+                                  "records_reason": True},
         scope_contract=_forbids(
             "escalating on score alone past the grain the level is defined by",
             "reporting a level with no recorded reason",
@@ -328,8 +338,10 @@ def _agent(seed: str) -> sc.TeachingCase:
         objectives=("the specialists engaged",
                     "why each one was needed",
                     "the answer itself"),
-        difficulty=sc.COMPLEX, risk="STANDARD", officer=2,
+        difficulty=sc.COMPLEX, risk="MEDIUM", officer=2,
         expected_agent_roles=list(agents),
+        analytical_plan_contract={"engages_specialists": list(agents),
+                                  "smallest_safe_set": True},
         scope_contract=_forbids(
             "engaging a specialist whose domain the question does not touch",
             "omitting a specialist whose domain the answer depends on",
@@ -359,6 +371,10 @@ def _proactive(seed: str) -> sc.TeachingCase:
                     "that a second run over the same period adds nothing"),
         difficulty=sc.EXPERT, risk="HIGH", officer=3,
         required_datasets=[FACILITY, IFRS9, DELINQUENCY, APPETITE],
+        analytical_plan_contract={
+            "deterministic_screen_first": True,
+            "idempotent_over_period": True,
+            "raises_only_on_threshold": True},
         invariants=["idempotent_over_a_period", "threshold_before_narrative"],
         scope_contract=_forbids(
             "raising a case no threshold was crossed for",
@@ -393,6 +409,10 @@ def _risk_case(seed: str) -> sc.TeachingCase:
                     "any duplicate that was merged instead of re-raised"),
         difficulty=sc.EXPERT, risk="HIGH", officer=3,
         required_datasets=[FACILITY, IFRS9, WATCHLIST],
+        analytical_plan_contract={
+            "severity_from_threshold": True,
+            "merges_duplicates": True,
+            "carries_the_measuring_analysis": True},
         invariants=["severity_from_threshold", "no_duplicate_case"],
         scope_contract=_forbids(fault))
 
@@ -419,6 +439,9 @@ def _workflow(seed: str) -> sc.TeachingCase:
                     f"that it needs approval from {approver}",
                     "the request that was raised, and nothing beyond it"),
         difficulty=sc.EXPERT, risk="CRITICAL", officer=3,
+        analytical_plan_contract={"prepares_action": action,
+                                  "stops_at_approval_gate": True,
+                                  "approver": approver},
         forbidden_tools=["direct_write", "external_send"],
         security_constraints=["human approval before a material action"],
         invariants=["approval_gate_respected"],
