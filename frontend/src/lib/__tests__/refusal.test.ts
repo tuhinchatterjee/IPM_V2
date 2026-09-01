@@ -130,6 +130,25 @@ test("Brain Center distinguishes a refusal from a breakage", () => {
   assert.match(page, /failed\.tab === tab/);
 });
 
+test("the assurance panel asks when the reader asks, and states a refusal", () => {
+  const page = read("app/investigations/[id]/page.tsx");
+  const panel = read("components/assurance/review.tsx");
+
+  // React renders the children of a closed <details>, so this fetched the
+  // assurance of every Investigation anybody opened — for a panel nobody had
+  // expanded, and on somebody else's thread it drew a refusal the reader had
+  // not asked for and could not see.
+  assert.match(page, /assuranceOpen \? \(/);
+  assert.match(page, /onToggle=/);
+
+  // And when it is asked for and refused, it reads as a refusal.
+  assert.match(panel, /e instanceof ApiError && e\.isForbidden/);
+  assert.match(panel, /<Unavailable/);
+
+  // Not yet assured is neither refused nor broken, and has its own branch.
+  assert.match(panel, /isNotYetAssured\(data\)/);
+});
+
 test("the cost trace explains itself to a role that cannot open it", () => {
   const trace = read("components/system/cost-trace.tsx");
 

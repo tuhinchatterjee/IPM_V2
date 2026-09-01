@@ -1,5 +1,5 @@
 {
-  "started": "2026-09-01T21:36:41+0000",
+  "started": "2026-09-01T22:02:02+0000",
   "error": "",
   "roles": [
     "ADMIN",
@@ -7,10 +7,10 @@
     "VIEWER"
   ],
   "resolved_ids": {
-    "project": "5601",
-    "investigation": "10902",
+    "project": "5661",
+    "investigation": "10949",
     "saved_investigation": "10903",
-    "saved_analysis": "1519",
+    "saved_analysis": "1535",
     "analysis_definition": "approaching_sicr_threshold",
     "studio_method": "approaching_sicr",
     "dataset": "borrower_cash_flow",
@@ -28,7 +28,7 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 27,
+      "links": 26,
       "ways_out": 21,
       "source": "route"
     },
@@ -106,7 +106,7 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 195,
+      "links": 198,
       "ways_out": 21,
       "source": "route"
     },
@@ -449,7 +449,7 @@
       "source": "route"
     },
     {
-      "path": "/projects/5601",
+      "path": "/projects/5661",
       "role": "ADMIN",
       "status": 200,
       "ok": true,
@@ -462,17 +462,13 @@
       "source": "route"
     },
     {
-      "path": "/investigations/10902",
+      "path": "/investigations/10949",
       "role": "ADMIN",
       "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10902/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10902/assurance"
-      ],
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
       "refused_as_intended": "",
       "links": 22,
       "ways_out": 21,
@@ -630,7 +626,7 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 192,
+      "links": 195,
       "ways_out": 18,
       "source": "route"
     },
@@ -973,7 +969,7 @@
       "source": "route"
     },
     {
-      "path": "/projects/5601",
+      "path": "/projects/5661",
       "role": "ANALYST",
       "status": 200,
       "ok": true,
@@ -986,17 +982,13 @@
       "source": "route"
     },
     {
-      "path": "/investigations/10902",
+      "path": "/investigations/10949",
       "role": "ANALYST",
       "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10902/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10902/assurance"
-      ],
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
       "refused_as_intended": "",
       "links": 19,
       "ways_out": 18,
@@ -1131,17 +1123,17 @@
       "path": "/ai-studio/continuous-learning",
       "role": "VIEWER",
       "status": 200,
-      "ok": false,
-      "reason": "403 http://127.0.0.1:3100/api/v1/continuous-learning/cockpit?window=SINCE_CURRENT_INTELLIGENCE_RELEASE; 403 http://127.0.0.1:3100/api/v1/continuous-learning/windows",
+      "ok": true,
+      "reason": "",
       "console": [
         "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
         "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
       ],
       "failed_requests": [
-        "403 http://127.0.0.1:3100/api/v1/continuous-learning/cockpit?window=SINCE_CURRENT_INTELLIGENCE_RELEASE",
-        "403 http://127.0.0.1:3100/api/v1/continuous-learning/windows"
+        "403 http://127.0.0.1:3100/api/v1/continuous-learning/windows",
+        "403 http://127.0.0.1:3100/api/v1/continuous-learning/cockpit?window=SINCE_CURRENT_INTELLIGENCE_RELEASE"
       ],
-      "refused_as_intended": "",
+      "refused_as_intended": "refused, and the page says so on screen",
       "links": 18,
       "ways_out": 18,
       "source": "route"
@@ -1157,8 +1149,8 @@
         "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
       ],
       "failed_requests": [
-        "403 http://127.0.0.1:3100/api/v1/learning/guard",
-        "403 http://127.0.0.1:3100/api/v1/learning/inbox?rating=&limit=50"
+        "403 http://127.0.0.1:3100/api/v1/learning/inbox?rating=&limit=50",
+        "403 http://127.0.0.1:3100/api/v1/learning/guard"
       ],
       "refused_as_intended": "the AI Studio is ADMIN and DATA_STEWARD",
       "links": 18,
@@ -1174,7 +1166,7 @@
       "console": [],
       "failed_requests": [],
       "refused_as_intended": "",
-      "links": 192,
+      "links": 195,
       "ways_out": 18,
       "source": "route"
     },
@@ -1375,8 +1367,8 @@
       ],
       "failed_requests": [
         "403 http://127.0.0.1:3100/api/v1/engine/analyses/portfolio_summary/execute",
-        "403 http://127.0.0.1:3100/api/v1/engine/analyses/stage_distribution/execute",
         "403 http://127.0.0.1:3100/api/v1/engine/analyses/portfolio_trend/execute",
+        "403 http://127.0.0.1:3100/api/v1/engine/analyses/stage_distribution/execute",
         "403 http://127.0.0.1:3100/api/v1/engine/analyses/ecl_movement/execute",
         "403 http://127.0.0.1:3100/api/v1/engine/analyses/sector_concentration/execute"
       ],
@@ -1423,9 +1415,9 @@
         "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
       ],
       "failed_requests": [
-        "403 http://127.0.0.1:3100/api/v1/scorecard/dashboard/APPLICATION?model=INCUMBENT&segment_by=application_channel&curves=false",
+        "403 http://127.0.0.1:3100/api/v1/scorecard/overview",
         "403 http://127.0.0.1:3100/api/v1/scorecard/months/APPLICATION",
-        "403 http://127.0.0.1:3100/api/v1/scorecard/overview"
+        "403 http://127.0.0.1:3100/api/v1/scorecard/dashboard/APPLICATION?model=INCUMBENT&segment_by=application_channel&curves=false"
       ],
       "refused_as_intended": "Retail Scorecard Validation is ADMIN, DATA_STEWARD and ANALYST",
       "links": 18,
@@ -1545,7 +1537,7 @@
       "source": "route"
     },
     {
-      "path": "/projects/5601",
+      "path": "/projects/5661",
       "role": "VIEWER",
       "status": 200,
       "ok": true,
@@ -1558,17 +1550,13 @@
       "source": "route"
     },
     {
-      "path": "/investigations/10902",
+      "path": "/investigations/10949",
       "role": "VIEWER",
       "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10902/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10902/assurance"
-      ],
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
       "refused_as_intended": "",
       "links": 19,
       "ways_out": 18,
@@ -1982,23 +1970,6 @@
       "source": "discovered link"
     },
     {
-      "path": "/engine-builder/not_a_registered_analysis",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/engine/analyses/not_a_registered_analysis",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/engine/analyses/not_a_registered_analysis"
-      ],
-      "refused_as_intended": "",
-      "links": 22,
-      "ways_out": 21,
-      "source": "discovered link"
-    },
-    {
       "path": "/engine-builder/obligor_concentration",
       "role": "ADMIN",
       "status": 200,
@@ -2155,23 +2126,6 @@
       "source": "discovered link"
     },
     {
-      "path": "/engine-builder/step_one",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/engine/analyses/step_one",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/engine/analyses/step_one"
-      ],
-      "refused_as_intended": "",
-      "links": 22,
-      "ways_out": 21,
-      "source": "discovered link"
-    },
-    {
       "path": "/engine-builder/stress_scenario_basic",
       "role": "ADMIN",
       "status": 200,
@@ -2224,17 +2178,39 @@
       "source": "discovered link"
     },
     {
-      "path": "/investigations/10008",
+      "path": "/investigations/10003",
       "role": "ADMIN",
       "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10008/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10008/assurance"
-      ],
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 22,
+      "ways_out": 21,
+      "source": "discovered link"
+    },
+    {
+      "path": "/investigations/10004",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 22,
+      "ways_out": 21,
+      "source": "discovered link"
+    },
+    {
+      "path": "/investigations/10005",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
       "refused_as_intended": "",
       "links": 22,
       "ways_out": 21,
@@ -2244,14 +2220,10 @@
       "path": "/investigations/10062",
       "role": "ADMIN",
       "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10062/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10062/assurance"
-      ],
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
       "refused_as_intended": "",
       "links": 22,
       "ways_out": 21,
@@ -2261,14 +2233,10 @@
       "path": "/investigations/10063",
       "role": "ADMIN",
       "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10063/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10063/assurance"
-      ],
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
       "refused_as_intended": "",
       "links": 22,
       "ways_out": 21,
@@ -2278,31 +2246,10 @@
       "path": "/investigations/10064",
       "role": "ADMIN",
       "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10064/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10064/assurance"
-      ],
-      "refused_as_intended": "",
-      "links": 22,
-      "ways_out": 21,
-      "source": "discovered link"
-    },
-    {
-      "path": "/investigations/10067",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10067/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10067/assurance"
-      ],
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
       "refused_as_intended": "",
       "links": 22,
       "ways_out": 21,
@@ -2312,14 +2259,10 @@
       "path": "/investigations/10110",
       "role": "ADMIN",
       "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10110/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10110/assurance"
-      ],
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
       "refused_as_intended": "",
       "links": 22,
       "ways_out": 21,
@@ -2329,14 +2272,10 @@
       "path": "/investigations/10111",
       "role": "ADMIN",
       "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10111/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10111/assurance"
-      ],
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
       "refused_as_intended": "",
       "links": 22,
       "ways_out": 21,
@@ -2346,31 +2285,10 @@
       "path": "/investigations/10112",
       "role": "ADMIN",
       "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10112/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10112/assurance"
-      ],
-      "refused_as_intended": "",
-      "links": 22,
-      "ways_out": 21,
-      "source": "discovered link"
-    },
-    {
-      "path": "/investigations/10115",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10115/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10115/assurance"
-      ],
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
       "refused_as_intended": "",
       "links": 22,
       "ways_out": 21,
@@ -2380,14 +2298,10 @@
       "path": "/investigations/10142",
       "role": "ADMIN",
       "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10142/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10142/assurance"
-      ],
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
       "refused_as_intended": "",
       "links": 22,
       "ways_out": 21,
@@ -2397,14 +2311,10 @@
       "path": "/investigations/10143",
       "role": "ADMIN",
       "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10143/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10143/assurance"
-      ],
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
       "refused_as_intended": "",
       "links": 22,
       "ways_out": 21,
@@ -2414,31 +2324,10 @@
       "path": "/investigations/10144",
       "role": "ADMIN",
       "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10144/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10144/assurance"
-      ],
-      "refused_as_intended": "",
-      "links": 22,
-      "ways_out": 21,
-      "source": "discovered link"
-    },
-    {
-      "path": "/investigations/10147",
-      "role": "ADMIN",
-      "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10147/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10147/assurance"
-      ],
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
       "refused_as_intended": "",
       "links": 22,
       "ways_out": 21,
@@ -2448,14 +2337,10 @@
       "path": "/investigations/10201",
       "role": "ADMIN",
       "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10201/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10201/assurance"
-      ],
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
       "refused_as_intended": "",
       "links": 22,
       "ways_out": 21,
@@ -2465,14 +2350,10 @@
       "path": "/investigations/10202",
       "role": "ADMIN",
       "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10202/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10202/assurance"
-      ],
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
       "refused_as_intended": "",
       "links": 22,
       "ways_out": 21,
@@ -2482,14 +2363,49 @@
       "path": "/investigations/10203",
       "role": "ADMIN",
       "status": 200,
-      "ok": false,
-      "reason": "404 http://127.0.0.1:3100/api/v1/investigations/10203/assurance",
-      "console": [
-        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-      ],
-      "failed_requests": [
-        "404 http://127.0.0.1:3100/api/v1/investigations/10203/assurance"
-      ],
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 22,
+      "ways_out": 21,
+      "source": "discovered link"
+    },
+    {
+      "path": "/investigations/10241",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 22,
+      "ways_out": 21,
+      "source": "discovered link"
+    },
+    {
+      "path": "/investigations/10242",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
+      "refused_as_intended": "",
+      "links": 22,
+      "ways_out": 21,
+      "source": "discovered link"
+    },
+    {
+      "path": "/investigations/10243",
+      "role": "ADMIN",
+      "status": 200,
+      "ok": true,
+      "reason": "",
+      "console": [],
+      "failed_requests": [],
       "refused_as_intended": "",
       "links": 22,
       "ways_out": 21,
@@ -2497,10 +2413,10 @@
     }
   ],
   "total": 180,
-  "failed": 22,
-  "refused_as_intended": 8,
-  "passed": 150,
-  "links_discovered": 741,
+  "failed": 0,
+  "refused_as_intended": 9,
+  "passed": 171,
+  "links_discovered": 744,
   "links_followed": 60,
   "max_discovered": 60
 }

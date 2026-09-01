@@ -354,7 +354,20 @@ def test_an_unknown_analysis_is_saved_as_draft_not_as_certified(client, people):
         json={"analysis_id": "not_a_registered_analysis", "result": {}},
         headers=_as(author),
     ).json()
-    assert body["certification"] == "draft"
+    try:
+        assert body["certification"] == "draft"
+    finally:
+        # This row outlives the test, and it is the one row in the suite that
+        # nobody can open: `/engine-builder/not_a_registered_analysis` 404s
+        # because that is the whole point of the case. A route crawl found it
+        # in the Analyses list of the local acceptance database, followed the
+        # link the product had published for it, and reported a broken route —
+        # correctly, on data a test had left lying in the product.
+        #
+        # Deleted here rather than left for a database reset, because a test
+        # that plants an unopenable object in a browsable list has not
+        # finished when its assertion passes.
+        client.delete(f"/api/v1/analyses/{body['id']}", headers=_as(author))
 
 
 def test_analyses_can_be_listed_by_project_and_by_investigation(
@@ -428,12 +441,21 @@ def test_saving_from_an_answer_keeps_each_certified_step(client, people, thread)
         headers=_as(author),
     ).json()
 
-    # Only the step that succeeded: a failed step produced no figure to keep.
-    assert body["count"] == 1
-    kept = body["analyses"][0]
-    assert kept["analysis_id"] == "step_one"
-    assert kept["result"] == {"top": "Contracting"}
-    assert kept["period"]["from_period"] == "2025Q4"
+    try:
+        # Only the step that succeeded: a failed step produced no figure to
+        # keep.
+        assert body["count"] == 1
+        kept = body["analyses"][0]
+        assert kept["analysis_id"] == "step_one"
+        assert kept["result"] == {"top": "Contracting"}
+        assert kept["period"]["from_period"] == "2025Q4"
+    finally:
+        # "step_one" names no registered analysis, so the row this leaves is
+        # one the product lists and cannot open. See the note on the unknown-
+        # analysis test above: a run of the suite used to add two of these,
+        # and the local acceptance database had collected 213 of them.
+        for one in body.get("analyses", []):
+            client.delete(f"/api/v1/analyses/{one['id']}", headers=_as(author))
 
 
 # ================================================================ contents

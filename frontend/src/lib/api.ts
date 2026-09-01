@@ -5533,7 +5533,7 @@ export const api = {
   studioReviewsTab: () =>
     request<StudioReviewsTab>("/intelligence/studio/investigation-reviews"),
   investigationAssurance: (investigationId: string) =>
-    request<AssuranceReview>(
+    request<AssuranceReview | AssuranceNotYet>(
       `/investigations/${encodeURIComponent(investigationId)}/assurance`,
     ),
   assuranceRecord: (investigationId: string, recordId: string) =>
@@ -7192,6 +7192,27 @@ export type AssuranceDimension = {
   }[];
   applicability?: { applicable: boolean; reason?: string };
 };
+
+/**
+ * An Investigation with nothing assured on it yet.
+ *
+ * Every thread is in this state until its first answer. The endpoint used to
+ * report it as a 404 alongside "no such record" and "not yours", so every
+ * Investigation page fetched a failure and told the reader the address was
+ * wrong. It is neither missing nor refused — it has simply not happened yet,
+ * and that is a different sentence.
+ */
+export type AssuranceNotYet = {
+  investigation_id: string;
+  assured: false;
+  statement: string;
+};
+
+export function isNotYetAssured(
+  body: AssuranceReview | AssuranceNotYet,
+): body is AssuranceNotYet {
+  return (body as AssuranceNotYet).assured === false;
+}
 
 export type AssuranceReview = {
   version: string;

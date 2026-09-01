@@ -93,6 +93,7 @@ function Thread({ threadId }: { threadId: number }) {
   const [asking, setAsking] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [picking, setPicking] = React.useState(false);
+  const [assuranceOpen, setAssuranceOpen] = React.useState(false);
   const [pendingQuestion, setPendingQuestion] = React.useState("");
   const [savedMessages, setSavedMessages] = React.useState<Set<number>>(
     () => new Set(),
@@ -236,12 +237,26 @@ function Thread({ threadId }: { threadId: number }) {
           not have to scroll past a validation report to reach the composer,
           and a reader who is not happy should find it without asking anyone
           where it lives. */}
-      <details className="rounded-md border border-border">
+      <details
+        className="rounded-md border border-border"
+        onToggle={(e) => setAssuranceOpen(e.currentTarget.open)}
+      >
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-text-primary">
           How CreditProbe performed
         </summary>
         <div className="border-t border-border p-4">
-          <HowCreditProbePerformed investigationId={String(thread.id)} />
+          {/*
+            Mounted on open, not on page load. React renders the children of a
+            closed <details>, so this used to fetch the assurance of every
+            Investigation anybody opened, for a panel nobody had asked for —
+            and on a thread whose assurance belongs to someone else it drew a
+            refusal the reader had not requested and could not see, because
+            collapsed text is not on screen. Asking when the reader asks costs
+            one request per opening instead of one per page.
+          */}
+          {assuranceOpen ? (
+            <HowCreditProbePerformed investigationId={String(thread.id)} />
+          ) : null}
         </div>
       </details>
 
