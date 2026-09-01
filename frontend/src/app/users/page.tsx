@@ -26,10 +26,12 @@ import { cn } from "@/lib/utils";
  * somebody look it up.
  */
 export default function UsersPage() {
-  const { role } = useRole();
+  const { role, settled } = useRole();
   const [refresh, setRefresh] = React.useState(0);
   const directory = useAsync(() => api.users(), [refresh], {
-    enabled: role === "ADMIN",
+    // See the Model Lab: the role is Administrator until hydration settles,
+    // so gating on it alone fires an admin-only request for every caller.
+    enabled: settled && role === "ADMIN",
   });
   const [adding, setAdding] = React.useState(false);
 

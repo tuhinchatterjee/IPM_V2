@@ -51,13 +51,16 @@ import { PrototypeNotice } from "../page";
  * whatever its numbers look like.
  */
 export default function ModelLabPage() {
-  const { role } = useRole();
+  const { role, settled } = useRole();
   const overview = useAsync(() => api.earlyWarning(), []);
   const [refresh, setRefresh] = React.useState(0);
   const models = useAsync(
     () => api.earlyWarningModels(),
     [refresh],
-    { enabled: role === "ADMIN" },
+    // `settled` and not just the role: before hydration every screen reads
+    // as Administrator, so without it this admin-only fetch left the browser
+    // once for every Analyst and Viewer who opened the page and came back 403.
+    { enabled: settled && role === "ADMIN" },
   );
   const [tab, setTab] = React.useState("models");
 

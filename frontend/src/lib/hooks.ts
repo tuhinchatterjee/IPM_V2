@@ -18,13 +18,26 @@ export interface AsyncState<T> {
   error: string | null;
   loading: boolean;
   reload: () => void;
+  /**
+   * True when the backend REFUSED this panel rather than failing at it — the
+   * caller's role may not read what the panel shows.
+   *
+   * This exists because flattening every failure into one string lost the
+   * difference. A route crawl found six screens where a Viewer, correctly
+   * refused, saw an empty panel or a red error: the product had told them
+   * something was broken when nothing was. A refusal is the permission model
+   * working, and it reads differently — see `<Unavailable>`.
+   */
+  refused: boolean;
+  /** The HTTP status behind `error`, or 0 when the backend was unreachable. */
+  status: number;
 }
 
 type Phase<T> =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "ready"; data: T }
-  | { status: "error"; message: string };
+  | { status: "error"; message: string; code: number };
 
 export function useAsync<T>(
   fn: () => Promise<T>,
@@ -62,6 +75,7 @@ export function useAsync<T>(
         setPhase({
           status: "error",
           message: e instanceof ApiError ? e.message : "Something went wrong.",
+          code: e instanceof ApiError ? e.status : -1,
         });
       }
     }
@@ -80,6 +94,8 @@ export function useAsync<T>(
     error: phase.status === "error" ? phase.message : null,
     loading: phase.status === "loading",
     reload,
+    refused: phase.status === "error" && phase.code === 403,
+    status: phase.status === "error" && phase.code > 0 ? phase.code : 0,
   };
 }
 

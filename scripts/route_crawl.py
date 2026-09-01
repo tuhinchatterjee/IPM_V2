@@ -46,8 +46,8 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-FRONTEND = "http://127.0.0.1:3000"
-BACKEND = "http://127.0.0.1:8000"
+FRONTEND = os.environ.get("CREDITPROBE_FRONTEND", "http://127.0.0.1:3000")
+BACKEND = os.environ.get("CREDITPROBE_BACKEND", "http://127.0.0.1:8000")
 
 #: The roles a demonstration is given under. Each sees a different sidebar,
 #: and a link that 403s for a Viewer is a finding, not a feature.
@@ -76,6 +76,32 @@ STATIC_ROUTES: tuple[str, ...] = (
     "/borrower-360",
 )
 
+#: Where the front end's routes actually live. A hand-kept list drifts: this
+#: one had fallen nine routes behind the app — Early Warning Signals, the
+#: Model Lab, Brain Center, Continuous Learning and five others were on disk
+#: and not in the crawl, so "every route was reviewed" was true of the list
+#: rather than of the product. Part 2.
+_APP = Path(__file__).resolve().parents[1] / "frontend" / "src" / "app"
+
+
+def static_routes() -> tuple[str, ...]:
+    """Every route the front end serves, read from the file system.
+
+    Dynamic segments are excluded here and crawled with REAL ids by
+    `dynamic_routes`, because `/projects/[id]` is not an address anybody can
+    visit and `/projects/1` on an empty database proves nothing.
+    """
+    found: set[str] = set(STATIC_ROUTES)
+    if _APP.is_dir():
+        for page in _APP.rglob("page.tsx"):
+            route = "/" + str(page.parent.relative_to(_APP)).replace("\\", "/")
+            if route == "/.":
+                route = "/"
+            if "[" in route or "(" in route:
+                continue
+            found.add(route)
+    return tuple(sorted(found))
+
 #: Text a broken page renders. Matched case-insensitively against the body.
 BROKEN_MARKERS: tuple[tuple[str, str], ...] = (
     ("that address does not exist", "not-found boundary"),
@@ -100,6 +126,10 @@ MAX_DISCOVERED = 60
 #: this crawl visits hundreds of pages and a slow page is itself a finding.
 VISIT_TIMEOUT_MS = 20_000
 SELECTOR_TIMEOUT_MS = 10_000
+#: How long to let a page's own fetches finish before harvesting findings from
+#: it. Short: this is waiting for the panels, not for a slow backend, and a
+#: page still busy after this long is worth knowing about on its own.
+SETTLE_TIMEOUT_MS = 8_000
 
 #: Routes a role is EXPECTED to be refused, and why.
 #:
@@ -334,6 +364,78 @@ def _wait(url: str, *, seconds: int = 150) -> bool:
     return False
 
 
+#: Where the product's exports live. A link to one of these is a FILE, not a
+#: page, and navigating to it makes Chromium start a download and abandon the
+#: navigation — "Page.goto: Download is starting". The first workbook link the
+#: crawl discovered was reported as a broken route on that basis, which is the
+#: crawler describing its own navigation and calling it a product defect.
+#:
+#: An export still deserves checking; it just deserves the RIGHT check. It is
+#: fetched rather than navigated to, and what is asserted is what a download
+#: link has to get right: a 2xx, and a body that is not the HTML of an error
+#: page wearing a spreadsheet's name.
+_EXPORT_PREFIX = "/api/"
+
+
+def _is_export(path: str) -> bool:
+    return path.startswith(_EXPORT_PREFIX)
+
+
+def _fetch(context: Any, path: str, role: str, *, source: str) -> Visit:
+    """Check an export link by fetching it, the way a download does."""
+    visit = Visit(path=path, role=role, source=source)
+    try:
+        response = context.request.get(f"{FRONTEND}{path}",
+                                       timeout=VISIT_TIMEOUT_MS)
+    except Exception as e:  # noqa: BLE001
+        visit.reason = f"{type(e).__name__}: {str(e)[:140]}"
+        return visit
+
+    visit.status = response.status
+    kind = (response.headers.get("content-type") or "").lower()
+    if visit.status >= 400:
+        expected = EXPECTED_REFUSALS.get((role, path), "")
+        if visit.status == 403 and expected:
+            visit.refused_as_intended = expected
+        else:
+            visit.reason = f"HTTP {visit.status} on an export link"
+    elif "html" in kind:
+        # A 200 carrying a web page is an export that quietly failed: the
+        # browser would save an error page under a .xlsx name.
+        visit.reason = f"an export returned {kind}, not a file"
+    visit.ok = not visit.reason
+    return visit
+
+
+#: Where the frontend keeps the acting role — frontend/src/components/system/
+#: role-switcher.ts, STORAGE_KEY.
+ROLE_STORAGE_KEY = "ipm.role"
+
+#: The sentence <Unavailable> puts on screen when a role is refused a panel.
+#: frontend/src/components/ui/unavailable.tsx.
+REFUSAL_MARKER = "your role does not have access to"
+
+
+def _act_as(context: Any, role: str) -> None:
+    """Tell the APP which role it is acting as, not just the backend.
+
+    The crawl used to set `X-IPM-Role` alone. The header reached the backend,
+    which refused correctly — but the app itself never saw it, and with nothing
+    in localStorage the role context falls back to Administrator. So a page
+    visited "as a Viewer" believed it was being read by an administrator,
+    rendered the administrator's panels, and asked administrator questions
+    that came back 403.
+
+    Every one of those 403s was reported as a product defect. None of them
+    was: they were the crawl impersonating a role in the backend's eyes and
+    not in the product's. Seeding the store the app actually reads makes the
+    impersonation whole, and what is left is the real behaviour of that role.
+    """
+    context.add_init_script(
+        f"try {{ window.localStorage.setItem("
+        f"'{ROLE_STORAGE_KEY}', '{role}'); }} catch (e) {{}}")
+
+
 def _visit(context: Any, path: str, role: str, *, source: str) -> Visit:
     """Visit one route on a page of its own.
 
@@ -358,6 +460,14 @@ def _visit(context: Any, path: str, role: str, *, source: str) -> Visit:
             page.close()
         except Exception:  # noqa: BLE001 - a page that already went is fine
             pass
+
+
+def _body(page: Any) -> str:
+    """What is on screen right now, lowercased."""
+    try:
+        return (page.inner_text("body") or "").lower()
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 def _visit_on(page: Any, visit: Visit) -> Visit:
@@ -402,10 +512,24 @@ def _visit_on(page: Any, visit: Visit) -> Visit:
     except Exception:  # noqa: BLE001
         visit.reason = "no <main> rendered"
 
+    # <main> appearing is the SHELL arriving, not the page finishing. Every
+    # panel fetches after that, so harvesting here read the console, the body
+    # text and the failed requests before most of them had come back.
+    #
+    # That is not a cosmetic inaccuracy. A 403 that landed a second late was
+    # recorded as no failed request at all, and the visit passed — so the
+    # exact defect this crawl exists to find could arrive too slowly to be
+    # seen. Brain Center did: a Viewer is refused `/brain/overview`, the page
+    # states the refusal on screen, and the crawl reported a clean visit.
+    #
+    # Bounded, and a page that never goes idle is not a failure here: the
+    # findings below are still collected from whatever did arrive.
     try:
-        text = (page.inner_text("body") or "").lower()
+        page.wait_for_load_state("networkidle", timeout=SETTLE_TIMEOUT_MS)
     except Exception:  # noqa: BLE001
-        text = ""
+        pass
+
+    text = _body(page)
     for marker, what in BROKEN_MARKERS:
         if marker in text:
             visit.reason = visit.reason or what
@@ -430,9 +554,26 @@ def _visit_on(page: Any, visit: Visit) -> Visit:
     if visit.failed_requests and not visit.reason:
         # Name the request. "console error: 404" is unactionable; the URL is
         # the whole of the finding.
+        #
+        # A 403 is acceptable on one condition, and the condition is what the
+        # READER sees. A refusal the page states on screen is the permission
+        # model working and the product explaining itself. A refusal the page
+        # swallows into an empty panel is a dead end, and it is a dead end
+        # whether or not a table here says the role was meant to be refused.
+        # So the marker is checked first: it is evidence from the rendered
+        # page rather than a claim maintained by hand beside it.
         expected = EXPECTED_REFUSALS.get((role, path), "")
         only_403 = all(f.startswith("403 ") for f in visit.failed_requests)
-        if expected and only_403:
+        # `text` is read after the page settles, which is what makes this
+        # sound: a refusal cannot be on screen before the request that
+        # produced it has come back, and on a page whose panels are slow —
+        # the CRO lens runs seven analyses — reading earlier would report a
+        # stated refusal as a silent one.
+        stated = REFUSAL_MARKER in text
+        if only_403 and stated:
+            visit.refused_as_intended = (
+                expected or "refused, and the page says so on screen")
+        elif expected and only_403:
             visit.refused_as_intended = expected
         else:
             visit.reason = "; ".join(visit.failed_requests[:2])[:200]
@@ -466,7 +607,7 @@ def run(report: Report, *, follow_links: bool = True) -> Report:
         report.error = "Playwright is not installed. The crawl did NOT run."
         return report
 
-    routes = list(STATIC_ROUTES) + dynamic_routes(report)
+    routes = list(static_routes()) + dynamic_routes(report)
 
     with sync_playwright() as play:
         try:
@@ -482,6 +623,7 @@ def run(report: Report, *, follow_links: bool = True) -> Report:
                 viewport={"width": 1440, "height": 900},
                 extra_http_headers={"X-IPM-Role": role,
                                     "X-IPM-User-Id": user_id})
+            _act_as(context, role)
             for path in routes:
                 visit = _visit(context, path, role, source="route")
                 report.visits.append(visit)
@@ -500,9 +642,11 @@ def run(report: Report, *, follow_links: bool = True) -> Report:
                 viewport={"width": 1440, "height": 900},
                 extra_http_headers={"X-IPM-Role": "ADMIN",
                                     "X-IPM-User-Id": "1"})
+            _act_as(context, "ADMIN")
             for path in extra:
+                check = _fetch if _is_export(path) else _visit
                 report.visits.append(
-                    _visit(context, path, "ADMIN", source="discovered link"))
+                    check(context, path, "ADMIN", source="discovered link"))
             context.close()
         browser.close()
     return report

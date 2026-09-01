@@ -14,6 +14,7 @@ import {
 import { KpiTile, ResultTable } from "@/components/analytics/primitives";
 import { StageCompositionChart } from "@/components/analytics/result-view";
 import { Badge } from "@/components/ui/badge";
+import { Unavailable } from "@/components/ui/unavailable";
 import { BackLink } from "@/components/layout/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -109,6 +110,20 @@ export default function CroLensPage() {
           </div>
         </div>
       </header>
+
+      {/*
+        Seven analyses, one permission. A Viewer may not execute a governed
+        analysis, so a Viewer opening this lens got seven empty panels and a
+        masthead promising figures that were never going to arrive. Stated
+        once at the top, because seven copies of the same refusal is noise —
+        and stated where the reader is, rather than left to the console.
+      */}
+      <Unavailable
+        state={summary}
+        what="the CRO Portfolio Lens"
+        className="print:hidden"
+      />
+
 
       {/* ------------------------------------------------- 1 · portfolio health */}
       <Chapter

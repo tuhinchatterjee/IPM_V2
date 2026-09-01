@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs } from "@/components/ui/tabs";
+import { Unavailable } from "@/components/ui/unavailable";
 import { api } from "@/lib/api";
 import type { WhatIfConfiguration, WhatIfRun } from "@/lib/api";
 import { money } from "@/lib/format";
@@ -181,6 +182,14 @@ export default function StressTestingPage() {
         title="What-If Analysis"
         description="Ask what would happen before it happens. Every scenario is computed borrower by borrower against the same governed staging and measurement rules that produced the reported book, so the base column ties to the accounts and the stressed column can be argued with line by line."
       />
+
+      {/*
+        A refused Viewer used to land here on a page with an empty scenario
+        dropdown and no configuration section — `configuration.data?` swallowed
+        the 403 into a `??` default and said nothing. Stated first, above the
+        controls, because the controls below are the thing that is missing.
+      */}
+      <Unavailable state={configuration} what="the scenario configuration" />
 
       {/* ----------------------------------------------------- configure */}
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
