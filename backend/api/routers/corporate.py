@@ -374,6 +374,50 @@ def ego_graph(borrower_id: str,
     return _envelope(found.to_dict())
 
 
+@router.get("/borrowers/{borrower_id}/relationships")
+def relationships(borrower_id: str,
+                  view: str = "group",
+                  period: str | None = None,
+                  depth: int = Query(2, ge=1, le=service_mod.MAX_DEPTH),
+                  principal: Principal = RequireBorrower360Graph
+                  ) -> dict[str, Any]:
+    """The group structure, read as upstream, downstream and lateral. R2 §2.
+
+    The same governed neighbourhood `/graph` returns, with the one thing that
+    makes it a group structure rather than a picture: which way each
+    relationship runs from this borrower. Upstream is who can be called on and
+    who has a claim; downstream is what this borrower carries; lateral is what
+    else moves when it moves.
+
+    Depth defaults to 2 rather than 1, because a sister company is two steps
+    away by construction — up to the shared owner and back down — and a
+    default of 1 would show a group structure with no siblings in it and no
+    indication that any existed.
+    """
+    chosen_view = service_mod.VIEW_BY_KEY.get(view)
+    if chosen_view is None:
+        raise _refused(
+            f"'{view}' is not a network view. Available: "
+            + ", ".join(service_mod.NETWORK_VIEW_KEYS))
+    if (chosen_view.get("requires_ubo_permission")
+            and principal.role not in BORROWER_360_UBO_VIEW):
+        raise _forbidden(
+            f"The '{chosen_view['label']}' view shows named natural persons "
+            "and requires BORROWER_360_UBO_VIEW. The view exists and this "
+            "borrower may well have owners; you are not permitted to see "
+            "them, which is different from there being none.")
+    try:
+        chosen = period or service_mod.latest_period()
+        service_mod.borrower_row(borrower_id, chosen)
+        found = service_mod.relationship_network(borrower_id, chosen,
+                                                 view=view, depth=depth)
+    except service_mod.DataNotBuilt as exc:
+        raise _not_built(exc) from exc
+    except service_mod.BorrowerNotFound as exc:
+        raise _not_found(exc) from exc
+    return _envelope(found.to_dict())
+
+
 @router.get("/borrowers/{borrower_id}/similar")
 def similar(borrower_id: str, period: str | None = None,
             limit: int = Query(20, ge=1, le=100),

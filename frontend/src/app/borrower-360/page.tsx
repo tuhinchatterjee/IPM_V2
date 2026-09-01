@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import * as React from "react";
 
+import { RelationshipGraph } from "@/components/borrower-360/relationship-graph";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,6 +17,7 @@ import type {
   Borrower360Search,
   Borrower360Workspace,
   Borrower360Similar,
+  RelationshipNetwork,
 } from "@/lib/api";
 import { borrowerFrom, periodFrom } from "@/lib/borrower-link";
 import { byUnit, humanise } from "@/lib/format";
@@ -440,6 +442,84 @@ function GroupsPanel({ groups }: { groups: Borrower360Groups }) {
     </div>
   );
 }
+
+function RelationshipPanel({
+  borrowerId,
+  period,
+}: {
+  borrowerId: string;
+  period: string;
+}) {
+  // R2 §2. Depth defaults to 2 because a sister company is two steps away by
+  // construction — up to the shared owner and back down — and a default of 1
+  // would show a group structure with no siblings and no sign any existed.
+  const [depth, setDepth] = React.useState(2);
+  const [scope, setScope] = React.useState<"direct" | "network">("network");
+  const [loaded, setLoaded] = React.useState<{
+    key: string;
+    network: RelationshipNetwork | null;
+    error: string;
+  }>({ key: "", network: null, error: "" });
+
+  const requestKey = `${borrowerId}|${depth}|${period}`;
+  const busy = loaded.key !== requestKey;
+
+  React.useEffect(() => {
+    let live = true;
+    api
+      .borrower360Relationships(borrowerId, "group", depth, period)
+      .then((found) => {
+        if (live) setLoaded({ key: requestKey, network: found, error: "" });
+      })
+      .catch((caught) => {
+        if (live) {
+          setLoaded({
+            key: requestKey,
+            network: null,
+            error:
+              caught instanceof Error
+                ? caught.message
+                : "The group structure could not be read.",
+          });
+        }
+      });
+    return () => {
+      live = false;
+    };
+  }, [borrowerId, depth, period, requestKey]);
+
+  return (
+    <Card className="p-4">
+      <div className="mb-3">
+        <h3 className="text-sm font-medium">Group structure</h3>
+        <p className="mt-0.5 text-xs text-text-secondary">
+          Who stands above this borrower, what hangs off it, and what else moves when
+          it moves. Built from the governed ownership, control and guarantee datasets.
+        </p>
+      </div>
+      {busy ? (
+        <p className="text-xs text-text-secondary">Reading the group structure…</p>
+      ) : loaded.error ? (
+        <p className="text-xs text-[var(--warning)]">{loaded.error}</p>
+      ) : loaded.network && loaded.network.party_count > 0 ? (
+        <RelationshipGraph
+          network={loaded.network}
+          depth={depth}
+          onDepth={setDepth}
+          scope={scope}
+          onScope={setScope}
+        />
+      ) : (
+        <p className="text-xs text-text-secondary">
+          No ownership, control or guarantee relationship is recorded for this borrower
+          at {period}. That is a fact about the filings held, not a claim that the
+          borrower stands alone.
+        </p>
+      )}
+    </Card>
+  );
+}
+
 
 function GraphPanel({
   meta,
@@ -1567,6 +1647,11 @@ function Borrower360Screen() {
               )
             ) : tab === "network" ? (
               <>
+                <RelationshipPanel
+                  borrowerId={row.borrower_id}
+                  period={period}
+                />
+                <div className="mt-4" />
                 <GraphPanel
                   meta={meta}
                   borrowerId={row.borrower_id}

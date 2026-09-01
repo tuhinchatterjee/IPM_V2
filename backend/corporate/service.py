@@ -24,6 +24,7 @@ import pandas as pd
 
 from backend.corporate import ORIGIN, graphdata
 from backend.corporate import graphsummary as gs
+from backend.corporate import relationships as rel
 from backend.corporate import search as search_mod
 
 logger = logging.getLogger(__name__)
@@ -450,6 +451,41 @@ def ego_graph(borrower_id: str, period: str, *, view: str = "ownership",
         for row in chosen.to_dict(orient="records")]
     result.nodes = [_node_payload(name) for name in sorted(seen_nodes)]
     return result
+
+
+def relationship_network(borrower_id: str, period: str, *,
+                         view: str = "group",
+                         depth: int = 2) -> rel.Network:
+    """The neighbourhood, read as upstream, downstream and lateral. R2 §2.
+
+    Built on `ego_graph` rather than beside it, so there is one traversal, one
+    node cap and one truncation note. What this adds is the DIRECTION — which
+    way each relationship runs from the centre — which the ego graph does not
+    say and which is the first thing a credit officer needs from a group
+    structure.
+
+    The default view is the connected counterparty group rather than plain
+    ownership: a guarantor is upstream of this borrower whether or not it owns
+    a share of it, and a view carrying only OWNS edges would show the group
+    with its credit support missing.
+    """
+    found = ego_graph(borrower_id, period, view=view, depth=depth)
+    parties = rel.classify(borrower_id, found.nodes, found.edges, depth=depth)
+    mine: float | None = None
+    try:
+        snapshot = _load(SNAPSHOT)
+        rel.attach_exposure(parties, snapshot, period)
+        mine = rel.exposure_of(borrower_id, snapshot, period)
+    except DataNotBuilt:
+        pass
+    centre = _node_payload(borrower_id)
+    return rel.Network(
+        centre=borrower_id,
+        centre_label=str(centre.get("label") or borrower_id),
+        period=period, as_of=found.as_of, view=view, depth=depth,
+        parties=parties, edges=found.edges, centre_exposure=mine,
+        truncated=found.truncated,
+        truncation_note=str(found.to_dict().get("truncation_note") or ""))
 
 
 @lru_cache(maxsize=1)

@@ -928,6 +928,56 @@ export interface CostTrace {
   questions: QuestionCost[];
 }
 
+/** One party in a borrower's group structure. R2 §2. */
+export interface RelatedParty {
+  node_id: string;
+  label: string;
+  node_type: string;
+  detail: string;
+  direction: "UPSTREAM" | "DOWNSTREAM" | "LATERAL";
+  depth: number;
+  relationship: string;
+  edge_type: string;
+  ownership_pct: number | null;
+  voting_pct: number | null;
+  amount: number | null;
+  instrument: string;
+  source: string;
+  confidence: number | null;
+  via: string[];
+  is_borrower: boolean;
+  exposure: number | null;
+  controls: boolean;
+  significant: boolean;
+}
+
+export interface RelationshipGroup {
+  direction: "UPSTREAM" | "DOWNSTREAM" | "LATERAL";
+  label: string;
+  question: string;
+  count: number;
+  parties: RelatedParty[];
+}
+
+export interface RelationshipNetwork {
+  version: string;
+  centre: string;
+  centre_label: string;
+  period: string;
+  as_of: string;
+  view: string;
+  depth: number;
+  party_count: number;
+  groups: RelationshipGroup[];
+  edges: Array<Record<string, unknown>>;
+  group_exposure: number;
+  centre_exposure: number | null;
+  group_borrowers: number;
+  exposure_is_floor: boolean;
+  truncated: boolean;
+  truncation_note: string;
+}
+
 export interface PlannerMode {
   /** "model" once a live response has come back; "degraded" when one cannot. */
   mode: "offline" | "model" | "degraded";
@@ -5410,6 +5460,17 @@ export const api = {
   ) =>
     request<Borrower360Graph>(
       `/corporate/borrowers/${encodeURIComponent(borrowerId)}/graph` +
+        `?view=${encodeURIComponent(view)}&depth=${depth}` +
+        (period ? `&period=${encodeURIComponent(period)}` : ""),
+    ),
+  borrower360Relationships: (
+    borrowerId: string,
+    view: string,
+    depth: number,
+    period?: string,
+  ) =>
+    request<RelationshipNetwork>(
+      `/corporate/borrowers/${encodeURIComponent(borrowerId)}/relationships` +
         `?view=${encodeURIComponent(view)}&depth=${depth}` +
         (period ? `&period=${encodeURIComponent(period)}` : ""),
     ),
