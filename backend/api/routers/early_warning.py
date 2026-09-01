@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 
 from backend.api.permissions import Principal, RequireAdmin, RequireAnalyst
@@ -233,6 +233,70 @@ def borrower_timeline(borrower_id: str, period: str = "",
         logger.warning("The timeline for %s could not be built: %s",
                        borrower_id, exc)
         raise _unavailable(exc) from exc
+
+
+@router.get("/scorecard/{borrower_id}/workbook",
+            summary="One borrower's scorecard as a workbook",
+            response_class=Response)
+def borrower_workbook(borrower_id: str, period: str = "") -> Response:
+    """Section 11L. The scorecard, as something to take into a review.
+
+    Nothing here is recomputed: every value is the one the screen read, so a
+    reader who opens the workbook after the screen cannot be shown two
+    different answers and have to pick one.
+    """
+    from backend.early_warning import workbook as wb
+
+    standing, _snapshot, _periods = _standing_at(borrower_id, period)
+    try:
+        body = wb.borrower(standing)
+    except Exception as exc:  # noqa: BLE001 - said, never substituted
+        logger.warning("The workbook for %s could not be built: %s",
+                       borrower_id, exc)
+        raise _unavailable(exc) from exc
+
+    safe = "".join(c for c in borrower_id if c.isalnum() or c in "-_")
+    stamp = standing.period.replace(" ", "-")
+    return Response(
+        content=body, media_type=wb.XLSX,
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="early-warning-{safe}-{stamp}.xlsx"',
+            "X-CreditProbe-Origin": wb.ORIGIN,
+            "X-CreditProbe-Workbook-Version": wb.WORKBOOK_VERSION,
+        })
+
+
+@router.get("/watchlist/workbook",
+            summary="The ranked book at one reporting date, as a workbook",
+            response_class=Response)
+def watchlist_workbook(period: str = "",
+                       limit: int = Query(500, ge=1, le=2000)) -> Response:
+    """Section 11L. What a committee reads before deciding whose name to
+    discuss — with the methodology on its own sheet, so the risk level is not
+    a column nobody can account for."""
+    from backend.early_warning import signals as sg
+    from backend.early_warning import workbook as wb
+
+    try:
+        book = sg._book(period)
+        ranked = book.get("_ranked") or []
+        body = wb.watchlist(ranked, period=str(book.get("period") or ""),
+                            limit=limit)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("The watchlist workbook could not be built: %s", exc)
+        raise _unavailable(exc) from exc
+
+    stamp = str(book.get("period") or "").replace(" ", "-")
+    return Response(
+        content=body, media_type=wb.XLSX,
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="early-warning-watchlist-'
+                f'{stamp}.xlsx"',
+            "X-CreditProbe-Origin": wb.ORIGIN,
+            "X-CreditProbe-Workbook-Version": wb.WORKBOOK_VERSION,
+        })
 
 
 @router.get("/story/{borrower_id}",

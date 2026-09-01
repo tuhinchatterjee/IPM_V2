@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import * as React from "react";
-import { ChevronDown, ListChecks, Radar } from "lucide-react";
+import { ChevronDown, Download, ListChecks, Radar } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import * as view from "@/components/early-warning/signal-view";
@@ -19,8 +19,12 @@ import { InfoPopover } from "@/components/ui/info-popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
 import { CreditStory } from "@/components/early-warning/story";
+import { RiskLevelBadge, RiskLevels } from "@/components/early-warning/risk-levels";
+import { BorrowerScorecardView } from "@/components/early-warning/scorecard";
 import {
   api,
+  type BorrowerScorecard,
+  type BorrowerTimeline,
   type BorrowerStory,
   type SignalObservation,
   type SignalStanding,
@@ -97,12 +101,22 @@ function Signals() {
         status="partial"
         phase="Synthetic book"
         actions={
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/early-warning">
-              <Radar aria-hidden />
-              Fitted signal
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {/* §11L. The ranked book, as something a committee reads before
+                deciding whose name to discuss. */}
+            <Button variant="outline" size="sm" asChild>
+              <a href={api.watchlistWorkbookUrl(period)}>
+                <Download aria-hidden />
+                Download the watchlist
+              </a>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/early-warning">
+                <Radar aria-hidden />
+                Fitted signal
+              </Link>
+            </Button>
+          </div>
         }
       />
 
@@ -116,6 +130,16 @@ function Signals() {
       {/* R2 §10. The business measures come first, because they are what a
           credit officer arrives for; the signal counts that used to be here
           are inside the landing's own diagnostics section, collapsed. */}
+      {/* §11B/§11G. Where the book sits, before the measures: a reader
+          arrives asking how many names are serious, not how many conditions
+          fired. */}
+      {landing.data ? (
+        <RiskLevels
+          levels={landing.data.risk_levels}
+          currency={landing.data.currency}
+        />
+      ) : null}
+
       {landing.data ? <Landing book={landing.data} /> : null}
 
       {book.data && (
@@ -307,8 +331,10 @@ function BorrowerRow({
             {ewFormat.money(standing.exposure)}
           </span>
         ) : null}
-        {/* R2 §25: what to DO about this borrower, beside how bad its worst
-            individual condition is. They answer different questions. */}
+        {/* Three questions, three answers, and they are genuinely different:
+            §11G says how SERIOUS the borrower is, R2 §25 says what to DO
+            about it, and severity says how bad the worst RULE is. */}
+        <RiskLevelBadge level={standing.risk_level} />
         <PriorityBadge
           priority={standing.priority}
           label={standing.priority_label}
@@ -412,6 +438,12 @@ function BorrowerDetail({
         <Fallback standing={standing} />
       )}
 
+      {/* §11C/§11D/§11I. The four-layer scorecard and the timeline, loaded
+          only when a row is opened: standing up every condition and eight
+          quarters for three thousand collapsed rows is work nobody asked
+          for. */}
+      <Scorecard borrowerId={standing.borrower_id} period={period} />
+
       <div className="flex flex-wrap gap-2 pt-1">
         <Button variant="outline" size="sm" asChild>
           <Link href={borrower360Href(standing.borrower_id, period)}>
@@ -420,6 +452,70 @@ function BorrowerDetail({
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * The four-layer scorecard and the timeline, for one opened borrower.
+ *
+ * Both are fetched here rather than with the row, because the list carries
+ * two hundred rows and the scorecard is every governed condition tested
+ * against the borrower — work worth doing once somebody has actually asked
+ * about a name.
+ */
+function Scorecard({
+  borrowerId,
+  period,
+}: {
+  borrowerId: string;
+  period: string;
+}) {
+  const requestKey = `${borrowerId}|${period}`;
+  const [loaded, setLoaded] = React.useState<{
+    key: string;
+    card: BorrowerScorecard | null;
+    timeline: BorrowerTimeline | null;
+    error: string;
+  }>({ key: "", card: null, timeline: null, error: "" });
+
+  React.useEffect(() => {
+    let live = true;
+    Promise.all([
+      api.borrowerScorecard(borrowerId, period),
+      // A timeline that cannot be built must not take the scorecard down
+      // with it: the two answer different questions.
+      api.borrowerTimeline(borrowerId, period, 8).catch(() => null),
+    ])
+      .then(([card, timeline]) => {
+        if (live) setLoaded({ key: requestKey, card, timeline, error: "" });
+      })
+      .catch((caught) => {
+        if (live) {
+          setLoaded({
+            key: requestKey,
+            card: null,
+            timeline: null,
+            error:
+              caught instanceof Error
+                ? caught.message
+                : "The scorecard could not be read.",
+          });
+        }
+      });
+    return () => {
+      live = false;
+    };
+  }, [borrowerId, period, requestKey]);
+
+  if (loaded.key !== requestKey) {
+    return <p className="text-xs text-text-muted">Reading the scorecard…</p>;
+  }
+  if (loaded.error) {
+    return <p className="text-xs text-warning">{loaded.error}</p>;
+  }
+  if (!loaded.card) return null;
+  return (
+    <BorrowerScorecardView card={loaded.card} timeline={loaded.timeline} />
   );
 }
 

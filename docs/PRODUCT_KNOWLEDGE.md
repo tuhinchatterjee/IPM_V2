@@ -281,9 +281,9 @@ Data signal -> Threshold / change detection -> Persistence / materiality
 
 ---
 
-## TAC — not defined, not invented
+## TAC — was not defined, then it was
 
-**TAC does not appear anywhere in this repository.** Searched:
+**TAC did not appear anywhere in this repository.** Searched:
 
 - every Python module under `backend/` and `scripts/`
 - every Markdown document under `docs/`
@@ -292,20 +292,69 @@ Data signal -> Threshold / change detection -> Persistence / materiality
 - the Early Warning taxonomy, engine, severity and case modules
 - the full commit history
 
-Zero occurrences of the token, in any casing.
+Zero occurrences of the token, in any casing. §13 was explicit: *"If TAC is not
+formally defined anywhere in the repository, STOP only that specific
+methodology implementation, record that the definition is missing, and do not
+fabricate an acronym."* So `methodology.tac()` reported `status =
+"not_defined"`, the answer said what had been searched, and a test asserted it
+proposed no expansion of the acronym.
 
-§13 is explicit: *"If TAC is not formally defined anywhere in the repository,
-STOP only that specific methodology implementation, record that the definition
-is missing, and do not fabricate an acronym."*
+**The definition was subsequently supplied by the product owner:**
 
-So `methodology.tac()` reports `status = "not_defined"`, the answer states what
-was searched, and it offers what CreditProbe *does* implement — the four-layer
-framework, the severity model and the case-promotion rules. A test asserts the
-answer proposes no expansion of the acronym.
+| | | |
+| --- | --- | --- |
+| **T** | Threshold-based | A measurable indicator crossed a governed warning level. |
+| **A** | Action-based | A meaningful credit event happened and was recorded — a downgrade, a stage migration, a watchlist addition, a breach, a restructuring. |
+| **C** | Classifier-based | Several pieces of evidence combined into a recognised risk pattern. |
 
-Supply the methodology paper, policy document or specification that defines TAC
-and it can be published as a versioned methodology alongside the four-layer
-framework, with the same reconciliation tests.
+It is now implemented rather than described. Every governed signal carries a
+`tac` classification derived from its own test type in
+`backend/early_warning/taxonomy.py`, and the C is five configured classifiers
+in `backend/early_warning/classifiers.py` — each with its component signals and
+how many of them have to fire written down. `methodology.tac()` reads both
+rather than restating either, so a signal reclassified in the taxonomy changes
+the answer without anybody remembering to edit it.
+
+At this installation: **40 threshold-based, 9 action-based, 5 classifiers.**
+A classifier is a pattern OVER signals, so it is counted in its own column
+rather than in the signal count — counting it in both would count the same
+evidence twice.
+
+**Detection mechanism and layer are orthogonal.** TAC is how a signal is
+DETECTED; the four layers are what a signal is ABOUT. Every governed signal has
+exactly one of each, which is why the two counts each add to 49 rather than to
+some combined total.
+
+---
+
+## Layer 4 — was empty, then it was configured
+
+This module reported Layer 4 (external, sector, macro and network) as having no
+configured signals, which was true and was the honest thing to say: the
+External Intelligence domain published macro series, the Ask path read them,
+but no Early Warning SIGNAL was configured against any of it, so no borrower
+was ever promoted by an external condition alone.
+
+Six signals are now configured against the external and network fields the
+corporate snapshot already publishes: an agency outlook on negative, a
+withdrawn external rating, sector concentration, network risk, connected-group
+size and modelled contagion. Six is small next to the other three layers, and
+deliberately so — every one of them reads a field the catalogue actually
+carries, and a seventh invented to make the layer look full would put this
+module back into the failure it exists to prevent.
+
+The honesty requirement did not go away with the gap. The layer reads
+borrower-level external FIELDS and still does not read the macro SERIES: GDP,
+rates, inflation, FX and commodity prices reach a borrower here through its
+sector and its group rather than through a signal of their own, and the layer
+says so.
+
+Configuring those six exposed a units defect the layer had been hiding. Five of
+the six fell through to a bare number, and `debtrank_impact` came out as MONEY
+because "debt" is a substring of "debtrank" — which would have put SAR in front
+of a modelled transmission share of 0.0003. Money words are now matched on
+whole words, and four units exist that did not: SCORE, SHARE, ENTITIES and
+CATEGORY.
 
 ---
 

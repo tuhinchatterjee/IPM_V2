@@ -2966,6 +2966,40 @@ export interface SignalObservation {
   unavailable: string;
   means: string;
   available: boolean;
+  /** §11H. What the BORROWER is doing on this condition, in credit language. */
+  state: string;
+}
+
+/** §11G. How serious the borrower's position is, and why. */
+export interface RiskAssessment {
+  level: string;
+  means: string;
+  reasons: { rule: string; says: string; pushes: string }[];
+  mitigating: { rule: string; says: string; pushes: string }[];
+  families: string[];
+  family_labels: string[];
+  /** Families carrying evidence OTHER than the ones the gravity sits in. */
+  corroborating: string[];
+  patterns: {
+    key: string;
+    label: string;
+    means: string;
+    fired: boolean;
+    matched: string[];
+    corroborated: string[];
+    untested: string[];
+    why: string;
+  }[];
+  new: string[];
+  persistent: string[];
+  worsening: string[];
+  resolved: string[];
+  improving: string[];
+  tac: Record<string, number>;
+  primary_concern: string;
+  why_now: string;
+  owner: string;
+  version: string;
 }
 
 export interface SignalStanding {
@@ -2998,6 +3032,98 @@ export interface SignalStanding {
   cured: SignalObservation[];
   untested: SignalObservation[];
   families: Record<string, string[]>;
+  /** §11G. Distinct from severity (about the rule) and priority (about what to do). */
+  assessment: RiskAssessment;
+  risk_level: string;
+}
+
+/** §11C/§11D. One borrower, four layers, every governed condition. */
+export interface ScorecardComponent {
+  signal: string;
+  label: string;
+  family: string;
+  family_label: string;
+  layer: string;
+  layer_name: string;
+  current: number | string | null;
+  previous: number | string | null;
+  movement: number | null;
+  threshold: number | string | null;
+  unit: string;
+  currency: string;
+  status: string;
+  status_means: string;
+  severity: string;
+  persistence: string;
+  detection: string;
+  detection_letter: string;
+  detection_means: string;
+  state: string;
+  state_means: string;
+  means: string;
+  available: boolean;
+  unavailable: string;
+}
+
+export interface ScorecardLayer {
+  layer: string;
+  number: number;
+  name: string;
+  watches: string;
+  matters: string;
+  gap: string;
+  over: number;
+  tested: number;
+  untested: number;
+  severity: string;
+  sentence: string;
+  components: ScorecardComponent[];
+}
+
+export interface BorrowerScorecard {
+  version: string;
+  taxonomy_version: string;
+  owner: string;
+  borrower_id: string;
+  period: string;
+  currency: string;
+  assessment: RiskAssessment;
+  risk_level: string;
+  /** §11J. Borrower 360, at the borrower AND the reporting date. */
+  borrower_360: {
+    customer_id: string;
+    reporting_period: string;
+    href: string;
+    label: string;
+  };
+  columns: string[];
+  layers: ScorecardLayer[];
+  statement: string;
+}
+
+/** §11I. What this borrower has been doing, quarter by quarter. */
+export interface BorrowerTimeline {
+  version: string;
+  borrower_id: string;
+  periods: string[];
+  entries: {
+    period: string;
+    on_book: boolean;
+    risk_level: string;
+    risk_means?: string;
+    fired: number;
+    families: number;
+    new?: number;
+    resolved?: number;
+    worsening?: number;
+    primary_concern: string;
+    why_now: string;
+    priority?: string;
+    sentence: string;
+    first?: boolean;
+  }[];
+  level_changes: number;
+  statement: string;
 }
 
 /** The Early Warning landing page. R2 §10. */
@@ -3036,6 +3162,21 @@ export interface EarlyWarningDashboard {
     version: string;
     levels: { priority: string; label: string; means: string }[];
     material_exposure: number;
+  };
+  /** §11B/§11G. The book split by overall risk, and the rule that split it. */
+  risk_levels: {
+    owner: string;
+    version: string;
+    rule: Record<string, string>;
+    levels: {
+      level: string;
+      means: string;
+      borrowers: number;
+      share: number;
+      exposure: number;
+      names: string[];
+    }[];
+    statement: string;
   };
 }
 
@@ -4387,6 +4528,28 @@ export const api = {
       `/early-warning/dashboard${period ? `?period=${encodeURIComponent(period)}` : ""}`,
       { timeoutMs: 90_000 },
     ),
+  borrowerScorecard: (borrowerId: string, period?: string) =>
+    request<BorrowerScorecard>(
+      `/early-warning/scorecard/${encodeURIComponent(borrowerId)}` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+      { timeoutMs: 60_000 },
+    ),
+  borrowerTimeline: (borrowerId: string, period?: string, limit = 8) => {
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (period) query.set("period", period);
+    return request<BorrowerTimeline>(
+      `/early-warning/timeline/${encodeURIComponent(borrowerId)}?${query}`,
+      { timeoutMs: 90_000 },
+    );
+  },
+  /** §11L. The two workbook URLs, for a link the browser downloads. */
+  borrowerScorecardWorkbookUrl: (borrowerId: string, period?: string) =>
+    `${API_BASE_URL}${API_PREFIX}/early-warning/scorecard/` +
+    `${encodeURIComponent(borrowerId)}` +
+    `/workbook${period ? `?period=${encodeURIComponent(period)}` : ""}`,
+  watchlistWorkbookUrl: (period?: string) =>
+    `${API_BASE_URL}${API_PREFIX}/early-warning/watchlist/workbook` +
+    (period ? `?period=${encodeURIComponent(period)}` : ""),
   borrowerSignals: (borrowerId: string, period?: string) =>
     request<SignalStanding>(
       `/early-warning/signals/${encodeURIComponent(borrowerId)}` +

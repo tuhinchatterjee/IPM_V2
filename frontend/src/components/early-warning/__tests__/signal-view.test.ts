@@ -43,6 +43,7 @@ function observation(
     unavailable: "",
     means: "Turnover is below where it was a year ago.",
     available: true,
+    state: "New warning",
     ...overrides,
   };
 }
@@ -76,6 +77,30 @@ function standing(overrides: Partial<SignalStanding> = {}): SignalStanding {
     cured: [],
     untested: [],
     families: {},
+    // §11G. How serious the borrower's position is, as opposed to how bad the
+    // worst rule is (severity) or what to do about it (priority).
+    risk_level: "MEDIUM",
+    assessment: {
+      level: "MEDIUM",
+      means: "Something real is moving, but it is either confined to one part "
+        + "of the picture or has not persisted.",
+      reasons: [],
+      mitigating: [],
+      families: [...new Set(fired.map((o) => o.family))].sort(),
+      family_labels: [...new Set(fired.map((o) => o.family_label))].sort(),
+      corroborating: [],
+      patterns: [],
+      new: [],
+      persistent: [],
+      worsening: [],
+      resolved: [],
+      improving: [],
+      tac: {},
+      primary_concern: "Revenue fell",
+      why_now: "New this period: Revenue fell.",
+      owner: "Credit Risk Analytics",
+      version: "1.0.0",
+    },
     ...overrides,
   };
 }
