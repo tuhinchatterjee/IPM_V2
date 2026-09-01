@@ -105,7 +105,7 @@ Run in this order. Stop at the first FAIL.
 | 3 | `.\scripts\verify-live-ai.ps1 -DryRun` | free |
 | 4 | `.\scripts\verify-live-ai.ps1 -FeedbackCritical` | **free** |
 | 5 | `.\scripts\verify-live-ai.ps1 -RegulatoryCritical` | **free** |
-| 6 | `.\scripts\verify-live-ai.ps1 -Quick` | ~13 calls |
+| 6 | `.\scripts\verify-live-ai.ps1 -Quick` | ~15 calls |
 | 7 | `.\scripts\verify-live-ai.ps1 -Critical` | ~30 calls |
 | 8 | `.\scripts\verify-live-ai.ps1 -AgenticCritical` | ~22 calls |
 | 9 | `.\scripts\verify-live-ai.ps1 -ProjectCritical` | ~18 calls |

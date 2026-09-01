@@ -605,7 +605,7 @@ def test_a_mocked_quick_run_passes_and_stores(offline_quick, tmp_path):
     report = lv.quick()
     assert report.passed is True, report.failures
     assert report.live_verified is True
-    assert report.live_calls_made == 13, "5 role pings plus 8 smoke checks"
+    assert report.live_calls_made == 15, "7 role pings plus 8 smoke checks"
     assert offline_quick.calls == len(roles.ACTIVE_ROLES)
 
     path = lv.store_result(report, tmp_path)
@@ -753,7 +753,7 @@ def test_the_badge_reports_the_commit_and_configuration_it_was_made_on(
     assert found["running_sha"] == current.git_sha
     assert found["mode"] == lv.QUICK
     assert found["verified_at"], "the report timestamp must be shown"
-    assert found["calls"] == 13
+    assert found["calls"] == 15
     assert set(found["role_models"]) == set(roles.ACTIVE_ROLES)
 
 

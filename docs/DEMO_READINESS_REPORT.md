@@ -19,7 +19,7 @@ must be run on the presenter's machine before the demonstration:
 ```powershell
 .\scripts\demo-start.ps1 -Rebuild -Reset     # 1. the Docker stack
 .\scripts\demo-check.ps1                     # 2. must print DEMO CHECK: GO
-.\scripts\verify-live-ai.ps1 -Quick          # 3. the live provider (~13 calls)
+.\scripts\verify-live-ai.ps1 -Quick          # 3. the live provider (~15 calls)
 # 4. click both workbook downloads by hand and open them
 ```
 

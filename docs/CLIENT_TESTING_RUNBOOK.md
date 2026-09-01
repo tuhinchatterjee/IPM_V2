@@ -123,7 +123,7 @@ for confirmation first; `-Yes` skips the prompt, and you should not use it
 until you have seen the estimate once.
 
 ```powershell
-.\scripts\verify-live-ai.ps1 -Quick              # ~13 calls
+.\scripts\verify-live-ai.ps1 -Quick              # ~15 calls
 .\scripts\verify-live-ai.ps1 -AgenticCritical    # ~22 calls
 .\scripts\verify-live-ai.ps1 -ProjectCritical    # ~18 calls
 .\scripts\verify-live-ai.ps1 -Critical           # ~30 calls

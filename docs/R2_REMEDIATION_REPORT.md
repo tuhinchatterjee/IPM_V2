@@ -229,7 +229,7 @@ tests. 67 metadata-understanding regression questions (§14 asked for 50).
 
 | Gate | Result |
 |---|---|
-| Full backend suite | see below |
+| Full backend suite (`tests/`, incl. legacy) | **9,382 pass, 0 fail, 22 skip**, exit 0 |
 | Frontend `npm test` | **380 pass, 0 fail** |
 | `tsc --noEmit` | **clean** |
 | `eslint --max-warnings=0` | **clean** |
@@ -242,6 +242,19 @@ tests. 67 metadata-understanding regression questions (§14 asked for 50).
 Tests added by this remediation: **330** backend across 11 new files, plus 45
 frontend across 3 new files. Counted as collected, so a parametrised case
 counts once per parameter — which is what actually runs.
+
+The first run of the full suite failed six cases in
+`tests/validation/test_live_smoke_contract.py` and
+`tests/validation/test_live_verify.py`. The cause was real and belongs to
+this work: §16 split the single analyst role into a cheap `investigator` and
+a deep `analyst`, taking `roles.ACTIVE_ROLES` from five to seven, so a quick
+live verification now pings seven roles and makes 15 calls rather than 13.
+The production estimate derives that number from the catalogue and was
+already correct; the four literal expectations in those two modules were
+stale, and the runbooks still quoted `~13 calls`. Both were corrected to the
+mechanism's number rather than the mechanism being bent back to the
+literal — a role the product calls in anger must be reachable before a run
+may call itself live-verified.
 
 ---
 
