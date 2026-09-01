@@ -38,6 +38,8 @@ import re
 from dataclasses import dataclass, field, replace
 from typing import Any
 
+from backend.orchestration import ordering as od
+
 logger = logging.getLogger(__name__)
 
 #: Floating point comparisons need a little room. A headroom stored as
@@ -310,21 +312,25 @@ def _from_question(question: str, build: Any) -> list[Check]:
     # largest.
     ranked = _ranking_column(build, question)
     if ranked:
+        # The direction comes from the QUESTION, through the same reader the
+        # planner uses. This used to be hard-coded "desc", so "the ten
+        # borrowers with the LOWEST covenant headroom" was planned correctly
+        # ascending and then withheld for not being descending - a right
+        # answer refused by a check that had not read the question.
+        wants_descending = od.descending(question or "")
         checks.append(Check(
             rule="ordering",
-            claim=f"ranked by {_readable(ranked)}, largest first",
+            claim=od.claim(ranked, wants_descending=wants_descending),
             columns=(ranked,),
-            params={"column": ranked, "direction": "desc"}))
+            params={"column": ranked,
+                    "direction": "desc" if wants_descending else "asc"}))
     return checks
 
 
 #: Words with which a question actually PROMISES an order. Checked against the
 #: question, not inferred from the plan, because the promise is something the
 #: reader made — not something the planner decided on their behalf.
-_RANKING_WORDS = re.compile(
-    r"\b(top|bottom|rank(?:ed|ing)?|largest|biggest|smallest|highest|lowest|"
-    r"worst|best|most|least|leading|order(?:ed)?\s+by|sort(?:ed)?\s+by|"
-    r"greatest|first\s+\d+|last\s+\d+)\b", re.IGNORECASE)
+_RANKING_WORDS = od.RANKING_WORDS
 
 
 def _ranking_column(build: Any, question: str = "") -> str:
@@ -693,8 +699,11 @@ def _ordering(check: Check, rows: list[dict[str, Any]],
                 check=check, offending=1,
                 example={"row": index + 2, column: right},
                 detail=(f"The answer claims to be ranked by "
-                        f"{_readable(column)} and row {index + 2} is larger "
-                        f"than row {index + 1}."))
+                        f"{_readable(column)}, "
+                        + ("largest first" if descending else "smallest first")
+                        + f", and row {index + 2} is "
+                        + ("larger" if descending else "smaller")
+                        + f" than row {index + 1}."))
     return None
 
 

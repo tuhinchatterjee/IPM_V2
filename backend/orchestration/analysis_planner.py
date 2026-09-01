@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import re
 import re as _re
 from dataclasses import dataclass, field
 from typing import Any
@@ -36,6 +37,7 @@ from backend.orchestration import context as governed_context
 from backend.orchestration import conversation as cv
 from backend.orchestration import grain as gr
 from backend.orchestration import multi
+from backend.orchestration import ordering as od
 from backend.orchestration import semantics as sm
 from backend.orchestration.capability import Reading
 from backend.orchestration.context import GovernedContext
@@ -530,7 +532,6 @@ def _fallback_dataset(state: cv.ConversationState | None) -> str:
 
 def _replaces(text: str) -> bool:
     """Whether the sentence swaps one measure for another rather than adding."""
-    import re
 
     return re.search(r"\breplace\b|\binstead of\b|\brather than\b",
                      (text or "").lower()) is not None
@@ -560,7 +561,6 @@ def _restore_conditions(saved: list[dict[str, Any]],
 
 def _count_subject(text: str) -> str:
     """What the question asked to count — "number of customers" → customer."""
-    import re
 
     lowered = (text or "").lower()
     if re.search(r"\b(?:customers?|borrowers?|obligors?|clients?|names?)\b",
@@ -579,7 +579,6 @@ def _wants_count(text: str, reading: Reading) -> bool:
     concept and cannot come out of the concept resolver, so it is recognised
     here — as a shape of request, not as a phrase-to-analysis rule.
     """
-    import re
 
     lowered = (text or "").lower()
     if re.search(r"\bnumber of (?:customers?|borrowers?|names?|obligors?|"
@@ -750,7 +749,6 @@ def _filters(reading: Reading, context: GovernedContext,
 
 def _without_values(text: str, filters: list[tuple[str, str]]) -> str:
     """The question with its governed filter values blanked out."""
-    import re
 
     out = text or ""
     for _, value in filters:
@@ -886,7 +884,6 @@ def _dimension(reading: Reading, context: GovernedContext, text: str) -> str:
         first = reading.dimensions[0]
         if first in context.dimensions:
             return first
-    import re
 
     lowered = text.lower()
     for name in context.dimensions:
@@ -961,7 +958,6 @@ def _grouping_concept(lowered: str) -> str:
 
 def _explicit_top_n(text: str) -> int:
     """A count the question actually stated. Zero means it did not."""
-    import re
 
     lowered = (text or "").lower()
     words = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
@@ -1870,15 +1866,14 @@ def _grain(reading: Reading, text: str, dataset: str) -> str:
 
 
 def _descending(match: cx.ConceptMatch, text: str) -> bool:
-    """Largest first unless the question asked for the other end."""
-    import re
+    """Largest first unless the question asked for the other end.
 
-    lowered = (text or "").lower()
-    if re.search(r"\b(?:smallest|lowest|bottom|least|weakest)\b", lowered):
-        return False
-    if re.search(r"\b(?:largest|biggest|highest|top|most|worst)\b", lowered):
-        return True
-    return True
+    Delegates to `ordering.descending`, which the invariant reads too. Two
+    separate readings of one sentence is how "highest to lowest" got sorted
+    ascending here while "the lowest ten" was judged as broken there.
+    """
+    del match
+    return od.descending(text)
 
 
 def _grain_keys(got: str, group_by: list[str],
