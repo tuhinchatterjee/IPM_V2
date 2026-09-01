@@ -33,6 +33,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.analyst import cost as _cost
 from backend.llm import LLMError, get_provider
 
 logger = logging.getLogger(__name__)
@@ -265,14 +266,21 @@ def write(question: str, summary: str, runtime: Any, *,
                               "this exactly once."),
             max_tokens=900, purpose="interpretation", model=model,
             role="interpretation", effort=effort)
+        _cost.note_result(answer, purpose="interpretation",
+                          role="interpretation")
     except LLMError as e:
         from backend.llm import telemetry
+
+        _cost.note_failure(purpose="interpretation", role="interpretation",
+                           model=model or "")
 
         return Interpretation(
             unavailable=("The live model could not be reached for the written "
                          "interpretation, so the reading below was assembled "
                          "from the result. " + telemetry.sanitise(str(e))[:160]))
     except Exception as e:  # noqa: BLE001 - an outage must never lose the answer
+        _cost.note_failure(purpose="interpretation", role="interpretation",
+                           model=model or "")
         logger.warning("The interpretation call failed: %s", e)
         return Interpretation(
             unavailable="The live model could not be reached for the written "

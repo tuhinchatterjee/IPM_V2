@@ -49,6 +49,12 @@ class LLMResult:
     duration_ms: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
+    #: Input tokens served from the provider's prompt cache, and written to it.
+    #: Carried on the result — not only in the telemetry ledger — because R2
+    #: §16 measures cost per QUESTION, and a question is several calls whose
+    #: caching behaviour differs: the first pays the write, the rest read.
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
     #: Set when the provider retried. Recorded because a plan that took three
     #: attempts is worth knowing about even though it succeeded.
     attempts: int = 1

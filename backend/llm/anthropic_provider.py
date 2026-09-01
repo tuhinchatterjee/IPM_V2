@@ -133,6 +133,8 @@ class AnthropicProvider:
                     data=data, model=chosen, duration_ms=elapsed,
                     input_tokens=getattr(usage, "input_tokens", 0) or 0,
                     output_tokens=getattr(usage, "output_tokens", 0) or 0,
+                    cache_read_tokens=cached["cache_read_input_tokens"],
+                    cache_write_tokens=cached["cache_creation_input_tokens"],
                     attempts=attempt,
                     request_id=_request_id(message),
                 )

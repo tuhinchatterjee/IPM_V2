@@ -19,6 +19,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from backend.analyst import cost as _cost
 from backend.llm import LLMError, get_provider
 from backend.orchestration import capability as cap
 from backend.orchestration import conversation as cv
@@ -231,7 +232,12 @@ def read(question: str, *, context: GovernedContext | None = None,
             role=getattr(decision, "role", "") or "",
             effort=getattr(decision, "effort", "") or "",
         )
+        _cost.note_result(result, purpose="reading",
+                          role=getattr(decision, "role", "") or "router")
     except LLMError as e:
+        _cost.note_failure(purpose="reading",
+                           role=getattr(decision, "role", "") or "router",
+                           model=getattr(decision, "model", "") or "")
         return _degraded(question, context, started, str(e))
     except Exception as e:  # noqa: BLE001 - an outage must not 500
         return _degraded(question, context, started, str(e))
@@ -277,7 +283,9 @@ def _repair(question: str, context: GovernedContext,
             purpose="repair",
             role="critic",
         )
+        _cost.note_result(result, purpose="repair", role="critic")
     except Exception as e:  # noqa: BLE001 - a failed repair just means "reject"
+        _cost.note_failure(purpose="repair", role="critic")
         logger.info("The repair call failed for %r: %s", question[:70], e)
         return None
     return _sanitised(cap.from_payload(result.data, source="llm",

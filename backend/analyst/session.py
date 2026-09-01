@@ -53,7 +53,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from backend.analyst import safety, tools
+from backend.analyst import cost, safety, tools
 from backend.analyst.evidence import Ledger, Observation
 from backend.analyst.safety import Principal
 
@@ -249,18 +249,29 @@ Rules that are not negotiable
 """
 
 
+def _evidence(ledger: Ledger) -> str:
+    """Everything the tools have returned, as the model reads it.
+
+    Built separately from the rest of the prompt because it is the part that
+    GROWS: turn four re-sends turns one to three. R2 §16 asks for that growth
+    to be measured rather than inferred, and it can only be measured if it is
+    a section rather than an interleaving.
+    """
+    if not ledger.observations:
+        return "EVIDENCE SO FAR\nNothing yet. Start by looking."
+    parts = ["EVIDENCE SO FAR"]
+    for index, observation in enumerate(ledger.observations, start=1):
+        parts.append(_render(index, observation))
+    return "\n".join(parts)
+
+
 def _prompt(question: str, catalogue: str, ledger: Ledger, *,
             turns_left: int, asked_already: bool, context: str) -> str:
     parts = [f"THE QUESTION\n{question}\n"]
     if context:
         parts.append(f"EARLIER IN THIS INVESTIGATION\n{context}\n")
     parts.append(f"GOVERNED TOOLS\n{catalogue}\n")
-    if ledger.observations:
-        parts.append("EVIDENCE SO FAR")
-        for index, observation in enumerate(ledger.observations, start=1):
-            parts.append(_render(index, observation))
-    else:
-        parts.append("EVIDENCE SO FAR\nNothing yet. Start by looking.")
+    parts.append(_evidence(ledger))
     parts.append(
         f"\nYou have {turns_left} turn(s) left."
         + (" You have already asked the user one question; do not ask another."
@@ -307,10 +318,21 @@ def _catalogue(principal: Principal) -> str:
 # --------------------------------------------------------------- the loop
 
 
+def _fingerprint(tool: str, arguments: dict[str, Any]) -> str:
+    """One tool call, as a comparable string. R2 §18.
+
+    Sorted keys, because `{"period": "Q2-2026", "sector": "Shipping"}` and the
+    same pair the other way round are the same query and a fingerprint that
+    said otherwise would report a repeat as new work.
+    """
+    return json.dumps([tool, arguments], sort_keys=True, default=str)
+
+
 def investigate(question: str, principal: Principal, *,
                 provider: Any = None, context: str = "",
                 max_turns: int = safety.MAX_TURNS,
-                max_tool_calls: int = safety.MAX_TOOL_CALLS) -> Investigation:
+                max_tool_calls: int = safety.MAX_TOOL_CALLS,
+                meter: cost.Meter | None = None) -> Investigation:
     """Run one governed investigation. §2.
 
     `provider` is anything with `backend.llm`'s `structured()`. Left out, the
@@ -335,12 +357,22 @@ def investigate(question: str, principal: Principal, *,
     catalogue = _catalogue(principal)
     asked_already = bool(context)
     calls = 0
+    #: Every tool call made this turn, so a repeat is visible. R2 §18.
+    seen: set[str] = set()
 
     for turn in range(1, max_turns + 1):
         found.turns = turn
         prompt = _prompt(question, catalogue, found.ledger,
                          turns_left=max_turns - turn + 1,
                          asked_already=asked_already, context=context)
+        if meter is not None:
+            meter.step()
+            # The two halves of the prompt that grow, measured separately: the
+            # catalogue is re-sent identically every turn, and the evidence is
+            # re-rendered in full. R2 §16 asks which of those is the cost, and
+            # a single input-token count cannot say.
+            meter.record_prompt(metadata=SYSTEM + catalogue,
+                                evidence=_evidence(found.ledger))
         try:
             result = provider.structured(
                 system=SYSTEM, prompt=prompt, schema=DECISION_SCHEMA,
@@ -350,9 +382,17 @@ def investigate(question: str, principal: Principal, *,
         except Exception as e:  # noqa: BLE001 - a provider failure ends the loop
             logger.warning("The analyst's provider failed on turn %s: %s",
                            turn, e)
+            if meter is not None:
+                meter.record_failed_call(purpose="investigation",
+                                         role="analyst",
+                                         model=str(getattr(provider, "model",
+                                                           "") or ""))
             found.error = "provider_failed"
             break
 
+        if meter is not None:
+            meter.record_result(result, purpose="investigation",
+                                role="analyst")
         decision = Decision.read(result.data or {})
         found.steps.append(decision)
 
@@ -365,10 +405,15 @@ def investigate(question: str, principal: Principal, *,
                     refused=("The evidence budget for this question is spent. "
                              "Answer on what you already have.")))
                 continue
+            mark = _fingerprint(decision.tool, decision.arguments)
+            repeated = mark in seen
+            seen.add(mark)
             observation = tools.call(principal, decision.tool,
                                      decision.arguments)
             observation.purpose = decision.why or observation.purpose
             found.ledger.add(observation)
+            if meter is not None:
+                meter.record_tool(repeated=repeated)
             if not tools.BY_NAME.get(decision.tool, None) or \
                     not getattr(tools.BY_NAME.get(decision.tool), "discovery",
                                 False):

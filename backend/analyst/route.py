@@ -38,7 +38,7 @@ import logging
 import time
 from typing import Any
 
-from backend.analyst import answers, runkey, safety, session
+from backend.analyst import answers, classify, cost, runkey, safety, session
 from backend.analyst.safety import Principal
 
 logger = logging.getLogger(__name__)
@@ -85,6 +85,11 @@ def answer(question: str, caller: Any, *, period: str = "",
     """
     started = time.perf_counter()
     principal = principal_of(caller)
+    reading = classify.read(question, continuation=bool(turns))
+    meter = cost.current()
+    if meter is not None:
+        meter.question = meter.question or question
+        meter.classify(reading.question_class, reading.why)
     key = runkey.build(question, principal, period=period, turns=turns,
                        clarification=clarification)
 
@@ -98,19 +103,23 @@ def answer(question: str, caller: Any, *, period: str = "",
         payload["run_key"] = key.to_dict()
         payload["reproduced"] = True
         payload["duration_ms"] = int((time.perf_counter() - started) * 1000)
+        if meter is not None:
+            meter.finish(path=REPRODUCED, reproduced=True)
+        payload["cost"] = _cost(meter)
         return payload
 
     found = None
     if allow_analyst:
         found = session.investigate(
             question, principal, provider=provider,
-            context=_context(turns, clarification))
+            context=_context(turns, clarification), meter=meter)
 
     if found is not None and found.outcome == session.ASK:
         payload = found.to_dict()
         payload["path"] = ANALYST
         payload["run_key"] = key.to_dict()
         payload["reproduced"] = False
+        payload["cost"] = _cost(meter, path=ANALYST)
         # A clarification is NOT cached. The next turn carries the user's
         # reply, which is a different run key, and storing the question would
         # make the product ask it again for ever.
@@ -121,6 +130,7 @@ def answer(question: str, caller: Any, *, period: str = "",
         payload["path"] = ANALYST
         payload["run_key"] = key.to_dict()
         payload["reproduced"] = False
+        payload["cost"] = _cost(meter, path=ANALYST)
         answers.remember(key, question, payload,
                          evidence_hash=found.ledger.to_dict()["hash"])
         return payload
@@ -137,7 +147,22 @@ def answer(question: str, caller: Any, *, period: str = "",
     }
     if found is not None:
         fallback["analyst"] = found.to_dict()
+    fallback["cost"] = _cost(meter, path=DETERMINISTIC)
     return fallback
+
+
+def _cost(meter: Any, *, path: str = "") -> dict[str, Any]:
+    """What this question spent, for the Trace and the cost report. R2 §16.
+
+    Empty outside a measured request rather than absent: a consumer that has
+    to branch on whether the key exists is one that will report zero cost as
+    no measurement, or no measurement as zero cost.
+    """
+    if meter is None:
+        return {}
+    if path:
+        meter.path = meter.path or path
+    return meter.to_dict()
 
 
 def _why(found: Any) -> str:

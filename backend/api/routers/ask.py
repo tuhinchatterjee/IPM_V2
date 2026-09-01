@@ -23,7 +23,9 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from backend.api.permissions import Principal, RequireAnalyst
+from backend.analyst import classify
+from backend.analyst import cost as ai_cost
+from backend.api.permissions import Principal, RequireAdmin, RequireAnalyst
 from backend.engine.registry import get_registry
 from backend.engine.runner import run_analysis
 from backend.orchestration import modification as modification_service
@@ -222,10 +224,36 @@ def investigate(payload: AskIn, principal: Principal = RequireAnalyst) -> dict:
     """
     from backend.analyst import route as analyst_route
 
-    return analyst_route.answer(
-        payload.question, principal,
-        period=payload.to_period or "",
-        clarification=payload.clarification or "")
+    reading = classify.read(payload.question)
+    with ai_cost.measuring(payload.question,
+                           question_class=reading.question_class,
+                           why=reading.why):
+        return analyst_route.answer(
+            payload.question, principal,
+            period=payload.to_period or "",
+            clarification=payload.clarification or "")
+
+
+@router.get("/cost", summary="What recent questions cost")
+def cost_trace(limit: int = 50,
+               principal: Principal = RequireAdmin) -> dict:
+    """The cost trace. R2 §16.
+
+    Per question: how many model calls it took, which models served them, how
+    many tokens went in and out, how much of the input arrived from the
+    provider's cache, how much of it was catalogue and how much was gathered
+    evidence, how many tool calls it made and how many of those repeated one
+    already made, and how long it took.
+
+    Administrator-only, and it carries no prompt text, no tool arguments and
+    no borrower identifiers — only sizes, counts and model ids. What it is for
+    is answering "where is the money going", which is a question about the
+    architecture rather than about anybody's book.
+    """
+    del principal
+    trace = ai_cost.trace()
+    return {"summary": trace.summary(),
+            "questions": [m.to_dict() for m in trace.recent(max(1, min(limit, ai_cost.HISTORY)))]}
 
 
 @router.post("", summary="Ask CreditProbe a question")
@@ -243,6 +271,16 @@ def ask(payload: AskIn, principal: Principal = RequireAnalyst) -> dict:
     and the reading of it. Both are in the response, so no existing consumer
     has to change to keep working and a new one can use either.
     """
+    reading = classify.read(payload.question)
+    with ai_cost.measuring(payload.question,
+                           question_class=reading.question_class,
+                           why=reading.why) as meter:
+        body = _ask(payload, principal)
+    body["cost"] = meter.to_dict()
+    return body
+
+
+def _ask(payload: AskIn, principal: Principal) -> dict[str, Any]:
     try:
         period = (
             (payload.from_period, payload.to_period)
