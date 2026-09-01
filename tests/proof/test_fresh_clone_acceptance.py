@@ -207,11 +207,16 @@ class TestTheBootstrapPlan:
 class TestTheBusinessDomains:
     """§6 and §7: the seven headings, and what is filed under them."""
 
-    def test_there_are_seven_and_they_are_the_named_seven(self):
-        assert len(dd.DOMAINS) == 7
-        for expected in ("Core Portfolio / Facility", "IFRS 9 / ECL",
-                         "Corporate Ratings", "Retail / SME Scorecards",
-                         "Documents", "Policies / Knowledge",
+    def test_there_are_nine_and_they_are_the_named_nine(self):
+        """Seven became nine when liquidity and external intelligence
+        arrived — the two domains the Early Warning screen used to list in a
+        box headed "what this deployment cannot watch for"."""
+        assert len(dd.DOMAINS) == 9
+        for expected in ("Core Portfolio / Facility",
+                         "Liquidity and Cash Flow", "External Intelligence",
+                         "IFRS 9 / ECL", "Corporate Ratings",
+                         "Retail / SME Scorecards", "Documents",
+                         "Policies / Knowledge",
                          "CreditProbe Operational Metadata"):
             assert expected in dd.NAMES
 
@@ -227,9 +232,9 @@ class TestTheBusinessDomains:
     def test_every_catalogued_dataset_has_a_business_home(self):
         """The defect, as a property.
 
-        Thirty-nine catalogue domains, seven business ones, and nothing
-        mapping between them — so the screen said 0 of 7 while 46 datasets
-        were installed and working.
+        Thirty-nine catalogue domains, a handful of business ones, and
+        nothing mapping between them — so the screen said 0 of 7 while 46
+        datasets were installed and working.
         """
         import json
         from pathlib import Path

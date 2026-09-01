@@ -141,10 +141,16 @@ class TestASentenceThatStatesItsOwnScopeIsLeftAlone:
     def test_a_catalogue_question_neither_inherits_nor_disturbs(
             self, thread: Thread):
         """Asking what data exists mid-investigation changes nothing. §12."""
+        from backend import metadata as md
+
         investigation, answered = thread.ask("What datasets do you have?")
         assert answered.reading.source == "catalogue"
         assert thread.state.filter_pairs() == [("sector", SECTOR)]
-        assert "46" in str(investigation.narrative.direct_answer or "")
+        # Read from the service rather than pinned, so adding a domain does
+        # not make this test fail for a reason that has nothing to do with
+        # the population it exists to protect.
+        assert f"{md.counts()['datasets']:,} governed dataset" in str(
+            investigation.narrative.direct_answer or "")
 
 
 class TestTheScopeReader:

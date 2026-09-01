@@ -706,45 +706,8 @@
       "retail_behavioral_scorecard_development_reference",
       "retail_behavioral_scorecard_monthly_validation"
     ],
-    "total_datasets": 24,
+    "total_datasets": 77,
     "relationships_declared": 3,
     "all_synthetic": true
-  },
-  "registry": {
-    "models": [
-      {
-        "model_id": "application-incumbent",
-        "model_version": "1.0.0",
-        "status": "ACTIVE"
-      },
-      {
-        "model_id": "application-challenger",
-        "model_version": "1.0.0",
-        "status": "CANDIDATE"
-      },
-      {
-        "model_id": "application-recalibrated",
-        "model_version": "1.0.0",
-        "status": "CANDIDATE"
-      },
-      {
-        "model_id": "behavioral-incumbent",
-        "model_version": "1.0.0",
-        "status": "ACTIVE"
-      },
-      {
-        "model_id": "behavioral-challenger",
-        "model_version": "1.0.0",
-        "status": "CANDIDATE"
-      },
-      {
-        "model_id": "behavioral-recalibrated",
-        "model_version": "1.0.0",
-        "status": "CANDIDATE"
-      }
-    ],
-    "limits": 15,
-    "registry_version": "1.0.0",
-    "origin": "SYNTHETIC_DEMO"
   }
 }

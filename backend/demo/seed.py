@@ -295,13 +295,31 @@ def _workflow(session: Any, sender: Any, reviewer: Any, project_id: int,
                             f"{type(e).__name__}: {str(e)[:200]}")
 
 
+LENS_SLUG = "q2-2026-portfolio-position"
+
+
 def _lens(session: Any, owner: Any, result: ws.Result) -> None:
-    """One Lens, so the Lenses screen is not empty after a reset."""
+    """One Lens, so the Lenses screen is not empty after a reset.
+
+    Checked before it is added. The `try` below cannot catch a duplicate
+    slug: the unique constraint fires at flush, not at `session.add`, so a
+    second `--force` run of the bootstrap raised an IntegrityError out of the
+    commit and failed a step whose whole contract is that running it twice is
+    safe.
+    """
+    from sqlalchemy import select
+
     from backend.models.platform import Lens
+
+    existing = session.execute(
+        select(Lens).where(Lens.slug == LENS_SLUG)).scalar_one_or_none()
+    if existing is not None:
+        result.notes.append("The starter Lens was already present.")
+        return
 
     try:
         session.add(Lens(
-            slug="q2-2026-portfolio-position",
+            slug=LENS_SLUG,
             name="Q2 2026 portfolio position",
             description=("Position, stage distribution and sector "
                          "concentration at the Q2 2026 close."),

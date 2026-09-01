@@ -472,6 +472,10 @@ def delete_domain(session: Session, name: str) -> None:
         select(DatasetDefinition).where(DatasetDefinition.domain == name)
     ).scalars())
     if datasets:
+        # Named in the same order the overview lists them, so a reader who is
+        # looking at the screen recognises the names in the refusal. The two
+        # used to read the same rows in whatever order each query returned.
+        datasets.sort(key=lambda d: d.name)
         listed = ", ".join(d.name for d in datasets[:5])
         more = f" and {len(datasets) - 5} more" if len(datasets) > 5 else ""
         raise DataBuilderError(

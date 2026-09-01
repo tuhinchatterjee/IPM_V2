@@ -1,4 +1,4 @@
-"""The seven business domains a data office actually thinks in, and what is
+"""The nine business domains a data office actually thinks in, and what is
 installed in each.
 
 Why this file exists
@@ -11,11 +11,12 @@ business one — a Data Builder screen listing thirty-nine domains, most with a
 single dataset in them, tells a credit officer nothing about what the bank
 has.
 
-The Data Builder screen was written against seven business domains. Nothing
-mapped the catalogue's thirty-nine onto those seven, so the screen compared
-two vocabularies that had never been introduced: "Domains defined: 0 of 7"
+The Data Builder screen was written against these business domains. Nothing
+mapped the catalogue's thirty-nine onto those business headings, so the
+screen compared
+two vocabularies that had never been introduced: "Domains defined: 0 of 9"
 beside "Governed fields: 344". Both numbers were true. Read together they were
-nonsense, and the presenter was left looking at seven cards saying "Not
+nonsense, and the presenter was left looking at cards saying "Not
 created" describing data that was installed and working.
 
 So the mapping lives here, in the backend, as one authority. The screen reads
@@ -67,7 +68,7 @@ class BusinessDomain:
                 "owner": self.owner}
 
 
-# ---------------------------------------------------------------- the seven
+# ----------------------------------------------------------------- the nine
 
 DOMAINS: tuple[BusinessDomain, ...] = (
     BusinessDomain(
@@ -102,6 +103,29 @@ DOMAINS: tuple[BusinessDomain, ...] = (
             "CORPORATE OWNERSHIP & CONTROL GRAPH",
             "CORPORATE SUPPLY CHAIN GRAPH",
         ),
+    ),
+    BusinessDomain(
+        name="Liquidity and Cash Flow",
+        description=(
+            "Cash, operating and free cash flow, working capital and its "
+            "ageing, the debt maturity ladder, committed and undrawn "
+            "headroom, debt service falling due and what has to be "
+            "refinanced. Where a corporate credit actually fails: not "
+            "because a ratio drifted, but because a payment fell due and "
+            "the cash was not there."),
+        owner="Treasury and Credit Risk",
+        catalogue_domains=("Liquidity and Cash Flow",),
+    ),
+    BusinessDomain(
+        name="External Intelligence",
+        description=(
+            "What is happening outside the bank, governed: external ratings "
+            "and outlooks, sector, macroeconomic, geopolitical, commodity "
+            "and shipping events, which borrowers each one reaches and "
+            "through which channel. Every row says whether it is a recorded "
+            "fact or an analytical reading."),
+        owner="Credit Research",
+        catalogue_domains=("External Intelligence",),
     ),
     BusinessDomain(
         name="IFRS 9 / ECL",
@@ -203,7 +227,7 @@ for _domain in DOMAINS:
     for _dataset in _domain.datasets:
         _BY_DATASET[_dataset.strip().lower()] = _domain.name
     # A heading is its own catalogue domain. The catalogue was renamed to
-    # these seven headings after this map was written, and the map went on
+    # these headings after this map was written, and the map went on
     # looking only for the generator's older spellings — so `ifrs9_staging`,
     # sitting in a catalogue domain literally called "IFRS 9 / ECL", came back
     # UNPLACED. Twelve datasets fell out of the map that way, and a dataset
@@ -212,7 +236,7 @@ for _domain in DOMAINS:
 
 
 def business_domain(*, dataset: str = "", catalogue_domain: str = "") -> str:
-    """Which of the seven headings this dataset belongs under.
+    """Which of the nine headings this dataset belongs under.
 
     Returns `UNPLACED` when nothing claims it — deliberately, so the caller
     can report the gap. A default of "Core Portfolio / Facility" would put a

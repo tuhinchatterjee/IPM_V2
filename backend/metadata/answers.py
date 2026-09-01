@@ -372,7 +372,9 @@ def _subject(request: Request) -> Answer:
             f"{'bears' if len(found) == 1 else 'bear'} on {subject}, across "
             + ", ".join(headings) + ".")
     if missing:
-        text += (" Nothing in the catalogue covers "
+        # Named, because a relevance ranking that quietly drops the words it
+        # could not match answers a narrower question than the one asked.
+        text += (" No governed dataset or field is named for "
                  + ", ".join(missing)
                  + "; that part of the question cannot be answered from "
                    "governed data here.")
@@ -396,12 +398,13 @@ def _planning(request: Request) -> Answer:
     text = (f"To work on {subject} CreditProbe would read "
             f"{_count(len(headings), 'data domain')} — "
             + ", ".join(headings)
-            + f" — and {_count(len(found), 'governed dataset')} within them. "
-              f"The table names each one, the fields that bear on the "
-              f"question, what one row represents and which periods are "
-              f"published.")
+            + f" — and {_count(len(found), 'governed dataset')} "
+            + ("within it. " if len(headings) == 1 else "within them. ")
+            + "The table names each one, the fields that bear on the "
+              "question, what one row represents and which periods are "
+              "published.")
     if missing:
-        text += (" No governed dataset here covers "
+        text += (" No governed dataset or field is named for "
                  + ", ".join(missing) + ".")
     return _answer(text, rows, DATASET_COLUMNS, request=request,
                    detail={"domains": headings, "not_covered": list(missing)})

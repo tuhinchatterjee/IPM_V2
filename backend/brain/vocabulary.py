@@ -57,6 +57,89 @@ class Dimension:
 # ---------------------------------------------------------------- measures
 
 _MEASURES: tuple[tuple[str, str, str, str], ...] = (
+    # Liquidity and cash flow. Registered dataset by dataset for the same
+    # reason as the scorecards above: an unregistered dataset is one the
+    # Teaching Factory silently skips, and a liquidity domain nobody can ask
+    # a question about is a liquidity domain that does not exist.
+    ("borrower_cash_flow", "operating_cash_flow", "operating cash flow", "money"),
+    ("borrower_cash_flow", "free_cash_flow", "free cash flow", "money"),
+    ("borrower_cash_flow", "capex", "capital expenditure", "money"),
+    ("borrower_cash_flow", "cash", "cash", "money"),
+    ("borrower_cash_flow", "revenue", "revenue", "money"),
+    ("borrower_cash_flow", "cash_months_of_cost", "months of cost covered by cash", "ratio"),
+    ("working_capital_position", "working_capital", "working capital", "money"),
+    ("working_capital_position", "receivables", "receivables", "money"),
+    ("working_capital_position", "inventory", "inventory", "money"),
+    ("working_capital_position", "payables", "payables", "money"),
+    ("working_capital_position", "receivable_days", "receivable days", "count"),
+    ("working_capital_position", "inventory_days", "inventory days", "count"),
+    ("working_capital_position", "payable_days", "payable days", "count"),
+    ("working_capital_position", "cash_conversion_cycle_days", "cash conversion cycle", "count"),
+    ("receivables_ageing", "receivables", "receivables", "money"),
+    ("receivables_ageing", "current_amount", "current receivables", "money"),
+    ("receivables_ageing", "past_due_over_90", "receivables more than 90 days past due", "money"),
+    ("receivables_ageing", "past_due_share_pct", "past-due share of receivables", "rate"),
+    ("inventory_position", "inventory", "inventory", "money"),
+    ("inventory_position", "inventory_days", "inventory days", "count"),
+    ("payables_position", "payables", "payables", "money"),
+    ("payables_position", "payable_days", "payable days", "count"),
+    ("capital_expenditure", "capex", "capital expenditure", "money"),
+    ("capital_expenditure", "free_cash_flow", "free cash flow", "money"),
+    ("capital_expenditure", "operating_cash_flow", "operating cash flow", "money"),
+    ("debt_maturity_schedule", "maturity_0_3m", "debt maturing within three months", "money"),
+    ("debt_maturity_schedule", "maturity_3_6m", "debt maturing in three to six months", "money"),
+    ("debt_maturity_schedule", "maturity_6_12m", "debt maturing in six to twelve months", "money"),
+    ("debt_maturity_schedule", "maturity_1_2y", "debt maturing in one to two years", "money"),
+    ("debt_maturity_schedule", "drawn_amount", "drawn amount", "money"),
+    ("refinancing_profile", "refinancing_requirement", "refinancing requirement", "money"),
+    ("refinancing_profile", "cash", "cash", "money"),
+    ("refinancing_profile", "free_cash_flow", "free cash flow", "money"),
+    ("committed_facilities", "committed_limit", "committed limit", "money"),
+    ("committed_facilities", "undrawn_committed_amount", "undrawn committed amount", "money"),
+    ("committed_facilities", "drawn_amount", "drawn amount", "money"),
+    ("undrawn_availability", "committed_limit", "committed limit", "money"),
+    ("undrawn_availability", "undrawn_committed_amount", "undrawn committed amount", "money"),
+    ("undrawn_availability", "undrawn_uncommitted_amount", "undrawn uncommitted amount", "money"),
+    ("liquidity_buffer", "liquidity_buffer", "liquidity buffer", "money"),
+    ("liquidity_buffer", "cash", "cash", "money"),
+    ("liquidity_buffer", "debt_service_due", "debt service due", "money"),
+    ("liquidity_buffer", "liquidity_coverage_months", "months of liquidity coverage", "ratio"),
+    ("cash_balance_history", "cash", "cash", "money"),
+    ("cash_balance_history", "operating_cash_flow", "operating cash flow", "money"),
+    ("cash_balance_history", "cash_months_of_cost", "months of cost covered by cash", "ratio"),
+    ("short_term_debt", "short_term_debt", "short-term debt", "money"),
+    ("short_term_debt", "long_term_debt", "long-term debt", "money"),
+    ("short_term_debt", "cash", "cash", "money"),
+    ("debt_service_schedule", "interest_due", "interest due", "money"),
+    ("debt_service_schedule", "principal_due", "principal due", "money"),
+    ("debt_service_schedule", "drawn_amount", "drawn amount", "money"),
+
+    # External intelligence.
+    ("external_rating_history", "external_rating_notch", "external rating notch", "score"),
+    ("external_rating_outlook", "external_rating_notch", "external rating notch", "score"),
+    ("sector_sensitivity", "sensitivity", "sector sensitivity to the event", "ratio"),
+    ("borrower_external_event_link", "confidence", "link confidence", "ratio"),
+    ("borrower_macro_sensitivity", "macro_beta", "macro beta", "ratio"),
+    ("borrower_macro_sensitivity", "rate_sensitivity", "rate sensitivity", "ratio"),
+    ("borrower_macro_sensitivity", "fx_sensitivity", "currency sensitivity", "ratio"),
+    ("borrower_macro_sensitivity", "commodity_sensitivity", "commodity sensitivity", "ratio"),
+    ("borrower_macro_sensitivity", "exposure", "exposure", "money"),
+
+    # The operational events the Core Portfolio was missing.
+    ("returned_payments", "returned_amount", "returned payment amount", "money"),
+    ("returned_payments", "returned_count", "returned payment count", "count"),
+    ("payment_rejections", "rejected_amount", "rejected payment amount", "money"),
+    ("payment_rejections", "rejection_count", "payment rejection count", "count"),
+    ("limit_excesses", "excess_amount", "limit excess amount", "money"),
+    ("limit_excesses", "excess_pct", "limit excess percentage", "rate"),
+    ("limit_excesses", "days_in_excess", "days in excess", "count"),
+    ("covenant_waivers", "waiver_granted", "covenant waivers granted", "count"),
+    ("covenant_resets", "previous_threshold", "previous covenant threshold", "ratio"),
+    ("covenant_resets", "new_threshold", "new covenant threshold", "ratio"),
+    ("covenant_resets", "reset_count_to_date", "covenant resets to date", "count"),
+    ("collateral_insurance", "insured_value", "insured collateral value", "money"),
+    ("collateral_insurance", "insured_share_pct", "insured share of collateral", "rate"),
+    ("collateral_document_expiry", "days_to_expiry", "days to document expiry", "count"),
     # Retail scorecard validation. Registering a governed dataset without
     # measures would make the corpus skip it, which the guard test in
     # tests/brain/test_corpus.py exists to catch — a scorecard nobody can
@@ -328,6 +411,44 @@ _MEASURES: tuple[tuple[str, str, str, str], ...] = (
 )
 
 _DIMENSIONS: tuple[tuple[str, str, str], ...] = (
+    ("borrower_cash_flow", "sector", "sector"),
+    ("borrower_cash_flow", "region", "region"),
+    ("working_capital_position", "sector", "sector"),
+    ("receivables_ageing", "sector", "sector"),
+    ("inventory_position", "sector", "sector"),
+    ("payables_position", "sector", "sector"),
+    ("capital_expenditure", "sector", "sector"),
+    ("debt_maturity_schedule", "facility_type", "facility type"),
+    ("refinancing_profile", "sector", "sector"),
+    ("refinancing_profile", "refinancing_risk_band", "refinancing risk band"),
+    ("committed_facilities", "facility_type", "facility type"),
+    ("undrawn_availability", "sector", "sector"),
+    ("liquidity_buffer", "sector", "sector"),
+    ("short_term_debt", "sector", "sector"),
+    ("cash_balance_history", "sector", "sector"),
+    ("debt_service_schedule", "facility_type", "facility type"),
+    ("limit_excesses", "sector", "sector"),
+    ("limit_excesses", "excess_band", "excess band"),
+    ("external_rating_history", "agency", "rating agency"),
+    ("external_rating_history", "external_rating", "external rating"),
+    ("external_rating_outlook", "outlook", "rating outlook"),
+    ("external_rating_outlook", "agency", "rating agency"),
+    ("sector_events", "category", "event category"),
+    ("sector_events", "severity", "event severity"),
+    ("macro_events", "category", "event category"),
+    ("geopolitical_events", "category", "event category"),
+    ("commodity_events", "category", "event category"),
+    ("shipping_events", "severity", "event severity"),
+    ("borrower_external_event_link", "sector", "sector"),
+    ("sector_sensitivity", "sector", "sector"),
+    ("sector_sensitivity", "transmission_channel", "transmission channel"),
+    ("borrower_macro_sensitivity", "sector", "sector"),
+    ("returned_payments", "reason", "return reason"),
+    ("payment_rejections", "instrument", "payment instrument"),
+    ("covenant_waivers", "waiver_reason", "waiver reason"),
+    ("covenant_resets", "covenant", "covenant"),
+    ("collateral_insurance", "insurer", "insurer"),
+    ("collateral_document_expiry", "document_type", "document type"),
     ("retail_application_scorecard_monthly_validation", "application_channel", "application channel"),
     ("retail_application_scorecard_monthly_validation", "customer_segment", "customer segment"),
     ("retail_application_scorecard_monthly_validation", "product_type", "product type"),
@@ -572,6 +693,19 @@ WEIGHT_FIELD: dict[str, str] = {
     "watchlist_register": "total_ead",
     "risk_appetite_limits": "book_exposure",
 }
+
+#: Event logs: a governed record of things that HAPPENED, with a category, a
+#: severity and a date, and no numeric column to aggregate. A question over one
+#: of these counts rows or filters them; it does not sum anything.
+#:
+#: Named rather than inferred, and named here rather than left to the corpus
+#: guard to discover, because "this dataset has no measure" and "somebody
+#: forgot to register its measures" look identical from the outside and only
+#: one of them is acceptable.
+EVENT_DATASETS: frozenset[str] = frozenset({
+    "sector_events", "macro_events", "geopolitical_events",
+    "commodity_events", "shipping_events",
+})
 
 #: Datasets that are a time series in their own right rather than a book. A
 #: "by sector" question over the macro series is not a harder version of the

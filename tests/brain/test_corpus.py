@@ -50,7 +50,24 @@ def test_every_named_field_exists_in_the_governed_catalogue():
 
 
 def test_every_dataset_can_carry_at_least_one_question():
+    """A governed dataset the corpus cannot compose over is one it skips.
+
+    An EVENT dataset is the one honest exception: a log of things that
+    happened carries a category, a severity and a date and nothing to sum, so
+    a question over it counts rows or filters them. That exemption is a named
+    list rather than an inference — "this dataset has no measure" and
+    "somebody forgot to register its measures" look identical from outside,
+    and only one of them is acceptable.
+    """
     for dataset in vocabulary.DATASETS:
+        if dataset in vocabulary.EVENT_DATASETS:
+            assert not vocabulary.measures_for(dataset), (
+                f"{dataset} is listed as an event log but now carries a "
+                "measure; take it off the exemption list")
+            assert vocabulary.dimensions_for(dataset), (
+                f"{dataset} has neither a measure nor a dimension, so no "
+                "question at all can be composed over it")
+            continue
         assert vocabulary.measures_for(dataset), (
             f"{dataset} has no measure, so no case can be composed over it "
             "and the corpus would silently skip a governed dataset")

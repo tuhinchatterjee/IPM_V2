@@ -1361,8 +1361,18 @@ MACRO_FIELDS = {
 
 
 def build_extra_domains(customers, facility, staging, ratings, macro, rng):
-    """Every additional domain, keyed by governed dataset name."""
+    """Every additional domain, keyed by governed dataset name.
+
+    Three modules were added later and are merged in here rather than folded
+    into `domains_extra`: liquidity and cash flow, external intelligence, and
+    the operational events the Core Portfolio was missing. Each is large
+    enough to be read on its own, and each answers a different kind of
+    question, so keeping them apart keeps the file a person can navigate.
+    """
+    from scripts import domains_external as external
     from scripts import domains_extra as extra
+    from scripts import domains_liquidity as liquidity
+    from scripts import domains_portfolio_extra as portfolio_extra
 
     built = {
         "collateral_register": extra.build_collateral(facility, rng),
@@ -1379,6 +1389,16 @@ def build_extra_domains(customers, facility, staging, ratings, macro, rng):
         "facility_profitability": extra.build_profitability(facility),
         "climate_risk": extra.build_climate(customers, rng),
     }
+    # LIQUIDITY / TREASURY / CASH FLOW — the domain the Early Warning screen
+    # used to name in a box headed "what this deployment cannot watch for".
+    built.update(liquidity.build(facility, rng))
+    # EXTERNAL INTELLIGENCE — what is happening outside the bank, governed,
+    # dated, and labelled fact or hypothesis.
+    built.update(external.build(customers, facility, ratings,
+                                list(PERIODS), rng))
+    # The operational events every Early Warning signal wanted and none of
+    # them could compute: returned payments, limit excesses, waivers.
+    built.update(portfolio_extra.build(facility, rng))
     # An empty frame is a bug, not a dataset. Dropping it silently would leave a
     # catalogue entry pointing at nothing, which the Data Access Layer would
     # then serve as "no rows" rather than as the failure it is.
@@ -1468,6 +1488,28 @@ EXTRA_DOMAINS = {
         "One row per customer.",
         ["customer_id"], "Sustainability Risk"),
 }
+
+
+def _merge_domain_descriptions() -> None:
+    """Fold the later modules' catalogue descriptions into EXTRA_DOMAINS.
+
+    Done at import rather than by copying the entries here, so a dataset
+    described in one place cannot be described differently in another.
+    """
+    from scripts import domains_external as external
+    from scripts import domains_liquidity as liquidity
+    from scripts import domains_portfolio_extra as portfolio_extra
+
+    for module in (liquidity, external, portfolio_extra):
+        for name, described in module.DOMAINS.items():
+            if name in EXTRA_DOMAINS:  # pragma: no cover - a naming clash
+                raise ValueError(
+                    f"{name} is described twice; a dataset has one catalogue "
+                    f"entry or the two will drift")
+            EXTRA_DOMAINS[name] = described
+
+
+_merge_domain_descriptions()
 
 
 def extra_catalog_entries(frames, infer, field_fn):
