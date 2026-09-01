@@ -71,6 +71,7 @@ from backend.orchestration import reuse as ru
 from backend.orchestration import routing as rt
 from backend.orchestration import scope as sc
 from backend.orchestration.context import retrieve
+from backend.product import routing as product_routing
 from backend.regulatory import intent as regulatory_intent
 from backend.semantics import ontology
 
@@ -316,6 +317,19 @@ def answer(question: str, *, context: Any = None,
     # assess a borrower's credit risk" into "to assets a borrowers credit
     # risk", which is harmless for matching a concept and wrong to quote back
     # in a sentence that repeats what was asked.
+    # A question about CREDITPROBE ITSELF is answered from the product
+    # knowledge registry. Checked before the catalogue for the same reasons the
+    # catalogue is checked before the router, and for one more: "What is
+    # CreditProbe AI?" reached the analytical planner and came back as
+    # "CreditProbe has no governed data about CreditProbe AI" — a true
+    # statement about the borrower book and the worst possible answer to the
+    # question. The product is not a dataset, and a question about it must
+    # never be answered by looking for one.
+    product_intent = product_routing.read(original)
+    if product_intent.is_product:
+        return _from_product(original, question, product_intent, fixed,
+                             started)
+
     catalogue_question = mdq.read(original)
     if catalogue_question is not None:
         return _from_catalogue(original, question, catalogue_question,
@@ -895,6 +909,60 @@ def _from_catalogue(original: str, question: str, request: Any,
         chart={},
         execution=payload["execution"],
         execution_label=payload["execution_label"])
+    answered.duration_ms = int((time.perf_counter() - started) * 1000)
+    return answered
+
+
+def _from_product(original: str, question: str, intent: Any, fixed: Any,
+                  started: float) -> Answered:
+    """Answer a question about CreditProbe from the product knowledge registry.
+
+    No model is consulted and no dataset is read. The answer is composed from
+    reviewed narrative and live counts, so it is the same every time it is
+    asked and it cannot describe a capability the installation does not have.
+    """
+    from backend.product import answers as product_answers
+    from backend.product import routing as routing_module
+
+    reading = cap.Reading(
+        intent=cap.Capability.DATA_DISCOVERY,
+        objective=intent.why,
+        conversation_action=cv.NEW_REQUEST,
+        operation="describe",
+        confidence=1.0,
+        reasoning=intent.why,
+        source="product_knowledge",
+    )
+    answered = Answered(
+        question=original, reading=reading,
+        # A product question does not touch the analytical population. The
+        # thread's sector and period survive it, so an officer can ask what
+        # Early Warning is in the middle of an investigation and carry on.
+        continuation=cv.Continuation(
+            action=cv.NEW_REQUEST,
+            because="the question asks about CreditProbe, not about the book"),
+        decision=rt.decide(question, deterministic=True),
+        read_as=fixed.text if fixed.changes else "",
+        corrections=list(fixed.changes))
+
+    composed = routing_module.answer(original)
+    if composed is None:  # pragma: no cover - `is_product` guarantees one
+        composed = product_answers.get_creditprobe_overview()
+    payload = composed.to_dict()
+
+    answered.result = handlers.HandlerResult(
+        answer=payload["answer"],
+        rows=[], columns=[], values={},
+        detail={"product_knowledge": payload,
+                "visualization": payload["visualization"]},
+        follow_ups=list(payload["follow_ups"]),
+        warnings=[],
+        # Never a chart. §19: a product or methodology explanation has no
+        # quantitative shape, and a chart of feature counts is decoration.
+        chart={},
+        execution="product_knowledge",
+        execution_label="Answered from the CreditProbe product knowledge "
+                        "registry")
     answered.duration_ms = int((time.perf_counter() - started) * 1000)
     return answered
 

@@ -35,7 +35,7 @@ from backend.orchestration import composites as cmp
 from backend.orchestration import concepts as cx
 from backend.orchestration import context as governed_context
 from backend.orchestration import conversation as cv
-from backend.orchestration import gate, multi
+from backend.orchestration import fidelity, gate, multi
 from backend.orchestration import grain as gr
 from backend.orchestration import ordering as od
 from backend.orchestration import semantics as sm
@@ -131,6 +131,10 @@ class AnalysisBuild:
     #: answer cannot claim a condition the plan does not apply. None on the
     #: shapes that set no conditions at all.
     enforcement: Any = None
+    #: Whether the finished analysis is the same KIND of answer the question
+    #: asked for. The planner may change implementation; it may not change
+    #: objective, and this is what says so.
+    fidelity: Any = None
 
     @property
     def output_grain(self) -> str:
@@ -180,6 +184,8 @@ class AnalysisBuild:
             "warnings": list(self.warnings),
             "enforcement": (self.enforcement.to_dict()
                             if self.enforcement is not None else None),
+            "fidelity": (self.fidelity.to_dict()
+                         if self.fidelity is not None else None),
         }
 
 
@@ -233,6 +239,8 @@ def plan(reading: Reading, context: GovernedContext, *,
     that silently ignored a conjunct — and a gate that only guards the path
     where the defect was found guards nothing.
     """
+    contract = fidelity.read(question or reading.objective,
+                             reading=reading, state=state)
     build = _plan(reading, context, question=question, period=period,
                   state=state, continuation=continuation)
     text = question or reading.objective
@@ -240,6 +248,16 @@ def plan(reading: Reading, context: GovernedContext, *,
         text, getattr(build, "enforcement", None),
         multi.predicate_tree_of(build.plan),
         list(build.matches), build.conditions, build.filters)
+    # Whether this is the same KIND of answer the question asked for. The
+    # coverage gate compares predicates, and a plan that abandoned the question
+    # outright has no predicates to be missing — which is how "which Shipping
+    # borrowers have rising utilisation, worsening liquidity and increasing PD"
+    # came back as an exposure movement for Transport & Logistics.
+    build.fidelity = fidelity.compare(contract, build,
+                                      enforcement=build.enforcement)
+    if not build.fidelity.faithful:
+        build.warnings.append(build.fidelity.sentence)
+
     if dropped:
         # Repair is attempted upstream, where a condition is read. By the time
         # a plan exists, an unenforced condition is a limitation, and the one

@@ -206,7 +206,87 @@ def compile_checks(build: Any, question: str = "") -> list[Check]:
     checks.extend(_from_ontology(build))
     checks.extend(_from_grain(build))
     checks.extend(_from_question(question, build))
+    checks.extend(_from_positions(build))
     return checks
+
+
+def _from_positions(build: Any) -> list[Check]:
+    """Every movement predicate, checked against the POSITIONS on the screen.
+
+    The `condition` check above tests the derived `..._change` column, which is
+    the column the plan filtered on — so it can only ever agree with itself. A
+    result claiming a downgrade has to be provable from what a reader can see:
+    the opening rating and the closing rating, side by side.
+
+    This is what makes "some displayed customers do not visibly demonstrate a
+    rating downgrade" a test failure rather than an observation. It also refuses
+    to take a percentage movement as evidence of a downgrade: an ordinal grade
+    has no meaningful percentage change, and the only proof of a downgrade is
+    the two grades.
+    """
+    enforcement = getattr(build, "enforcement", None)
+    if enforcement is None:
+        return []
+    two_period = bool(str(getattr(build, "opening", "") or "")
+                      and str(getattr(build, "closing", "") or ""))
+    if not two_period:
+        return []
+
+    out: list[Check] = []
+    for test in (getattr(enforcement, "executed", None) or ()):
+        if getattr(test, "kind", "") != "movement":
+            continue
+        column = str(getattr(test, "field", "") or "")
+        if not column.endswith("_change"):
+            # A percentage change proves nothing about an ordinal scale, and a
+            # level test is already checked where it stands.
+            continue
+        measure = column[: -len("_change")]
+        op = str(getattr(test, "op", "") or "")
+        if op not in ("gt", "gte", "lt", "lte"):
+            continue
+        out.append(Check(
+            rule="position_movement",
+            claim=f"every row shows {test.describe()} in its own two columns",
+            columns=(measure, f"closing_{measure}"),
+            params={"opening": measure, "closing": f"closing_{measure}",
+                    "op": op, "label": test.describe()}))
+    return out
+
+
+def _position_movement(check: Check, rows: list[dict[str, Any]],
+                       runtime: Any) -> Failure | None:
+    """The opening and closing positions must themselves prove the movement."""
+    opening = str(check.params.get("opening") or "")
+    closing = str(check.params.get("closing") or "")
+    op = str(check.params.get("op") or "gt")
+    if not rows or opening not in rows[0] or closing not in rows[0]:
+        # The result does not carry both positions. That is a presentation gap
+        # rather than a wrong row, and `_from_positions` cannot tell the two
+        # apart from here — the evidence contract reports it instead.
+        return None
+
+    def holds(row: dict[str, Any]) -> bool:
+        before, after = row.get(opening), row.get(closing)
+        if before is None or after is None:
+            return False
+        try:
+            before, after = float(before), float(after)
+        except (TypeError, ValueError):
+            return True
+        return {"gt": after > before, "gte": after >= before,
+                "lt": after < before, "lte": after <= before}[op]
+
+    offending = [r for r in rows if not holds(r)]
+    if not offending:
+        return None
+    first = offending[0]
+    return Failure(
+        check=check, offending=len(offending),
+        detail=(f"{len(offending)} of {len(rows)} rows do not show "
+                f"{check.params.get('label') or 'the movement'} in their own "
+                f"columns — the first has {opening} {first.get(opening)} and "
+                f"{closing} {first.get(closing)}."))
 
 
 def _disjunctive_tree(build: Any) -> Any:
@@ -849,6 +929,7 @@ _HANDLERS: dict[str, Any] = {
     "filter_membership": _filter_membership,
     "condition": _condition,
     "predicate_tree": _predicate_tree,
+    "position_movement": _position_movement,
     "numerator_within_denominator": _numerator_within,
     "share_bounds": _share_bounds,
     "non_negative": _non_negative,
