@@ -35,6 +35,7 @@ to remove, and there is no code path back to it.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass, field, replace
 from typing import Any
@@ -74,6 +75,7 @@ from backend.orchestration.context import retrieve
 from backend.product import routing as product_routing
 from backend.regulatory import intent as regulatory_intent
 from backend.semantics import ontology
+from backend.whatif import language as whatif_language
 
 logger = logging.getLogger(__name__)
 
@@ -329,6 +331,18 @@ def answer(question: str, *, context: Any = None,
     if product_intent.is_product:
         return _from_product(original, question, product_intent, fixed,
                              started)
+
+    # A HYPOTHETICAL is not a question about the book as it is, and the
+    # analytical planner has no way to express one: "what happens if every BBB
+    # borrower is downgraded two notches" has no rows to select, because the
+    # rows it is about do not exist yet. So it is routed to the scenario
+    # engine, which computes the position the question describes, borrower by
+    # borrower, against the same governed staging and measurement rules that
+    # produced the reported book.
+    scenario_reading = whatif_language.read(original)
+    if scenario_reading.scenario is not None:
+        return _from_whatif(original, question, scenario_reading, fixed,
+                            started, state=state)
 
     catalogue_question = mdq.read(original)
     if catalogue_question is not None:
@@ -970,6 +984,105 @@ def _from_product(original: str, question: str, intent: Any, fixed: Any,
                         "registry")
     answered.duration_ms = int((time.perf_counter() - started) * 1000)
     return answered
+
+
+def _from_whatif(original: str, question: str, reading: Any, fixed: Any,
+                 started: float, *, state: Any = None) -> Answered:
+    """Answer a hypothetical by computing it, borrower by borrower.
+
+    No model is consulted. The scenario is a typed object, the shocks are
+    applied through the governed rating masterscale and the versioned
+    sensitivity matrix, the SICR triggers are re-read against the stressed PD,
+    and the ECL is re-measured on each borrower's stressed Stage's own basis —
+    which is why the base column ties to the reported book and the stressed
+    column can be argued with line by line.
+    """
+    from backend.whatif import answers as whatif_answers
+    from backend.whatif import engine as whatif_engine
+    from backend.whatif import trace as whatif_trace
+
+    scenario = reading.scenario
+    # A follow-up inside a scenario thread inherits the population the thread
+    # settled, so "downgrade these borrowers" means the ones on the screen.
+    carried = _carried_borrowers(state)
+    if carried and not scenario.population.borrower_ids \
+            and re.search(r"\bthese\b|\bthose\b|\bthem\b", original, re.I):
+        from backend.whatif import scenarios as whatif_scenarios
+        scenario = whatif_scenarios.Scenario(
+            key=scenario.key, name=scenario.name, shocks=scenario.shocks,
+            population=whatif_scenarios.Population(borrower_ids=tuple(carried)),
+            assumptions=scenario.assumptions, severity=scenario.severity,
+            rationale=scenario.rationale, period=scenario.period)
+
+    capability_reading = cap.Reading(
+        intent=cap.Capability.ANALYTICAL_QUERY
+        if hasattr(cap.Capability, "ANALYTICAL_QUERY") else cap.Capability.DATA_DISCOVERY,
+        objective=f"Scenario: {scenario.name}",
+        conversation_action=cv.NEW_REQUEST,
+        operation="scenario",
+        confidence=1.0,
+        reasoning="The question describes a hypothetical, so it was computed "
+                  "rather than looked up.",
+        source="whatif_engine",
+    )
+    answered = Answered(
+        question=original, reading=capability_reading,
+        continuation=cv.Continuation(
+            action=cv.NEW_REQUEST,
+            because="the question proposes a scenario over the book"),
+        decision=rt.decide(question, deterministic=True),
+        read_as=fixed.text if fixed.changes else "",
+        corrections=list(fixed.changes))
+
+    try:
+        result = whatif_engine.run(scenario)
+    except ValueError as exc:
+        answered.failure_kind = FAILED_ROUTE
+        answered.failure = (
+            f"CreditProbe could not run that scenario. {exc}")
+        answered.duration_ms = int((time.perf_counter() - started) * 1000)
+        return answered
+
+    composed = whatif_answers.compose_answer(result, reading)
+    payload = composed.to_dict()
+    table = whatif_answers.borrower_table(result, limit=200)
+    rows = [dict(zip(table["columns"], row, strict=False))
+            for row in table["rows"]]
+
+    answered.result = handlers.HandlerResult(
+        answer=payload["answer"],
+        rows=rows,
+        columns=[{"name": name, "label": name} for name in table["columns"]],
+        values={
+            "baseline_ecl": result.summary["baseline_ecl"],
+            "stressed_ecl": result.summary["stressed_ecl"],
+            "incremental_ecl": result.summary["incremental_ecl"],
+            "stage_2_migrations": result.summary["stage_2_migrations"],
+        },
+        detail={"whatif": whatif_trace.detail(result),
+                "product_knowledge": payload,
+                "rich_text": "markdown"},
+        graph=whatif_trace.build(result, original),
+        follow_ups=list(payload["follow_ups"]),
+        warnings=list(result.warnings),
+        # Section 7 of the global contract: a scenario answer is a table and a
+        # summary. A chart is offered only where the question asks for one.
+        chart={},
+        execution="whatif_scenario",
+        execution_label="Computed by the CreditProbe scenario engine")
+    answered.duration_ms = int((time.perf_counter() - started) * 1000)
+    return answered
+
+
+def _carried_borrowers(state: Any) -> list[str]:
+    """Borrower identifiers the thread has already settled on."""
+    if state is None:
+        return []
+    for attribute in ("borrower_ids", "entities", "population_ids"):
+        found = getattr(state, attribute, None)
+        if found:
+            return [str(x) for x in found][:500]
+    return []
 
 
 def _from_metadata(answered: Answered, question: str, reading: cap.Reading,

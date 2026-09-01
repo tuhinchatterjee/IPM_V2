@@ -458,6 +458,199 @@ def explain_creditprobe_end_to_end() -> Answer:
                     "What is Trace and why does it matter?"]))
 
 
+# ============================================================== What-If / stress
+
+
+def describe_whatif() -> Answer:
+    """"What does What-If Analysis do?" — section 1J."""
+    from backend.ifrs9 import policy
+    from backend.whatif import scenarios as ws
+    from backend.whatif import sensitivity as wsv
+
+    return compose(Answer(
+        topic="whatif",
+        band=MEDIUM,
+        headline=("What-If lets you ask what would happen before it happens — "
+                  "and answers borrower by borrower, on the same governed "
+                  "rules that produced the reported book."),
+        sections=[
+            Section(
+                key="asks", title="What you can ask", body=[],
+                bullets=["**Where is the credit quality shock?** A downgrade "
+                         "of one, two or three notches, on named borrowers, a "
+                         "rating band, a sector or the whole book.",
+                         "**Where is the model shock?** A relative or absolute "
+                         "move in PD, a change in LGD, or a drawdown that "
+                         "raises exposure at default.",
+                         "**Where is the macro shock?** Rates, GDP, inflation, "
+                         "FX, oil, property values, or a shipping and "
+                         "logistics disruption.",
+                         "**Where is the earnings shock?** A fall in EBITDA, "
+                         "revenue or cash flow, and what it does to debt "
+                         "service.",
+                         "**All of them at once.** Several shocks in one "
+                         "question is a scenario, not four answers."]),
+            Section(
+                key="order", title="How the answer is built",
+                body=["Every figure is computed for each borrower and only "
+                      "then added up. A portfolio total allocated downwards "
+                      "cannot tell you which names caused it, and that is the "
+                      "first question anybody asks."],
+                flow=["Baseline", "Shocks", "SICR re-read", "Re-stage",
+                      "Re-measure ECL", "Aggregate"]),
+            Section(
+                key="scenarios", title="Configured scenarios",
+                body=[f"{len(ws.PRECONFIGURED)} scenarios are configured and "
+                      "ready to run, from a one-notch downgrade to a severe "
+                      "combined stress. Each is a named, versioned object, so "
+                      "the same scenario on the same period reproduces the "
+                      "same figures.",
+                      f"Macro effects come from a sensitivity matrix owned by "
+                      f"{wsv.MATRIX_OWNER} and versioned at "
+                      f"{wsv.MATRIX_VERSION}. These are configured management "
+                      "assumptions, and the answer says so rather than "
+                      "presenting them as empirical fact."]),
+            Section(
+                key="trust", title="Why the base column ties",
+                body=["The baseline is the reported position, not a "
+                      "recomputation of it, so the base column ties to the "
+                      "accounts exactly. Only the ratio between the two "
+                      "measurements is modelled, and that ratio is PD, LGD, "
+                      "exposure and the Stage's own measurement basis — "
+                      f"nothing else (IFRS 9 policy {policy.POLICY_VERSION})."]),
+        ],
+        sources=["scenario registry", "macro sensitivity matrix",
+                 "rating masterscale", "IFRS 9 policy"],
+        follow_ups=["How does a rating downgrade affect PD?",
+                    "How can a downgrade move a borrower to Stage 2?",
+                    "What macro sensitivity assumptions are configured?"]))
+
+
+def describe_rating_to_pd() -> Answer:
+    """"How does a rating downgrade affect PD?" — the masterscale, not a factor."""
+    from backend.whatif import masterscale as wms
+
+    rows = wms.table()
+    return compose(Answer(
+        topic="rating_to_pd",
+        band=SHORT,
+        headline=("A downgrade is not a PD multiplier. A grade CARRIES a PD on "
+                  "the bank's masterscale, and moving a borrower down a notch "
+                  "moves it onto the PD that grade carries."),
+        sections=[
+            Section(
+                key="how", title="How it is applied",
+                body=["Each borrower's own PD is scaled by the RATIO between "
+                      "the two grades' masterscale PDs. A borrower at the "
+                      "strong end of BBB stays at the strong end of BBB-: the "
+                      "masterscale decides how far the band moved, the "
+                      "borrower keeps its place inside it.",
+                      "Snapping every downgraded borrower to its new grade's "
+                      "central PD would throw away calibration the bank "
+                      "already has, and would make two very different "
+                      "borrowers look identical."]),
+            Section(
+                key="scale", title="The masterscale", detail=True, body=[],
+                table={"columns": ["Grade", "PD floor (%)", "PD ceiling (%)",
+                                   "Masterscale PD (%)"],
+                       "rows": [[r["grade"], r["pd_floor_pct"],
+                                 r["pd_ceiling_pct"], r["masterscale_pd_pct"]]
+                                for r in rows]}),
+            Section(
+                key="limit", title="Where it stops",
+                body=["A downgrade stops at the weakest performing grade. "
+                      "Default is an event, not something a shock produces, "
+                      "so a scenario never moves a borrower into it."]),
+        ],
+        sources=["rating masterscale"],
+        follow_ups=["How can a downgrade move a borrower to Stage 2?",
+                    "What does What-If Analysis do?"]))
+
+
+def describe_downgrade_to_stage2() -> Answer:
+    """"How can a downgrade move someone to Stage 2?" — and why it often does not."""
+    from backend.ifrs9 import policy
+
+    described = policy.describe()
+    return compose(Answer(
+        topic="downgrade_stage2",
+        band=SHORT,
+        headline=("A downgrade does not automatically mean Stage 2. It raises "
+                  "PD, and the governed SICR triggers are then re-read against "
+                  "that higher PD — which is a different question."),
+        sections=[
+            Section(
+                key="triggers", title="What actually moves a borrower",
+                body=[], bullets=[f"**{t['trigger']}.** {t['rule']}"
+                                  for t in described["sicr_triggers"]]),
+            Section(
+                key="why", title="Why a notch is often not enough",
+                body=[f"The relative trigger needs BOTH a doubling of PD since "
+                      f"origination AND at least "
+                      f"{policy.SICR_PD_ABSOLUTE:.2f} percentage points of "
+                      "absolute increase. A strong investment-grade borrower "
+                      "can fall two notches and still clear neither, which is "
+                      "the framework working rather than failing.",
+                      "That is worth knowing before a committee: the Stage 2 "
+                      "population is far less sensitive to a downgrade cycle "
+                      "than to an outright PD deterioration."]),
+            Section(
+                key="assumption", title="If you want the other view",
+                body=["Ask again with \"assuming a downgrade is a significant "
+                      "increase in credit risk\" and the scenario treats the "
+                      "notch fall as a SICR in its own right. It is offered "
+                      "rather than applied, because it is a policy judgement "
+                      "and not this policy's rule."]),
+            Section(
+                key="effect", title="Why Stage 2 costs more",
+                body=["A Stage 1 borrower is provided for on twelve-month "
+                      "expected loss. A Stage 2 borrower is provided for on "
+                      "LIFETIME expected loss. Nothing about the borrower has "
+                      "to change for the provision to multiply — only the "
+                      "measurement basis."]),
+        ],
+        sources=[f"IFRS 9 policy {policy.POLICY_VERSION}"],
+        follow_ups=["How does a rating downgrade affect PD?",
+                    "What does What-If Analysis do?"]))
+
+
+def describe_macro_assumptions() -> Answer:
+    """"What macro sensitivity assumptions are configured?"."""
+    from backend.whatif import sensitivity as wsv
+
+    return compose(Answer(
+        topic="macro_assumptions",
+        band=MEDIUM,
+        deep=True,
+        headline=(f"{len(wsv.VARIABLES)} macro variables are configured, owned "
+                  f"by {wsv.MATRIX_OWNER}, versioned at {wsv.MATRIX_VERSION} "
+                  f"and effective {wsv.MATRIX_EFFECTIVE}."),
+        sections=[
+            Section(
+                key="honesty", title="What these are",
+                body=[wsv.describe()["statement"]]),
+            Section(
+                key="variables", title="The variables", body=[],
+                bullets=[f"**{v.name}** — {v.pd_effect * 100:.0f}% relative PD "
+                         f"effect {v.step_label}"
+                         + (f", {v.lgd_effect_pp:+.1f}pp on LGD"
+                            if v.lgd_effect_pp else "")
+                         + f". {v.note}"
+                         for v in wsv.VARIABLES]),
+            Section(
+                key="sectors", title="Why sectors differ",
+                body=["A sector multiplier scales the portfolio-wide effect. "
+                      "Shipping carries more of a logistics disruption than "
+                      "Real Estate does, and Real Estate carries more of a "
+                      "property correction than Shipping does. A sector with "
+                      "no distinct sensitivity inherits the portfolio-wide "
+                      "figure rather than an invented one."]),
+        ],
+        sources=["macro sensitivity matrix"],
+        follow_ups=["What does What-If Analysis do?",
+                    "How does a rating downgrade affect PD?"]))
+
+
 # ========================================================= the Early Warning side
 
 
@@ -735,6 +928,10 @@ TOOLS: dict[str, Any] = {
     "describe_case_promotion": describe_case_promotion,
     "describe_warning_states": describe_warning_states,
     "why_creditprobe": why_creditprobe,
+    "describe_whatif": describe_whatif,
+    "describe_rating_to_pd": describe_rating_to_pd,
+    "describe_downgrade_to_stage2": describe_downgrade_to_stage2,
+    "describe_macro_assumptions": describe_macro_assumptions,
     "how_creditprobe_helps_a_team": how_creditprobe_helps_a_team,
     "creditprobe_versus_a_dashboard": creditprobe_versus_a_dashboard,
     "explain_creditprobe_end_to_end": explain_creditprobe_end_to_end,
@@ -796,10 +993,14 @@ __all__ = [
     "describe_case_promotion",
     "describe_creditprobe_architecture",
     "describe_creditprobe_capability",
+    "describe_downgrade_to_stage2",
     "describe_early_warning_methodology",
     "describe_governed_engine",
+    "describe_macro_assumptions",
+    "describe_rating_to_pd",
     "describe_tac_methodology",
     "describe_warning_states",
+    "describe_whatif",
     "explain_creditprobe_end_to_end",
     "get_creditprobe_overview",
     "how_creditprobe_helps_a_team",

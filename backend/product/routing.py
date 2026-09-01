@@ -65,6 +65,8 @@ _PRODUCT_NOUNS = re.compile(
     r"|\bdata builder\b|\banalysis studio\b|\btrace\b|\blineage\b"
     r"|\bscorecard validation\b|\bstress testing\b|\banalysis studio\b"
     r"|\bagentic ai\b|\bagentic\b|\bthe engine\b|\bgoverned engine\b"
+    r"|\bwhat[- ]if\b|\bscenario analysis\b|\bmasterscale\b"
+    r"|\bsensitivity matrix\b"
     r"|\bsystem engine\b|\bcreditprobe engine\b|\banalytical engine\b"
     r"|\brisk cases?\b|\bworkflow\b|\bassurance\b|\bcockpit\b"
     r"|\bexternal intelligence\b|\bgroup risk\b|\bconnected counterpart\w*\b"
@@ -88,6 +90,20 @@ _UNAMBIGUOUS = re.compile(
     r"|\bhow is ai\b|\bhow does creditprobe use ai\b"
     r"|\btac\b(?:\s+methodolog\w*)?"
     r"|\bfour[- ]layer\b|\bfour layers\b"
+    r"|\bwhat does what[- ]if\b|\bwhat is what[- ]if\b"
+    r"|\bmacro sensitivity\b|\bsensitivity matrix\b"
+    # These name a governed measure AND ask a methodology question about it.
+    # Without them the measure test tips each one back to the borrower book,
+    # where "how does a downgrade affect PD" has no rows to answer it.
+    r"|\bdowngrade\b.{0,40}\baffects?\b.{0,20}\bpd\b"
+    r"|\bhow\s+(?:does|do)\s+.{0,30}\bdowngrade\b.{0,40}\bpd\b"
+    r"|\bdowngrade\b.{0,40}\bstage\s*2\b"
+    r"|\bstage\s*2\b.{0,40}\bdowngrade\b"
+    r"|\bwhy\s+does\s+stage\s*2\s+increase\b"
+    r"|\bhow\s+can\s+a\s+downgrade\b"
+    r"|\bdifference\s+between\s+baseline\s+and\s+stressed\b"
+    r"|\bhow\s+was\s+this\s+stressed\s+ecl\s+calculated\b"
+    r"|\bmasterscale\b"
     r"|\bsignal catalogue\b|\bsignal catalog\b"
     r"|\bpersistent warning\b"
     r"|\bthan a (?:normal |traditional |standard )?(?:bi )?dashboard\b"
@@ -135,6 +151,20 @@ _TOPIC: tuple[tuple[str, str], ...] = (
     (r"\bend[- ]to[- ]end\b|\bcreditprobe in full\b"
      r"|\b(?:explain|describe|tell me about) (?:the )?(?:whole|entire|full) "
      r"(?:product|platform|system)\b", "explain_creditprobe_end_to_end"),
+    (r"\bhow\s+(?:does|do)\s+.{0,30}\bdowngrade\b.{0,40}\bpd\b"
+     r"|\brating[- ]to[- ]pd\b|\bmasterscale\b"
+     r"|\bdowngrade\b.{0,30}\baffect\b.{0,20}\bpd\b", "describe_rating_to_pd"),
+    (r"\bdowngrade\b.{0,40}\bstage\s*2\b|\bstage\s*2\b.{0,40}\bdowngrade\b"
+     r"|\bwhy\s+does\s+stage\s*2\s+increase\s+ecl\b"
+     r"|\bhow\s+can\s+a\s+downgrade\b", "describe_downgrade_to_stage2"),
+    (r"\bmacro\s+sensitivit\w*\b|\bsensitivity\s+(?:matrix|assumptions?)\b"
+     r"|\bwhat\s+macro\b.{0,40}\bassumptions?\b", "describe_macro_assumptions"),
+    (r"\bdifference\s+between\s+baseline\s+and\s+stressed\b"
+     r"|\bhow\s+was\s+this\s+stressed\s+ecl\s+calculated\b"
+     r"|\bbaseline\s+(?:vs\.?|versus)\s+stressed\b", "describe_whatif"),
+    (r"\bwhat[- ]if\b.{0,30}\b(?:do|does|is|analysis)\b"
+     r"|\bwhat\s+does\s+what[- ]if\b|\bscenario\s+analysis\b"
+     r"|\bwhat\s+is\s+what[- ]if\b", "describe_whatif"),
     (r"\btac\b", "describe_tac_methodology"),
     (r"\bfour[- ]layers?\b|\bfour[- ]layer\b", "describe_early_warning_methodology"),
     (r"\bpersistent warning\b|\bwhat does .{0,20}warning mean\b",
