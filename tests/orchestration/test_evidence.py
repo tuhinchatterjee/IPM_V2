@@ -72,6 +72,33 @@ def test_a_name_the_result_carries_in_a_longer_form_is_accepted():
                     package()).ok
 
 
+def test_a_name_in_the_MIDDLE_of_a_longer_one_is_accepted():
+    """The sector "Wholesale & Retail Trade" reaches this check as "Retail
+    Trade", because an ampersand is not a word and the name pattern stops at
+    it. A prefix test alone rejected the sentence that named it — a correct
+    sentence about the largest row on the screen — and the interpretation
+    rubric marked the answer unsafe.
+    """
+    sectors = ev.Package(entities={"wholesale & retail trade", "contracting"})
+    assert ev.check("Retail Trade carries the largest exposure.", sectors).ok
+    assert ev.check("Wholesale carries the largest exposure.", sectors).ok
+
+
+def test_a_name_the_result_does_not_carry_is_still_rejected():
+    """The looser test must not switch the check off."""
+    sectors = ev.Package(entities={"wholesale & retail trade", "contracting"})
+    found = ev.check("Marine Logistics carries the largest exposure.", sectors)
+    assert found.unknown_entities == ["Marine Logistics"]
+
+
+def test_the_fragment_test_is_word_wise_not_character_wise():
+    """"Trade" must not match "Trading", and a run of words must be
+    contiguous: "Wholesale Trade" is not "Wholesale & Retail Trade"."""
+    sectors = ev.Package(entities={"wholesale & retail trade"})
+    assert ev.check("Wholesale Trade leads.", sectors).unknown_entities == [
+        "Wholesale Trade"]
+
+
 def test_a_portfolio_sentence_naming_nobody_is_grounded():
     assert ev.check(
         "Expected credit loss across the three names is 10.08 USD mn.",

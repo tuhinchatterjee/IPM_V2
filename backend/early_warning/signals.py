@@ -95,6 +95,10 @@ class Observation:
     dataset: str = ""
     field_name: str = ""
     test: str = ""
+    #: What `value`, `previous` and `threshold` are denominated in. R2 §3: a
+    #: screen showing "Value 75.4" beside "Threshold 10" is asking the reader
+    #: to guess, and the two numbers may not even be the same kind of thing.
+    unit: str = tx.COUNT
     period: str = ""
     previous_period: str = ""
     booked_accounting: bool = False
@@ -121,7 +125,8 @@ class Observation:
             "threshold_version": self.threshold_version,
             "threshold_owner": self.threshold_owner,
             "dataset": self.dataset, "field": self.field_name,
-            "test": self.test, "period": self.period,
+            "test": self.test, "unit": self.unit,
+            "currency": tx.CURRENCY, "period": self.period,
             "previous_period": self.previous_period,
             "booked_accounting": self.booked_accounting,
             "unavailable": self.unavailable, "means": self.means,
@@ -216,7 +221,8 @@ def evaluate(row: dict[str, Any], previous: dict[str, Any] | None = None, *,
             signal=signal.key, family=signal.family, label=signal.label,
             severity=signal.severity, threshold=signal.threshold,
             dataset=signal.dataset, field_name=signal.field,
-            test=signal.test, period=period, previous_period=previous_period,
+            test=signal.test, unit=signal.unit, period=period,
+            previous_period=previous_period,
             booked_accounting=signal.booked_accounting, means=signal.means)
 
         if signal.field not in row:
@@ -306,6 +312,11 @@ class Standing:
     untested: list[Observation] = field(default_factory=list)
     #: Signals that fired last period and do not now.
     cured: list[Observation] = field(default_factory=list)
+    #: The borrower's own record. R2 §25 decides what to DO about a borrower
+    #: from facts the taxonomy does not model as signals — how much is drawn,
+    #: what stage it is booked at, how far past due it is — so the position
+    #: has to keep the row it was read from.
+    record: dict[str, Any] = field(default_factory=dict)
 
     # ---- the six transparent measures §25 names -------------------------
     @property
@@ -367,6 +378,21 @@ class Standing:
         """
         return [o.signal for o in self.fired if o.booked_accounting]
 
+    @property
+    def verdict(self) -> Any:
+        """What to do about this borrower, and why. R2 §25.
+
+        Severity says how bad the worst RULE is. This says how bad the
+        BORROWER is, which is a different question and the one an officer
+        working down a list is actually asking.
+        """
+        from backend.early_warning import priority
+        return priority.decide(self, self.record)
+
+    @property
+    def priority(self) -> str:
+        return str(self.verdict.priority)
+
     def sentence(self) -> str:
         """The standing, said the way a credit officer would say it."""
         if not self.fired:
@@ -402,6 +428,10 @@ class Standing:
             "improving": self.improving,
             "agreement": self.agreement, "conflict": self.conflict,
             "booked_accounting_signals": self.booked_stage,
+            # §25: severity is about the rule; priority is about the borrower.
+            # Both are published, and every rule behind the priority comes
+            # with the sentence that put it there.
+            **self.verdict.to_dict(),
             "fired": [o.to_dict() for o in self.fired],
             "cured": [o.to_dict() for o in self.cured],
             "untested": [o.to_dict() for o in self.untested],
@@ -424,20 +454,33 @@ def stand(row: dict[str, Any], previous: dict[str, Any] | None = None, *,
         fired=[o for o in observations if o.fired and o.available],
         cured=[o for o in observations if o.lifecycle == CURED],
         untested=[o for o in observations if not o.available],
+        record=dict(row),
     )
 
 
 def rank(standings: list[Standing]) -> list[Standing]:
-    """Borrowers ordered by evidence, deterministically. §11, §25.
+    """Borrowers ordered by what to do about them, deterministically.
 
-    Breadth first, then severity, then persistence, then how many are getting
-    worse, then the borrower id. Every step is a count somebody can check,
-    and the last one is what makes the ordering total.
+    R2 §25. This used to lead on BREADTH — how many families of rules fired —
+    which put a small facility with five stale-ish measures above a SAR 400m
+    exposure in covenant breach and ninety days past due. An officer working
+    down that list works down it in the wrong order.
+
+    Priority first, then the exposure at stake, then breadth, severity,
+    persistence and how many are getting worse, and finally the borrower id so
+    the tenth row is the same tenth row on a second visit (§11). Every step is
+    a fact somebody can check.
     """
     return sorted(
         standings,
-        key=lambda s: (-s.breadth, -tx.SEVERITY_RANK.get(s.severity, 0),
+        key=lambda s: (-priority_rank(s), -(s.verdict.exposure or 0.0),
+                       -s.breadth, -tx.SEVERITY_RANK.get(s.severity, 0),
                        -s.persistence, -s.worsening, s.borrower_id))
+
+
+def priority_rank(standing: Standing) -> int:
+    from backend.early_warning import priority
+    return priority.PRIORITY_RANK.get(standing.priority, 0)
 
 
 __all__ = ["CURED", "IMPROVING", "LIFECYCLE", "LIFECYCLE_MEANS",

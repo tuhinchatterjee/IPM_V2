@@ -720,13 +720,22 @@ def ecl_change_decomposition(ctx: ExecutionContext) -> AnalysisResult:
             for c in sorted(found.components, key=lambda x: -abs(x.effect))]
 
     largest = found.material[0].label if found.material else ""
+    published_opening = rounded(found.opening_total, 2)
+    published_closing = rounded(found.closing_total, 2)
     return AnalysisResult(
         rows=rows,
         values={
             "period": closing, "compare_period": opening,
-            "opening_total": rounded(found.opening_total, 2),
-            "closing_total": rounded(found.closing_total, 2),
-            "movement": rounded(found.movement, 2),
+            # Publish first, then subtract. Rounding the two totals and the
+            # movement independently left the three figures on the screen
+            # disagreeing with each other by a cent — 12,411.65 less 5,313.07
+            # shown beside a movement of -7,098.57 — and a reader who checks
+            # the arithmetic in front of them is right to stop trusting the
+            # table. `attributed` and `reconciles` stay on the unrounded
+            # basis: they are a claim about the METHOD, not the presentation.
+            "opening_total": published_opening,
+            "closing_total": published_closing,
+            "movement": rounded(published_closing - published_opening, 2),
             "attributed": rounded(found.attributed, 4),
             "reconciles": found.reconciles,
             "largest_driver": largest,

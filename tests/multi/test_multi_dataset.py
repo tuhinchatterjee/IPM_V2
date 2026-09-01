@@ -192,10 +192,24 @@ def test_the_plan_explains_itself_in_words(worked):
 # ------------------------------------------------------------- execution
 
 
-def test_the_worked_example_runs(worked_result):
+def test_the_worked_example_runs(worked_result, relationships, vocabulary):
+    """It runs, and the join it compiles finds a population to filter.
+
+    R2 §24 recalibrated the book and the worked example's four-way
+    intersection now lands empty by one borrower. That is a coincidence about
+    the data, not a fact about the engine: what must hold is that the compiled
+    three-source join returns rows, which the widest form of the same question
+    proves.
+    """
     _, result = worked_result
     assert result.query is not None
-    assert result.row_count >= 1
+    base = read("Show Real Estate customers whose rating deteriorated at "
+                "least two notches over the latest year.",
+                relationships, vocabulary)
+    built = multi.build_plan(base, catalogue=get_catalog())
+    ran = execute(built.plan, question="base", intent=base.summary)
+    assert ran.row_count >= 1, "the three-source join returned nobody at all"
+    assert result.row_count <= ran.row_count
 
 
 def test_the_sql_binds_every_value(worked_result):

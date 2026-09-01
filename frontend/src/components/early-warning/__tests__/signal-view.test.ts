@@ -35,6 +35,8 @@ function observation(
     dataset: "corporate_borrower_360",
     field: "revenue_growth_yoy_pct",
     test: "below",
+    unit: "percent",
+    currency: "SAR",
     period: "Q2 2026",
     previous_period: "Q1 2026",
     booked_accounting: false,

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import * as React from "react";
-import { ChevronDown, ListChecks, Radar, ShieldQuestion } from "lucide-react";
+import { ChevronDown, ListChecks, Radar } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import * as view from "@/components/early-warning/signal-view";
@@ -15,6 +15,8 @@ import { InfoPopover } from "@/components/ui/info-popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
 import { api, type SignalObservation, type SignalStanding } from "@/lib/api";
+import { borrower360Href } from "@/lib/borrower-link";
+import * as ewFormat from "@/lib/early-warning-format";
 import { useAsync } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 
@@ -109,8 +111,6 @@ function Signals() {
             headline={headline}
           />
 
-          <NotWatchedFor unavailable={book.data.unavailable ?? []} />
-
           <Tabs
             active={lens}
             onChange={(id) => {
@@ -139,6 +139,7 @@ function Signals() {
                 <BorrowerRow
                   key={standing.borrower_id}
                   standing={standing}
+                  period={book.data?.period ?? ""}
                   open={opened === standing.borrower_id}
                   onToggle={() =>
                     setOpened(
@@ -245,43 +246,18 @@ function Headline({
   );
 }
 
-/* ------------------------------------------------------- what is not watched */
-
-function NotWatchedFor({
-  unavailable,
-}: {
-  unavailable: { family: string; family_label: string; means: string }[];
-}) {
-  if (!unavailable.length) return null;
-  return (
-    <Card className="flex items-start gap-2.5 border-warning/30 bg-warning-muted p-4">
-      <ShieldQuestion
-        className="mt-0.5 size-4 shrink-0 text-warning"
-        aria-hidden
-      />
-      <div className="space-y-1 text-xs leading-relaxed text-warning">
-        <p className="font-medium">
-          What this deployment cannot watch for
-        </p>
-        {unavailable.map((missing) => (
-          <p key={`${missing.family}-${missing.means}`}>
-            <span className="font-medium">{missing.family_label}:</span>{" "}
-            {missing.means}
-          </p>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
 /* -------------------------------------------------------------- one borrower */
 
 function BorrowerRow({
   standing,
+  period,
   open,
   onToggle,
 }: {
   standing: SignalStanding;
+  //: The quarter the signal fired in, carried into the Borrower 360 link so
+  //: the officer lands on the period they were just reading. §4.
+  period: string;
   open: boolean;
   onToggle: () => void;
 }) {
@@ -313,7 +289,7 @@ function BorrowerRow({
         <SeverityBadge severity={standing.severity} />
       </button>
 
-      {open && <BorrowerDetail standing={standing} />}
+      {open && <BorrowerDetail standing={standing} period={period} />}
     </div>
   );
 }
@@ -337,7 +313,13 @@ function SeverityBadge({ severity }: { severity: string }) {
  * cured, then what could not be tested. A reader who disagrees with the
  * screen can go and check the number, which is the whole point.
  */
-function BorrowerDetail({ standing }: { standing: SignalStanding }) {
+function BorrowerDetail({
+  standing,
+  period,
+}: {
+  standing: SignalStanding;
+  period: string;
+}) {
   const groups = view.byFamily(standing);
   const booked = view.booked(standing);
   const conflict = view.conflicting(standing);
@@ -410,7 +392,7 @@ function BorrowerDetail({ standing }: { standing: SignalStanding }) {
       <div className="flex flex-wrap gap-2 pt-1">
         <Button variant="outline" size="sm" asChild>
           <Link
-            href={`/borrower-360?borrower=${encodeURIComponent(standing.borrower_id)}`}
+            href={borrower360Href(standing.borrower_id, period)}
           >
             Open Borrower 360
           </Link>
@@ -428,47 +410,74 @@ function BorrowerDetail({ standing }: { standing: SignalStanding }) {
  * a signal, and a screen that makes them hunt for it teaches them the answer
  * does not matter.
  */
+/**
+ * One condition, as a credit officer would want it put. R2 §3.
+ *
+ * Six things, in the order somebody reads them: WHAT HAPPENED, WHY THIS
+ * MATTERS, WHAT CHANGED, the THRESHOLD POLICY behind it, how SEVERE it is,
+ * and where it came FROM.
+ *
+ * The card used to show four bare numbers — "Value 75.4  Previously 71.2
+ * Threshold 10" — which is unreadable twice over: it does not say what 75.4
+ * is, and it puts a column name where a sentence belongs. The value now
+ * carries its unit, and the technical provenance sits at the bottom under a
+ * heading that says that is what it is.
+ */
 function Condition({ observation }: { observation: SignalObservation }) {
+  const unit = observation.unit;
+  const currency = observation.currency || "SAR";
+  const value = ewFormat.showValue(observation.value, unit, currency);
+  const before = ewFormat.showValue(observation.previous, unit, currency);
+  const moved = ewFormat.showMovement(observation.movement, unit, currency);
+  const threshold = ewFormat.showValue(observation.threshold, unit, currency);
+  const hasBefore = before !== ewFormat.NOTHING;
+
   return (
     <div className="rounded-md border border-border-subtle bg-surface p-3">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className="text-sm font-medium">{observation.label}</span>
+        <span className="tabular-nums text-sm text-text-secondary">
+          {value}
+        </span>
         <Badge variant="outline">
           {view.LIFECYCLE_LABEL[observation.lifecycle] ??
             observation.lifecycle}
         </Badge>
+        <SeverityBadge severity={observation.severity} />
       </div>
+
       <p className="mt-1 text-xs leading-relaxed text-text-secondary">
         {observation.means}
       </p>
-      <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs md:grid-cols-4">
-        <Figure label="Value" value={observation.value} />
-        <Figure label="Previously" value={observation.previous} />
-        <Figure label="Threshold" value={observation.threshold} />
-        <Figure
-          label="Threshold owner"
-          value={`${observation.threshold_owner} (v${observation.threshold_version})`}
-        />
+
+      <dl className="mt-2 space-y-1 text-xs">
+        <Line label="What changed">
+          {hasBefore
+            ? `${before} at ${observation.previous_period || "the previous reporting date"}, ${value} now${moved !== ewFormat.NOTHING ? ` (${moved})` : ""}.`
+            : "No comparable figure at the previous reporting date, so this is a level rather than a movement."}
+        </Line>
+        <Line label="Threshold policy">
+          {`${threshold}, set by ${observation.threshold_owner} (policy v${observation.threshold_version}). A seeded materiality, not a regulatory requirement.`}
+        </Line>
+        <Line label="Source">
+          {`${observation.dataset}.${observation.field} at ${observation.period}.`}
+        </Line>
       </dl>
-      <p className="mt-2 text-[11px] text-text-muted">
-        Read from {observation.dataset}.{observation.field} at{" "}
-        {observation.period}.
-      </p>
     </div>
   );
 }
 
-function Figure({ label, value }: { label: string; value: unknown }) {
-  const shown =
-    value === null || value === undefined || value === ""
-      ? "—"
-      : typeof value === "number"
-        ? value.toLocaleString(undefined, { maximumFractionDigits: 2 })
-        : String(value);
+function Line({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div>
-      <dt className="text-text-muted">{label}</dt>
-      <dd className="tabular-nums text-text-secondary">{shown}</dd>
+    <div className="flex flex-wrap gap-x-2">
+      <dt className="shrink-0 text-text-muted">{label}:</dt>
+      <dd className="text-text-secondary">{children}</dd>
     </div>
   );
 }

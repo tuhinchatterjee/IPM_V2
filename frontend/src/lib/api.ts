@@ -2777,6 +2777,10 @@ export interface SignalObservation {
   dataset: string;
   field: string;
   test: string;
+  /** What `value`, `previous` and `threshold` are denominated in. R2 §3. */
+  unit: string;
+  /** The currency a money-denominated value is kept in. */
+  currency: string;
   period: string;
   previous_period: string;
   booked_accounting: boolean;

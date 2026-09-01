@@ -141,12 +141,33 @@ def compile_checks(build: Any, question: str = "") -> list[Check]:
             claim=f"the {top_n} asked for",
             params={"limit": top_n}))
 
+    # Grouped by field, because two values of ONE dimension are a SET, not two
+    # conjunctions. "Which of these are Stage 2 or Stage 3?" resolved both
+    # values and emitted a check demanding every row be 2 AND a check demanding
+    # every row be 3. No result can pass both, so a correct answer — the plan
+    # compiles the right `IN` predicate one layer down — was withheld with
+    # "a computed figure contradicts what was asked". The user saw a refusal
+    # for a question the catalogue answers, which is the failure this whole
+    # layer exists to prevent, arriving from the layer itself.
+    wanted: dict[str, list[str]] = {}
     for field_name, value in (getattr(build, "filters", None) or []):
-        checks.append(Check(
-            rule="filter_equality",
-            claim=f"{field_name.replace('_', ' ')} is {value}",
-            columns=(field_name,),
-            params={"column": field_name, "value": value}))
+        values = wanted.setdefault(field_name, [])
+        if value not in values:
+            values.append(value)
+    for field_name, values in wanted.items():
+        readable = field_name.replace("_", " ")
+        if len(values) == 1:
+            checks.append(Check(
+                rule="filter_equality",
+                claim=f"{readable} is {values[0]}",
+                columns=(field_name,),
+                params={"column": field_name, "value": values[0]}))
+        else:
+            checks.append(Check(
+                rule="filter_membership",
+                claim=f"{readable} is one of {', '.join(values)}",
+                columns=(field_name,),
+                params={"column": field_name, "values": list(values)}))
 
     for condition in (getattr(build, "conditions", None) or []):
         checks.extend(_from_condition(condition))
@@ -492,6 +513,28 @@ def _filter_equality(check: Check, rows: list[dict[str, Any]],
                 f"are not — the first is {bad[0].get(column)!r}."))
 
 
+def _filter_membership(check: Check, rows: list[dict[str, Any]],
+                       runtime: Any) -> Failure | None:
+    """A question naming several values of one dimension asks for ANY of them.
+
+    The equality check is right for one value and wrong for two: a row at
+    stage 2 does not contradict a question about stages 2 and 3.
+    """
+    del runtime
+    column = str(check.params["column"])
+    wanted = {str(v).strip().lower() for v in check.params["values"]}
+    bad = [r for r in rows
+           if str(r.get(column, "")).strip().lower() not in wanted]
+    if not bad:
+        return None
+    named = ", ".join(str(v) for v in check.params["values"])
+    return Failure(
+        check=check, offending=len(bad), example=dict(bad[0]),
+        detail=(f"The question restricted {_readable(column)} to {named}, and "
+                f"{len(bad)} of {len(rows)} rows are outside that — the first "
+                f"is {bad[0].get(column)!r}."))
+
+
 def _condition(check: Check, rows: list[dict[str, Any]],
                runtime: Any) -> Failure | None:
     del runtime
@@ -712,6 +755,7 @@ _HANDLERS: dict[str, Any] = {
     "period_span": _period_span,
     "ordering": _ordering,
     "filter_equality": _filter_equality,
+    "filter_membership": _filter_membership,
     "condition": _condition,
     "numerator_within_denominator": _numerator_within,
     "share_bounds": _share_bounds,

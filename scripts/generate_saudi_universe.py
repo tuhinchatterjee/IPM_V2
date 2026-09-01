@@ -56,6 +56,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from backend import scenarios  # noqa: E402
 from backend.config import settings  # noqa: E402
 
 SEED = 20260824
@@ -129,22 +130,33 @@ class Sector:
     quality: float
 
 
+#: The book's sector mix. Two sectors that a Gulf corporate bank cannot
+#: plausibly be without were missing: OIL & GAS, which is the region's economy,
+#: and SHIPPING, which the external-intelligence domain already writes events
+#: about — the Strait of Hormuz scenario named a sector the portfolio did not
+#: have, so nothing could be joined to it. Financial Services was also carrying
+#: 3% of the book, which made it too small to be anybody's headline story and
+#: too small to be worth a sector question; a Gulf bank's non-bank financial
+#: exposure — leasing, insurance, investment firms, exchange houses — is a
+#: material line, not a rounding one.
 SECTORS: list[Sector] = [
-    Sector("Contracting", 0.13, 1.55, 0.62, -0.55),
-    Sector("Real Estate", 0.11, 1.30, 0.50, -0.25),
-    Sector("Petrochemicals", 0.09, 1.15, 0.38, 0.35),
-    Sector("Wholesale & Retail Trade", 0.10, 0.95, 0.44, -0.10),
-    Sector("Manufacturing", 0.09, 1.00, 0.40, 0.05),
-    Sector("Transport & Logistics", 0.07, 0.90, 0.38, 0.00),
-    Sector("Hospitality & Tourism", 0.06, 1.35, 0.55, -0.35),
-    Sector("Healthcare", 0.06, 0.45, 0.28, 0.40),
-    Sector("Education", 0.04, 0.40, 0.26, 0.35),
+    Sector("Contracting", 0.11, 1.55, 0.62, -0.55),
+    Sector("Real Estate", 0.10, 1.30, 0.50, -0.25),
+    Sector("Wholesale & Retail Trade", 0.09, 0.95, 0.44, -0.10),
+    Sector("Manufacturing", 0.08, 1.00, 0.40, 0.05),
+    Sector("Petrochemicals", 0.07, 1.15, 0.38, 0.35),
+    Sector("Financial Services", 0.07, 0.85, 0.34, 0.45),
+    Sector("Oil & Gas", 0.06, 1.10, 0.42, 0.50),
+    Sector("Transport & Logistics", 0.06, 0.90, 0.38, 0.00),
     Sector("Utilities", 0.05, 0.30, 0.20, 0.75),
-    Sector("Telecommunications", 0.04, 0.50, 0.24, 0.60),
-    Sector("Mining & Metals", 0.05, 1.20, 0.48, 0.05),
-    Sector("Agriculture & Food", 0.05, 0.70, 0.36, 0.10),
-    Sector("Financial Services", 0.03, 0.85, 0.34, 0.45),
-    Sector("Government-Related Entities", 0.03, 0.25, 0.16, 1.05),
+    Sector("Government-Related Entities", 0.05, 0.25, 0.16, 1.05),
+    Sector("Healthcare", 0.05, 0.45, 0.28, 0.40),
+    Sector("Shipping", 0.04, 1.45, 0.58, -0.30),
+    Sector("Mining & Metals", 0.04, 1.20, 0.48, 0.05),
+    Sector("Agriculture & Food", 0.04, 0.70, 0.36, 0.10),
+    Sector("Hospitality & Tourism", 0.04, 1.35, 0.55, -0.35),
+    Sector("Telecommunications", 0.03, 0.50, 0.24, 0.60),
+    Sector("Education", 0.02, 0.40, 0.26, 0.35),
 ]
 
 REGIONS = [
@@ -350,7 +362,13 @@ def simulate_quality(customers: pd.DataFrame, factor: np.ndarray,
     for q in range(1, t):
         drift = base + beta * factor[q] * 0.55
         z[:, q] = rho * z[:, q - 1] + (1 - rho) * drift + rng.normal(0, vol * 0.42)
-    return z
+    # The governed demonstration scenario, applied last and as a level, so the
+    # arrears, the utilisation and the staging that follow from it are the
+    # ordinary consequences of a weaker borrower rather than numbers written
+    # onto the outcome columns directly. Both books read the same module, so
+    # the corporate view and the portfolio view tell the same story.
+    return z + scenarios.quality_overlay(
+        customers["sector"].to_numpy(), t)
 
 
 def pd_from_quality(z: np.ndarray) -> np.ndarray:
@@ -382,6 +400,54 @@ SICR_PD_RATIO = 2.0
 SICR_PD_ABSOLUTE = 0.55
 #: Quarters of clean behaviour before a Stage 2 facility may return to Stage 1.
 CURE_QUARTERS = 2
+#: Days a still-delinquent facility ages between two quarter-end snapshots.
+QUARTER_DAYS = 90
+#: Past this, the case has been resolved one way or another and leaves the
+#: arrears book.
+WORKOUT_HORIZON_DAYS = 360
+#: A three-notch downgrade only counts as a significant increase in credit risk
+#: if it LANDS somewhere weak. Without this floor the trigger fired hardest on
+#: the strongest sectors - a grade-1 borrower drifting to grade 4 is still
+#: comfortably investment grade, while a grade-8 one cannot fall three notches
+#: at all because the scale stops at ten - and Education and Healthcare came
+#: out of the generator with more Stage 2 than Contracting, which is backwards.
+SICR_NOTCH_FLOOR_GRADE = 6
+
+
+def age_delinquency(dpd: np.ndarray, stress: np.ndarray, factor: float,
+                    rng: np.random.Generator) -> np.ndarray:
+    """Carry the arrears book forward one quarter.
+
+    Three things can happen to a facility between quarter ends: it can fall
+    late, it can age, or it can leave the arrears book - by curing, or by
+    being resolved through write-off, restructure or recovery.
+
+    The version this replaces did only the first two, ageing by thirty days a
+    quarter and clipping at the ceiling. Over fifteen quarters that produced a
+    ladder whose top rung was thirty times fifteen, and forty-eight facilities
+    sat on exactly 450 days: a fact about the loop, not about a borrower. No
+    bank carries the same facility at the same arrears number for four years,
+    and a book that says it does teaches a model an arrears distribution that
+    does not exist.
+    """
+    n = len(dpd)
+    # Falling late: a hazard that rises steeply with stress.
+    hazard = 1.0 / (1.0 + np.exp(-(1.30 * stress - 3.55 - 0.25 * factor)))
+    newly_late = (rng.random(n) < hazard) & (dpd == 0)
+    # A facility late at two consecutive quarter ends has aged about a
+    # QUARTER, not a month.
+    first_late = np.where(rng.random(n) < 0.65, 30, 60)
+    dpd = np.where(newly_late, first_late,
+                   np.where(dpd > 0, dpd + QUARTER_DAYS, 0))
+    # Curing: healthier borrowers get current again.
+    cured = (dpd > 0) & (rng.random(n) < 1.0 / (1.0 + np.exp(1.15 * stress)))
+    # Resolution: the hazard rises with how long the case has been open, and
+    # anything reaching the workout horizon leaves regardless, so the tail
+    # thins instead of piling up against a clip.
+    workout = np.clip(0.10 + 0.45 * (dpd - 180) / 360.0, 0.0, 0.55)
+    resolved = ((dpd >= 180) & (rng.random(n) < workout)) | (
+        dpd > WORKOUT_HORIZON_DAYS)
+    return np.where(cured | resolved, 0, dpd)
 
 
 def build_book(customers: pd.DataFrame, z: np.ndarray, macro: pd.DataFrame,
@@ -453,14 +519,7 @@ def build_book(customers: pd.DataFrame, z: np.ndarray, macro: pd.DataFrame,
             + rng.normal(0, 0.035, n_facilities),
             0.02, 1.05,
         )
-        # Delinquency: a hazard that rises steeply with stress, then accumulates.
-        hazard = 1.0 / (1.0 + np.exp(-(1.30 * stress - 3.55 - 0.25 * factor[q])))
-        newly_late = (rng.random(n_facilities) < hazard) & (dpd == 0)
-        dpd = np.where(newly_late, 30, np.where(dpd > 0, dpd + 30, 0))
-        # Cure: healthier borrowers get current again.
-        cured = (dpd > 0) & (rng.random(n_facilities) < 1.0 / (1.0 + np.exp(1.15 * stress)))
-        dpd = np.where(cured, 0, dpd)
-        dpd = np.clip(dpd, 0, 720)
+        dpd = age_delinquency(dpd, stress, factor[q], rng)
 
         dscr = np.clip(1.85 - 0.30 * stress + rng.normal(0, 0.22, n_facilities), 0.15, 5.5)
         headroom = np.clip(28.0 - 9.5 * stress + rng.normal(0, 5.5, n_facilities), -45.0, 85.0)
@@ -479,7 +538,7 @@ def build_book(customers: pd.DataFrame, z: np.ndarray, macro: pd.DataFrame,
         trigger_pd = (pd_ratio >= SICR_PD_RATIO) & (pd_12m - pd_origination >= SICR_PD_ABSOLUTE)
         trigger_dpd = dpd >= 30
         trigger_covenant = headroom < 0
-        trigger_notch = notches >= 3
+        trigger_notch = (notches >= 3) & (grade >= SICR_NOTCH_FLOOR_GRADE)
         trigger_watchlist = (grade >= 7) & (downgrade_prob > 55)
 
         # Default is a delinquency fact, or a grade-10 borrower who is also

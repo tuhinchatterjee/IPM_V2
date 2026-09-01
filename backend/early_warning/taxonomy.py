@@ -129,6 +129,75 @@ SEVERITIES: tuple[str, ...] = (WATCH, CONCERN, SEVERE)
 SEVERITY_RANK: dict[str, int] = {WATCH: 1, CONCERN: 2, SEVERE: 3}
 
 
+# ------------------------------------------------------------------ the units
+#
+# R2 §3. The acceptance run found the borrower detail showing "Value 75.4" and
+# "Threshold 10" — bare numbers a credit officer cannot read. 75.4 what? The
+# unit is not decoration: without it the reader cannot tell a percentage from a
+# multiple from a sum of money, and a screen that makes them guess is a screen
+# they will stop trusting.
+#
+# Derived rather than hand-typed on forty-three signals, because a table
+# maintained by hand drifts from the fields it describes. The derivation is the
+# mechanism; `tests/early_warning/test_signal_units.py` is the explicit table
+# that holds it honest.
+
+MONEY = "money"          #: SAR millions, the unit the whole book is kept in
+PERCENT = "percent"      #: already a percentage
+RATIO = "ratio"          #: a multiple — 1.25x
+DAYS = "days"
+NOTCHES = "notches"      #: rating grades moved
+STAGE = "stage"          #: the IFRS 9 stage, 1, 2 or 3
+FLAG = "flag"            #: a boolean condition
+COUNT = "count"          #: a plain number of things
+
+#: The currency the book is denominated in. One place, so a screen and an
+#: export cannot disagree about it.
+CURRENCY = "SAR"
+
+#: Fields that are a multiple rather than a percentage. A covenant written as
+#: "minimum DSCR 1.25x" is not a covenant written as "minimum DSCR 125%", and
+#: showing one as the other misstates the test.
+_MULTIPLES: frozenset[str] = frozenset({
+    "debt_to_equity", "interest_coverage", "dscr", "net_leverage",
+    "current_ratio", "leverage", "gearing"})
+
+#: Percentages that do not announce themselves with a `_pct` suffix.
+_PERCENTAGES: frozenset[str] = frozenset({
+    "revenue_growth", "ebitda_margin", "ecl_coverage", "pd_12m",
+    "pd_lifetime", "lgd"})
+
+#: Amounts of money that do not announce themselves either.
+_MONEY_WORDS: tuple[str, ...] = (
+    "cash", "flow", "exposure", "revenue", "ebitda", "capex", "debt",
+    "collateral", "limit", "amount", "buffer", "shortfall", "commitment",
+    "maturing", "equity", "worth", "balance")
+
+
+def unit_for(field: str, test: str) -> str:
+    """What the value of this signal IS. R2 §3."""
+    name = (field or "").strip().lower()
+    if test in {RATIO_ABOVE, RATIO_ROSE_BY}:
+        # The value is the ratio the test computes, in percent, whatever the
+        # underlying field happens to be denominated in.
+        return PERCENT
+    if test == TRUE:
+        return FLAG
+    if name == "stage":
+        return STAGE
+    if "notch" in name:
+        return NOTCHES
+    if name in _MULTIPLES:
+        return RATIO
+    if name.endswith("_pct") or name in _PERCENTAGES:
+        return PERCENT
+    if name.endswith("_days") or name.endswith("_dpd") or "dpd" in name:
+        return DAYS
+    if any(word in name for word in _MONEY_WORDS):
+        return MONEY
+    return COUNT
+
+
 @dataclass(frozen=True)
 class Signal:
     """One governed condition, and everything needed to defend it. §23."""
@@ -154,6 +223,11 @@ class Signal:
     #: is to mark which is which in the data.
     booked_accounting: bool = False
     version: str = TAXONOMY_VERSION
+
+    @property
+    def unit(self) -> str:
+        """What the value is denominated in. R2 §3."""
+        return unit_for(self.field, self.test)
 
     @property
     def columns(self) -> tuple[str, ...]:
@@ -185,6 +259,7 @@ class Signal:
                 "label": self.label, "means": self.means,
                 "dataset": self.dataset, "field": self.field,
                 "test": self.test, "threshold": self.threshold,
+                "unit": self.unit, "currency": CURRENCY,
                 "against": self.against, "severity": self.severity,
                 "booked_accounting": self.booked_accounting,
                 "owner": THRESHOLD_OWNER, "version": self.version,
@@ -242,7 +317,62 @@ SIGNALS: tuple[Signal, ...] = (
        "The room between earnings and the interest bill has narrowed.",
        "corporate_borrower_360", "interest_coverage", FELL_BY, 0.5),
 
+    _s("receivable_days_stretched", FINANCIAL,
+       "Collecting in more than 90 days",
+       "The borrower is waiting more than three months for its money. A "
+       "stretching collection cycle is the earliest liquidity signal a "
+       "lender can see, because it moves before revenue does.",
+       "corporate_borrower_360", "receivable_days", ABOVE, 90.0),
+    _s("receivable_days_rose", FINANCIAL, "Collection period lengthened",
+       "Receivable days are fifteen or more above the prior period.",
+       "corporate_borrower_360", "receivable_days", ROSE_BY, 15.0),
+    _s("cash_cycle_stretched", FINANCIAL, "Cash conversion cycle above 120 days",
+       "Money spent on stock and supply takes more than four months to come "
+       "back as cash, so the same trade ties up more of the facility.",
+       "corporate_borrower_360", "cash_conversion_cycle_days", ABOVE, 120.0),
+    _s("capex_starved", FINANCIAL,
+       "Investing less than 2% of revenue",
+       "Capital expenditure is thin against turnover. Capex is what a "
+       "borrower cuts first when cash is short, which is what makes a low "
+       "line a warning rather than a sign of discipline. A seeded "
+       "materiality, not a regulatory requirement.",
+       "corporate_borrower_360", "capex", RATIO_ABOVE, -2.0,
+       against="revenue", severity=WATCH),
+
     # ---- liquidity
+    _s("liquidity_buffer_thin", LIQUIDITY,
+       "Cash and committed headroom below a tenth of drawn exposure",
+       "What the borrower can actually reach — cash plus the headroom it is "
+       "contractually entitled to draw — is thin against what it has already "
+       "borrowed. A seeded materiality, not a regulatory requirement.",
+       "corporate_borrower_360", "cash", RATIO_ABOVE, -10.0,
+       against="drawn_exposure", severity=SEVERE),
+    _s("committed_headroom_thin", LIQUIDITY,
+       "Little COMMITTED headroom left",
+       "The undrawn amount the bank is contractually obliged to lend is "
+       "under a tenth of the limit. Uncommitted headroom is exactly what "
+       "disappears when a borrower needs it, so this is the number that "
+       "matters rather than the undrawn total.",
+       "corporate_borrower_360", "undrawn_committed", RATIO_ABOVE, -10.0,
+       against="total_limit"),
+    _s("short_term_debt_heavy", LIQUIDITY,
+       "More than half of debt falls due within a year",
+       "Lenders have stopped lending long. This is the difference between a "
+       "leverage problem and a liquidity one.",
+       "corporate_borrower_360", "short_term_debt", RATIO_ABOVE, 50.0,
+       against="debt"),
+    _s("maturity_wall", LIQUIDITY,
+       "More than a fifth of drawn exposure matures within twelve months",
+       "A refinancing requirement is coming and the cash is not obviously "
+       "there to meet it.",
+       "corporate_borrower_360", "maturing_within_12m", RATIO_ABOVE, 20.0,
+       against="drawn_exposure"),
+    _s("near_maturity_uncovered", LIQUIDITY,
+       "Debt due within three months exceeds cash",
+       "What falls due this quarter is larger than the cash balance, so the "
+       "borrower must generate, refinance or draw to meet it.",
+       "corporate_borrower_360", "maturing_0_3m", RATIO_ABOVE, 100.0,
+       against="cash", severity=SEVERE),
     _s("utilisation_high", LIQUIDITY, "Drawn to 90% or more of its limit",
        "There is little room left on the facilities the borrower has.",
        "corporate_borrower_360", "drawn_exposure", RATIO_ABOVE, 90.0,
@@ -364,23 +494,21 @@ def in_family(family: str) -> list[Signal]:
 #: Conditions §20 names that this book carries no field for. Stated rather
 #: than silently absent: a watchlist missing a whole family because a column
 #: was never loaded is worse than one that says which family it is missing.
+#: What this deployment cannot watch for, and why. §7.
+#:
+#: This list used to have eight entries and every one of them was liquidity or
+#: external context. They were true, and they were the wrong answer: liquidity
+#: is where a corporate credit actually fails, so the data was built rather
+#: than the box redrawn. See docs/LIQUIDITY_AND_EXTERNAL_DATA.md.
+#:
+#: The mechanism stays. A deployment that does not install those domains
+#: reports the gap again, and `unavailable()` is still what an answer consults
+#: when a question reaches past what the book holds. An empty list here is a
+#: statement about THIS deployment, not a claim that nothing is ever missing.
 UNAVAILABLE: tuple[tuple[str, str], ...] = (
-    (FINANCIAL, "receivable days and inventory days — no working-capital "
-                "ageing is published"),
-    (FINANCIAL, "free cash flow — operating cash flow is published, capital "
-                "expenditure is not"),
-    (LEVERAGE, "the maturity schedule — refinancing pressure and maturity "
-               "concentration need dated debt, and debt is published as a "
-               "balance"),
-    (LIQUIDITY, "cash and undrawn committed lines as a liquidity buffer — "
-                "cash is published, committed availability is not"),
-    (BEHAVIOURAL, "returned payments and limit excesses — the payment file "
-                  "carries due and paid, not rejections"),
-    (COVENANT, "waivers and resets — the covenant file records a breach flag "
-               "and headroom, not the negotiation after one"),
-    (COLLATERAL, "insurance and document expiry"),
-    (RATING, "external ratings and outlooks — the book carries the bank's own "
-             "rating only"),
+    (COVENANT, "the covenant a waiver was granted against — the waiver file "
+               "records that one was granted and on what terms, not which of "
+               "the borrower's tests it released"),
 )
 
 

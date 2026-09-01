@@ -43,6 +43,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from backend import scenarios
 from backend.corporate import NOT_CLIENT_DATA, ORIGIN
 
 logger = logging.getLogger(__name__)
@@ -115,22 +116,31 @@ class Sector:
     margin: float
 
 
+#: The same mix as the core portfolio book, and for the same reasons: a Gulf
+#: corporate book without OIL & GAS or SHIPPING is not a Gulf corporate book,
+#: and the external-intelligence domain was already publishing shipping events
+#: against a sector no borrower belonged to. Financial Services carried 5%,
+#: which is small for a non-bank financial line — leasing, insurance,
+#: investment firms and exchange houses together — and small enough that a
+#: headline drawn from it would be describing 150 names.
 SECTORS: tuple[Sector, ...] = (
-    Sector("Contracting", 0.12, 1.55, 0.62, -0.55, 420.0, 0.09),
+    Sector("Contracting", 0.11, 1.55, 0.62, -0.55, 420.0, 0.09),
     Sector("Real Estate", 0.10, 1.30, 0.50, -0.25, 380.0, 0.28),
-    Sector("Petrochemicals", 0.08, 1.15, 0.38, 0.35, 1450.0, 0.22),
-    Sector("Wholesale & Retail Trade", 0.10, 0.95, 0.44, -0.10, 520.0, 0.07),
-    Sector("Manufacturing", 0.09, 1.00, 0.40, 0.05, 610.0, 0.14),
-    Sector("Transport & Logistics", 0.07, 0.90, 0.38, 0.00, 340.0, 0.16),
-    Sector("Hospitality & Tourism", 0.05, 1.35, 0.55, -0.35, 210.0, 0.19),
-    Sector("Healthcare", 0.06, 0.45, 0.28, 0.40, 290.0, 0.21),
-    Sector("Education", 0.04, 0.40, 0.26, 0.35, 160.0, 0.18),
+    Sector("Wholesale & Retail Trade", 0.09, 0.95, 0.44, -0.10, 520.0, 0.07),
+    Sector("Manufacturing", 0.08, 1.00, 0.40, 0.05, 610.0, 0.14),
+    Sector("Petrochemicals", 0.07, 1.15, 0.38, 0.35, 1450.0, 0.22),
+    Sector("Financial Services", 0.07, 0.85, 0.34, 0.45, 640.0, 0.29),
+    Sector("Oil & Gas", 0.06, 1.10, 0.42, 0.50, 1650.0, 0.27),
+    Sector("Transport & Logistics", 0.06, 0.90, 0.38, 0.00, 340.0, 0.16),
     Sector("Utilities", 0.05, 0.30, 0.20, 0.75, 980.0, 0.31),
-    Sector("Telecommunications", 0.04, 0.50, 0.24, 0.60, 1150.0, 0.34),
-    Sector("Mining & Metals", 0.05, 1.20, 0.48, 0.05, 720.0, 0.24),
-    Sector("Agriculture & Food", 0.05, 0.70, 0.36, 0.10, 300.0, 0.12),
-    Sector("Financial Services", 0.05, 0.85, 0.34, 0.45, 640.0, 0.29),
     Sector("Government-Related Entities", 0.05, 0.25, 0.16, 1.05, 1900.0, 0.26),
+    Sector("Healthcare", 0.05, 0.45, 0.28, 0.40, 290.0, 0.21),
+    Sector("Shipping", 0.04, 1.45, 0.58, -0.30, 380.0, 0.17),
+    Sector("Mining & Metals", 0.04, 1.20, 0.48, 0.05, 720.0, 0.24),
+    Sector("Agriculture & Food", 0.04, 0.70, 0.36, 0.10, 300.0, 0.12),
+    Sector("Hospitality & Tourism", 0.04, 1.35, 0.55, -0.35, 210.0, 0.19),
+    Sector("Telecommunications", 0.03, 0.50, 0.24, 0.60, 1150.0, 0.34),
+    Sector("Education", 0.02, 0.40, 0.26, 0.35, 160.0, 0.18),
 )
 
 #: A sub-sector per sector, so a cohort can be cut finer than the fifteen.
@@ -145,8 +155,12 @@ SUB_SECTORS: dict[str, tuple[str, ...]] = {
                                  "Building Materials", "Apparel"),
     "Manufacturing": ("Metal Fabrication", "Packaging", "Cement & Concrete",
                       "Automotive Components"),
-    "Transport & Logistics": ("Freight Forwarding", "Shipping & Ports",
+    "Transport & Logistics": ("Freight Forwarding", "Port Services",
                               "Warehousing", "Land Transport"),
+    "Shipping": ("Container Lines", "Tanker Operators", "Bulk Carriers",
+                 "Ship Agency & Chartering"),
+    "Oil & Gas": ("Upstream Services", "Drilling & Well Services",
+                  "Midstream & Pipelines", "Oilfield Equipment"),
     "Hospitality & Tourism": ("Hotels", "Catering & Events",
                               "Travel Services", "Leisure & Entertainment"),
     "Healthcare": ("Hospitals", "Polyclinics", "Pharmaceutical Distribution",
@@ -588,7 +602,14 @@ def simulate_quality(entities: pd.DataFrame, factor: np.ndarray,
         z[:, step] = (mean[:, step]
                       + PERSISTENCE * (z[:, step - 1] - mean[:, step - 1])
                       + rng.normal(0.0, vol))
-    return z
+    # The governed demonstration scenario, applied last and as a level: a
+    # disruption changes what a borrower is coping with, not the kind of
+    # borrower it is. Every downstream consequence - the PD, the grade, the
+    # arrears, the utilisation, the covenant headroom, the stage - comes out
+    # of the same machinery as before, so the transmission is traceable rather
+    # than painted onto an outcome column.
+    return z + scenarios.quality_overlay(
+        entities["sector"].to_numpy(), t)
 
 
 # --------------------------------------------------------------- the spine
@@ -885,7 +906,28 @@ def build_financials(entities: pd.DataFrame, z: np.ndarray,
         cfo = ebitda * np.clip(
             0.72 + 0.10 * quality + trait["cfo"]
             + rng.normal(0, 0.10 * drift, n), 0.05, 1.15)
-        capex = revenue * np.clip(0.045 + rng.normal(0, 0.015, n), 0.004, 0.16)
+        # Capex is cut when cash is short, which is what makes a falling capex
+        # line a warning rather than a sign of discipline.
+        capex = revenue * np.clip(
+            0.045 + 0.012 * quality + rng.normal(0, 0.015, n), 0.004, 0.16)
+
+        # Working-capital days. A weaker borrower collects later, holds stock
+        # longer and pays its suppliers later still — the last of the three
+        # stretches hardest, because a company short of cash pays its
+        # suppliers late before it tells its bank.
+        receivable_days = np.clip(
+            62 - 13 * quality + rng.normal(0, 16, n), 8, 240)
+        inventory_days = np.clip(
+            48 - 8 * quality + rng.normal(0, 20, n), 0, 220)
+        payable_days = np.clip(
+            52 - 19 * quality + rng.normal(0, 15, n), 8, 260)
+
+        # Short-term debt as a share of the whole. Lenders shorten tenor into
+        # weakness, so a weaker borrower carries more of its debt inside a
+        # year — which is the difference between a leverage problem and a
+        # liquidity one.
+        short_term_debt = debt * np.clip(
+            0.34 - 0.09 * quality + rng.normal(0, 0.11, n), 0.05, 0.92)
 
         # Publication lag: most file within five months, some drag past a year.
         lag_days = np.clip(
@@ -914,6 +956,22 @@ def build_financials(entities: pd.DataFrame, z: np.ndarray,
             "book_equity": _round(book_equity),
             "cash": _round(cash),
             "working_capital": _round(working_capital),
+            # The working-capital DETAIL, and the debt split by tenor. The
+            # Early Warning taxonomy carried these as "cannot watch for":
+            # receivable days stretching is the earliest liquidity signal a
+            # lender sees, capex being cut is the second, and short-term debt
+            # against cash is what makes a position urgent rather than merely
+            # weak. Derived from the same quality draw as everything above,
+            # so a borrower the book calls strong does not come back here
+            # collecting in two hundred days.
+            "capex": _round(capex),
+            "receivable_days": _round(receivable_days, 1),
+            "inventory_days": _round(inventory_days, 1),
+            "payable_days": _round(payable_days, 1),
+            "cash_conversion_cycle_days": _round(
+                receivable_days + inventory_days - payable_days, 1),
+            "short_term_debt": _round(short_term_debt),
+            "long_term_debt": _round(debt - short_term_debt),
             "debt": _round(debt),
             "net_debt": _round(net_debt),
             "leverage": _round(np.where(ebitda > 0, debt / ebitda, 99.0), 2),
@@ -1052,6 +1110,14 @@ def build_facilities(entities: pd.DataFrame, spine_df: pd.DataFrame,
         undrawn = np.maximum(published_limit - drawn, 0.0)
         # Credit conversion on the undrawn commitment, by product.
         ccf = np.where(revolving[idx], 0.40, 0.20)
+        # Most of a sanctioned limit is contractually committed; the
+        # uncommitted part is the exception, and it thins as quality falls.
+        # At 0.72 the arithmetic made "little committed headroom" true for
+        # half the book, which is a structural artefact rather than a signal.
+        committed_share = np.clip(
+            0.90 + 0.05 * quality + rng.normal(0, 0.07, len(idx)), 0.35, 1.0)
+        front = np.clip(
+            0.16 - 0.11 * quality + rng.normal(0, 0.05, len(idx)), 0.03, 0.72)
 
         frames.append(pd.DataFrame({
             "facility_id": facility_id_arr[idx],
@@ -1063,6 +1129,21 @@ def build_facilities(entities: pd.DataFrame, spine_df: pd.DataFrame,
             "limit_amount": published_limit,
             "drawn_exposure": drawn,
             "undrawn_commitment": undrawn,
+            # Only part of the headroom is contractually COMMITTED, and the
+            # uncommitted part is exactly what disappears when a borrower
+            # needs it. A limit that reads as available and is not is the
+            # difference between a comfortable liquidity position and a call
+            # from the treasurer.
+            "committed_limit": _round(published_limit * committed_share),
+            "undrawn_committed": _round(
+                np.maximum(published_limit * committed_share - drawn, 0.0)),
+            # What falls due inside a year. A borrower in trouble is one whose
+            # lenders have stopped lending long, so the ladder front-loads as
+            # quality falls.
+            "maturing_0_3m": _round(drawn * front * 0.34),
+            "maturing_3_6m": _round(drawn * front * 0.30),
+            "maturing_6_12m": _round(drawn * front * 0.36),
+            "maturing_within_12m": _round(drawn * front),
             "utilisation_pct": _round(
                 np.where(published_limit > 0,
                          drawn / np.where(published_limit > 0,
@@ -1097,7 +1178,15 @@ def build_facilities(entities: pd.DataFrame, spine_df: pd.DataFrame,
 SICR_PD_RATIO = 2.0
 #: And the absolute increase it must also clear, so a move from 0.03% to 0.07%
 #: does not trip a trigger on its own.
-SICR_PD_ABSOLUTE = 0.75
+#:
+#: At 0.75 this floor was too thin to do its job. Origination PD is anchored to
+#: the borrower's through-the-cycle quality, so by the trough a doubling is the
+#: NORMAL experience of the book rather than a signal about one name, and the
+#: relative test alone put a quarter of the book into Stage 2 - a population
+#: too large to review and therefore not a watchlist at all. Two hundred basis
+#: points is a movement a credit officer would want to look at, and leaves a
+#: Stage 2 population somebody could actually work through.
+SICR_PD_ABSOLUTE = 2.00
 #: A twelve-month PD this high is a significant increase on its own, whatever
 #: the borrower was graded at origination. Roughly the CCC band.
 SICR_ABSOLUTE_PD = 13.0
@@ -1256,7 +1345,14 @@ def build_delinquency(entities: pd.DataFrame, spine_df: pd.DataFrame,
     severity = np.clip(rng.gamma(1.6, 22.0, n) * np.exp(-0.30 * quality),
                        1, 640)
     dpd = np.where(late, severity, 0.0)
-    dpd = np.where(default_flag, np.maximum(dpd, 91), dpd).astype(int)
+    # A borrower in default is past due - but not all of them by the same
+    # number of days. Flooring every defaulted borrower at 91 put a spike of
+    # eighty-eight names on exactly 91 days, larger than any other value above
+    # ninety, which is a fact about the floor rather than about the book. The
+    # floor is drawn instead, from the day default is recognised outwards.
+    default_floor = 91.0 + rng.gamma(1.4, 55.0, n)
+    dpd = np.where(default_flag, np.maximum(dpd, default_floor), dpd)
+    dpd = np.clip(dpd, 0, 640).astype(int)
 
     exposure = (facilities.groupby(["borrower_id", "period"])["drawn_exposure"]
                 .sum())
@@ -1298,6 +1394,10 @@ def build_delinquency(entities: pd.DataFrame, spine_df: pd.DataFrame,
 
 
 # ---------------------------------------------------------------- covenants
+
+#: How often a covenant is re-set against the borrower's then-current level.
+#: Four quarters: the annual review.
+COVENANT_RESET_QUARTERS = 4
 
 COVENANTS: tuple[tuple[str, str, str, float], ...] = (
     # name, tested measure, direction, threshold
@@ -1350,13 +1450,34 @@ def build_covenants(entities: pd.DataFrame, spine_df: pd.DataFrame,
     #: two thirds of a unit peak to trough, which moves leverage by roughly a
     #: fifth, so a cushion narrower than that breaches most of the book at the
     #: trough on arithmetic alone.
-    cushion = rng.uniform(0.30, 0.75, (n_borrowers, len(COVENANTS)))
+    cushion = rng.uniform(0.40, 1.00, (n_borrowers, len(COVENANTS)))
 
-    # The anchor is each borrower's earliest spread statement - what the
-    # credit committee would have had in front of it.
+    # The anchor is the borrower's own level at the last ANNUAL REVIEW, not at
+    # its first-ever spread statement.
+    #
+    # Anchoring to the earliest statement froze every threshold at 2022 and
+    # then tested sixteen quarters of ordinary drift against it. Nothing reset
+    # and nothing was renewed, so the breaches accumulated: by the last quarter
+    # a THIRD of the book was in breach of something, which is not a portfolio
+    # a bank would still be lending to. A covenant that is renegotiated at each
+    # annual review is tested against the level it was renegotiated at, so the
+    # headroom on the screen measures RECENT deterioration - which is the
+    # question a credit officer is actually asking - rather than the distance
+    # travelled since origination.
+    ordered = latest.sort_values(["borrower_id", "quarter_index"])
+    measures = [measure for _, measure, _, _ in COVENANTS]
+    reset = (ordered.groupby("borrower_id")[measures]
+             .shift(COVENANT_RESET_QUARTERS))
+    # Before the first reset falls due there is only the origination statement.
     earliest = (financials.sort_values("fiscal_year")
                 .groupby("borrower_id", as_index=False).first())
-    anchor = earliest.set_index("borrower_id")
+    origination = earliest.set_index("borrower_id")
+    for measure in measures:
+        reset[measure] = reset[measure].fillna(
+            pd.Series(origination.loc[ordered["borrower_id"].to_numpy(),
+                                      measure].to_numpy(),
+                      index=ordered.index))
+    anchor = reset.reindex(latest.index)
 
     rows: list[pd.DataFrame] = []
     entity_index = latest["entity_index"].to_numpy()
@@ -1366,7 +1487,7 @@ def build_covenants(entities: pd.DataFrame, spine_df: pd.DataFrame,
             continue
         part = latest.loc[keep]
         observed = part[measure].to_numpy()
-        base = anchor.loc[part["borrower_id"].to_numpy(), measure].to_numpy()
+        base = anchor.loc[keep, measure].to_numpy()
         cush = cushion[part["entity_index"].to_numpy(), position]
 
         if direction == "MAXIMUM":
@@ -1375,9 +1496,15 @@ def build_covenants(entities: pd.DataFrame, spine_df: pd.DataFrame,
             if floor > 0:
                 threshold = np.minimum(threshold, floor * (1.0 + cush))
         else:
-            threshold = np.abs(base) * (1.0 - cush * 0.75)
+            # A MINIMUM covenant is set further from the borrower's level than
+            # a maximum one. Interest cover and debt service cover are ratios
+            # with an earnings number on top: they swing further in a year than
+            # leverage does, and a committee sizing a floor knows it. At the
+            # symmetric 0.75 the three cover tests carried a sixth of the book
+            # in breach between them.
+            threshold = np.abs(base) * (1.0 - cush * 0.95)
             if floor > 0:
-                threshold = np.maximum(threshold, floor * (1.0 - cush * 0.75))
+                threshold = np.maximum(threshold, floor * (1.0 - cush * 0.95))
 
         # Publish first, then decide. Headroom and the breach flag are both
         # computed from the ROUNDED figures that appear in the row, so the
@@ -1807,8 +1934,19 @@ def build_profitability(entities: pd.DataFrame, spine_df: pd.DataFrame,
     rwa = frame["ead"].to_numpy() * risk_weight
     capital = rwa * CAPITAL_RATIO
     profit = revenue - operating_cost - expected_loss
-    raroc = np.where(capital > 0, profit / np.maximum(capital, 1e-9) * 100,
-                     np.nan)
+    # Publish first, then divide. RAROC is computed from the ROUNDED profit and
+    # capital that appear on the row, so the three columns a reader adds up
+    # agree with each other. Dividing the unrounded figures and rounding the
+    # answer left the row internally inconsistent, and the smaller the capital
+    # the worse it got: a facility carrying 0.0173 of capital publishes a
+    # denominator with a relative error of three parts in a thousand, which is
+    # eight basis points on a RAROC of 31.87. A row nobody can re-derive from
+    # its own columns is a row nobody can defend.
+    published_profit = _round(profit, 4)
+    published_capital = _round(capital, 4)
+    raroc = np.where(published_capital > 0,
+                     published_profit / np.maximum(published_capital, 1e-9)
+                     * 100, np.nan)
 
     return pd.DataFrame({
         "borrower_id": frame["borrower_id"],
@@ -1825,8 +1963,8 @@ def build_profitability(entities: pd.DataFrame, spine_df: pd.DataFrame,
         "expected_loss": _round(expected_loss, 4),
         "risk_weighted_assets": _round(rwa),
         "risk_weight_applied": _round(risk_weight, 3),
-        "regulatory_capital": _round(capital, 4),
-        "net_profit": _round(profit, 4),
+        "regulatory_capital": published_capital,
+        "net_profit": published_profit,
         "raroc_pct": _round(raroc, 2),
         "hurdle_rate_pct": HURDLE_RATE_PCT,
         "above_hurdle": raroc >= HURDLE_RATE_PCT,

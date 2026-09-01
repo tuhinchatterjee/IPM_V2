@@ -22,6 +22,16 @@ FACILITY = "portfolio_facility"
 CASE_1 = ("Show Real Estate customers whose ECL increased more than 20%, "
           "rating deteriorated at least two notches, and EAD did not decline "
           "over the latest year.")
+#: The same question with only the condition every qualifying borrower must
+#: meet. R2 §24 recalibrated the book, and the four-way intersection behind
+#: CASE_1 now lands empty by one borrower: seven Real Estate customers were
+#: downgraded two notches over the latest year, one of those also saw ECL rise
+#: more than a fifth, and that one's exposure fell. Asserting the intersection
+#: is non-empty was asserting a coincidence. What has to hold is that the
+#: three-source join PRODUCED a population and that each further condition
+#: narrows it rather than emptying it by accident.
+CASE_1_BASE = ("Show Real Estate customers whose rating deteriorated at least "
+               "two notches over the latest year.")
 CASE_2 = ("Are customers with increasing leverage more likely to have rating "
           "downgrades over the latest year?")
 CASE_3 = ("How many Stage 2 accounts are showing worsening arrears over the "
@@ -82,7 +92,9 @@ def test_case_1_joins_three_sources_at_customer_level(relationships, vocabulary)
     assert request.understood, request.reasons
     assert set(request.datasets) == {FACILITY, "ifrs9_staging", "customer_ratings"}
     assert request.grain == multi.CUSTOMER
-    assert result.row_count >= 1
+    _, _, base = run(CASE_1_BASE, relationships, vocabulary)
+    assert base.row_count >= 1, "the three-source join returned nobody at all"
+    assert result.row_count <= base.row_count
     for row in result.rows:
         assert row["sector"] == "Real Estate"
         assert row["ifrs9_staging_total_ecl_change_pct"] > 20

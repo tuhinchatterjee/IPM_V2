@@ -441,14 +441,20 @@ def build_appetite(facility: pd.DataFrame) -> pd.DataFrame:
     choice and are stated as one — round numbers a committee would set, not a
     figure reverse-engineered from the answer.
     """
+    # Keyed on the sector names the book actually uses. Three of these keys
+    # used to name sectors no borrower belonged to - "Construction &
+    # Contracting", "Energy & Utilities", "Professional Services" - which meant
+    # most of the book silently fell through to the 10% default and the limits
+    # a committee had supposedly set were not the limits being tested.
     limits = {
-        "Real Estate": 18.0, "Construction & Contracting": 12.0,
+        "Real Estate": 18.0, "Contracting": 14.0,
         "Wholesale & Retail Trade": 14.0, "Manufacturing": 15.0,
         "Transport & Logistics": 8.0, "Healthcare": 8.0, "Education": 5.0,
-        "Hospitality & Tourism": 6.0, "Energy & Utilities": 20.0,
-        "Petrochemicals": 20.0, "Telecommunications": 10.0,
+        "Hospitality & Tourism": 6.0, "Utilities": 12.0,
+        "Petrochemicals": 12.0, "Oil & Gas": 12.0, "Shipping": 7.0,
+        "Telecommunications": 10.0,
         "Financial Services": 12.0, "Agriculture & Food": 7.0,
-        "Professional Services": 6.0, "Public Sector": 25.0,
+        "Government-Related Entities": 20.0,
         "Mining & Metals": 8.0,
     }
     rows = []
@@ -603,14 +609,15 @@ def build_profitability(facility: pd.DataFrame) -> pd.DataFrame:
 # ------------------------------------------------------------------- climate
 
 TRANSITION_BANDS = {
-    "Petrochemicals": "High", "Energy & Utilities": "High",
-    "Mining & Metals": "High", "Transport & Logistics": "Medium-High",
-    "Manufacturing": "Medium-High", "Construction & Contracting": "Medium",
+    "Oil & Gas": "High", "Petrochemicals": "High", "Utilities": "High",
+    "Mining & Metals": "High", "Shipping": "Medium-High",
+    "Transport & Logistics": "Medium-High",
+    "Manufacturing": "Medium-High", "Contracting": "Medium",
     "Real Estate": "Medium", "Agriculture & Food": "Medium",
     "Wholesale & Retail Trade": "Medium-Low", "Hospitality & Tourism": "Medium-Low",
-    "Healthcare": "Low", "Education": "Low", "Professional Services": "Low",
+    "Healthcare": "Low", "Education": "Low",
     "Telecommunications": "Low", "Financial Services": "Low",
-    "Public Sector": "Low",
+    "Government-Related Entities": "Low",
 }
 
 INTENSITY = {"High": 420.0, "Medium-High": 180.0, "Medium": 90.0,

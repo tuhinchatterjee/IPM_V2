@@ -34,6 +34,19 @@ WORKED_EXAMPLE = (
     "latest year."
 )
 
+#: The same question with only the condition every qualifying borrower must
+#: meet. R2 §24 recalibrated the book and the worked example's four-way
+#: intersection now lands empty by a single borrower — seven Real Estate
+#: customers were downgraded two notches over the latest year, one of those
+#: also saw ECL rise by more than a fifth, and that one's exposure fell.
+#: Whether the intersection is occupied is a coincidence about the data;
+#: whether the composed analysis RUNS and finds a population to filter is the
+#: thing this test is for.
+WORKED_BASE = (
+    "Show Real Estate customers whose rating deteriorated at least two "
+    "notches over the latest year."
+)
+
 
 @pytest.fixture(scope="module", autouse=True)
 def require_data():
@@ -277,9 +290,18 @@ def test_ask_answers_the_worked_example_end_to_end():
 
     step = body["steps"][0]
     assert step["certification"] == ExecutionClass.DYNAMIC
-    assert step["result"]["rows"]
     assert step["result"]["plan"]["operations"]
     assert step["result"]["query"]["sql"]
+
+    # The composed analysis found a population to filter. Asserted on the
+    # widest form of the same question, because the four-way intersection
+    # above is occupied or not by coincidence and this test is about the
+    # pipeline.
+    base = run_investigation(WORKED_BASE, persist=False).to_dict()
+    assert base["status"] == "succeeded"
+    assert base["steps"][0]["result"]["rows"]
+    assert (len(step["result"]["rows"])
+            <= len(base["steps"][0]["result"]["rows"]))
 
     # The answer says it was composed, every time. Somebody reading only the
     # headline must not come away thinking this was a reviewed calculation.

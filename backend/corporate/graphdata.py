@@ -45,6 +45,7 @@ foresight nobody had.
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 
 import numpy as np
@@ -597,6 +598,15 @@ def build_people_edges(entities: pd.DataFrame, nodes: pd.DataFrame,
     return frame
 
 
+#: The smallest stake a repaired register may leave a shareholder holding.
+#: A holder squeezed to nothing would have to be dropped from the register
+#: entirely, and a named shareholder disappearing is a worse answer than a
+#: token stake.
+MINIMUM_STAKE = 0.0001
+#: Float dust below this is not over-claiming.
+_REGISTER_TOLERANCE = 1e-9
+
+
 def _reconcile_registers(own: pd.DataFrame) -> pd.DataFrame:
     """Make each shareholder register sum to at most 100%.
 
@@ -606,9 +616,11 @@ def _reconcile_registers(own: pd.DataFrame) -> pd.DataFrame:
     the spectral radius bounds CONVERGENCE, not the column totals, so the
     solve returned a perfectly well-conditioned effective stake above 100%.
 
-    The excess is taken off the LARGEST holder, which is the parent - a
+    The excess is taken off the LARGEST holder first, which is the parent - a
     minority stake asserted by a named sibling is the specific fact, and the
-    parent's balance is the residual that should absorb it.
+    parent's balance is the residual that should absorb it. When the parent
+    cannot absorb all of it the repair carries on down the register, largest
+    remaining holder next, until it closes.
 
     Rows flagged `deliberate` are exempt. Those are the two over-claimed
     registers generated on purpose so the refusal path has something real to
@@ -638,9 +650,25 @@ def _reconcile_registers(own: pd.DataFrame) -> pd.DataFrame:
             continue
         rows = own.index[own["to"] == target]
         excess = float(own.loc[rows, "ownership"].sum()) - 1.0
-        largest = own.loc[rows, "ownership"].idxmax()
-        own.loc[largest, "ownership"] = round(
-            max(float(own.loc[largest, "ownership"]) - excess, 0.0001), 6)
+        # Taking the whole excess off the largest holder and flooring the
+        # result at a token stake was the earlier repair, and it left the
+        # register open whenever the excess was bigger than that holder: the
+        # floor quietly absorbed what the shareholder could not, and one
+        # borrower went out claiming 196% of itself. Walk down the register
+        # instead, largest first, until there is nothing left to place.
+        ordered = own.loc[rows, "ownership"].sort_values(ascending=False)
+        for row in ordered.index:
+            if excess <= _REGISTER_TOLERANCE:
+                break
+            held = float(own.loc[row, "ownership"])
+            take = min(held - MINIMUM_STAKE, excess)
+            if take <= 0.0:
+                continue
+            # Floored, never rounded: rounding a repaired stake UP puts the
+            # dust back into a register that was just closed, and a register
+            # summing to 100.0003% fails the same check as one summing to 196%.
+            own.loc[row, "ownership"] = math.floor((held - take) * 1e6) / 1e6
+            excess -= take
     return own.drop(columns=["deliberate"])
 
 
@@ -677,18 +705,22 @@ def build_supply_chain(entities: pd.DataFrame,
         "Manufacturing": ("Mining & Metals", "Petrochemicals",
                           "Transport & Logistics", "Utilities"),
         "Wholesale & Retail Trade": ("Manufacturing", "Agriculture & Food",
-                                     "Transport & Logistics"),
+                                     "Shipping", "Transport & Logistics"),
         "Hospitality & Tourism": ("Agriculture & Food",
                                   "Wholesale & Retail Trade", "Utilities"),
         "Healthcare": ("Wholesale & Retail Trade", "Utilities"),
-        "Petrochemicals": ("Utilities", "Transport & Logistics"),
+        "Petrochemicals": ("Oil & Gas", "Utilities", "Shipping",
+                           "Transport & Logistics"),
+        "Shipping": ("Oil & Gas", "Utilities", "Manufacturing"),
+        "Oil & Gas": ("Manufacturing", "Contracting", "Shipping",
+                      "Transport & Logistics"),
         "Agriculture & Food": ("Utilities", "Transport & Logistics",
                                "Manufacturing"),
         "Telecommunications": ("Utilities", "Manufacturing"),
         "Education": ("Utilities", "Wholesale & Retail Trade"),
         "Mining & Metals": ("Utilities", "Transport & Logistics"),
         "Utilities": ("Manufacturing", "Mining & Metals"),
-        "Transport & Logistics": ("Manufacturing", "Utilities"),
+        "Transport & Logistics": ("Manufacturing", "Utilities", "Shipping"),
         "Financial Services": ("Telecommunications",),
         "Government-Related Entities": ("Contracting", "Utilities",
                                         "Manufacturing"),

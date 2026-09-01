@@ -410,3 +410,82 @@ class TestAgainstTheRealUniverse:
         early = gm.build_ownership_graph(edges, "Q4 2023")
         late = gm.build_ownership_graph(edges, "Q2 2026")
         assert early.size < late.size
+
+
+class TestTheRegisterRepair:
+    """`_reconcile_registers` must actually close the register.
+
+    The earlier repair took the whole excess off the single largest holder and
+    floored the result at a token stake. When the excess was BIGGER than that
+    holder — a sibling cross-holding and a reciprocal stake landing on a child
+    already almost wholly owned — the floor silently absorbed the remainder
+    and the register went out still over-claiming. One borrower shipped
+    claiming 196% of itself, and the graph tests that catch it only fire when
+    the generator's random draw happens to produce the case, which is not a
+    test, it is a coincidence. These build the case by hand.
+    """
+
+    @staticmethod
+    def register(rows):
+        import pandas as pd
+        return pd.DataFrame(
+            [{"from": owner, "to": owned, "ownership": pct,
+              "voting_bias": 0.0} for owner, owned, pct in rows])
+
+    def totals(self, repaired):
+        return repaired.groupby("to")["ownership"].sum()
+
+    def test_an_excess_larger_than_the_largest_holder_still_closes(self):
+        """The case that shipped: 0.95 + 0.60 + 0.50 = 205%."""
+        repaired = graphdata._reconcile_registers(self.register([
+            ("PARENT", "CHILD", 0.95),
+            ("SIBLING", "CHILD", 0.60),
+            ("COUSIN", "CHILD", 0.50),
+        ]))
+        assert self.totals(repaired)["CHILD"] <= 1.0
+
+    def test_the_largest_holder_gives_up_the_most(self):
+        """The parent's balance is the residual, so it absorbs first."""
+        repaired = graphdata._reconcile_registers(self.register([
+            ("PARENT", "CHILD", 0.95),
+            ("SIBLING", "CHILD", 0.60),
+            ("COUSIN", "CHILD", 0.50),
+        ])).set_index("from")["ownership"]
+        assert repaired["PARENT"] < repaired["SIBLING"]
+        assert repaired["COUSIN"] == 0.50
+
+    def test_no_named_shareholder_is_repaired_out_of_existence(self):
+        repaired = graphdata._reconcile_registers(self.register([
+            ("A", "CHILD", 0.9), ("B", "CHILD", 0.9), ("C", "CHILD", 0.9),
+        ]))
+        assert (repaired["ownership"] > 0).all()
+        assert len(repaired) == 3
+
+    def test_repair_never_rounds_a_closed_register_back_open(self):
+        """A third of a share three ways: the dust must fall inward."""
+        repaired = graphdata._reconcile_registers(self.register([
+            ("A", "CHILD", 0.777777), ("B", "CHILD", 0.333333),
+            ("C", "CHILD", 0.222222),
+        ]))
+        assert self.totals(repaired)["CHILD"] <= 1.0
+
+    def test_a_register_that_already_closes_is_left_alone(self):
+        before = self.register([("A", "CHILD", 0.6), ("B", "CHILD", 0.4)])
+        after = graphdata._reconcile_registers(before.copy())
+        assert list(after["ownership"]) == [0.6, 0.4]
+
+    def test_a_deliberate_over_claim_survives_the_repair(self):
+        """The refusal path needs something real to refuse."""
+        frame = self.register([("A", "TOP", 1.0), ("TOP", "A", 1.0)])
+        frame["deliberate"] = True
+        repaired = graphdata._reconcile_registers(frame)
+        assert list(repaired["ownership"]) == [1.0, 1.0]
+
+    def test_each_register_is_repaired_independently(self):
+        repaired = graphdata._reconcile_registers(self.register([
+            ("P", "ONE", 0.95), ("S", "ONE", 0.60),
+            ("P", "TWO", 0.30), ("S", "TWO", 0.20),
+        ]))
+        totals = self.totals(repaired)
+        assert totals["ONE"] <= 1.0
+        assert totals["TWO"] == pytest.approx(0.50)

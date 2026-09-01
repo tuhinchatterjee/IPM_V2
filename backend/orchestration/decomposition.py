@@ -321,12 +321,22 @@ class Decomposition:
                 f"{self.opening_period} and {self.closing_period}{led}.")
 
     def to_dict(self) -> dict[str, Any]:
+        # Publish first, then subtract. The movement is the difference of the
+        # totals AS PUBLISHED, not the published difference of the unrounded
+        # ones: rounding each of the three independently left a row whose two
+        # totals did not subtract to its own movement — 12,411.65 less
+        # 5,313.07 shown beside a movement of -7,098.57 — and a reader who
+        # checks the arithmetic on the screen is right to stop trusting it.
+        # `gap` and `reconciles` stay on the unrounded basis, because they are
+        # a claim about the METHOD rather than about the presentation.
+        opening = round(self.opening_total, 4)
+        closing = round(self.closing_total, 4)
         return {
             "opening_period": self.opening_period,
             "closing_period": self.closing_period,
-            "opening_total": round(self.opening_total, 4),
-            "closing_total": round(self.closing_total, 4),
-            "movement": round(self.movement, 4),
+            "opening_total": opening,
+            "closing_total": closing,
+            "movement": round(closing - opening, 4),
             "attributed": round(self.attributed, 4),
             "gap": round(self.gap, 10),
             "reconciles": self.reconciles,

@@ -360,7 +360,13 @@ def check(text: str, package: Package, *, allow_causal: bool = False) -> Groundi
         # A name the result carries in a longer form. "Ghat Holding" is the
         # borrower "Ghat Holding 1771", and reporting it as unknown would
         # discard a correct sentence about a row on the screen.
-        if any(known.startswith(lowered) or lowered.startswith(known)
+        #
+        # The test is a contiguous run of WORDS, not a prefix. A prefix test
+        # alone missed the middle of a name, and an ampersand is not a word:
+        # the sector "Wholesale & Retail Trade" reaches this check as "Retail
+        # Trade", which neither starts nor ends the value it came from. The
+        # sentence naming it was correct and was being discarded.
+        if any(_inside(lowered, known) or lowered.startswith(known)
                for known in package.entities):
             continue
         # A name only counts as unknown when the package HAS names to check it
@@ -379,6 +385,22 @@ def check(text: str, package: Package, *, allow_causal: bool = False) -> Groundi
                         or grounding.wrong_periods
                         or grounding.causal_claims)
     return grounding
+
+
+def _inside(candidate: str, known: str) -> bool:
+    """Whether `candidate` is a contiguous run of words inside `known`.
+
+    Word-wise rather than character-wise, so "Trade" does not match "Trading"
+    and "Real Estate" does not match "Unreal Estates".
+    """
+    if candidate == known:
+        return True
+    words = candidate.split()
+    inside = known.split()
+    if not words or len(words) > len(inside):
+        return False
+    return any(inside[start:start + len(words)] == words
+               for start in range(len(inside) - len(words) + 1))
 
 
 def _looks_like_a_name(phrase: str) -> bool:

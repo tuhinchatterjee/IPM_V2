@@ -155,6 +155,12 @@ def _join_exposure(frame: pd.DataFrame, universe: Universe) -> pd.DataFrame:
         total_outstanding=("drawn_exposure", "sum"),
         drawn_exposure=("drawn_exposure", "sum"),
         undrawn_commitment=("undrawn_commitment", "sum"),
+        committed_limit=("committed_limit", "sum"),
+        undrawn_committed=("undrawn_committed", "sum"),
+        maturing_0_3m=("maturing_0_3m", "sum"),
+        maturing_3_6m=("maturing_3_6m", "sum"),
+        maturing_6_12m=("maturing_6_12m", "sum"),
+        maturing_within_12m=("maturing_within_12m", "sum"),
         ifrs9_ead=("ifrs9_ead", "sum"),
         funded_exposure=("funded_exposure", "sum"),
         unfunded_exposure=("unfunded_exposure", "sum"),
@@ -174,7 +180,10 @@ def _join_exposure(frame: pd.DataFrame, universe: Universe) -> pd.DataFrame:
 
     frame = frame.merge(grouped, on=["borrower_id", "period"], how="left")
     for column in ("total_limit", "total_outstanding", "drawn_exposure",
-                   "undrawn_commitment", "ifrs9_ead", "funded_exposure",
+                   "undrawn_commitment", "committed_limit",
+                   "undrawn_committed", "maturing_0_3m", "maturing_3_6m",
+                   "maturing_6_12m", "maturing_within_12m",
+                   "ifrs9_ead", "funded_exposure",
                    "unfunded_exposure", "trade_finance_exposure",
                    "guarantee_exposure", "secured_exposure",
                    "unsecured_exposure", "largest_facility"):

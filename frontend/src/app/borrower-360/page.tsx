@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import * as React from "react";
 
 import { PageHeader } from "@/components/layout/page-header";
@@ -16,6 +17,7 @@ import type {
   Borrower360Workspace,
   Borrower360Similar,
 } from "@/lib/api";
+import { borrowerFrom, periodFrom } from "@/lib/borrower-link";
 import { byUnit, humanise } from "@/lib/format";
 import { useAsync } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
@@ -1280,11 +1282,34 @@ function PortfolioTable({
 }
 
 
+/**
+ * R2 §4: a link may name the borrower and the quarter.
+ *
+ * Early Warning sends the officer here with both facts already established.
+ * Arriving on the landing table and asking them to type the name they just
+ * clicked on — and then showing it at a different quarter from the one the
+ * signal fired in — is how the acceptance run lost its thread. `useSearchParams`
+ * needs a Suspense boundary, which is what this wrapper is for.
+ */
 export default function Borrower360Page() {
+  return (
+    <React.Suspense fallback={<Skeleton className="h-64 w-full" />}>
+      <Borrower360Screen />
+    </React.Suspense>
+  );
+}
+
+function Borrower360Screen() {
+  const query = useSearchParams();
+  //: Read ONCE, as initial state. After this the reader owns both, and a
+  //: re-render that reset them to the link would undo whatever they did next.
   const [meta, setMeta] = React.useState<Borrower360Meta | null>(null);
   const [metaError, setMetaError] = React.useState("");
-  const [period, setPeriod] = React.useState("");
-  const [borrowerId, setBorrowerId] = React.useState("");
+  const [period, setPeriod] = React.useState(() => periodFrom(query));
+  const [borrowerId, setBorrowerId] = React.useState(() => borrowerFrom(query));
+  //: Whether the link named a quarter. Fixed for this mount, and separate from
+  //: `period` because the reader may legitimately clear the period later.
+  const [arrivedWithPeriod] = React.useState(() => Boolean(periodFrom(query)));
   const [row, setRow] = React.useState<Borrower360Row | null>(null);
   const [groups, setGroups] = React.useState<Borrower360Groups | null>(null);
   const [similar, setSimilar] = React.useState<Borrower360Similar | null>(null);
@@ -1302,12 +1327,14 @@ export default function Borrower360Page() {
       .borrower360Meta()
       .then((found) => {
         setMeta(found);
-        setPeriod(found.latest_period ?? "");
+        // A period that arrived in the link is the one the officer was
+        // reading. The latest quarter is only the default for a plain visit.
+        if (!arrivedWithPeriod) setPeriod(found.latest_period ?? "");
       })
       .catch((caught) =>
         setMetaError(caught instanceof Error ? caught.message : String(caught)),
       );
-  }, []);
+  }, [arrivedWithPeriod]);
 
   // The working set is the reader's own and does not depend on which
   // borrower is open, so it loads once and reloads only when they change it.

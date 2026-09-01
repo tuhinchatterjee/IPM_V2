@@ -233,11 +233,34 @@ class TestThePortfolioView:
         assert len(portfolio["borrowers"]) <= 50
         assert portfolio["with_signals"] >= len(portfolio["borrowers"])
 
-    def test_the_ranking_is_by_breadth_then_severity(self, portfolio):
-        keys = [(-b["breadth"], -tx.SEVERITY_RANK[b["severity"]],
+    def test_the_ranking_leads_on_what_to_do_then_on_how_much(self,
+                                                              portfolio):
+        """R2 §25 reversed this deliberately.
+
+        The ordering used to lead on BREADTH — how many families of rules
+        fired — which put a small facility with five stale-ish measures above
+        a material exposure in covenant breach and ninety days past due. An
+        officer working down that list works down it in the wrong order, and
+        the list is the product.
+
+        Priority first, then the exposure at stake, then the old chain, and
+        the borrower id last so the ordering is total (§11).
+        """
+        from backend.early_warning import priority as pr
+
+        keys = [(-pr.PRIORITY_RANK[b["priority"]], -(b["exposure"] or 0.0),
+                 -b["breadth"], -tx.SEVERITY_RANK[b["severity"]],
                  -b["persistence"], -b["worsening"], b["borrower_id"])
                 for b in portfolio["borrowers"]]
         assert keys == sorted(keys)
+
+    def test_nothing_routine_outranks_something_that_needs_acting_on(
+            self, portfolio):
+        from backend.early_warning import priority as pr
+
+        levels = [pr.PRIORITY_RANK[b["priority"]]
+                  for b in portfolio["borrowers"]]
+        assert levels == sorted(levels, reverse=True)
 
     def test_the_same_call_twice_returns_the_same_page(self):
         """§11. A ranking screen that shows a different tenth name on a
