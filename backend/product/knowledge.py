@@ -119,8 +119,8 @@ LAYERS: tuple[Layer, ...] = (
         does=(
             "Plans a multi-step investigation and executes it as a bounded "
             "task graph rather than an open-ended loop.",
-            "Selects governed tools from a registry — never arbitrary SQL, "
-            "code, network or filesystem access.",
+            "Works only through governed tools — it cannot write its own "
+            "query, reach the network or open a file.",
             "Retrieves evidence across domains: portfolio, IFRS 9, ratings, "
             "covenants, collateral, liquidity and the connected group.",
             "Continues investigating when the evidence so far is not enough, "
@@ -569,7 +569,7 @@ CAPABILITIES: tuple[Capability, ...] = (
         name="AI intelligence and learning governance",
         summary="The AI itself, under control.",
         does="Routes each question to an appropriate model tier, records what "
-             "each answer cost in calls and tokens, captures feedback, "
+             "each answer cost to produce, captures feedback, "
              "governs what the system is allowed to learn from it, and "
              "publishes learning as a versioned release rather than as "
              "silent drift.",
@@ -637,6 +637,196 @@ VALUE_FLOW: tuple[str, ...] = (
 
 CONTINUUM: tuple[str, ...] = (
     "Portfolio", "Sector", "Borrower", "Facility", "Evidence", "Action")
+
+
+# ================================================== how the product introduces
+#
+# The registry above is what CreditProbe KNOWS. What follows is how it SPEAKS —
+# the material an executive introduction is composed from, written for a Chief
+# Risk Officer rather than for a release note.
+#
+# It is here rather than in the composer for the same reason the capability
+# narrative is: the words a product uses about itself are owned, reviewed and
+# versioned, not generated. The composer decides which of them a given question
+# needs; it never writes new ones.
+
+#: First person, used where the user is addressing CreditProbe itself. Sparing:
+#: an introduction opens in first person and then talks about the work.
+IDENTITY = "I'm CreditProbe AI — your AI Risk Officer for the credit book."
+
+MISSION = ("Help you see risk earlier, understand it faster, and act with more "
+           "confidence.")
+
+#: The questions an officer can open with. Real portfolio questions, phrased the
+#: way a credit officer would phrase them rather than the way a query builder
+#: would.
+ASK_EXAMPLES: tuple[str, ...] = (
+    "Where is risk building across the bank?",
+    "Which exposures have deteriorated this quarter?",
+    "What is driving Stage 2 and ECL growth?",
+    "Which borrowers are weakening but are not yet on the watchlist?",
+    "Where are multiple warning signals appearing together?",
+)
+
+#: Forward questions. Hedged deliberately — stress testing is configured
+#: scenario by scenario, and an answer that implies every scenario already
+#: exists is an overclaim (section 18).
+SCENARIO_EXAMPLES: tuple[str, ...] = (
+    "What happens if PDs rise?",
+    "What if these borrowers are downgraded by two notches?",
+    "What happens to ECL if credit quality deteriorates?",
+    "Which portfolios become most vulnerable under this scenario?",
+)
+
+SCENARIO_HEDGE = "as scenarios are configured in Stress Testing"
+
+#: The capabilities named in the opening "I connect the risk picture across..."
+#: sentence, in reading order, BY KEY. Built from the registry so the sentence
+#: cannot name something this installation does not have — a reconciliation
+#: test asserts every key resolves.
+CONNECTED_PICTURE: tuple[str, ...] = (
+    "portfolio_intelligence", "borrower360", "ratings", "ifrs9",
+    "early_warning", "covenants", "collateral", "liquidity",
+    "group_risk", "stress_testing", "external_intelligence")
+
+#: Short reading names, for prose that lists many capabilities in one sentence.
+#: "Corporate portfolio intelligence, Borrower 360, Corporate ratings and
+#: migration, IFRS 9 and ECL intelligence..." is a registry talking; "portfolios,
+#: borrowers, ratings, IFRS 9..." is a person talking.
+SHORT_NAMES: dict[str, str] = {
+    "portfolio_intelligence": "portfolios",
+    "borrower360": "borrowers",
+    "ratings": "ratings",
+    "ifrs9": "IFRS 9",
+    "early_warning": "Early Warning",
+    "covenants": "covenants",
+    "collateral": "collateral",
+    "liquidity": "liquidity",
+    "group_risk": "connected exposures",
+    "stress_testing": "stress testing",
+    "external_intelligence": "external intelligence",
+    "scorecard_validation": "scorecard validation",
+    "data_builder": "the governed data layer",
+    "analysis_studio": "the method library",
+    "workflow": "Risk Cases",
+    "trace": "Trace",
+    "ask": "Ask CreditProbe",
+    "ai_governance": "AI governance",
+}
+
+#: What a senior risk professional gets, as OUTCOMES rather than as modules
+#: (section 8). Each is a lead line and the sentence that earns it.
+OUTCOMES: tuple[tuple[str, str], ...] = (
+    ("See around corners",
+     "Emerging deterioration surfaces while there is still something to do "
+     "about it, rather than arriving as a committee surprise."),
+    ("Challenge faster",
+     "Somebody says risk has increased. Ask where, why, by how much, and "
+     "which names are driving it — and have the answer in the same "
+     "conversation."),
+    ("Ask what if",
+     "Go past what has already happened. Where scenarios are configured, ask "
+     "what deterioration would do to the book before it does it."),
+    ("Investigate on demand",
+     "Move from the bank to a portfolio, a segment, a borrower, a facility "
+     "and its evidence without commissioning another analysis."),
+    ("Connect the dots",
+     "A downgrade is one signal. Weakening liquidity, covenant pressure, "
+     "collateral deterioration and external stress arriving together tell a "
+     "different story — and they normally sit in different systems."),
+    ("Walk into committee prepared",
+     "The concentrations, unusual movements and individual exposures that "
+     "deserve management attention, found before the meeting rather than "
+     "during it."),
+    ("Keep the analysis defensible",
+     "Every figure is computed from governed data with traceable evidence "
+     "behind it, so a challenged number can be defended line by line."),
+)
+
+#: The honest limit, stated in the product's own voice. This sentence is the
+#: one that separates CreditProbe from a chatbot, and it belongs in any answer
+#: that describes what the AI does.
+GROUNDING = ("I can reason — but I don't invent the numbers. Every figure "
+             "comes from governed data and deterministic analytics, with "
+             "traceable evidence behind it.")
+
+POSITIONING = ("Think of me less as a chatbot and more as an always-available "
+               "intelligence layer across your credit book.")
+
+#: The shape of the work, as a flow an officer recognises.
+ARC: tuple[str, ...] = ("See earlier", "Investigate deeper", "Ask what if",
+                        "Understand why", "Act sooner")
+
+#: The shift the product is for, as the pair of questions it moves a risk
+#: conversation between.
+SHIFT_FROM = "What happened?"
+SHIFT_TO = "What could happen next — and what should we do about it?"
+
+#: How a credit team actually works with it, in the order they would (section
+#: 16, question 5). Steps, not features.
+TEAM_WORKFLOW: tuple[tuple[str, str], ...] = (
+    ("Start the week with what moved",
+     "Open with the shape of the book and what changed since the last "
+     "reporting period, rather than with a pack somebody built last month."),
+    ("Take the names that need attention",
+     "Early Warning promotes deterioration into Risk Cases with an owner, so "
+     "the queue is a work list rather than a report."),
+    ("Investigate one borrower properly",
+     "Borrower 360 assembles exposure, ratings, IFRS 9 position, covenants, "
+     "collateral, liquidity and the connected group on one screen."),
+    ("Test the reading",
+     "Ask the follow-up in the same thread. The population and period a "
+     "question settled carry forward, so the second question is a "
+     "continuation rather than a new query."),
+    ("Prepare the committee view",
+     "Concentrations, movements and the borrowers behind them, with the "
+     "evidence attached."),
+    ("Close the loop",
+     "The case carries the action, the owner and the decision, and the Trace "
+     "carries the arithmetic behind it."),
+)
+
+#: Why this is not a dashboard (section 16, question 6). Four claims, each of
+#: which the product can be held to.
+DASHBOARD_CONTRAST: tuple[tuple[str, str], ...] = (
+    ("A dashboard answers the questions it was built for",
+     "CreditProbe answers the one you have now. The investigation is composed "
+     "for the question rather than selected from a menu of prepared views."),
+    ("A dashboard shows; it does not reason",
+     "CreditProbe reads the question, plans the investigation, gathers "
+     "evidence across domains and tells you what it makes of the result — "
+     "labelled as interpretation, separately from the figures."),
+    ("A dashboard's definitions live in its queries",
+     "Here, which dataset is authoritative, how two tables join and under "
+     "what temporal rule are declared, owned and versioned."),
+    ("A dashboard cannot show its working",
+     "Every answer carries the datasets, joins, filters and arithmetic behind "
+     "it, and the fingerprint that reproduces it."),
+)
+
+#: Section 12: process flows a product answer may draw, as text.
+INVESTIGATION_FLOW: tuple[str, ...] = (
+    "BANK", "PORTFOLIO", "SECTOR", "BORROWER", "FACILITY", "EVIDENCE",
+    "ACTION")
+
+ANSWER_FLOW: tuple[str, ...] = (
+    "ASK", "AI INVESTIGATES", "GOVERNED DATA", "DETERMINISTIC ANALYTICS",
+    "EVIDENCE", "ANSWER + TRACE")
+
+#: Section 9: the sentence the AI answer ends on.
+CONTROL_LINE = "AI provides flexibility. CreditProbe provides control."
+
+
+def short_name(key: str) -> str:
+    """The reading name for a capability, for prose that lists several."""
+    found = capability(key)
+    return SHORT_NAMES.get(key) or (found.name if found else key)
+
+
+def connected_picture() -> tuple[str, ...]:
+    """The capability names the opening sentence connects, from the registry."""
+    return tuple(short_name(key) for key in CONNECTED_PICTURE
+                 if capability(key) is not None)
 
 
 @dataclass(frozen=True)

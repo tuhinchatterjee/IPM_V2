@@ -1,5 +1,11 @@
 # Query fidelity, product self-knowledge and the Early Warning methodology
 
+> **The answer COMPOSITION described below has been replaced.** The four
+> defects in this document and their fixes are unchanged and still hold. How
+> the product-knowledge answers are selected, shaped and sized is now
+> `docs/PRODUCT_ANSWER_EXPERIENCE.md`: this document's answers were accurate
+> and unreadable.
+
 Four release-blocking defects from live Mac acceptance, and what was changed at
 the mechanism for each.
 

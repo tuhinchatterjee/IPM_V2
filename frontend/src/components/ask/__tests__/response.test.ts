@@ -185,6 +185,25 @@ test("a result with figures but no rows is not a negative finding", () => {
   assert.equal(foundNothing(run), false);
 });
 
+test("an answer that ran no analysis has not 'found nothing'", () => {
+  // A product-knowledge or catalogue answer carries no rows because it queried
+  // nothing. Treating it as an empty result rendered the whole composed answer
+  // a second time as one unbroken paragraph, under the structured one.
+  const run = response({
+    steps: [
+      {
+        index: 0,
+        role: "primary",
+        analysis_id: "capability_data_discovery",
+        certification: "metadata",
+        status: "succeeded",
+        result: { rows: [], values: {}, units: {}, warnings: [] },
+      },
+    ],
+  } as unknown as Partial<InvestigationResponse>);
+  assert.equal(foundNothing(run), false);
+});
+
 test("a step that failed is not reported as having found nothing", () => {
   const run = response({
     steps: [

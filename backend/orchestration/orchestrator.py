@@ -950,10 +950,15 @@ def _from_product(original: str, question: str, intent: Any, fixed: Any,
         composed = product_answers.get_creditprobe_overview()
     payload = composed.to_dict()
 
+    # The answer IS the Markdown. The structure has to travel in the string
+    # the answer surface renders, not beside it: the first version kept the
+    # sections in this payload and handed the surface a flattened wall of
+    # prose, which is exactly what the reader saw.
     answered.result = handlers.HandlerResult(
         answer=payload["answer"],
         rows=[], columns=[], values={},
         detail={"product_knowledge": payload,
+                "rich_text": "markdown",
                 "visualization": payload["visualization"]},
         follow_ups=list(payload["follow_ups"]),
         warnings=[],

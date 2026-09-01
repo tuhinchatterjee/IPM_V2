@@ -68,6 +68,12 @@ _PRODUCT_NOUNS = re.compile(
     r"|\bsystem engine\b|\bcreditprobe engine\b|\banalytical engine\b"
     r"|\brisk cases?\b|\bworkflow\b|\bassurance\b|\bcockpit\b"
     r"|\bexternal intelligence\b|\bgroup risk\b|\bconnected counterpart\w*\b"
+    # The capability NAMES, as opposed to the concepts they are about. "What
+    # is IFRS 9?" is a question about a standard and the governed catalogue
+    # answers it; "What is IFRS 9 intelligence?" names a module.
+    r"|\becl intelligence\b|\bifrs ?9 (?:and ecl )?intelligence\b"
+    r"|\bportfolio intelligence\b|\bcollateral intelligence\b"
+    r"|\bcovenant intelligence\b|\bliquidity intelligence\b"
     # "signal" is a product noun in the Early Warning sense. A question ASKING
     # FOR signals on a borrower is caught by the rows test above before this
     # is reached, so naming it here cannot capture a query.
@@ -124,6 +130,11 @@ DATA = "data"
 #: Which product tool a question resolves to, tried in order. The first pattern
 #: that matches wins, so the specific ones come before the general ones.
 _TOPIC: tuple[tuple[str, str], ...] = (
+    # "Explain CreditProbe end to end" is the one question that asks for
+    # everything, and it is the only one that gets everything.
+    (r"\bend[- ]to[- ]end\b|\bcreditprobe in full\b"
+     r"|\b(?:explain|describe|tell me about) (?:the )?(?:whole|entire|full) "
+     r"(?:product|platform|system)\b", "explain_creditprobe_end_to_end"),
     (r"\btac\b", "describe_tac_methodology"),
     (r"\bfour[- ]layers?\b|\bfour[- ]layer\b", "describe_early_warning_methodology"),
     (r"\bpersistent warning\b|\bwhat does .{0,20}warning mean\b",
@@ -153,9 +164,21 @@ _TOPIC: tuple[tuple[str, str], ...] = (
      "describe_governance_controls"),
     (r"\bifrs\s*9\b|\becl intelligence\b", "describe_ifrs9_intelligence"),
     (r"\brating\w*\b", "describe_rating_intelligence"),
-    (r"\bimpressive\b|\bstand out\b|\bwhy should\b|\bdashboard\b"
+    # Three questions that used to share one answer, and should not: why a CRO
+    # cares is about OUTCOMES, how a team uses it is about the WEEK, and how it
+    # differs from a dashboard is about investigation and traceability. One
+    # answer for all three is the template-shaped writing section 17 forbids.
+    (r"\bdashboard\b|\bbi tool\b|\breporting tool\b|\bpower ?bi\b"
+     r"|\btableau\b|\bcompared to a report\b",
+     "creditprobe_versus_a_dashboard"),
+    (r"\bhelp a .{0,40}team\b|\bhelp a corporate\b|\bday to day\b"
+     r"|\bday-to-day\b|\bhow (?:would|do|can) (?:a|our|my) .{0,40}"
+     r"(?:team|desk|function|department)\b|\btypical .{0,30}investigation\b"
+     r"|\bwalk me through .{0,30}investigation\b",
+     "how_creditprobe_helps_a_team"),
+    (r"\bimpressive\b|\bstand out\b|\bwhy should\b"
      r"|\bvalue\b|\bhelp a cro\b|\bhelp a credit risk\b|\buseful to\b"
-     r"|\bhelp a corporate\b", "why_creditprobe"),
+     r"|\bwhy is creditprobe useful\b", "why_creditprobe"),
     (r"\bwhat can creditprobe do\b|\ball .{0,20}features?\b"
      r"|\bevery .{0,20}(?:module|capabilit)\w*\b|\bcapabilit\w*\b"
      r"|\bfeatures?\b|\bmodules?\b", "list_creditprobe_capabilities"),
@@ -256,6 +279,23 @@ def family_in(question: str) -> str:
     return ""
 
 
+#: A question that asks for depth. Progressive disclosure has two settings, and
+#: this is what moves it to the second one: "explain the Early Warning
+#: methodology IN DETAIL" gets the per-layer signal listings that the plain
+#: question deliberately holds back and offers instead.
+_WANTS_DEPTH = re.compile(
+    r"\bin (?:full|detail|depth)\b|\bdetailed\b|\bexpand\b|\bexpanded\b"
+    r"|\bfull (?:catalogue|catalog|list|detail)\b|\beverything\b"
+    r"|\bcomprehensiv\w*\b|\bexhaustiv\w*\b|\bdeep dive\b"
+    r"|\bgo deeper\b|\bmore detail\b|\ball (?:of )?the signals?\b",
+    re.IGNORECASE)
+
+
+def wants_depth(question: str) -> bool:
+    """Whether the question asked for the held-back detail."""
+    return bool(_WANTS_DEPTH.search(str(question or "")))
+
+
 def answer(question: str) -> Any:
     """The product answer for a question, or None if it is not one."""
     from backend.product import answers as pa
@@ -263,12 +303,16 @@ def answer(question: str) -> Any:
     intent = read(question)
     if not intent.is_product:
         return None
+    deep = wants_depth(question)
     if intent.tool == "list_early_warning_signals":
         # A catalogue question that names a family wants that family. Returning
         # all forty-three signals to somebody who asked about liquidity is a
         # correct answer to a question they did not ask.
-        return pa.call(intent.tool, family=family_in(question))
+        return pa.call(intent.tool, family=family_in(question), detail=deep)
+    if intent.tool == "describe_early_warning_methodology":
+        return pa.call(intent.tool, detail=deep)
     return pa.call(intent.tool)
 
 
-__all__ = ["DATA", "Intent", "PRODUCT", "answer", "family_in", "read"]
+__all__ = ["DATA", "Intent", "PRODUCT", "answer", "family_in", "read",
+           "wants_depth"]

@@ -383,13 +383,17 @@ CASE_PROMOTION = (
 
 #: Everything that was searched for a definition of TAC, so the answer can say
 #: what was looked at rather than just that nothing was found.
+#: What was looked at, written for the person who asked rather than for the
+#: person who searched. The claim is unchanged and just as specific - every
+#: part of the product, every document, every screen, every setting and the
+#: whole change history - it simply does not read like a code review.
 TAC_SEARCHED: tuple[str, ...] = (
-    "every Python module under backend/ and scripts/",
-    "every Markdown document under docs/",
-    "every TypeScript and TSX module under frontend/src/",
-    "JSON, YAML and PowerShell configuration",
-    "the Early Warning taxonomy, engine, severity and case modules",
-    "the full commit history",
+    "every analytical component of the product",
+    "every methodology and product document",
+    "every screen in the product",
+    "every configured setting and threshold file",
+    "the Early Warning taxonomy, severity model and Risk Case rules",
+    "the full change history of the product",
 )
 
 TAC_STATUS_MISSING = "not_defined"
@@ -404,7 +408,7 @@ class Tac:
     searched: tuple[str, ...] = field(default_factory=lambda: TAC_SEARCHED)
     statement: str = (
         "CreditProbe has no definition of TAC. The term does not appear "
-        "anywhere in this repository — not in the Early Warning taxonomy, "
+        "anywhere in this product — not in the Early Warning taxonomy, "
         "engine, severity or case logic, not in any methodology document, not "
         "in configuration, and not in the commit history. Rather than guess "
         "what the acronym stands for and describe a methodology CreditProbe "

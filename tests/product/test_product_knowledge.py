@@ -134,7 +134,10 @@ class TestSelfKnowledgeRouting:
         found = pr.answer("What signals are used for liquidity risk?")
         assert found is not None
         said = found.text()
-        assert "Liquidity family" in said, (
+        assert "Liquidity" in said
+        assert len(me.catalogue(family="liquidity")) < len(me.catalogue()), (
+            "the fixture is wrong: liquidity is the whole catalogue")
+        assert str(len(me.catalogue())) not in found.headline, (
             "a question about liquidity was answered with the whole "
             "catalogue")
 
@@ -146,29 +149,41 @@ class TestTheOverviewAnswer:
         return pa.get_creditprobe_overview().text()
 
     @pytest.mark.parametrize("wanted", [
-        "credit-risk intelligence platform",
-        "Borrower 360",
         "Early Warning",
         "IFRS 9",
-        "Trace",
-        "Data Builder",
-        "Analysis Studio",
         "governed",
         "traceable",
     ])
-    def test_it_covers_what_a_buyer_asks_about(self, said: str,
+    def test_it_covers_what_the_question_asked(self, said: str,
                                                wanted: str) -> None:
         assert wanted in said, f"the overview never mentions {wanted!r}"
 
-    def test_it_explains_the_problem_before_the_features(self, said: str) -> None:
-        assert said.index("THE PROBLEM IT SOLVES") < said.index(
-            "CORE CAPABILITIES")
+    @pytest.mark.parametrize("held_back", [
+        "Data Builder", "Analysis Studio", "Scorecard validation",
+        "Published datasets", "Certified analytical methods",
+    ])
+    def test_it_does_not_answer_the_questions_that_were_not_asked(
+            self, said: str, held_back: str) -> None:
+        # Progressive disclosure. Every one of these is a real capability with
+        # its own answer; none of them is what "What is CreditProbe AI?" asked
+        # about, and returning all of them is the defect this replaced.
+        assert held_back not in said, (
+            f"the introduction explains {held_back!r}, which nobody asked "
+            "about yet")
 
-    def test_it_quotes_this_installation_rather_than_a_brochure(
-            self, said: str) -> None:
+    def test_the_whole_story_is_kept_for_the_question_that_asks_for_it(
+            self) -> None:
+        told = pa.explain_creditprobe_end_to_end().text()
+        assert told.index("The problem") < told.index("What it covers")
+        for wanted in ("Borrower 360", "Trace", "Data Builder",
+                       "Analysis Studio"):
+            assert wanted in told
+
+    def test_the_end_to_end_answer_quotes_this_installation(self) -> None:
+        told = pa.explain_creditprobe_end_to_end().text()
         facts = pk.installation()
-        assert str(facts["datasets"]) in said
-        assert str(facts["signals"]) in said
+        assert str(facts["datasets"]) in told
+        assert str(facts["signals"]) in told
 
     def test_it_uses_no_engineering_jargon(self, said: str) -> None:
         for word in ("DuckDB", "Postgres", "PostgreSQL", "Parquet", "FastAPI",
@@ -191,11 +206,20 @@ class TestTheOverviewAnswer:
 
 class TestTheAiArchitectureAnswer:
     def test_it_separates_the_three_responsibilities(self) -> None:
-        said = pa.describe_ai_role().text().lower()
-        for layer in pk.LAYERS:
-            assert layer.name.lower() in said
-        assert "does not compute figures" in said
-        assert "owns factual truth" in said
+        said = pa.describe_ai_role().text()
+        # The three headings the remediation asks for, in order.
+        for heading in ("## AI does the thinking",
+                        "## Agentic AI does the investigating",
+                        "## The CreditProbe engine protects the truth"):
+            assert heading in said, f"the AI answer has no {heading!r}"
+        assert said.index("AI does the thinking") \
+            < said.index("Agentic AI does the investigating") \
+            < said.index("The CreditProbe engine protects the truth")
+        assert "does not compute figures" in said.lower()
+
+    def test_it_ends_on_the_line_that_states_the_bargain(self) -> None:
+        said = pa.describe_ai_role().text()
+        assert said.rstrip().endswith(f"**{pk.CONTROL_LINE}**")
 
     def test_the_engine_answer_says_the_ai_may_not_invent_a_figure(self) -> None:
         said = pa.describe_governed_engine().text()
@@ -380,7 +404,7 @@ class TestTac:
     def test_it_says_what_was_searched(self) -> None:
         said = pa.describe_tac_methodology().text()
         assert "taxonomy" in said.lower()
-        assert "commit history" in said.lower()
+        assert "change history" in said.lower()
 
     def test_it_offers_what_creditprobe_does_implement(self) -> None:
         said = pa.describe_tac_methodology().text()
@@ -404,9 +428,9 @@ class TestTheMethodologyAnswer:
         return pa.describe_early_warning_methodology().text()
 
     @pytest.mark.parametrize("heading", [
-        "PURPOSE", "THE FOUR LAYERS", "SIGNAL AGGREGATION", "SEVERITY",
-        "PERSISTENCE AND TREND", "HOW A SIGNAL BECOMES A RISK CASE",
-        "AI INVESTIGATION", "TRACE AND GOVERNANCE", "FROM SIGNAL TO ACTION",
+        "## What it is for", "## Four layers",
+        "## How a signal becomes something you act on",
+        "## What a warning is telling you", "## Severity and ownership",
     ])
     def test_it_has_the_section_the_structure_requires(self, said: str,
                                                        heading: str) -> None:
@@ -421,13 +445,33 @@ class TestTheMethodologyAnswer:
 
         assert str(len(tx.SIGNALS)) in said
 
-    def test_it_states_the_frequency(self, said: str) -> None:
-        assert "Quarterly" in said
-
     def test_it_offers_the_catalogue_rather_than_dumping_it(self,
                                                             said: str) -> None:
         composed = pa.describe_early_warning_methodology()
+        assert "expand the signal catalogue" in said.lower(), (
+            "the high-level answer does not offer the detail it held back")
         assert any("catalogue" in f.lower() for f in composed.follow_ups)
+        for label in (e.label for e in me.catalogue()):
+            assert label not in said, (
+                f"the high-level answer lists the signal {label!r}, which is "
+                "the detail it was supposed to offer rather than dump")
+
+    def test_asking_for_detail_expands_it(self) -> None:
+        brief = pa.describe_early_warning_methodology()
+        full = pa.describe_early_warning_methodology(detail=True)
+        assert len(full.text()) > 2 * len(brief.text())
+        assert "Quarterly" in full.text()
+        assert "## Trace and governance" in full.text()
+        assert "## AI investigation" in full.text()
+        for layer in me.layers():
+            for entry in me.catalogue(layer_key=layer.key):
+                assert entry.label in full.text()
+
+    def test_the_ask_path_expands_it_when_the_question_asks(self) -> None:
+        brief = pr.answer("What is the Early Warning methodology?")
+        full = pr.answer("Explain the Early Warning methodology in detail.")
+        assert brief is not None and full is not None
+        assert len(full.text()) > 2 * len(brief.text())
 
 
 class TestWarningLanguage:

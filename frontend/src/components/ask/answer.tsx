@@ -35,6 +35,8 @@ import { KpiTile } from "@/components/analytics/primitives";
 import { ResultView } from "@/components/analytics/result-view";
 import { AccuracyFeedback } from "@/components/feedback/accuracy-prompt";
 import { answerKindOf } from "@/components/feedback/answer-kind";
+import { RichText } from "@/components/ask/rich-answer";
+import { isStructured } from "@/components/ask/rich-text";
 import { Thumbs } from "@/components/feedback/thumbs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -328,6 +330,16 @@ export function DirectAnswer({
 }) {
   if (!answer) return null;
 
+  /* An analytical answer is one sentence and renders as one sentence. A
+     product answer arrives as structured text - headings, bold, bullets,
+     process flows - and rendering THAT inside a single paragraph is what
+     turned "What is CreditProbe AI?" into a wall of prose: every newline the
+     composer emitted collapsed into a space.
+
+     The test is on the CONTENT rather than on the route, so any answer that
+     gains structure later renders correctly without another change here. */
+  const structured = isStructured(answer);
+
   return (
     <section className="max-w-[68ch]">
       {scope && (
@@ -335,9 +347,15 @@ export function DirectAnswer({
           {scope}
         </p>
       )}
-      <p className="prose-ai text-[17px] leading-[1.5] text-text-primary">
-        {answer}
-      </p>
+      {structured ? (
+        <div className="prose-ai text-text-primary">
+          <RichText markdown={answer} />
+        </div>
+      ) : (
+        <p className="prose-ai text-[17px] leading-[1.5] text-text-primary">
+          {answer}
+        </p>
+      )}
     </section>
   );
 }
