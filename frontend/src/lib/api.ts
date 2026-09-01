@@ -978,6 +978,37 @@ export interface RelationshipNetwork {
   truncation_note: string;
 }
 
+/** One part of a borrower's credit story. R2 §5. */
+export interface StorySection {
+  key: string;
+  heading: string;
+  question: string;
+  body: string[];
+  evidence: Array<Record<string, unknown>>;
+  unavailable: string;
+  empty: boolean;
+}
+
+export interface StoryFamily {
+  family: string;
+  label: string;
+  means: string;
+  severity: string;
+  fired: SignalObservation[];
+  untested: SignalObservation[];
+  quiet: boolean;
+  reading: string;
+}
+
+export interface BorrowerStory {
+  version: string;
+  borrower_id: string;
+  period: string;
+  sections: StorySection[];
+  families: StoryFamily[];
+  standing: SignalStanding;
+}
+
 export interface PlannerMode {
   /** "model" once a live response has come back; "degraded" when one cannot. */
   mode: "offline" | "model" | "degraded";
@@ -3813,6 +3844,11 @@ export const api = {
     ),
 
   // ---- ask CreditProbe ----
+  earlyWarningStory: (borrowerId: string, period?: string) =>
+    request<BorrowerStory>(
+      `/early-warning/story/${encodeURIComponent(borrowerId)}` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+    ),
   askMode: () => request<PlannerMode>("/ask/mode"),
   askCost: (limit = 50) => request<CostTrace>(`/ask/cost?limit=${limit}`),
   askSuggestions: () =>

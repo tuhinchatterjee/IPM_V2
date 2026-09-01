@@ -153,6 +153,57 @@ def borrower_signals(borrower_id: str, period: str = "") -> dict:
     return standing.to_dict()
 
 
+@router.get("/story/{borrower_id}",
+            summary="One borrower's position, as a credit story")
+def borrower_story(borrower_id: str, period: str = "",
+                   external: bool = True, group: bool = True) -> dict:
+    """The whole position, in the order a credit officer asks the questions.
+    R2 §5.
+
+    Why this borrower is here, the risk that matters most, what is new,
+    worsening, persistent and cured, the eight families in credit-file order,
+    what is happening outside the bank, what the connected group adds, what
+    argues the other way, and what to go and look at.
+
+    `external` and `group` are switches because both read datasets outside the
+    Early Warning book. The detail view wants them; a caller rendering fifty
+    rows should not pay for fifty graph traversals.
+    """
+    from backend.corporate import service as corporate
+    from backend.early_warning import signals as sg
+    from backend.early_warning import story as st
+
+    standing_payload = borrower_signals(borrower_id, period)
+    chosen = str(standing_payload.get("period") or period or "")
+
+    try:
+        snapshot = corporate._load(corporate.SNAPSHOT)
+    except Exception as exc:  # noqa: BLE001
+        raise _unavailable(exc) from exc
+    rows = snapshot[(snapshot["period"] == chosen)
+                    & (snapshot["borrower_id"] == borrower_id)]
+    if rows.empty:
+        raise _not_found(LookupError(
+            f"{borrower_id} is not on book at {chosen}."))
+    record = rows.iloc[0].to_dict()
+
+    periods = sorted((str(p) for p in snapshot["period"].unique()),
+                     key=sg._period_key)
+    index = periods.index(chosen) if chosen in periods else -1
+    prior = periods[index - 1] if index > 0 else ""
+    before = snapshot[(snapshot["period"] == prior)
+                      & (snapshot["borrower_id"] == borrower_id)]
+    standing = sg.stand(
+        record, before.iloc[0].to_dict() if not before.empty else {},
+        borrower_id=borrower_id, period=chosen, previous_period=prior)
+
+    built = st.build(standing, sector=str(record.get("sector") or ""),
+                     external=external, group=group)
+    payload = built.to_dict()
+    payload["standing"] = standing_payload
+    return payload
+
+
 # ============================================== raising cases from the signal
 #
 # §26, §27. Reading the signal is one permission; writing findings onto other

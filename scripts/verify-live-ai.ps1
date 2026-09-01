@@ -172,7 +172,10 @@ Push-Location -Path $RepoRoot
 # what a run cost afterwards is a tool people stop running.
 $EstimatedCalls = @{
     'dryrun'             = 0
-    'quick'              = 13
+    # One call per configured role plus the smoke thread. The investigation
+    # loop is now two roles - orchestration and judgement - so the quick
+    # check proves seven roles rather than five.
+    'quick'              = 15
     'critical'           = 30
     'fullrouting'        = 14
     'fullcertification'  = 120

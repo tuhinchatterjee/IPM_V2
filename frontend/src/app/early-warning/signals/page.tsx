@@ -18,7 +18,13 @@ import { EmptyState } from "@/components/ui/empty";
 import { InfoPopover } from "@/components/ui/info-popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
-import { api, type SignalObservation, type SignalStanding } from "@/lib/api";
+import { CreditStory } from "@/components/early-warning/story";
+import {
+  api,
+  type BorrowerStory,
+  type SignalObservation,
+  type SignalStanding,
+} from "@/lib/api";
 import { borrower360Href } from "@/lib/borrower-link";
 import * as ewFormat from "@/lib/early-warning-format";
 import { useAsync } from "@/lib/hooks";
@@ -341,43 +347,104 @@ function BorrowerDetail({
   standing: SignalStanding;
   period: string;
 }) {
-  const groups = view.byFamily(standing);
-  const booked = view.booked(standing);
-  const conflict = view.conflicting(standing);
-  const thin = view.notTested(standing);
+  // R2 §5. The whole position, in the order a credit officer asks the
+  // questions, composed on the server beside the evidence that produced it.
+  // The condition cards below remain, under the family they belong to, for
+  // the reader who wants to disagree with a particular one.
+  const [loaded, setLoaded] = React.useState<{
+    key: string;
+    story: BorrowerStory | null;
+    error: string;
+  }>({ key: "", story: null, error: "" });
+
+  const requestKey = `${standing.borrower_id}|${period}`;
+  const busy = loaded.key !== requestKey;
+
+  React.useEffect(() => {
+    let live = true;
+    api
+      .earlyWarningStory(standing.borrower_id, period)
+      .then((found) => {
+        if (live) setLoaded({ key: requestKey, story: found, error: "" });
+      })
+      .catch((caught) => {
+        if (live) {
+          setLoaded({
+            key: requestKey,
+            story: null,
+            error:
+              caught instanceof Error
+                ? caught.message
+                : "The credit story could not be read.",
+          });
+        }
+      });
+    return () => {
+      live = false;
+    };
+  }, [standing.borrower_id, period, requestKey]);
 
   return (
     <div className="space-y-5 border-t border-border-subtle bg-surface-subtle px-4 py-4">
-      {/* R2 §25. Why this borrower is at this level, in the words a credit
-          officer would use, before any of the individual conditions. */}
-      <div className="space-y-1">
-        <div className="flex flex-wrap items-baseline gap-2">
-          <PriorityBadge
-            priority={standing.priority}
-            label={standing.priority_label}
-          />
-          <span className="text-xs text-text-muted">
-            {standing.priority_means}
-          </span>
-        </div>
-        {standing.priority_because.map((said) => (
-          <p
-            key={said}
-            className="text-sm leading-relaxed text-text-secondary"
-          >
-            {said}
-          </p>
-        ))}
+      <div className="flex flex-wrap items-baseline gap-2">
+        <PriorityBadge
+          priority={standing.priority}
+          label={standing.priority_label}
+        />
+        <span className="text-xs text-text-muted">
+          {standing.priority_means}
+        </span>
       </div>
 
+      {busy ? (
+        <p className="text-xs text-text-muted">Reading the credit story…</p>
+      ) : loaded.error ? (
+        <>
+          <p className="text-xs text-warning">{loaded.error}</p>
+          {/* The verdict and the conditions are already on this page. A
+              failure to build the STORY must not take the evidence down
+              with it. */}
+          <Fallback standing={standing} />
+        </>
+      ) : loaded.story ? (
+        <CreditStory story={loaded.story} />
+      ) : (
+        <Fallback standing={standing} />
+      )}
+
+      <div className="flex flex-wrap gap-2 pt-1">
+        <Button variant="outline" size="sm" asChild>
+          <Link href={borrower360Href(standing.borrower_id, period)}>
+            Open Borrower 360
+          </Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The evidence without the story, for when the story cannot be built.
+ *
+ * Not a lesser version of the same screen — a different guarantee. Everything
+ * here came down with the standing itself, so it is available whenever the row
+ * is, and a reader is never left with a priority badge and nothing behind it.
+ */
+function Fallback({ standing }: { standing: SignalStanding }) {
+  const groups = view.byFamily(standing);
+  const booked = view.booked(standing);
+  const thin = view.notTested(standing);
+
+  return (
+    <div className="space-y-5">
+      {standing.priority_because.map((said) => (
+        <p key={said} className="text-sm leading-relaxed text-text-secondary">
+          {said}
+        </p>
+      ))}
       <p className="text-sm leading-relaxed text-text-secondary">
         {standing.sentence}
       </p>
-
-      {conflict && (
-        <p className="text-xs leading-relaxed text-text-muted">{conflict}</p>
-      )}
-
       {booked.length > 0 && (
         <p className="text-xs leading-relaxed text-warning">
           {booked.map((o) => o.label).join(", ")} describe the booked
@@ -385,7 +452,6 @@ function BorrowerDetail({
           that this borrower will migrate.
         </p>
       )}
-
       {groups.map((group) => (
         <section key={group.family} className="space-y-2">
           <h3 className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-text-muted">
@@ -399,7 +465,6 @@ function BorrowerDetail({
           </div>
         </section>
       ))}
-
       {standing.cured.length > 0 && (
         <section className="space-y-2">
           <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">
@@ -412,7 +477,6 @@ function BorrowerDetail({
           </ul>
         </section>
       )}
-
       {thin && (
         <section className="space-y-2">
           <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">
@@ -431,16 +495,6 @@ function BorrowerDetail({
           </ul>
         </section>
       )}
-
-      <div className="flex flex-wrap gap-2 pt-1">
-        <Button variant="outline" size="sm" asChild>
-          <Link
-            href={borrower360Href(standing.borrower_id, period)}
-          >
-            Open Borrower 360
-          </Link>
-        </Button>
-      </div>
     </div>
   );
 }
