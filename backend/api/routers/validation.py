@@ -247,6 +247,34 @@ def validate(principal: Principal = RequireAnalyst) -> dict:
     return payload
 
 
+@router.get("/cost", summary="What the thinking cost, by routing class")
+def ai_cost(limit: int = 200) -> dict:
+    """Part 14. AI cost, rolled up by the class that decided the routing.
+
+    Not behind ADMIN: the classes are A, B, C and D, and a class is a
+    statement about how hard the question was rather than about who serves
+    it. The model identity that would name a vendor stays on
+    `/status/audit`, where §12 put it.
+
+    A deployment with no tariff configured publishes token counts and no
+    money. A cost computed from a price nobody entered is the product of two
+    guesses, and the fact that it is a small number is exactly why nobody
+    would check it.
+    """
+    from backend.llm import cost as ct
+    from backend.llm import telemetry as tm
+
+    calls = list(tm.ledger().recent(max(1, min(int(limit or 200), 1000))))
+    found = ct.describe(calls)
+    # The tariff's keys ARE model identifiers, so they name a vendor. §12
+    # keeps that off every surface but `/status/audit`; the count is the part
+    # a reader here actually needs — how much of the traffic is covered.
+    found["priced_model_count"] = len(found.pop("priced_models", []))
+    found["window"] = len(calls)
+    found["identity_withheld"] = True
+    return found
+
+
 @router.get("/validation", summary="The latest intelligence check")
 def latest() -> dict:
     from backend.validation import store
