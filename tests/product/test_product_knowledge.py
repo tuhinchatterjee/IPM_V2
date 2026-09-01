@@ -371,54 +371,119 @@ class TestTheMethodologyMatchesTheEngine:
             assert entry.test and entry.direction
             assert entry.severity and entry.owner and entry.version
 
-    def test_the_external_layer_states_its_gap_rather_than_pretending(
+    def test_the_external_layer_is_configured_and_still_states_its_limit(
             self) -> None:
+        # This layer used to be empty and said so. It is configured now, and
+        # the honesty requirement did not go away with the gap: the layer
+        # reads external and network FIELDS on the borrower snapshot, and it
+        # still does not read the macro SERIES, so it has to keep saying which
+        # of the two it does.
         external = next(entry for entry in me.layers()
                         if entry.key == me.LAYER_EXTERNAL)
-        assert external.families == ()
+        assert external.families, "layer 4 has no families"
+        configured = me.catalogue(layer_key=me.LAYER_EXTERNAL)
+        assert configured, "layer 4 claims families but carries no signals"
         assert external.gap, (
-            "the external layer has no configured signals and does not say "
-            "so, which reads as a framework that watches the macro picture "
-            "when nothing does")
+            "the external layer reads borrower-level external fields and not "
+            "the macro series, and an answer that does not say so reads as a "
+            "framework that watches the macro picture when it does not")
+
+    def test_every_layer_four_signal_reads_a_real_field(self) -> None:
+        # Small and credible beats artificial volume: every signal here has to
+        # bind to a field the catalogue actually publishes, or it is decoration
+        # that makes the layer look full.
+        for entry in me.catalogue(layer_key=me.LAYER_EXTERNAL):
+            assert entry.dataset and entry.fields, (
+                f"{entry.key} is in layer 4 without a dataset and field")
 
 
 class TestTac:
-    """§13. TAC is not defined here, and nothing may invent it."""
+    """§11E. TAC was undefined. It has since been defined, and the answer now
+    reads the definition out of the engine rather than restating it.
 
-    def test_it_is_reported_as_undefined(self) -> None:
-        assert me.tac().status == me.TAC_STATUS_MISSING
+    The earlier version of this class asserted the opposite — that TAC was not
+    defined and that no expansion of the acronym might appear anywhere. That
+    was correct while it was true. The definition was supplied (Threshold,
+    Action, Classifier) and implemented, so the tests that guarded the absence
+    now guard the implementation: that the letters come from the taxonomy, that
+    the C is five configured patterns rather than an aspiration, and that no
+    signal is left without a mechanism.
+    """
 
-    def test_the_answer_does_not_invent_an_expansion(self) -> None:
-        said = pa.describe_tac_methodology().text()
-        assert "no definition of TAC" in said
-        # Every plausible expansion somebody might guess at. None may appear.
-        # Every plausible expansion. The phrase "stands for" is allowed
-        # because the answer uses it to DECLINE to say what TAC stands for.
-        for guess in ("Trend Adjusted", "Threshold Aggregation",
-                      "Total Assessment", "Trigger Assessment",
-                      "Trend Analysis Composite", "Threshold and Change",
-                      "TAC stands for", "TAC means", "TAC is short for"):
-            assert guess.lower() not in said.lower(), (
-                f"the answer proposes {guess!r} as what TAC means")
+    def test_it_is_reported_as_defined(self) -> None:
+        assert me.tac().status == me.TAC_STATUS_DEFINED
+        assert me.tac().to_dict()["defined"] is True
 
-    def test_it_says_what_was_searched(self) -> None:
-        said = pa.describe_tac_methodology().text()
-        assert "taxonomy" in said.lower()
-        assert "change history" in said.lower()
-
-    def test_it_offers_what_creditprobe_does_implement(self) -> None:
-        said = pa.describe_tac_methodology().text()
-        assert "four-layer" in said.lower()
-
-    def test_the_term_appears_nowhere_in_the_engine(self) -> None:
-        # If somebody later defines TAC in the taxonomy, this test fails and
-        # the methodology answer has to be updated to match — which is the
-        # behaviour wanted.
+    def test_the_three_letters_are_read_from_the_engine(self) -> None:
         import backend.early_warning.taxonomy as tx
 
-        source = (tx.__doc__ or "") + " ".join(
-            f"{s.key} {s.label} {s.means}" for s in tx.SIGNALS)
-        assert " TAC " not in f" {source} "
+        types = me.tac().types
+        assert [t["letter"] for t in types] == ["T", "A", "C"]
+        counted = {t["type"]: t["signals"] for t in types}
+        assert counted[tx.THRESHOLD_BASED] == sum(
+            1 for s in tx.SIGNALS if s.tac == tx.THRESHOLD_BASED)
+        assert counted[tx.ACTION_BASED] == sum(
+            1 for s in tx.SIGNALS if s.tac == tx.ACTION_BASED)
+
+    def test_every_signal_carries_exactly_one_mechanism(self) -> None:
+        import backend.early_warning.taxonomy as tx
+
+        for signal in tx.SIGNALS:
+            assert signal.tac in tx.TAC_TYPES, (
+                f"{signal.key} has no detection mechanism")
+
+    def test_the_classifier_letter_is_configured_not_claimed(self) -> None:
+        # "Do not claim a classifier exists if it is not configured."
+        from backend.early_warning import classifiers as cls
+
+        entry = next(t for t in me.tac().types if t["letter"] == "C")
+        assert entry["classifiers"] == len(cls.CLASSIFIERS) >= 1
+        for configured in entry["configured"]:
+            assert configured["components"], (
+                f"{configured['key']} names no component signals")
+            assert 1 <= configured["needs"] <= configured["of"]
+        assert cls.unknown_components() == (), (
+            "a classifier names a component no governed signal provides")
+
+    def test_a_classifier_does_not_double_count_as_signals(self) -> None:
+        # A classifier is a pattern OVER signals. Counting it in the signal
+        # column would count the same evidence twice and inflate the
+        # catalogue, which is the arithmetic this module exists to prevent.
+        import backend.early_warning.taxonomy as tx
+
+        types = me.tac().types
+        assert sum(t["signals"] for t in types) == len(tx.SIGNALS)
+
+    def test_the_answer_says_what_each_letter_means(self) -> None:
+        said = pa.describe_tac_methodology().text()
+        for letter in ("Threshold", "Action", "Classifier"):
+            assert letter.lower() in said.lower(), (
+                f"the TAC answer never says what {letter[0]} stands for")
+
+    def test_the_answer_separates_mechanism_from_layer(self) -> None:
+        # The one confusion this answer has to prevent: TAC is how a signal is
+        # DETECTED, the layers are what it is ABOUT, and a reader who conflates
+        # them will think there are seven categories.
+        said = pa.describe_tac_methodology().text().lower()
+        assert "layer" in said
+
+    def test_the_deep_answer_names_every_configured_classifier(self) -> None:
+        from backend.early_warning import classifiers as cls
+
+        said = pa.describe_tac_methodology(detail=True).text()
+        for entry in cls.CLASSIFIERS:
+            assert entry.label in said, (
+                f"the classifier {entry.key} is configured and unnamed")
+
+    def test_the_answer_records_that_the_definition_was_supplied(self) -> None:
+        # The provenance matters: it says the definition arrived rather than
+        # being inferred, which is what stops the next reader assuming somebody
+        # guessed it.
+        assert me.tac().source
+        assert me.TAC_SEARCHED, (
+            "the record of what was searched while TAC was undefined was "
+            "dropped, so the answer can no longer say what it looked like "
+            "before the definition arrived")
 
 
 class TestTheMethodologyAnswer:

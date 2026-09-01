@@ -153,6 +153,88 @@ def borrower_signals(borrower_id: str, period: str = "") -> dict:
     return standing.to_dict()
 
 
+def _standing_at(borrower_id: str, period: str):
+    """One borrower's standing, and the period list it was read from.
+
+    Shared by the scorecard and the timeline so the two cannot disagree about
+    which quarter "latest" is.
+    """
+    from backend.corporate import service as corporate
+    from backend.early_warning import signals as sg
+
+    try:
+        snapshot = corporate._load(corporate.SNAPSHOT)
+    except Exception as exc:  # noqa: BLE001 - said, never substituted
+        raise _unavailable(exc) from exc
+
+    periods = sorted((str(p) for p in snapshot["period"].unique()),
+                     key=sg._period_key)
+    chosen = period or (periods[-1] if periods else "")
+    index = periods.index(chosen) if chosen in periods else -1
+    prior = periods[index - 1] if index > 0 else ""
+
+    rows = snapshot[(snapshot["period"] == chosen)
+                    & (snapshot["borrower_id"] == borrower_id)]
+    if rows.empty:
+        raise _not_found(LookupError(
+            f"{borrower_id} is not on book at {chosen}."))
+    before = snapshot[(snapshot["period"] == prior)
+                      & (snapshot["borrower_id"] == borrower_id)]
+    standing = sg.stand(
+        rows.iloc[0].to_dict(),
+        before.iloc[0].to_dict() if not before.empty else {},
+        borrower_id=borrower_id, period=chosen, previous_period=prior)
+    return standing, snapshot, periods
+
+
+@router.get("/scorecard/{borrower_id}",
+            summary="One borrower's four-layer Early Warning scorecard")
+def borrower_scorecard(borrower_id: str, period: str = "") -> dict:
+    """Sections 11C, 11D and 11G. Every governed condition, over the line or
+    inside it, grouped by layer — with the risk level and the evidence behind
+    it first.
+
+    Every condition, not only the ones that fired: a layer showing three
+    amber rows and hiding the eleven green ones reads as an emergency whatever
+    the borrower is doing.
+    """
+    from backend.early_warning import scorecard as sc
+
+    standing, _snapshot, _periods = _standing_at(borrower_id, period)
+    try:
+        return sc.build(standing)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("The scorecard for %s could not be built: %s",
+                       borrower_id, exc)
+        raise _unavailable(exc) from exc
+
+
+@router.get("/timeline/{borrower_id}",
+            summary="One borrower's Early Warning position over time")
+def borrower_timeline(borrower_id: str, period: str = "",
+                      limit: int = Query(8, ge=2, le=16)) -> dict:
+    """Section 11I. Whether the bank has been watching this for two years or
+    it appeared last quarter.
+
+    Each period is a real evaluation against its own reporting row, never the
+    latest assessment repeated back at every date.
+    """
+    from backend.early_warning import scorecard as sc
+
+    standing, snapshot, periods = _standing_at(borrower_id, period)
+    upto = periods[:periods.index(standing.period) + 1]
+    try:
+        return sc.timeline(borrower_id, snapshot, upto, limit=limit)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("The timeline for %s could not be built: %s",
+                       borrower_id, exc)
+        raise _unavailable(exc) from exc
+
+
 @router.get("/story/{borrower_id}",
             summary="One borrower's position, as a credit story")
 def borrower_story(borrower_id: str, period: str = "",

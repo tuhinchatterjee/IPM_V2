@@ -131,7 +131,17 @@ class Observation:
             "booked_accounting": self.booked_accounting,
             "unavailable": self.unavailable, "means": self.means,
             "available": self.available,
+            # §11H: what the BORROWER is doing on this condition, in credit
+            # language rather than in lifecycle vocabulary.
+            "state": _state_of(self),
         }
+
+
+def _state_of(observation: Observation) -> str:
+    """Section 11H, deferred so the two modules do not import in a circle."""
+    from backend.early_warning import assessment
+
+    return assessment.state_of(observation)
 
 
 def _number(value: Any) -> float | None:
@@ -183,6 +193,13 @@ def _fires(signal: tx.Signal, value: Any, previous: Any) -> bool | None:
     """Whether this signal fires. None means it could not be tested."""
     if signal.test == tx.TRUE:
         return _truthy(value)
+    if signal.test == tx.EQUALS:
+        # A governed categorical taking a named value. Compared as text and
+        # case-insensitively, because "Negative" and "NEGATIVE" are the same
+        # agency outlook and a signal that missed one would be silently
+        # incomplete.
+        return str(value or "").strip().lower() == str(
+            signal.threshold or "").strip().lower()
     now = _number(value)
     if now is None:
         return None
@@ -312,6 +329,13 @@ class Standing:
     untested: list[Observation] = field(default_factory=list)
     #: Signals that fired last period and do not now.
     cured: list[Observation] = field(default_factory=list)
+    #: EVERY governed signal tested against this borrower, fired or not and
+    #: available or not. The borrower scorecard needs the ones that did NOT
+    #: fire — a layer showing three amber rows and hiding the eleven green
+    #: ones reads as an emergency whatever the borrower is doing — and
+    #: recomputing them loses the lifecycle, which only exists because two
+    #: periods were compared here.
+    observations: list[Observation] = field(default_factory=list)
     #: The borrower's own record. R2 §25 decides what to DO about a borrower
     #: from facts the taxonomy does not model as signals — how much is drawn,
     #: what stage it is booked at, how far past due it is — so the position
@@ -393,6 +417,23 @@ class Standing:
     def priority(self) -> str:
         return str(self.verdict.priority)
 
+    @property
+    def assessment(self) -> Any:
+        """How serious this borrower's position is, and why. Section 11G.
+
+        Distinct from `severity`, which is about the worst RULE, and from
+        `priority`, which is about what to DO. This is the overall Early
+        Warning risk level, and it is derived from gravity and corroboration
+        rather than from how many signals happen to have fired.
+        """
+        from backend.early_warning import assessment
+
+        return assessment.assess(self, self.record)
+
+    @property
+    def risk_level(self) -> str:
+        return str(self.assessment.level)
+
     def sentence(self) -> str:
         """The standing, said the way a credit officer would say it."""
         if not self.fired:
@@ -432,6 +473,9 @@ class Standing:
             # Both are published, and every rule behind the priority comes
             # with the sentence that put it there.
             **self.verdict.to_dict(),
+            # §11G: how serious it is, as opposed to what to do about it.
+            "assessment": self.assessment.to_dict(),
+            "risk_level": self.risk_level,
             "fired": [o.to_dict() for o in self.fired],
             "cured": [o.to_dict() for o in self.cured],
             "untested": [o.to_dict() for o in self.untested],
@@ -454,6 +498,7 @@ def stand(row: dict[str, Any], previous: dict[str, Any] | None = None, *,
         fired=[o for o in observations if o.fired and o.available],
         cured=[o for o in observations if o.lifecycle == CURED],
         untested=[o for o in observations if not o.available],
+        observations=list(observations),
         record=dict(row),
     )
 

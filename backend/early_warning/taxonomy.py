@@ -66,6 +66,10 @@ COVENANT = "covenant"
 COLLATERAL = "collateral"
 RATING = "rating"
 IFRS9 = "ifrs9"
+#: Layer 4. Configured against fields the borrower snapshot already publishes,
+#: so an external signal reads from the same governed row as every other one.
+EXTERNAL = "external"
+NETWORK = "network"
 
 FAMILIES: dict[str, str] = {
     FINANCIAL: "Financial performance",
@@ -76,6 +80,8 @@ FAMILIES: dict[str, str] = {
     COLLATERAL: "Collateral",
     RATING: "Ratings and watchlist",
     IFRS9: "IFRS 9 and SICR",
+    EXTERNAL: "External and macro",
+    NETWORK: "Group and network",
 }
 
 FAMILY_MEANS: dict[str, str] = {
@@ -95,6 +101,11 @@ FAMILY_MEANS: dict[str, str] = {
              "way that has been moving."),
     IFRS9: ("The BOOKED accounting stage and the evidence behind it. A "
             "prediction that a borrower may move stage is not a stage."),
+    EXTERNAL: ("What somebody outside the bank has said about this borrower, "
+               "and the macro conditions its sector is trading in."),
+    NETWORK: ("Who else the exposure reaches. A borrower is not only itself: "
+              "a group, a guarantor and a set of connected counterparties "
+              "carry risk into it and out of it."),
 }
 
 # ---------------------------------------------------------------- the tests
@@ -105,6 +116,7 @@ ROSE_BY = "rose_by"      # value - previous >= threshold
 FELL_BY = "fell_by"      # previous - value >= threshold
 TRUE = "true"            # a boolean is set
 CHANGED = "changed"      # value differs from the previous period
+EQUALS = "equals"        # a governed categorical takes a named value
 
 #: field / against, as a percentage. Utilisation is drawn over limit and the
 #: snapshot carries the two amounts rather than the ratio; computing it here
@@ -114,7 +126,71 @@ RATIO_ABOVE = "ratio_above"
 RATIO_ROSE_BY = "ratio_rose_by"
 
 TESTS: frozenset[str] = frozenset({ABOVE, BELOW, ROSE_BY, FELL_BY, TRUE,
-                                   CHANGED, RATIO_ABOVE, RATIO_ROSE_BY})
+                                   CHANGED, EQUALS, RATIO_ABOVE,
+                                   RATIO_ROSE_BY})
+
+# --------------------------------------------------------------------- TAC
+#
+# How a warning was DETECTED, as opposed to what it is about. The four layers
+# say which part of the credit picture a signal watches; TAC says what kind of
+# evidence made it fire, and the two are independent — a liquidity concern can
+# be found by a threshold or by a credit event, and a reader needs to know
+# which because the two carry different weight.
+#
+#   T  THRESHOLD-BASED   a measurable indicator crossed a governed warning
+#                        level: DSCR, utilisation, days past due, PD movement,
+#                        covenant headroom, collateral coverage.
+#
+#   A  ACTION-BASED      a meaningful credit event happened: a rating
+#                        downgrade, a stage migration, a watchlist addition, a
+#                        covenant breach, forbearance, a restructuring, an
+#                        agency outlook change. Somebody DID something.
+#
+#   C  CLASSIFIER-BASED  several pieces of evidence combined into a recognised
+#                        risk pattern. A classifier is not a threshold on a
+#                        derived number; it is a named pattern with a stated
+#                        rule over other signals.
+#
+# Nothing is declared a classifier unless a classifier is actually configured
+# for it. `CLASSIFIERS` below is that configuration, and it is deliberately
+# short.
+
+THRESHOLD_BASED = "THRESHOLD"
+ACTION_BASED = "ACTION"
+CLASSIFIER_BASED = "CLASSIFIER"
+TAC_TYPES: tuple[str, ...] = (THRESHOLD_BASED, ACTION_BASED, CLASSIFIER_BASED)
+
+TAC_MEANS: dict[str, str] = {
+    THRESHOLD_BASED: ("A measurable indicator crossed a governed warning "
+                      "level."),
+    ACTION_BASED: ("A meaningful credit event happened — somebody downgraded, "
+                   "migrated, listed, breached or restructured."),
+    CLASSIFIER_BASED: ("Several pieces of evidence combined into a recognised "
+                       "risk pattern."),
+}
+
+TAC_LETTER: dict[str, str] = {THRESHOLD_BASED: "T", ACTION_BASED: "A",
+                              CLASSIFIER_BASED: "C"}
+
+
+def _tac_for(test: str, field: str, booked: bool) -> str:
+    """Which detection mechanism a signal uses, from what it actually tests.
+
+    Derived rather than hand-assigned, so a signal cannot be given a letter
+    that disagrees with its own test. A boolean flag or a categorical change
+    records that something HAPPENED; a comparison against a number records
+    that a level was CROSSED.
+    """
+    if test in (TRUE, CHANGED, EQUALS):
+        return ACTION_BASED
+    if booked:
+        # A booked stage migration is an event even though it is read as a
+        # number.
+        return ACTION_BASED
+    if "flag" in field or "breach" in field or "moved" in field:
+        return ACTION_BASED
+    return THRESHOLD_BASED
+
 
 # --------------------------------------------------------------- the severity
 #
@@ -150,6 +226,10 @@ NOTCHES = "notches"      #: rating grades moved
 STAGE = "stage"          #: the IFRS 9 stage, 1, 2 or 3
 FLAG = "flag"            #: a boolean condition
 COUNT = "count"          #: a plain number of things
+SCORE = "score"          #: a model output on its own scale, with no natural unit
+SHARE = "share"          #: a fraction of one, NOT a percentage already times 100
+ENTITIES = "entities"    #: a number of named counterparties
+CATEGORY = "category"    #: a label from a controlled vocabulary
 
 #: The currency the book is denominated in. One place, so a screen and an
 #: export cannot disagree about it.
@@ -167,11 +247,36 @@ _PERCENTAGES: frozenset[str] = frozenset({
     "revenue_growth", "ebitda_margin", "ecl_coverage", "pd_12m",
     "pd_lifetime", "lgd"})
 
-#: Amounts of money that do not announce themselves either.
-_MONEY_WORDS: tuple[str, ...] = (
+#: Amounts of money that do not announce themselves either. Matched on the
+#: underscore-separated WORDS of a column name rather than as substrings:
+#: "debt" is inside "debtrank_impact", which is a modelled transmission share
+#: and not an amount of money, and labelling it SAR would put a currency in
+#: front of 0.0003 on a screen.
+_MONEY_WORDS: frozenset[str] = frozenset({
     "cash", "flow", "exposure", "revenue", "ebitda", "capex", "debt",
     "collateral", "limit", "amount", "buffer", "shortfall", "commitment",
-    "maturing", "equity", "worth", "balance")
+    "maturing", "equity", "worth", "balance"})
+
+#: Model outputs on their own scale. A score is not a percentage and not an
+#: amount; saying so is the whole point of publishing a unit.
+_SCORES: frozenset[str] = frozenset({
+    "network_risk_score", "risk_score", "connectedness_score"})
+
+#: Fractions of one. Distinct from PERCENT because these have NOT been
+#: multiplied by a hundred, and a screen that treats them as percentages
+#: misstates them by two orders of magnitude.
+_SHARES: frozenset[str] = frozenset({
+    "debtrank_impact", "contagion_share"})
+
+#: Numbers of named counterparties.
+_ENTITY_COUNTS: frozenset[str] = frozenset({
+    "connected_group_size", "exposure_network_links", "group_size"})
+
+#: Labels from a controlled vocabulary. Not numbers at all, and a signal that
+#: reads one must not be rendered with a decimal place.
+_CATEGORIES: frozenset[str] = frozenset({
+    "rating_outlook", "external_rating", "internal_rating", "rating_grade",
+    "sector", "group_role"})
 
 
 def unit_for(field: str, test: str) -> str:
@@ -185,15 +290,28 @@ def unit_for(field: str, test: str) -> str:
         return FLAG
     if name == "stage":
         return STAGE
+    if name in _CATEGORIES:
+        return CATEGORY
     if "notch" in name:
         return NOTCHES
     if name in _MULTIPLES:
+        return RATIO
+    if name in _SCORES or name.endswith("_score"):
+        return SCORE
+    if name in _SHARES:
+        return SHARE
+    if name in _ENTITY_COUNTS:
+        return ENTITIES
+    if name.endswith("_share"):
+        # A share is a share whether it is written as a fraction or scaled.
+        # Where the catalogue does not say, the safe reading is the one that
+        # cannot be out by a hundred.
         return RATIO
     if name.endswith("_pct") or name in _PERCENTAGES:
         return PERCENT
     if name.endswith("_days") or name.endswith("_dpd") or "dpd" in name:
         return DAYS
-    if any(word in name for word in _MONEY_WORDS):
+    if _MONEY_WORDS & set(name.split("_")):
         return MONEY
     return COUNT
 
@@ -230,6 +348,15 @@ class Signal:
         return unit_for(self.field, self.test)
 
     @property
+    def tac(self) -> str:
+        """How this signal is detected: threshold, action or classifier."""
+        return _tac_for(self.test, self.field, self.booked_accounting)
+
+    @property
+    def tac_letter(self) -> str:
+        return TAC_LETTER[self.tac]
+
+    @property
     def columns(self) -> tuple[str, ...]:
         return (self.field, self.against) if self.against else (self.field,)
 
@@ -262,6 +389,8 @@ class Signal:
                 "unit": self.unit, "currency": CURRENCY,
                 "against": self.against, "severity": self.severity,
                 "booked_accounting": self.booked_accounting,
+                "tac": self.tac, "tac_letter": self.tac_letter,
+                "tac_means": TAC_MEANS[self.tac],
                 "owner": THRESHOLD_OWNER, "version": self.version,
                 "sentence": self.sentence()}
 
@@ -482,6 +611,41 @@ SIGNALS: tuple[Signal, ...] = (
        "A significant-increase-in-credit-risk trigger fired at the last "
        "reporting date.",
        "corporate_borrower_360", "sicr_flag", TRUE, booked=True),
+
+    # ---- external and macro (layer 4)
+    #
+    # These read fields the borrower snapshot already publishes, so an external
+    # signal comes off the same governed row as every other one. The layer was
+    # previously empty and SAID so; it is no longer empty, and what fills it is
+    # small and real rather than large and invented.
+    _s("outlook_negative", EXTERNAL, "External outlook is negative",
+       "A rating agency has this borrower on a negative outlook. Somebody "
+       "outside the bank expects its credit quality to deteriorate.",
+       "corporate_borrower_360", "rating_outlook", EQUALS, "Negative"),
+    _s("external_rating_lost", EXTERNAL, "External rating withdrawn or absent",
+       "The borrower carries no external rating this period where it "
+       "previously did. A withdrawn rating removes an independent view.",
+       "corporate_borrower_360", "external_rating", CHANGED),
+    _s("sector_concentrated", EXTERNAL, "Large share of a concentrated sector",
+       "The borrower is a material part of a sector the bank is already "
+       "heavily exposed to, so a sector shock reaches the book through it.",
+       "corporate_borrower_360", "sector_concentration_share", ABOVE, 1.25,
+       severity=WATCH),
+
+    # ---- group and network (layer 4)
+    _s("network_risk_high", NETWORK, "High network risk score",
+       "The connected-exposure graph places this borrower where trouble "
+       "would travel: it both carries and transmits risk across the group.",
+       "corporate_borrower_360", "network_risk_score", ABOVE, 21.0),
+    _s("group_large", NETWORK, "Large connected group",
+       "The borrower sits inside an unusually large connected group, so its "
+       "exposure is not the exposure the bank is actually running.",
+       "corporate_borrower_360", "connected_group_size", ABOVE, 13.0,
+       severity=WATCH),
+    _s("contagion_material", NETWORK, "Material contagion impact",
+       "Modelled loss transmission from this borrower into the rest of the "
+       "group is above the level the threshold owner treats as material.",
+       "corporate_borrower_360", "debtrank_impact", ABOVE, 0.0003),
 )
 
 BY_KEY: dict[str, Signal] = {s.key: s for s in SIGNALS}
@@ -541,10 +705,13 @@ def describe() -> dict[str, Any]:
 
 
 __all__ = [
-    "ABOVE", "BEHAVIOURAL", "BELOW", "BY_KEY", "CHANGED", "COLLATERAL",
+    "ABOVE", "BEHAVIOURAL", "BELOW", "BY_KEY", "CATEGORY", "CHANGED",
+    "COLLATERAL", "ENTITIES", "SCORE", "SHARE",
     "RATIO_ABOVE", "RATIO_ROSE_BY",
     "CONCERN", "COVENANT", "FAMILIES", "FAMILY_MEANS", "FELL_BY", "FINANCIAL",
-    "IFRS9", "LEVERAGE", "LIQUIDITY", "RATING", "ROSE_BY", "SEVERE",
+    "ACTION_BASED", "CLASSIFIER_BASED", "EQUALS", "EXTERNAL", "IFRS9",
+    "LEVERAGE", "LIQUIDITY", "NETWORK", "RATING", "ROSE_BY", "SEVERE",
+    "TAC_LETTER", "TAC_MEANS", "TAC_TYPES", "THRESHOLD_BASED",
     "SEVERITIES", "SEVERITY_RANK", "SIGNALS", "TAXONOMY_VERSION", "TESTS",
     "THRESHOLD_OWNER", "TRUE", "UNAVAILABLE", "WATCH", "Signal", "describe",
     "in_family", "unavailable",

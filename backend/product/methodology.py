@@ -26,22 +26,36 @@ down so a reader can check it.
     Layer 1  Borrower fundamentals         financial, leverage, liquidity
     Layer 2  Credit behaviour and structure behavioural, covenant, collateral
     Layer 3  Credit quality, IFRS 9, ratings rating, ifrs9
-    Layer 4  External, sector, macro, network   — no governed family today
+    Layer 4  External, sector, macro, network external, network
 
-Layer 4 is honest rather than empty-by-oversight. The External Intelligence
-DOMAIN exists and carries macro series, sector conditions and governed events,
-and the Ask path reads them; but no Early Warning SIGNAL is configured against
-it, so no borrower is currently promoted to a case by an external condition
-alone. Claiming otherwise would be the exact failure this module exists to
-prevent.
+Layer 4 was empty. It is not any more
+--------------------------------------
+This module previously reported Layer 4 as having no configured signals, which
+was true and was the honest thing to say: the External Intelligence domain
+published macro series and sector conditions, the Ask path read them, but no
+Early Warning SIGNAL was configured against any of it, so no borrower was ever
+promoted by an external condition alone.
+
+Signals have since been configured against the governed external and network
+data this installation already carries — an agency outlook, a lost external
+rating, sector concentration, network risk, connected-group size and modelled
+contagion. Six, which is small next to the other three layers, and deliberately
+so: every one of them reads a field the corporate snapshot actually publishes,
+and a seventh invented to make the layer look full would put this module back
+into exactly the failure it exists to prevent.
 
 TAC
 ---
-`tac()` reports that the repository contains no definition of TAC — no code, no
-document, no configuration, nothing in the history. The remediation is explicit
-that an acronym must not be invented, so the answer says what was searched and
-asks for the source. That is the whole implementation, and it is the correct
-one until somebody supplies the definition.
+`tac()` used to report that the repository contained no definition of TAC — no
+code, no document, no configuration, nothing in the history — because it did
+not, and inventing one would have been worse than saying so.
+
+The definition was subsequently supplied: Threshold-based, Action-based,
+Classifier-based, the three mechanisms by which a signal is DETECTED. It is now
+implemented in `taxonomy` (every signal carries a `tac` classification) and in
+`early_warning.classifiers` (the C is five configured named patterns, not an
+aspiration), and `tac()` reads both rather than restating either. Detection
+mechanism and layer are orthogonal: a signal has exactly one of each.
 """
 
 from __future__ import annotations
@@ -142,14 +156,16 @@ LAYERS: tuple[Layer, ...] = (
                 "accounts. The transmission is a hypothesis about a "
                 "mechanism, not an observation about a borrower, and it has "
                 "to be labelled that way.",
-        families=(),
-        gap="No Early Warning signal is configured against the External "
-            "Intelligence domain in this installation. The domain is "
-            "published and the Ask path reads it — a borrower's story shows "
-            "which external conditions are live for its sector — but no "
-            "borrower is promoted to a Risk Case by an external condition "
-            "alone. Configuring signals here is a Data Builder and Credit "
-            "Risk Analytics decision, not a code change."),
+        families=("external", "network"),
+        gap="This layer is configured against the external and network fields "
+            "the corporate snapshot publishes — an agency outlook, external "
+            "rating coverage, sector concentration, network risk, "
+            "connected-group size and modelled contagion. It does not yet "
+            "read the macro SERIES in the External Intelligence domain "
+            "directly: GDP, rates, inflation, FX and commodity prices reach a "
+            "borrower here through its sector and its group rather than "
+            "through a signal of their own. Configuring those is a Data "
+            "Builder and Credit Risk Analytics decision."),
 )
 
 LAYER_BY_FAMILY: dict[str, str] = {
@@ -380,13 +396,19 @@ CASE_PROMOTION = (
 
 
 # ------------------------------------------------------------------------- TAC
+#
+# TAC was undefined, and this module said so — naming what had been searched
+# and asking for the source, rather than guessing at an acronym and describing
+# a methodology CreditProbe did not implement.
+#
+# The definition has since been supplied: Threshold, Action, Classifier. It is
+# read from the engine below rather than restated here, for the same reason
+# the layers are: a signal reclassified in the taxonomy has to change this
+# answer, and a `tac` letter written down in two places will eventually be two
+# different letters.
 
-#: Everything that was searched for a definition of TAC, so the answer can say
-#: what was looked at rather than just that nothing was found.
-#: What was looked at, written for the person who asked rather than for the
-#: person who searched. The claim is unchanged and just as specific - every
-#: part of the product, every document, every screen, every setting and the
-#: whole change history - it simply does not read like a code review.
+#: What was searched when the term was undefined. Kept, because an answer that
+#: says a definition arrived should be able to say what it looked like before.
 TAC_SEARCHED: tuple[str, ...] = (
     "every analytical component of the product",
     "every methodology and product document",
@@ -399,39 +421,75 @@ TAC_SEARCHED: tuple[str, ...] = (
 TAC_STATUS_MISSING = "not_defined"
 TAC_STATUS_DEFINED = "defined"
 
+#: Where the definition came from, so a reader can see it was supplied rather
+#: than inferred. Naming the source is the difference between a methodology and
+#: a guess that has been sitting around long enough to look like one.
+TAC_SOURCE = ("Supplied by the product owner as an explicit requirement, and "
+              "implemented against the governed taxonomy rather than "
+              "described alongside it.")
+
 
 @dataclass(frozen=True)
 class Tac:
-    """What is known about TAC, which at present is that it is not defined."""
+    """The three mechanisms by which CreditProbe DETECTS a signal."""
 
-    status: str = TAC_STATUS_MISSING
+    status: str = TAC_STATUS_DEFINED
     searched: tuple[str, ...] = field(default_factory=lambda: TAC_SEARCHED)
+    source: str = TAC_SOURCE
     statement: str = (
-        "CreditProbe has no definition of TAC. The term does not appear "
-        "anywhere in this product — not in the Early Warning taxonomy, "
-        "engine, severity or case logic, not in any methodology document, not "
-        "in configuration, and not in the commit history. Rather than guess "
-        "what the acronym stands for and describe a methodology CreditProbe "
-        "does not implement, this answer states that the definition is "
-        "missing. Supply the source — a methodology paper, a policy document "
-        "or a specification — and it can be published here as a versioned "
-        "methodology alongside the four-layer framework.")
-    #: What the questioner may actually be after, offered without claiming it
-    #: IS TAC.
-    nearest = (
-        "If what is meant is how CreditProbe aggregates signals into an "
-        "assessment, that is the four-layer framework, the severity model and "
-        "the case-promotion rules described above, and they can be explained "
-        "in full.")
+        "TAC is how a signal is DETECTED, and it is orthogonal to the four "
+        "layers, which are what a signal is ABOUT. Every governed signal "
+        "carries exactly one of each. T is threshold-based: a measure crosses "
+        "a declared line. A is action-based: something happened and was "
+        "recorded — a breach, a restructuring, a stage migration, a watchlist "
+        "addition. C is classifier-based: a named pattern over several "
+        "signals, each with its rule written down.")
+    #: The honest caveat that keeps the C from being an aspiration.
+    caveat: str = (
+        "The C is the part most frameworks overstate. CreditProbe publishes "
+        "the classifiers it actually runs, what each one is made of and how "
+        "many of its components have to fire. A signal that is not part of one "
+        "is reported as threshold-based or action-based rather than dressed up "
+        "as a pattern.")
+
+    @property
+    def types(self) -> list[dict[str, Any]]:
+        """The three mechanisms, read from the taxonomy that implements them."""
+        from backend.early_warning import taxonomy as tx
+
+        counts = {kind: sum(1 for s in tx.SIGNALS if s.tac == kind)
+                  for kind in tx.TAC_TYPES}
+        out: list[dict[str, Any]] = []
+        for kind in tx.TAC_TYPES:
+            entry: dict[str, Any] = {
+                "letter": tx.TAC_LETTER[kind], "type": kind,
+                "means": tx.TAC_MEANS[kind], "signals": counts[kind]}
+            if kind == tx.CLASSIFIER_BASED:
+                from backend.early_warning import classifiers as cls
+
+                # A classifier is not a signal, so counting it in the signal
+                # column would double-count the signals it is built from.
+                entry["signals"] = 0
+                entry["classifiers"] = len(cls.CLASSIFIERS)
+                entry["configured"] = [
+                    {"key": c.key, "label": c.label, "means": c.means,
+                     "needs": c.needs, "of": len(c.signals),
+                     "severity": c.severity,
+                     "components": [tx.BY_KEY[k].label for k in c.signals
+                                    if k in tx.BY_KEY]}
+                    for c in cls.CLASSIFIERS]
+            out.append(entry)
+        return out
 
     def to_dict(self) -> dict[str, Any]:
         return {"status": self.status, "searched": list(self.searched),
-                "statement": self.statement, "nearest": self.nearest,
+                "statement": self.statement, "caveat": self.caveat,
+                "source": self.source, "types": self.types,
                 "defined": self.status == TAC_STATUS_DEFINED}
 
 
 def tac() -> Tac:
-    """Whether TAC is defined anywhere authoritative. It is not."""
+    """The TAC detection taxonomy, read from the engine that implements it."""
     return Tac()
 
 

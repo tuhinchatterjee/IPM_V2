@@ -97,6 +97,13 @@ def _expected(signal: tx.Signal, row: dict, before: dict):
         return str(row.get(signal.field)).strip().lower() in {"true", "1",
                                                               "yes", "y"}
 
+    if signal.test == tx.EQUALS:
+        # A text comparison, case-insensitively: an agency writes "Negative"
+        # and a feed writes "NEGATIVE", and a signal that missed one of those
+        # would be silently blind rather than visibly wrong.
+        return (str(row.get(signal.field) or "").strip().lower()
+                == str(signal.threshold or "").strip().lower())
+
     if signal.test in (tx.RATIO_ABOVE, tx.RATIO_ROSE_BY):
         top, bottom = _num(row.get(signal.field)), _num(row.get(signal.against))
         if top is None or bottom is None or bottom == 0:

@@ -735,11 +735,13 @@ def describe_early_warning_methodology(detail: bool = False) -> Answer:
                  for k, v in described["frequencies"].items()]))
     sections.append(Section(
         key="aggregation", title="Signals read together", detail=True,
-        body=(["A borrower showing one concern in one family is a different "
-               "proposition from one showing three across fundamentals, "
-               "behaviour and credit quality at once."]
-              + _paragraphs(described["tac"]["statement"])
-              + _paragraphs(described["tac"]["nearest"]))))
+        body=["A borrower showing one concern in one family is a different "
+              "proposition from one showing three across fundamentals, "
+              "behaviour and credit quality at once.",
+              "How a signal is DETECTED is a separate question from what it "
+              "is about. Every signal carries one of three mechanisms:"],
+        bullets=[f"**{t['letter']} — {t['type'].title()}-based.** {t['means']}"
+                 for t in described["tac"]["types"]]))
 
     if not detail:
         sections.append(Section(
@@ -767,30 +769,135 @@ def describe_early_warning_methodology(detail: bool = False) -> Answer:
              "What signals are used for liquidity risk?"])))
 
 
-def describe_tac_methodology() -> Answer:
-    """What is TAC? - it is not defined here, and this says so."""
+def describe_tac_methodology(detail: bool = False) -> Answer:
+    """What is TAC? - the three detection mechanisms, read from the engine."""
     found = me.tac()
+    types = found.types
+    by_letter = {t["letter"]: t for t in types}
+    classifier = by_letter.get("C", {})
+    configured = classifier.get("configured", [])
+
+    sections = [
+        Section(key="mechanisms", title="The three mechanisms",
+                body=_paragraphs(found.statement),
+                bullets=[f"**{t['letter']} — {t['type'].title()}-based.** "
+                         f"{t['means']}" for t in types]),
+        Section(key="split", title="How this installation splits",
+                body=["Detection mechanism and layer are different questions. "
+                      "A signal has exactly one of each, so the split below "
+                      "adds to the whole catalogue."],
+                table={
+                    "columns": ["Mechanism", "What it detects", "Configured"],
+                    "rows": [
+                        [f"{t['letter']} — {t['type'].title()}",
+                         t["means"],
+                         (f"{t['classifiers']} classifiers"
+                          if t["letter"] == "C" else f"{t['signals']} signals")]
+                        for t in types],
+                }),
+        Section(key="classifiers", title="The classifiers, named", detail=True,
+                body=_paragraphs(found.caveat),
+                bullets=[f"**{c['label']}.** {c['means']} Fires when "
+                         f"{c['needs']} of {c['of']} components hold."
+                         for c in configured]),
+        Section(key="source", title="Where the definition came from",
+                detail=True, body=_paragraphs(found.source)),
+    ]
+    if not detail and configured:
+        sections.append(Section(
+            key="offer", title="",
+            body=[f"The {len(configured)} classifiers each have their rule "
+                  "written down. Would you like to see them?"]))
+
     return compose(Answer(
         topic="tac",
-        band=SHORT,
-        headline=("I have no definition of TAC. The term does not appear "
-                  "anywhere in this system, so rather than guess what it "
-                  "stands for, here is what I looked at and what I do "
-                  "implement."),
-        sections=[
-            Section(key="status", title="What was searched",
-                    body=_paragraphs(found.statement),
-                    bullets=list(found.searched)),
-            Section(key="nearest", title="What I do implement",
-                    body=_paragraphs(found.nearest)),
-            Section(key="next", title="To publish it",
-                    body=["Send me the methodology paper or policy document "
-                          "that defines TAC and it can be published as a "
-                          "versioned methodology alongside the four-layer "
-                          "framework, held to the same checks."]),
-        ],
-        sources=["repository search", "Early Warning taxonomy"],
-        follow_ups=["What is the Early Warning methodology?"]))
+        band=DETAILED if detail else MEDIUM,
+        deep=bool(detail),
+        headline=("TAC is how I DETECT a signal, as opposed to the four "
+                  "layers, which are what a signal is about: T for a "
+                  "threshold crossed, A for something that happened and was "
+                  "recorded, C for a named pattern over several signals."),
+        sections=sections,
+        sources=["Early Warning taxonomy", "classifier configuration"],
+        follow_ups=(
+            ["What is the Early Warning methodology?",
+             "Why is a borrower High Risk?"]
+            if detail else
+            ["Show me the classifiers.",
+             "What is the Early Warning methodology?",
+             "Why is a borrower High Risk?"])))
+
+
+def describe_risk_assessment(detail: bool = False) -> Answer:
+    """Why is a borrower High Risk? Section 11G — the actual rule.
+
+    The one thing this answer must not do is imply a count. "Six signals, so
+    High" is the answer somebody would give if they had never had to defend one
+    to a credit committee.
+    """
+    from backend.early_warning import assessment as ea
+
+    found = ea.describe()
+    rule = found["rule"]
+
+    sections = [
+        Section(key="rule", title="The rule",
+                body=["Two things have to be true at once, and neither "
+                      "substitutes for the other.",
+                      f"**Gravity.** {rule['gravity']}",
+                      f"**Corroboration.** {rule['corroboration']}"],
+                flow=["Something serious is established",
+                      "Other parts of the picture agree",
+                      "High risk"]),
+        Section(key="levels", title="What each level means",
+                table={"columns": ["Level", "What it means"],
+                       "rows": [[entry["level"].title(), entry["means"]]
+                                for entry in found["levels"]]}),
+        Section(key="not_count", title="Why not the number of signals",
+                body=[entry["why"] for entry in found["not_used"]
+                      if entry["input"] == "Signal count"]
+                     + ["A borrower with six stale-valuation observations is "
+                        "not in more trouble than one in covenant breach and "
+                        "thirty days past due. Counting signals measures the "
+                        "rule book, not the borrower."]),
+        Section(key="inputs", title="Everything weighed", detail=True,
+                bullets=[f"**{entry['input']}.** {entry['rule']}"
+                         for entry in found["inputs"]]),
+        Section(key="down", title="What brings a level down", detail=True,
+                body=["A framework that can only escalate is one nobody "
+                      "argues with, and therefore one nobody trusts. Resolved "
+                      "warnings, an improving trajectory and collateral cover "
+                      "are recorded against the assessment and can take a "
+                      "borrower back down."]),
+        Section(key="evidence", title="On the borrower's own screen",
+                detail=True,
+                body=["Every rule that held produces a sentence naming the "
+                      "conditions behind it, so a reader who disagrees with "
+                      "the level can see which rule put it there and argue "
+                      "with that rule rather than with a number."]),
+    ]
+    if not detail:
+        sections.append(Section(
+            key="offer", title="",
+            body=["Would you like the full list of what is weighed, and what "
+                  "brings a level back down?"]))
+
+    return compose(Answer(
+        topic="risk_assessment",
+        band=DETAILED if detail else MEDIUM,
+        deep=bool(detail),
+        headline=("A borrower is High Risk when something serious is "
+                  "established AND the rest of the credit picture agrees — "
+                  "never because a number of signals fired."),
+        sections=sections,
+        sources=["Early Warning assessment methodology",
+                 "Early Warning taxonomy"],
+        follow_ups=(
+            ["What is the Early Warning methodology?", "What is TAC?"]
+            if detail else
+            ["What else is weighed, and what brings a level down?",
+             "What is TAC?",
+             "What is the Early Warning methodology?"])))
 
 
 def list_early_warning_signals(family: str = "", layer_key: str = "",
@@ -924,6 +1031,7 @@ TOOLS: dict[str, Any] = {
     "describe_governed_engine": describe_governed_engine,
     "describe_early_warning_methodology": describe_early_warning_methodology,
     "describe_tac_methodology": describe_tac_methodology,
+    "describe_risk_assessment": describe_risk_assessment,
     "list_early_warning_signals": list_early_warning_signals,
     "describe_case_promotion": describe_case_promotion,
     "describe_warning_states": describe_warning_states,
@@ -998,6 +1106,7 @@ __all__ = [
     "describe_governed_engine",
     "describe_macro_assumptions",
     "describe_rating_to_pd",
+    "describe_risk_assessment",
     "describe_tac_methodology",
     "describe_warning_states",
     "describe_whatif",

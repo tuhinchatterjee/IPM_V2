@@ -89,6 +89,15 @@ _UNAMBIGUOUS = re.compile(
     r"|\brole of ai\b|\bai (?:is )?(?:used|leveraged|role)\b"
     r"|\bhow is ai\b|\bhow does creditprobe use ai\b"
     r"|\btac\b(?:\s+methodolog\w*)?"
+    # Nothing in a borrower book is called a classifier. It is the C of TAC,
+    # and a question naming one is asking how detection works.
+    r"|\bclassifiers?\b|\bthreshold[- ]based\b|\baction[- ]based\b"
+    r"|\bdetection mechanism\b"
+    # "High Risk" is a level this product assigns, and a question about why a
+    # borrower has one is a question about the methodology, not a request for
+    # the borrowers who do — which the rows test above catches first.
+    r"|\bwhy is a borrower high[- ]risk\b|\bwhy .{0,25}high[- ]risk\b"
+    r"|\bhow .{0,20}risk .{0,20}assessed\b"
     r"|\bfour[- ]layer\b|\bfour layers\b"
     r"|\bwhat does what[- ]if\b|\bwhat is what[- ]if\b"
     r"|\bmacro sensitivity\b|\bsensitivity matrix\b"
@@ -165,7 +174,12 @@ _TOPIC: tuple[tuple[str, str], ...] = (
     (r"\bwhat[- ]if\b.{0,30}\b(?:do|does|is|analysis)\b"
      r"|\bwhat\s+does\s+what[- ]if\b|\bscenario\s+analysis\b"
      r"|\bwhat\s+is\s+what[- ]if\b", "describe_whatif"),
-    (r"\btac\b", "describe_tac_methodology"),
+    (r"\bhigh[- ]risk\b|\bwhy is .{0,30}(?:borrower|name|customer) .{0,20}risk\b"
+     r"|\brisk level\b|\boverall risk\b|\bhow .{0,20}risk .{0,20}assessed\b",
+     "describe_risk_assessment"),
+    (r"\btac\b|\bclassifiers?\b|\bthreshold[- ]based\b"
+     r"|\baction[- ]based\b|\bdetection mechanism\b",
+     "describe_tac_methodology"),
     (r"\bfour[- ]layers?\b|\bfour[- ]layer\b", "describe_early_warning_methodology"),
     (r"\bpersistent warning\b|\bwhat does .{0,20}warning mean\b",
      "describe_warning_states"),

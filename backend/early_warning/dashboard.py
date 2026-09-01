@@ -250,6 +250,42 @@ def diagnostics(standings: list[sg.Standing], *, limit: int = 20) -> list[dict[s
     return rows[:limit]
 
 
+def risk_levels(standings: list[sg.Standing]) -> dict[str, Any]:
+    """The book split by overall Early Warning risk. Section 11B and 11G.
+
+    Assessed once per borrower here rather than by each caller, because the
+    assessment reads the whole standing and a screen that recomputes it per
+    card recomputes it three thousand times.
+    """
+    from backend.early_warning import assessment as ea
+
+    found = [(s, ea.assess(s, s.record)) for s in standings]
+    by_level: dict[str, list[tuple[sg.Standing, Any]]] = {
+        level: [] for level in ea.LEVELS}
+    for standing, verdict in found:
+        by_level[verdict.level].append((standing, verdict))
+
+    return {
+        "owner": ea.ASSESSMENT_OWNER,
+        "version": ea.ASSESSMENT_VERSION,
+        "rule": ea.describe()["rule"],
+        "levels": [
+            {"level": level,
+             "means": ea.LEVEL_MEANS[level],
+             "borrowers": len(by_level[level]),
+             "share": (round(100.0 * len(by_level[level]) / len(found), 1)
+                       if found else 0.0),
+             "exposure": round(sum(_exposure(s) for s, _ in by_level[level]), 1),
+             # The names, so the count is a door rather than a fact.
+             "names": [s.borrower_id for s, _ in by_level[level][:50]]}
+            for level in ea.LEVELS],
+        "statement": (
+            "Risk level is decided by gravity AND corroboration, never by how "
+            "many signals fired. A borrower with six stale-valuation "
+            "observations is not in more trouble than one in covenant breach."),
+    }
+
+
 def build(standings: list[sg.Standing], *, period: str = "",
           previous_period: str = "", evaluated: int = 0) -> dict[str, Any]:
     """The whole landing page, from one pass over the standings."""
@@ -263,6 +299,7 @@ def build(standings: list[sg.Standing], *, period: str = "",
         "hotspots": hotspots(standings),
         "changes": changes(standings),
         "diagnostics": diagnostics(standings),
+        "risk_levels": risk_levels(standings),
         "priority_policy": {
             "owner": pr.OWNER, "version": pr.PRIORITY_VERSION,
             "levels": [{"priority": level,
@@ -275,4 +312,4 @@ def build(standings: list[sg.Standing], *, period: str = "",
 
 
 __all__ = ["DASHBOARD_VERSION", "Measure", "build", "changes", "diagnostics",
-           "hotspots", "measures"]
+           "hotspots", "measures", "risk_levels"]
