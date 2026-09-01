@@ -3463,6 +3463,145 @@ export interface PlaybookLibrary {
   statuses: string[];
 }
 
+// =================================================== What-If / scenarios
+
+export interface WhatIfShock {
+  kind: string;
+  magnitude: number;
+  unit: string;
+  target: string;
+  description: string;
+}
+
+export interface WhatIfScenario {
+  key: string;
+  name: string;
+  severity: string;
+  rationale: string;
+  period: string;
+  description: string;
+  shocks: WhatIfShock[];
+  population: {
+    sectors: string[];
+    rating_bands: string[];
+    stages: number[];
+    borrower_ids: string[];
+    watchlist_only: boolean;
+    description: string;
+  };
+  assumptions: {
+    reevaluate_sicr: boolean;
+    rating_deterioration_sicr: boolean;
+    rating_sicr_notches: number;
+    collateral_to_lgd: boolean;
+  };
+}
+
+export interface WhatIfSummary {
+  scenario: string;
+  population: string;
+  borrowers: number;
+  period: string;
+  currency: string;
+  baseline_ead: number;
+  stressed_ead: number;
+  baseline_ecl: number;
+  stressed_ecl: number;
+  incremental_ecl: number;
+  incremental_ecl_pct: number;
+  baseline_coverage_pct: number;
+  stressed_coverage_pct: number;
+  stage_2_migrations: number;
+  stage_3_migrations: number;
+  stage_2_baseline: number;
+  stage_2_stressed: number;
+  borrowers_with_higher_ecl: number;
+  downgraded: number;
+  collateral_shortfalls: number;
+  covenant_breaches: number;
+}
+
+export interface WhatIfStep {
+  step: string;
+  detail: string;
+  affected: number;
+}
+
+export interface WhatIfSensitivityRow {
+  variable: string;
+  shock: string;
+  scope: string;
+  sector_sensitivity: number;
+  pd_effect_pct: number;
+  lgd_effect_pp: number;
+  borrowers: number;
+}
+
+export interface WhatIfRun {
+  scenario: WhatIfScenario;
+  period: string;
+  currency: string;
+  summary: WhatIfSummary;
+  population: number;
+  steps: WhatIfStep[];
+  sensitivity: WhatIfSensitivityRow[];
+  warnings: string[];
+  borrowers: { columns: string[]; rows: (string | number)[][] };
+  detail: {
+    by_sector: Record<string, unknown>[];
+    by_rating: Record<string, unknown>[];
+    top_contributors: Record<string, unknown>[];
+    masterscale: Record<string, unknown>[];
+    ifrs9_policy: Record<string, unknown>;
+  };
+  trace: { nodes: unknown[]; edges: unknown[] };
+}
+
+export interface WhatIfConfiguration {
+  masterscale: {
+    owner: string;
+    version: string;
+    grades: {
+      grade: string;
+      pd_floor_pct: number;
+      pd_ceiling_pct: number;
+      masterscale_pd_pct: number;
+    }[];
+    bands: Record<string, string[]>;
+  };
+  sensitivity: {
+    owner: string;
+    version: string;
+    effective_date: string;
+    statement: string;
+    sectors: string[];
+    variables: {
+      key: string;
+      variable: string;
+      unit: string;
+      shock_unit: string;
+      pd_effect_pct_per_step: number;
+      lgd_effect_pp_per_step: number;
+      financial_effects: Record<string, number>;
+      sector_sensitivity: Record<string, number>;
+      basis: string;
+      note: string;
+    }[];
+  };
+  ifrs9_policy: {
+    owner: string;
+    version: string;
+    sicr_triggers: { trigger: string; rule: string }[];
+    default_presumption: string;
+    measurement: Record<string, string>;
+    lifetime_horizon_years: number;
+    scenario_weights: { scenario: string; weight: number; ecl_multiplier: number }[];
+    weighted_factor: number;
+  };
+  scenarios: WhatIfScenario[];
+  currency: string;
+}
+
 // =================================================== the dataset viewer
 
 export interface DatasetTree {
@@ -4142,6 +4281,48 @@ export const api = {
       `${encodeURIComponent(name)}/export${suffix}`
     );
   },
+
+  // ---- What-If / scenarios ----
+  whatIfConfiguration: () =>
+    request<WhatIfConfiguration>("/whatif/configuration"),
+  whatIfScenarios: () =>
+    request<{ scenarios: WhatIfScenario[]; count: number }>("/whatif/scenarios"),
+  runWhatIf: (payload: {
+    scenario?: string;
+    name?: string;
+    shocks?: { kind: string; magnitude: number; unit?: string; target?: string }[];
+    population?: {
+      sectors?: string[];
+      rating_bands?: string[];
+      stages?: number[];
+      borrower_ids?: string[];
+      watchlist_only?: boolean;
+    };
+    assumptions?: {
+      reevaluate_sicr?: boolean;
+      rating_deterioration_sicr?: boolean;
+      rating_sicr_notches?: number;
+      collateral_to_lgd?: boolean;
+    };
+    period?: string;
+    limit?: number;
+  }) =>
+    request<WhatIfRun>("/whatif/run", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  askWhatIf: (question: string, limit = 100) =>
+    request<WhatIfRun & { is_scenario: boolean; message?: string; unread?: string[] }>(
+      "/whatif/ask",
+      { method: "POST", body: JSON.stringify({ question, limit }) },
+    ),
+  compareWhatIf: (keys: string[]) =>
+    request<{
+      columns: string[];
+      rows: (string | number)[][];
+      currency: string;
+      scenarios: WhatIfScenario[];
+    }>("/whatif/compare", { method: "POST", body: JSON.stringify(keys) }),
 
   // ---- playbooks ----
   playbooks: (status?: string) =>

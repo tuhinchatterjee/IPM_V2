@@ -1,11 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { FlaskConical, Info, Play } from "lucide-react";
+import { FlaskConical, Info, Play, Settings2 } from "lucide-react";
 
-import { AnalyticalCard } from "@/components/analytics/analytical-card";
-import { CategoryBarChart } from "@/components/analytics/charts";
-import { KpiTile, ResultTable, Stat } from "@/components/analytics/primitives";
+import { KpiTile } from "@/components/analytics/primitives";
 import { PageHeader } from "@/components/layout/page-header";
 import { useCanRunAnalysis } from "@/components/system/role-switcher";
 import { Badge } from "@/components/ui/badge";
@@ -22,488 +20,658 @@ import {
 } from "@/components/ui/table";
 import { Tabs } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
-import { money, percent } from "@/lib/format";
-import { useAnalysis, useAsync } from "@/lib/hooks";
-import type { Row } from "@/lib/api";
+import type { WhatIfConfiguration, WhatIfRun } from "@/lib/api";
+import { money } from "@/lib/format";
+import { useAsync } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 
 /**
- * Stress Testing.
+ * What-If Analysis.
  *
- * Runs the real Basic Management Scenario. Every scenario is labelled as a
- * management simulation, because presenting it as regulatory stress testing
- * would be an overclaim: it has no forward-looking macro paths and no lifetime
- * PD term structure, and the engine's own methodology text says so.
+ * The screen's job is to make the ASSUMPTIONS visible, not to hide them behind
+ * a Run button. A stressed provision that a credit officer cannot take apart is
+ * a number they will not defend in a committee, so the rating masterscale, the
+ * macro sensitivity matrix and the IFRS 9 staging policy are all on the page —
+ * and every one of them carries an owner and a version.
+ *
+ * The results are TABLE FIRST. A scenario answer is a summary and a list of
+ * names; a chart of stressed exposure by sector is offered on the sector tab,
+ * where the comparison is genuinely the point, and nowhere else.
  */
 
-const PRESETS = [
-  {
-    id: "base",
-    label: "Base (no shock)",
-    severity: "None",
-    rationale: "The reported position, for comparison.",
-    shocks: "No change",
-  },
-  {
-    id: "mild",
-    label: "Mild slowdown",
-    severity: "Mild",
-    rationale: "A shallow downturn: PD up a quarter, modest collateral erosion.",
-    shocks: "PD ×1.25 · LGD +2pp · EAD +1% · 2% of Stage 1 migrated",
-  },
-  {
-    id: "moderate",
-    label: "Moderate downturn",
-    severity: "Moderate",
-    rationale:
-      "The central management scenario: PD up three quarters, LGD up 5pp, undrawn commitments partly drawn.",
-    shocks: "PD ×1.75 · LGD +5pp · EAD +3% · 5% of Stage 1 migrated",
-  },
-  {
-    id: "severe",
-    label: "Severe stress",
-    severity: "Severe",
-    rationale:
-      "A sharp recession with property-price falls: PD two and a half times, LGD up 10pp.",
-    shocks: "PD ×2.5 · LGD +10pp · EAD +6% · 10% of Stage 1 migrated",
-  },
-];
+const SHOCK_KINDS = [
+  { value: "rating", label: "Rating downgrade", unit: "notches", hint: "notches" },
+  { value: "pd", label: "12-month PD", unit: "relative_pct", hint: "%" },
+  { value: "lgd", label: "Loss given default", unit: "absolute_pp", hint: "pp" },
+  { value: "ead", label: "Exposure at default", unit: "relative_pct", hint: "%" },
+  { value: "collateral", label: "Collateral values", unit: "relative_pct", hint: "%" },
+  { value: "financial", label: "EBITDA", unit: "relative_pct", hint: "%" },
+] as const;
 
-export default function StressPage() {
-  const [tab, setTab] = React.useState("library");
-  const [scenario, setScenario] = React.useState("moderate");
-  const [sector, setSector] = React.useState("");
-  const [pdMultiplier, setPdMultiplier] = React.useState(2);
-  const [lgdUplift, setLgdUplift] = React.useState(6);
-  const [eadUplift, setEadUplift] = React.useState(4);
-  const [migration, setMigration] = React.useState(6);
-  const [useCustom, setUseCustom] = React.useState(false);
+const SEVERITY_TONE: Record<string, string> = {
+  base: "border-border text-text-muted",
+  mild: "border-border text-text-secondary",
+  moderate: "border-caution/50 text-caution",
+  severe: "border-negative/50 text-negative",
+  custom: "border-accent/50 text-accent",
+};
+
+function Money({ value }: { value: number }) {
+  return <>{money(value, 1)}</>;
+}
+
+/** A number a reader can compare, with its direction shown rather than told. */
+function Movement({ from, to, unit }: { from: number; to: number; unit?: string }) {
+  const worse = to > from;
+  return (
+    <span className="tabular-nums">
+      {money(from, 1)}
+      <span aria-hidden className="mx-1 text-text-muted">
+        →
+      </span>
+      <span className={cn(worse ? "text-negative" : "text-text-primary")}>
+        {money(to, 1)}
+      </span>
+      {unit ? <span className="ml-1 text-text-muted">{unit}</span> : null}
+    </span>
+  );
+}
+
+export default function StressTestingPage() {
   const canRun = useCanRunAnalysis();
-
-  const dimensions = useAsync(() => api.dimensions(), []);
-  const sectors =
-    dimensions.data?.dimensions.find((d) => d.field === "sector")?.values ?? [];
-
-  const params = React.useMemo(
-    () =>
-      useCustom
-        ? {
-            scenario: "custom",
-            pd_multiplier: pdMultiplier,
-            lgd_uplift_pp: lgdUplift,
-            ead_uplift_pct: eadUplift,
-            stage2_migration_pct: migration,
-            ...(sector ? { sector } : {}),
-          }
-        : { scenario, ...(sector ? { sector } : {}) },
-    [useCustom, scenario, sector, pdMultiplier, lgdUplift, eadUplift, migration],
+  const configuration = useAsync<WhatIfConfiguration>(
+    () => api.whatIfConfiguration(),
+    [],
   );
 
-  const run = useAnalysis("stress_scenario_basic", { params }, canRun);
+  const [scenarioKey, setScenarioKey] = React.useState("downgrade_bbb_two");
+  const [customKind, setCustomKind] = React.useState<string>("rating");
+  const [customSize, setCustomSize] = React.useState("2");
+  const [sector, setSector] = React.useState("");
+  const [ratingBand, setRatingBand] = React.useState("");
+  const [assumeSicr, setAssumeSicr] = React.useState(false);
+  const [run, setRun] = React.useState<WhatIfRun | null>(null);
+  const [comparison, setComparison] = React.useState<{
+    columns: string[];
+    rows: (string | number)[][];
+  } | null>(null);
+  const [resultTab, setResultTab] = React.useState("borrowers");
+  const [configTab, setConfigTab] = React.useState("masterscale");
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState("");
 
-  // Comparison across all four presets, run for real.
-  const mild = useAnalysis("stress_scenario_basic", { params: { scenario: "mild" } }, tab === "compare");
-  const moderate = useAnalysis(
-    "stress_scenario_basic",
-    { params: { scenario: "moderate" } },
-    tab === "compare",
-  );
-  const severe = useAnalysis(
-    "stress_scenario_basic",
-    { params: { scenario: "severe" } },
-    tab === "compare",
-  );
+  const scenarios = configuration.data?.scenarios ?? [];
+  const selected = scenarios.find((s) => s.key === scenarioKey);
 
-  const values = run.data?.result?.values;
-  const bySector = (values?.by_sector ?? []) as Record<string, string | number | null>[];
+  async function runPreset() {
+    setBusy(true);
+    setError("");
+    try {
+      setRun(
+        await api.runWhatIf({
+          scenario: scenarioKey,
+          limit: 100,
+          assumptions: { rating_deterioration_sicr: assumeSicr },
+        }),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "The scenario could not run.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runCustom() {
+    setBusy(true);
+    setError("");
+    const shock = SHOCK_KINDS.find((k) => k.value === customKind);
+    try {
+      setRun(
+        await api.runWhatIf({
+          name: "Custom scenario",
+          shocks: [
+            {
+              kind: customKind,
+              magnitude: Number(customSize) || 0,
+              unit: shock?.unit ?? "relative_pct",
+              target: customKind === "financial" ? "ebitda" : "",
+            },
+          ],
+          population: {
+            sectors: sector ? [sector] : [],
+            rating_bands: ratingBand ? [ratingBand] : [],
+          },
+          assumptions: { rating_deterioration_sicr: assumeSicr },
+          limit: 100,
+        }),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "The scenario could not run.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function compare() {
+    setBusy(true);
+    setError("");
+    try {
+      setComparison(
+        await api.compareWhatIf([
+          "base",
+          "downgrade_one_notch",
+          "pd_up_25",
+          "rates_200bp",
+          "severe_combined",
+        ]),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "The comparison could not run.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const summary = run?.summary;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <PageHeader
-        title="Stress Testing"
-        description="Named, parameterised shocks applied to the portfolio, with the incremental impairment attributed by sector."
-        status="live"
-        actions={<Badge variant="warning">Management Scenario Simulation</Badge>}
+        eyebrow="Intelligence"
+        title="What-If Analysis"
+        description="Ask what would happen before it happens. Every scenario is computed borrower by borrower against the same governed staging and measurement rules that produced the reported book, so the base column ties to the accounts and the stressed column can be argued with line by line."
       />
 
-      <Card className="flex items-start gap-2.5 border-info/30 bg-info-muted p-4 text-sm text-info">
-        <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
-        <span>
-          These are <strong>management scenarios</strong>, not regulatory stress testing. Each
-          facility&apos;s reported ECL is scaled by the severity of the shock, which preserves its
-          own lifetime or 12-month measurement basis. There are no forward-looking macro paths
-          and no lifetime PD term structure.
-        </span>
-      </Card>
-
-      <Tabs
-        active={tab}
-        onChange={setTab}
-        tabs={[
-          { id: "library", label: "Scenario Library", count: PRESETS.length },
-          { id: "builder", label: "Scenario Builder" },
-          { id: "run", label: "Run Scenario" },
-          { id: "compare", label: "Results Comparison" },
-        ]}
-      />
-
-      {tab === "library" && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {PRESETS.map((p) => (
-            <Card key={p.id} className="flex flex-col p-5">
-              <div className="mb-2 flex items-start justify-between gap-3">
-                <FlaskConical className="size-5 text-text-muted" aria-hidden />
-                <Badge
-                  variant={
-                    p.severity === "Severe"
-                      ? "negative"
-                      : p.severity === "Moderate"
-                        ? "warning"
-                        : p.severity === "Mild"
-                          ? "info"
-                          : "default"
-                  }
-                >
-                  {p.severity}
-                </Badge>
-              </div>
-              <h3 className="text-sm font-semibold text-text-primary">{p.label}</h3>
-              <p className="mt-1.5 flex-1 text-xs leading-relaxed text-text-muted">{p.rationale}</p>
-              <p className="mt-3 rounded-md bg-surface-sunken px-3 py-2 font-mono text-[11px] text-text-secondary">
-                {p.shocks}
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3"
-                onClick={() => {
-                  setScenario(p.id);
-                  setUseCustom(false);
-                  setTab("run");
-                }}
+      {/* ----------------------------------------------------- configure */}
+      <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+        <Card className="space-y-4 p-5">
+          <div className="flex items-center gap-2">
+            <FlaskConical className="size-4 text-accent" aria-hidden />
+            <h2 className="text-[15px] font-semibold">Configured scenario</h2>
+          </div>
+          <Field label="Scenario">
+            <Select
+              value={scenarioKey}
+              onChange={(e) => setScenarioKey(e.target.value)}
+            >
+              {scenarios.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          {selected && (
+            <div className="space-y-2">
+              <Badge
+                className={cn("border", SEVERITY_TONE[selected.severity] ?? "")}
               >
-                <Play aria-hidden />
-                Run this scenario
-              </Button>
-            </Card>
-          ))}
-        </div>
-      )}
+                {selected.severity}
+              </Badge>
+              <p className="text-[13px] leading-[1.55] text-text-secondary">
+                {selected.rationale}
+              </p>
+              <p className="text-[12px] text-text-muted">
+                Shocks: {selected.description}. Population:{" "}
+                {selected.population.description}.
+              </p>
+            </div>
+          )}
+          <Button onClick={runPreset} disabled={!canRun || busy}>
+            <Play className="size-3.5" aria-hidden /> Run scenario
+          </Button>
+        </Card>
 
-      {tab === "builder" && (
-        <Card className="p-6">
-          <h3 className="mb-1 text-sm font-semibold text-text-primary">Scenario Builder</h3>
-          <p className="mb-5 max-w-3xl text-sm text-text-secondary">
-            Define your own shocks. A scenario is a set of parameters, not free text, so the
-            result can be reproduced exactly and argued with in a committee.
-          </p>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Field label="PD multiplier" hint="Every PD multiplied by this, capped at 100%.">
+        <Card className="space-y-4 p-5">
+          <div className="flex items-center gap-2">
+            <Settings2 className="size-4 text-accent" aria-hidden />
+            <h2 className="text-[15px] font-semibold">Your own scenario</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Shock">
+              <Select
+                value={customKind}
+                onChange={(e) => setCustomKind(e.target.value)}
+              >
+                {SHOCK_KINDS.map((k) => (
+                  <option key={k.value} value={k.value}>
+                    {k.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field
+              label={`Size (${SHOCK_KINDS.find((k) => k.value === customKind)?.hint ?? ""})`}
+            >
               <Input
-                type="number"
-                step="0.05"
-                min={0.1}
-                max={10}
-                value={pdMultiplier}
-                onChange={(e) => setPdMultiplier(Number(e.target.value))}
+                value={customSize}
+                onChange={(e) => setCustomSize(e.target.value)}
+                inputMode="decimal"
               />
             </Field>
-            <Field label="LGD uplift (pp)" hint="Added to LGD, capped at 100%.">
-              <Input
-                type="number"
-                step="0.5"
-                min={0}
-                max={60}
-                value={lgdUplift}
-                onChange={(e) => setLgdUplift(Number(e.target.value))}
-              />
-            </Field>
-            <Field label="EAD uplift (%)" hint="Undrawn commitments being drawn.">
-              <Input
-                type="number"
-                step="0.5"
-                min={0}
-                max={50}
-                value={eadUplift}
-                onChange={(e) => setEadUplift(Number(e.target.value))}
-              />
-            </Field>
-            <Field label="Stage 1 → 2 migration (%)" hint="Moves to a lifetime measurement basis.">
-              <Input
-                type="number"
-                step="1"
-                min={0}
-                max={100}
-                value={migration}
-                onChange={(e) => setMigration(Number(e.target.value))}
-              />
-            </Field>
-            <Field label="Restrict to sector" className="md:col-span-2" hint="Leave unset for the whole book.">
+            <Field label="Sector">
               <Select value={sector} onChange={(e) => setSector(e.target.value)}>
-                <option value="">Whole portfolio</option>
-                {sectors.map((s) => (
+                <option value="">Whole book</option>
+                {(configuration.data?.sensitivity.sectors ?? []).map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>
                 ))}
               </Select>
             </Field>
+            <Field label="Rating band">
+              <Select
+                value={ratingBand}
+                onChange={(e) => setRatingBand(e.target.value)}
+              >
+                <option value="">Every grade</option>
+                {Object.keys(configuration.data?.masterscale.bands ?? {}).map(
+                  (band) => (
+                    <option key={band} value={band}>
+                      {band}
+                    </option>
+                  ),
+                )}
+              </Select>
+            </Field>
           </div>
-          <Button
-            className="mt-5"
-            onClick={() => {
-              setUseCustom(true);
-              setTab("run");
-            }}
-          >
-            <Play aria-hidden />
-            Run custom scenario
+          <label className="flex items-start gap-2 text-[12px] text-text-secondary">
+            <input
+              type="checkbox"
+              checked={assumeSicr}
+              onChange={(e) => setAssumeSicr(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              Treat a rating deterioration as a significant increase in credit
+              risk. Off by default: a notch is not a SICR trigger in this policy,
+              and turning it on is a judgement somebody has to make.
+            </span>
+          </label>
+          <Button onClick={runCustom} disabled={!canRun || busy} variant="outline">
+            <Play className="size-3.5" aria-hidden /> Run
           </Button>
+        </Card>
+      </div>
+
+      {error && (
+        <Card className="border-negative/40 p-4 text-[13px] text-negative">
+          {error}
         </Card>
       )}
 
-      {tab === "run" && (
-        <>
-          <div className="flex flex-wrap items-center gap-3">
-            <Select
-              value={useCustom ? "custom" : scenario}
-              onChange={(e) => {
-                if (e.target.value === "custom") setUseCustom(true);
-                else {
-                  setUseCustom(false);
-                  setScenario(e.target.value);
-                }
-              }}
-              className="w-56"
-              aria-label="Scenario"
-            >
-              {PRESETS.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-              <option value="custom">Custom scenario</option>
-            </Select>
-            <Select
-              value={sector}
-              onChange={(e) => setSector(e.target.value)}
-              className="w-56"
-              aria-label="Sector"
-            >
-              <option value="">Whole portfolio</option>
-              {sectors.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {/* -------------------------------------------------------- result */}
+      {summary && run && (
+        <div className="space-y-5">
+          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
             <KpiTile
-              label="Baseline ECL"
-              value={typeof values?.base_ecl === "number" ? values.base_ecl : null}
-              unit="USD mn"
-              hint="as reported"
-              loading={run.loading}
-              emphasis
+              label="Incremental ECL"
+              value={money(summary.incremental_ecl, 1)}
+              unit={summary.currency}
+              change={summary.incremental_ecl_pct}
+              changeUnit="%"
+              direction="up-is-bad"
+              hint={`${summary.borrowers.toLocaleString()} borrowers, ${summary.period}`}
             />
             <KpiTile
               label="Stressed ECL"
-              value={typeof values?.stressed_ecl === "number" ? values.stressed_ecl : null}
-              unit="USD mn"
-              hint="under the scenario"
-              loading={run.loading}
-              emphasis
+              value={money(summary.stressed_ecl, 1)}
+              unit={summary.currency}
+              hint={`Baseline ${money(summary.baseline_ecl, 1)}`}
             />
             <KpiTile
-              label="Incremental ECL"
-              value={typeof values?.ecl_increase === "number" ? values.ecl_increase : null}
-              unit="USD mn"
-              change={typeof values?.ecl_increase === "number" ? values.ecl_increase : null}
-              changeUnit="USD mn"
-              hint="additional impairment"
-              loading={run.loading}
-              emphasis
+              label="Stage 1 → 2 migrations"
+              value={summary.stage_2_migrations.toLocaleString()}
+              hint={`Stage 2 population ${summary.stage_2_baseline} → ${summary.stage_2_stressed}`}
             />
             <KpiTile
-              label="Stressed coverage"
-              value={
-                typeof values?.stressed_coverage_pct === "number"
-                  ? values.stressed_coverage_pct
-                  : null
-              }
-              unit="%"
-              hint={
-                typeof values?.base_coverage_pct === "number"
-                  ? `from ${percent(values.base_coverage_pct)}`
-                  : undefined
-              }
-              loading={run.loading}
-              emphasis
+              label="ECL coverage"
+              value={`${summary.stressed_coverage_pct.toFixed(2)}%`}
+              hint={`Baseline ${summary.baseline_coverage_pct.toFixed(2)}%`}
             />
           </div>
 
-          <AnalyticalCard
-            title="Scenario result"
-            description={
-              values?.scenario_label ? String(values.scenario_label) : "Management scenario"
-            }
-            analysisId="stress_scenario_basic"
-            run={run.data}
-            loading={run.loading}
-            error={run.error}
-            onRetry={run.reload}
-            minHeight={280}
-          >
-            {run.data?.result && (
-              <div className="space-y-4">
-                <div className="rounded-md border border-border bg-surface-sunken p-3">
-                  <p className="mb-1 text-xs font-medium text-text-secondary">
-                    Scenario assumptions
-                  </p>
-                  <p className="text-xs text-text-muted">{String(values?.rationale ?? "")}</p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {Object.entries((values?.shocks ?? {}) as Record<string, unknown>)
-                      .filter(([k]) => k !== "label" && k !== "rationale")
-                      .map(([k, v]) => (
-                        <Badge key={k} variant="outline">
-                          {k.replace(/_/g, " ")}: {String(v)}
-                        </Badge>
-                      ))}
-                  </div>
-                </div>
-                <ResultTable
-                  rows={run.data.result.rows as Row[]}
-                  columns={["metric", "base", "stressed", "change", "change_pct"]}
-                />
-              </div>
-            )}
-          </AnalyticalCard>
+          <Tabs
+            active={resultTab}
+            onChange={setResultTab}
+            tabs={[
+              { id: "borrowers", label: `Borrowers (${summary.borrowers.toLocaleString()})` },
+              { id: "sectors", label: "By sector" },
+              { id: "how", label: "How this was calculated" },
+              { id: "sensitivity", label: "Sensitivity" },
+            ]}
+          />
 
-          <AnalyticalCard
-            title="Sector impact"
-            description="Incremental ECL attributed by sector, and the largest contributors"
-            run={run.data}
-            loading={run.loading}
-            error={run.error}
-            actions={false}
-            minHeight={300}
-          >
-            {bySector.length > 0 && (
-              <div className="space-y-4">
-                <CategoryBarChart
-                  data={bySector.slice(0, 10)}
-                  xKey="sector"
-                  series={[{ key: "ecl_increase", label: "Incremental ECL", slot: 1 }]}
-                  units={{ ecl_increase: "USD mn" }}
-                  height={260}
-                />
+          {resultTab === "borrowers" && (
+            <Card className="overflow-x-auto p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {run.borrowers.columns.map((c) => (
+                      <TableHead key={c}>{c}</TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {run.borrowers.rows.map((row, i) => (
+                    <TableRow key={i}>
+                      {row.map((cell, j) => (
+                        <TableCell key={j} className="tabular-nums">
+                          {typeof cell === "number" ? money(cell, 2) : String(cell)}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
+
+          {resultTab === "sectors" && (
+            <Card className="overflow-x-auto p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Sector</TableHead>
+                    <TableHead>Borrowers</TableHead>
+                    <TableHead>Baseline ECL</TableHead>
+                    <TableHead>Stressed ECL</TableHead>
+                    <TableHead>Increase</TableHead>
+                    <TableHead>Increase (%)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {run.detail.by_sector.map((row, i) => (
+                    <TableRow key={i}>
+                      <TableCell>{String(row.sector ?? "")}</TableCell>
+                      <TableCell className="tabular-nums">
+                        {Number(row.borrowers ?? 0)}
+                      </TableCell>
+                      <TableCell className="tabular-nums">
+                        <Money value={Number(row.baseline_ecl ?? 0)} />
+                      </TableCell>
+                      <TableCell className="tabular-nums">
+                        <Money value={Number(row.stressed_ecl ?? 0)} />
+                      </TableCell>
+                      <TableCell className="tabular-nums text-negative">
+                        <Money value={Number(row.ecl_increase ?? 0)} />
+                      </TableCell>
+                      <TableCell className="tabular-nums">
+                        {Number(row.ecl_increase_pct ?? 0).toFixed(1)}%
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
+
+          {resultTab === "how" && (
+            <Card className="space-y-3 p-5">
+              <ol className="space-y-3">
+                {run.steps.map((step, i) => (
+                  <li key={i} className="flex gap-3">
+                    <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-surface-sunken font-mono text-[10px] text-text-muted">
+                      {i + 1}
+                    </span>
+                    <div>
+                      <p className="text-[13px] font-medium text-text-primary">
+                        {step.step}
+                      </p>
+                      <p className="text-[12px] leading-[1.55] text-text-secondary">
+                        {step.detail}
+                      </p>
+                      {step.affected > 0 && (
+                        <p className="mt-0.5 font-mono text-[11px] text-text-muted">
+                          {step.affected.toLocaleString()} borrowers affected
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </Card>
+          )}
+
+          {resultTab === "sensitivity" &&
+            (run.sensitivity.length ? (
+              <Card className="overflow-x-auto p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow className="hover:bg-transparent">
+                    <TableRow>
+                      <TableHead>Variable</TableHead>
+                      <TableHead>Shock</TableHead>
                       <TableHead>Sector</TableHead>
-                      <TableHead numeric>EAD</TableHead>
-                      <TableHead numeric>Base ECL</TableHead>
-                      <TableHead numeric>Stressed ECL</TableHead>
-                      <TableHead numeric>Incremental</TableHead>
+                      <TableHead>Sector sensitivity</TableHead>
+                      <TableHead>PD effect</TableHead>
+                      <TableHead>LGD effect</TableHead>
+                      <TableHead>Borrowers</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {bySector.slice(0, 8).map((r) => (
-                      <TableRow key={String(r.sector)}>
-                        <TableCell className="font-medium text-text-primary">
-                          {String(r.sector)}
+                    {run.sensitivity.map((row, i) => (
+                      <TableRow key={i}>
+                        <TableCell>{row.variable}</TableCell>
+                        <TableCell>{row.shock}</TableCell>
+                        <TableCell>{row.scope}</TableCell>
+                        <TableCell className="tabular-nums">
+                          {row.sector_sensitivity.toFixed(2)}×
                         </TableCell>
-                        <TableCell numeric>{money(Number(r.ead), 0)}</TableCell>
-                        <TableCell numeric>{money(Number(r.base_ecl), 1)}</TableCell>
-                        <TableCell numeric>{money(Number(r.stressed_ecl), 1)}</TableCell>
-                        <TableCell numeric className="font-medium text-negative">
-                          +{money(Number(r.ecl_increase), 1)}
+                        <TableCell className="tabular-nums">
+                          +{row.pd_effect_pct.toFixed(1)}%
+                        </TableCell>
+                        <TableCell className="tabular-nums">
+                          +{row.lgd_effect_pp.toFixed(1)}pp
+                        </TableCell>
+                        <TableCell className="tabular-nums">{row.borrowers}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
+            ) : (
+              <Card className="p-5 text-[13px] text-text-secondary">
+                This scenario carries no macro shock, so the sensitivity matrix
+                was not consulted.
+              </Card>
+            ))}
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- comparison */}
+      <Card className="space-y-4 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-[15px] font-semibold">Scenario comparison</h2>
+            <p className="text-[12px] text-text-muted">
+              Five scenarios on the same book, so the severities can be read
+              against each other rather than one at a time.
+            </p>
+          </div>
+          <Button onClick={compare} disabled={!canRun || busy} variant="outline">
+            Compare
+          </Button>
+        </div>
+        {comparison && (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {comparison.columns.map((c) => (
+                    <TableHead key={c}>{c}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {comparison.rows.map((row, i) => (
+                  <TableRow key={i}>
+                    {row.map((cell, j) => (
+                      <TableCell key={j} className="tabular-nums">
+                        {typeof cell === "number" ? money(cell, 1) : String(cell)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </Card>
+
+      {/* ------------------------------------------------- configuration */}
+      {configuration.data && (
+        <>
+          <Tabs
+            active={configTab}
+            onChange={setConfigTab}
+            tabs={[
+              { id: "masterscale", label: "Rating masterscale" },
+              { id: "matrix", label: "Macro sensitivity matrix" },
+              { id: "policy", label: "IFRS 9 staging policy" },
+            ]}
+          />
+
+          {configTab === "masterscale" && (
+            <Card className="space-y-3 p-5">
+              <p className="text-[12px] text-text-muted">
+                Owned by {configuration.data.masterscale.owner}, version{" "}
+                {configuration.data.masterscale.version}. A downgrade moves a
+                borrower onto the PD its new grade carries; each
+                borrower&rsquo;s own position inside the band is preserved.
+              </p>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Grade</TableHead>
+                      <TableHead>PD floor</TableHead>
+                      <TableHead>PD ceiling</TableHead>
+                      <TableHead>Masterscale PD</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {configuration.data.masterscale.grades.map((g) => (
+                      <TableRow key={g.grade}>
+                        <TableCell className="font-medium">{g.grade}</TableCell>
+                        <TableCell className="tabular-nums">{g.pd_floor_pct}%</TableCell>
+                        <TableCell className="tabular-nums">{g.pd_ceiling_pct}%</TableCell>
+                        <TableCell className="tabular-nums">
+                          {g.masterscale_pd_pct}%
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
-            )}
-          </AnalyticalCard>
+            </Card>
+          )}
+
+          {configTab === "matrix" && (
+            <Card className="space-y-3 p-5">
+              <p className="flex items-start gap-2 text-[12px] text-text-secondary">
+                <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                <span>{configuration.data.sensitivity.statement}</span>
+              </p>
+              <p className="font-mono text-[11px] text-text-muted">
+                {configuration.data.sensitivity.owner} · version{" "}
+                {configuration.data.sensitivity.version} · effective{" "}
+                {configuration.data.sensitivity.effective_date}
+              </p>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Variable</TableHead>
+                      <TableHead>Shock unit</TableHead>
+                      <TableHead>PD effect</TableHead>
+                      <TableHead>LGD effect</TableHead>
+                      <TableHead>Most exposed sectors</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {configuration.data.sensitivity.variables.map((v) => (
+                      <TableRow key={v.key}>
+                        <TableCell className="font-medium">{v.variable}</TableCell>
+                        <TableCell>{v.shock_unit}</TableCell>
+                        <TableCell className="tabular-nums">
+                          +{v.pd_effect_pct_per_step}%
+                        </TableCell>
+                        <TableCell className="tabular-nums">
+                          {v.lgd_effect_pp_per_step
+                            ? `+${v.lgd_effect_pp_per_step}pp`
+                            : "—"}
+                        </TableCell>
+                        <TableCell className="text-[12px] text-text-secondary">
+                          {Object.entries(v.sector_sensitivity)
+                            .filter(([, m]) => m > 1)
+                            .sort((a, b) => b[1] - a[1])
+                            .slice(0, 3)
+                            .map(([sc, m]) => `${sc} ${m}×`)
+                            .join(", ") || "no sector differentiation"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </Card>
+          )}
+
+          {configTab === "policy" && (
+            <Card className="space-y-3 p-5">
+              <p className="font-mono text-[11px] text-text-muted">
+                {configuration.data.ifrs9_policy.owner} · version{" "}
+                {configuration.data.ifrs9_policy.version}
+              </p>
+              <div>
+                <h3 className="text-[13px] font-semibold">
+                  What moves a borrower into Stage 2
+                </h3>
+                <ul className="mt-1.5 space-y-1.5">
+                  {configuration.data.ifrs9_policy.sicr_triggers.map((t) => (
+                    <li key={t.trigger} className="text-[13px]">
+                      <span className="font-medium">{t.trigger}.</span>{" "}
+                      <span className="text-text-secondary">{t.rule}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3 className="text-[13px] font-semibold">
+                  How each Stage is measured
+                </h3>
+                <ul className="mt-1.5 space-y-1">
+                  {Object.entries(configuration.data.ifrs9_policy.measurement).map(
+                    ([stage, basis]) => (
+                      <li key={stage} className="text-[13px] text-text-secondary">
+                        <span className="font-medium text-text-primary">
+                          {stage}:
+                        </span>{" "}
+                        {basis}
+                      </li>
+                    ),
+                  )}
+                </ul>
+              </div>
+              <p className="text-[12px] text-text-muted">
+                Default is presumed at{" "}
+                {configuration.data.ifrs9_policy.default_presumption}. A scenario
+                never creates one.
+              </p>
+            </Card>
+          )}
         </>
       )}
 
-      {tab === "compare" && (
-        <Card className="p-5">
-          <h3 className="mb-1 text-sm font-semibold text-text-primary">Results comparison</h3>
-          <p className="mb-4 text-sm text-text-secondary">
-            All three severity presets, executed against the same reporting period.
-          </p>
-          {[mild, moderate, severe].some((r) => r.loading) ? (
-            <p className="text-sm text-text-muted">Running scenarios…</p>
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead>Scenario</TableHead>
-                    <TableHead numeric>Baseline ECL</TableHead>
-                    <TableHead numeric>Stressed ECL</TableHead>
-                    <TableHead numeric>Incremental</TableHead>
-                    <TableHead numeric>Increase</TableHead>
-                    <TableHead numeric>Coverage</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {[
-                    ["Mild slowdown", mild],
-                    ["Moderate downturn", moderate],
-                    ["Severe stress", severe],
-                  ].map(([label, state]) => {
-                    const v = (state as typeof mild).data?.result?.values;
-                    if (!v) return null;
-                    return (
-                      <TableRow key={String(label)}>
-                        <TableCell className="font-medium text-text-primary">
-                          {String(label)}
-                        </TableCell>
-                        <TableCell numeric>{money(Number(v.base_ecl), 1)}</TableCell>
-                        <TableCell numeric>{money(Number(v.stressed_ecl), 1)}</TableCell>
-                        <TableCell numeric className="font-medium text-negative">
-                          +{money(Number(v.ecl_increase), 1)}
-                        </TableCell>
-                        <TableCell numeric className="text-negative">
-                          {percent(Number(v.ecl_increase_pct), 1)}
-                        </TableCell>
-                        <TableCell numeric>{percent(Number(v.stressed_coverage_pct))}</TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-
-              {moderate.data?.result && (
-                <div className="mt-5 flex flex-wrap gap-8 border-t border-border pt-4">
-                  <Stat
-                    label="Base coverage"
-                    value={percent(Number(moderate.data.result.values.base_coverage_pct))}
-                  />
-                  <Stat
-                    label="Severe coverage"
-                    value={percent(Number(severe.data?.result?.values.stressed_coverage_pct))}
-                    tone="negative"
-                  />
-                  <Stat
-                    label="Severe incremental ECL"
-                    value={`+${money(Number(severe.data?.result?.values.ecl_increase), 1)}mn`}
-                    tone="negative"
-                  />
-                </div>
-              )}
-            </>
-          )}
-        </Card>
+      {run && summary && (
+        <p className="text-[12px] text-text-muted">
+          <Movement
+            from={summary.baseline_ead}
+            to={summary.stressed_ead}
+            unit={`${summary.currency} exposure at default`}
+          />
+        </p>
       )}
     </div>
   );
 }
-
-export { cn };

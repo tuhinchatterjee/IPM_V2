@@ -57,6 +57,7 @@ from backend.api.routers import (
 from backend.api.routers import studio as studio_router
 from backend.api.routers import users as users_router
 from backend.api.routers import validation as validation_router
+from backend.api.routers import whatif as whatif_router
 from backend.api.routers import workspace as workspace_router
 from backend.api.schemas import ErrorResponse
 from backend.config import settings
@@ -329,6 +330,7 @@ def create_app() -> FastAPI:
     app.include_router(hierarchy_router.analyses_router, prefix=API_PREFIX)
     app.include_router(lenses_router.router, prefix=API_PREFIX)
     app.include_router(playbooks_router.router, prefix=API_PREFIX)
+    app.include_router(whatif_router.router, prefix=API_PREFIX)
     app.include_router(studio_router.router, prefix=API_PREFIX)
     # The AI Intelligence Studio, on /intelligence. Distinct from the four
     # borrower-level domain readings on /domain-intelligence above: this one
