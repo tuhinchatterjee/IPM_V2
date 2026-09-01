@@ -53,14 +53,27 @@ CRITIC = "critic"
 #: to change on the day it does.
 TRANSLATION = "translation"
 
-ROLES: tuple[str, ...] = (ROUTER, PLANNER, COMPLEX_PLANNER, INTERPRETATION,
-                          CRITIC, TRANSLATION)
+#: R2 §16's class B and class C, as configurable roles.
+#:
+#: The investigation loop was one job served by one model. It is two: choosing
+#: and sequencing governed tool calls, which a strong cost-efficient model does
+#: well, and forming a credit judgement on what came back, which is the work
+#: worth paying for. Splitting the variable is what lets an administrator pay
+#: for the second without paying for the first on every "show me the top 20 by
+#: PD" — and, before this split, every such question was served at the deep
+#: rate because there was nowhere else for it to go.
+INVESTIGATOR = "investigator"
+ANALYST = "analyst"
+
+ROLES: tuple[str, ...] = (ROUTER, PLANNER, COMPLEX_PLANNER, INVESTIGATOR,
+                          ANALYST, INTERPRETATION, CRITIC, TRANSLATION)
 
 #: Roles the product calls today. TRANSLATION is declared but unused, and a
 #: report that counted it as unconfigured would be reporting a gap that is not
 #: one.
 ACTIVE_ROLES: tuple[str, ...] = (ROUTER, PLANNER, COMPLEX_PLANNER,
-                                 INTERPRETATION, CRITIC)
+                                 INVESTIGATOR, ANALYST, INTERPRETATION,
+                                 CRITIC)
 
 #: Which environment variable names each role's model, and how hard it should
 #: think. Effort is passed through only where the provider supports it.
@@ -71,6 +84,8 @@ _ENV: dict[str, tuple[str, str]] = {
                       "AI_COMPLEX_PLANNER_EFFORT"),
     INTERPRETATION: ("AI_INTERPRETATION_MODEL", "AI_INTERPRETATION_EFFORT"),
     CRITIC: ("AI_CRITIC_MODEL", "AI_CRITIC_EFFORT"),
+    INVESTIGATOR: ("AI_INVESTIGATOR_MODEL", "AI_INVESTIGATOR_EFFORT"),
+    ANALYST: ("AI_ANALYST_MODEL", "AI_ANALYST_EFFORT"),
     TRANSLATION: ("AI_TRANSLATION_MODEL", "AI_TRANSLATION_EFFORT"),
 }
 
@@ -80,7 +95,16 @@ _ENV: dict[str, tuple[str, str]] = {
 #: to AI_MODEL. Without this the upgrade would silently move complex planning
 #: onto the shared default, which §23 forbids in the other direction and would
 #: be no better here.
-_FALLBACK_ROLE: dict[str, str] = {COMPLEX_PLANNER: PLANNER}
+_FALLBACK_ROLE: dict[str, str] = {
+    COMPLEX_PLANNER: PLANNER,
+    # A deployment that has not configured the two new roles keeps working:
+    # tool orchestration falls back to the routine planner's model and
+    # judgement to the complex planner's, which is where each of them
+    # belongs. Without this the split would silently move both onto the
+    # shared default and the routing would be a claim rather than a fact.
+    INVESTIGATOR: PLANNER,
+    ANALYST: COMPLEX_PLANNER,
+}
 
 #: What each role is for, shown in Settings so an administrator configuring
 #: four model ids knows which is which.
@@ -95,6 +119,10 @@ PURPOSE: dict[str, str] = {
     INTERPRETATION: "Says what a computed result means, without adding a "
                     "figure to it.",
     CRITIC: "Repairs a plan the validator rejected, told what was wrong.",
+    INVESTIGATOR: "Chooses and sequences governed tool calls for a question "
+                  "whose answer is in the data. Orchestration, not judgement.",
+    ANALYST: "Forms a credit judgement on gathered evidence — cause, "
+             "materiality, what to do about it. The job worth paying for.",
 }
 
 #: Effort levels a provider may be asked for. Ordered.

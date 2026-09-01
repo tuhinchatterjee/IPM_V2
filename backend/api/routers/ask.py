@@ -253,7 +253,9 @@ def cost_trace(limit: int = 50,
     del principal
     trace = ai_cost.trace()
     return {"summary": trace.summary(),
-            "questions": [m.to_dict() for m in trace.recent(max(1, min(limit, ai_cost.HISTORY)))]}
+            "questions": [m.to_dict(models=True)
+                          for m in trace.recent(
+                              max(1, min(limit, ai_cost.HISTORY)))]}
 
 
 @router.post("", summary="Ask CreditProbe a question")

@@ -66,7 +66,15 @@ TOOL_TIMEOUT_SECONDS = 25
 MAX_TOOL_CALLS = 12
 
 #: Turns of the model in one investigation, including the final answer.
-MAX_TURNS = 8
+#:
+#: R2 §18 caps normal tool planning at four loops. The fifth turn is the
+#: answer, and it is not planning: a loop told "this is your last turn" and
+#: given no turn to use it in is a loop that ends on a fallback rather than on
+#: an answer. Eight was not a considered number — it was a ceiling, and the
+#: measurement in docs/AI_COST.md shows what a ceiling costs when the prompt
+#: is rebuilt from nothing on every turn.
+MAX_PLANNING_TURNS = 4
+MAX_TURNS = MAX_PLANNING_TURNS + 1
 
 
 # ------------------------------------------------------------- capabilities

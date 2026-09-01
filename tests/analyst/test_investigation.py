@@ -94,7 +94,10 @@ class TestTheModelDrivesTheInvestigation:
     def test_the_tools_offered_are_the_ones_the_role_may_use(self, viewer):
         provider = ScriptedProvider([answer()])
         investigate("anything", viewer, provider=provider)
-        offered = provider.prompts[0]
+        # The catalogue travels in the cacheable SYSTEM prefix rather than the
+        # varying user prompt (R2 §17), so what the model was offered is both
+        # halves of what it was sent.
+        offered = provider.systems[0] + provider.prompts[0]
         from backend.analyst import tools
 
         for tool in tools.REGISTRY:
@@ -281,9 +284,13 @@ class TestTheBudget:
     """§50: a bound is a control; a prompt asking for brevity is not."""
 
     def test_tool_calls_are_capped(self, analyst):
+        # Six DIFFERENT calls. Six identical ones would be stopped by §18's
+        # repeat rule before the budget was ever reached, and the test would
+        # pass while proving the wrong thing.
         provider = ScriptedProvider(
             [call("rank_entities", dataset="portfolio_facility",
-                  entity="sector", measure="ead", top=3) for _ in range(6)]
+                  entity="sector", measure="ead", top=top)
+             for top in range(3, 9)]
             + [answer()])
         found = investigate("Which sectors?", analyst, provider=provider,
                             max_turns=8, max_tool_calls=2)

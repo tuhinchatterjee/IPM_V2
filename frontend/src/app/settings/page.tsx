@@ -4,6 +4,7 @@ import { CircleAlert, CircleCheck, Cpu } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { BackendStatusPanel } from "@/components/system/backend-status";
+import { CostTracePanel } from "@/components/system/cost-trace";
 import { ROLES, RoleSwitcher, useRole } from "@/components/system/role-switcher";
 import { ThemeSwitcher } from "@/components/system/theme-switcher";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +38,8 @@ export default function SettingsPage() {
       />
 
       <AiProviderCard mode={mode.data} />
+
+      <CostTracePanel />
 
       <ThemeSwitcher />
 

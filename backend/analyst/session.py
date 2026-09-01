@@ -56,6 +56,7 @@ from typing import Any
 from backend.analyst import cost, safety, tools
 from backend.analyst.evidence import Ledger, Observation
 from backend.analyst.safety import Principal
+from backend.llm import caching
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +250,18 @@ Rules that are not negotiable
 """
 
 
+#: How many of the most recent observations are shown with all their rows.
+#: R2 §21: the whole ledger was re-rendered on every turn, so an eight-turn
+#: investigation paid for its first observation eight times. The recent ones
+#: are what the next decision turns on; the older ones are needed for their
+#: SHAPE — what was asked, how much came back — which a header carries.
+FULL_OBSERVATIONS = 2
+
+#: Rows kept from an older observation. Enough to keep its figures readable
+#: for the final answer, few enough that discovery output stops dominating.
+OLDER_ROWS = 4
+
+
 def _evidence(ledger: Ledger) -> str:
     """Everything the tools have returned, as the model reads it.
 
@@ -256,21 +269,51 @@ def _evidence(ledger: Ledger) -> str:
     GROWS: turn four re-sends turns one to three. R2 §16 asks for that growth
     to be measured rather than inferred, and it can only be measured if it is
     a section rather than an interleaving.
+
+    The LEDGER is not compressed — only this rendering of it is. Grounding
+    checks every figure in the answer against the ledger object, so an
+    observation trimmed here is still evidence there, and a figure that came
+    from a trimmed row is still grounded.
     """
     if not ledger.observations:
         return "EVIDENCE SO FAR\nNothing yet. Start by looking."
     parts = ["EVIDENCE SO FAR"]
+    total = len(ledger.observations)
     for index, observation in enumerate(ledger.observations, start=1):
-        parts.append(_render(index, observation))
+        recent = index > total - FULL_OBSERVATIONS
+        parts.append(_render(index, observation,
+                             rows=None if recent else OLDER_ROWS))
     return "\n".join(parts)
 
 
+def _stable(catalogue: str) -> list[caching.Block]:
+    """The part of the prompt that is identical on every turn. R2 §17.
+
+    The rules and the tool catalogue do not change between two questions
+    asked a second apart, let alone between two turns of the same one. Before
+    this they travelled in the USER message, mixed in with the question and
+    the evidence, where a provider cache cannot reach them: the measurement
+    found 7,676 tokens of catalogue re-sent on every turn of every question.
+
+    `backend.llm.caching` owns the ordering and the breakpoint, including the
+    rule that nothing client-derived goes inside the cached span. Neither of
+    these blocks is client-derived — the catalogue describes the deployment's
+    datasets, not anybody's borrowers.
+    """
+    return [caching.Block(name="system_policy", text=SYSTEM, cacheable=True),
+            caching.Block(name="tool_schema",
+                          text=f"GOVERNED TOOLS\n{catalogue}",
+                          cacheable=True)]
+
+
 def _prompt(question: str, catalogue: str, ledger: Ledger, *,
-            turns_left: int, asked_already: bool, context: str) -> str:
+            turns_left: int, asked_already: bool, context: str,
+            stable_sent_separately: bool = False) -> str:
     parts = [f"THE QUESTION\n{question}\n"]
     if context:
         parts.append(f"EARLIER IN THIS INVESTIGATION\n{context}\n")
-    parts.append(f"GOVERNED TOOLS\n{catalogue}\n")
+    if not stable_sent_separately:
+        parts.append(f"GOVERNED TOOLS\n{catalogue}\n")
     parts.append(_evidence(ledger))
     parts.append(
         f"\nYou have {turns_left} turn(s) left."
@@ -283,17 +326,22 @@ def _prompt(question: str, catalogue: str, ledger: Ledger, *,
     return "\n".join(parts)
 
 
-def _render(index: int, observation: Observation) -> str:
+def _render(index: int, observation: Observation, *,
+            rows: int | None = None) -> str:
+    """One observation. `rows` caps how many of its rows are shown."""
     head = f"[{index}] {observation.tool}({_args(observation.arguments)})"
     if observation.refused:
         return f"{head}\n    REFUSED: {observation.refused}"
+    limit = safety.MAX_ROWS_TO_MODEL if rows is None else min(
+        rows, safety.MAX_ROWS_TO_MODEL)
     lines = [f"{head}  -> {observation.total_rows} row(s)"]
     if observation.purpose:
         lines.append(f"    {observation.purpose}")
-    for row in observation.rows[:safety.MAX_ROWS_TO_MODEL]:
+    shown = observation.rows[:limit]
+    for row in shown:
         lines.append("    " + json.dumps(row, default=str)[:600])
-    if observation.total_rows > len(observation.rows):
-        lines.append(f"    ... {observation.total_rows - len(observation.rows)}"
+    if observation.total_rows > len(shown):
+        lines.append(f"    ... {observation.total_rows - len(shown)}"
                      " more row(s) not shown")
     return "\n".join(lines)
 
@@ -328,11 +376,28 @@ def _fingerprint(tool: str, arguments: dict[str, Any]) -> str:
     return json.dumps([tool, arguments], sort_keys=True, default=str)
 
 
+def _role_for(question_class: str) -> tuple[str, str, str]:
+    """Which configured role serves this investigation. R2 §16, §19.
+
+    Class B is orchestration — choosing and sequencing governed tool calls —
+    and a strong cost-efficient model does it well. Class C is judgement, and
+    that is what the deep model is for. The model id is resolved from the
+    role's configuration and never named in anything the user sees.
+    """
+    from backend.llm import roles
+
+    name = roles.ANALYST if question_class == cost.CLASS_C \
+        else roles.INVESTIGATOR
+    chosen = roles.role(name)
+    return name, chosen.model, chosen.effort
+
+
 def investigate(question: str, principal: Principal, *,
                 provider: Any = None, context: str = "",
                 max_turns: int = safety.MAX_TURNS,
                 max_tool_calls: int = safety.MAX_TOOL_CALLS,
-                meter: cost.Meter | None = None) -> Investigation:
+                meter: cost.Meter | None = None,
+                question_class: str = cost.CLASS_B) -> Investigation:
     """Run one governed investigation. §2.
 
     `provider` is anything with `backend.llm`'s `structured()`. Left out, the
@@ -355,16 +420,20 @@ def investigate(question: str, principal: Principal, *,
         return found
 
     catalogue = _catalogue(principal)
+    role, model, effort = _role_for(question_class)
     asked_already = bool(context)
     calls = 0
     #: Every tool call made this turn, so a repeat is visible. R2 §18.
     seen: set[str] = set()
+    blocks = _stable(catalogue)
+    cached = caching.compose(blocks) if caching.worth_caching(blocks) else None
 
     for turn in range(1, max_turns + 1):
         found.turns = turn
         prompt = _prompt(question, catalogue, found.ledger,
                          turns_left=max_turns - turn + 1,
-                         asked_already=asked_already, context=context)
+                         asked_already=asked_already, context=context,
+                         stable_sent_separately=cached is not None)
         if meter is not None:
             meter.step()
             # The two halves of the prompt that grow, measured separately: the
@@ -375,24 +444,29 @@ def investigate(question: str, principal: Principal, *,
                                 evidence=_evidence(found.ledger))
         try:
             result = provider.structured(
-                system=SYSTEM, prompt=prompt, schema=DECISION_SCHEMA,
+                system=caching.plain(blocks), prompt=prompt,
+                schema=DECISION_SCHEMA,
                 tool_name="decide",
                 tool_description="Your next step in this investigation.",
-                max_tokens=3000, purpose="investigation", role="analyst")
+                max_tokens=3000, purpose="investigation", role=role,
+                model=model, effort=effort,
+                **({"system_blocks": cached,
+                    "cache_prefix": caching.identity(blocks)}
+                   if cached is not None else {}))
         except Exception as e:  # noqa: BLE001 - a provider failure ends the loop
             logger.warning("The analyst's provider failed on turn %s: %s",
                            turn, e)
             if meter is not None:
-                meter.record_failed_call(purpose="investigation",
-                                         role="analyst",
-                                         model=str(getattr(provider, "model",
-                                                           "") or ""))
+                meter.record_failed_call(
+                    purpose="investigation", role=role,
+                    tier=cost.tier_for(role),
+                    model=model or str(getattr(provider, "model", "") or ""))
             found.error = "provider_failed"
             break
 
         if meter is not None:
-            meter.record_result(result, purpose="investigation",
-                                role="analyst")
+            meter.record_result(result, purpose="investigation", role=role,
+                                tier=cost.tier_for(role))
         decision = Decision.read(result.data or {})
         found.steps.append(decision)
 
@@ -407,13 +481,28 @@ def investigate(question: str, principal: Principal, *,
                 continue
             mark = _fingerprint(decision.tool, decision.arguments)
             repeated = mark in seen
+            if repeated:
+                # R2 §18: do not run the same query twice. The earlier result
+                # is already in the ledger above, so running it again buys a
+                # second identical block of evidence tokens and nothing else.
+                # Refusing it by name rather than silently skipping keeps the
+                # loop's next decision informed: it asked for something, and
+                # it is told why it did not get a new answer.
+                if meter is not None:
+                    meter.record_tool(repeated=True)
+                found.ledger.add(Observation(
+                    tool=decision.tool, arguments=decision.arguments,
+                    refused=("This exact call has already been made and its "
+                             "result is in the evidence above. Read it there, "
+                             "or ask something different.")))
+                continue
             seen.add(mark)
             observation = tools.call(principal, decision.tool,
                                      decision.arguments)
             observation.purpose = decision.why or observation.purpose
             found.ledger.add(observation)
             if meter is not None:
-                meter.record_tool(repeated=repeated)
+                meter.record_tool()
             if not tools.BY_NAME.get(decision.tool, None) or \
                     not getattr(tools.BY_NAME.get(decision.tool), "discovery",
                                 False):

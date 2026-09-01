@@ -48,6 +48,10 @@ ROUTE_VERSION = "1.0.0"
 ANALYST = "analyst"
 DETERMINISTIC = "deterministic"
 REPRODUCED = "reproduced"
+#: Answered from the governed catalogue with no model call at all. §16's
+#: class A, named separately from `deterministic` so a cost report can tell
+#: "the catalogue answered it" from "the runtime computed it".
+CATALOGUE = "catalogue"
 
 
 def principal_of(caller: Any) -> Principal:
@@ -108,11 +112,37 @@ def answer(question: str, caller: Any, *, period: str = "",
         payload["cost"] = _cost(meter)
         return payload
 
+    # §16's class A. A question the governed catalogue or the governed
+    # runtime answers exactly does not reach a model at all, and the analyst
+    # is not run alongside to produce a second opinion on a fact. This is the
+    # single largest saving the measurement found: before it, "How many data
+    # domains are there?" cost four deep-tier model calls and 14,739 input
+    # tokens, the same as "Why did Shipping deteriorate this quarter?".
+    if reading.question_class == cost.CLASS_A:
+        settled = _from_catalogue(question, key, meter)
+        if settled is not None:
+            answers.remember(key, question, settled, evidence_hash="")
+            return settled
+        if reading.catalogue:
+            # It reads as a catalogue question but the metadata service could
+            # not answer it. That is a gap in the catalogue reader, not a
+            # reason to escalate: say so and let the deterministic engine
+            # take it, rather than paying an investigation to look for
+            # something the catalogue does not hold.
+            return _deterministic(question, key, meter,
+                                  "this asks about the data itself, which "
+                                  "the governed catalogue answers without a "
+                                  "model")
+        return _deterministic(question, key, meter,
+                              "this asks for a governed figure, which the "
+                              "runtime computes exactly")
+
     found = None
     if allow_analyst:
         found = session.investigate(
             question, principal, provider=provider,
-            context=_context(turns, clarification), meter=meter)
+            context=_context(turns, clarification), meter=meter,
+            question_class=reading.question_class)
 
     if found is not None and found.outcome == session.ASK:
         payload = found.to_dict()
@@ -163,6 +193,70 @@ def _cost(meter: Any, *, path: str = "") -> dict[str, Any]:
     if path:
         meter.path = meter.path or path
     return meter.to_dict()
+
+
+def _from_catalogue(question: str, key: Any,
+                    meter: Any) -> dict[str, Any] | None:
+    """The governed catalogue's own answer, with no model call. §16.
+
+    Returns None when the catalogue reader is not confident, which is the
+    honest outcome: a metadata service that guessed would answer the wrong
+    question exactly.
+    """
+    try:
+        from backend.metadata import answers as mda
+        from backend.metadata import questions as mdq
+    except Exception:  # noqa: BLE001 - a partial deployment is not an error
+        return None
+
+    request = mdq.read(question)
+    if request is None:
+        return None
+    try:
+        given = mda.respond(request)
+    except Exception as e:  # noqa: BLE001 - the deterministic engine takes it
+        logger.info("The catalogue could not answer %r: %s", question[:70], e)
+        return None
+
+    payload: dict[str, Any] = {
+        "version": session.SESSION_VERSION,
+        "question": question,
+        "outcome": session.ANSWER,
+        "answer": given.get("answer", ""),
+        "findings": [],
+        "unavailable": [],
+        "limitations": [],
+        "steps": [],
+        "evidence": {"observations": [], "hash": ""},
+        "rows": given.get("rows", []),
+        "columns": given.get("columns", []),
+        "visualization": given.get("visualization", {}),
+        "follow_ups": given.get("follow_ups", []),
+        "path": CATALOGUE,
+        "run_key": key.to_dict(),
+        "reproduced": False,
+    }
+    if meter is not None:
+        meter.finish(path=CATALOGUE)
+    payload["cost"] = _cost(meter, path=CATALOGUE)
+    return payload
+
+
+def _deterministic(question: str, key: Any, meter: Any,
+                   why: str) -> dict[str, Any]:
+    """Hand this one to the governed runtime, without running the analyst."""
+    if meter is not None:
+        meter.finish(path=DETERMINISTIC)
+    return {
+        "version": session.SESSION_VERSION,
+        "question": question,
+        "outcome": session.CANNOT,
+        "path": DETERMINISTIC,
+        "run_key": key.to_dict(),
+        "reproduced": False,
+        "why_fallback": why,
+        "cost": _cost(meter, path=DETERMINISTIC),
+    }
 
 
 def _why(found: Any) -> str:
@@ -238,5 +332,5 @@ def _tool_names() -> list[str]:
     return [t.name for t in tools.REGISTRY]
 
 
-__all__ = ["ANALYST", "DETERMINISTIC", "REPRODUCED", "ROUTE_VERSION",
-           "answer", "available", "posture", "principal_of"]
+__all__ = ["ANALYST", "CATALOGUE", "DETERMINISTIC", "REPRODUCED",
+           "ROUTE_VERSION", "answer", "available", "posture", "principal_of"]

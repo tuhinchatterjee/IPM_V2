@@ -114,16 +114,37 @@ class Measuring:
 
     def structured(self, *, system: str, prompt: str, schema: dict[str, Any],
                    tool_name: str = "", tool_description: str = "",
-                   **kwargs: Any) -> LLMResult:
-        del schema, tool_name, tool_description, kwargs
+                   system_blocks: list[dict[str, Any]] | None = None,
+                   cache_prefix: str = "", **kwargs: Any) -> LLMResult:
+        del schema, tool_name, tool_description, cache_prefix, kwargs
         self.calls += 1
         self.turn += 1
         data = self._decide()
         out = json.dumps(data)
+
+        # When the caller marks a cache breakpoint, the stable prefix is
+        # charged as a WRITE on the first call and a READ on the rest. This
+        # is a MODEL of provider caching, not a measurement of it: no request
+        # leaves the process, so nothing here can observe a real cache hit.
+        # It is stated in LIMITATIONS, and the weighting in backend/analyst/
+        # cost.py prices a cache write above a fresh input token, so the
+        # model does not flatter a prefix that is only ever written once.
+        stable = _cached_prefix(system_blocks)
+        fresh = cost.tokens_in(prompt)
+        if stable is None:
+            return LLMResult(
+                data=data, model=self.model,
+                input_tokens=cost.tokens_in(system) + fresh,
+                output_tokens=cost.tokens_in(out), duration_ms=0, attempts=1)
+
+        prefix = cost.tokens_in(stable)
+        first = self.calls == 1
         return LLMResult(
             data=data, model=self.model,
-            input_tokens=cost.tokens_in(system) + cost.tokens_in(prompt),
+            input_tokens=fresh,
             output_tokens=cost.tokens_in(out),
+            cache_write_tokens=prefix if first else 0,
+            cache_read_tokens=0 if first else prefix,
             duration_ms=0, attempts=1)
 
     def _decide(self) -> dict[str, Any]:
@@ -141,19 +162,54 @@ class Measuring:
                 "unavailable": [], "limitations": []}
 
 
+def _cached_prefix(blocks: list[dict[str, Any]] | None) -> str | None:
+    """The text up to and including the cache breakpoint, or None."""
+    if not blocks:
+        return None
+    text: list[str] = []
+    for block in blocks:
+        text.append(str(block.get("text") or ""))
+        if block.get("cache_control"):
+            return "\n\n".join(text)
+    return None
+
+
 # ---------------------------------------------------------------------------
 # The run
 # ---------------------------------------------------------------------------
 
 
 def measure(questions: tuple[tuple[str, str], ...] = QUESTIONS,
-            *, tool_turns: int = 2) -> dict[str, Any]:
-    """Run every question and report what each one spent."""
+            *, tool_turns: int = 2, repeat: bool = False) -> dict[str, Any]:
+    """Run every question and report what each one spent.
+
+    With `repeat`, the whole set is asked a second time. Nothing about the
+    questions changes, so every one of them should come back from the
+    run-key store having spent nothing — which is R2 §20's hit rate and cost
+    avoided, measured rather than asserted.
+    """
     principal = safety.Principal(user_id=1, role="ADMIN")
     trace = cost.trace()
     trace.clear()
-    rows: list[dict[str, Any]] = []
+    from backend.analyst import answers
 
+    answers.store().clear()
+    rows = _pass(questions, principal, tool_turns)
+    again = _pass(questions, principal, tool_turns) if repeat else []
+
+    return {
+        "version": REPORT_VERSION,
+        "questions": rows,
+        "repeat": again,
+        "summary": trace.summary(),
+        "by_family": _by_family(rows),
+        "limitations": LIMITATIONS,
+    }
+
+
+def _pass(questions: tuple[tuple[str, str], ...], principal: Any,
+          tool_turns: int) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
     for question, family in questions:
         reading = classify.read(question)
         provider = Measuring(tool_turns=tool_turns)
@@ -169,14 +225,7 @@ def measure(questions: tuple[tuple[str, str], ...] = QUESTIONS,
         row["path"] = payload.get("path", row.get("path", ""))
         row["outcome"] = payload.get("outcome", "")
         rows.append(row)
-
-    return {
-        "version": REPORT_VERSION,
-        "questions": rows,
-        "summary": trace.summary(),
-        "by_family": _by_family(rows),
-        "limitations": LIMITATIONS,
-    }
+    return rows
 
 
 def _by_family(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -225,6 +274,13 @@ def say(report: dict[str, Any]) -> None:
     print(f"\nTOTAL  {total['questions']} question(s), "
           f"{total['model_calls']} model call(s), "
           f"{total['cost_units']:,.1f} cost unit(s)")
+    if report.get("repeat"):
+        repeated = report["repeat"]
+        served = sum(1 for r in repeated if r["reproduced"])
+        print(f"\nASKED AGAIN  {served} of {len(repeated)} served from the "
+              f"run-key store with no model call; "
+              f"{total['cost_units_avoided']:,.1f} cost unit(s) avoided "
+              f"(hit rate {total['cache_hit_rate']:.0%})")
     print(f"\n{report['limitations']}\n")
 
 
@@ -233,9 +289,12 @@ def main() -> int:
     parser.add_argument("--out", default="", help="write the report as JSON")
     parser.add_argument("--tool-turns", type=int, default=2,
                         help="how many evidence-gathering turns to script")
+    parser.add_argument("--repeat", action="store_true",
+                        help="ask the whole set twice, to measure the "
+                             "run-key store's hit rate and cost avoided")
     args = parser.parse_args()
 
-    report = measure(tool_turns=args.tool_turns)
+    report = measure(tool_turns=args.tool_turns, repeat=args.repeat)
     say(report)
     if args.out:
         path = pathlib.Path(args.out)

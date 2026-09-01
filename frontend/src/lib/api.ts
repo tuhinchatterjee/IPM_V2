@@ -854,6 +854,80 @@ export interface BuildInfo {
   notes: string[];
 }
 
+/**
+ * What one question cost. R2 §16.
+ *
+ * No model id: the model serving a request is not shown in the product. The
+ * administrator's cost trace is served from the same endpoint with the ids
+ * included, which is a different surface with a different permission.
+ */
+export interface QuestionCost {
+  version: string;
+  question_class: string;
+  class_label: string;
+  class_reason: string;
+  path: string;
+  reproduced: boolean;
+  model_calls: number;
+  models?: string[];
+  tool_calls: number;
+  repeated_tool_calls: number;
+  loop_steps: number;
+  retries: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  cached_share: number;
+  metadata_tokens: number;
+  evidence_tokens: number;
+  cost_units: number;
+  duration_ms: number;
+  calls: Array<{
+    purpose: string;
+    role: string;
+    model?: string;
+    tier: string;
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_write_tokens: number;
+    attempts: number;
+    retries: number;
+    duration_ms: number;
+    ok: boolean;
+    cost_units: number;
+  }>;
+  question?: string;
+}
+
+export interface CostClassSummary {
+  class: string;
+  label: string;
+  questions: number;
+  model_calls: number;
+  avg_model_calls: number;
+  avg_cost_units: number;
+  avg_duration_ms: number;
+  avg_input_tokens: number;
+  avg_output_tokens: number;
+}
+
+export interface CostTrace {
+  summary: {
+    version: string;
+    questions: number;
+    answered: number;
+    reproduced: number;
+    cache_hit_rate: number;
+    cost_units: number;
+    cost_units_avoided: number;
+    model_calls: number;
+    by_class: Record<string, CostClassSummary>;
+  };
+  questions: QuestionCost[];
+}
+
 export interface PlannerMode {
   /** "model" once a live response has come back; "degraded" when one cannot. */
   mode: "offline" | "model" | "degraded";
@@ -3690,6 +3764,7 @@ export const api = {
 
   // ---- ask CreditProbe ----
   askMode: () => request<PlannerMode>("/ask/mode"),
+  askCost: (limit = 50) => request<CostTrace>(`/ask/cost?limit=${limit}`),
   askSuggestions: () =>
     request<{ questions: { question: string; note: string }[] }>(
       "/ask/suggestions",

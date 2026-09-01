@@ -40,19 +40,28 @@ computed with them understates rather than flatters.
 
 ## What the measurement found
 
-Sixteen questions across four families, measured at commit `a75b34f`:
+Sixteen questions across four families, measured against the architecture at
+commit `2ef58c3`:
 
 | Family | Questions | Model calls / question | Input tokens / question | Cost units / question |
 |---|---:|---:|---:|---:|
-| Data and metadata | 6 | 4.00 | 14,739 | 61.8 |
-| Data query | 4 | 4.00 | 14,749 | 61.9 |
-| Orchestration | 2 | 4.00 | 14,761 | 61.9 |
-| Judgement | 4 | 4.00 | 14,745 | 61.8 |
+| Data and metadata | 6 | 4.00 | 14,731 | 247.1 |
+| Data query | 4 | 4.00 | 14,740 | 247.3 |
+| Orchestration | 2 | 4.00 | 14,753 | 247.5 |
+| Judgement | 4 | 4.00 | 14,737 | 247.2 |
 
 **Every question cost the same**, and that is the finding. "How many data
 domains are there?" — a question the governed catalogue answers exactly, with
-no query to run — consumed four deep-tier model calls and 14,739 input tokens,
+no query to run — consumed four deep-tier model calls and 14,731 input tokens,
 the same as "Why did Shipping deteriorate this quarter?".
+
+The first run of this table reported 61.8 units per question rather than
+247.2. That was a bug in the meter, not in the architecture: `record_call`
+defaulted an unnamed tier to *standard*, so the analyst's deep-tier calls were
+priced at a quarter of what they cost. The tier is now derived from the role,
+and the baseline above was re-measured with the corrected meter — an
+optimisation measured against an under-priced baseline looks like a
+regression, and this one would have.
 
 Four distinct causes, in the order they matter:
 
@@ -95,7 +104,10 @@ tokens on every subsequent turn.
 
 ## What was changed
 
-See `docs/AI_COST_AFTER.md` for the measured result of each change.
+Six changes, and the measured result of each: `docs/AI_COST_AFTER.md`.
+
+In one line: 64 model calls became 24, and 3,955.9 cost units became 523.8.
+A catalogue question now costs nothing at all.
 
 ---
 

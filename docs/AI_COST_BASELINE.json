@@ -9,28 +9,24 @@
       "path": "analyst",
       "reproduced": false,
       "model_calls": 4,
-      "models": [
-        "local-measurement-stand-in"
-      ],
       "tool_calls": 3,
       "repeated_tool_calls": 1,
       "loop_steps": 4,
       "retries": 0,
-      "input_tokens": 14738,
+      "input_tokens": 14730,
       "output_tokens": 143,
       "cache_read_tokens": 0,
       "cache_write_tokens": 0,
       "cached_share": 0.0,
       "metadata_tokens": 7676,
-      "evidence_tokens": 6972,
-      "cost_units": 61.812,
-      "duration_ms": 103,
+      "evidence_tokens": 6963,
+      "cost_units": 247.12,
+      "duration_ms": 81,
       "calls": [
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 1953,
           "output_tokens": 25,
           "cache_read_tokens": 0,
@@ -39,13 +35,12 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 8.312
+          "cost_units": 33.248
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 4098,
           "output_tokens": 34,
           "cache_read_tokens": 0,
@@ -54,14 +49,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.072
+          "cost_units": 68.288
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4262,
+          "tier": "deep",
+          "input_tokens": 4259,
           "output_tokens": 34,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -69,14 +63,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.728
+          "cost_units": 70.864
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4425,
+          "tier": "deep",
+          "input_tokens": 4420,
           "output_tokens": 50,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -84,7 +77,7 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 18.7
+          "cost_units": 74.72
         }
       ],
       "question": "How many data domains are there?",
@@ -99,28 +92,24 @@
       "path": "analyst",
       "reproduced": false,
       "model_calls": 4,
-      "models": [
-        "local-measurement-stand-in"
-      ],
       "tool_calls": 3,
       "repeated_tool_calls": 1,
       "loop_steps": 4,
       "retries": 0,
-      "input_tokens": 14748,
+      "input_tokens": 14740,
       "output_tokens": 143,
       "cache_read_tokens": 0,
       "cache_write_tokens": 0,
       "cached_share": 0.0,
       "metadata_tokens": 7676,
-      "evidence_tokens": 6972,
-      "cost_units": 61.852,
-      "duration_ms": 85,
+      "evidence_tokens": 6963,
+      "cost_units": 247.28,
+      "duration_ms": 82,
       "calls": [
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 1955,
           "output_tokens": 25,
           "cache_read_tokens": 0,
@@ -129,13 +118,12 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 8.32
+          "cost_units": 33.28
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 4101,
           "output_tokens": 34,
           "cache_read_tokens": 0,
@@ -144,14 +132,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.084
+          "cost_units": 68.336
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4264,
+          "tier": "deep",
+          "input_tokens": 4262,
           "output_tokens": 34,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -159,14 +146,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.736
+          "cost_units": 70.912
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4428,
+          "tier": "deep",
+          "input_tokens": 4422,
           "output_tokens": 50,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -174,7 +160,7 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 18.712
+          "cost_units": 74.752
         }
       ],
       "question": "Which datasets are in the liquidity domain?",
@@ -189,28 +175,24 @@
       "path": "analyst",
       "reproduced": false,
       "model_calls": 4,
-      "models": [
-        "local-measurement-stand-in"
-      ],
       "tool_calls": 3,
       "repeated_tool_calls": 1,
       "loop_steps": 4,
       "retries": 0,
-      "input_tokens": 14726,
+      "input_tokens": 14718,
       "output_tokens": 143,
       "cache_read_tokens": 0,
       "cache_write_tokens": 0,
       "cached_share": 0.0,
       "metadata_tokens": 7676,
-      "evidence_tokens": 6972,
-      "cost_units": 61.764,
-      "duration_ms": 140,
+      "evidence_tokens": 6963,
+      "cost_units": 246.928,
+      "duration_ms": 148,
       "calls": [
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 1950,
           "output_tokens": 25,
           "cache_read_tokens": 0,
@@ -219,13 +201,12 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 8.3
+          "cost_units": 33.2
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 4095,
           "output_tokens": 34,
           "cache_read_tokens": 0,
@@ -234,14 +215,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.06
+          "cost_units": 68.24
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4259,
+          "tier": "deep",
+          "input_tokens": 4256,
           "output_tokens": 34,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -249,14 +229,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.716
+          "cost_units": 70.816
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4422,
+          "tier": "deep",
+          "input_tokens": 4417,
           "output_tokens": 50,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -264,7 +243,7 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 18.688
+          "cost_units": 74.672
         }
       ],
       "question": "What does DSCR mean?",
@@ -279,28 +258,24 @@
       "path": "analyst",
       "reproduced": false,
       "model_calls": 4,
-      "models": [
-        "local-measurement-stand-in"
-      ],
       "tool_calls": 3,
       "repeated_tool_calls": 1,
       "loop_steps": 4,
       "retries": 0,
-      "input_tokens": 14740,
+      "input_tokens": 14732,
       "output_tokens": 143,
       "cache_read_tokens": 0,
       "cache_write_tokens": 0,
       "cached_share": 0.0,
       "metadata_tokens": 7676,
-      "evidence_tokens": 6972,
-      "cost_units": 61.82,
+      "evidence_tokens": 6963,
+      "cost_units": 247.152,
       "duration_ms": 82,
       "calls": [
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 1953,
           "output_tokens": 25,
           "cache_read_tokens": 0,
@@ -309,13 +284,12 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 8.312
+          "cost_units": 33.248
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 4099,
           "output_tokens": 34,
           "cache_read_tokens": 0,
@@ -324,14 +298,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.076
+          "cost_units": 68.304
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4262,
+          "tier": "deep",
+          "input_tokens": 4260,
           "output_tokens": 34,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -339,14 +312,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.728
+          "cost_units": 70.88
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4426,
+          "tier": "deep",
+          "input_tokens": 4420,
           "output_tokens": 50,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -354,7 +326,7 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 18.704
+          "cost_units": 74.72
         }
       ],
       "question": "Which reporting periods do we hold?",
@@ -369,28 +341,24 @@
       "path": "analyst",
       "reproduced": false,
       "model_calls": 4,
-      "models": [
-        "local-measurement-stand-in"
-      ],
       "tool_calls": 3,
       "repeated_tool_calls": 1,
       "loop_steps": 4,
       "retries": 0,
-      "input_tokens": 14742,
+      "input_tokens": 14734,
       "output_tokens": 143,
       "cache_read_tokens": 0,
       "cache_write_tokens": 0,
       "cached_share": 0.0,
       "metadata_tokens": 7676,
-      "evidence_tokens": 6972,
-      "cost_units": 61.828,
-      "duration_ms": 12,
+      "evidence_tokens": 6963,
+      "cost_units": 247.184,
+      "duration_ms": 5,
       "calls": [
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 1954,
           "output_tokens": 25,
           "cache_read_tokens": 0,
@@ -399,13 +367,12 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 8.316
+          "cost_units": 33.264
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 4099,
           "output_tokens": 34,
           "cache_read_tokens": 0,
@@ -414,14 +381,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.076
+          "cost_units": 68.304
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4263,
+          "tier": "deep",
+          "input_tokens": 4260,
           "output_tokens": 34,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -429,14 +395,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.732
+          "cost_units": 70.88
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4426,
+          "tier": "deep",
+          "input_tokens": 4421,
           "output_tokens": 50,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -444,7 +409,7 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 18.704
+          "cost_units": 74.736
         }
       ],
       "question": "How many rows are in corporate_ifrs9?",
@@ -459,28 +424,24 @@
       "path": "analyst",
       "reproduced": false,
       "model_calls": 4,
-      "models": [
-        "local-measurement-stand-in"
-      ],
       "tool_calls": 3,
       "repeated_tool_calls": 1,
       "loop_steps": 4,
       "retries": 0,
-      "input_tokens": 14742,
+      "input_tokens": 14734,
       "output_tokens": 143,
       "cache_read_tokens": 0,
       "cache_write_tokens": 0,
       "cached_share": 0.0,
       "metadata_tokens": 7676,
-      "evidence_tokens": 6972,
-      "cost_units": 61.828,
-      "duration_ms": 84,
+      "evidence_tokens": 6963,
+      "cost_units": 247.184,
+      "duration_ms": 80,
       "calls": [
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 1954,
           "output_tokens": 25,
           "cache_read_tokens": 0,
@@ -489,13 +450,12 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 8.316
+          "cost_units": 33.264
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 4099,
           "output_tokens": 34,
           "cache_read_tokens": 0,
@@ -504,14 +464,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.076
+          "cost_units": 68.304
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4263,
+          "tier": "deep",
+          "input_tokens": 4260,
           "output_tokens": 34,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -519,14 +478,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.732
+          "cost_units": 70.88
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4426,
+          "tier": "deep",
+          "input_tokens": 4421,
           "output_tokens": 50,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -534,7 +492,7 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 18.704
+          "cost_units": 74.736
         }
       ],
       "question": "How do covenants join to facilities?",
@@ -549,28 +507,24 @@
       "path": "analyst",
       "reproduced": false,
       "model_calls": 4,
-      "models": [
-        "local-measurement-stand-in"
-      ],
       "tool_calls": 3,
       "repeated_tool_calls": 1,
       "loop_steps": 4,
       "retries": 0,
-      "input_tokens": 14746,
+      "input_tokens": 14738,
       "output_tokens": 143,
       "cache_read_tokens": 0,
       "cache_write_tokens": 0,
       "cached_share": 0.0,
       "metadata_tokens": 7676,
-      "evidence_tokens": 6972,
-      "cost_units": 61.844,
-      "duration_ms": 81,
+      "evidence_tokens": 6963,
+      "cost_units": 247.248,
+      "duration_ms": 94,
       "calls": [
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 1955,
           "output_tokens": 25,
           "cache_read_tokens": 0,
@@ -579,13 +533,12 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 8.32
+          "cost_units": 33.28
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 4100,
           "output_tokens": 34,
           "cache_read_tokens": 0,
@@ -594,14 +547,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.08
+          "cost_units": 68.32
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4264,
+          "tier": "deep",
+          "input_tokens": 4261,
           "output_tokens": 34,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -609,14 +561,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.736
+          "cost_units": 70.896
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4427,
+          "tier": "deep",
+          "input_tokens": 4422,
           "output_tokens": 50,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -624,7 +575,7 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 18.708
+          "cost_units": 74.752
         }
       ],
       "question": "Show the top 20 borrowers by 12-month PD.",
@@ -639,28 +590,24 @@
       "path": "analyst",
       "reproduced": false,
       "model_calls": 4,
-      "models": [
-        "local-measurement-stand-in"
-      ],
       "tool_calls": 3,
       "repeated_tool_calls": 1,
       "loop_steps": 4,
       "retries": 0,
-      "input_tokens": 14750,
+      "input_tokens": 14742,
       "output_tokens": 143,
       "cache_read_tokens": 0,
       "cache_write_tokens": 0,
       "cached_share": 0.0,
       "metadata_tokens": 7676,
-      "evidence_tokens": 6972,
-      "cost_units": 61.86,
-      "duration_ms": 79,
+      "evidence_tokens": 6963,
+      "cost_units": 247.312,
+      "duration_ms": 80,
       "calls": [
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 1956,
           "output_tokens": 25,
           "cache_read_tokens": 0,
@@ -669,13 +616,12 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 8.324
+          "cost_units": 33.296
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 4101,
           "output_tokens": 34,
           "cache_read_tokens": 0,
@@ -684,14 +630,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.084
+          "cost_units": 68.336
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4265,
+          "tier": "deep",
+          "input_tokens": 4262,
           "output_tokens": 34,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -699,14 +644,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.74
+          "cost_units": 70.912
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4428,
+          "tier": "deep",
+          "input_tokens": 4423,
           "output_tokens": 50,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -714,7 +658,7 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 18.712
+          "cost_units": 74.768
         }
       ],
       "question": "What is total exposure at default by sector?",
@@ -729,28 +673,24 @@
       "path": "analyst",
       "reproduced": false,
       "model_calls": 4,
-      "models": [
-        "local-measurement-stand-in"
-      ],
       "tool_calls": 3,
       "repeated_tool_calls": 1,
       "loop_steps": 4,
       "retries": 0,
-      "input_tokens": 14740,
+      "input_tokens": 14731,
       "output_tokens": 143,
       "cache_read_tokens": 0,
       "cache_write_tokens": 0,
       "cached_share": 0.0,
       "metadata_tokens": 7676,
-      "evidence_tokens": 6972,
-      "cost_units": 61.82,
-      "duration_ms": 12,
+      "evidence_tokens": 6963,
+      "cost_units": 247.136,
+      "duration_ms": 4,
       "calls": [
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 1953,
           "output_tokens": 25,
           "cache_read_tokens": 0,
@@ -759,13 +699,12 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 8.312
+          "cost_units": 33.248
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 4099,
           "output_tokens": 34,
           "cache_read_tokens": 0,
@@ -774,14 +713,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.076
+          "cost_units": 68.304
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4262,
+          "tier": "deep",
+          "input_tokens": 4259,
           "output_tokens": 34,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -789,14 +727,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.728
+          "cost_units": 70.864
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4426,
+          "tier": "deep",
+          "input_tokens": 4420,
           "output_tokens": 50,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -804,7 +741,7 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 18.704
+          "cost_units": 74.72
         }
       ],
       "question": "How many borrowers are in Stage 2?",
@@ -819,28 +756,24 @@
       "path": "analyst",
       "reproduced": false,
       "model_calls": 4,
-      "models": [
-        "local-measurement-stand-in"
-      ],
       "tool_calls": 3,
       "repeated_tool_calls": 1,
       "loop_steps": 4,
       "retries": 0,
-      "input_tokens": 14760,
+      "input_tokens": 14752,
       "output_tokens": 143,
       "cache_read_tokens": 0,
       "cache_write_tokens": 0,
       "cached_share": 0.0,
       "metadata_tokens": 7676,
-      "evidence_tokens": 6972,
-      "cost_units": 61.9,
-      "duration_ms": 12,
+      "evidence_tokens": 6963,
+      "cost_units": 247.472,
+      "duration_ms": 4,
       "calls": [
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 1958,
           "output_tokens": 25,
           "cache_read_tokens": 0,
@@ -849,13 +782,12 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 8.332
+          "cost_units": 33.328
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 4104,
           "output_tokens": 34,
           "cache_read_tokens": 0,
@@ -864,14 +796,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.096
+          "cost_units": 68.384
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4267,
+          "tier": "deep",
+          "input_tokens": 4265,
           "output_tokens": 34,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -879,14 +810,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.748
+          "cost_units": 70.96
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4431,
+          "tier": "deep",
+          "input_tokens": 4425,
           "output_tokens": 50,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -894,7 +824,7 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 18.724
+          "cost_units": 74.8
         }
       ],
       "question": "List the borrowers with a covenant breach this quarter.",
@@ -909,28 +839,24 @@
       "path": "analyst",
       "reproduced": false,
       "model_calls": 4,
-      "models": [
-        "local-measurement-stand-in"
-      ],
       "tool_calls": 3,
       "repeated_tool_calls": 1,
       "loop_steps": 4,
       "retries": 0,
-      "input_tokens": 14758,
+      "input_tokens": 14750,
       "output_tokens": 143,
       "cache_read_tokens": 0,
       "cache_write_tokens": 0,
       "cached_share": 0.0,
       "metadata_tokens": 7676,
-      "evidence_tokens": 6972,
-      "cost_units": 61.892,
-      "duration_ms": 97,
+      "evidence_tokens": 6963,
+      "cost_units": 247.44,
+      "duration_ms": 76,
       "calls": [
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 1958,
           "output_tokens": 25,
           "cache_read_tokens": 0,
@@ -939,13 +865,12 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 8.332
+          "cost_units": 33.328
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 4103,
           "output_tokens": 34,
           "cache_read_tokens": 0,
@@ -954,14 +879,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.092
+          "cost_units": 68.368
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4267,
+          "tier": "deep",
+          "input_tokens": 4264,
           "output_tokens": 34,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -969,14 +893,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.748
+          "cost_units": 70.944
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4430,
+          "tier": "deep",
+          "input_tokens": 4425,
           "output_tokens": 50,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -984,7 +907,7 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 18.72
+          "cost_units": 74.8
         }
       ],
       "question": "Compare Stage 2 coverage in Shipping with Oil & Gas.",
@@ -999,28 +922,24 @@
       "path": "analyst",
       "reproduced": false,
       "model_calls": 4,
-      "models": [
-        "local-measurement-stand-in"
-      ],
       "tool_calls": 3,
       "repeated_tool_calls": 1,
       "loop_steps": 4,
       "retries": 0,
-      "input_tokens": 14764,
+      "input_tokens": 14756,
       "output_tokens": 143,
       "cache_read_tokens": 0,
       "cache_write_tokens": 0,
       "cached_share": 0.0,
       "metadata_tokens": 7676,
-      "evidence_tokens": 6972,
-      "cost_units": 61.916,
-      "duration_ms": 12,
+      "evidence_tokens": 6963,
+      "cost_units": 247.536,
+      "duration_ms": 3,
       "calls": [
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 1959,
           "output_tokens": 25,
           "cache_read_tokens": 0,
@@ -1029,13 +948,12 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 8.336
+          "cost_units": 33.344
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 4105,
           "output_tokens": 34,
           "cache_read_tokens": 0,
@@ -1044,14 +962,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.1
+          "cost_units": 68.4
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4268,
+          "tier": "deep",
+          "input_tokens": 4266,
           "output_tokens": 34,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -1059,14 +976,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.752
+          "cost_units": 70.976
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4432,
+          "tier": "deep",
+          "input_tokens": 4426,
           "output_tokens": 50,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -1074,7 +990,7 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 18.728
+          "cost_units": 74.816
         }
       ],
       "question": "Show exposure, stage and covenant headroom for CORP-100376.",
@@ -1089,28 +1005,24 @@
       "path": "analyst",
       "reproduced": false,
       "model_calls": 4,
-      "models": [
-        "local-measurement-stand-in"
-      ],
       "tool_calls": 3,
       "repeated_tool_calls": 1,
       "loop_steps": 4,
       "retries": 0,
-      "input_tokens": 14748,
+      "input_tokens": 14739,
       "output_tokens": 143,
       "cache_read_tokens": 0,
       "cache_write_tokens": 0,
       "cached_share": 0.0,
       "metadata_tokens": 7676,
-      "evidence_tokens": 6972,
-      "cost_units": 61.852,
-      "duration_ms": 82,
+      "evidence_tokens": 6963,
+      "cost_units": 247.264,
+      "duration_ms": 62,
       "calls": [
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 1955,
           "output_tokens": 25,
           "cache_read_tokens": 0,
@@ -1119,13 +1031,12 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 8.32
+          "cost_units": 33.28
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 4101,
           "output_tokens": 34,
           "cache_read_tokens": 0,
@@ -1134,14 +1045,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.084
+          "cost_units": 68.336
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4264,
+          "tier": "deep",
+          "input_tokens": 4261,
           "output_tokens": 34,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -1149,14 +1059,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.736
+          "cost_units": 70.896
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4428,
+          "tier": "deep",
+          "input_tokens": 4422,
           "output_tokens": 50,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -1164,7 +1073,7 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 18.712
+          "cost_units": 74.752
         }
       ],
       "question": "Why did Shipping deteriorate this quarter?",
@@ -1179,28 +1088,24 @@
       "path": "analyst",
       "reproduced": false,
       "model_calls": 4,
-      "models": [
-        "local-measurement-stand-in"
-      ],
       "tool_calls": 3,
       "repeated_tool_calls": 1,
       "loop_steps": 4,
       "retries": 0,
-      "input_tokens": 14750,
+      "input_tokens": 14742,
       "output_tokens": 143,
       "cache_read_tokens": 0,
       "cache_write_tokens": 0,
       "cached_share": 0.0,
       "metadata_tokens": 7676,
-      "evidence_tokens": 6972,
-      "cost_units": 61.86,
-      "duration_ms": 82,
+      "evidence_tokens": 6963,
+      "cost_units": 247.312,
+      "duration_ms": 63,
       "calls": [
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 1956,
           "output_tokens": 25,
           "cache_read_tokens": 0,
@@ -1209,13 +1114,12 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 8.324
+          "cost_units": 33.296
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 4101,
           "output_tokens": 34,
           "cache_read_tokens": 0,
@@ -1224,14 +1128,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.084
+          "cost_units": 68.336
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4265,
+          "tier": "deep",
+          "input_tokens": 4262,
           "output_tokens": 34,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -1239,14 +1142,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.74
+          "cost_units": 70.912
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4428,
+          "tier": "deep",
+          "input_tokens": 4423,
           "output_tokens": 50,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -1254,7 +1156,7 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 18.712
+          "cost_units": 74.768
         }
       ],
       "question": "Which Shipping borrowers are the real issues?",
@@ -1269,28 +1171,24 @@
       "path": "analyst",
       "reproduced": false,
       "model_calls": 4,
-      "models": [
-        "local-measurement-stand-in"
-      ],
       "tool_calls": 3,
       "repeated_tool_calls": 1,
       "loop_steps": 4,
       "retries": 0,
-      "input_tokens": 14744,
+      "input_tokens": 14736,
       "output_tokens": 143,
       "cache_read_tokens": 0,
       "cache_write_tokens": 0,
       "cached_share": 0.0,
       "metadata_tokens": 7676,
-      "evidence_tokens": 6972,
-      "cost_units": 61.836,
-      "duration_ms": 83,
+      "evidence_tokens": 6963,
+      "cost_units": 247.216,
+      "duration_ms": 66,
       "calls": [
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 1954,
           "output_tokens": 25,
           "cache_read_tokens": 0,
@@ -1299,13 +1197,12 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 8.316
+          "cost_units": 33.264
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 4100,
           "output_tokens": 34,
           "cache_read_tokens": 0,
@@ -1314,14 +1211,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.08
+          "cost_units": 68.32
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4263,
+          "tier": "deep",
+          "input_tokens": 4261,
           "output_tokens": 34,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -1329,14 +1225,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.732
+          "cost_units": 70.896
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4427,
+          "tier": "deep",
+          "input_tokens": 4421,
           "output_tokens": 50,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -1344,7 +1239,7 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 18.708
+          "cost_units": 74.736
         }
       ],
       "question": "Which of those have liquidity pressure?",
@@ -1359,28 +1254,24 @@
       "path": "analyst",
       "reproduced": false,
       "model_calls": 4,
-      "models": [
-        "local-measurement-stand-in"
-      ],
       "tool_calls": 3,
       "repeated_tool_calls": 1,
       "loop_steps": 4,
       "retries": 0,
-      "input_tokens": 14740,
+      "input_tokens": 14731,
       "output_tokens": 143,
       "cache_read_tokens": 0,
       "cache_write_tokens": 0,
       "cached_share": 0.0,
       "metadata_tokens": 7676,
-      "evidence_tokens": 6972,
-      "cost_units": 61.82,
-      "duration_ms": 81,
+      "evidence_tokens": 6963,
+      "cost_units": 247.136,
+      "duration_ms": 63,
       "calls": [
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 1953,
           "output_tokens": 25,
           "cache_read_tokens": 0,
@@ -1389,13 +1280,12 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 8.312
+          "cost_units": 33.248
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
+          "tier": "deep",
           "input_tokens": 4099,
           "output_tokens": 34,
           "cache_read_tokens": 0,
@@ -1404,14 +1294,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.076
+          "cost_units": 68.304
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4262,
+          "tier": "deep",
+          "input_tokens": 4259,
           "output_tokens": 34,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -1419,14 +1308,13 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 17.728
+          "cost_units": 70.864
         },
         {
           "purpose": "investigation",
           "role": "analyst",
-          "model": "local-measurement-stand-in",
-          "tier": "standard",
-          "input_tokens": 4426,
+          "tier": "deep",
+          "input_tokens": 4420,
           "output_tokens": 50,
           "cache_read_tokens": 0,
           "cache_write_tokens": 0,
@@ -1434,7 +1322,7 @@
           "retries": 0,
           "duration_ms": 0,
           "ok": true,
-          "cost_units": 18.704
+          "cost_units": 74.72
         }
       ],
       "question": "Why does the second one worry you?",
@@ -1448,7 +1336,7 @@
     "answered": 16,
     "reproduced": 0,
     "cache_hit_rate": 0.0,
-    "cost_units": 989.504,
+    "cost_units": 3955.92,
     "cost_units_avoided": 0.0,
     "model_calls": 64,
     "by_class": {
@@ -1458,9 +1346,9 @@
         "questions": 10,
         "model_calls": 40,
         "avg_model_calls": 4.0,
-        "avg_cost_units": 61.8328,
-        "avg_duration_ms": 69,
-        "avg_input_tokens": 14743,
+        "avg_cost_units": 247.2016,
+        "avg_duration_ms": 66,
+        "avg_input_tokens": 14735,
         "avg_output_tokens": 143
       },
       "B_ORCHESTRATION": {
@@ -1469,9 +1357,9 @@
         "questions": 3,
         "model_calls": 12,
         "avg_model_calls": 4.0,
-        "avg_cost_units": 61.8813,
-        "avg_duration_ms": 64,
-        "avg_input_tokens": 14755,
+        "avg_cost_units": 247.3973,
+        "avg_duration_ms": 48,
+        "avg_input_tokens": 14747,
         "avg_output_tokens": 143
       },
       "C_JUDGEMENT": {
@@ -1480,9 +1368,9 @@
         "questions": 3,
         "model_calls": 12,
         "avg_model_calls": 4.0,
-        "avg_cost_units": 61.844,
-        "avg_duration_ms": 81,
-        "avg_input_tokens": 14746,
+        "avg_cost_units": 247.2373,
+        "avg_duration_ms": 62,
+        "avg_input_tokens": 14737,
         "avg_output_tokens": 143
       }
     }
@@ -1491,50 +1379,50 @@
     "metadata": {
       "questions": 6,
       "model_calls": 24,
-      "input_tokens": 88436,
+      "input_tokens": 88388,
       "output_tokens": 858,
       "metadata_tokens": 46056,
-      "evidence_tokens": 41832,
-      "cost_units": 370.9,
+      "evidence_tokens": 41778,
+      "cost_units": 1482.85,
       "avg_model_calls": 4.0,
-      "avg_input_tokens": 14739,
-      "avg_cost_units": 61.82
+      "avg_input_tokens": 14731,
+      "avg_cost_units": 247.14
     },
     "query": {
       "questions": 4,
       "model_calls": 16,
-      "input_tokens": 58996,
+      "input_tokens": 58963,
       "output_tokens": 572,
       "metadata_tokens": 30704,
-      "evidence_tokens": 27888,
-      "cost_units": 247.42,
+      "evidence_tokens": 27852,
+      "cost_units": 989.17,
       "avg_model_calls": 4.0,
-      "avg_input_tokens": 14749,
-      "avg_cost_units": 61.86
+      "avg_input_tokens": 14740,
+      "avg_cost_units": 247.29
     },
     "orchestration": {
       "questions": 2,
       "model_calls": 8,
-      "input_tokens": 29522,
+      "input_tokens": 29506,
       "output_tokens": 286,
       "metadata_tokens": 15352,
-      "evidence_tokens": 13944,
-      "cost_units": 123.81,
+      "evidence_tokens": 13926,
+      "cost_units": 494.98,
       "avg_model_calls": 4.0,
-      "avg_input_tokens": 14761,
-      "avg_cost_units": 61.9
+      "avg_input_tokens": 14753,
+      "avg_cost_units": 247.49
     },
     "judgement": {
       "questions": 4,
       "model_calls": 16,
-      "input_tokens": 58982,
+      "input_tokens": 58948,
       "output_tokens": 572,
       "metadata_tokens": 30704,
-      "evidence_tokens": 27888,
-      "cost_units": 247.37,
+      "evidence_tokens": 27852,
+      "cost_units": 988.93,
       "avg_model_calls": 4.0,
-      "avg_input_tokens": 14745,
-      "avg_cost_units": 61.84
+      "avg_input_tokens": 14737,
+      "avg_cost_units": 247.23
     }
   },
   "limitations": "Token counts are measured from the prompts this deployment actually builds, using a four-characters-to-a-token estimate rather than the provider's tokeniser. The number of turns is what the harness scripts, not what a live model would choose. So the figures below are sound for comparing one architecture with another \u2014 which is what they are for \u2014 and are not a forecast of a bill."

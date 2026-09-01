@@ -123,6 +123,7 @@ TIER_BY_ROLE: dict[str, str] = {
     "metadata": LIGHT,
     "planner": STANDARD,
     "orchestration": STANDARD,
+    "investigator": STANDARD,
     "interpretation": STANDARD,
     "critic": STANDARD,
     "analyst": DEEP,
@@ -182,9 +183,13 @@ class ModelCall:
         weight = TIER_WEIGHT.get(self.tier, TIER_WEIGHT[STANDARD])
         return self.weighted_tokens * weight / PER
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, *, models: bool = False) -> dict[str, Any]:
+        """One call. `models` includes the model id, which is administrator-
+        only: R2 §16 is explicit that the model serving a request is not shown
+        in the product, and a cost panel is part of the product."""
         return {
-            "purpose": self.purpose, "role": self.role, "model": self.model,
+            "purpose": self.purpose, "role": self.role,
+            **({"model": self.model} if models else {}),
             "tier": self.tier, "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "cache_read_tokens": self.cache_read_tokens,
@@ -243,13 +248,20 @@ class Meter:
         self.class_reason = why
 
     def record_call(self, *, purpose: str = "", role: str = "",
-                    model: str = "", tier: str = STANDARD,
+                    model: str = "", tier: str = "",
                     input_tokens: int = 0, output_tokens: int = 0,
                     cache_read_tokens: int = 0, cache_write_tokens: int = 0,
                     attempts: int = 1, duration_ms: int = 0,
                     ok: bool = True) -> ModelCall:
+        # An unnamed tier is DERIVED from the role, never defaulted to
+        # standard. Defaulting it was a real measurement bug: the analyst
+        # loop's calls were recorded at the standard weight while the role
+        # they served is a deep one, so the first baseline under-priced the
+        # architecture it was measuring — and an optimisation measured
+        # against an under-priced baseline looks like a regression.
         call = ModelCall(
-            purpose=purpose, role=role, model=model, tier=tier,
+            purpose=purpose, role=role, model=model,
+            tier=tier or tier_for(role or purpose),
             input_tokens=input_tokens, output_tokens=output_tokens,
             cache_read_tokens=cache_read_tokens,
             cache_write_tokens=cache_write_tokens,
@@ -258,7 +270,7 @@ class Meter:
         return call
 
     def record_result(self, result: Any, *, purpose: str = "", role: str = "",
-                      tier: str = STANDARD) -> ModelCall:
+                      tier: str = "") -> ModelCall:
         """Record from an `LLMResult`, whatever provider produced it."""
         return self.record_call(
             purpose=purpose, role=role,
@@ -272,7 +284,7 @@ class Meter:
             duration_ms=int(getattr(result, "duration_ms", 0) or 0))
 
     def record_failed_call(self, *, purpose: str = "", role: str = "",
-                           model: str = "", tier: str = STANDARD,
+                           model: str = "", tier: str = "",
                            attempts: int = 1) -> ModelCall:
         """A call that cost tokens and returned nothing. Counted, because a
         failure that is not counted makes a retry look free."""
@@ -285,9 +297,18 @@ class Meter:
         self.evidence_tokens += tokens_in(evidence)
 
     def record_tool(self, *, repeated: bool = False) -> None:
-        self.tool_calls += 1
+        """One governed tool invocation.
+
+        `repeated` means the loop ASKED for a call it had already made and was
+        refused. It is counted as a repeat and NOT as a tool call, because
+        nothing ran: a tool-call count that included refused repeats would
+        report work the deployment did not do, which is the opposite of what
+        a cost meter is for.
+        """
         if repeated:
             self.repeated_tool_calls += 1
+            return
+        self.tool_calls += 1
 
     def step(self) -> None:
         self.loop_steps += 1
@@ -342,7 +363,15 @@ class Meter:
         fresh = self.input_tokens + self.cache_read_tokens
         return (self.cache_read_tokens / fresh) if fresh else 0.0
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, *, models: bool = False) -> dict[str, Any]:
+        """What this question spent.
+
+        `models` names the models that served it, and is off by default. R2
+        §16: the model behind an answer is not shown in the product. An
+        administrator reading the cost trace needs it — that is a different
+        surface, with a different permission — and everything else here is
+        the same either way.
+        """
         return {
             "version": COST_VERSION,
             "question_class": self.question_class,
@@ -352,7 +381,7 @@ class Meter:
             "path": self.path,
             "reproduced": self.reproduced,
             "model_calls": self.model_calls,
-            "models": self.models,
+            **({"models": self.models} if models else {}),
             "tool_calls": self.tool_calls,
             "repeated_tool_calls": self.repeated_tool_calls,
             "loop_steps": self.loop_steps,
@@ -366,7 +395,7 @@ class Meter:
             "evidence_tokens": self.evidence_tokens,
             "cost_units": round(self.cost_units, 4),
             "duration_ms": self.duration_ms,
-            "calls": [c.to_dict() for c in self.calls],
+            "calls": [c.to_dict(models=models) for c in self.calls],
         }
 
 
