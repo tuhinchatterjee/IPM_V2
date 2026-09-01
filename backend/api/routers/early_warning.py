@@ -97,6 +97,26 @@ def signals(period: str = "", limit: int = 100) -> dict:
         raise _unavailable(exc) from exc
 
 
+@router.get("/dashboard", summary="The Early Warning landing page")
+def dashboard(period: str = "") -> dict:
+    """What a credit officer arrives wanting to know. R2 §10.
+
+    Business-risk measures — how many names need attention today, how much
+    money is behind them, what changed since last quarter — with the signal
+    counts moved to `diagnostics`, where the person tuning a threshold can
+    still find them and a credit officer is not made to read them first.
+
+    A measure that cannot be computed says UNAVAILABLE and why, never zero.
+    """
+    from backend.early_warning import signals as sg
+
+    try:
+        return sg.dashboard(period)
+    except Exception as exc:  # noqa: BLE001 - said, never substituted
+        logger.warning("The Early Warning landing could not be built: %s", exc)
+        raise _unavailable(exc) from exc
+
+
 @router.get("/signals/{borrower_id}", summary="One borrower's signal standing")
 def borrower_signals(borrower_id: str, period: str = "") -> dict:
     """What fires for this borrower, what has cured, and what was not tested.

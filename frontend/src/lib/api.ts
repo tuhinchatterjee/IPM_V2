@@ -2803,10 +2803,75 @@ export interface SignalStanding {
   agreement: string[];
   conflict: string[];
   booked_accounting_signals: string[];
+  // R2 §25. Severity is about the worst RULE; priority is about the BORROWER,
+  // and it is the one an officer working down a list is asking.
+  priority: string;
+  priority_label: string;
+  priority_means: string;
+  priority_because: string[];
+  priority_reasons: { rule: string; level: string; says: string }[];
+  priority_owner: string;
+  priority_version: string;
+  /** Drawn exposure, in the millions the book is kept in. */
+  exposure: number | null;
+  material: boolean;
   fired: SignalObservation[];
   cured: SignalObservation[];
   untested: SignalObservation[];
   families: Record<string, string[]>;
+}
+
+/** The Early Warning landing page. R2 §10. */
+export interface EarlyWarningDashboard {
+  version: string;
+  period: string;
+  previous_period: string;
+  evaluated: number;
+  currency: string;
+  measures: DashboardMeasure[];
+  hotspots: {
+    sector: string;
+    borrowers: number;
+    act_now: number;
+    review: number;
+    exposure: number;
+  }[];
+  changes: {
+    borrower_id: string;
+    borrower_name: string;
+    sector: string;
+    priority: string;
+    priority_label: string;
+    exposure: number | null;
+    what_changed: string;
+    because: string[];
+  }[];
+  diagnostics: {
+    signal: string;
+    label: string;
+    borrowers: number;
+    share_of_book_pct: number;
+  }[];
+  priority_policy: {
+    owner: string;
+    version: string;
+    levels: { priority: string; label: string; means: string }[];
+    material_exposure: number;
+  };
+}
+
+export interface DashboardMeasure {
+  key: string;
+  label: string;
+  means: string;
+  value: number | null;
+  unit: string;
+  currency: string;
+  available: boolean;
+  /** Why it could not be computed. A measure is never reported as zero. §7. */
+  unavailable: string;
+  borrowers: string[];
+  borrower_count: number;
 }
 
 export interface SignalHeadline {
@@ -3950,6 +4015,12 @@ export const api = {
       timeoutMs: 90_000,
     });
   },
+  /** The Early Warning landing page, in business terms. R2 §10. */
+  earlyWarningDashboard: (period?: string) =>
+    request<EarlyWarningDashboard>(
+      `/early-warning/dashboard${period ? `?period=${encodeURIComponent(period)}` : ""}`,
+      { timeoutMs: 90_000 },
+    ),
   borrowerSignals: (borrowerId: string, period?: string) =>
     request<SignalStanding>(
       `/early-warning/signals/${encodeURIComponent(borrowerId)}` +

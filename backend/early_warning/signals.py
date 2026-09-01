@@ -486,7 +486,7 @@ def priority_rank(standing: Standing) -> int:
 __all__ = ["CURED", "IMPROVING", "LIFECYCLE", "LIFECYCLE_MEANS",
            "MATERIAL_MOVE", "NEW", "Observation", "PERSISTING",
            "SIGNALS_VERSION", "Standing", "UNAVAILABLE", "WORSENING",
-           "evaluate", "rank", "stand"]
+           "dashboard", "evaluate", "rank", "stand"]
 
 
 # ------------------------------------------------------- over the whole book
@@ -528,6 +528,21 @@ def portfolio(period: str = "", *, limit: int = 100,
     """
     del source
     return _slice(_book(period), limit)
+
+
+def dashboard(period: str = "") -> dict[str, Any]:
+    """The Early Warning landing page, in business terms. R2 §10.
+
+    Built from the SAME standings the ranked list is built from, so a KPI and
+    the list behind it cannot disagree about how many borrowers there are.
+    """
+    from backend.early_warning import dashboard as db
+
+    book = _book(period)
+    return db.build(book.get("_ranked") or [],
+                    period=str(book.get("period") or ""),
+                    previous_period=str(book.get("previous_period") or ""),
+                    evaluated=int(book.get("evaluated") or 0))
 
 
 def reset() -> None:

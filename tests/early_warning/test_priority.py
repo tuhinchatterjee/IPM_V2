@@ -49,9 +49,37 @@ class TestActNow:
         found = verdict(drawn_exposure=BIG, breach_flag=True)
         assert found.priority == pr.ACT_NOW
 
-    def test_a_collateral_shortfall_on_a_material_exposure(self):
-        found = verdict(drawn_exposure=BIG, collateral_shortfall=25.0)
+    def test_a_material_shortfall_on_a_deteriorating_borrower(self):
+        """Not any shortfall: more than half this book carries some, because
+        much corporate lending is unsecured by design. What matters is a
+        shortfall large enough to change the recovery, on a name whose
+        recovery is actually in question."""
+        found = verdict(drawn_exposure=BIG, collateral_shortfall=BIG * 0.3,
+                        stage=2)
         assert found.priority == pr.ACT_NOW
+        assert any("recovery assumption" in s for s in found.because())
+
+    def test_an_unsecured_facility_to_a_sound_name_is_not_a_call_to_make(self):
+        """Lending unsecured to a performing, well-rated borrower is a policy
+        choice. A priority that treats it as a problem produces a list of half
+        the book, which is a list nobody works."""
+        found = verdict(drawn_exposure=BIG, collateral_shortfall=BIG * 0.3,
+                        stage=1, current_dpd=0)
+        assert found.priority != pr.ACT_NOW
+
+    def test_a_small_shortfall_is_a_valuation_to_refresh(self):
+        found = verdict(drawn_exposure=BIG, collateral_shortfall=BIG * 0.02,
+                        stage=2)
+        assert found.priority != pr.ACT_NOW
+
+    def test_evidence_alone_is_never_a_call_to_make(self):
+        """ACT NOW means something has ALREADY happened that the bank can act
+        on. A severe condition corroborated across families is a reason to
+        look again, and the level says so."""
+        found = verdict(drawn_exposure=BIG, cash=0.01, debt_to_equity=12.0,
+                        collateral_coverage_pct=5.0, revenue_growth=-30.0,
+                        watchlist_flag=True, stage=1, current_dpd=0)
+        assert found.priority == pr.REVIEW
 
     def test_the_same_breach_on_a_small_facility_is_a_review(self):
         """The defect this whole module exists for: size has to count."""
@@ -70,20 +98,34 @@ class TestReview:
         found = verdict(drawn_exposure=BIG, current_dpd=45)
         assert found.priority == pr.REVIEW
 
-    def test_breadth_across_independent_families(self):
-        found = verdict(drawn_exposure=SMALL, cash=1.0, drawn=0,
-                        debt_to_equity=9.0, current_dpd=0,
-                        collateral_coverage_pct=10.0, watchlist_flag=True)
+    def test_breadth_across_independent_families_on_a_material_exposure(self):
+        found = verdict(drawn_exposure=BIG, cash=1.0, debt_to_equity=9.0,
+                        current_dpd=0, collateral_coverage_pct=10.0,
+                        watchlist_flag=True, revenue_growth=-30.0,
+                        financial_statement_age_days=400)
         assert found.priority in (pr.REVIEW, pr.ACT_NOW)
 
+    def test_the_same_breadth_on_a_small_facility_is_only_monitored(self):
+        """Evidence alone, on an exposure nobody would convene a meeting
+        about, goes into the next review rather than moving it."""
+        found = verdict(drawn_exposure=SMALL, cash=1.0, debt_to_equity=9.0,
+                        current_dpd=0, collateral_coverage_pct=10.0,
+                        watchlist_flag=True, revenue_growth=-30.0,
+                        financial_statement_age_days=400)
+        assert found.priority == pr.MONITOR
+
     def test_stage_two_that_is_getting_worse(self):
+        """A fact about the accounting position plus a movement, so it holds
+        whatever the facility is worth. The condition has to be firing in BOTH
+        periods for the movement to be a movement rather than an arrival."""
         first = {"borrower_id": "CORP-1", "drawn_exposure": SMALL,
-                 "stage": 2, "debt_to_equity": 3.0}
+                 "stage": 2, "debt_to_equity": 6.0}
         now = dict(first)
-        now["debt_to_equity"] = 9.0
-        found = sg.stand(now, first, period="Q2 2026",
-                         previous_period="Q1 2026").verdict
-        assert found.priority == pr.REVIEW
+        now["debt_to_equity"] = 12.0
+        standing = sg.stand(now, first, period="Q2 2026",
+                            previous_period="Q1 2026")
+        assert standing.worsening, "nothing got worse, so nothing to test"
+        assert standing.verdict.priority == pr.REVIEW
 
 
 class TestMonitorAndRoutine:

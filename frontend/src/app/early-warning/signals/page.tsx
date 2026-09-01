@@ -7,6 +7,10 @@ import { ChevronDown, ListChecks, Radar } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import * as view from "@/components/early-warning/signal-view";
+import {
+  Landing,
+  PriorityBadge,
+} from "@/components/early-warning/landing";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -53,6 +57,7 @@ const PAGE = 25;
 function Signals() {
   const query = useSearchParams();
   const period = query.get("period") ?? "";
+  const landing = useAsync(() => api.earlyWarningDashboard(), []);
   const book = useAsync(
     () => api.earlyWarningSignals({ period, limit: 200 }),
     [period],
@@ -101,6 +106,11 @@ function Signals() {
           {book.error}
         </Card>
       )}
+
+      {/* R2 §10. The business measures come first, because they are what a
+          credit officer arrives for; the signal counts that used to be here
+          are inside the landing's own diagnostics section, collapsed. */}
+      {landing.data ? <Landing book={landing.data} /> : null}
 
       {book.data && (
         <>
@@ -286,6 +296,17 @@ function BorrowerRow({
             {moved ? ` — ${moved}` : ""}
           </span>
         </span>
+        {standing.exposure !== null && standing.exposure !== undefined ? (
+          <span className="hidden shrink-0 text-xs tabular-nums text-text-muted sm:inline">
+            {ewFormat.money(standing.exposure)}
+          </span>
+        ) : null}
+        {/* R2 §25: what to DO about this borrower, beside how bad its worst
+            individual condition is. They answer different questions. */}
+        <PriorityBadge
+          priority={standing.priority}
+          label={standing.priority_label}
+        />
         <SeverityBadge severity={standing.severity} />
       </button>
 
@@ -327,6 +348,28 @@ function BorrowerDetail({
 
   return (
     <div className="space-y-5 border-t border-border-subtle bg-surface-subtle px-4 py-4">
+      {/* R2 §25. Why this borrower is at this level, in the words a credit
+          officer would use, before any of the individual conditions. */}
+      <div className="space-y-1">
+        <div className="flex flex-wrap items-baseline gap-2">
+          <PriorityBadge
+            priority={standing.priority}
+            label={standing.priority_label}
+          />
+          <span className="text-xs text-text-muted">
+            {standing.priority_means}
+          </span>
+        </div>
+        {standing.priority_because.map((said) => (
+          <p
+            key={said}
+            className="text-sm leading-relaxed text-text-secondary"
+          >
+            {said}
+          </p>
+        ))}
+      </div>
+
       <p className="text-sm leading-relaxed text-text-secondary">
         {standing.sentence}
       </p>

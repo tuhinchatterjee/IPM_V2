@@ -74,16 +74,26 @@ PRIORITY_MEANS: dict[str, str] = {
 
 #: Exposure at or above which a condition is material enough to act on, in the
 #: millions the book is kept in. A covenant breach on a SAR 3m facility is a
-#: letter; on a SAR 400m facility it is a meeting.
-MATERIAL_EXPOSURE = 100.0
+#: letter; on a SAR 400m facility it is a meeting. Set where roughly a third of
+#: this book sits: a floor most of the book clears is not a floor.
+MATERIAL_EXPOSURE = 250.0
+
+#: A collateral shortfall this large a share of the exposure is the recovery
+#: assumption failing. Below it, it is a valuation to refresh: a gap of SAR 9m
+#: behind SAR 400m of exposure does not need anybody today, and a policy that
+#: says it does produces a list nobody can work.
+MATERIAL_SHORTFALL_SHARE = 0.10
 
 #: Arrears that are a fact rather than a warning.
 DEFAULT_DPD = 90
 #: Arrears that are a warning.
 ARREARS_DPD = 30
 
-#: Families firing together before breadth alone is worth a review.
-BROAD_FAMILIES = 3
+#: Families firing together before breadth alone is worth a review. Five, not
+#: three: with forty-three conditions across eight families the median
+#: borrower already carries four, so three families is the middle of the book
+#: rather than a signal about one name.
+BROAD_FAMILIES = 5
 
 OWNER = tx.THRESHOLD_OWNER
 
@@ -181,7 +191,23 @@ def decide(standing: Any, row: dict[str, Any] | None = None) -> Verdict:
     stage = _amount(row, "stage") or 0.0
     breached = bool(row.get("breach_flag")) or bool(
         (_amount(row, "covenants_breached") or 0) > 0)
-    shortfall = (_amount(row, "collateral_shortfall") or 0.0) > 0.0
+    gap = _amount(row, "collateral_shortfall") or 0.0
+    shortfall = gap > 0.0
+    share = gap / exposure if exposure else 0.0
+    #: Whether recovery is actually in question. More than half this book
+    #: carries some collateral shortfall, because much corporate lending is
+    #: unsecured by design — so a shortfall on a performing, well-rated name
+    #: is a policy choice rather than a problem, and a priority that treats
+    #: the two the same produces a list nobody can work.
+    #: The severe evidence has to be INDEPENDENT of the collateral, or the
+    #: rule unlocks itself: a large shortfall raises a severe collateral
+    #: signal, which would then be the distress that justifies acting on the
+    #: shortfall. A borrower is deteriorating for reasons other than its
+    #: security, or it is a well-secured-on-paper borrower with a valuation
+    #: problem.
+    severe_elsewhere = any(o.severity == tx.SEVERE and o.family != tx.COLLATERAL
+                           for o in getattr(standing, "fired", []))
+    distressed = stage >= 2 or dpd >= ARREARS_DPD or severe_elsewhere
 
     def note(rule: str, level: str, says: str) -> None:
         verdict.reasons.append(Reason(rule, level, says))
@@ -199,20 +225,31 @@ def decide(standing: Any, row: dict[str, Any] | None = None) -> Verdict:
         note("covenant_breached_material", ACT_NOW,
              f"A covenant is breached on {size}. The bank holds a contractual "
              f"right it can choose to use.")
-    if shortfall and material:
+    if shortfall and material and share >= MATERIAL_SHORTFALL_SHARE and distressed:
         note("collateral_shortfall_material", ACT_NOW,
-             f"Security does not cover the exposure of {size}. The recovery "
-             f"assumption behind the provision is the thing that has moved.")
-    if severity == tx.SEVERE and families >= 2 and material:
-        note("severe_and_broad_material", ACT_NOW,
-             f"A severe condition, with corroborating evidence in "
-             f"{families} independent families, on {size}.")
+             f"Security is short of the exposure by {_money(gap)} — "
+             f"{share * 100:.0f}% of {size} — on a borrower already showing "
+             f"distress. Lending unsecured to a sound name is a policy "
+             f"choice; doing it to a deteriorating one is the recovery "
+             f"assumption behind the provision failing.")
 
     # ---- bring the review forward ---------------------------------------
-    if severity == tx.SEVERE:
+    # The two EVIDENCE-ONLY rules are gated on materiality, for the same
+    # reason the act-now rules are: evidence alone, on an exposure the bank
+    # would not convene a meeting about, is something to carry into the next
+    # review rather than something to move the review for. The rules below
+    # them turn on FACTS — arrears, a breach, a booked stage — and those hold
+    # whatever the facility is worth.
+    if severity == tx.SEVERE and families >= 3 and material:
+        note("severe_and_broad", REVIEW,
+             f"A severe condition, with corroborating evidence in "
+             f"{families} independent families, on {size}. Severe evidence is "
+             f"a reason to look again; it is not, on its own, something the "
+             f"bank can act on.")
+    elif severity == tx.SEVERE and material:
         note("severe", REVIEW,
-             "At least one condition is severe on its own terms.")
-    if families >= BROAD_FAMILIES:
+             f"At least one condition is severe on its own terms, on {size}.")
+    if families >= BROAD_FAMILIES and material:
         note("broad", REVIEW,
              f"{families} independent families of evidence point the same "
              f"way. One number read several ways would not do that.")
@@ -223,9 +260,11 @@ def decide(standing: Any, row: dict[str, Any] | None = None) -> Verdict:
         note("covenant_breached", REVIEW,
              f"A covenant is breached. The exposure of {size} is below the "
              f"materiality this policy acts on, so it is a review item.")
-    if shortfall and not material:
+    if (shortfall and share >= MATERIAL_SHORTFALL_SHARE
+            and not (material and distressed)):
         note("collateral_shortfall", REVIEW,
-             f"Security does not cover the exposure of {size}.")
+             f"Security is short of the exposure by {_money(gap)} against "
+             f"{size}. A valuation to refresh rather than a call to make.")
     if stage >= 2 and worsening:
         note("stage_two_worsening", REVIEW,
              f"Booked at IFRS 9 stage 2, and {worsening} condition"
@@ -251,7 +290,8 @@ def decide(standing: Any, row: dict[str, Any] | None = None) -> Verdict:
 
 
 __all__ = ["ACT_NOW", "ARREARS_DPD", "BROAD_FAMILIES", "DEFAULT_DPD",
-           "MATERIAL_EXPOSURE", "MONITOR", "OWNER", "PRIORITIES",
+           "MATERIAL_EXPOSURE", "MATERIAL_SHORTFALL_SHARE", "MONITOR",
+           "OWNER", "PRIORITIES",
            "PRIORITY_LABEL", "PRIORITY_MEANS", "PRIORITY_RANK",
            "PRIORITY_VERSION", "REVIEW", "ROUTINE", "Reason", "Verdict",
            "decide"]
