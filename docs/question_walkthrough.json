@@ -1,0 +1,216 @@
+{
+  "questions": 22,
+  "passed": 22,
+  "failed": 0,
+  "checked": [
+    "no reply returns a 5xx",
+    "no reply prints a status code to the reader",
+    "no reply names an intelligence provider or a model",
+    "no reply calls the product a demonstration",
+    "every reply either answers or asks a question",
+    "the same question twice returns the same reply"
+  ],
+  "not_checked": [
+    "whether the ANSWERS are good. Answer quality on questions of this complexity is the provider's half of the work, and this environment has none configured. Running it here would prove nothing about a deployment that does."
+  ],
+  "results": [
+    {
+      "question": "Identify the 10 borrowers with the highest probability of credit deterioration over the next 12 months. For each borrower explain the top five drivers, distinguish borrower-specific drivers from macroeconomic drivers and rank the evidence by materiality.",
+      "status_code": 200,
+      "outcome": "succeeded",
+      "answered": true,
+      "asked_a_question": false,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Which borrowers have the strongest evidence of liquidity stress? Consider cash balances, working-capital movements, short-term debt, utilisation, repayment patterns, interest burden and upcoming maturities.",
+      "status_code": 200,
+      "outcome": "succeeded",
+      "answered": true,
+      "asked_a_question": false,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Which borrowers appear acceptable on headline ratios but show hidden deterioration when covenant headroom, payment behaviour, utilisation, ratings, collateral and early-warning evidence are combined?",
+      "status_code": 200,
+      "outcome": "needs_clarification",
+      "answered": true,
+      "asked_a_question": true,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Find borrowers whose leverage increased, EBITDA margin declined and debt-service capacity weakened over the last four reporting periods. Which also have covenant pressure or negative rating migration?",
+      "status_code": 200,
+      "outcome": "succeeded",
+      "answered": true,
+      "asked_a_question": false,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Which Stage 1 borrowers show the strongest evidence of possible future Stage 2 migration? Separate quantitative, qualitative and forward-looking evidence.",
+      "status_code": 200,
+      "outcome": "failed",
+      "answered": true,
+      "asked_a_question": false,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Which good-rated borrowers worry you?",
+      "status_code": 200,
+      "outcome": "unsupported",
+      "answered": true,
+      "asked_a_question": false,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Where is the rating behind the facts?",
+      "status_code": 200,
+      "outcome": "succeeded",
+      "answered": true,
+      "asked_a_question": false,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Who is drawing more heavily because they are under pressure rather than because they are growing?",
+      "status_code": 200,
+      "outcome": "unsupported",
+      "answered": true,
+      "asked_a_question": false,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Which borrowers are near covenant breach?",
+      "status_code": 200,
+      "outcome": "succeeded",
+      "answered": true,
+      "asked_a_question": false,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Which borrowers breach under a 15% EBITDA stress?",
+      "status_code": 200,
+      "outcome": "needs_clarification",
+      "answered": true,
+      "asked_a_question": true,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Where is collateral giving false comfort?",
+      "status_code": 200,
+      "outcome": "needs_clarification",
+      "answered": true,
+      "asked_a_question": true,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Which connected groups look materially riskier than their individual legal entities?",
+      "status_code": 200,
+      "outcome": "needs_clarification",
+      "answered": true,
+      "asked_a_question": true,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Which external events matter most to the current portfolio?",
+      "status_code": 200,
+      "outcome": "needs_clarification",
+      "answered": true,
+      "asked_a_question": true,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Which borrowers show internal deterioration consistent with external events?",
+      "status_code": 200,
+      "outcome": "needs_clarification",
+      "answered": true,
+      "asked_a_question": true,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Which signals have persisted for at least three reporting periods?",
+      "status_code": 200,
+      "outcome": "unsupported",
+      "answered": true,
+      "asked_a_question": false,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Which borrowers have recovered and may deserve removal from watch?",
+      "status_code": 200,
+      "outcome": "unsupported",
+      "answered": true,
+      "asked_a_question": false,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Which SME borrowers concern you most?",
+      "status_code": 200,
+      "outcome": "needs_clarification",
+      "answered": true,
+      "asked_a_question": true,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Which large corporates concern you most?",
+      "status_code": 200,
+      "outcome": "needs_clarification",
+      "answered": true,
+      "asked_a_question": true,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Where are several weak signals combining into a serious problem?",
+      "status_code": 200,
+      "outcome": "unsupported",
+      "answered": true,
+      "asked_a_question": false,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Find situations where the evidence conflicts.",
+      "status_code": 200,
+      "outcome": "needs_clarification",
+      "answered": true,
+      "asked_a_question": true,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Find something a strong credit officer might miss.",
+      "status_code": 200,
+      "outcome": "needs_clarification",
+      "answered": true,
+      "asked_a_question": true,
+      "faults": [],
+      "ok": true
+    },
+    {
+      "question": "Prepare the five situations senior management should discuss first tomorrow.",
+      "status_code": 200,
+      "outcome": "needs_clarification",
+      "answered": true,
+      "asked_a_question": true,
+      "faults": [],
+      "ok": true
+    }
+  ]
+}

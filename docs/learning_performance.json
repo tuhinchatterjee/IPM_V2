@@ -1,0 +1,72 @@
+{
+  "answer_path_total_ms": 1.9639,
+  "measurements": [
+    {
+      "median_ms": 0.0004,
+      "name": "the prompt decision",
+      "on_answer_path": true,
+      "runs": 200,
+      "what": "Whether to show the accuracy prompt, and why not.",
+      "worst_ms": 0.011
+    },
+    {
+      "median_ms": 0.0077,
+      "name": "building an observation",
+      "on_answer_path": true,
+      "runs": 200,
+      "what": "Every question becomes a learning observation. This is the only cost a user can experience.",
+      "worst_ms": 0.0408
+    },
+    {
+      "median_ms": 1.9558,
+      "name": "writing the observation",
+      "on_answer_path": true,
+      "runs": 20,
+      "what": "Persisting the observation before the answer is handed back. The real cost of \u00a712, against the real database.",
+      "worst_ms": 2.3758
+    },
+    {
+      "median_ms": 0.0051,
+      "name": "recording a rating",
+      "on_answer_path": false,
+      "runs": 200,
+      "what": "Constructing the feedback event a user's answer becomes.",
+      "worst_ms": 0.0391
+    },
+    {
+      "median_ms": 0.0003,
+      "name": "labelling an observation",
+      "on_answer_path": false,
+      "runs": 200,
+      "what": "Attaching a rating to the observation it belongs to.",
+      "worst_ms": 0.0017
+    },
+    {
+      "median_ms": 0.008,
+      "name": "proposing a candidate",
+      "on_answer_path": false,
+      "runs": 200,
+      "what": "Turning a correction into a candidate learning case.",
+      "worst_ms": 0.0282
+    },
+    {
+      "median_ms": 0.0011,
+      "name": "applying a preference",
+      "on_answer_path": false,
+      "runs": 200,
+      "what": "A user changing one of the eight settings.",
+      "worst_ms": 0.006
+    },
+    {
+      "median_ms": 113.9284,
+      "name": "the raw-feedback guard scan",
+      "on_answer_path": false,
+      "runs": 5,
+      "what": "A static scan of every feedback module. Runs in CI and in -FeedbackCritical. Never on the answer path.",
+      "worst_ms": 155.5562
+    }
+  ],
+  "provider_calls": 0,
+  "repeats": 200,
+  "slow_repeats": 5
+}

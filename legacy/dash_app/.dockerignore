@@ -1,0 +1,49 @@
+# Build-context exclusions. The Dockerfile COPYs explicit paths, so this is
+# defence in depth plus a much smaller/faster context.
+
+# ---- secrets: must never reach a build layer ----
+.env
+.env.*
+!.env.example
+.claude/settings.local.json
+
+# ---- vcs & CI ----
+.git
+.gitignore
+.gitattributes
+.github
+.claude
+
+# ---- python caches & local envs ----
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# ---- runtime state: belongs in volumes, not the image ----
+logs/
+uploads/
+backups/
+Uploaded_Portfolio_Dataset.xlsx
+Staged_Portfolio_Dataset.xlsx
+
+# ---- not needed at runtime ----
+tests/
+docs/
+README.md
+pyproject.toml
+*.pptx
+# Raw IMF WEO export (2.4 MB); the app reads the compacted Macro_GCC_Compact.xlsx.
+dataset_*IMF*.xlsx
+# Reference workbook only — no code path loads it.
+Oman_Climate_StressedPD_v5*.xlsx
+
+# ---- IDE / OS ----
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

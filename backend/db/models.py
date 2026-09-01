@@ -90,7 +90,17 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
-    role: Mapped[str] = mapped_column(String(16), nullable=False, default="analyst")  # admin|analyst
+    #: ADMIN | DATA_STEWARD | ANALYST | VIEWER, stored upper-case to match
+    #: backend/api/permissions.Role. Older rows may carry the lower-case
+    #: "admin"/"analyst" of the Dash era; the API normalises when it reads.
+    role: Mapped[str] = mapped_column(String(24), nullable=False, default="ANALYST")
+    #: What the product calls the person. The greeting uses the first name, so a
+    #: blank one falls back to the username rather than to "there".
+    first_name: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    last_name: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    email: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    #: Free text: "Credit Risk Analytics", "IFRS 9 Committee".
+    team: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

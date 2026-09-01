@@ -5,8 +5,30 @@ on:
   pull_request:
 
 jobs:
-  check:
+  backend:
+    name: Backend (lint + tests)
     runs-on: ubuntu-latest
+
+    # The Data Builder and Trace suites need a real database. Without one they
+    # skip themselves, which would quietly reduce coverage rather than fail.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ipm_app
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: ipm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ipm_app -d ipm"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql+psycopg://ipm_app:ci_password@localhost:5432/ipm
+
     steps:
       - uses: actions/checkout@v4
 
@@ -21,7 +43,44 @@ jobs:
       - name: Lint (ruff)
         run: uv run ruff check .
 
+      - name: Apply database migrations
+        run: uv run alembic upgrade head
+
+      - name: Build the analytical data lake
+        # The Data Access Layer tests skip themselves when the lake is missing,
+        # which would quietly reduce coverage rather than fail. Building it here
+        # means those tests actually run against real Parquet on every push.
+        run: uv run python scripts/generate_saudi_universe.py
+
       - name: Tests (pytest)
-        # The suite is DB-free by design (conftest sets a dummy DATABASE_URL and
-        # never connects), so no Postgres service is needed here.
+        # Runs against the PostgreSQL service above, so the Data Builder and
+        # Trace suites execute rather than skipping. The engine, DAL and legacy
+        # Dash suites need no database and are unaffected.
         run: uv run pytest -q
+
+  frontend:
+    name: Frontend (typecheck + lint + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck (tsc)
+        run: npm run typecheck
+
+      - name: Lint (eslint)
+        run: npm run lint
+
+      - name: Production build (next build)
+        run: npm run build

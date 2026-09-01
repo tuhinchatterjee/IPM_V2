@@ -1,49 +1,50 @@
-# Build-context exclusions. The Dockerfile COPYs explicit paths, so this is
-# defence in depth plus a much smaller/faster context.
+# What Docker should NOT send to the build daemon.
+#
+# Keeping the build context small is the difference between a build that starts
+# instantly and one that spends a minute uploading a virtual environment.
 
-# ---- secrets: must never reach a build layer ----
-.env
-.env.*
-!.env.example
-.claude/settings.local.json
-
-# ---- vcs & CI ----
+# ---- version control ----
 .git
 .gitignore
-.gitattributes
-.github
+
+# ---- secrets ----
+.env
+*.pem
+*.key
+
+# ---- python ----
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.ruff_cache
+*.egg-info
+
+# ---- node (the frontend is built from its own context) ----
+frontend
+node_modules
+
+# ---- generated analytical layers ----
+# data/raw IS sent: it is the source the container builds the lake from.
+# These two are rebuilt from it on first start, and are mounted from the host
+# at run time anyway.
+data/analytics
+data/curated
+metadata/catalog.json
+
+# ---- runtime output ----
+logs
+uploads
+backups
+
+# ---- not needed inside the image ----
+tests
+docs
+legacy
 .claude
-
-# ---- python caches & local envs ----
-__pycache__/
-**/__pycache__/
-*.py[cod]
-.venv/
-venv/
-*.egg-info/
-.pytest_cache/
-.ruff_cache/
-
-# ---- runtime state: belongs in volumes, not the image ----
-logs/
-uploads/
-backups/
-Uploaded_Portfolio_Dataset.xlsx
-Staged_Portfolio_Dataset.xlsx
-
-# ---- not needed at runtime ----
-tests/
-docs/
-README.md
-pyproject.toml
-*.pptx
-# Raw IMF WEO export (2.4 MB); the app reads the compacted Macro_GCC_Compact.xlsx.
-dataset_*IMF*.xlsx
-# Reference workbook only — no code path loads it.
-Oman_Climate_StressedPD_v5*.xlsx
-
-# ---- IDE / OS ----
-.vscode/
-.idea/
-Thumbs.db
+.vscode
+.idea
 .DS_Store
+Thumbs.db

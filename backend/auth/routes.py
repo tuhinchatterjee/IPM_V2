@@ -34,7 +34,7 @@ def _login_page(error: str = "", next_url: str = "/") -> str:
     err_html = f'<div class="err">{error}</div>' if error else ""
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sign in · IPM Tool</title>
+<title>Sign in · CreditProbe Tool</title>
 <style>
   * {{ box-sizing: border-box; }}
   body {{ margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
@@ -63,7 +63,7 @@ def _login_page(error: str = "", next_url: str = "/") -> str:
          padding:9px 12px; border-radius:8px; margin-bottom:16px; }}
 </style></head><body>
   <form class="card" method="post" action="/login?next={next_url}">
-    <div class="brand"><div class="logo">IPM</div><h1>Intelligent Portfolio Manager</h1></div>
+    <div class="brand"><div class="logo">CreditProbe</div><h1>Intelligent Portfolio Manager</h1></div>
     <div class="sub">Sign in to continue</div>
     {err_html}
     <label>Username</label>

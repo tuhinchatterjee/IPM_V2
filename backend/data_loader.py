@@ -1,5 +1,5 @@
 """
-Data access layer for the IPM Executive Portfolio Risk Cockpit.
+Data access layer for the CreditProbe Executive Portfolio Risk Cockpit.
 
 Loads every quarterly snapshot tab from Portfolio_Monitoring_Dataset.xlsx into a
 single long-form DataFrame and exposes pure aggregation helpers that the Dash
@@ -15,8 +15,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-# data_loader.py lives in backend/; the workbooks sit in the project root above it.
-DATA_PATH = Path(__file__).resolve().parent.parent / "Portfolio_Monitoring_Dataset.xlsx"
+# data_loader.py lives in backend/; source workbooks live in data/raw/ at the project
+# root (the "raw" layer — original files exactly as received, never modified).
+RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
+DATA_PATH = RAW_DIR / "Portfolio_Monitoring_Dataset.xlsx"
 
 SUPP_SHEET = "Borrower Supplementary"
 _QUARTER_SHEET_RE = re.compile(r"^Q([1-4])\s+(\d{4})$")
@@ -1663,7 +1665,7 @@ def compute_brf_overview(quarter: str) -> dict:
 MACRO_SCENARIOS = ["Baseline", "Upside", "Downside"]
 SCENARIO_WEIGHTS = {"Baseline": 0.55, "Upside": 0.15, "Downside": 0.30}
 
-MACRO_COMPACT_PATH = Path(__file__).resolve().parent.parent / "Macro_GCC_Compact.xlsx"
+MACRO_COMPACT_PATH = RAW_DIR / "Macro_GCC_Compact.xlsx"
 
 IMF_COUNTRY_TO_REGION = {
     "United Arab Emirates": "UAE", "Saudi Arabia": "Saudi Arabia", "Qatar": "Qatar",

@@ -1,0 +1,1682 @@
+"""
+Turning an answered request into an Investigation.
+
+The Investigation is what the API returns and what the Trace is drawn from, so
+this module decides what a reader sees. Two rules shape all of it.
+
+**Every figure in the prose came from the result.** `_grounded` checks that
+before the narrative is returned, and a number that cannot be traced to a
+returned value is a bug rather than a style problem — the whole product claim
+is that CreditProbe does not state figures the engine did not produce.
+
+**The Trace shows what actually ran.** A metadata answer gets a metadata Trace;
+an analysis gets the full lineage with its mathematical query. Neither borrows
+the other's shape to look more impressive.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+from typing import Any
+
+from backend.orchestration import analysis_planner as ap
+from backend.orchestration import capability as cap
+from backend.orchestration import dynamic as dyn
+from backend.orchestration import gate
+from backend.orchestration.executor import ExecutedStep, Investigation
+from backend.orchestration.interpreter import Finding, Metric, Narrative
+from backend.orchestration.schema import (
+    AnalysisPlan,
+    PlanStep,
+    Scope,
+    StepRole,
+)
+from backend.trace.model import NodeStatus, NodeType, TraceGraph, TraceNode
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------- grounding
+
+
+def _numbers(text: str) -> set[str]:
+    """Every figure in a sentence, normalised for comparison."""
+    out: set[str] = set()
+    for raw in re.findall(r"-?\d[\d,]*(?:\.\d+)?", text or ""):
+        cleaned = raw.replace(",", "")
+        try:
+            value = float(cleaned)
+        except ValueError:
+            continue
+        out.add(f"{value:.4f}".rstrip("0").rstrip("."))
+    return out
+
+
+def _observed_values(build: ap.AnalysisBuild) -> dict[str, float]:
+    """Every figure the analyst pass derived, as a result value.
+
+    Named by the observation that produced it, so a reviewer looking at the
+    Trace can see which sentence each one belongs to rather than finding an
+    unexplained number in the values block.
+    """
+    out: dict[str, float] = {}
+    for observation in (getattr(build, "observations", None) or []):
+        kind = str(getattr(observation, "kind", "") or "observed")
+        for name, value in (getattr(observation, "facts", None) or {}).items():
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                out[f"{kind}_{name}"] = float(value)
+    return out
+
+
+def _noticed(build: ap.AnalysisBuild) -> str:
+    """What the analyst pass found, as a short paragraph."""
+    from backend.orchestration import analyst
+
+    try:
+        return analyst.summarise(list(getattr(build, "observations", None) or []))
+    except Exception as e:  # noqa: BLE001 - a reading must not lose an answer
+        logger.warning("The analyst summary could not be assembled: %s", e)
+        return ""
+
+
+def _association_values(build: ap.AnalysisBuild) -> dict[str, float]:
+    """Every coefficient the association description quotes, as result values."""
+    found = dict(getattr(build, "association", None) or {})
+    out: dict[str, float] = {}
+    for pair in (found.get("pairs") or []):
+        left, right = str(pair.get("a") or ""), str(pair.get("b") or "")
+        if not left or not right:
+            continue
+        for kind in ("spearman", "pearson"):
+            value = pair.get(kind)
+            if isinstance(value, (int, float)):
+                out[f"{kind}_{left}_{right}"] = float(value)
+    return out
+
+
+def _presentation_note(build: ap.AnalysisBuild) -> list[str]:
+    """A record on the Trace that only the presentation changed.
+
+    A turn that produced the same figures in a different shape has to be
+    distinguishable on the Trace from one that recomputed them. Without it a
+    reviewer looking at two adjacent runs with identical numbers cannot tell
+    whether the second confirmed the first or merely redrew it.
+    """
+    continuation = getattr(build, "continuation", None)
+    kind = str(getattr(continuation, "presentation", "") or "")
+    if not kind:
+        return []
+    return [f"Only the presentation changed: the same validated result, shown "
+            f"as a {kind}. The population, filters, period and measures are "
+            f"the previous turn's."]
+
+
+def _visual(runtime: Any, build: Any, question: str = "") -> Any:
+    """The picture for this result, and the reason for it.
+
+    The preference is read from two places. A follow-up that ONLY changes the
+    presentation resolves to a continuation carrying "chart" or "table". A new
+    request can also state one — "produce a graph of internal grade and DSCR"
+    is an analysis and a drawing instruction at once — and reading only the
+    first put a table in front of somebody who had asked for a graph.
+    """
+    from backend.orchestration import referents, visualize
+
+    continuation = getattr(build, "continuation", None)
+    requested = (str(getattr(continuation, "presentation", "") or "")
+                 or referents.wants(question))
+    return visualize.choose(_presented(runtime, build), runtime.rows or [],
+                            requested=requested, question=question)
+
+
+def _presented(runtime: Any, build: Any) -> list[dict[str, Any]]:
+    """The runtime's columns, with a display contract folded in, in reading order.
+
+    Order matters as much as format. A table whose first column is not what the
+    rows are about cannot be scanned, and "for each rating grade, show average
+    ECL coverage, leverage and DSCR" put the grade fourth because that is where
+    the GROUP emitted it. The presentation schema decides the order; the rows
+    are keyed by name, so nothing downstream has to change.
+    """
+    from backend.orchestration import presentation
+
+    by_name = {str(c.get("name")): c for c in (runtime.columns or [])}
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for spec in presentation.schema(runtime, build):
+        name = str(spec.get("name"))
+        if name not in by_name:
+            continue
+        seen.add(name)
+        out.append({**by_name[name],
+                    **{k: v for k, v in spec.items() if k != "origin"}})
+    # Anything the schema could not place still has to appear. A column that
+    # vanished from a table because a ranking rule did not recognise it is a
+    # figure the reader cannot see and cannot ask about.
+    out.extend(c for name, c in by_name.items() if name not in seen)
+    return out
+
+
+def grounded_values(runtime: Any, extra: dict[str, Any] | None = None,
+                    *, asked: str = "", plan: dict[str, Any] | None = None
+                    ) -> set[str]:
+    """Every figure the answer is entitled to quote, in one normal form.
+
+    Three sources. The result, obviously — a figure the analysis computed. The
+    **question**, which is less obvious and just as sound: a narrative saying
+    "headroom below 15%" is repeating the user's own threshold back to them,
+    and flagging it as an invented figure trains people to ignore the one
+    check that catches invented figures.
+
+    And the **plan's own declared thresholds**. A composite ranking says
+    "Debt-service coverage below 1.2x" because 1.2 is written into the
+    governed composite, is on the plan, and is shown on the Trace. It is more
+    traceable than a figure from the result, not less — the result is one run
+    and the threshold is the definition. Excluding it would have the check
+    firing on every composite answer, which is how a check stops being read.
+    """
+    out: set[str] = set()
+
+    def add(value: Any) -> None:
+        if isinstance(value, bool) or value is None:
+            return
+        if isinstance(value, (int, float)):
+            # Prose rounds, and it quotes a magnitude without its sign: "fell by
+            # 398.14" is the same fact as a change of -398.1368. Both forms and
+            # the roundings a sentence would use are accepted, because the
+            # check is meant to catch invented figures rather than formatting.
+            number = float(value)
+            for candidate in (number, abs(number)):
+                out.add(f"{candidate:.4f}".rstrip("0").rstrip("."))
+                for places in (0, 1, 2):
+                    out.add(f"{round(candidate, places):.4f}"
+                            .rstrip("0").rstrip("."))
+        elif isinstance(value, str):
+            out.update(_numbers(value))
+
+    for key, value in (extra or {}).items():
+        del key
+        add(value)
+    for number in _numbers(asked or ""):
+        out.add(number)
+
+    # The thresholds the analysis itself declared.
+    composite = ((plan or {}).get("meta") or {}).get("composite") or {}
+    for signal in (composite.get("signals") or []):
+        add(signal.get("value"))
+        for number in _numbers(str(signal.get("label") or "")):
+            out.add(number)
+    add(len(composite.get("signals") or []) or None)
+    if runtime is not None:
+        add(runtime.row_count)
+        for row in runtime.rows:
+            for value in row.values():
+                add(value)
+        for value in (runtime.summary or {}).values():
+            add(value)
+    return out
+
+
+def ungrounded(text: str, allowed: set[str]) -> list[str]:
+    """Figures in the prose that the result does not contain.
+
+    Years and small counts are excluded: "over the latest year" and "three
+    conditions" are prose about the question, not claims about the portfolio.
+    """
+    out: list[str] = []
+    for figure in _numbers(text):
+        if figure in allowed:
+            continue
+        try:
+            value = float(figure)
+        except ValueError:
+            continue
+        if value.is_integer() and (1900 <= value <= 2100 or 0 <= value <= 12):
+            continue
+        out.append(figure)
+    return out
+
+
+# ------------------------------------------------------------- metadata answers
+
+
+def from_handler(question: str, reading: cap.Reading,
+                 result: Any, *, duration_ms: int,
+                 mode: dict[str, Any]) -> Investigation:
+    """An Investigation for a question answered from governed metadata."""
+    scope = Scope(focus=reading.label, output="list",
+                  period_requirement="none", period_specified=False,
+                  period_source="not needed for this request")
+    plan = AnalysisPlan(
+        question=question, intent=reading.objective or question, scope=scope,
+        steps=[], planner=reading.source, model_name=reading.model or None,
+        follow_ups=list(result.follow_ups),
+        notes=["This request was answered from the governed catalogue. No "
+               "analytical engine ran and no figure was computed."],
+    )
+    narrative = Narrative(
+        direct_answer=result.answer, summary=result.answer,
+        findings=[], interpretation="", interpretation_points=[],
+        caveats=list(result.warnings),
+    )
+    step = ExecutedStep(
+        index=0, analysis_id=f"capability_{reading.intent.lower()}",
+        title=reading.label, rationale=reading.reasoning,
+        params={"intent": reading.intent}, filters={}, period="",
+        status="succeeded", certification="metadata", analysis_version="",
+        duration_ms=duration_ms,
+        result={
+            "values": dict(result.values), "units": {},
+            "input_row_count": len(result.rows),
+            "meta": {"execution": result.execution, "intent": reading.intent},
+            "rows": result.rows, "columns": result.columns,
+            "warnings": list(result.warnings),
+            "chart": dict(result.chart),
+            "truncated": False, "certification": result.execution,
+            "certification_label": result.execution_label,
+            "capability": reading.to_dict(),
+            "detail": result.detail,
+        },
+        error=None,
+        trace=result.graph.to_dict() if result.graph else None,
+        node_hashes={}, role="primary",
+    )
+    graph = result.graph or TraceGraph()
+    # Every other assembly path opens the Trace with the question and how it
+    # was read. This one did not, so a broad investigation — the most
+    # complex thing the product does — produced a Trace a reader could not
+    # enter: no question, no reading, no capability. `audit_completeness`
+    # reported it as soon as the check was wired.
+    if "question" not in graph.nodes:
+        graph.add_node(TraceNode(
+            id="question", type=NodeType.USER_PROMPT, label=question,
+            config={"asked": question}))
+    if "intent" not in graph.nodes:
+        node = graph.add_node(TraceNode(
+            id="intent", type=NodeType.CAPABILITY,
+            label=reading.label or reading.objective or "Read as a request",
+            config={"intent": reading.intent,
+                    "objective": reading.objective,
+                    "source": reading.source,
+                    "execution": result.execution,
+                    "rule": "Answered from the governed catalogue and the "
+                            "deterministic investigation probes. No figure "
+                            "was invented."}))
+        node.mark_ok()
+        graph.connect("question", "intent")
+    return Investigation(
+        question=question, plan=plan, steps=[step], narrative=narrative,
+        graph=graph, node_hashes=graph.compute_hashes(),
+        duration_ms=duration_ms, status="succeeded",
+        mode={**mode, "execution": result.execution,
+              "execution_label": result.execution_label,
+              "intent": reading.intent},
+    )
+
+
+def from_redraw(question: str, reading: cap.Reading, result: Any, *,
+                cached: Any, provenance: Any, duration_ms: int,
+                mode: dict[str, Any]) -> Investigation:
+    """An Investigation for "show it as a graph" — the same rows, drawn again.
+
+    Its own assembly rather than the metadata one, for the same reason
+    `from_reuse` is: the metadata plan says "answered from the governed
+    catalogue", and this was answered from a governed RESULT. One inaccurate
+    sentence under an accurate answer is how a Trace stops being worth reading.
+    """
+    visual = dict((result.detail or {}).get("presentation") or {})
+    scope = Scope(
+        focus=cached.plan_summary or question, dimension=cached.dimension or None,
+        output="distribution", period_requirement="none",
+        period_specified=bool(cached.periods),
+        to_period=(cached.periods[-1] if cached.periods else None),
+        period_source="inherited from the result being redrawn",
+        filters={str(f.get("kind") or ""): str(f.get("value") or "")
+                 for f in cached.filters if f.get("kind")},
+    )
+    plan = AnalysisPlan(
+        question=question, intent="Show the previous result differently",
+        scope=scope, steps=[], planner="reuse",
+        notes=["This changed how the previous result is shown, not what it "
+               "contains. " + orchestrator_no_rescan()],
+    )
+    narrative = Narrative(
+        direct_answer=result.answer, summary=result.answer,
+        findings=[], interpretation="", interpretation_points=[],
+        scope=_reuse_scope_line(cached), caveats=[],
+    )
+    step = ExecutedStep(
+        index=0, analysis_id="show_previous_result",
+        title="The previous result, redrawn",
+        rationale=("A change of presentation is applied to the result already "
+                   "on the table; nothing is recomputed."),
+        params={"derived_from_run_id": provenance.derived_from_run_id},
+        filters={}, period=(cached.periods[-1] if cached.periods else ""),
+        status="succeeded", certification="derived", analysis_version="",
+        duration_ms=duration_ms,
+        result={
+            "values": {}, "units": {}, "input_row_count": cached.row_count,
+            "meta": {"execution": "reused_result",
+                     "reuse": provenance.to_dict()},
+            "rows": result.rows, "columns": result.columns,
+            "warnings": [], "chart": {}, "truncated": False,
+            "certification": "derived",
+            "certification_label": "Derived from a governed result",
+            "capability": reading.to_dict(), "detail": result.detail,
+            "visual": visual,
+        },
+        error=None,
+        trace=result.graph.to_dict() if result.graph else None,
+        node_hashes={}, role="primary",
+    )
+    graph = result.graph or TraceGraph()
+    return Investigation(
+        question=question, plan=plan, steps=[step], narrative=narrative,
+        graph=graph, node_hashes=graph.compute_hashes(),
+        duration_ms=duration_ms, status="succeeded",
+        mode={**mode, "execution": "reused_result",
+              "execution_label": "Reused governed result",
+              "intent": reading.intent},
+    )
+
+
+def from_reuse(question: str, reading: cap.Reading, result: Any, *,
+               cached: Any, found: Any, provenance: Any,
+               duration_ms: int, mode: dict[str, Any]) -> Investigation:
+    """An Investigation for a question answered from the previous result.
+
+    Deliberately not `from_handler`. A metadata answer's plan says "answered
+    from the governed catalogue, no analytical engine ran and no figure was
+    computed" — and that is wrong here twice over: figures WERE computed, by
+    approved kernels, and the source was a governed result rather than the
+    catalogue. Reusing the metadata assembly would have put an inaccurate
+    sentence under an accurate answer, which is the specific kind of small
+    dishonesty that makes a Trace stop being worth reading.
+    """
+    scope = Scope(
+        focus=cached.plan_summary or reading.objective or question,
+        dimension=cached.dimension or None,
+        output="distribution",
+        period_requirement="none",
+        period_specified=bool(cached.periods),
+        from_period=(cached.periods[0] if len(cached.periods) > 1 else None),
+        to_period=(cached.periods[-1] if cached.periods else None),
+        period_source="inherited from the result being assessed",
+        filters={str(f.get("kind") or ""): str(f.get("value") or "")
+                 for f in cached.filters if f.get("kind")},
+    )
+    plan = AnalysisPlan(
+        question=question,
+        intent=(f"Assess the pattern in the result of: {cached.question}"
+                if cached.question else "Assess the previous result"),
+        scope=scope, steps=[], planner="reuse",
+        follow_ups=list(result.follow_ups),
+        notes=[
+            "This question was answered from the result already on the table. "
+            + orchestrator_no_rescan(),
+            "Only allowlisted numerical kernels ran over those rows: "
+            + ", ".join(sorted({str(k.get("kernel") or "")
+                                for k in found.kernels})) + ".",
+        ],
+    )
+    narrative = Narrative(
+        direct_answer=found.conclusion,
+        summary=found.conclusion,
+        findings=[Finding(text=line, tone="neutral", step=0)
+                  for line in found.evidence],
+        interpretation=found.credit_interpretation,
+        interpretation_points=list(found.evidence),
+        scope=_reuse_scope_line(cached),
+        caveats=[*found.limitations, found.caveat],
+    )
+    step = ExecutedStep(
+        index=0, analysis_id="assess_previous_result",
+        title="Assessment of the previous result",
+        rationale=("The question asks whether the pattern in the result "
+                   "already on the table holds, so that result was reused "
+                   "rather than recomputed."),
+        params={"derived_from_run_id": provenance.derived_from_run_id,
+                "result_fingerprint":
+                    provenance.derived_from_result_fingerprint},
+        filters={}, period=(cached.periods[-1] if cached.periods else ""),
+        status="succeeded", certification="derived", analysis_version="",
+        duration_ms=duration_ms,
+        result={
+            "values": dict(result.values), "units": {},
+            "input_row_count": cached.row_count,
+            "meta": {"execution": "reused_result",
+                     "reuse": provenance.to_dict()},
+            "rows": result.rows, "columns": result.columns,
+            "warnings": list(result.warnings), "chart": {},
+            "truncated": False, "certification": "derived",
+            "certification_label": "Derived from a governed result",
+            "capability": reading.to_dict(),
+            "detail": result.detail,
+        },
+        error=None,
+        trace=result.graph.to_dict() if result.graph else None,
+        node_hashes={}, role="primary",
+    )
+    graph = result.graph or TraceGraph()
+    return Investigation(
+        question=question, plan=plan, steps=[step], narrative=narrative,
+        graph=graph, node_hashes=graph.compute_hashes(),
+        duration_ms=duration_ms, status="succeeded",
+        mode={**mode, "execution": "reused_result",
+              "execution_label": "Reused governed result",
+              "intent": reading.intent},
+    )
+
+
+def orchestrator_no_rescan() -> str:
+    from backend.orchestration.orchestrator import NO_RESCAN
+
+    return NO_RESCAN
+
+
+def _reuse_scope_line(cached: Any) -> str:
+    """What the assessed result covered, said before anything is claimed."""
+    said = cached.scope_sentence()
+    if cached.question:
+        return (f"The result of \u201c{cached.question}\u201d"
+                + (f" \u2014 {said}" if said else ""))
+    return said or "The previous result in this investigation"
+
+
+# ------------------------------------------------------------ analytical answers
+
+
+def from_analysis(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
+                  runtime: Any, *, duration_ms: int,
+                  mode: dict[str, Any]) -> Investigation:
+    """An Investigation for a question the runtime computed."""
+    scope = Scope(
+        focus=build.summary or reading.objective,
+        dimension=build.dimension or None,
+        output={"aggregate": "distribution", "ranking": "ranking",
+                "cohort": "ranking", "movement": "movement",
+            "share_movement": "ranking"}[build.shape],
+        period_requirement=("two_period" if build.shape in
+                            (ap.COHORT, ap.MOVEMENT) else "point_in_time"),
+        period_specified=bool(reading.periods),
+        from_period=build.opening or None,
+        to_period=build.closing or build.period or None,
+        period_source=("read from the question" if reading.periods
+                       else "the latest published period"),
+        filters={f: v for f, v in build.filters},
+    )
+    plan = AnalysisPlan(
+        question=question, intent=build.summary, scope=scope,
+        steps=[PlanStep(
+            analysis_id="dynamic_analysis",
+            title=_title(build), rationale=_rationale(build),
+            params={"shape": build.shape, "grain": build.grain,
+                    "period": build.period, "opening_period": build.opening,
+                    "closing_period": build.closing,
+                    "datasets": build.datasets, "top_n": build.top_n},
+            filters={f: v for f, v in build.filters},
+            role=StepRole.PRIMARY,
+        )],
+        planner=reading.source, model_name=reading.model or None,
+        follow_ups=_follow_ups(build, runtime),
+        notes=[_composed_note(build), *_presentation_note(build)],
+    )
+
+    # Computed once, then quoted. Anything the prose says is a figure the
+    # result carries — a narrative that re-derives a total is a second
+    # computation that can disagree with the answer it is describing.
+    values = _values(build, runtime)
+    narrative = _narrative(question, build, runtime, values)
+    step = ExecutedStep(
+        index=0, analysis_id="dynamic_analysis", title=_title(build),
+        rationale=_rationale(build),
+        params={"shape": build.shape, "grain": build.grain,
+                "period": build.period, "opening_period": build.opening,
+                "closing_period": build.closing, "datasets": build.datasets,
+                "dimension": build.dimension, "top_n": build.top_n},
+        filters={f: v for f, v in build.filters},
+        period=build.closing or build.period, status="succeeded",
+        certification=runtime.certification, analysis_version="",
+        duration_ms=runtime.duration_ms,
+        result={
+            "values": values,
+            "units": _units(build),
+            "input_row_count": runtime.row_count,
+            "meta": {"execution": runtime.certification, "shape": build.shape,
+                     "grain": build.grain},
+            "rows": runtime.rows,
+            # Columns carry what they ARE, not only what they are called. A
+            # float printed at full precision looks like a defect, and a bare
+            # measure column in a two-period plan is the OPENING value —
+            # labelling it with the measure alone put a zero beside a claim
+            # that the figure had risen.
+            "columns": _presented(runtime, build),
+            "warnings": [*runtime.warnings, *build.warnings],
+            "chart": runtime.chart, "truncated": runtime.truncated,
+            # What to DRAW, decided from the shape of the result and from what
+            # the user asked for — never from the values. Carries its own
+            # reason and always a table toggle: a chart a credit officer
+            # cannot check against its figures is one they may not act on.
+            "visual": _visual(runtime, build, question).to_dict(),
+            "certification": runtime.certification,
+            "certification_label": runtime.certification_label,
+            "capability": reading.to_dict(),
+            "reading": build.to_dict(),
+            "plan": build.plan,
+            "query": runtime.query.to_dict() if runtime.query else None,
+            "joins": runtime.joins,
+            "reconciliation": runtime.reconciliation,
+            "fingerprint": runtime.fingerprint,
+            "datasets": build.datasets,
+            "explanation": build.summary,
+            "formulas": formulas(build),
+            "plain_english": plain_english(build),
+            "join_plan": (build.request.resolution.to_dict()
+                          if build.request is not None
+                          and build.request.resolution else None),
+        },
+        error=None,
+        trace=None, node_hashes={}, role="primary",
+    )
+
+    graph = analysis_graph(question, reading, build, runtime, narrative)
+    step.trace = graph.to_dict()
+    return Investigation(
+        question=question, plan=plan, steps=[step], narrative=narrative,
+        graph=graph, node_hashes=graph.compute_hashes(),
+        duration_ms=duration_ms, status="succeeded",
+        mode={**mode, "execution": runtime.certification,
+              "execution_label": runtime.certification_label,
+              "intent": reading.intent, "datasets": build.datasets},
+    )
+
+
+def _title(build: ap.AnalysisBuild) -> str:
+    return {
+        ap.AGGREGATE: "Aggregated across the governed book",
+        ap.RANKING: "Ranked from the governed book",
+        ap.COHORT: "Composed across several governed sources",
+        ap.MOVEMENT: "Measured between two reporting periods",
+        ap.SHARE_MOVEMENT: "A share of a total, at two reporting periods",
+    }[build.shape]
+
+
+def _rationale(build: ap.AnalysisBuild) -> str:
+    sources = ", ".join(build.datasets)
+    if build.shape in (ap.COHORT, ap.MOVEMENT):
+        return (f"No certified analysis reads {sources} together, so "
+                "CreditProbe composed one from the governed relationship model.")
+    return (f"CreditProbe composed this from {sources} rather than selecting a "
+            "pre-built analysis: the question named its own measure, grouping "
+            "and period.")
+
+
+def _composed_note(build: ap.AnalysisBuild) -> str:
+    return ("Composed for this question and run through the governed runtime — "
+            "the same catalogue, validator and parameterised SQL every "
+            "certified analysis uses. It is not a certified method.")
+
+
+def _opening(label: str) -> str:
+    """A concept label starting a sentence.
+
+    `str.capitalize` lowers every character after the first, which turns "ECL
+    coverage" into "Ecl coverage" — the product mangling a term of art in the
+    first three letters of its own answer.
+    """
+    text = str(label or "").strip()
+    if not text:
+        return text
+    return text[:1].upper() + text[1:]
+
+
+def _primary_column(build: ap.AnalysisBuild, runtime: Any) -> str:
+    """The measure column as the result actually named it.
+
+    A joined measure lands prefixed by the dataset it came from, so the plan's
+    field name is not always the column name.
+    """
+    field_name = build.matches[0].field if build.matches else ""
+    if not field_name:
+        return ""
+    names = [str(c.get("name")) for c in (runtime.columns or [])]
+    if field_name in names:
+        return field_name
+    matches = [n for n in names if n.endswith(f"_{field_name}")]
+    return matches[0] if len(matches) == 1 else ""
+
+
+def _aggregation_of(build: ap.AnalysisBuild, column: str) -> str:
+    """How the plan rolled this column up: sum, avg, count."""
+    for operation in (build.plan.get("operations") or []):
+        if str(operation.get("op") or "") != "GROUP":
+            continue
+        for aggregate in ((operation.get("params") or {}).get("aggregates") or []):
+            if str(aggregate.get("as") or aggregate.get("column")) == column:
+                return str(aggregate.get("function") or "")
+    return ""
+
+
+def _values(build: ap.AnalysisBuild, runtime: Any) -> dict[str, Any]:
+    values: dict[str, Any] = {"matching": runtime.row_count}
+    # Derived figures the reading quotes are RESULT values. Association
+    # coefficients, concentration shares, the gap between the leader and the
+    # runner-up: all computed by the governed path from the rows below them, so
+    # they belong beside the totals rather than appearing only in prose — where
+    # the grounding check, quite correctly, reported them as figures the result
+    # did not carry.
+    # Named with a leading underscore: they are there so the grounding check
+    # can see them, not so a reader sees "CONCENTRATION TOP THREE SHARE PCT"
+    # in the headline strip beside the total. The surface skips them.
+    for name, coefficient in _association_values(build).items():
+        values[f"_{name}"] = coefficient
+    for name, figure in _observed_values(build).items():
+        values.setdefault(f"_{name}", figure)
+    if build.period:
+        values["period"] = build.period
+    if build.opening:
+        values["opening_period"] = build.opening
+        values["closing_period"] = build.closing
+    # The headline figure of an aggregate is its total, and it must come from
+    # the returned rows rather than be recomputed here — a second computation
+    # is a second thing that can disagree with the answer.
+    if build.shape == ap.AGGREGATE and build.matches and runtime.rows:
+        column = _primary_column(build, runtime)
+        if column and all(isinstance(r.get(column), (int, float))
+                          for r in runtime.rows):
+            numbers = [float(r[column]) for r in runtime.rows]
+            # A total is only a total when the groups were SUMMED. Adding up
+            # ten per-grade AVERAGES produces a number that is not a coverage
+            # ratio, is not a total, and reads as both.
+            if _aggregation_of(build, column) == "avg":
+                values["average"] = round(sum(numbers) / len(numbers), 4)
+                values["groups"] = len(numbers)
+            else:
+                values["total"] = round(sum(numbers), 4)
+    # How much of the population the returned rows account for. A ranking that
+    # does not say this invites the reader to assume the top five are the book.
+    # A movement's totals are the answer, so they are result values rather than
+    # something the prose works out for itself.
+    if build.shape == ap.MOVEMENT and not build.conditions and build.matches:
+        column = build.matches[0].field
+        by_period = {str(r.get("period")): r for r in runtime.rows
+                     if r.get("period")}
+        if build.dimension:
+            opening_total = sum(
+                float(r.get(column) or 0.0) for r in runtime.rows
+                if str(r.get("period")) == build.opening)
+            closing_total = sum(
+                float(r.get(column) or 0.0) for r in runtime.rows
+                if str(r.get("period")) == build.closing)
+        else:
+            opening_total = float(
+                (by_period.get(build.opening) or {}).get(column) or 0.0)
+            closing_total = float(
+                (by_period.get(build.closing) or {}).get(column) or 0.0)
+        values["opening_total"] = round(opening_total, 4)
+        values["closing_total"] = round(closing_total, 4)
+        values["change"] = round(closing_total - opening_total, 4)
+        if opening_total:
+            values["change_pct"] = round(
+                (closing_total - opening_total) / abs(opening_total) * 100, 4)
+
+    if build.shape == ap.RANKING and build.matches and runtime.rows:
+        share_column = f"{build.matches[0].field}_share_pct"
+        if all(isinstance(r.get(share_column), (int, float))
+               for r in runtime.rows):
+            values["share_covered_pct"] = round(
+                sum(float(r[share_column]) for r in runtime.rows), 4)
+    return values
+
+
+def result_values(build: ap.AnalysisBuild, runtime: Any) -> dict[str, Any]:
+    """The figures the narrative is built from, for anything that has to agree
+    with it.
+
+    The eight sections read these rather than re-deriving a movement of their
+    own: a credit-risk sentence that says "no movement" underneath a bottom
+    line that says "fell from 4,541 to 4,197" is the "prose contradiction with
+    result" in Defect F, and two derivations of the same number is how it
+    happens.
+    """
+    try:
+        return _values(build, runtime)
+    except Exception as e:  # noqa: BLE001 - a reading must not lose an answer
+        logger.warning("Could not read the result values: %s", e)
+        return {}
+
+
+def _units(build: ap.AnalysisBuild) -> dict[str, str]:
+    units = {"matching": "count"}
+    if build.matches:
+        units["total"] = build.matches[0].concept.unit or ""
+    return units
+
+
+def _follow_ups(build: ap.AnalysisBuild, runtime: Any = None) -> list[str]:
+    """What is worth asking next, derived from THIS result.
+
+    Delegated. The old version offered the same three things after every
+    answer, which is furniture rather than a suggestion — people stop reading
+    it inside four turns.
+    """
+    from backend.orchestration import suggestions
+
+    return suggestions.after_analysis(build, runtime)
+
+
+def _evidence(label: str, value: Any, unit: str, *,
+              direction: str = "neutral", period: str = "") -> dict[str, Any]:
+    """One figure behind a finding, with what it MEANS for credit risk.
+
+    `direction` is presentation metadata, not a calculation: it says which way
+    is bad for this measure so a reader sees "+1.8pp adverse" rather than a
+    green plus sign. It comes from the ontology's `higher_is_worse`, which is
+    the governed answer to that question — a rising ECL and a rising cure rate
+    are both increases and only one of them is bad news.
+
+    "neutral" is the default and is used wherever the meaning is not governed.
+    A wrongly coloured risk figure is worse than an uncoloured one: it tells a
+    credit officer the opposite of the truth in the register they trust most.
+    """
+    entry: dict[str, Any] = {"label": label, "value": value, "unit": unit,
+                             "direction": direction}
+    if period:
+        entry["period"] = period
+    return entry
+
+
+def _direction_of(measure: Any) -> str:
+    """Which way is bad for this measure, as the ontology governs it."""
+    if measure is None:
+        return "neutral"
+    return "up-is-bad" if measure.concept.higher_is_worse else "up-is-good"
+
+
+# ------------------------------------------------------------------ narrative
+
+
+def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
+               values: dict[str, Any]) -> Narrative:
+    """The answer, and CreditProbe's reading of it.
+
+    Assembled from the result rather than composed by a model in offline mode,
+    and every figure in it is quoted from a returned value. `from_analysis`
+    checks that before returning.
+    """
+    from backend.orchestration import figures, presentation
+
+    rows = runtime.rows
+    count = runtime.row_count
+    measure = build.matches[0] if build.matches else None
+    label = measure.concept.label if measure else "the measure"
+    unit = (measure.concept.unit or "") if measure else ""
+
+    metrics: list[Metric] = []
+    findings: list[Finding] = []
+
+    composite = ((build.plan or {}).get("meta") or {}).get("composite") or {}
+    if composite:
+        # A composite ranking has no single measure, so the ordinary RANKING
+        # branch below - which reads a concept label off `matches` - would
+        # write "the 25 largest customers by the measure". The answer to
+        # "which borrowers show the strongest evidence of liquidity stress" is
+        # a count of signals, and the sentence has to say so or the number in
+        # the first column means nothing.
+        return _composite_narrative(build, runtime, rows, count, composite)
+
+    if build.shape == ap.AGGREGATE and "average" in values:
+        # An averaged measure has no total. Said as what it is: the mean across
+        # the groups on the screen, which is the only figure the rows support.
+        mean = float(values["average"])
+        column = _primary_column(build, runtime)
+        spec = {c["name"]: c for c in _presented(runtime, build)}
+        shown = (presentation.render(mean, spec[column]) if column in spec
+                 else figures.text(mean))
+        where = (" in " + _scope_phrase(build.filters)) if build.filters else ""
+        direct = (f"{_opening(label)} averages {shown} across the {count} "
+                  f"{_dimension_word(build)}"
+                  f"{'s' if count != 1 else ''}{where} at {build.period}.")
+        metrics.append(Metric(label=f"Average {label}", value=round(mean, 4),
+                              unit=unit, direction="neutral"))
+    elif build.shape == ap.AGGREGATE:
+        column = measure.field if measure else ""
+        total = float(values.get("total") or 0.0)
+        # "125,259 USD mn of exposure at default" reads correctly; a count has
+        # no unit and "2,159  of customers" does not.
+        subject = f"{unit} of {label}" if unit else label
+        # "across 5 groups" is what a program says when it has forgotten what it
+        # grouped by. Name the dimension, or the grain when a carried population
+        # is what is on screen.
+        where = (" in " + _scope_phrase(build.filters)) if build.filters else ""
+        if build.dimension:
+            direct = (f"{_fmt(total)} {subject}{where} across {count} "
+                      f"{_dimension_word(build)}{'s' if count != 1 else ''} at "
+                      f"{build.period}.")
+        else:
+            # One number for the whole population. "across 1 customer" is what
+            # a program says when it has counted its own output rows.
+            direct = f"{_fmt(total)} {subject}{where} at {build.period}."
+        metrics.append(Metric(label=f"Total {label}", value=round(total, 2),
+                              unit=unit, direction="neutral"))
+        if rows and build.dimension and isinstance(
+                rows[0].get(column), (int, float)):
+            top = rows[0]
+            share = top.get(f"{column}_share_pct")
+            share_text = (f", {figures.percent(share)} of the total"
+                          if isinstance(share, (int, float)) else "")
+            findings.append(Finding(
+                text=(f"{top.get(build.dimension)} is the largest at "
+                      f"{_fmt(top[column])} {unit}{share_text}."),
+                tone="neutral",
+                evidence=[_evidence(str(top.get(build.dimension)),
+                                    round(float(top[column]), 2), unit,
+                                    period=build.period or "")]))
+    elif build.shape == ap.RANKING:
+        direct = (f"The {count} largest {_subject(build, count)} by {label} "
+                  f"at {build.period}."
+                  if count else _nothing_matched(build))
+        column = measure.field if measure else ""
+        share_column = f"{column}_share_pct"
+        if rows:
+            top = rows[0]
+            metrics.append(Metric(
+                label=f"Largest {label}",
+                value=round(float(top.get(column, 0)), 2), unit=unit,
+                direction="neutral",
+                hint=str(top.get("borrower_name") or top.get("customer_id") or "")))
+            if share_column in top:
+                covered = float(values.get("share_covered_pct") or 0.0)
+                scope = (", ".join(v for _, v in build.filters)
+                         or "the whole book")
+                findings.append(Finding(
+                    text=(f"Together these {count} hold "
+                          f"{figures.percent(covered)} of {scope} {label}."),
+                    tone="neutral",
+                    evidence=[_evidence("share of " + scope,
+                                        round(covered, 1), "%",
+                                        period=build.period or "")]))
+    elif build.shape == ap.SHARE_MOVEMENT:
+        numerator = dict((build.plan.get("meta") or {}).get("numerator") or {})
+        moved = [r for r in rows if r.get("change_pp") is not None]
+        top = max(moved, key=lambda r: float(r["change_pp"])) if moved else {}
+        direct = (
+            f"{numerator.get('label', 'The qualifying')} exposure as a share of "
+            f"total {label}, by {build.dimension}, between {build.opening} and "
+            f"{build.closing}."
+            + (f" {top.get(build.dimension)} rose most, from "
+               f"{figures.percent(top['opening_share_pct'])} to "
+               f"{figures.percent(top['closing_share_pct'])} — "
+               f"{figures.points(top['change_pp'])}."
+               if top else ""))
+        if top:
+            metrics.append(Metric(
+                label=f"Largest increase — {top.get(build.dimension)}",
+                value=round(float(top["change_pp"]), 2), unit="pp",
+                direction="up-is-bad"))
+            findings.append(Finding(
+                text=(f"{top.get(build.dimension)} moved from "
+                      f"{figures.percent(top['opening_share_pct'])} to "
+                      f"{figures.percent(top['closing_share_pct'])}."),
+                tone="warning" if float(top["change_pp"]) > 0 else "neutral",
+                evidence=[_evidence(
+                    "change", round(float(top["change_pp"]), 2), "pp",
+                    # A rising share of qualifying — Stage 2, past due,
+                    # watchlist — is the deterioration the question asked
+                    # about. That is what makes an increase adverse here.
+                    direction="up-is-bad",
+                    period=f"{build.opening} → {build.closing}")]))
+    elif build.shape == ap.MOVEMENT and not build.conditions:
+        column = measure.field if measure else ""
+        opening_total = float(values.get("opening_total") or 0.0)
+        closing_total = float(values.get("closing_total") or 0.0)
+        change = float(values.get("change") or 0.0)
+        change_pct = values.get("change_pct")
+        moved = "rose" if change > 0 else "fell" if change < 0 else "was unchanged"
+        pct = (f" ({figures.percent(abs(float(change_pct)))})"
+               if isinstance(change_pct, (int, float)) and change else "")
+        direct = (f"{_opening(label)} {moved} from {_fmt(opening_total)} to "
+                  f"{_fmt(closing_total)} {unit} between {build.opening} and "
+                  f"{build.closing} — a change of {_fmt(abs(change))} {unit}"
+                  f"{pct}.")
+        metrics.append(Metric(
+            label=f"{_opening(label)} at {build.closing}",
+            value=round(closing_total, 2), unit=unit,
+            change=round(change, 2), change_unit=unit,
+            direction="up-is-bad" if (measure and measure.concept.higher_is_worse)
+            else "up-is-good"))
+        if build.dimension and rows:
+            biggest = max(
+                rows, key=lambda r: abs(float(r.get(column) or 0.0)))
+            findings.append(Finding(
+                text=(f"{biggest.get(build.dimension)} carries the largest "
+                      f"{label} at {_fmt(biggest.get(column))} {unit}."),
+                tone="neutral",
+                evidence=[_evidence(str(biggest.get(build.dimension)),
+                                    biggest.get(column), unit,
+                                    direction=_direction_of(measure),
+                                    period=build.closing or "")]))
+    elif count == 0:
+        # An empty cohort is a finding, not a row count. Said the same way an
+        # empty ranking is, because the reader's question is the same one.
+        direct = _nothing_matched(build)
+        metrics.append(Metric(label=f"{build.grain.title()}s matching",
+                              value=0, unit="count", direction="up-is-bad"))
+    else:
+        # The Boolean structure the plan applied, where there is one. A
+        # comma-separated list reads as a conjunction whatever the question
+        # said, so "Stage 2 borrowers NOT on watchlist" was headed "where on
+        # the watchlist" above rows that were not on it.
+        stated = _stated(build)
+        direct = (f"{count} {_subject(build, count)} where {stated}, between "
+                  f"{build.opening} and {build.closing}.")
+        metrics.append(Metric(label=f"{build.grain.title()}s matching",
+                              value=count, unit="count",
+                              direction="up-is-bad"))
+        if rows:
+            named = rows[0].get("borrower_name") or rows[0].get("customer_id")
+            if named:
+                findings.append(Finding(
+                    text=f"{named} is the worst by the measures named.",
+                    tone="negative", evidence=[]))
+
+    interpretation = _interpretation(build, runtime, count)
+
+    # The observations an analyst would make, computed from the result. Without
+    # a provider these ARE the reading; the old deterministic paragraph
+    # restated the headline in longer words, which is why the interpretation
+    # read as generic however correct it was.
+    noticed = _noticed(build)
+    if noticed:
+        interpretation = " ".join(x for x in (interpretation, noticed) if x)
+
+    caveats = notable(runtime.warnings) + list(build.warnings)
+
+    # A question about whether a pattern holds is ANSWERED by the pattern. The
+    # aggregate that was computed to find it is the evidence, not the answer,
+    # and leading with the total put a figure nobody asked for in the sentence
+    # that was supposed to answer the question.
+    found = dict(getattr(build, "association", None) or {})
+    if found.get("sentence"):
+        interpretation = " ".join(x for x in (direct, interpretation) if x)
+        direct = found["sentence"]
+        if found.get("caveat"):
+            caveats = [*caveats, found["caveat"]]
+
+    return Narrative(
+        direct_answer=direct, summary=direct, findings=findings,
+        interpretation=interpretation,
+        interpretation_points=[], metrics=metrics, caveats=caveats,
+    )
+
+
+def _composite_narrative(build: ap.AnalysisBuild, runtime: Any,
+                         rows: list[dict[str, Any]], count: int,
+                         composite: dict[str, Any]) -> Narrative:
+    """The answer to "which borrowers show the strongest evidence of X".
+
+    Three things a reader needs and the generic ranking sentence cannot give
+    them: what the number in the leading column IS, which of the things they
+    asked about it was built from, and which it could not use.
+    """
+    label = str(composite.get("label") or "the composite")
+    signals = list(composite.get("signals") or [])
+    score = str((((build.plan or {}).get("meta")) or {}).get("score_column")
+                or "")
+    dimensions = list(composite.get("dimensions") or [])
+
+    if not rows:
+        return Narrative(
+            direct_answer=(
+                f"No borrower in the book shows any of the {len(signals)} "
+                f"governed {label} signals at {build.period}."),
+            summary="", findings=[], interpretation="",
+            interpretation_points=[], metrics=[], caveats=[])
+
+    top = rows[0]
+    best = int(top.get(score) or 0)
+    named = str(top.get("borrower_name") or top.get("customer_id") or "")
+    direct = (
+        f"{count} borrower{'s' if count != 1 else ''}, ranked by how many of "
+        f"{len(signals)} governed {label} signals each one shows at "
+        f"{build.period}. {named} shows the most, at {best} of "
+        f"{len(signals)}.")
+
+    metrics = [
+        Metric(label=f"Most {label} signals", value=best, unit="signals",
+               direction="negative", hint=named),
+        Metric(label="Signals available", value=len(signals), unit="",
+               direction="neutral"),
+    ]
+
+    findings: list[Finding] = []
+    # Which signals the leading borrower actually trips. A count with no
+    # constituents is a score, and a score nobody can decompose is the thing
+    # this whole layer refuses to produce.
+    fired = [str(s.get("label") or s.get("key"))
+             for s in signals if int(top.get(f"signal_{s.get('key')}") or 0)]
+    if fired:
+        findings.append(Finding(
+            text=f"{named}: {_and_list(fired)}.",
+            tone="negative",
+            evidence=[_evidence(named, best, "signals",
+                                period=build.period or "")]))
+
+    # How the evidence thins out. A ranking whose second row is as bad as its
+    # first is a different finding from one with a clear head, and a reader
+    # cannot see which from the top row alone.
+    counts = [int(r.get(score) or 0) for r in rows]
+    several = sum(1 for c in counts if c >= 4)
+    if several:
+        findings.append(Finding(
+            text=(f"{several} of the {count} shown carry four or more "
+                  f"independent signals."),
+            tone="neutral", evidence=[]))
+
+    if dimensions:
+        findings.append(Finding(
+            text=("Built from " + _and_list(dimensions) + "."),
+            tone="neutral", evidence=[]))
+
+    # `build.warnings` already carries the sentence naming what the catalogue
+    # could not supply. Repeating it here would print it twice under one
+    # answer.
+    caveats: list[str] = list(build.warnings)
+
+    interpretation = (
+        "Each signal counts once and none is weighted, so the ranking is "
+        "breadth of evidence rather than a score. A borrower showing the "
+        "same problem on several facilities counts it once.")
+
+    return Narrative(
+        direct_answer=direct, summary=direct, findings=findings,
+        interpretation=interpretation, interpretation_points=[],
+        metrics=metrics, caveats=caveats)
+
+
+def _and_list(items: list[str]) -> str:
+    found = [str(i) for i in items if str(i)]
+    if not found:
+        return ""
+    if len(found) == 1:
+        return found[0]
+    return ", ".join(found[:-1]) + " and " + found[-1]
+
+
+#: Warnings that describe normal governed behaviour rather than something a
+#: reader has to weigh. They stay on the Trace and in Data & method, where a
+#: reviewer looks for them; repeating all seven under every answer trains
+#: people to skip the two that matter.
+_ROUTINE = (
+    "joins on a single key",
+    "is an as-of join: each row takes the latest",
+)
+
+
+def notable(warnings: list[str]) -> list[str]:
+    """The warnings worth putting under the answer itself."""
+    return [w for w in warnings
+            if not any(routine in w for routine in _ROUTINE)]
+
+
+def _plural(word: str, count: int) -> str:
+    """English plurals for the handful of grains an answer is reported at."""
+    if count == 1:
+        return word
+    return {"facility": "facilities", "company": "companies"}.get(
+        word, word + "s")
+
+
+#: Governed dimensions whose values are meaningless without their name.
+#: "in 2" is not a sentence; "in Stage 2" is.
+_NEEDS_ITS_NAME = {"ifrs9_stage": "Stage", "internal_grade": "grade",
+                   "dpd_bucket": "DPD bucket", "charge_rank": "charge rank"}
+
+
+def _scope_phrase(filters: list[tuple[str, str]]) -> str:
+    """The filters as a credit officer would say them."""
+    parts: list[str] = []
+    for field_name, value in filters:
+        prefix = _NEEDS_ITS_NAME.get(field_name)
+        if prefix is None and str(value).replace(".", "").isdigit():
+            prefix = field_name.replace("_", " ")
+        parts.append(f"{prefix} {value}" if prefix else str(value))
+    return ", ".join(parts)
+
+
+#: Small counts read as words. "None of the 5 customers" is a sentence written
+#: by a program; "None of the five customers" is one written by a person, and
+#: the difference is the whole distance between a report and a readout.
+_WORDS = {0: "none", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five",
+          6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
+
+
+def _spelled(count: int) -> str:
+    return _WORDS.get(count, f"{count:,}")
+
+
+def _nothing_matched(build: ap.AnalysisBuild) -> str:
+    """"Nothing matched" said in the terms of the question that asked.
+
+    "The 0 largest customers" is a sentence a program writes. What a credit
+    officer needs to read is which population was looked at, what was not found
+    in it, and — the part that was missing — **where the population actually
+    sits instead**. An empty result is a finding, and a finding that leaves the
+    reader still not knowing the answer is half a finding.
+    """
+    population = (build.plan.get("meta") or {}).get("population") or {}
+    where = _scope_phrase(build.filters)
+    carried = int(population.get("count") or 0)
+    if carried:
+        subject = (f"the {_spelled(carried)} "
+                   f"{_plural(build.grain, carried)} carried forward from the "
+                   "previous answer")
+    elif where:
+        subject = f"{where} {_plural(build.grain, 2)}"
+    else:
+        subject = f"{_plural(build.grain, 2)} in the book"
+
+    at = build.closing or build.period
+    found = getattr(build, "partition", None)
+    usable = found is not None and getattr(found, "usable", False)
+
+    # Where the probe knows which values were asked for, the sentence is
+    # phrased in them. It reads as an answer rather than as a rejected filter.
+    if usable and found.wanted:
+        lead = (f"None of {subject} is in {_lower(found.label)} "
+                f"{_or_list(found.wanted)}")
+    else:
+        conditions = _stated(build)
+        lead = f"None of {subject} match {conditions or where or 'the conditions asked for'}"
+
+    instead = _where_they_sit(build) if usable else ""
+    if not instead:
+        return f"{lead} at {at}."
+    return f"{lead}; {instead} at {at}."
+
+
+def _stated(build: ap.AnalysisBuild) -> str:
+    """The conditions, combined the way the plan combined them.
+
+    One helper rather than four copies of `", ".join(...)`, because every one
+    of those copies asserted a conjunction the plan may not have applied.
+    """
+    enforcement = getattr(build, "enforcement", None)
+    if enforcement is not None:
+        # The headline form: `_subject` has already said "Stage 2 customers",
+        # so repeating the stage as a condition is noise a reader reads twice
+        # before deciding it means something.
+        said = getattr(enforcement, "headline", "") or getattr(
+            enforcement, "logic", "")
+        if said:
+            return str(said)
+    return ", ".join(c.describe() for c in build.conditions)
+
+
+def _where_they_sit(build: ap.AnalysisBuild) -> str:
+    """The second half of an empty answer: what the population IS.
+
+    Built from the partition probe, which re-ran the same governed plan with
+    the excluding predicate removed. Where there is no partition — because the
+    attribute has too many values to characterise, or the probe did not run —
+    this is empty and the answer stops after saying nothing matched, which is
+    still true.
+    """
+    found = build.partition
+    total = found.total
+    members = _plural(found.grain or build.grain, total)
+    label = _lower(found.label or "value")
+
+    if found.unanimous:
+        value, _ = found.counts[0]
+        if total == 1:
+            return f"the one {members} is in {label} {value}"
+        return f"all {_spelled(total)} are in {label} {value}"
+
+    spread = ", ".join(f"{_spelled(n)} in {label} {value}"
+                       for value, n in found.counts[:MAX_CLASSES_IN_PROSE])
+    remaining = len(found.counts) - MAX_CLASSES_IN_PROSE
+    more = (f" and {_spelled(remaining)} further {label} "
+            f"{'value' if remaining == 1 else 'values'}" if remaining > 0 else "")
+    return f"the {_spelled(total)} {members} are {spread}{more}"
+
+
+def _lower(label: str) -> str:
+    """A concept label as it appears mid-sentence.
+
+    Acronyms keep their capitals — "IFRS 9 stage", not "ifrs 9 stage" — so only
+    a leading word that is ordinary English is lowered.
+    """
+    text = str(label or "").strip()
+    if not text:
+        return text
+    first = text.split()[0]
+    if first.isupper() or any(c.isdigit() for c in first):
+        return text
+    return text[:1].lower() + text[1:]
+
+
+def _or_list(values: list[str]) -> str:
+    """"2 or 3", "2, 3 or 4" — the values the question named, as it named them."""
+    cleaned = [str(v) for v in values if str(v).strip()]
+    if not cleaned:
+        return ""
+    if len(cleaned) == 1:
+        return cleaned[0]
+    return ", ".join(cleaned[:-1]) + f" or {cleaned[-1]}"
+
+
+#: How many classes an empty answer names before it stops listing them. A
+#: sentence with nine clauses in it is a table nobody asked for.
+MAX_CLASSES_IN_PROSE = 4
+
+
+def _subject(build: ap.AnalysisBuild, count: int) -> str:
+    """"Real Estate customers", "facilities" — the population, in words.
+
+    A filter value is read as an adjective where it is a name and named
+    explicitly where it is a code, because "3 3 facilities" is not a sentence.
+    """
+    grain = _plural(build.grain, count)
+    enforcement = getattr(build, "enforcement", None)
+    tree = getattr(enforcement, "tree", None) if enforcement is not None else None
+    if tree is not None and not tree.empty and not tree.is_conjunction():
+        # Under a disjunction a governed value is a BRANCH, not a property of
+        # every row. "500 customers in IFRS 9 stage 3 where (PD rose and rating
+        # downgraded) or stage is 3" says the stage held for all of them, and
+        # for most of them it did not. The full logic is in the sentence
+        # already; the subject stays the bare population.
+        return grain
+    adjectives = [v for f, v in build.filters
+                  if not str(v).isdigit() and len(str(v)) > 2]
+    coded = [f"{dyn.FIELD_LABELS.get(f, f.replace('_', ' '))} {v}"
+             for f, v in build.filters
+             if str(v).isdigit() or len(str(v)) <= 2]
+    subject = " ".join([*adjectives, grain])
+    if coded:
+        subject += " in " + ", ".join(coded)
+    return subject
+
+
+def _interpretation(build: ap.AnalysisBuild, runtime: Any, count: int) -> str:
+    """One or two sentences reading the result. No unrelated commentary.
+
+    Every figure here is one the result carries. Where there is nothing to read
+    beyond the answer itself, this is empty rather than padded — a paragraph
+    restating the number in longer words is not an interpretation.
+    """
+    if count == 0:
+        if build.shape in (ap.COHORT, ap.MOVEMENT):
+            return ("No customer met every condition over this window. That is "
+                    "the answer rather than a gap: relaxing any one of them "
+                    "would return a population.")
+        return "Nothing in the governed data matched."
+
+    if build.shape == ap.SHARE_MOVEMENT:
+        return ("The numerator and the denominator are taken over the same rows "
+                "in one pass, so the share cannot be built from two "
+                "differently filtered populations. The change is in percentage "
+                "points of the share, not a percentage change of it.")
+    if build.shape == ap.MOVEMENT and not build.conditions:
+        return ("Both figures are totals across the same population at the two "
+                "dates, so the change is a movement in the book rather than a "
+                "change in what was counted.")
+    if build.shape in (ap.COHORT, ap.MOVEMENT) and build.conditions:
+        # From the plan that ran, not from the question that was asked. The
+        # sentence this replaced was composed from the READING, so it claimed
+        # every condition had been tested whenever every condition had been
+        # UNDERSTOOD — and a condition understood and then dropped on the way
+        # to the runtime produced a population that met one of two conditions
+        # under a sentence swearing it met both.
+        if build.enforcement is not None:
+            said = gate.population_sentence(
+                build.enforcement, grain=build.grain,
+                opening=build.opening, closing=build.closing)
+            if said:
+                return said
+        stated = " and ".join(c.describe() for c in build.conditions)
+        return (f"These are the {build.grain}s where {stated} held together "
+                f"between {build.opening} and {build.closing}.")
+    if build.shape == ap.RANKING and build.filters:
+        scope = ", ".join(v for _, v in build.filters)
+        return (f"Shares are of {scope} exposure, not of the whole book — the "
+                "question asked about that population.")
+    if build.shape == ap.AGGREGATE and build.dimension:
+        # The noun, not the column. A breakdown reached over a join lands in a
+        # prefixed column, and "in each customer_ratings_internal_grade" puts a
+        # database identifier in the first line of the answer.
+        #
+        # And the arithmetic that was actually done. Calling an average a sum
+        # is a smaller error than computing the wrong one and a more damaging
+        # one, because it is the sentence a reader checks the figures against.
+        how = ("averages" if _aggregation_of(build, _primary_column(build, runtime))
+               == "avg" else "sums")
+        return (f"Ordered largest first. The figures are {how} across every "
+                f"facility in each {_dimension_word(build)} at "
+                f"{build.period}.")
+    return ""
+
+
+def _dimension_word(build: ap.AnalysisBuild) -> str:
+    """The breakdown, in the words a person uses for it.
+
+    A breakdown reached over a join lands in a prefixed column, so the
+    sentence read "across 10 customer_ratings_internal_grades" — a column
+    name where a noun belongs, in the first line of the answer.
+    """
+    from backend.orchestration import presentation
+
+    raw = str(build.dimension or "")
+    if not raw:
+        return "group"
+    for column in presentation.contract(None, build):
+        if column["name"] == raw and column.get("label"):
+            return str(column["label"]).lower()
+    for dataset in (build.datasets or []):
+        prefix = f"{dataset}_"
+        if raw.startswith(prefix):
+            raw = raw[len(prefix):]
+            break
+    return raw.replace("_", " ")
+
+
+def _fmt(value: Any) -> str:
+    """A figure in a sentence, written the way the whole product writes them.
+
+    Delegates rather than deciding. The deterministic narrative used to round
+    by hand, the table used a display contract and the model was handed raw
+    floats — three rules for one number, which is how a reader ends up seeing
+    73,392 in a table above 73,391.774000000012 in the paragraph explaining it.
+    """
+    from backend.orchestration import figures
+
+    return figures.text(value)
+
+
+# ------------------------------------------------------- formulas and English
+
+
+def formulas(build: ap.AnalysisBuild) -> list[dict[str, str]]:
+    """Every derived column, as the arithmetic a reviewer would check.
+
+    Written out rather than described. "ECL change %" means nothing without the
+    expression, and a reviewer who has to infer it from SQL is being asked to
+    do the product's job.
+    """
+    out: list[dict[str, str]] = []
+    for condition in build.conditions:
+        match = next((m for m in build.matches if m.field == condition.field),
+                     None)
+        label = match.concept.label if match else condition.field
+        if condition.kind == "change_pct":
+            out.append({
+                "name": f"{label} change %",
+                "column": condition.column,
+                "formula": (f"(closing {label} − opening {label}) "
+                            f"÷ |opening {label}| × 100"),
+                "means": f"How much {label} moved, in per cent.",
+            })
+        elif condition.kind == "change_abs" and match and match.concept.is_ordinal:
+            out.append({
+                "name": f"{label} notch movement",
+                "column": condition.column,
+                "formula": f"grade(closing {label}) − grade(opening {label})",
+                "means": ("Positive is a downgrade: the grade scale runs 1 "
+                          "strongest to 10 weakest."),
+            })
+        elif condition.kind == "change_abs":
+            out.append({
+                "name": f"{label} change",
+                "column": condition.column,
+                "formula": f"closing {label} − opening {label}",
+                "means": f"The movement in {label}, in its own unit.",
+            })
+
+    # The share column, wherever it was computed. A grouped aggregate gets one
+    # too, and a formula shown for a ranking but not for the aggregate beside
+    # it would look like the two were computed differently.
+    if build.matches:
+        measure = build.matches[0]
+        if f"{measure.field}_share_pct" in str(build.plan):
+            scope = ", ".join(v for _, v in build.filters) or "the population"
+            of = build.dimension or build.grain
+            out.append({
+                "name": f"{measure.concept.label} share %",
+                "column": f"{measure.field}_share_pct",
+                "formula": (f"{of} {measure.concept.label} ÷ total "
+                            f"{measure.concept.label} across {scope} × 100"),
+                "means": f"Each row's share of {scope}, not of the whole book.",
+            })
+    return out
+
+
+def plain_english(build: ap.AnalysisBuild) -> str:
+    """What the query does, in a sentence a credit officer would check."""
+    sources = ", ".join(build.datasets)
+    where = ", ".join(f"{f} = {v}" for f, v in build.filters)
+
+    if build.shape == ap.AGGREGATE:
+        return (
+            f"This query reads {sources} at {build.period}"
+            + (f", keeps only rows where {where}" if where else "")
+            + f", groups them by {build.dimension or 'the whole population'}, "
+            f"sums {build.matches[0].concept.label if build.matches else 'the measure'} "
+            "within each group, and orders the groups largest first.")
+    if build.shape == ap.RANKING:
+        measure = (build.matches[0].concept.label if build.matches
+                   else "the measure")
+        return (
+            f"This query reads {sources} at {build.period}"
+            + (f", keeps only rows where {where}" if where else "")
+            + f", aggregates {measure} to one row per {build.grain}, computes "
+            f"each {build.grain}'s share of the total across that population, "
+            f"orders largest first and returns the top {build.top_n}.")
+
+    stated = ", ".join(c.describe() for c in build.conditions)
+    return (
+        f"This query reads {sources} at {build.opening} and again at "
+        f"{build.closing}, aggregates every source that carries more than one "
+        f"row per {build.grain} up to {build.grain} level before joining so "
+        "nothing is double-counted, joins annual sources as-of the reporting "
+        "date so no future data is used, matches each "
+        f"{build.grain} at the two dates, derives the movement in each measure, "
+        f"and keeps the {build.grain}s where {stated}.")
+
+
+# ---------------------------------------------------------------- the Trace
+
+
+def _prior_context(graph: TraceGraph, build: ap.AnalysisBuild) -> str:
+    """The conversation's contribution to this plan, as Trace nodes.
+
+    A follow-up's Trace used to start at its own sentence, which made "rank
+    those by ECL instead" look like a question about the whole book that
+    happened to return five rows. Two nodes fix that: what was carried in, and
+    what this turn changed about the plan it was carried from.
+    """
+    continuation = build.continuation
+    if continuation is None or not getattr(continuation, "carries_context", False):
+        return "intent"
+
+    carried = continuation.to_dict()
+    node = graph.add_node(TraceNode(
+        id="prior", type=NodeType.PRIOR_CONTEXT,
+        label=("Carried from the previous answer"
+               + (f": {carried['entity_count']} {carried['entity_key']}"
+                  if carried.get("entity_count") else "")),
+        config={
+            "action": carried.get("action"),
+            "referent": carried.get("referent"),
+            "population_key": carried.get("entity_key"),
+            "population_size": carried.get("entity_count"),
+            "population_sample": carried.get("entity_names"),
+            "inherited": carried.get("inherited"),
+            "because": carried.get("because"),
+            "rule": ("A reference such as \u201cthese\u201d resolves to the "
+                     "identities the previous run RETURNED, not to a "
+                     "re-derivation of the question that produced them."),
+        }))
+    node.mark_ok(rows_out=carried.get("entity_count") or None)
+    graph.connect("intent", "prior")
+    current = "prior"
+
+    changes = list(carried.get("changes") or [])
+    if build.carried_concepts:
+        changes.append("measures carried forward: "
+                       + ", ".join(build.carried_concepts))
+    if build.top_n:
+        changes.append(f"cut to {build.top_n} rows")
+    if changes:
+        change = graph.add_node(TraceNode(
+            id="plan_change", type=NodeType.PLAN_CHANGE,
+            label="What this turn changed",
+            config={"action": carried.get("action"), "changes": changes,
+                    "rule": ("This turn modified the analysis before it rather "
+                             "than composing a new one.")}))
+        change.mark_ok()
+        graph.connect("prior", "plan_change")
+        current = "plan_change"
+    return current
+
+
+def analysis_graph(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
+                   runtime: Any, narrative: Narrative) -> TraceGraph:
+    """The full lineage: question, reading, sources, joins, maths, result.
+
+    Built from the runtime's own recorded graph rather than described
+    alongside it — the nodes below the query are evidence of what ran, and
+    re-describing them here would let the picture drift from the execution.
+    """
+    graph = TraceGraph()
+    graph.add_node(TraceNode(id="question", type=NodeType.USER_PROMPT,
+                             label="Question asked",
+                             config={"question": question}))
+
+    intent = graph.add_node(TraceNode(
+        id="intent", type=NodeType.CAPABILITY,
+        label=f"Read as: {reading.label}",
+        config={
+            "intent": reading.intent, "intent_label": reading.label,
+            "objective": build.summary,
+            "concepts": [m.concept.label for m in build.matches],
+            "metrics": [f"{m.dataset}.{m.field}" for m in build.matches],
+            "entities": [dict(e) for e in reading.entities],
+            "dimensions": [build.dimension] if build.dimension else [],
+            "period": (f"{build.opening} to {build.closing}"
+                       if build.opening else build.period),
+            "operation": reading.operation,
+            "confidence": round(reading.confidence, 3),
+            "read_by": reading.source, "model": reading.model,
+            "reasoning": reading.reasoning,
+            "rule": ("This node records what CreditProbe understood the "
+                     "question to be asking. It contains no figures."),
+        }))
+    intent.mark_ok()
+    graph.connect("question", "intent")
+
+    upstream = _prior_context(graph, build)
+
+    # Everything the runtime recorded, re-parented under the reading.
+    recorded = runtime.graph.to_dict() if runtime.graph else {"nodes": [],
+                                                              "edges": []}
+    skip = {"question", "intent", "plan"}
+    mapping: dict[str, str] = {}
+    for raw in recorded.get("nodes") or []:
+        original = str(raw.get("id"))
+        if original in skip:
+            continue
+        new_id = f"run__{original}"
+        mapping[original] = new_id
+        node = TraceNode(
+            id=new_id, type=NodeType(raw.get("type", "CALCULATION")),
+            label=str(raw.get("label", "")),
+            config=dict(raw.get("config") or {}),
+            rows_in=raw.get("rows_in"), rows_out=raw.get("rows_out"),
+            output_preview=raw.get("output_preview"),
+            output_summary=dict(raw.get("output_summary") or {}),
+            warnings=list(raw.get("warnings") or []),
+            error=raw.get("error"), dataset=raw.get("dataset"),
+            fields_used=list(raw.get("fields_used") or []),
+        )
+        node.duration_ms = raw.get("duration_ms")
+        # The recorded status is a serialised enum value; putting the string
+        # back on the node would make to_dict() fail three layers away.
+        try:
+            node.status = NodeStatus(str(raw.get("status") or "ok"))
+        except ValueError:
+            node.status = NodeStatus.OK
+        graph.add_node(node)
+
+    for raw in recorded.get("edges") or []:
+        source = mapping.get(str(raw.get("source")))
+        target = mapping.get(str(raw.get("target")))
+        if source and target:
+            graph.connect(source, target)
+
+    # Roots of the recorded subgraph hang off the reading — or off the
+    # conversation nodes on a follow-up, so the picture reads in the order the
+    # work happened: question, understanding, what was carried in, what changed,
+    # then the data.
+    targets = {e.target for e in graph.edges}
+    for new_id in mapping.values():
+        if new_id not in targets:
+            graph.connect(upstream, new_id)
+
+    # The mathematical query: plan, SQL, formulas and parameters as one thing a
+    # reader can open. Mandatory for every dynamic analysis.
+    query = runtime.query.to_dict() if runtime.query else {}
+    maths = graph.add_node(TraceNode(
+        id="mathematical_query", type=NodeType.MATHEMATICAL_QUERY,
+        label="Mathematical query",
+        config={
+            "sql": query.get("sql", ""),
+            "parameters": query.get("parameters", []),
+            "operations": [
+                {"id": o.get("id"), "op": o.get("op"),
+                 "label": o.get("label", ""), "params": o.get("params", {})}
+                for o in build.plan.get("operations") or []
+            ],
+            "formulas": formulas(build),
+            "plain_english": plain_english(build),
+            "kernels": [k for k in getattr(runtime.query, "kernel_steps", [])
+                        or []] if runtime.query else [],
+            "shape": build.shape,
+            "datasets": build.datasets,
+            "grain": build.grain,
+        }))
+    maths.mark_ok(rows_out=runtime.row_count)
+    sql_node = mapping.get("sql")
+    graph.connect(sql_node or "intent", "mathematical_query")
+
+    interpretation = graph.add_node(TraceNode(
+        id="interpretation", type=NodeType.LLM_EXPLANATION,
+        label="CreditProbe interpretation",
+        config={
+            "stage": "result_interpretation",
+            "stage_label": "Reading of the result",
+            "direct_answer": narrative.direct_answer,
+            "interpretation": narrative.interpretation,
+            "written_by": reading.source,
+            "model": reading.model,
+            "grounded_in": [c["name"] for c in runtime.columns],
+            "rule": ("Written after the engine ran, from the returned result. "
+                     "Every figure quoted appears in the result above."),
+        }))
+    interpretation.mark_ok()
+    result_node = mapping.get("result")
+    graph.connect(result_node or "mathematical_query", "interpretation")
+    graph.compute_hashes()
+    return graph
+
+
+__all__ = [
+    "analysis_graph",
+    "notable",
+    "formulas",
+    "from_analysis",
+    "from_handler",
+    "grounded_values",
+    "plain_english",
+    "ungrounded",
+]

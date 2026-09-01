@@ -14,6 +14,11 @@ venv/
 
 # ---- runtime data & logs ----
 logs/
+# Brain packages this installation built or received. Bytes, not source:
+# an exported Brain Pack is a build artefact of whatever was approved on the
+# day, and a quarantined upload is somebody else's package that this
+# repository has no business carrying.
+var/
 uploads/
 backups/
 # Data Hub runtime artifacts (user uploads, staged/activated workbooks)
@@ -31,3 +36,34 @@ dataset_*IMF*.xlsx
 .idea/
 Thumbs.db
 .DS_Store
+
+# --- Phase 1 additions ---
+.venv/
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+# Generated analytical layers — rebuilt from data/raw with scripts/build_data_lake.py.
+# data/raw IS committed (it is the source of truth for the demo).
+data/curated/*.parquet
+data/analytics/
+metadata/catalog.json
+
+# ---- intelligence release ----
+# Produced by `python -m intelligence_factory.certify --certify` at release
+# time and copied into the image. A build artefact, not source: committing one
+# would let a stale manifest certify code it never ran against.
+intelligence_release/
+
+# Generated workbooks. Both exports write to a browser download or a caller's
+# buffer, never into the repository — but a workbook saved into the tree while
+# debugging would carry a full analytical population with it, so the pattern is
+# ignored rather than trusted to habit. §63.
+CreditProbe_*.xlsx
+CreditProbe_*.xlsx.*
+
+# The retail scorecard universe is generated, not committed. 817k rows of
+# Parquet belong in a build step, not in git history.
+data/analytics/retail_application_scorecard_*/
+data/analytics/retail_behavioral_scorecard_*/
+data/scorecard/

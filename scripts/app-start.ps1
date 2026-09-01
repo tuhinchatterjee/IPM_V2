@@ -1,5 +1,5 @@
 <#
-Start the IPM Tool in Docker, against the PostgreSQL running on this PC.
+Start the CreditProbe Tool in Docker, against the PostgreSQL running on this PC.
 
 Usage (from the project root):
     powershell -ExecutionPolicy Bypass -File scripts\app-start.ps1
@@ -23,7 +23,7 @@ the file has a BOM, so characters like a long dash break the parser.
 param(
     # Host port to publish. The app inside the container always listens on 8050.
     [int]$Port = 8050,
-    [string]$ContainerName = "IPM",
+    [string]$ContainerName = "CreditProbe",
     [string]$Image = "ipm-tool:0.1.0"
 )
 
@@ -84,7 +84,7 @@ while ((Get-Date) -lt $deadline) {
         $r = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/healthz" -UseBasicParsing -TimeoutSec 5
         if ($r.StatusCode -eq 200) {
             Write-Host ""
-            Write-Host "  IPM Tool is running:  http://localhost:$Port" -ForegroundColor Green
+            Write-Host "  CreditProbe Tool is running:  http://localhost:$Port" -ForegroundColor Green
             Write-Host ""
             Write-Host "  Logs:  docker logs -f $ContainerName"
             Write-Host "  Stop:  powershell -File scripts\app-stop.ps1"

@@ -1,0 +1,181 @@
+"use client";
+
+import * as React from "react";
+import { BookOpen, GitBranch, Layers, List } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+
+/**
+ * The four ways to read a Trace.
+ *
+ * One dataset, four shapes — because "how was this produced?" is asked by four
+ * different people for four different reasons, and no single view serves all
+ * of them.
+ *
+ *   STORY      anybody, opening a Trace for the first time. Six stages, each
+ *              one sentence. The DEFAULT, because the graph was not one.
+ *   LINEAGE    an analyst asking how the answer was assembled. A graph, which
+ *              is the right shape for structure and dependency.
+ *   LANDSCAPE  a CRO asking how far this travelled from the data and where it
+ *              struggled. Depth carries that at a glance.
+ *   AUDIT      an auditor recording that they checked it. A list, in order,
+ *              quotable line by line — and the view that works without sight.
+ *
+ * Story is first and default. The graph opened on forty rectangles of equal
+ * weight, every one of them accurate and none of them legible without a click,
+ * and a Trace a reviewer closes without reading is the same as no Trace.
+ *
+ * Switching is instant and preserves the selection, so following a node from
+ * the story into the graph keeps it selected in both.
+ */
+
+export type TraceMode = "story" | "lineage" | "landscape" | "audit";
+
+const MODES: { id: TraceMode; label: string; hint: string; icon: typeof Layers }[] = [
+  {
+    id: "story",
+    label: "Story",
+    hint: "What the analysis did, in six stages",
+    icon: BookOpen,
+  },
+  {
+    id: "lineage",
+    label: "Lineage",
+    hint: "How the answer was assembled, as a graph",
+    icon: GitBranch,
+  },
+  {
+    id: "landscape",
+    label: "Landscape",
+    hint: "How far it travelled from the data, in depth",
+    icon: Layers,
+  },
+  {
+    id: "audit",
+    label: "Audit",
+    hint: "Every step in order, as a list",
+    icon: List,
+  },
+];
+
+const STORAGE_KEY = "creditprobe.trace.mode";
+
+/** Whether a string that arrived in a URL names one of the four modes. */
+export function isTraceMode(value: string | null | undefined): value is TraceMode {
+  return MODES.some((mode) => mode.id === value);
+}
+
+/**
+ * The chosen mode, remembered — or the one the address asks for.
+ *
+ * An auditor who works in Audit mode should not have to choose it on every
+ * Trace they open. Read once on mount rather than during render, so the server
+ * and the client agree on the first paint.
+ *
+ * `requested` wins over the remembered preference for exactly one reason: it
+ * only arrives when a return link is bringing somebody BACK to a Trace they
+ * were already reading, and returning them to a different view than the one
+ * they left is the failure §5 is about. It is a starting value rather than a
+ * lock, so switching mode afterwards still works.
+ */
+export function useTraceMode(
+  requested?: string | null,
+): [TraceMode, (mode: TraceMode) => void] {
+  // The stored choice is external state the server cannot know, so it is read
+  // through useSyncExternalStore rather than assigned from an effect: the
+  // server renders "lineage", the client swaps to the remembered mode on
+  // hydration, and neither ever renders markup the other disagrees with.
+  const stored = React.useSyncExternalStore(subscribe, readStored, () => "story" as TraceMode);
+  const [override, setOverride] = React.useState<TraceMode | null>(
+    () => (isTraceMode(requested) ? requested : null),
+  );
+
+  const choose = React.useCallback((next: TraceMode) => {
+    setOverride(next);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, next);
+      window.dispatchEvent(new Event(CHANGED));
+    } catch {
+      // A browser with site data blocked still gets a working Trace; it just
+      // opens on Lineage every time. Not remembering is a smaller failure
+      // than not switching.
+    }
+  }, []);
+
+  return [override ?? stored, choose];
+}
+
+const CHANGED = "creditprobe:trace-mode";
+
+function subscribe(onChange: () => void): () => void {
+  window.addEventListener(CHANGED, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(CHANGED, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+function readStored(): TraceMode {
+  try {
+    const value = window.localStorage.getItem(STORAGE_KEY);
+    if (
+      value === "story" ||
+      value === "lineage" ||
+      value === "landscape" ||
+      value === "audit"
+    ) {
+      return value;
+    }
+  } catch {
+    // Fall through to the default.
+  }
+  return "story";
+}
+
+export function ModeSwitcher({
+  mode,
+  onChange,
+  className,
+}: {
+  mode: TraceMode;
+  onChange: (mode: TraceMode) => void;
+  className?: string;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="How to read this Trace"
+      className={cn(
+        "inline-flex items-center gap-0.5 rounded-lg border border-border",
+        "bg-surface-sunken p-0.5",
+        className,
+      )}
+    >
+      {MODES.map(({ id, label, hint, icon: Icon }) => {
+        const active = mode === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            title={hint}
+            onClick={() => onChange(id)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-2.5 py-1",
+              "text-[0.6875rem] font-medium",
+              "transition-colors duration-[--duration-instant]",
+              active
+                ? "bg-surface text-text-primary shadow-[var(--shadow-raised)]"
+                : "text-text-muted hover:text-text-secondary",
+            )}
+          >
+            <Icon className="size-3.5" aria-hidden />
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}

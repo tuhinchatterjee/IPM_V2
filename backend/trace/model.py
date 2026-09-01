@@ -1,0 +1,512 @@
+"""
+The Trace graph — how an analysis was actually created.
+
+The design rule (docs/PRODUCT_SPEC.md §4.3):
+
+    Trace is emitted by execution. It is never written afterwards, and it is
+    never written by the LLM.
+
+If the model describes what it did, that is a story. If each step stamps its own
+card as it runs — which data, which filter, how many rows before and after, which
+function, which version, how long it took — that is evidence. The graph IS the
+execution record, so it cannot drift from the truth.
+
+Content hashing
+---------------
+Every node carries a hash derived from its type, its configuration, and the
+hashes of the nodes feeding into it. Two consequences, both essential:
+
+  * Change one filter and only the nodes downstream of it get a new hash. Those
+    are exactly the nodes that must re-run; everything else reuses its recorded
+    result. That is what makes "use EAD rather than borrower count" take a second
+    instead of a minute.
+  * The UI can highlight precisely which nodes a modification affected, because
+    "affected" is a computed fact rather than a guess.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Any
+
+
+class NodeType(StrEnum):
+    """The kinds of step an analysis is made of.
+
+    The split between *governed* and *interpretive* nodes matters more than the
+    list itself: a reader must be able to see at a glance where the AI's judgement
+    ends and the deterministic engine begins.
+    """
+
+    USER_PROMPT = "USER_PROMPT"
+    LLM_INTENT = "LLM_INTENT"
+    #: How the request was routed: what KIND of request it is, which governed
+    #: concepts and entities it named, and how sure the router was. Governed,
+    #: because every field on it is a resolved fact rather than a judgement —
+    #: the judgement is the intent, and the node records who made it.
+    CAPABILITY = "CAPABILITY"
+    #: What the investigation had already established when this question was
+    #: asked — the population, the filters, the window, the previous plan.
+    #: Present only on a follow-up, and the thing that makes a two-word question
+    #: auditable: "which of these" has to show what "these" resolved to.
+    PRIOR_CONTEXT = "PRIOR_CONTEXT"
+    #: How this turn changed the analysis before it: a cut, a re-ordering, a
+    #: measure swapped, a filter added. Governed, because every entry on it is a
+    #: difference between two recorded plans rather than a description of one.
+    PLAN_CHANGE = "PLAN_CHANGE"
+    #: Which route answered this turn, which model role served it, and why.
+    #: Interpretive rather than governed: it records a decision CreditProbe
+    #: made about how hard to think, not a figure it computed.
+    MODEL_ROUTING = "MODEL_ROUTING"
+    #: What was checked about the RESULT before it was allowed on the screen:
+    #: every threshold, filter and row count the question promised, tested
+    #: against the rows themselves. A plan can be reviewed and still be wrong;
+    #: this is the node that says the answer matches the question that was
+    #: asked, and that a failure would have blocked it.
+    BUSINESS_INVARIANT = "BUSINESS_INVARIANT"
+    #: Whether the ANSWER was fit to put on a screen: directness, grounding,
+    #: limitations, formatting, the chart. §9.
+    #:
+    #: Split out of BUSINESS_INVARIANT, which the type above defines as what
+    #: was checked "against the rows themselves". The presentability gate is
+    #: not that. It judges the prose over a result whose arithmetic has
+    #: already been validated, and filing it under the same type made the
+    #: Trace contradict itself: the Validated stage took the worst status of
+    #: everything in it and reported FAILED, while its own sentence — which
+    #: counts only the invariant checks — read "4 of 4 checks passed". A
+    #: reader was shown a red FAILED beside a green count of the same stage
+    #: and could not tell which was true. Neither was wrong; they were
+    #: answering different questions, and only one of them was the one the
+    #: stage claimed to be about.
+    #:
+    #: A blocked presentation is still serious and still blocks the answer.
+    #: It is reported as its own thing, which is what lets it say what
+    #: actually failed instead of implying the calculation did.
+    PRESENTATION_GATE = "PRESENTATION_GATE"
+    #: The catalogue itself answering, for a question about the data rather
+    #: than about the portfolio.
+    GOVERNED_METADATA = "GOVERNED_METADATA"
+    #: One declared relationship, as consulted rather than as executed.
+    RELATIONSHIP = "RELATIONSHIP"
+    #: The compiled statement, its formulas and its bound parameters, gathered
+    #: as one thing a reader can open. Every dynamic analysis has exactly one.
+    MATHEMATICAL_QUERY = "MATHEMATICAL_QUERY"
+    PLAN = "PLAN"
+    DATA_DOMAIN = "DATA_DOMAIN"
+    DATASET_FAMILY = "DATASET_FAMILY"
+    DATASET = "DATASET"
+    VARIABLE = "VARIABLE"
+    FILTER = "FILTER"
+    JOIN = "JOIN"
+    #: How the population changed at each step of a composed multi-dataset
+    #: analysis. Governed, because every figure on it was counted rather than
+    #: asserted.
+    RECONCILIATION = "RECONCILIATION"
+    #: What identifies this execution: the plan, the dataset versions, the
+    #: relationship versions and the bound parameters, hashed separately so two
+    #: runs that disagree can say which of the four moved.
+    FINGERPRINT = "FINGERPRINT"
+    DERIVED_VARIABLE = "DERIVED_VARIABLE"
+    TRANSFORMATION = "TRANSFORMATION"
+    AGGREGATION = "AGGREGATION"
+    WINDOW = "WINDOW"
+    ENGINE_FUNCTION = "ENGINE_FUNCTION"
+    CERTIFIED_METHOD = "CERTIFIED_METHOD"
+    #: The compiled statement actually sent to DuckDB, with its parameters kept
+    #: separate — the separation IS the safety property, so the Trace shows it.
+    SQL_QUERY = "SQL_QUERY"
+    #: An allowlisted numerical operation run on the query's result.
+    KERNEL = "KERNEL"
+    #: The recorded result of an EARLIER run, named so a follow-up that reasons
+    #: over it can be tied back to the exact execution that produced it —
+    #: question, periods, scope, fingerprint.
+    PREVIOUS_RESULT = "PREVIOUS_RESULT"
+    #: The moment those rows were taken as this turn's input instead of the
+    #: analytical runtime. Carries the count and the fact that no governed data
+    #: was rescanned, which is the claim the answer makes on screen and
+    #: therefore the claim the Trace has to be able to show.
+    REUSED_RESULT = "REUSED_RESULT"
+    CALCULATION = "CALCULATION"
+    RESULT = "RESULT"
+    LLM_EXPLANATION = "LLM_EXPLANATION"
+    VISUALIZATION = "VISUALIZATION"
+
+    # ---------------------------------------------------- compound requests
+    #
+    # §39's stages, for a message that carried several questions. They are
+    # governed rather than interpretive with one exception: the decomposition
+    # is a deterministic parse, the scope is read off it, the portfolio is
+    # chosen by declared scores, the DAG is derived from the objective
+    # actions, and the coverage is counted. Only the synthesis is written.
+
+    #: What the message was read as asking - one entry per objective, with
+    #: the clause it came from. The node that makes a dropped third question
+    #: visible instead of invisible.
+    OBJECTIVE_DECOMPOSITION = "OBJECTIVE_DECOMPOSITION"
+    #: The population, period and grain every objective shares. Recorded
+    #: because two clauses answered over two silently different populations
+    #: read as comparable and are not.
+    SHARED_SCOPE = "SHARED_SCOPE"
+    #: Which analyses depend on which, and what could therefore run at once.
+    TASK_DAG = "TASK_DAG"
+    #: §12: what was considered, what was chosen, what was rejected and why,
+    #: with the value and cost behind each decision.
+    ANALYSIS_PORTFOLIO = "ANALYSIS_PORTFOLIO"
+    #: Where several analyses were reconciled against each other, and what
+    #: was done where they disagreed.
+    COMPARISON = "COMPARISON"
+    #: The paragraph that ties the analyses together. Interpretive: it is the
+    #: one stage a model writes, and it carries no arithmetic of its own.
+    SYNTHESIS = "SYNTHESIS"
+    #: Every objective and its settled status. The node a reader checks to
+    #: see that what they asked for is what they got.
+    OBJECTIVE_COVERAGE = "OBJECTIVE_COVERAGE"
+
+
+# Nodes whose output is a number the bank must be able to defend. These are drawn
+# differently in the UI from the interpretive ones.
+GOVERNED_NODE_TYPES = frozenset(
+    {
+        NodeType.DATA_DOMAIN,
+        NodeType.DATASET_FAMILY,
+        NodeType.DATASET,
+        NodeType.VARIABLE,
+        NodeType.FILTER,
+        NodeType.JOIN,
+        NodeType.RECONCILIATION,
+        NodeType.FINGERPRINT,
+        NodeType.CAPABILITY,
+        NodeType.GOVERNED_METADATA,
+        NodeType.RELATIONSHIP,
+        NodeType.MATHEMATICAL_QUERY,
+        NodeType.DERIVED_VARIABLE,
+        NodeType.TRANSFORMATION,
+        NodeType.AGGREGATION,
+        NodeType.WINDOW,
+        NodeType.ENGINE_FUNCTION,
+        NodeType.CERTIFIED_METHOD,
+        NodeType.SQL_QUERY,
+        NodeType.KERNEL,
+        NodeType.PREVIOUS_RESULT,
+        NodeType.REUSED_RESULT,
+        NodeType.CALCULATION,
+        NodeType.BUSINESS_INVARIANT,
+        NodeType.PRESENTATION_GATE,
+        NodeType.RESULT,
+        NodeType.OBJECTIVE_DECOMPOSITION,
+        NodeType.SHARED_SCOPE,
+        NodeType.TASK_DAG,
+        NodeType.ANALYSIS_PORTFOLIO,
+        NodeType.COMPARISON,
+        NodeType.OBJECTIVE_COVERAGE,
+    }
+)
+
+# Nodes produced by the language model. Never carry arithmetic.
+INTERPRETIVE_NODE_TYPES = frozenset(
+    {NodeType.USER_PROMPT, NodeType.LLM_INTENT, NodeType.PLAN,
+     NodeType.MODEL_ROUTING, NodeType.LLM_EXPLANATION, NodeType.SYNTHESIS}
+)
+
+
+class NodeStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    OK = "ok"
+    FAILED = "failed"
+    SKIPPED = "skipped"  # unchanged on a re-run; the recorded result was reused
+    CACHED = "cached"
+
+
+def _stable_json(payload: Any) -> str:
+    """Deterministic JSON so the same configuration always hashes the same way.
+
+    Sorted keys and a fixed separator matter: without them, two identical
+    configurations built in a different order would hash differently and the
+    selective re-execution would re-run work it did not need to.
+    """
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+
+
+@dataclass
+class TraceNode:
+    """One step in the analysis."""
+
+    id: str
+    type: NodeType
+    label: str  # short, human-readable — what the box says on the graph
+
+    # What this step was configured to do. For an ENGINE_FUNCTION node that is the
+    # function id, version and parameters; for a FILTER node the field and value.
+    config: dict[str, Any] = field(default_factory=dict)
+
+    # Evidence recorded during execution — never configured in advance.
+    status: NodeStatus = NodeStatus.PENDING
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    duration_ms: int | None = None
+    rows_in: int | None = None
+    rows_out: int | None = None
+    output_preview: list[dict[str, Any]] | None = None  # first few rows, for inspection
+    output_summary: dict[str, Any] = field(default_factory=dict)
+    warnings: list[str] = field(default_factory=list)
+    error: str | None = None
+
+    # Provenance for governed nodes.
+    dataset: str | None = None
+    fields_used: list[str] = field(default_factory=list)
+    function_id: str | None = None
+    function_version: str | None = None
+    dataset_version: int | None = None
+
+    # Set by TraceGraph.compute_hashes(); do not set by hand.
+    content_hash: str | None = None
+
+    @property
+    def is_governed(self) -> bool:
+        return self.type in GOVERNED_NODE_TYPES
+
+    @property
+    def is_interpretive(self) -> bool:
+        return self.type in INTERPRETIVE_NODE_TYPES
+
+    def hash_payload(self) -> dict[str, Any]:
+        """Only what genuinely determines the output.
+
+        Timings, row counts and status are deliberately excluded: they are the
+        *result* of running, not an input to it. Including them would make every
+        re-run produce a different hash and defeat selective re-execution.
+        """
+        return {
+            "type": self.type.value,
+            "config": self.config,
+            "dataset": self.dataset,
+            "fields_used": sorted(self.fields_used),
+            "function_id": self.function_id,
+            "function_version": self.function_version,
+            "dataset_version": self.dataset_version,
+        }
+
+    def mark_started(self) -> None:
+        self.status = NodeStatus.RUNNING
+        self.started_at = datetime.now(UTC)
+
+    def mark_ok(self, *, rows_in: int | None = None,
+                rows_out: int | None = None) -> None:
+        self.status = NodeStatus.OK
+        self.finished_at = datetime.now(UTC)
+        if self.started_at:
+            self.duration_ms = int((self.finished_at - self.started_at).total_seconds() * 1000)
+        if rows_in is not None:
+            self.rows_in = rows_in
+        if rows_out is not None:
+            self.rows_out = rows_out
+
+    def mark_cached(self, *, rows_in: int | None = None,
+                    rows_out: int | None = None) -> None:
+        """This step produced its output without doing its work again.
+
+        Distinct from OK on purpose. A reader auditing a Trace needs to see at
+        a glance which steps executed and which handed back a recorded result —
+        that difference is the whole claim a reused answer makes, and a node
+        that merely says "ok" hides it.
+        """
+        self.status = NodeStatus.CACHED
+        self.finished_at = datetime.now(UTC)
+        if rows_in is not None:
+            self.rows_in = rows_in
+        if rows_out is not None:
+            self.rows_out = rows_out
+
+    def mark_failed(self, error: str) -> None:
+        self.status = NodeStatus.FAILED
+        self.error = error
+        self.finished_at = datetime.now(UTC)
+        if self.started_at:
+            self.duration_ms = int((self.finished_at - self.started_at).total_seconds() * 1000)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "type": self.type.value,
+            "label": self.label,
+            "config": self.config,
+            "status": self.status.value,
+            "is_governed": self.is_governed,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "finished_at": self.finished_at.isoformat() if self.finished_at else None,
+            "duration_ms": self.duration_ms,
+            "rows_in": self.rows_in,
+            "rows_out": self.rows_out,
+            "output_preview": self.output_preview,
+            "output_summary": self.output_summary,
+            "warnings": self.warnings,
+            "error": self.error,
+            "dataset": self.dataset,
+            "fields_used": self.fields_used,
+            "function_id": self.function_id,
+            "function_version": self.function_version,
+            "dataset_version": self.dataset_version,
+            "content_hash": self.content_hash,
+        }
+
+
+@dataclass
+class TraceEdge:
+    """A directed dependency: `source` feeds `target`."""
+
+    source: str
+    target: str
+    label: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"source": self.source, "target": self.target, "label": self.label}
+
+
+class TraceGraphError(RuntimeError):
+    pass
+
+
+@dataclass
+class TraceGraph:
+    """The nodes and edges of one analysis."""
+
+    nodes: dict[str, TraceNode] = field(default_factory=dict)
+    edges: list[TraceEdge] = field(default_factory=list)
+
+    def add_node(self, node: TraceNode) -> TraceNode:
+        if node.id in self.nodes:
+            raise TraceGraphError(f"Duplicate trace node id: {node.id}")
+        self.nodes[node.id] = node
+        return node
+
+    def connect(self, source: str, target: str, label: str | None = None) -> None:
+        for n in (source, target):
+            if n not in self.nodes:
+                raise TraceGraphError(f"Cannot connect unknown node: {n}")
+        self.edges.append(TraceEdge(source=source, target=target, label=label))
+
+    def parents(self, node_id: str) -> list[str]:
+        return [e.source for e in self.edges if e.target == node_id]
+
+    def children(self, node_id: str) -> list[str]:
+        return [e.target for e in self.edges if e.source == node_id]
+
+    def roots(self) -> list[str]:
+        targets = {e.target for e in self.edges}
+        return [n for n in self.nodes if n not in targets]
+
+    def leaves(self) -> list[str]:
+        sources = {e.source for e in self.edges}
+        return [n for n in self.nodes if n not in sources]
+
+    # -------------------------------------------------------------- ordering
+
+    def topological_order(self) -> list[str]:
+        """Nodes in dependency order — every node after everything it depends on.
+
+        Raises if the graph contains a cycle. An analysis that depends on its own
+        output is not an analysis, and catching it here is far cheaper than
+        discovering it as an infinite loop during a demo.
+        """
+        indegree = {n: 0 for n in self.nodes}
+        for e in self.edges:
+            indegree[e.target] += 1
+        # Sorted for determinism: the same graph must always lay out the same way.
+        queue = sorted([n for n, d in indegree.items() if d == 0])
+        order: list[str] = []
+        while queue:
+            current = queue.pop(0)
+            order.append(current)
+            for child in sorted(self.children(current)):
+                indegree[child] -= 1
+                if indegree[child] == 0:
+                    queue.append(child)
+                    queue.sort()
+        if len(order) != len(self.nodes):
+            unresolved = sorted(set(self.nodes) - set(order))
+            raise TraceGraphError(f"Trace graph contains a cycle involving: {', '.join(unresolved)}")
+        return order
+
+    def layers(self) -> list[list[str]]:
+        """Nodes grouped into dependency layers — the basis of the graph layout.
+
+        A deterministic layered layout is what stops the Trace view from looking
+        like a different diagram every time it is opened.
+        """
+        depth: dict[str, int] = {}
+        for node_id in self.topological_order():
+            parents = self.parents(node_id)
+            depth[node_id] = (max(depth[p] for p in parents) + 1) if parents else 0
+        out: list[list[str]] = []
+        for node_id, d in sorted(depth.items(), key=lambda kv: (kv[1], kv[0])):
+            while len(out) <= d:
+                out.append([])
+            out[d].append(node_id)
+        return out
+
+    # --------------------------------------------------------------- hashing
+
+    def compute_hashes(self) -> dict[str, str]:
+        """Assign every node a content hash derived from its own configuration and
+        its parents' hashes. Returns {node_id: hash}."""
+        for node_id in self.topological_order():
+            node = self.nodes[node_id]
+            parent_hashes = sorted(
+                self.nodes[p].content_hash or "" for p in self.parents(node_id)
+            )
+            payload = _stable_json({"self": node.hash_payload(), "parents": parent_hashes})
+            node.content_hash = hashlib.sha256(payload.encode()).hexdigest()[:16]
+        return {n: self.nodes[n].content_hash or "" for n in self.nodes}
+
+    def descendants(self, node_id: str) -> set[str]:
+        """Everything downstream of a node — what a change to it invalidates."""
+        seen: set[str] = set()
+        stack = list(self.children(node_id))
+        while stack:
+            current = stack.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            stack.extend(self.children(current))
+        return seen
+
+    def affected_by(self, changed_node_ids: list[str]) -> set[str]:
+        """The full set that must re-run when the given nodes change: the nodes
+        themselves plus everything downstream of them."""
+        affected: set[str] = set(changed_node_ids)
+        for n in changed_node_ids:
+            affected |= self.descendants(n)
+        return affected
+
+    def diff_hashes(self, previous: dict[str, str]) -> dict[str, list[str]]:
+        """Compare against a previous hash map — drives the "what changed" preview
+        the user sees before accepting a Trace modification."""
+        current = {n: (node.content_hash or "") for n, node in self.nodes.items()}
+        return {
+            "added": sorted(set(current) - set(previous)),
+            "removed": sorted(set(previous) - set(current)),
+            "changed": sorted(
+                n for n in set(current) & set(previous) if current[n] != previous[n]
+            ),
+            "unchanged": sorted(
+                n for n in set(current) & set(previous) if current[n] == previous[n]
+            ),
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "nodes": [self.nodes[n].to_dict() for n in self.topological_order()],
+            "edges": [e.to_dict() for e in self.edges],
+            "layers": self.layers(),
+            "stats": {
+                "node_count": len(self.nodes),
+                "edge_count": len(self.edges),
+                "governed_nodes": sum(1 for n in self.nodes.values() if n.is_governed),
+                "interpretive_nodes": sum(1 for n in self.nodes.values() if n.is_interpretive),
+            },
+        }

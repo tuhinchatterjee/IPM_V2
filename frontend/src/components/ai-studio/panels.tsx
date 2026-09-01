@@ -1,0 +1,1071 @@
+"use client";
+
+import Link from "next/link";
+import * as React from "react";
+
+import {
+  Explain,
+  Panel,
+  Rules,
+  Validation,
+  Dot,
+} from "@/components/ai-studio/shared";
+import { DimensionStrip } from "@/components/assurance/dimensions";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { api } from "@/lib/api";
+import type {
+  StudioCapabilityHealth,
+  StudioJudgment,
+  StudioObjects,
+  StudioPermissions,
+  StudioSections,
+  StudioShapeLabResult,
+  StudioVisualGrammar,
+} from "@/lib/api";
+import { cn } from "@/lib/utils";
+
+/**
+ * The Studio's tab panels. §103-§116.
+ *
+ * Each one fetches its own data and each one is lazily imported by the page,
+ * so opening Overview does not download the blueprint library or the fifteen
+ * contradiction diagnostics.
+ *
+ * None of these compute anything. Every number on screen was computed by the
+ * thing the panel is about, which is what stops the Studio drifting from the
+ * product it describes.
+ */
+
+function useLoad<T>(load: () => Promise<T>, deps: unknown[] = []) {
+  const [state, setState] = React.useState<{
+    data: T | null;
+    error: string;
+  }>({ data: null, error: "" });
+
+  React.useEffect(() => {
+    let live = true;
+    load()
+      .then((data) => live && setState({ data, error: "" }))
+      .catch(
+        (e: unknown) =>
+          live &&
+          setState({
+            data: null,
+            error: e instanceof Error ? e.message : "Could not load this tab.",
+          }),
+      );
+    return () => {
+      live = false;
+    };
+    // The loader closure changes on every render; the caller's `deps` are
+    // what actually decide when to re-fetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+
+  return state;
+}
+
+function Loading() {
+  return (
+    <div className="space-y-3">
+      <Skeleton className="h-24 w-full" />
+      <Skeleton className="h-24 w-full" />
+    </div>
+  );
+}
+
+function Failed({ message }: { message: string }) {
+  return (
+    <Card className="p-5">
+      <p className="text-sm text-text-secondary">{message}</p>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------- §103, §104
+
+/**
+ * The Studio Overview.
+ *
+ * There used to be a "Client-demo readiness" card at the top of this screen,
+ * reading READY FOR CONTROLLED DEMO over a paragraph beginning "everything
+ * measured is passing". It was accurate. It was also the product grading
+ * itself, at the top of a screen a client is shown, and the first thing a
+ * reader took from it was that they were watching a demo rather than a
+ * product.
+ *
+ * The state it reported has not been deleted and is not less honest: it is
+ * release evidence, `/api/v1/intelligence/readiness` still serves it, and the
+ * release tooling still reads it. It simply no longer opens a screen whose
+ * subject is the bank's intelligence rather than ours.
+ *
+ * Capability health stays. Eighteen dimensions with NOT_EVALUATED rows shown
+ * as NOT_EVALUATED is intelligence management — it tells a steward what has
+ * never been measured, which is a thing they can act on. That is a different
+ * object from a self-awarded grade.
+ */
+export function Overview() {
+  const health = useLoad<StudioCapabilityHealth>(() =>
+    api.studioCapabilities(),
+  );
+
+  if (health.error) return <Failed message={health.error} />;
+  if (!health.data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <Panel title="Capability health" count={health.data.capabilities.length}>
+        <p className="text-xs text-text-tertiary">
+          There is no overall score. Averaging eighteen dimensions of which one
+          is a grounding defect produces a comfortable number and hides the only
+          row that matters.
+        </p>
+        <ul className="mt-2 divide-y divide-border">
+          {health.data.capabilities.map((row) => (
+            <li key={row.capability} className="py-2.5">
+              <div className="flex items-start gap-2">
+                <Dot
+                  ok={
+                    row.status === "NOT_EVALUATED"
+                      ? null
+                      : row.status === "HEALTHY"
+                  }
+                />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-text-primary">
+                    {row.capability.replaceAll("_", " ")}
+                    {row.critical ? (
+                      <span className="ml-2 text-status-warning">critical</span>
+                    ) : null}
+                  </p>
+                  <p className="text-xs leading-relaxed text-text-secondary">
+                    {row.means}
+                  </p>
+                  <p className="text-xs text-text-tertiary">{row.sentence}</p>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Panel>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------- §105
+
+export function Knowledge() {
+  const { data, error } = useLoad<StudioSections>(() => api.studioKnowledge());
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      {data.sections.map((section) => (
+        <Panel
+          key={section.id}
+          title={section.name}
+          count={section.count}
+          editIn={section.edit_in}
+          explanation={section.explanation}
+        >
+          {section.rows.length ? (
+            <ul className="max-h-64 space-y-1 overflow-y-auto text-xs text-text-secondary">
+              {section.rows.slice(0, 60).map((row, index) => (
+                <li key={index}>
+                  {Object.entries(row)
+                    .filter(([, v]) => v !== "" && v != null)
+                    .map(([k, v]) => `${k}: ${String(v)}`)
+                    .join(" · ")}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </Panel>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------- §107
+
+export function Blueprints() {
+  const { data, error } = useLoad<StudioObjects>(() => api.studioBlueprints());
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-text-tertiary">
+        {data.count} blueprints. Each one says what it investigates, what may
+        not be omitted, and what may be — with a recorded reason.
+      </p>
+      {data.objects.map((object) => (
+        <Card key={object.object_id} className="space-y-3 p-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="text-sm font-medium text-text-primary">
+              {object.name}
+            </h3>
+            <span className="text-xs text-text-tertiary">
+              {String(object.family ?? "")}
+            </span>
+          </div>
+          <Explain explanation={object.explanation} />
+          <Validation validation={object.validation} />
+          <Objectives
+            label="Mandatory objectives"
+            rows={
+              (object.mandatory_objectives as {
+                id: string;
+                statement: string;
+              }[]) ?? []
+            }
+          />
+          <Objectives
+            label="May be omitted, with a reason"
+            rows={
+              (object.optional_objectives as {
+                id: string;
+                statement: string;
+              }[]) ?? []
+            }
+          />
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function Objectives({
+  label,
+  rows,
+}: {
+  label: string;
+  rows: { id: string; statement: string }[];
+}) {
+  if (!rows.length) return null;
+  return (
+    <div>
+      <p className="text-xs font-medium text-text-primary">{label}</p>
+      <ul className="mt-1 space-y-0.5 text-xs text-text-secondary">
+        {rows.map((row) => (
+          <li key={row.id}>· {row.statement}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------- §108
+
+export function Judgment() {
+  const { data, error } = useLoad<StudioJudgment>(() => api.studioJudgment());
+  const [sub, setSub] = React.useState<string>("");
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  const active = sub || data.subtabs[0];
+  const policy = data.policies[active];
+
+  return (
+    <div className="space-y-4">
+      <div
+        role="tablist"
+        aria-label="Analytical judgment policies"
+        className="flex flex-wrap gap-1 border-b border-border pb-2"
+      >
+        {data.subtabs.map((one) => (
+          <button
+            key={one}
+            type="button"
+            role="tab"
+            onClick={() => setSub(one)}
+            aria-selected={one === active}
+            className={cn(
+              "rounded px-2.5 py-1 text-xs",
+              one === active
+                ? "bg-surface-raised font-medium text-text-primary"
+                : "text-text-secondary hover:text-text-primary",
+            )}
+          >
+            {one.replaceAll("_", " ").toLowerCase()}
+          </button>
+        ))}
+      </div>
+      {policy ? (
+        <Panel
+          title={`${policy.name} · v${policy.version}`}
+          explanation={policy.explanation}
+        >
+          <p className="text-xs text-text-tertiary">
+            The rules themselves, not a description of them. A reviewer cannot
+            challenge &ldquo;assessed against a weighted model&rdquo;; they can
+            challenge a weight.
+          </p>
+          <div className="mt-2">
+            <Rules rules={policy.rules} />
+          </div>
+        </Panel>
+      ) : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------- §109
+
+export function VisualGrammar() {
+  const { data, error } = useLoad<StudioVisualGrammar>(() =>
+    api.studioVisualGrammar(),
+  );
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <Panel title="What each field means" explanation={data.explanation}>
+        <ul className="mt-2 divide-y divide-border">
+          {data.roles.map((role) => (
+            <li key={role.id} className="py-2">
+              <p className="text-xs font-medium text-text-primary">
+                {role.id}
+                {role.never_drawn ? (
+                  <span className="ml-2 text-status-warning">never drawn</span>
+                ) : null}
+              </p>
+              <p className="text-xs leading-relaxed text-text-secondary">
+                {role.means}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </Panel>
+
+      <Panel title="Result shape to chart" count={data.mapping.length}>
+        <ul className="divide-y divide-border">
+          {data.mapping.map((row) => (
+            <li key={row.shape} className="py-2">
+              <p className="text-xs font-medium text-text-primary">
+                {row.shape.replaceAll("_", " ")} → {row.default_label}
+              </p>
+              <p className="text-xs text-text-secondary">{row.means}</p>
+              {row.alternatives.length ? (
+                <p className="text-xs text-text-tertiary">
+                  also acceptable: {row.alternatives.join(", ")}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      </Panel>
+
+      <Panel title="What the critic refuses" count={data.critic.length}>
+        <ul className="divide-y divide-border">
+          {data.critic.map((check) => (
+            <li key={check.id} className="flex items-start gap-2 py-2">
+              <Dot ok={!check.fatal} />
+              <div>
+                <p className="text-xs text-text-primary">{check.asks}</p>
+                {check.fatal ? (
+                  <p className="text-xs text-text-tertiary">
+                    A failure here is a chart that asserts something untrue, not
+                    one that reads badly.
+                  </p>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-xs text-text-tertiary">
+          {data.accessibility} Display precision is at most{" "}
+          {data.precision_contract.max_decimals} decimals.
+        </p>
+      </Panel>
+
+      <ShapeLab shapes={data.mapping.map((m) => m.shape)} />
+    </div>
+  );
+}
+
+/** §109's Result Shape Lab. Takes a shape, never rows. */
+function ShapeLab({ shapes }: { shapes: string[] }) {
+  const [shape, setShape] = React.useState(shapes[0] ?? "");
+  const [categories, setCategories] = React.useState(8);
+  const [result, setResult] = React.useState<StudioShapeLabResult | null>(null);
+  const [busy, setBusy] = React.useState(false);
+
+  const run = async () => {
+    setBusy(true);
+    try {
+      setResult(
+        await api.studioShapeLab({
+          shape,
+          roles: { category: "CATEGORY", value: "MEASURE" },
+          categories,
+          measures: 1,
+          cardinality: categories,
+          periods: 8,
+        }),
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Panel title="Result shape lab">
+      <p className="text-xs text-text-tertiary">
+        A sanitised result SHAPE in, the whole decision out — every candidate,
+        its score and why it was refused. No portfolio data is needed or
+        accepted.
+      </p>
+      <div className="mt-2 flex flex-wrap items-end gap-3">
+        <label className="text-xs text-text-secondary">
+          Shape
+          <select
+            value={shape}
+            onChange={(e) => setShape(e.target.value)}
+            className="ml-2 rounded border border-border bg-surface px-2 py-1 text-xs text-text-primary"
+          >
+            {shapes.map((one) => (
+              <option key={one} value={one}>
+                {one.replaceAll("_", " ")}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-text-secondary">
+          Categories
+          <input
+            type="number"
+            min={1}
+            value={categories}
+            onChange={(e) => setCategories(Number(e.target.value) || 1)}
+            className="ml-2 w-20 rounded border border-border bg-surface px-2 py-1 text-xs text-text-primary"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={run}
+          disabled={busy}
+          className="rounded bg-surface-raised px-3 py-1 text-xs font-medium text-text-primary disabled:opacity-50"
+        >
+          {busy ? "Working…" : "Preview"}
+        </button>
+      </div>
+
+      {result ? (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs font-medium text-text-primary">
+            {result.reason ?? result.message}
+          </p>
+          {result.candidates?.length ? (
+            <ul className="divide-y divide-border">
+              {result.candidates.map((candidate) => (
+                <li
+                  key={candidate.chart}
+                  className="flex items-start gap-2 py-1.5"
+                >
+                  <Dot ok={candidate.accepted} />
+                  <div>
+                    <p className="text-xs text-text-primary">
+                      {candidate.label} · {candidate.total.toFixed(2)}
+                    </p>
+                    {candidate.rejections.map((why) => (
+                      <p key={why} className="text-xs text-text-secondary">
+                        {why}
+                      </p>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+    </Panel>
+  );
+}
+
+// ---------------------------------------------------------------- §119, §120
+
+export function Settings() {
+  const permissions = useLoad<StudioPermissions>(() => api.studioPermissions());
+  const holdout = useLoad(() => api.studioHoldout());
+
+  if (permissions.error) return <Failed message={permissions.error} />;
+  if (!permissions.data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <Panel
+        title="Who may do what"
+        count={permissions.data.permissions.length}
+      >
+        <p className="text-xs text-text-tertiary">
+          Enforced in the backend. A tab hidden in the interface is a tab
+          reachable with curl.
+        </p>
+        <ul className="mt-2 divide-y divide-border">
+          {permissions.data.permissions.map((one) => (
+            <li key={one.id} className="py-2">
+              <p className="text-xs font-medium text-text-primary">{one.id}</p>
+              <p className="text-xs text-text-secondary">{one.means}</p>
+              <p className="text-xs text-text-tertiary">
+                {one.roles.join(", ")}
+              </p>
+            </li>
+          ))}
+        </ul>
+        {permissions.data.separated_duties.map((pair) => (
+          <p key={pair.author} className="mt-2 text-xs text-text-tertiary">
+            {pair.author} and {pair.review} are held apart: a person who writes
+            a case and approves their own has produced a case with an approval
+            record and no review.
+          </p>
+        ))}
+      </Panel>
+
+      {holdout.data ? (
+        <Panel title="Sealed holdout">
+          <p className="text-xs text-text-secondary">{holdout.data.note}</p>
+          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
+            {holdout.data.shown.map((field) => (
+              <div key={field}>
+                <dt className="text-text-tertiary">
+                  {field.replaceAll("_", " ")}
+                </dt>
+                <dd className="text-text-primary">
+                  {String(
+                    (holdout.data as unknown as Record<string, unknown>)[
+                      field
+                    ] ?? "—",
+                  )}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </Panel>
+      ) : null}
+    </div>
+  );
+}
+
+/** Tabs whose content lands with a later part of the brief. */
+export function ComingWithLaterWork({
+  title,
+  what,
+}: {
+  title: string;
+  what: string;
+}) {
+  return (
+    <Card className="space-y-2 p-5">
+      <h3 className="text-sm font-medium text-text-primary">{title}</h3>
+      <p className="text-sm leading-relaxed text-text-secondary">{what}</p>
+      <p className="text-xs text-text-tertiary">
+        Shown as an empty tab rather than hidden, so the Studio&rsquo;s shape is
+        the same for everybody and a reader can see what is coming rather than
+        discovering it later.
+      </p>
+    </Card>
+  );
+}
+
+/**
+ * A tab whose content is a whole area of its own.
+ *
+ * Two of the Studio's tabs open onto screens with their own tab bars — the
+ * Brain Center's eleven and Feedback & Learning's seven. Nesting eleven tabs
+ * inside one tab produces a bar nobody can read, so the tab says what the
+ * area is for and opens it.
+ *
+ * The link is the point. Before this existed, Feedback & Learning was a real,
+ * finished page at a real route with nothing anywhere linking to it, which is
+ * indistinguishable from a page that was never built.
+ */
+export function StudioArea({
+  title,
+  what,
+  href,
+  opens,
+}: {
+  title: string;
+  what: string;
+  href: string;
+  opens: string[];
+}) {
+  return (
+    <Card className="space-y-3 p-5">
+      <h3 className="text-sm font-medium text-text-primary">{title}</h3>
+      <p className="max-w-3xl text-sm leading-relaxed text-text-secondary">
+        {what}
+      </p>
+      <ul className="flex flex-wrap gap-1 text-xs text-text-tertiary">
+        {opens.map((one) => (
+          <li key={one} className="rounded bg-surface-raised px-1.5 py-0.5">
+            {one}
+          </li>
+        ))}
+      </ul>
+      <Link
+        href={href}
+        className={cn(
+          "inline-flex w-fit rounded px-3 py-1.5 text-sm font-medium",
+          "bg-surface-raised text-text-primary transition-colors",
+          "hover:bg-surface-raised/70 focus-visible:outline",
+          "focus-visible:outline-2 focus-visible:outline-offset-2",
+        )}
+      >
+        Open {title}
+      </Link>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------- §106
+
+export function TeachingCases() {
+  const { data, error } = useLoad(() => api.studioTeachingCases());
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <Panel
+        title="Who has actually reviewed this library"
+        explanation={data.explanation}
+      >
+        <p className="text-sm leading-relaxed text-text-primary">
+          {String(data.governance.sentence ?? "")}
+        </p>
+        <p className="mt-1 text-xs text-text-tertiary">{data.never_shown}</p>
+      </Panel>
+      <Panel title="Filters the case list supports">
+        <p className="text-xs text-text-secondary">
+          {data.filters.join(" · ")}
+        </p>
+      </Panel>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------- §110
+
+export function Routing() {
+  const { data, error } = useLoad(() => api.studioRoutingTab());
+  const [question, setQuestion] = React.useState("");
+  const [simulation, setSimulation] = React.useState<{
+    called_a_provider: boolean;
+    note: string;
+  } | null>(null);
+
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <Panel
+        title="Model roles"
+        count={data.roles.length}
+        explanation={data.explanation}
+      >
+        <ul className="divide-y divide-border">
+          {data.roles.map((role) => (
+            <li key={role.name} className="py-2">
+              <p className="text-xs font-medium text-text-primary">
+                {role.name.replaceAll("_", " ")}
+                {role.active ? null : (
+                  <span className="ml-2 text-text-tertiary">inactive</span>
+                )}
+              </p>
+              <p className="text-xs text-text-secondary">{role.purpose}</p>
+              <p className="text-xs text-text-tertiary">
+                {role.configured_model || "provider default"}
+                {role.effort ? ` · ${role.effort}` : ""}
+                {role.inherited ? " · inherited" : ""}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </Panel>
+
+      <Panel title="Why a question goes where it goes">
+        <dl className="space-y-2">
+          {Object.entries(data.why).map(([id, why]) => (
+            <div key={id}>
+              <dt className="text-xs font-medium text-text-primary">{id}</dt>
+              <dd className="text-xs leading-relaxed text-text-secondary">
+                {why}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <p className="mt-2 text-xs text-text-tertiary">
+          {data.fallback_policy.note}
+        </p>
+      </Panel>
+
+      <Panel title="Route simulator">
+        <p className="text-xs text-text-tertiary">
+          Predicts the route from the same signals the runtime uses. Nothing is
+          sent anywhere and nothing is spent, so try as many phrasings as you
+          like.
+        </p>
+        <div className="mt-2 flex flex-wrap items-end gap-2">
+          <input
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="A sanitised question"
+            className="min-w-64 flex-1 rounded border border-border bg-surface px-2 py-1 text-xs text-text-primary"
+          />
+          <button
+            type="button"
+            disabled={!question.trim()}
+            onClick={async () =>
+              setSimulation(await api.studioRouteSimulator(question))
+            }
+            className="rounded bg-surface-raised px-3 py-1 text-xs font-medium text-text-primary disabled:opacity-50"
+          >
+            Predict
+          </button>
+        </div>
+        {simulation ? (
+          <p className="mt-2 text-xs text-text-secondary">{simulation.note}</p>
+        ) : null}
+      </Panel>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------- §112
+
+export function Evaluations() {
+  const { data, error } = useLoad(() => api.studioEvaluations());
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <Panel title="Seven suites, kept apart" explanation={data.explanation}>
+        <ul className="mt-1 space-y-0.5 text-xs text-text-secondary">
+          {data.subtabs.map((one) => (
+            <li key={one}>· {one.replaceAll("_", " ").toLowerCase()}</li>
+          ))}
+        </ul>
+      </Panel>
+      <Panel title="What a number here is allowed to claim">
+        <Rules rules={data.reporting_rules} />
+      </Panel>
+      <Panel title="Cost">
+        <p className="text-xs text-text-secondary">{data.cost_control.note}</p>
+      </Panel>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------- §114
+
+export function Failures() {
+  const { data, error } = useLoad(() => api.studioFailures());
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <Panel title="The active-learning queue" explanation={data.explanation}>
+        <p className="text-sm leading-relaxed text-text-secondary">
+          {data.note}
+        </p>
+      </Panel>
+      <Panel title="Failure categories" count={data.categories.length}>
+        <ul className="divide-y divide-border">
+          {data.categories.map((one) => (
+            <li key={one.id} className="flex items-start gap-2 py-2">
+              <Dot ok={!one.critical} />
+              <div>
+                <p className="text-xs font-medium text-text-primary">
+                  {one.label}
+                  <span className="ml-2 text-text-tertiary">{one.stage}</span>
+                </p>
+                <p className="text-xs leading-relaxed text-text-secondary">
+                  {one.looks_like}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Panel>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------ §186, §201
+
+/**
+ * The Investigation Reviews tab. §186, §187.
+ *
+ * A table, not a card wall, and §187 says so in as many words. The point of
+ * the screen is comparison across many Investigations, which is a scanning
+ * task: forty rows of the same nine columns answers "which of these needs
+ * attention", and forty cards of nine differently-placed facts does not.
+ */
+export function InvestigationReviews() {
+  const tab = useLoad(() => api.studioReviewsTab());
+  const [view, setView] = React.useState("RECENT");
+  const list = useLoad(() => api.investigationReviews({ view }), [view]);
+
+  if (tab.error) return <Failed message={tab.error} />;
+  if (!tab.data || !list.data) return <Loading />;
+
+  const rows = list.data.rows;
+
+  return (
+    <div className="space-y-4">
+      <Panel
+        title="How recent Investigations performed"
+        explanation={tab.data.explanation}
+      >
+        <p className="text-xs leading-relaxed text-text-tertiary">
+          {tab.data.presentation_note}
+        </p>
+      </Panel>
+
+      <Panel
+        title="The six dimensions across these Investigations"
+        count={tab.data.dimensions.length}
+      >
+        <ul className="divide-y divide-border">
+          {tab.data.dimensions.map((tile) => (
+            <li key={tile.dimension} className="py-2.5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="text-xs font-medium text-text-primary">
+                  {tile.label}
+                  {tile.is_gate ? (
+                    <span className="ml-2 text-status-warning">gate</span>
+                  ) : null}
+                </p>
+                <span className="text-xs tabular-nums text-text-tertiary">
+                  {tile.underpowered
+                    ? `${tile.sample} of ${tile.min_sample} needed to score`
+                    : `${tile.score ?? "—"} · ${tile.coverage_pct.toFixed(0)}% measured`}
+                </span>
+              </div>
+              <p className="text-xs leading-relaxed text-text-secondary">
+                {tile.answers}
+              </p>
+              {tile.worst_subcomponents.length ? (
+                <p className="text-xs text-text-tertiary">
+                  Most often failing:{" "}
+                  {tile.worst_subcomponents
+                    .map(
+                      (w) =>
+                        `${w.subcomponent.replaceAll("_", " ")} (${w.failures})`,
+                    )
+                    .join(", ")}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      </Panel>
+
+      <Card className="space-y-3 p-5">
+        <div
+          role="tablist"
+          aria-label="Investigation review views"
+          className="flex flex-wrap gap-1"
+        >
+          {list.data.views.map((one) => (
+            <button
+              key={one.id}
+              type="button"
+              role="tab"
+              aria-selected={one.id === list.data?.view}
+              onClick={() => setView(one.id)}
+              title={one.means}
+              className={
+                one.id === list.data?.view
+                  ? "rounded border border-border bg-surface-raised px-2 py-1 text-xs font-medium text-text-primary"
+                  : "rounded border border-transparent px-2 py-1 text-xs text-text-secondary hover:text-text-primary"
+              }
+            >
+              {one.label}
+              <span className="ml-1.5 text-text-tertiary">
+                {list.data?.counts?.[one.id] ?? 0}
+              </span>
+            </button>
+          ))}
+        </div>
+        <p className="text-xs leading-relaxed text-text-secondary">
+          {list.data.view_means}
+        </p>
+
+        {rows.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border text-left text-text-tertiary">
+                  <th className="py-1.5 pr-3 font-medium">Investigation</th>
+                  <th className="py-1.5 pr-3 font-medium">Scope</th>
+                  <th className="py-1.5 pr-3 font-medium">Dimensions</th>
+                  <th className="py-1.5 pr-3 font-medium">Status</th>
+                  <th className="py-1.5 pr-3 font-medium">Coverage</th>
+                  <th className="py-1.5 pr-3 font-medium">Critical</th>
+                  <th className="py-1.5 pr-3 font-medium">Feedback</th>
+                  <th className="py-1.5 font-medium">Release</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {rows.map((row) => (
+                  <tr key={row.assurance_record_id}>
+                    <td className="max-w-[22rem] truncate py-2 pr-3 text-text-primary">
+                      {row.title}
+                    </td>
+                    <td className="py-2 pr-3 text-text-secondary">
+                      {row.scope || "—"}
+                    </td>
+                    <td className="py-2 pr-3">
+                      <DimensionStrip cells={row.dimensions} />
+                    </td>
+                    <td className="py-2 pr-3 text-text-secondary">
+                      {row.status_now.replaceAll("_", " ")}
+                    </td>
+                    <td className="py-2 pr-3 tabular-nums text-text-secondary">
+                      {row.coverage_pct.toFixed(0)}%
+                    </td>
+                    <td className="py-2 pr-3 tabular-nums text-text-secondary">
+                      {row.critical_failures || "—"}
+                    </td>
+                    <td className="py-2 pr-3 tabular-nums text-text-secondary">
+                      {row.good_feedback || row.bad_feedback
+                        ? `${row.good_feedback}/${row.bad_feedback}`
+                        : "—"}
+                    </td>
+                    <td className="py-2 text-text-tertiary">
+                      {row.release_current ? "current" : "stale"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-xs text-text-secondary">
+            No Investigations in this view yet. Records are written as answers
+            are given.
+          </p>
+        )}
+
+        {list.data.withheld ? (
+          <p className="text-xs text-text-tertiary">
+            {list.data.withheld} record(s) are not shown because they belong to
+            Investigations this account cannot access.
+          </p>
+        ) : null}
+      </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------- §115
+
+export function Releases() {
+  const { data, error } = useLoad(() => api.studioReleasesTab());
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <Panel title="The release in force" explanation={data.explanation}>
+        <p className="text-sm text-text-primary">
+          {String(data.gate.state ?? "unknown")}
+        </p>
+        <p className="text-xs leading-relaxed text-text-secondary">
+          {String(data.gate.reason ?? "")}
+        </p>
+        {data.missing_files.length ? (
+          <p className="mt-1 text-xs text-status-warning">
+            Missing from the release: {data.missing_files.join(", ")}
+          </p>
+        ) : null}
+      </Panel>
+      <Panel title="Actions">
+        <ul className="space-y-1">
+          {data.actions.map((one) => (
+            <li key={one.id} className="text-xs">
+              <span className="font-medium text-text-primary">{one.label}</span>
+              <span className="text-text-tertiary"> · {one.needs}</span>
+              {one.note ? (
+                <span className="text-text-secondary"> — {one.note}</span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-xs text-text-tertiary">{data.never}</p>
+      </Panel>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------- §116
+
+export function LiveHealth() {
+  const { data, error } = useLoad(() => api.studioLiveHealth());
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <Panel title="Provider">
+        <p className="text-sm text-text-primary">
+          {String(data.provider.state ?? "unknown")}
+        </p>
+        <p className="text-xs text-text-tertiary">
+          CONNECTED means a real response came back, not that a key is present.
+        </p>
+      </Panel>
+      <Panel title="Safe local commands">
+        <ul className="space-y-3">
+          {data.commands.map((one) => (
+            <li key={one.what}>
+              <p className="text-xs font-medium text-text-primary">
+                {one.what}
+              </p>
+              <pre className="mt-1 overflow-x-auto rounded bg-surface-raised p-2 text-xs text-text-secondary">
+                {one.windows}
+                {"\n"}
+                {one.unix}
+              </pre>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-xs text-text-tertiary">
+          Never shown here: {data.never_shown.join(", ")}.
+        </p>
+      </Panel>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------- §111
+
+export function Prompts() {
+  const { data, error } = useLoad(() => api.studioPrompts());
+  if (error) return <Failed message={error} />;
+  if (!data) return <Loading />;
+
+  return (
+    <div className="space-y-4">
+      <Panel title="What may reach a model" explanation={data.explanation}>
+        <Rules rules={(data.pack_policy ?? {}) as Record<string, unknown>} />
+      </Panel>
+      <Panel title="Prompt caching">
+        <Rules rules={(data.caching ?? {}) as Record<string, unknown>} />
+      </Panel>
+      <Panel title="Promotion">
+        <Rules rules={(data.promotion ?? {}) as Record<string, unknown>} />
+      </Panel>
+    </div>
+  );
+}

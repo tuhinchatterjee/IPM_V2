@@ -1,5 +1,5 @@
 """
-Local AI chat assistant for the IPM dashboard, backed by a locally-running
+Local AI chat assistant for the CreditProbe dashboard, backed by a locally-running
 Qwen model via Ollama (http://localhost:11434). The model never sees the raw
 dataset directly - instead it calls tools (defined below) that query
 data_loader.py for real numbers, so every answer is grounded in the actual
@@ -285,7 +285,7 @@ TOOL_FUNCS = {
 # ------------------------------------------------------------------------ prompts
 
 _BASE_SYSTEM = (
-    "You are the IPM AI Assistant, embedded in the Intelligent Portfolio Manager - a bank's "
+    "You are the CreditProbe AI Assistant, embedded in the Intelligent Portfolio Manager - a bank's "
     "GCC wholesale/retail credit portfolio risk dashboard. The portfolio has ~390 borrowers "
     "across quarterly snapshots from Q4 2023 to Q1 2026 (the current/latest quarter). "
     "You MUST call a tool to fetch real data for ANY question involving portfolio numbers, "

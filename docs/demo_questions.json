@@ -1,0 +1,254 @@
+{
+  "version": "1.0.0",
+  "checked_at": "2026-08-29T14:22:32+0000",
+  "duration_ms": 4289,
+  "provider_calls": 0,
+  "questions": 15,
+  "passed": 14,
+  "blocking": 0,
+  "results": [
+    {
+      "ref": "Q1",
+      "question": "What ratings data do you have?",
+      "critical": true,
+      "expected_outcome": "METADATA",
+      "outcome": "METADATA",
+      "expected_officer": 1,
+      "officer": 1,
+      "specialists": 0,
+      "datasets": [],
+      "duration_ms": 685,
+      "problems": [],
+      "ok": true
+    },
+    {
+      "ref": "Q2",
+      "question": "How is ratings data connected to IFRS 9?",
+      "critical": false,
+      "expected_outcome": "METADATA",
+      "outcome": "NO_ANALYSIS",
+      "expected_officer": 1,
+      "officer": 1,
+      "specialists": 0,
+      "datasets": [],
+      "duration_ms": 36,
+      "problems": [
+        "expected METADATA, got NO_ANALYSIS"
+      ],
+      "ok": false
+    },
+    {
+      "ref": "Q3",
+      "question": "What is total EAD by sector in the latest quarter?",
+      "critical": true,
+      "expected_outcome": "EXECUTE",
+      "outcome": "EXECUTE",
+      "expected_officer": 1,
+      "officer": 1,
+      "specialists": 0,
+      "datasets": [
+        "portfolio_facility"
+      ],
+      "duration_ms": 89,
+      "problems": [],
+      "ok": true
+    },
+    {
+      "ref": "Q4",
+      "question": "Show the five largest Real Estate customers by EAD.",
+      "critical": true,
+      "expected_outcome": "EXECUTE",
+      "outcome": "EXECUTE",
+      "expected_officer": 1,
+      "officer": 1,
+      "specialists": 0,
+      "datasets": [
+        "portfolio_facility"
+      ],
+      "duration_ms": 79,
+      "problems": [],
+      "ok": true
+    },
+    {
+      "ref": "Q5",
+      "question": "For each sector, calculate Stage 2 EAD divided by total sector EAD, compare with four quarters ago and rank by increase.",
+      "critical": true,
+      "expected_outcome": "EXECUTE",
+      "outcome": "EXECUTE",
+      "expected_officer": 3,
+      "officer": 3,
+      "specialists": 0,
+      "datasets": [
+        "portfolio_facility"
+      ],
+      "duration_ms": 75,
+      "problems": [],
+      "ok": true
+    },
+    {
+      "ref": "Q6",
+      "question": "Which customers had a rating downgrade and an increase in ECL over the latest year?",
+      "critical": true,
+      "expected_outcome": "EXECUTE",
+      "outcome": "EXECUTE",
+      "expected_officer": 2,
+      "officer": 2,
+      "specialists": 0,
+      "datasets": [
+        "customer_ratings",
+        "ifrs9_staging",
+        "portfolio_facility"
+      ],
+      "duration_ms": 218,
+      "problems": [],
+      "ok": true
+    },
+    {
+      "ref": "Q7",
+      "question": "Which customers have worsening leverage, declining DSCR and a downgrade?",
+      "critical": true,
+      "expected_outcome": "EXECUTE",
+      "outcome": "EXECUTE",
+      "expected_officer": 2,
+      "officer": 2,
+      "specialists": 0,
+      "datasets": [
+        "customer_ratings",
+        "portfolio_facility"
+      ],
+      "duration_ms": 228,
+      "problems": [],
+      "ok": true
+    },
+    {
+      "ref": "Q8",
+      "question": "Which large Real Estate customers have worsening DPD, increasing ECL, a downgrade and covenant headroom below 15%?",
+      "critical": true,
+      "expected_outcome": "EXECUTE",
+      "outcome": "EXECUTE",
+      "expected_officer": 4,
+      "officer": 4,
+      "specialists": 4,
+      "datasets": [
+        "covenant_tests",
+        "customer_ratings",
+        "facility_delinquency",
+        "ifrs9_staging",
+        "portfolio_facility"
+      ],
+      "duration_ms": 427,
+      "problems": [],
+      "ok": true
+    },
+    {
+      "ref": "Q9",
+      "question": "Something seems wrong with Contracting. Investigate it.",
+      "critical": true,
+      "expected_outcome": "EXECUTE",
+      "outcome": "EXECUTE",
+      "expected_officer": 4,
+      "officer": 4,
+      "specialists": 5,
+      "datasets": [
+        "customer_ratings",
+        "facility_delinquency",
+        "ifrs9_staging",
+        "portfolio_facility"
+      ],
+      "duration_ms": 750,
+      "problems": [],
+      "ok": true
+    },
+    {
+      "ref": "Q10",
+      "question": "Review the latest portfolio and tell me what genuinely requires CRO attention.",
+      "critical": true,
+      "expected_outcome": "EXECUTE",
+      "outcome": "EXECUTE",
+      "expected_officer": 4,
+      "officer": 4,
+      "specialists": 5,
+      "datasets": [
+        "customer_ratings",
+        "facility_delinquency",
+        "ifrs9_staging",
+        "portfolio_facility"
+      ],
+      "duration_ms": 739,
+      "problems": [],
+      "ok": true
+    },
+    {
+      "ref": "Q11",
+      "question": "Does this trend make sense?",
+      "critical": true,
+      "expected_outcome": "REUSE",
+      "outcome": "NO_ANALYSIS",
+      "expected_officer": 1,
+      "officer": 1,
+      "specialists": 0,
+      "datasets": [],
+      "duration_ms": 28,
+      "problems": [],
+      "ok": true
+    },
+    {
+      "ref": "Q12",
+      "question": "Show me exposure.",
+      "critical": true,
+      "expected_outcome": "CLARIFY",
+      "outcome": "CLARIFY",
+      "expected_officer": 1,
+      "officer": 1,
+      "specialists": 0,
+      "datasets": [],
+      "duration_ms": 25,
+      "problems": [],
+      "ok": true
+    },
+    {
+      "ref": "Q13",
+      "question": "Which borrowers had their CEO resign?",
+      "critical": true,
+      "expected_outcome": "UNSUPPORTED",
+      "outcome": "UNSUPPORTED",
+      "expected_officer": 1,
+      "officer": 1,
+      "specialists": 0,
+      "datasets": [],
+      "duration_ms": 27,
+      "problems": [],
+      "ok": true
+    },
+    {
+      "ref": "Q14",
+      "question": "Review unresolved risks in this Project.",
+      "critical": true,
+      "expected_outcome": "CLARIFY",
+      "outcome": "CLARIFY",
+      "expected_officer": 1,
+      "officer": 1,
+      "specialists": 0,
+      "datasets": [],
+      "duration_ms": 30,
+      "problems": [],
+      "ok": true
+    },
+    {
+      "ref": "Q15",
+      "question": "What does the circular say about provisioning for Stage 2?",
+      "critical": true,
+      "expected_outcome": "UNSUPPORTED",
+      "outcome": "UNSUPPORTED",
+      "expected_officer": null,
+      "officer": 2,
+      "specialists": 0,
+      "datasets": [],
+      "duration_ms": 40,
+      "problems": [],
+      "ok": true
+    }
+  ],
+  "checked": "officer selection, outcome, specialists, datasets, critical assurance signals",
+  "not_checked": "the prose, the interpretation and the figures - those need a live model and are what the presenter's own -Critical run verifies"
+}

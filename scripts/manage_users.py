@@ -1,5 +1,5 @@
 """
-User administration CLI for the IPM Tool.
+User administration CLI for the CreditProbe Tool.
 
 Usage (from the project root):
     python scripts/manage_users.py add <username> --role admin [--password ...]
@@ -91,7 +91,7 @@ def cmd_list(_args):
 
 
 def build_parser():
-    p = argparse.ArgumentParser(description="IPM Tool user management")
+    p = argparse.ArgumentParser(description="CreditProbe Tool user management")
     sub = p.add_subparsers(dest="command", required=True)
 
     a = sub.add_parser("add", help="create a user")

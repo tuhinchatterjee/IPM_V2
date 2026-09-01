@@ -1,0 +1,713 @@
+{
+  "origin": "SYNTHETIC_DEMO",
+  "not_client_data": "Every row generated here is synthetic. It describes no real customer and no real bank's book.",
+  "scorecards": {
+    "APPLICATION": {
+      "build_version": "1.0.0",
+      "scorecard_type": "APPLICATION",
+      "counts": {
+        "scorecard_type": "APPLICATION",
+        "months": [
+          "2023-01",
+          "2023-02",
+          "2023-03",
+          "2023-04",
+          "2023-05",
+          "2023-06",
+          "2023-07",
+          "2023-08",
+          "2023-09",
+          "2023-10",
+          "2023-11",
+          "2023-12",
+          "2024-01",
+          "2024-02",
+          "2024-03",
+          "2024-04",
+          "2024-05",
+          "2024-06",
+          "2024-07",
+          "2024-08",
+          "2024-09",
+          "2024-10",
+          "2024-11",
+          "2024-12",
+          "2025-01",
+          "2025-02",
+          "2025-03",
+          "2025-04",
+          "2025-05",
+          "2025-06",
+          "2025-07"
+        ],
+        "month_count": 31,
+        "total_rows": 424368,
+        "rows_by_month": {
+          "2023-01": 14249,
+          "2023-02": 13563,
+          "2023-03": 13715,
+          "2023-04": 14330,
+          "2023-05": 13001,
+          "2023-06": 12340,
+          "2023-07": 14742,
+          "2023-08": 12621,
+          "2023-09": 14804,
+          "2023-10": 12527,
+          "2023-11": 14530,
+          "2023-12": 13638,
+          "2024-01": 13649,
+          "2024-02": 13845,
+          "2024-03": 14904,
+          "2024-04": 12191,
+          "2024-05": 14276,
+          "2024-06": 12990,
+          "2024-07": 13963,
+          "2024-08": 13572,
+          "2024-09": 14052,
+          "2024-10": 13980,
+          "2024-11": 13831,
+          "2024-12": 12991,
+          "2025-01": 14436,
+          "2025-02": 12632,
+          "2025-03": 13779,
+          "2025-04": 13694,
+          "2025-05": 14016,
+          "2025-06": 14511,
+          "2025-07": 12996
+        },
+        "defaults_by_month": {
+          "2023-01": 696,
+          "2023-02": 767,
+          "2023-03": 678,
+          "2023-04": 785,
+          "2023-05": 740,
+          "2023-06": 731,
+          "2023-07": 777,
+          "2023-08": 742,
+          "2023-09": 789,
+          "2023-10": 735,
+          "2023-11": 996,
+          "2023-12": 891,
+          "2024-01": 836,
+          "2024-02": 802,
+          "2024-03": 789,
+          "2024-04": 696,
+          "2024-05": 959,
+          "2024-06": 781,
+          "2024-07": 1073,
+          "2024-08": 894,
+          "2024-09": 824,
+          "2024-10": 915,
+          "2024-11": 961,
+          "2024-12": 761,
+          "2025-01": 934,
+          "2025-02": 0,
+          "2025-03": 0,
+          "2025-04": 0,
+          "2025-05": 0,
+          "2025-06": 0,
+          "2025-07": 0
+        },
+        "smallest_month_rows": 12191,
+        "matured_months": [
+          "2023-01",
+          "2023-02",
+          "2023-03",
+          "2023-04",
+          "2023-05",
+          "2023-06",
+          "2023-07",
+          "2023-08",
+          "2023-09",
+          "2023-10",
+          "2023-11",
+          "2023-12",
+          "2024-01",
+          "2024-02",
+          "2024-03",
+          "2024-04",
+          "2024-05",
+          "2024-06",
+          "2024-07",
+          "2024-08",
+          "2024-09",
+          "2024-10",
+          "2024-11",
+          "2024-12",
+          "2025-01"
+        ],
+        "latest_data_month": "2025-07",
+        "latest_matured_month": "2025-01",
+        "origin": "SYNTHETIC_DEMO"
+      },
+      "binning_spec_version": "application-woe-1.0.0",
+      "models": {
+        "INCUMBENT": {
+          "equation_version": "1.0.0",
+          "model_name": "APPLICATION_INCUMBENT",
+          "scorecard_type": "APPLICATION",
+          "intercept": -2.81797689,
+          "link": "LOGIT",
+          "terms": [
+            {
+              "variable": "bureau_score",
+              "coefficient": -0.73573022,
+              "transformation": "WOE",
+              "column": "bureau_score_woe"
+            },
+            {
+              "variable": "debt_burden_ratio",
+              "coefficient": -0.41567337,
+              "transformation": "WOE",
+              "column": "debt_burden_ratio_woe"
+            },
+            {
+              "variable": "employment_tenure_months",
+              "coefficient": -0.4201849,
+              "transformation": "WOE",
+              "column": "employment_tenure_months_woe"
+            },
+            {
+              "variable": "bureau_max_dpd_12m",
+              "coefficient": -0.33033514,
+              "transformation": "WOE",
+              "column": "bureau_max_dpd_12m_woe"
+            },
+            {
+              "variable": "bureau_enquiries_6m",
+              "coefficient": -0.37595249,
+              "transformation": "WOE",
+              "column": "bureau_enquiries_6m_woe"
+            },
+            {
+              "variable": "credit_card_utilisation",
+              "coefficient": -0.42871924,
+              "transformation": "WOE",
+              "column": "credit_card_utilisation_woe"
+            }
+          ],
+          "active_variables": [
+            "bureau_score",
+            "debt_burden_ratio",
+            "employment_tenure_months",
+            "bureau_max_dpd_12m",
+            "bureau_enquiries_6m",
+            "credit_card_utilisation"
+          ],
+          "binning_spec_version": "application-woe-1.0.0",
+          "score_mapping": {
+            "base_score": 600.0,
+            "pdo": 20.0,
+            "base_odds": 50.0,
+            "score_direction": "HIGHER_SCORE_IS_BETTER",
+            "factor": 28.853901,
+            "offset": 487.122876,
+            "min_score": 300.0,
+            "max_score": 900.0,
+            "formula": "Factor = PDO / ln(2); Offset = BaseScore - Factor * ln(BaseOdds); Score = Offset - Factor * logit_bad"
+          },
+          "output_prefix": "incumbent",
+          "reads_as": "logit_bad = -2.817977 -0.735730 * bureau_score_woe -0.415673 * debt_burden_ratio_woe -0.420185 * employment_tenure_months_woe -0.330335 * bureau_max_dpd_12m_woe -0.375952 * bureau_enquiries_6m_woe -0.428719 * credit_card_utilisation_woe\npredicted_pd = 1 / (1 + exp(-logit_bad))\nFactor = PDO / ln(2); Offset = BaseScore - Factor * ln(BaseOdds); Score = Offset - Factor * logit_bad"
+        },
+        "CHALLENGER": {
+          "equation_version": "1.0.0",
+          "model_name": "APPLICATION_CHALLENGER",
+          "scorecard_type": "APPLICATION",
+          "intercept": -2.81795518,
+          "link": "LOGIT",
+          "terms": [
+            {
+              "variable": "bureau_score",
+              "coefficient": -0.80419217,
+              "transformation": "WOE",
+              "column": "bureau_score_woe"
+            },
+            {
+              "variable": "debt_burden_ratio",
+              "coefficient": -0.46177736,
+              "transformation": "WOE",
+              "column": "debt_burden_ratio_woe"
+            },
+            {
+              "variable": "employment_tenure_months",
+              "coefficient": -0.45503741,
+              "transformation": "WOE",
+              "column": "employment_tenure_months_woe"
+            },
+            {
+              "variable": "bureau_max_dpd_12m",
+              "coefficient": 0.07176687,
+              "transformation": "WOE",
+              "column": "bureau_max_dpd_12m_woe"
+            },
+            {
+              "variable": "bureau_delinquent_accounts_12m",
+              "coefficient": -0.43057341,
+              "transformation": "WOE",
+              "column": "bureau_delinquent_accounts_12m_woe"
+            },
+            {
+              "variable": "bureau_oldest_trade_months",
+              "coefficient": -0.40140247,
+              "transformation": "WOE",
+              "column": "bureau_oldest_trade_months_woe"
+            }
+          ],
+          "active_variables": [
+            "bureau_score",
+            "debt_burden_ratio",
+            "employment_tenure_months",
+            "bureau_max_dpd_12m",
+            "bureau_delinquent_accounts_12m",
+            "bureau_oldest_trade_months"
+          ],
+          "binning_spec_version": "application-woe-1.0.0",
+          "score_mapping": {
+            "base_score": 600.0,
+            "pdo": 20.0,
+            "base_odds": 50.0,
+            "score_direction": "HIGHER_SCORE_IS_BETTER",
+            "factor": 28.853901,
+            "offset": 487.122876,
+            "min_score": 300.0,
+            "max_score": 900.0,
+            "formula": "Factor = PDO / ln(2); Offset = BaseScore - Factor * ln(BaseOdds); Score = Offset - Factor * logit_bad"
+          },
+          "output_prefix": "challenger",
+          "reads_as": "logit_bad = -2.817955 -0.804192 * bureau_score_woe -0.461777 * debt_burden_ratio_woe -0.455037 * employment_tenure_months_woe +0.071767 * bureau_max_dpd_12m_woe -0.430573 * bureau_delinquent_accounts_12m_woe -0.401402 * bureau_oldest_trade_months_woe\npredicted_pd = 1 / (1 + exp(-logit_bad))\nFactor = PDO / ln(2); Offset = BaseScore - Factor * ln(BaseOdds); Score = Offset - Factor * logit_bad"
+        },
+        "RECALIBRATED": {
+          "equation_version": "1.0.0",
+          "model_name": "APPLICATION_RECALIBRATED",
+          "scorecard_type": "APPLICATION",
+          "intercept": -2.67134843,
+          "link": "LOGIT",
+          "terms": [
+            {
+              "variable": "bureau_score",
+              "coefficient": -0.74060092,
+              "transformation": "WOE",
+              "column": "bureau_score_woe"
+            },
+            {
+              "variable": "debt_burden_ratio",
+              "coefficient": -0.41842522,
+              "transformation": "WOE",
+              "column": "debt_burden_ratio_woe"
+            },
+            {
+              "variable": "employment_tenure_months",
+              "coefficient": -0.42296662,
+              "transformation": "WOE",
+              "column": "employment_tenure_months_woe"
+            },
+            {
+              "variable": "bureau_max_dpd_12m",
+              "coefficient": -0.33252204,
+              "transformation": "WOE",
+              "column": "bureau_max_dpd_12m_woe"
+            },
+            {
+              "variable": "bureau_enquiries_6m",
+              "coefficient": -0.37844138,
+              "transformation": "WOE",
+              "column": "bureau_enquiries_6m_woe"
+            },
+            {
+              "variable": "credit_card_utilisation",
+              "coefficient": -0.43155746,
+              "transformation": "WOE",
+              "column": "credit_card_utilisation_woe"
+            }
+          ],
+          "active_variables": [
+            "bureau_score",
+            "debt_burden_ratio",
+            "employment_tenure_months",
+            "bureau_max_dpd_12m",
+            "bureau_enquiries_6m",
+            "credit_card_utilisation"
+          ],
+          "binning_spec_version": "application-woe-1.0.0",
+          "score_mapping": {
+            "base_score": 600.0,
+            "pdo": 20.0,
+            "base_odds": 50.0,
+            "score_direction": "HIGHER_SCORE_IS_BETTER",
+            "factor": 28.853901,
+            "offset": 487.122876,
+            "min_score": 300.0,
+            "max_score": 900.0,
+            "formula": "Factor = PDO / ln(2); Offset = BaseScore - Factor * ln(BaseOdds); Score = Offset - Factor * logit_bad"
+          },
+          "output_prefix": "recalibrated",
+          "reads_as": "logit_bad = -2.671348 -0.740601 * bureau_score_woe -0.418425 * debt_burden_ratio_woe -0.422967 * employment_tenure_months_woe -0.332522 * bureau_max_dpd_12m_woe -0.378441 * bureau_enquiries_6m_woe -0.431557 * credit_card_utilisation_woe\npredicted_pd = 1 / (1 + exp(-logit_bad))\nFactor = PDO / ln(2); Offset = BaseScore - Factor * ln(BaseOdds); Score = Offset - Factor * logit_bad"
+        }
+      },
+      "datasets": {
+        "monthly_validation": "/home/user/IPM_V2/data/analytics/retail_application_scorecard_monthly_validation",
+        "development_reference": "/home/user/IPM_V2/data/analytics/retail_application_scorecard_development_reference"
+      }
+    },
+    "BEHAVIORAL": {
+      "build_version": "1.0.0",
+      "scorecard_type": "BEHAVIORAL",
+      "counts": {
+        "scorecard_type": "BEHAVIORAL",
+        "months": [
+          "2023-01",
+          "2023-02",
+          "2023-03",
+          "2023-04",
+          "2023-05",
+          "2023-06",
+          "2023-07",
+          "2023-08",
+          "2023-09",
+          "2023-10",
+          "2023-11",
+          "2023-12",
+          "2024-01",
+          "2024-02",
+          "2024-03",
+          "2024-04",
+          "2024-05",
+          "2024-06",
+          "2024-07",
+          "2024-08",
+          "2024-09",
+          "2024-10",
+          "2024-11",
+          "2024-12",
+          "2025-01",
+          "2025-02",
+          "2025-03",
+          "2025-04",
+          "2025-05",
+          "2025-06",
+          "2025-07"
+        ],
+        "month_count": 31,
+        "total_rows": 589000,
+        "rows_by_month": {
+          "2023-01": 19000,
+          "2023-02": 19000,
+          "2023-03": 19000,
+          "2023-04": 19000,
+          "2023-05": 19000,
+          "2023-06": 19000,
+          "2023-07": 19000,
+          "2023-08": 19000,
+          "2023-09": 19000,
+          "2023-10": 19000,
+          "2023-11": 19000,
+          "2023-12": 19000,
+          "2024-01": 19000,
+          "2024-02": 19000,
+          "2024-03": 19000,
+          "2024-04": 19000,
+          "2024-05": 19000,
+          "2024-06": 19000,
+          "2024-07": 19000,
+          "2024-08": 19000,
+          "2024-09": 19000,
+          "2024-10": 19000,
+          "2024-11": 19000,
+          "2024-12": 19000,
+          "2025-01": 19000,
+          "2025-02": 19000,
+          "2025-03": 19000,
+          "2025-04": 19000,
+          "2025-05": 19000,
+          "2025-06": 19000,
+          "2025-07": 19000
+        },
+        "defaults_by_month": {
+          "2023-01": 1124,
+          "2023-02": 1309,
+          "2023-03": 1303,
+          "2023-04": 1197,
+          "2023-05": 1323,
+          "2023-06": 1437,
+          "2023-07": 1083,
+          "2023-08": 1228,
+          "2023-09": 1501,
+          "2023-10": 1162,
+          "2023-11": 1301,
+          "2023-12": 1287,
+          "2024-01": 1236,
+          "2024-02": 1448,
+          "2024-03": 1468,
+          "2024-04": 1438,
+          "2024-05": 1267,
+          "2024-06": 1531,
+          "2024-07": 1464,
+          "2024-08": 2153,
+          "2024-09": 2249,
+          "2024-10": 2127,
+          "2024-11": 2029,
+          "2024-12": 1417,
+          "2025-01": 1307,
+          "2025-02": 0,
+          "2025-03": 0,
+          "2025-04": 0,
+          "2025-05": 0,
+          "2025-06": 0,
+          "2025-07": 0
+        },
+        "smallest_month_rows": 19000,
+        "matured_months": [
+          "2023-01",
+          "2023-02",
+          "2023-03",
+          "2023-04",
+          "2023-05",
+          "2023-06",
+          "2023-07",
+          "2023-08",
+          "2023-09",
+          "2023-10",
+          "2023-11",
+          "2023-12",
+          "2024-01",
+          "2024-02",
+          "2024-03",
+          "2024-04",
+          "2024-05",
+          "2024-06",
+          "2024-07",
+          "2024-08",
+          "2024-09",
+          "2024-10",
+          "2024-11",
+          "2024-12",
+          "2025-01"
+        ],
+        "latest_data_month": "2025-07",
+        "latest_matured_month": "2025-01",
+        "origin": "SYNTHETIC_DEMO"
+      },
+      "binning_spec_version": "behavioral-woe-1.0.0",
+      "models": {
+        "INCUMBENT": {
+          "equation_version": "1.0.0",
+          "model_name": "BEHAVIORAL_INCUMBENT",
+          "scorecard_type": "BEHAVIORAL",
+          "intercept": -2.47858574,
+          "link": "LOGIT",
+          "terms": [
+            {
+              "variable": "max_dpd_6m",
+              "coefficient": -0.45907263,
+              "transformation": "WOE",
+              "column": "max_dpd_6m_woe"
+            },
+            {
+              "variable": "utilisation_pct",
+              "coefficient": -0.5046467,
+              "transformation": "WOE",
+              "column": "utilisation_pct_woe"
+            },
+            {
+              "variable": "average_payment_ratio_3m",
+              "coefficient": -0.4794543,
+              "transformation": "WOE",
+              "column": "average_payment_ratio_3m_woe"
+            },
+            {
+              "variable": "bureau_score_latest",
+              "coefficient": -0.75797089,
+              "transformation": "WOE",
+              "column": "bureau_score_latest_woe"
+            },
+            {
+              "variable": "missed_payment_count_6m",
+              "coefficient": -0.33863953,
+              "transformation": "WOE",
+              "column": "missed_payment_count_6m_woe"
+            },
+            {
+              "variable": "months_on_book",
+              "coefficient": -0.83607795,
+              "transformation": "WOE",
+              "column": "months_on_book_woe"
+            }
+          ],
+          "active_variables": [
+            "max_dpd_6m",
+            "utilisation_pct",
+            "average_payment_ratio_3m",
+            "bureau_score_latest",
+            "missed_payment_count_6m",
+            "months_on_book"
+          ],
+          "binning_spec_version": "behavioral-woe-1.0.0",
+          "score_mapping": {
+            "base_score": 600.0,
+            "pdo": 20.0,
+            "base_odds": 50.0,
+            "score_direction": "HIGHER_SCORE_IS_BETTER",
+            "factor": 28.853901,
+            "offset": 487.122876,
+            "min_score": 300.0,
+            "max_score": 900.0,
+            "formula": "Factor = PDO / ln(2); Offset = BaseScore - Factor * ln(BaseOdds); Score = Offset - Factor * logit_bad"
+          },
+          "output_prefix": "incumbent",
+          "reads_as": "logit_bad = -2.478586 -0.459073 * max_dpd_6m_woe -0.504647 * utilisation_pct_woe -0.479454 * average_payment_ratio_3m_woe -0.757971 * bureau_score_latest_woe -0.338640 * missed_payment_count_6m_woe -0.836078 * months_on_book_woe\npredicted_pd = 1 / (1 + exp(-logit_bad))\nFactor = PDO / ln(2); Offset = BaseScore - Factor * ln(BaseOdds); Score = Offset - Factor * logit_bad"
+        },
+        "CHALLENGER": {
+          "equation_version": "1.0.0",
+          "model_name": "BEHAVIORAL_CHALLENGER",
+          "scorecard_type": "BEHAVIORAL",
+          "intercept": -2.47876747,
+          "link": "LOGIT",
+          "terms": [
+            {
+              "variable": "max_dpd_6m",
+              "coefficient": -0.44877818,
+              "transformation": "WOE",
+              "column": "max_dpd_6m_woe"
+            },
+            {
+              "variable": "average_utilisation_6m",
+              "coefficient": -0.47845392,
+              "transformation": "WOE",
+              "column": "average_utilisation_6m_woe"
+            },
+            {
+              "variable": "minimum_payment_ratio_6m",
+              "coefficient": -0.4534372,
+              "transformation": "WOE",
+              "column": "minimum_payment_ratio_6m_woe"
+            },
+            {
+              "variable": "bureau_score_latest",
+              "coefficient": -0.72728642,
+              "transformation": "WOE",
+              "column": "bureau_score_latest_woe"
+            },
+            {
+              "variable": "salary_credit_stability",
+              "coefficient": -0.43107457,
+              "transformation": "WOE",
+              "column": "salary_credit_stability_woe"
+            },
+            {
+              "variable": "times_dpd_30plus_6m",
+              "coefficient": -0.25475003,
+              "transformation": "WOE",
+              "column": "times_dpd_30plus_6m_woe"
+            }
+          ],
+          "active_variables": [
+            "max_dpd_6m",
+            "average_utilisation_6m",
+            "minimum_payment_ratio_6m",
+            "bureau_score_latest",
+            "salary_credit_stability",
+            "times_dpd_30plus_6m"
+          ],
+          "binning_spec_version": "behavioral-woe-1.0.0",
+          "score_mapping": {
+            "base_score": 600.0,
+            "pdo": 20.0,
+            "base_odds": 50.0,
+            "score_direction": "HIGHER_SCORE_IS_BETTER",
+            "factor": 28.853901,
+            "offset": 487.122876,
+            "min_score": 300.0,
+            "max_score": 900.0,
+            "formula": "Factor = PDO / ln(2); Offset = BaseScore - Factor * ln(BaseOdds); Score = Offset - Factor * logit_bad"
+          },
+          "output_prefix": "challenger",
+          "reads_as": "logit_bad = -2.478767 -0.448778 * max_dpd_6m_woe -0.478454 * average_utilisation_6m_woe -0.453437 * minimum_payment_ratio_6m_woe -0.727286 * bureau_score_latest_woe -0.431075 * salary_credit_stability_woe -0.254750 * times_dpd_30plus_6m_woe\npredicted_pd = 1 / (1 + exp(-logit_bad))\nFactor = PDO / ln(2); Offset = BaseScore - Factor * ln(BaseOdds); Score = Offset - Factor * logit_bad"
+        },
+        "RECALIBRATED": {
+          "equation_version": "1.0.0",
+          "model_name": "BEHAVIORAL_RECALIBRATED",
+          "scorecard_type": "BEHAVIORAL",
+          "intercept": -2.44210829,
+          "link": "LOGIT",
+          "terms": [
+            {
+              "variable": "max_dpd_6m",
+              "coefficient": -0.44923137,
+              "transformation": "WOE",
+              "column": "max_dpd_6m_woe"
+            },
+            {
+              "variable": "utilisation_pct",
+              "coefficient": -0.49382845,
+              "transformation": "WOE",
+              "column": "utilisation_pct_woe"
+            },
+            {
+              "variable": "average_payment_ratio_3m",
+              "coefficient": -0.46917612,
+              "transformation": "WOE",
+              "column": "average_payment_ratio_3m_woe"
+            },
+            {
+              "variable": "bureau_score_latest",
+              "coefficient": -0.74172207,
+              "transformation": "WOE",
+              "column": "bureau_score_latest_woe"
+            },
+            {
+              "variable": "missed_payment_count_6m",
+              "coefficient": -0.33138003,
+              "transformation": "WOE",
+              "column": "missed_payment_count_6m_woe"
+            },
+            {
+              "variable": "months_on_book",
+              "coefficient": -0.81815473,
+              "transformation": "WOE",
+              "column": "months_on_book_woe"
+            }
+          ],
+          "active_variables": [
+            "max_dpd_6m",
+            "utilisation_pct",
+            "average_payment_ratio_3m",
+            "bureau_score_latest",
+            "missed_payment_count_6m",
+            "months_on_book"
+          ],
+          "binning_spec_version": "behavioral-woe-1.0.0",
+          "score_mapping": {
+            "base_score": 600.0,
+            "pdo": 20.0,
+            "base_odds": 50.0,
+            "score_direction": "HIGHER_SCORE_IS_BETTER",
+            "factor": 28.853901,
+            "offset": 487.122876,
+            "min_score": 300.0,
+            "max_score": 900.0,
+            "formula": "Factor = PDO / ln(2); Offset = BaseScore - Factor * ln(BaseOdds); Score = Offset - Factor * logit_bad"
+          },
+          "output_prefix": "recalibrated",
+          "reads_as": "logit_bad = -2.442108 -0.449231 * max_dpd_6m_woe -0.493828 * utilisation_pct_woe -0.469176 * average_payment_ratio_3m_woe -0.741722 * bureau_score_latest_woe -0.331380 * missed_payment_count_6m_woe -0.818155 * months_on_book_woe\npredicted_pd = 1 / (1 + exp(-logit_bad))\nFactor = PDO / ln(2); Offset = BaseScore - Factor * ln(BaseOdds); Score = Offset - Factor * logit_bad"
+        }
+      },
+      "datasets": {
+        "monthly_validation": "/home/user/IPM_V2/data/analytics/retail_behavioral_scorecard_monthly_validation",
+        "development_reference": "/home/user/IPM_V2/data/analytics/retail_behavioral_scorecard_development_reference"
+      }
+    }
+  },
+  "catalogue": {
+    "catalogue_version": "1.0.0",
+    "path": "/home/user/IPM_V2/metadata/catalog.json",
+    "scorecard_datasets": [
+      "retail_application_scorecard_development_reference",
+      "retail_application_scorecard_monthly_validation",
+      "retail_behavioral_scorecard_development_reference",
+      "retail_behavioral_scorecard_monthly_validation"
+    ],
+    "total_datasets": 77,
+    "relationships_declared": 3,
+    "all_synthetic": true
+  }
+}

@@ -1,91 +1,299 @@
-# IPM Tool — app + Postgres, one command.
+# =============================================================================
+# CreditProbe — the complete application, in Docker.
+# =============================================================================
 #
-#   docker compose up -d --build
+#     docker compose up --build          start everything
+#     open http://localhost:3000
 #
-# Reads values from the project .env (Compose substitutes ${...} from it). It
-# needs POSTGRES_PASSWORD and SECRET_KEY there; both fail the run with a message
-# rather than starting something half-configured. See docs/deploy.md §11.
+# Nothing needs to be installed on your machine except Docker Desktop. Node.js,
+# Python and PostgreSQL all live inside the containers.
 #
-# NOTE: DATABASE_URL from .env is deliberately IGNORED — it points at
-# localhost:5432, which inside a container means the container itself. The value
-# below targets the `db` service on the compose network instead.
+# What each service is:
+#
+#   db        PostgreSQL — users, projects, analysis runs, traces, and the
+#             Engine Builder / Data Builder definitions. It does NOT hold the
+#             large monthly credit data; that lives in Parquet files under data/.
+#
+#   backend   The FastAPI API, the analytical engine, and DuckDB reading the
+#             Parquet layer. On first start it applies the database migrations
+#             and builds the Parquet layer from data/raw.
+#
+#   frontend  The Next.js interface. It also forwards the browser's /api calls
+#             to the backend over the internal Docker network, so the browser
+#             only ever talks to one address.
+#
+#   pgadmin   Optional web page for browsing the database:
+#                 docker compose --profile tools up -d
+#             then open http://localhost:5050
+#
+# To stop:                       docker compose down
+# To stop AND erase the data:    docker compose down -v
 
 name: ipm
 
-# Shared by the app and bootstrap services so they can never drift apart.
-x-app-env: &app-env
-  ENV: prod
-  HOST: 0.0.0.0
-  PORT: 8050
-  DATABASE_URL: postgresql+psycopg://ipm_app:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/ipm
-  # Unset ⇒ ephemeral key ⇒ every user is logged out on each restart, and
-  # containers restart far more often than the NSSM service does.
-  SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env — python -c "import secrets; print(secrets.token_hex(32))"}
-  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-  # localhost inside the container is not your machine; host-gateway reaches an
-  # Ollama running on the host. Irrelevant if you only use the Anthropic model.
-  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-  MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
-
 services:
+  # ---------------------------------------------------------------- database
   db:
     image: postgres:16-alpine
+    container_name: ipm-postgres
     environment:
-      POSTGRES_USER: ipm_app
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: ipm
+      POSTGRES_USER: ${POSTGRES_USER:-ipm_app}
+      # A local development default so `docker compose up` works on a fresh
+      # clone with no setup. This database is reachable only from inside Docker
+      # and from this machine — see the port binding below. Override it in .env
+      # if you would rather choose your own.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ipm_local_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-ipm}
+      # Deterministic collation, so ORDER BY behaves identically on every machine.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      # Bound to 127.0.0.1, so the database is reachable from this machine (for
+      # scripts/dev.sh and pgAdmin) but never from the network around it.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-    # No published port: the database is reachable only on the compose network.
-    # Add `ports: ["5432:5432"]` temporarily if you need psql from the host.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ipm_app -d ipm"]
+      # The backend waits for this before it tries to migrate, so it never runs
+      # against a database that is still starting up.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ipm_app} -d ${POSTGRES_DB:-ipm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    networks: [ipm]
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------- backend
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+      args:
+        # Optional. Set GIT_SHA in .env (or your shell) and the image records
+        # which commit it was built from, so the running application can tell
+        # you whether the container is stale. Leave it unset and CreditProbe
+        # falls back to reading the mounted working tree.
+        GIT_SHA: ${GIT_SHA:-}
+        BUILD_TIMESTAMP: ${BUILD_TIMESTAMP:-}
+    image: ipm-backend
+    container_name: ipm-backend
+    environment:
+      # Built from the parts rather than taken from .env: inside Docker the
+      # database is reached at the service name `db`, and a DATABASE_URL in .env
+      # will say `localhost`, which inside a container means the container
+      # itself. Setting it here explicitly is what stops that mistake.
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ipm_app}:${POSTGRES_PASSWORD:-ipm_local_dev}@db:5432/${POSTGRES_DB:-ipm}
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-ipm_app}
+
+      # Listen on every interface inside the container, or Docker cannot forward
+      # port 8000 to it.
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      ENV: ${ENV:-dev}
+
+      # The browser reaches the API through the frontend's proxy, so no
+      # cross-origin request is made. These are here for anyone who opens
+      # http://localhost:8000/docs directly.
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+
+      # Optional. With no key, Ask CreditProbe plans questions with its own
+      # deterministic planner (DEMO_MODE) and still runs the real engine.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_PROVIDER: ${AI_PROVIDER:-anthropic}
+      AI_MODEL: ${AI_MODEL:-}
+      SECRET_KEY: ${SECRET_KEY:-local-dev-not-a-real-secret}
+
+      # Signing in is compulsory unless you deliberately turn it off. The four
+      # demonstration accounts are seeded on first start — see the README. A
+      # credit-risk product where anybody reaching the page is silently an
+      # Analyst is not one anybody can deploy.
+      REQUIRE_LOGIN: ${REQUIRE_LOGIN:-true}
+
+      # The two demonstration switches, passed through explicitly.
+      #
+      # Neither reached the container before the client-demo release: they
+      # were documented in .env.example, read by the backend, and never
+      # listed here — so setting one had no effect at all inside Docker,
+      # which is the only place the demonstration runs.
+      #
+      # They are separate settings on purpose. DEMO MODE says this
+      # deployment is a demonstration: label the data synthetic, pin the
+      # data release, suppress background schedules. DEMO SAFE MODE says
+      # refuse to show an answer that cannot be fully validated. A pilot on
+      # real client data wants the second and must not have the first.
+      CREDITPROBE_DEMO_MODE: ${CREDITPROBE_DEMO_MODE:-false}
+      DEMO_SAFE_MODE: ${DEMO_SAFE_MODE:-false}
+    volumes:
+      # The analytical data, mounted rather than copied: no duplication of large
+      # files, and the Parquet layer the container builds on first start stays
+      # on your machine for next time.
+      - ./data:/app/data
+      - ./metadata:/app/metadata
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+      # Read-only, and only so the application can report which commit is
+      # checked out beside it. Without this the container cannot tell a fresh
+      # image from a stale one — which is exactly the question you want
+      # answered when the behaviour does not match the code you just pulled.
+      - ./.git:/app/.git:ro
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # Defined in the image (docker/healthcheck.py) and repeated here so the
+      # timings are visible where the stack is described.
+      #
+      # The check asks two things: is the API answering, AND did the
+      # demonstration bootstrap pass its readiness checks. The second matters
+      # because an empty deployment answers 200 on every route — the screens
+      # load, they are simply blank — so an HTTP-only check reported a healthy
+      # container with no corporate book in it.
+      #
+      # `start_period` is 8 minutes because a FIRST start generates three
+      # synthetic universes and runs a portfolio review. A measured clean-room
+      # run of exactly that work took 319 seconds; 480 leaves room for a
+      # slower laptop without leaving a genuinely broken start hanging for
+      # ever. Failures during start_period do not count against `retries`, so
+      # this costs a healthy machine nothing.
+      #
+      # Later starts find everything already built and pass in seconds.
+      test: ["CMD", "python", "/usr/local/bin/ipm-healthcheck.py"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 480s
+    networks: [ipm]
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../docker/frontend.Dockerfile
+      args:
+        # Empty on purpose — the browser calls this application's own origin and
+        # Next.js forwards it. See the rewrite in frontend/next.config.ts.
+        NEXT_PUBLIC_API_URL: ""
+        # Where that forwarding goes. Next.js fixes rewrite destinations during
+        # the build, so this has to be supplied here and not only at run time.
+        BACKEND_INTERNAL_URL: http://backend:8000
+    image: ipm-frontend
+    container_name: ipm-frontend
+    environment:
+      # Where the Next.js server forwards /api calls. A Docker service name,
+      # resolved on the internal network — never visible to the browser.
+      BACKEND_INTERNAL_URL: http://backend:8000
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      # So `docker compose ps` can report the interface as healthy rather than
+      # merely started. Uses Node, which is already in the image, rather than
+      # adding curl to it.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 30s
+      start_period: 20s
+    networks: [ipm]
     restart: unless-stopped
 
-  # One-shot: schema, then seed. Both are safe to repeat — alembic no-ops when
-  # already at head, and migrate_xlsx_to_pg.py no-ops once an active dataset
-  # version exists, so an uploaded dataset is never reverted to the bundled one.
-  # The app waits for this to exit 0, so a failed migration blocks a bad start.
-  bootstrap:
-    image: ipm-tool:0.1.0
-    build: .
-    command: sh -c "python -m alembic upgrade head && python scripts/migrate_xlsx_to_pg.py"
-    environment: *app-env
+  # ------------------------------------------------------------ agent worker
+  #
+  # §18 — the governed agentic layer's background worker.
+  #
+  # A separate service rather than a thread inside the API, because a proactive
+  # portfolio review takes minutes and scans millions of rows. Run inside the
+  # API process it occupies a request worker for the duration and every user
+  # asking a question waits behind it. Run beside it, sharing the same image
+  # and the same database, and the API stays responsive.
+  #
+  # It has NO published port and NO volume it can write to beyond the shared
+  # data mount. It claims jobs from Postgres, works, and heartbeats; there is
+  # nothing to connect to and nothing for it to serve.
+  #
+  # Secrets arrive at RUN time only, from the same environment as the backend.
+  # Nothing is baked into a layer — the image is `ipm-backend`, built once.
+  agent-worker:
+    image: ipm-backend
+    container_name: ipm-agent-worker
+    # Depends on the backend having been BUILT (they share the image) and on
+    # the database being ready. Not on the backend being healthy: the worker
+    # does not call the API, it reads the same database, and making it wait
+    # would mean a slow first migration delayed the worker for no reason.
     depends_on:
       db:
         condition: service_healthy
-    restart: "no"
-
-  app:
-    image: ipm-tool:0.1.0
-    build: .
-    # Waitress, single process / 8 threads. The dataset lives in in-process
-    # globals, so this service must never be scaled past one replica — two would
-    # serve independently-cached, divergent views of the portfolio.
-    init: true
-    ports:
-      - "${PORT:-8050}:8050"
-    environment: *app-env
+      backend:
+        condition: service_started
+    command: ["python", "-m", "backend.agentic.worker"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ipm_app}:${POSTGRES_PASSWORD:-ipm_local_dev}@db:5432/${POSTGRES_DB:-ipm}
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-ipm_app}
+      ENV: ${ENV:-dev}
+      # Runtime only, never in an image layer. With no key the worker runs the
+      # deterministic pre-screen and the governed runtime exactly as the API
+      # does — a proactive review needs no model at all to produce its cases.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_PROVIDER: ${AI_PROVIDER:-anthropic}
+      AI_MODEL: ${AI_MODEL:-}
+      SECRET_KEY: ${SECRET_KEY:-local-dev-not-a-real-secret}
+      # The worker never serves a request, so it never authenticates one.
+      REQUIRE_LOGIN: "false"
+      BUILD_SHA: ${GIT_SHA:-}
     volumes:
-      - logs:/app/logs
-      - uploads:/app/uploads
-    extra_hosts:
-      # host.docker.internal is built in on Docker Desktop; this adds it on Linux.
-      - "host.docker.internal:host-gateway"
+      # The same analytical data the backend reads. Read-write because a
+      # review's own analyses write results through the same runtime.
+      - ./data:/app/data
+      - ./metadata:/app/metadata
+      - ./logs:/app/logs
+      - ./.git:/app/.git:ro
+    healthcheck:
+      # §18 asks the worker to expose health. It has no HTTP surface, so the
+      # check is the thing that actually matters: is this worker's row in
+      # `agent_workers` beating? A process that is running but has stopped
+      # claiming jobs is not healthy, and a port check would call it healthy.
+      test: ["CMD", "python", "-m", "backend.agentic.worker_health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    # SIGTERM sets `draining`: the worker finishes the job it is in the middle
+    # of and exits. 60 seconds is long enough for a specialist analysis to
+    # complete; a job that outlives it is recovered by the next worker's
+    # stale-lease sweep, so nothing is lost either way.
+    stop_grace_period: 60s
+    networks: [ipm]
+    restart: unless-stopped
+
+  # ------------------------------------------------- optional database browser
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: ipm-pgadmin
+    profiles: ["tools"]  # only starts with: docker compose --profile tools up -d
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@ipm.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
     depends_on:
       db:
         condition: service_healthy
-      bootstrap:
-        condition: service_completed_successfully
-    # Healthcheck is inherited from the image (GET /healthz).
-    stop_grace_period: 30s
+    networks: [ipm]
     restart: unless-stopped
+
+networks:
+  ipm:
+    driver: bridge
 
 volumes:
   pgdata:
-  logs:
-  uploads:

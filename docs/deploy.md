@@ -1,4 +1,4 @@
-# IPM Tool — Deployment & Operations
+# CreditProbe Tool — Deployment & Operations
 
 Target host: a Windows PC on the office LAN. The app is served by **Waitress**
 (production WSGI server) as a **single process, multi-threaded** — this is required
@@ -54,11 +54,11 @@ Chosen over Task Scheduler for the crash-restart and stdout/stderr capture.
 Install NSSM: `choco install nssm` (or download from nssm.cc and put `nssm.exe` on PATH).
 
 ```
-nssm install IPMTool "C:\QA\IPM Tool\.venv\Scripts\python.exe" "C:\QA\IPM Tool\serve.py"
-nssm set IPMTool AppDirectory "C:\QA\IPM Tool"
+nssm install IPMTool "C:\QA\CreditProbe Tool\.venv\Scripts\python.exe" "C:\QA\CreditProbe Tool\serve.py"
+nssm set IPMTool AppDirectory "C:\QA\CreditProbe Tool"
 nssm set IPMTool AppEnvironmentExtra ENV=prod HOST=0.0.0.0 PORT=8050 ANTHROPIC_API_KEY=<new-key> OLLAMA_BASE_URL=http://localhost:11434
-nssm set IPMTool AppStdout "C:\QA\IPM Tool\logs\service-out.log"
-nssm set IPMTool AppStderr "C:\QA\IPM Tool\logs\service-err.log"
+nssm set IPMTool AppStdout "C:\QA\CreditProbe Tool\logs\service-out.log"
+nssm set IPMTool AppStderr "C:\QA\CreditProbe Tool\logs\service-err.log"
 nssm set IPMTool AppExit Default Restart
 nssm start IPMTool
 ```
@@ -73,7 +73,7 @@ Service control: `nssm restart IPMTool`, `nssm stop IPMTool`, `nssm status IPMTo
 Allow inbound TCP on the app port for the private/domain network profiles only:
 
 ```
-netsh advfirewall firewall add rule name="IPM Tool 8050" dir=in action=allow protocol=TCP localport=8050 profile=domain,private
+netsh advfirewall firewall add rule name="CreditProbe Tool 8050" dir=in action=allow protocol=TCP localport=8050 profile=domain,private
 ```
 
 Colleagues then reach the app at `http://<this-pc-ip>:8050`.
@@ -81,7 +81,7 @@ Colleagues then reach the app at `http://<this-pc-ip>:8050`.
 ## 6. Update procedure
 
 ```
-cd "C:\QA\IPM Tool"
+cd "C:\QA\CreditProbe Tool"
 git pull
 python -m pip install -r requirements.txt   # or: uv sync
 nssm restart IPMTool
@@ -135,7 +135,7 @@ python -m alembic upgrade head
 **Backups** — daily compressed `pg_dump`, keeping the newest 14. Register the
 scheduled task (adjust the `pg_dump` path/version inside the script if needed):
 ```
-schtasks /create /tn "IPM PG Backup" /tr "powershell -ExecutionPolicy Bypass -File C:\QA\IPM Tool\scripts\backup_db.ps1" /sc daily /st 02:00 /ru SYSTEM
+schtasks /create /tn "CreditProbe PG Backup" /tr "powershell -ExecutionPolicy Bypass -File C:\QA\CreditProbe Tool\scripts\backup_db.ps1" /sc daily /st 02:00 /ru SYSTEM
 ```
 Restore a dump:
 ```
@@ -176,7 +176,7 @@ so it uses the same database, users and datasets as a local `python app.py`.
 ```
 powershell -ExecutionPolicy Bypass -File scripts\app-start.ps1     # start  -> http://localhost:8050
 powershell -ExecutionPolicy Bypass -File scripts\app-stop.ps1      # stop
-docker logs -f IPM                                                 # watch the log
+docker logs -f CreditProbe                                                 # watch the log
 ```
 
 `app-start.ps1` reads `DATABASE_URL`, `SECRET_KEY` and `ANTHROPIC_API_KEY` from
@@ -269,3 +269,92 @@ Ollama running on the host machine. The Anthropic model needs no such handling.
 never baked into the image; `.dockerignore` excludes `.env` from the build
 context entirely. Rotation follows section 7, then `docker compose up -d`.
 
+
+---
+
+## 12. Releasing a certified build
+
+An ordinary `docker compose up --build` produces a **development image**. It
+works, it is fully usable, and it reports `UNCERTIFIED` on `/api/v1/build`
+because it has not been measured against the sealed holdout. That is the honest
+answer and it is fine for everyday work.
+
+A **release image** is different: it carries a frozen Intelligence Release,
+which is the evidence that this exact commit did what was asked of it on cases
+it had never seen. Producing one is a single command that refuses more often
+than it succeeds.
+
+```bash
+./scripts/release.sh --check    # certify and report; build nothing
+./scripts/release.sh            # certify, then build if it passed
+```
+
+It refuses, and says which, when:
+
+| Refusal | Why it matters |
+|---|---|
+| The working tree has uncommitted changes | A certification run measures the code it can see. An image built from a dirty tree is not the code that was measured. |
+| Certification did not pass | The blockers are printed. No release-tagged image is produced. |
+| The manifest certifies a different commit | A stale manifest left by an earlier run is the exact mistake this exists for. |
+
+On success it writes `intelligence_release/manifest.json`, copies it into the
+image, and tags `creditprobe:<sha>` and `creditprobe:release`.
+
+**The key is never involved.** It is not a build argument — a build argument is
+recorded in the image history, where anyone who pulls the image can read it —
+and certification runs against the deterministic governed reader unless a
+provider is configured in the shell that runs the script. Nothing in the
+manifest, the report or the console output contains key material.
+
+### Checking what a running container is certified as
+
+```bash
+curl -s http://localhost:8000/api/v1/build | python -m json.tool
+```
+
+The `intelligence` block reports one of four states:
+
+| Status | What to do |
+|---|---|
+| `CERTIFIED` | Nothing. The evidence names the commit that is running. |
+| `UNCERTIFIED` | Expected for a development image. Use `release.sh` if you need evidence. |
+| `NOT_PASSED` | A manifest exists and the gate rejected it. Do not ship this image. |
+| `STALE` | The manifest certifies a **different commit**. Somebody pulled new code and shipped the old evidence. Re-certify. |
+
+---
+
+## 13. Running the intelligence commands against a live model
+
+Everything below is safe to run on a laptop with a real key. None of it prints
+the key, writes it to a file, or passes it to Docker.
+
+```bash
+# 1. Is a key configured for this shell? Prints only yes or no.
+python -c "import os; print('configured' if os.environ.get('ANTHROPIC_API_KEY') else 'not configured')"
+
+# 2. What would a run cost, before spending anything?
+python -m intelligence_factory.certify --estimate
+
+# 3. The open curriculum against the live path.
+python -m intelligence_factory.certify
+
+# 4. The sealed holdout, and freeze a release.
+python -m intelligence_factory.certify --certify
+```
+
+Set the key in the shell that runs the command, never in a Dockerfile, a compose
+file, a commit or a screenshot:
+
+```bash
+export ANTHROPIC_API_KEY='...'          # macOS / Linux
+$env:ANTHROPIC_API_KEY = '...'          # Windows PowerShell
+```
+
+For the containerised stack the key belongs in `.env`, which `.dockerignore`
+excludes from the build context entirely and which compose passes through at run
+time. Rotation follows section 7.
+
+**If a command ever prints something that looks like a key, treat that as a bug
+and report it.** Nothing here is designed to, and the tests in
+`tests/factory/test_release_manifest.py` assert that the published manifest
+carries none.

@@ -1,0 +1,331 @@
+"""
+Health and system-status endpoints.
+
+`/api/v1/health` is what the front end's status indicator polls. It is
+deliberately honest and granular: it reports each dependency separately and never
+claims a component is fine when it has not been checked.
+
+Design decision worth stating: a missing dependency is reported, not fatal. The
+API starts and serves even when PostgreSQL has not been configured or the data
+lake has not been built, and says so precisely. For a non-developer setting this
+up for the first time, "PostgreSQL is not configured — set DATABASE_URL in .env"
+on a working screen is far more useful than a server that refuses to boot.
+"""
+
+from __future__ import annotations
+
+import logging
+
+from fastapi import APIRouter
+
+from backend.api.schemas import (
+    AnalysisSummary,
+    AnalyticalDatasetSummary,
+    CatalogResponse,
+    ComponentHealth,
+    EngineLibraryResponse,
+    HealthResponse,
+)
+from backend.build_info import build_info, started_at
+from backend.config import settings
+
+logger = logging.getLogger(__name__)
+router = APIRouter(tags=["system"])
+
+APP_NAME = "CreditProbe AI — Credit Portfolio Intelligence"
+#: Read from the build rather than typed here, so it cannot drift from what is
+#: actually running. See backend/build_info.
+APP_VERSION = build_info().version
+BUILD_PHASE = "Credit intelligence"
+
+# Worst-first, so the overall status is the worst component present.
+_SEVERITY = {"unavailable": 3, "not_configured": 2, "degraded": 2, "empty": 1, "ok": 0}
+
+#: Components that describe the SERVICE — whether this deployment can read its
+#: data, run its engine and store a result. `status` is computed from these
+#: alone.
+#:
+#: `ai_provider` is deliberately not among them. An external model provider is
+#: a capability, not a dependency: with no key configured the deterministic
+#: reader still parses questions, the governed runtime still executes them and
+#: every screen still works. Counting it made a laptop with no ANTHROPIC_API_KEY
+#: report the whole backend "degraded" — an orange badge, in front of a client,
+#: while every request was returning 200. The provider's own state is still
+#: reported, in full, as its own component and under `ai`; it simply no longer
+#: speaks for the service.
+INFRASTRUCTURE = ("postgresql", "analytical_store", "catalog", "ipm_engine")
+
+
+def _check_analytical_store() -> ComponentHealth:
+    """DuckDB over the Parquet analytics layer."""
+    try:
+        from backend.data_access import get_data_source
+
+        health = get_data_source().health()
+        count = health.get("dataset_count", 0)
+        if health.get("status") == "error":
+            return ComponentHealth(
+                name="analytical_store", status="unavailable",
+                detail=health.get("error", "The analytical store could not be queried."),
+                data=health,
+            )
+        if count == 0:
+            return ComponentHealth(
+                name="analytical_store", status="empty",
+                detail="No analytical datasets found. Run: python scripts/generate_saudi_universe.py",
+                data=health,
+            )
+        return ComponentHealth(
+            name="analytical_store", status="ok",
+            detail=f"DuckDB serving {count} Parquet dataset(s).", data=health,
+        )
+    except Exception as e:
+        logger.exception("Analytical store health check failed")
+        return ComponentHealth(
+            name="analytical_store", status="unavailable",
+            detail=f"Could not reach the analytical store: {e}",
+        )
+
+
+def _check_catalog() -> ComponentHealth:
+    """The governed data dictionary."""
+    try:
+        from backend.data_access import get_catalog
+
+        catalog = get_catalog()
+        if len(catalog) == 0:
+            return ComponentHealth(
+                name="data_catalog", status="empty",
+                detail="No governed datasets defined. Run: python scripts/generate_saudi_universe.py",
+            )
+        fields = sum(len(d.fields) for d in catalog.all())
+        return ComponentHealth(
+            name="data_catalog", status="ok",
+            detail=f"{len(catalog)} governed dataset(s), {fields} defined fields.",
+            data={"datasets": catalog.names(), "field_count": fields},
+        )
+    except Exception as e:
+        logger.exception("Catalog health check failed")
+        return ComponentHealth(name="data_catalog", status="unavailable", detail=str(e))
+
+
+def _check_database() -> ComponentHealth:
+    """PostgreSQL — the application, governance and metadata store."""
+    if not settings.has_database:
+        return ComponentHealth(
+            name="postgresql", status="not_configured",
+            detail="DATABASE_URL is not set. Start the database with: docker compose up -d db",
+        )
+    try:
+        from sqlalchemy import text
+
+        from backend.db.engine import engine
+
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return ComponentHealth(name="postgresql", status="ok", detail="Connected.")
+    except Exception as e:
+        logger.warning("Database health check failed: %s", e)
+        return ComponentHealth(
+            name="postgresql", status="unavailable",
+            detail=f"Configured but unreachable: {e}",
+        )
+
+
+def _check_engine() -> ComponentHealth:
+    """The analytical function registry."""
+    try:
+        from backend.engine.registry import get_registry
+
+        registry = get_registry()
+        summary = registry.summary()
+        if summary["total"] == 0:
+            return ComponentHealth(
+                name="ipm_engine", status="empty",
+                detail="No analytical functions registered yet (they arrive in Phase 2).",
+                data=summary,
+            )
+        return ComponentHealth(
+            name="ipm_engine", status="ok",
+            detail=f"{summary['total']} registered analyses.", data=summary,
+        )
+    except Exception as e:
+        logger.exception("Engine registry health check failed")
+        return ComponentHealth(name="ipm_engine", status="unavailable", detail=str(e))
+
+
+def _check_ai() -> ComponentHealth:
+    """The AI provider, reported from calls actually made.
+
+    A key alone reports `not_configured`-adjacent honesty rather than health:
+    CONFIGURED means "reachable, unproven". Only CONNECTED — a real structured
+    response — reports ok.
+    """
+    try:
+        from backend.llm import health as ai_health
+        from backend.llm import telemetry
+
+        observed = ai_health()
+        status = {
+            telemetry.CONNECTED: "ok",
+            telemetry.CONFIGURED: "degraded",
+            telemetry.DEGRADED: "degraded",
+            telemetry.OFFLINE: "not_configured",
+        }.get(observed["state"], "degraded")
+        return ComponentHealth(name="ai_provider", status=status,
+                               detail=observed["detail"], data=observed)
+    except Exception as e:  # noqa: BLE001 - health must never raise
+        logger.exception("AI provider health check failed")
+        return ComponentHealth(name="ai_provider", status="unavailable",
+                               detail=str(e))
+
+
+@router.get("/build", summary="Which build is running")
+def build() -> dict:
+    """The commit, the image and whether they agree.
+
+    Exists because "is the container running the code I just pulled?" was not
+    answerable during a production incident, and the answer to that question
+    changes where you look next.
+    """
+    from backend.intelligence_release import release
+    from backend.llm import public_health as ai_health
+
+    info = build_info()
+    return {
+        "app": APP_NAME,
+        "environment": settings.env,
+        "started_at": started_at(),
+        "build": info.to_dict(),
+        # The public shape: no vendor name, no model identifier. §12. An
+        # administrator reads the same numbers with the identity attached at
+        # /ai/status/audit.
+        "ai": ai_health(),
+        # Whether this build has been certified against the sealed holdout, and
+        # what that evidence supports. UNCERTIFIED is the honest answer for a
+        # development image, and it says so rather than staying quiet.
+        "intelligence": release().to_dict(),
+    }
+
+
+@router.get("/readiness", summary="Is this deployment demonstrable?")
+def readiness() -> dict:
+    """Every demonstration readiness check, with its remedy.
+
+    The same checks the Docker health check reads and the same ones the
+    acceptance test asserts — one authority, so "the container says healthy"
+    and "the product is usable" cannot disagree again.
+
+    Open to any signed-in reader: it names datasets and counts, never data.
+    """
+    from backend import bootstrap
+
+    if not settings.has_database:
+        return bootstrap.verify(None).to_dict()
+    from backend.db.engine import get_session
+
+    with get_session() as session:
+        return bootstrap.verify(session).to_dict()
+
+
+@router.get("/demo", summary="Synthetic-data posture")
+def demo() -> dict:
+    """Whether this deployment is a demonstration, and what that guarantees.
+
+    Read by the front end so the synthetic-data label and the scope freeze
+    come from ONE authority. A build-time flag in the browser bundle would
+    let the two disagree: a container started without Demo Mode would still
+    serve a front end insisting the data was synthetic, or worse, the other
+    way round.
+
+    Demo Safe Mode is reported beside it and is a different setting — an
+    answer-quality policy, not a statement about the deployment.
+    """
+    from backend.demo import mode
+    from backend.release import demo_safe
+
+    body = mode.posture().to_dict()
+    body["demo_safe_mode"] = demo_safe.enabled()
+    return body
+
+
+@router.get("/health", response_model=HealthResponse, summary="System health")
+def health() -> HealthResponse:
+    components = [_check_database(), _check_analytical_store(), _check_catalog(),
+                  _check_engine(), _check_ai()]
+    # Only the infrastructure decides the headline. See INFRASTRUCTURE above:
+    # "no AI provider configured" is a mode this product supports, not a fault
+    # in the service, and reporting it as one frightened a client away from a
+    # backend that was answering every request.
+    service = [c for c in components if c.name in INFRASTRUCTURE]
+    worst = max(_SEVERITY.get(c.status, 0) for c in service) if service else 0
+    # "empty" is an expected Phase 1 state, not a fault — a system with no engine
+    # functions registered yet is working exactly as designed.
+    overall = "ok" if worst <= 1 else ("degraded" if worst == 2 else "unavailable")
+    return HealthResponse(
+        status=overall,
+        app=APP_NAME,
+        version=APP_VERSION,
+        environment=settings.env,
+        phase=BUILD_PHASE,
+        components=components,
+    )
+
+
+@router.get("/catalog", response_model=CatalogResponse, summary="Governed data catalogue")
+def catalog() -> CatalogResponse:
+    """The Data Dictionary — what Data Builder renders in Phase 5."""
+    from backend.data_access import get_catalog, get_data_source
+
+    cat = get_catalog()
+    source = get_data_source()
+    available = set(source.datasets())
+
+    datasets = [
+        AnalyticalDatasetSummary(
+            name=d.name,
+            business_name=d.business_name,
+            domain=d.domain,
+            grain=d.grain,
+            field_count=len(d.fields),
+            periods=source.periods(d.name) if d.name in available else [],
+            is_synthetic=d.is_synthetic,
+        )
+        for d in cat.all()
+    ]
+    return CatalogResponse(
+        dataset_count=len(cat),
+        field_count=sum(len(d.fields) for d in cat.all()),
+        domains=cat.domains(),
+        datasets=datasets,
+    )
+
+
+@router.get("/engine/library", response_model=EngineLibraryResponse, summary="Analysis Library")
+def engine_library() -> EngineLibraryResponse:
+    """Registered analytical capabilities — the Engine Builder Analysis Library.
+
+    Empty in Phase 1 by design; Phase 2 registers the ten certified analyses.
+    """
+    from backend.engine.registry import get_registry
+
+    registry = get_registry()
+    analyses = [
+        AnalysisSummary(
+            id=c.id,
+            name=c.name,
+            description=c.description,
+            category=c.category.value,
+            version=c.version,
+            owner=c.owner,
+            certification=c.certification.value,
+            is_certified=c.is_certified,
+            is_runnable=c.is_runnable,
+        )
+        for c in registry.contracts()
+    ]
+    return EngineLibraryResponse(
+        total=len(analyses),
+        certified=sum(1 for a in analyses if a.is_certified),
+        analyses=analyses,
+    )
