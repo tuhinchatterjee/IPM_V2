@@ -50,6 +50,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.orchestration import concepts as cx
+from backend.orchestration import ordinal
 from backend.orchestration import predicates as pr
 from backend.orchestration.dynamic import (
     FIELD_LABELS,
@@ -822,11 +823,22 @@ def build_plan(request: MultiRequest, *, catalogue: Any) -> PlanBuild:
     grouped: dict[str, list[str]] = {}
     for dimension, value in request.filters:
         grouped.setdefault(dimension, []).append(value)
-    standing = [
-        ({"column": dimension, "op": "=", "value": values[0]} if len(values) == 1
-         else {"column": dimension, "op": "in", "values": values})
-        for dimension, values in grouped.items()
-    ]
+    # "…at stage 2 or worse" resolves ONE value and means a range. Emitting it
+    # as `= 2` excluded the stage 3 borrowers the question was reaching for
+    # from a population that claimed to include them. Part 12. Read here as
+    # well as on the single-dataset path, because a condition can be lost on
+    # either and a fix that only guards one guards nothing.
+    standing = []
+    for dimension, values in grouped.items():
+        if len(values) != 1:
+            standing.append({"column": dimension, "op": "in",
+                             "values": values})
+            continue
+        widened = ordinal.read(request.question, dimension, values[0])
+        standing.append(
+            {"column": dimension, "op": ">=" if widened.op == "gte" else "<=",
+             "value": values[0]} if widened is not None
+            else {"column": dimension, "op": "=", "value": values[0]})
     if request.population and request.population.get("ids"):
         standing.append({"column": str(request.population["key"]), "op": "in",
                          "values": [str(v) for v in request.population["ids"]]})

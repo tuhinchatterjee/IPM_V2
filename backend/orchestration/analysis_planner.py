@@ -31,11 +31,11 @@ import re as _re
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.orchestration import collapse, fidelity, gate, multi, ordinal
 from backend.orchestration import composites as cmp
 from backend.orchestration import concepts as cx
 from backend.orchestration import context as governed_context
 from backend.orchestration import conversation as cv
-from backend.orchestration import fidelity, gate, multi
 from backend.orchestration import grain as gr
 from backend.orchestration import ordering as od
 from backend.orchestration import semantics as sm
@@ -135,6 +135,9 @@ class AnalysisBuild:
     #: asked for. The planner may change implementation; it may not change
     #: objective, and this is what says so.
     fidelity: Any = None
+    #: Movements this plan cannot measure, because both ends of the comparison
+    #: read the same source cycle. Part 12.
+    collapsed: Any = None
 
     @property
     def output_grain(self) -> str:
@@ -186,6 +189,9 @@ class AnalysisBuild:
                             if self.enforcement is not None else None),
             "fidelity": (self.fidelity.to_dict()
                          if self.fidelity is not None else None),
+            "collapsed": (self.collapsed.to_dict()
+                          if self.collapsed is not None
+                          and self.collapsed.any else None),
         }
 
 
@@ -257,6 +263,16 @@ def plan(reading: Reading, context: GovernedContext, *,
                                       enforcement=build.enforcement)
     if not build.fidelity.faithful:
         build.warnings.append(build.fidelity.sentence)
+
+    # Part 12. A condition can reach the FILTER, run, and still be incapable of
+    # holding: a change measured between two quarters that both read the same
+    # annual cycle is zero for every borrower by construction. Nothing about
+    # that looks like a failure from the inside — the plan is faithful, the
+    # query succeeds — and the empty result reads as a finding. Said here,
+    # before the query runs, so an empty answer can say why it is empty.
+    build.collapsed = collapse.inspect(build.plan)
+    if build.collapsed.any:
+        build.warnings.append(build.collapsed.sentence())
 
     if dropped:
         # Repair is attempted upstream, where a condition is read. By the time
@@ -1255,23 +1271,39 @@ def _period_for(reading: Reading, context: GovernedContext,
 # ------------------------------------------------------- single-period plans
 
 
-def _predicates(filters: list[tuple[str, str]]) -> list[dict[str, Any]]:
+#: Which IR operator a widened ordinal restriction compiles to.
+_ORDINAL_OP = {"gte": ">=", "lte": "<="}
+
+
+def _predicates(filters: list[tuple[str, str]],
+                question: str = "") -> list[dict[str, Any]]:
     """Governed filters as IR predicates, with same-field values grouped.
 
     "Which of these are Stage 2 or Stage 3?" resolves two entities on the same
     dimension. Emitting them as two `=` predicates ANDs them together and
     selects nothing at all — a wrong answer that looks like a correct empty
     one, which is the worst shape a defect can take here.
+
+    "…at stage 2 or worse" resolves ONE value and means a range. Emitting it as
+    `= 2` excluded the stage 3 borrowers — the ones the question was reaching
+    for — from a population that claimed to include them. Part 12. The
+    qualifier is read from the question against the measure's own direction,
+    because "worse" is not a direction until you know which way the scale runs.
     """
     grouped: dict[str, list[str]] = {}
     for field_name, value in filters:
         grouped.setdefault(field_name, []).append(value)
     out: list[dict[str, Any]] = []
     for field_name, values in grouped.items():
-        if len(values) == 1:
-            out.append({"column": field_name, "op": "=", "value": values[0]})
-        else:
+        if len(values) != 1:
             out.append({"column": field_name, "op": "in", "values": values})
+            continue
+        widened = ordinal.read(question, field_name, values[0])
+        if widened is not None:
+            out.append({"column": field_name,
+                        "op": _ORDINAL_OP[widened.op], "value": values[0]})
+        else:
+            out.append({"column": field_name, "op": "=", "value": values[0]})
     return out
 
 
@@ -1623,7 +1655,7 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     if filters:
         operations.append({
             "id": "scoped", "op": "FILTER", "inputs": [current],
-            "params": {"where": _predicates(filters)},
+            "params": {"where": _predicates(filters, text)},
             "label": "Restrict to " + _filter_label(filters),
         })
         current = "scoped"
@@ -2142,7 +2174,7 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
     if filters:
         operations.append({
             "id": "scoped", "op": "FILTER", "inputs": [current],
-            "params": {"where": _predicates(filters)},
+            "params": {"where": _predicates(filters, text)},
             "label": "Restrict to " + _filter_label(filters),
         })
         current = "scoped"
