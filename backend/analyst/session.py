@@ -125,6 +125,42 @@ DECISION_SCHEMA: dict[str, Any] = {
             "type": "array", "items": {"type": "string"},
             "description": "For ANSWER: what would change this conclusion.",
         },
+        # R2 §9 and §23. An analyst who may only restate the table is not an
+        # analyst. These four fields are where a reading that goes BEYOND the
+        # evidence is allowed to live — and the reason they are separate
+        # fields rather than paragraphs inside `answer` is that a hypothesis
+        # mixed into a statement of fact is indistinguishable from one, and a
+        # credit officer cannot argue with what they cannot see is an opinion.
+        "interpretation": {
+            "type": "string",
+            "description": ("For ANSWER: what you think the evidence MEANS, "
+                            "as distinct from what it says. This is your "
+                            "reading, and it is labelled as one. Leave it "
+                            "empty when the figures answer the question on "
+                            "their own."),
+        },
+        "alternatives": {
+            "type": "array", "items": {"type": "string"},
+            "description": ("For ANSWER: other explanations that fit the same "
+                            "evidence. An interpretation offered with no "
+                            "alternative is an assertion. Give the ones a "
+                            "sceptical credit officer would raise."),
+        },
+        "confirm_or_refute": {
+            "type": "array", "items": {"type": "string"},
+            "description": ("For ANSWER: what evidence would settle it, "
+                            "either way. Specific — a dataset, a document, a "
+                            "figure — not 'more analysis'."),
+        },
+        "external_context": {
+            "type": "array", "items": {"type": "string"},
+            "description": ("For ANSWER: governed external or macro evidence "
+                            "that bears on this, and HOW it connects. Only "
+                            "from what a tool returned. Two things happening "
+                            "in the same quarter is a coincidence until "
+                            "something links them, and saying which is the "
+                            "difference between analysis and superstition."),
+        },
     },
     "required": ["action", "why"],
     "additionalProperties": False,
@@ -145,6 +181,11 @@ class Decision:
     findings: list[str] = field(default_factory=list)
     unavailable: list[str] = field(default_factory=list)
     limitations: list[str] = field(default_factory=list)
+    #: R2 §9/§23. The reading, kept apart from the facts it rests on.
+    interpretation: str = ""
+    alternatives: list[str] = field(default_factory=list)
+    confirm_or_refute: list[str] = field(default_factory=list)
+    external_context: list[str] = field(default_factory=list)
 
     @classmethod
     def read(cls, payload: dict[str, Any]) -> Decision:
@@ -160,6 +201,12 @@ class Decision:
             findings=[str(f) for f in (payload.get("findings") or [])],
             unavailable=[str(u) for u in (payload.get("unavailable") or [])],
             limitations=[str(x) for x in (payload.get("limitations") or [])],
+            interpretation=str(payload.get("interpretation") or ""),
+            alternatives=[str(a) for a in (payload.get("alternatives") or [])],
+            confirm_or_refute=[
+                str(c) for c in (payload.get("confirm_or_refute") or [])],
+            external_context=[
+                str(e) for e in (payload.get("external_context") or [])],
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -168,7 +215,11 @@ class Decision:
                 "assumption": self.assumption, "answer": self.answer,
                 "findings": list(self.findings),
                 "unavailable": list(self.unavailable),
-                "limitations": list(self.limitations)}
+                "limitations": list(self.limitations),
+                "interpretation": self.interpretation,
+                "alternatives": list(self.alternatives),
+                "confirm_or_refute": list(self.confirm_or_refute),
+                "external_context": list(self.external_context)}
 
 
 @dataclass
@@ -181,6 +232,15 @@ class Investigation:
     findings: list[str] = field(default_factory=list)
     unavailable: list[str] = field(default_factory=list)
     limitations: list[str] = field(default_factory=list)
+    #: R2 §9/§23. The analyst's reading, kept apart from the facts. Carried
+    #: on the investigation rather than folded into `answer` so the screen can
+    #: mark it as a reading and the grounding check can leave it alone: a
+    #: hypothesis is not required to be grounded in a figure, and a hypothesis
+    #: run through a grounding filter comes out as an assertion.
+    interpretation: str = ""
+    alternatives: list[str] = field(default_factory=list)
+    confirm_or_refute: list[str] = field(default_factory=list)
+    external_context: list[str] = field(default_factory=list)
     #: For ASK: what the user is asked, and what a "yes" means.
     question_back: str = ""
     assumption: str = ""
@@ -205,6 +265,10 @@ class Investigation:
             "answer": self.answer, "findings": list(self.findings),
             "unavailable": list(self.unavailable),
             "limitations": list(self.limitations),
+            "interpretation": self.interpretation,
+            "alternatives": list(self.alternatives),
+            "confirm_or_refute": list(self.confirm_or_refute),
+            "external_context": list(self.external_context),
             "question_back": self.question_back, "assumption": self.assumption,
             "removed_ungrounded": list(self.removed),
             "turns": self.turns, "duration_ms": self.duration_ms,
@@ -243,6 +307,18 @@ Rules that are not negotiable
 3. Apply judgement to the evidence. "The rating is unchanged while leverage,
    utilisation and covenant headroom have all deteriorated" is the analysis;
    restating the table is not.
+   You may go further than the figures and form a HYPOTHESIS about what is
+   happening — that is what an analyst is for — provided you label it. Put the
+   reading in `interpretation`, the other explanations that fit the same
+   evidence in `alternatives`, and what would settle it in `confirm_or_refute`.
+   An interpretation offered with no alternative is an assertion wearing an
+   analyst's coat.
+   Where governed external or macro evidence bears on the question, put it in
+   `external_context` and say HOW it connects. Two things happening in the
+   same quarter is a coincidence until something links them. Never write that
+   one caused the other unless the governed data records the link; where it
+   does not, the honest form is "this is consistent with", and the alternative
+   explanations are what make that honest rather than evasive.
 4. Answer at the grain the question asked for. A question about borrowers is
    answered with borrowers, whatever the shape of the data underneath.
 5. Never name the intelligence provider or the model. Never call this
@@ -526,6 +602,10 @@ def investigate(question: str, principal: Principal, *,
             found.findings = decision.findings
             found.unavailable = decision.unavailable
             found.limitations = decision.limitations
+            found.interpretation = decision.interpretation
+            found.alternatives = decision.alternatives
+            found.confirm_or_refute = decision.confirm_or_refute
+            found.external_context = decision.external_context
             break
 
         if decision.action == CANNOT:
@@ -578,6 +658,24 @@ def _ground(found: Investigation) -> None:
     missing = found.ledger.ungrounded(found.answer)
     for finding in found.findings:
         missing.extend(found.ledger.ungrounded(finding))
+
+    # R2 §9. A hypothesis may say anything about what the evidence MEANS; it
+    # may not invent a figure. So the reading is checked for numbers and not
+    # for claims: a sentence in `interpretation` carrying an untraceable
+    # figure is dropped, and one carrying an opinion is left alone. Running
+    # the whole reading through the grounding filter would have deleted every
+    # interpretation, which is the same as not having offered any.
+    found.alternatives = [a for a in found.alternatives
+                          if not found.ledger.ungrounded(a)]
+    found.confirm_or_refute = [c for c in found.confirm_or_refute
+                               if not found.ledger.ungrounded(c)]
+    found.external_context = [e for e in found.external_context
+                              if not found.ledger.ungrounded(e)]
+    if found.interpretation and found.ledger.ungrounded(found.interpretation):
+        loose = found.ledger.ungrounded(found.interpretation)
+        missing.extend(loose)
+        found.interpretation = _strip(found.interpretation, loose)
+
     if not missing:
         return
     found.removed = sorted(set(missing))

@@ -414,6 +414,95 @@ export function AnalystReading({
 }
 
 /**
+ * A reading that goes beyond the figures, marked as one. R2 §9 and §23.
+ *
+ * An analyst who may only restate the table is not an analyst, and one whose
+ * hypothesis is indistinguishable from a fact is worse than either. So the
+ * four parts are drawn apart: what CreditProbe thinks is happening, what else
+ * would explain the same evidence, what would settle it, and the governed
+ * external evidence that bears on it.
+ *
+ * The alternatives are not a disclaimer. An interpretation offered with no
+ * alternative is an assertion, and a credit officer reading only the first
+ * paragraph should still see that a second reading exists.
+ *
+ * Nothing here is composed in the browser. Every line comes from the analyst
+ * beside the evidence it rests on, and figures inside it are grounded exactly
+ * as the answer's are — a hypothesis may say anything about meaning and may
+ * not invent a number.
+ */
+export function Hypothesis({
+  interpretation,
+  alternatives,
+  confirmOrRefute,
+  externalContext,
+}: {
+  interpretation?: string;
+  alternatives?: string[];
+  confirmOrRefute?: string[];
+  externalContext?: string[];
+}) {
+  const others = (alternatives ?? []).filter(Boolean);
+  const settle = (confirmOrRefute ?? []).filter(Boolean);
+  const outside = (externalContext ?? []).filter(Boolean);
+  if (!interpretation && !others.length && !settle.length && !outside.length) {
+    return null;
+  }
+
+  return (
+    <section className="max-w-[68ch] space-y-3 rounded-lg border border-border bg-surface-sunken p-4">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-text-muted">
+        A reading, not a measurement
+      </p>
+      {interpretation ? (
+        <div>
+          <SectionLabel>What this looks like</SectionLabel>
+          <p className="prose-ai text-sm leading-relaxed text-text-secondary">
+            {interpretation}
+          </p>
+        </div>
+      ) : null}
+      {outside.length > 0 ? (
+        <div>
+          <SectionLabel>External evidence, and how it connects</SectionLabel>
+          <ul className="space-y-1">
+            {outside.map((line) => (
+              <li key={line} className="prose-ai text-sm text-text-secondary">
+                {line}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {others.length > 0 ? (
+        <div>
+          <SectionLabel>What else would explain it</SectionLabel>
+          <ul className="space-y-1">
+            {others.map((line) => (
+              <li key={line} className="prose-ai text-sm text-text-secondary">
+                {line}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {settle.length > 0 ? (
+        <div>
+          <SectionLabel>What would settle it</SectionLabel>
+          <ul className="space-y-1">
+            {settle.map((line) => (
+              <li key={line} className="prose-ai text-sm text-text-secondary">
+                {line}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/**
  * The one observation worth reading if you read nothing else.
  *
  * Selected, never composed. `keyInsight` ranks findings the backend already
