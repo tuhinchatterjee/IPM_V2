@@ -49,7 +49,7 @@ def make_contract(**overrides) -> AnalysisContract:
                       default="sector", allowed_values=["sector", "region", "segment"]),
             Parameter("period", ParamType.PERIOD, "Reporting period.", required=True),
         ],
-        outputs=[OutputField("ead", "Exposure at default.", "number", unit="USD mn", precision=1)],
+        outputs=[OutputField("ead", "Exposure at default.", "number", unit="SAR mn", precision=1)],
         validation_rules=[ValidationRule("sums_to_total", "Group EADs must sum to the total.")],
         supported_visualizations=[VisualizationType.BAR, VisualizationType.TABLE],
         calculation_description="Sums EAD by the chosen dimension.",
@@ -175,7 +175,7 @@ def test_contract_serialises_everything_engine_builder_displays():
         "calculation_description",
     ):
         assert key in payload, f"Engine Builder needs '{key}' in the contract payload"
-    assert payload["outputs"][0]["unit"] == "USD mn"
+    assert payload["outputs"][0]["unit"] == "SAR mn"
 
 
 def test_global_registry_loads_without_error():

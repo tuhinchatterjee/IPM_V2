@@ -288,7 +288,7 @@ def compact(value: Any, *, currency: str = "", scale: str = "mn") -> str:
     """A balance promoted to the next scale where that reads better.
 
     For a KPI card, where one figure stands alone and 12.3 USD bn is easier to
-    hold in the head than 12,340 USD mn. Deliberately NOT used in tables or in
+    hold in the head than 12,340 SAR mn. Deliberately NOT used in tables or in
     prose: promoting one figure and not the one below it in the same column is
     how a comparison stops being a comparison.
     """

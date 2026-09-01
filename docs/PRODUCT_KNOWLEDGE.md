@@ -322,7 +322,7 @@ framework, with the same reconciliation tests.
    answer rather than hidden. Configuring external signals needs a threshold
    owner's decision.
 
-3. **Monetary units are declared `USD mn` in the concept map** while the Early
+3. **Monetary units are declared `SAR mn` in the concept map** while the Early
    Warning taxonomy declares `CURRENCY = "SAR"`. The two disagree. This is a
    data-model decision — `customer_ratings` carries an explicit
    `revenue_usd_mn` column, so the USD reporting basis may be deliberate — and

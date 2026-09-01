@@ -324,7 +324,7 @@ CONTRACTS: tuple[SemanticContract, ...] = (
                        "committed", "limit", "regulatory", "ifrs 9", "ifrs9"),
         ),
         natural_grain="facility",
-        unit="USD mn",
+        unit="SAR mn",
         higher_is_worse=True,
         operations=MONEY_OPS,
         invariants=(
@@ -341,7 +341,7 @@ CONTRACTS: tuple[SemanticContract, ...] = (
             "commitments. The exposure measure impairment and capital use."),
         aliases=("ead", "exposure at default"),
         natural_grain="facility",
-        unit="USD mn",
+        unit="SAR mn",
         higher_is_worse=True,
         operations=MONEY_OPS,
         calculation="SUM(ead)",
@@ -358,7 +358,7 @@ CONTRACTS: tuple[SemanticContract, ...] = (
             "bank expects, not the loss it has taken."),
         aliases=("ecl", "expected credit loss", "provision", "impairment"),
         natural_grain="facility",
-        unit="USD mn",
+        unit="SAR mn",
         higher_is_worse=True,
         operations=MONEY_OPS,
         calculation="SUM(total_ecl)",
@@ -771,7 +771,7 @@ CONTRACTS_V2: tuple[SemanticContract, ...] = (
             "overlay is an opinion with a number on it."),
         aliases=("overlay", "management adjustment", "post-model adjustment",
                  "PMA"),
-        natural_grain="facility", unit="USD mn", higher_is_worse=True,
+        natural_grain="facility", unit="SAR mn", higher_is_worse=True,
         operations=MONEY_OPS,
         forbidden=(
             (RATIO, "An overlay divided by anything is not a governed measure. "
@@ -794,7 +794,7 @@ CONTRACTS_V2: tuple[SemanticContract, ...] = (
             "any management or macro overlay. The part of the charge that is "
             "reproducible from the model's inputs."),
         aliases=("modelled ECL", "model ECL", "pre-overlay ECL"),
-        natural_grain="facility", unit="USD mn", higher_is_worse=True,
+        natural_grain="facility", unit="SAR mn", higher_is_worse=True,
         operations=MONEY_OPS, period_behaviour=SNAPSHOT,
         calculation="model_ecl",
         invariants=(
@@ -852,7 +852,7 @@ CONTRACTS_V2: tuple[SemanticContract, ...] = (
             "rather than the missed part — and those two differ by an order of "
             "magnitude."),
         aliases=("arrears", "amount overdue", "past due amount"),
-        natural_grain="facility", unit="USD mn", higher_is_worse=True,
+        natural_grain="facility", unit="SAR mn", higher_is_worse=True,
         operations=MONEY_OPS, period_behaviour=SNAPSHOT,
         required_relationships=("facility_delinquency -> portfolio_facility",),
         calculation="arrears_amount",
@@ -945,7 +945,7 @@ CONTRACTS_V2: tuple[SemanticContract, ...] = (
             ),
             resolvers=("net realisable", "realisable", "haircut", "market "
                        "value", "gross", "carried")),
-        natural_grain="facility", unit="USD mn", higher_is_worse=False,
+        natural_grain="facility", unit="SAR mn", higher_is_worse=False,
         operations=MONEY_OPS, period_behaviour=SNAPSHOT,
         required_relationships=("collateral_register -> portfolio_facility",),
         invariants=(
@@ -962,7 +962,7 @@ CONTRACTS_V2: tuple[SemanticContract, ...] = (
             "outstanding."),
         aliases=("limit", "approved limit", "facility size",
                  "committed amount"),
-        natural_grain="facility", unit="USD mn", higher_is_worse=True,
+        natural_grain="facility", unit="SAR mn", higher_is_worse=True,
         operations=MONEY_OPS, period_behaviour=SNAPSHOT,
         calculation="limit_amount",
         invariants=(
@@ -981,7 +981,7 @@ CONTRACTS_V2: tuple[SemanticContract, ...] = (
             "carries no balance today and converts into one at the credit "
             "conversion factor, which is why EAD exceeds drawn exposure."),
         aliases=("undrawn", "unutilised", "unused limit"),
-        natural_grain="facility", unit="USD mn", higher_is_worse=True,
+        natural_grain="facility", unit="SAR mn", higher_is_worse=True,
         operations=MONEY_OPS, period_behaviour=SNAPSHOT,
         calculation="undrawn = limit_amount - exposure",
         invariants=(

@@ -132,7 +132,7 @@ def header_label(column: dict[str, Any]) -> str:
     """The heading a reader sees: the business label, with its unit.
 
     The unit belongs in the header rather than in every cell — a column that
-    repeats "USD mn" twenty-five times has said the one thing that does not
+    repeats "SAR mn" twenty-five times has said the one thing that does not
     vary twenty-five times, and pushed the digits apart so the column can no
     longer be scanned.
     """

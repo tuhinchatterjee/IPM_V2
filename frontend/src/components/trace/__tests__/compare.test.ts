@@ -101,8 +101,8 @@ test("the arguments are not silently swapped", () => {
 
 test("two versions that computed the same thing say so", () => {
   const found = compare(
-    version(1, [{ id: "a", status: "ok" }], { answer: "EAD is 125,259 USD mn." }),
-    version(2, [{ id: "a", status: "ok" }], { answer: "EAD is 125,259 USD mn." }),
+    version(1, [{ id: "a", status: "ok" }], { answer: "EAD is 125,259 SAR mn." }),
+    version(2, [{ id: "a", status: "ok" }], { answer: "EAD is 125,259 SAR mn." }),
   );
   assert.equal(found.sameAnswer, true);
   assert.match(summarise(found), /same answer/);

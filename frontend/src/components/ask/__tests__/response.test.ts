@@ -125,8 +125,8 @@ test("named contributors become an implication, in the engine's own order", () =
   const run = response({
     narrative: {
       drivers: [
-        { name: "Contracting", value: 12, unit: "USD mn", measure: "the ECL increase", step: 0 },
-        { name: "Retail", value: 4, unit: "USD mn", measure: "the ECL increase", step: 0 },
+        { name: "Contracting", value: 12, unit: "SAR mn", measure: "the ECL increase", step: 0 },
+        { name: "Retail", value: 4, unit: "SAR mn", measure: "the ECL increase", step: 0 },
       ],
     },
   } as unknown as Partial<InvestigationResponse>);

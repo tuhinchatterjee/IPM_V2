@@ -19,7 +19,7 @@ import { isPointedAt, useHighlight } from "./highlight";
  *
  * The unit belongs in the header
  * ------------------------------
- * A column that prints "USD mn" on all twenty-five rows has repeated the one
+ * A column that prints "SAR mn" on all twenty-five rows has repeated the one
  * fact that does not vary twenty-four times, in the same visual weight as the
  * figures that do. Worse, it pushes the digits apart so the column can no
  * longer be scanned. The unit is lifted into the header — but only when every

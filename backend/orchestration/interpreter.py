@@ -121,7 +121,7 @@ def _n(value: Any) -> float | None:
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
-def money(value: Any, unit: str = "USD mn") -> str:
+def money(value: Any, unit: str = "SAR mn") -> str:
     v = _n(value)
     if v is None:
         return "—"
@@ -139,7 +139,7 @@ def pp(value: Any, places: int = 2) -> str:
     return "—" if v is None else f"{v:+.{places}f}pp"
 
 
-def signed_money(value: Any, unit: str = "USD mn") -> str:
+def signed_money(value: Any, unit: str = "SAR mn") -> str:
     v = _n(value)
     if v is None:
         return "—"
@@ -177,10 +177,10 @@ def _portfolio_summary(values: dict, rows: list[dict], index: int) -> tuple[list
     compare = values.get("compare_period", "the prior period")
 
     metrics = [
-        Metric("Total EAD", values.get("total_ead"), "USD mn", _n(move.get("total_ead")),
-               "USD mn", "neutral", f"vs {compare}", index),
-        Metric("Total ECL", values.get("total_ecl"), "USD mn", _n(move.get("total_ecl")),
-               "USD mn", "up-is-bad", f"vs {compare}", index),
+        Metric("Total EAD", values.get("total_ead"), "SAR mn", _n(move.get("total_ead")),
+               "SAR mn", "neutral", f"vs {compare}", index),
+        Metric("Total ECL", values.get("total_ecl"), "SAR mn", _n(move.get("total_ecl")),
+               "SAR mn", "up-is-bad", f"vs {compare}", index),
         Metric("ECL coverage", values.get("ecl_coverage_pct"), "%",
                _n(move.get("ecl_coverage_pct")), "pp", "up-is-bad", f"vs {compare}", index),
         Metric("Stage 2 share", values.get("stage2_pct"), "%", _n(move.get("stage2_pct")),
@@ -197,7 +197,7 @@ def _portfolio_summary(values: dict, rows: list[dict], index: int) -> tuple[list
             f"{signed_money(ecl_move)} against {compare}, taking coverage to "
             f"{pct(values.get('ecl_coverage_pct'))} ({pp(move.get('ecl_coverage_pct'))}).",
             tone_for(ecl_move),
-            [{"label": "Total ECL", "value": values.get("total_ecl"), "unit": "USD mn"},
+            [{"label": "Total ECL", "value": values.get("total_ecl"), "unit": "SAR mn"},
              {"label": "ECL coverage", "value": values.get("ecl_coverage_pct"), "unit": "%"}],
             index,
         ))
@@ -208,7 +208,7 @@ def _portfolio_summary(values: dict, rows: list[dict], index: int) -> tuple[list
             f"{pct(values.get('stage2_pct'))} of the book and {signed_money(s2)} on "
             f"{compare}.",
             tone_for(s2),
-            [{"label": "Stage 2 EAD", "value": values.get("stage2_ead"), "unit": "USD mn"},
+            [{"label": "Stage 2 EAD", "value": values.get("stage2_ead"), "unit": "SAR mn"},
              {"label": "Stage 2 share", "value": values.get("stage2_pct"), "unit": "%"}],
             index,
         ))
@@ -218,7 +218,7 @@ def _portfolio_summary(values: dict, rows: list[dict], index: int) -> tuple[list
             f"{int(breaches)} exposures breach the declared risk appetite, and "
             f"{money(values.get('watchlist_ead'))} sits on the watchlist.",
             "warning",
-            [{"label": "Watchlist EAD", "value": values.get("watchlist_ead"), "unit": "USD mn"}],
+            [{"label": "Watchlist EAD", "value": values.get("watchlist_ead"), "unit": "SAR mn"}],
             index,
         ))
     return metrics, findings
@@ -230,7 +230,7 @@ def _stage_distribution(values: dict, rows: list[dict], index: int) -> tuple[lis
     for stage in (1, 2, 3):
         row = by_stage.get(stage)
         if row:
-            metrics.append(Metric(f"Stage {stage} EAD", row.get("ead"), "USD mn",
+            metrics.append(Metric(f"Stage {stage} EAD", row.get("ead"), "SAR mn",
                                   None, "", "neutral",
                                   f"{pct(row.get('ead_pct'), 1)} of the book", index))
     findings: list[Finding] = []
@@ -270,7 +270,7 @@ def _sector_concentration(values: dict, rows: list[dict], index: int) -> tuple[l
             f"{money(top.get('ead'))}, {pct(top.get('ead_pct'), 1)} of the book, carried at "
             f"{pct(top.get('coverage_pct'))} coverage.",
             "warning" if (_n(top.get("ead_pct")) or 0) >= 15 else "neutral",
-            [{"label": "Exposure", "value": top.get("ead"), "unit": "USD mn"},
+            [{"label": "Exposure", "value": top.get("ead"), "unit": "SAR mn"},
              {"label": "Share", "value": top.get("ead_pct"), "unit": "%"}],
             index,
         ))
@@ -309,7 +309,7 @@ def _migration(values: dict, rows: list[dict], index: int, *,
                subject: str) -> tuple[list[Metric], list[Finding]]:
     move = values.get("movement") or {}
     basis = "exposure" if values.get("basis") == "ead" else "borrower count"
-    unit = "USD mn" if values.get("basis") == "ead" else ""
+    unit = "SAR mn" if values.get("basis") == "ead" else ""
     frm, to = values.get("from_period"), values.get("to_period")
     metrics = [
         Metric("Deteriorated", move.get("deteriorated"), unit, None, "", "up-is-bad",
@@ -369,9 +369,9 @@ def _rating_transition(values: dict, rows: list[dict], index: int) -> tuple[list
 def _ecl_movement(values: dict, rows: list[dict], index: int) -> tuple[list[Metric], list[Finding]]:
     net = _n(values.get("net_change"))
     metrics = [
-        Metric("Opening ECL", values.get("opening_ecl"), "USD mn", None, "", "neutral",
+        Metric("Opening ECL", values.get("opening_ecl"), "SAR mn", None, "", "neutral",
                str(values.get("from_period", "")), index),
-        Metric("Closing ECL", values.get("closing_ecl"), "USD mn", net, "USD mn", "up-is-bad",
+        Metric("Closing ECL", values.get("closing_ecl"), "SAR mn", net, "SAR mn", "up-is-bad",
                str(values.get("to_period", "")), index),
     ]
     findings = [Finding(
@@ -379,7 +379,7 @@ def _ecl_movement(values: dict, rows: list[dict], index: int) -> tuple[list[Metr
         f"{money(values.get('closing_ecl'))} between {values.get('from_period')} and "
         f"{values.get('to_period')}, a net {signed_money(net)}.",
         tone_for(net),
-        [{"label": "Net change", "value": values.get("net_change"), "unit": "USD mn"}],
+        [{"label": "Net change", "value": values.get("net_change"), "unit": "SAR mn"}],
         index,
     )]
     breakdown = [b for b in (values.get("breakdown") or []) if isinstance(b, dict)]
@@ -391,7 +391,7 @@ def _ecl_movement(values: dict, rows: list[dict], index: int) -> tuple[list[Metr
             f"{signed_money(worst.get('ecl_change'))} of the movement.",
             tone_for(_n(worst.get("ecl_change"))),
             [{"label": str(worst.get(group, "")), "value": worst.get("ecl_change"),
-              "unit": "USD mn"}],
+              "unit": "SAR mn"}],
             index,
         ))
     return metrics, findings
@@ -401,7 +401,7 @@ def _top_deteriorating(values: dict, rows: list[dict], index: int) -> tuple[list
     metrics = [
         Metric("Borrowers deteriorated", values.get("deteriorated_count"), "", None, "",
                "up-is-bad", f"of {values.get('borrowers_compared', '—')} compared", index),
-        Metric("ECL increase from these", values.get("total_ecl_increase"), "USD mn", None, "",
+        Metric("ECL increase from these", values.get("total_ecl_increase"), "SAR mn", None, "",
                "up-is-bad", "aggregate across deteriorating borrowers", index),
     ]
     findings = [Finding(
@@ -421,8 +421,8 @@ def _top_deteriorating(values: dict, rows: list[dict], index: int) -> tuple[list
             f"{money(top.get('ead'))} of exposure, ECL "
             f"{signed_money(top.get('ecl_change'))}. {top.get('reasons', '')}".strip(),
             "negative",
-            [{"label": "Exposure", "value": top.get("ead"), "unit": "USD mn"},
-             {"label": "ECL change", "value": top.get("ecl_change"), "unit": "USD mn"}],
+            [{"label": "Exposure", "value": top.get("ead"), "unit": "SAR mn"},
+             {"label": "ECL change", "value": top.get("ecl_change"), "unit": "SAR mn"}],
             index,
         ))
     return metrics, findings
@@ -431,10 +431,10 @@ def _top_deteriorating(values: dict, rows: list[dict], index: int) -> tuple[list
 def _stress(values: dict, rows: list[dict], index: int) -> tuple[list[Metric], list[Finding]]:
     scope = values.get("sector") or "the whole portfolio"
     metrics = [
-        Metric("Base ECL", values.get("base_ecl"), "USD mn", None, "", "neutral",
+        Metric("Base ECL", values.get("base_ecl"), "SAR mn", None, "", "neutral",
                "as reported", index),
-        Metric("Stressed ECL", values.get("stressed_ecl"), "USD mn",
-               _n(values.get("ecl_increase")), "USD mn", "up-is-bad",
+        Metric("Stressed ECL", values.get("stressed_ecl"), "SAR mn",
+               _n(values.get("ecl_increase")), "SAR mn", "up-is-bad",
                str(values.get("scenario_label", "")), index),
         Metric("Coverage under stress", values.get("stressed_coverage_pct"), "%", None, "",
                "up-is-bad", f"from {pct(values.get('base_coverage_pct'))}", index),
@@ -446,7 +446,7 @@ def _stress(values: dict, rows: list[dict], index: int) -> tuple[list[Metric], l
         f"{pct(values.get('ecl_increase_pct'), 1)} above the reported position — and coverage "
         f"moves to {pct(values.get('stressed_coverage_pct'))}.",
         "negative",
-        [{"label": "Incremental ECL", "value": values.get("ecl_increase"), "unit": "USD mn"}],
+        [{"label": "Incremental ECL", "value": values.get("ecl_increase"), "unit": "SAR mn"}],
         index,
     )]
     shocks = values.get("shocks") or {}
@@ -474,7 +474,7 @@ def _watchlist(values: dict, rows: list[dict], index: int) -> tuple[list[Metric]
     metrics = [
         Metric("Facilities above threshold", values.get("matched"), "", None, "", "up-is-bad",
                f"utilisation over {pct(values.get('threshold_pct'), 0)}", index),
-        Metric("Exposure involved", values.get("total_ead"), "USD mn", None, "", "neutral",
+        Metric("Exposure involved", values.get("total_ead"), "SAR mn", None, "", "neutral",
                "", index),
     ]
     findings = [Finding(
@@ -494,9 +494,9 @@ def _arrears_position(values: dict, rows: list[dict], index: int
         Metric("Facilities in arrears", values.get("facilities_in_arrears"), "",
                None, "", "up-is-bad",
                f"{pct(values.get('arrears_rate_pct'))} of the book", index),
-        Metric("Amount overdue", values.get("total_arrears_amount"), "USD mn",
+        Metric("Amount overdue", values.get("total_arrears_amount"), "SAR mn",
                None, "", "up-is-bad", "", index),
-        Metric("Exposure at risk", values.get("exposure_at_risk"), "USD mn",
+        Metric("Exposure at risk", values.get("exposure_at_risk"), "SAR mn",
                None, "", "up-is-bad", "90 or more days past due", index),
         Metric("Cured this period", values.get("cured_this_period"), "",
                None, "", "down-is-bad", "current again after being behind", index),
@@ -603,7 +603,7 @@ def _answer_ecl_movement(values: dict, rows: list[dict]) -> str:
 def _answer_migration(values: dict, rows: list[dict]) -> str:
     move = values.get("movement") or {}
     basis = "exposure" if values.get("basis") == "ead" else "borrowers"
-    unit = "USD mn" if values.get("basis") == "ead" else ""
+    unit = "SAR mn" if values.get("basis") == "ead" else ""
     amount = money(move.get("deteriorated"), unit) if unit else str(move.get("deteriorated"))
     return (
         f"{amount} of {basis} — {pct(move.get('deteriorated_pct'), 1)} — moved to a worse "
@@ -1116,7 +1116,7 @@ def _drivers(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 if not isinstance(entry, dict):
                     continue
                 out.append({"name": str(entry.get(group, "—")),
-                            "value": entry.get("ecl_change"), "unit": "USD mn",
+                            "value": entry.get("ecl_change"), "unit": "SAR mn",
                             "measure": "ECL movement", "step": index})
             if out:
                 return out
@@ -1124,7 +1124,7 @@ def _drivers(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if step.get("analysis_id") == "top_deteriorating_borrowers" and rows:
             return [
                 {"name": str(r.get("borrower_name", "—")), "value": r.get("ecl_change"),
-                 "unit": "USD mn", "measure": "ECL movement",
+                 "unit": "SAR mn", "measure": "ECL movement",
                  "detail": str(r.get("reasons", "")), "step": index}
                 for r in rows[:5]
             ]
@@ -1132,7 +1132,7 @@ def _drivers(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if step.get("analysis_id") == "sector_concentration" and rows:
             dimension = values.get("dimension", "sector")
             return [
-                {"name": str(r.get(dimension, "—")), "value": r.get("ead"), "unit": "USD mn",
+                {"name": str(r.get(dimension, "—")), "value": r.get("ead"), "unit": "SAR mn",
                  "measure": "Exposure", "step": index}
                 for r in rows[:5]
             ]

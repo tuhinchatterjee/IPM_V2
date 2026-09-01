@@ -212,7 +212,7 @@ def _apply_pd(work: pd.DataFrame, shock: sc.Shock,
               steps: list[dict[str, Any]]) -> None:
     if shock.unit == sc.RELATIVE:
         work["pd_stressed"] = work["pd_stressed"] * (1.0 + shock.magnitude / 100.0)
-        detail = f"12-month PD scaled by {1.0 + shock.magnitude / 100.0:.3f}."
+        detail = f"12-month PD scaled by {1.0 + shock.magnitude / 100.0:.2f}."
     elif shock.unit == sc.ABSOLUTE_PP:
         work["pd_stressed"] = work["pd_stressed"] + shock.magnitude
         detail = f"{shock.magnitude:+g} percentage points added to 12-month PD."
@@ -228,7 +228,7 @@ def _apply_lgd(work: pd.DataFrame, shock: sc.Shock,
                steps: list[dict[str, Any]]) -> None:
     if shock.unit == sc.RELATIVE:
         work["lgd_stressed"] = work["lgd_stressed"] * (1.0 + shock.magnitude / 100.0)
-        detail = f"LGD scaled by {1.0 + shock.magnitude / 100.0:.3f}."
+        detail = f"LGD scaled by {1.0 + shock.magnitude / 100.0:.2f}."
     else:
         work["lgd_stressed"] = work["lgd_stressed"] + shock.magnitude
         detail = f"{shock.magnitude:+g} percentage points added to LGD."

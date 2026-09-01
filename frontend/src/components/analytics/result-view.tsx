@@ -89,8 +89,8 @@ function ResultBody({
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 {(
                   [
-                    ["total_ead", "EAD", "USD mn"],
-                    ["total_ecl", "ECL", "USD mn"],
+                    ["total_ead", "EAD", "SAR mn"],
+                    ["total_ecl", "ECL", "SAR mn"],
                     ["ecl_coverage_pct", "Coverage", "pp"],
                     ["stage2_pct", "Stage 2", "pp"],
                   ] as const
@@ -137,7 +137,7 @@ function ResultBody({
             data={data}
             xKey="stage"
             series={[{ key: "ead", label: "EAD", slot: 0 }]}
-            units={{ ead: "USD mn" }}
+            units={{ ead: "SAR mn" }}
             height={compact ? 150 : 190}
           />
           {!compact && (
@@ -169,7 +169,7 @@ function ResultBody({
               { key: "total_ead", label: "Total EAD", slot: 0 },
               { key: "total_ecl", label: "Total ECL", slot: 1 },
             ]}
-            units={{ total_ead: "USD mn", total_ecl: "USD mn" }}
+            units={{ total_ead: "SAR mn", total_ecl: "SAR mn" }}
             height={compact ? 180 : 220}
           />
           <TrendChart
@@ -206,7 +206,7 @@ function ResultBody({
             data={asRows(rows)}
             xKey={dimension}
             series={[{ key: "ead", label: "EAD", slot: 0 }]}
-            units={{ ead: "USD mn" }}
+            units={{ ead: "SAR mn" }}
             height={compact ? 200 : 300}
           />
           {!compact && (
@@ -304,7 +304,7 @@ function ResultBody({
             data={components}
             xKey="component"
             valueKey="value"
-            unit="USD mn"
+            unit="SAR mn"
             height={compact ? 190 : 240}
           />
           {!compact && breakdown.length > 0 && (
@@ -312,11 +312,11 @@ function ResultBody({
               <p className="mb-2 text-xs font-medium text-text-secondary">
                 By {String(values.group_by)}
               </p>
-              <ResultTable rows={breakdown as Row[]} units={{ ecl_change: "USD mn" }} maxRows={8} />
+              <ResultTable rows={breakdown as Row[]} units={{ ecl_change: "SAR mn" }} maxRows={8} />
             </div>
           )}
           <p className="text-xs text-text-muted">
-            Bridge reconciles to {byUnit(values.reconciliation_difference, "USD mn")} — opening
+            Bridge reconciles to {byUnit(values.reconciliation_difference, "SAR mn")} — opening
             plus every component equals closing.
           </p>
         </div>
@@ -401,7 +401,7 @@ function ResultBody({
                 data={bySector.slice(0, 10)}
                 xKey="sector"
                 series={[{ key: "ecl_increase", label: "Incremental ECL", slot: 1 }]}
-                units={{ ecl_increase: "USD mn" }}
+                units={{ ecl_increase: "SAR mn" }}
                 height={240}
               />
             </div>
@@ -464,7 +464,7 @@ export function StageCompositionChart({ run }: { run: AnalysisRunResponse }) {
         { key: "stage_2", label: "Stage 2", slot: 4 },
         { key: "stage_3", label: "Stage 3", slot: 1 },
       ]}
-      units={{ stage_1: "USD mn", stage_2: "USD mn", stage_3: "USD mn" }}
+      units={{ stage_1: "SAR mn", stage_2: "SAR mn", stage_3: "SAR mn" }}
       height={130}
     />
   );

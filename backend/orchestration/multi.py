@@ -613,8 +613,8 @@ def _rollup(match: cx.ConceptMatch) -> str:
         return "any_value"
     if match.concept.is_ordinal:
         return "max" if match.concept.higher_is_worse else "min"
-    if match.concept.unit in ("USD mn", ""):
-        return "sum" if match.concept.unit == "USD mn" else "max"
+    if match.concept.unit in ("SAR mn", ""):
+        return "sum" if match.concept.unit == "SAR mn" else "max"
     return "max" if match.concept.higher_is_worse else "min"
 
 

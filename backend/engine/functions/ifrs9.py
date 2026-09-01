@@ -102,7 +102,7 @@ TRIGGER_FIELDS = [
     parameters=[PERIOD_PARAM],
     outputs=[
         OutputField("stage2_facilities", "Facilities in Stage 2.", "integer"),
-        OutputField("stage2_ead", "Exposure in Stage 2.", "number", unit="USD mn", precision=2),
+        OutputField("stage2_ead", "Exposure in Stage 2.", "number", unit="SAR mn", precision=2),
         OutputField("leading_trigger", "The trigger firing on the most exposure.", "string"),
         OutputField("multi_trigger_facilities", "Facilities firing more than one trigger.", "integer"),
     ],
@@ -170,7 +170,7 @@ def sicr_trigger_breakdown(ctx: ExecutionContext) -> AnalysisResult:
             "multi_trigger_facilities": multi,
             "periods_available": available,
         },
-        units={"ead": "USD mn", "share_of_stage2_pct": "%"},
+        units={"ead": "SAR mn", "share_of_stage2_pct": "%"},
         input_row_count=int(len(df)),
         warnings=ctx.warnings,
         meta={"grain": "One row per SICR trigger.",
@@ -221,9 +221,9 @@ FLOW_FIELDS = [
     parameters=[PERIOD_PARAM],
     outputs=[
         OutputField("moved_facilities", "Facilities that changed stage.", "integer"),
-        OutputField("deteriorated_ead", "Exposure that moved to a worse stage.", "number", unit="USD mn", precision=2),
-        OutputField("cured_ead", "Exposure that moved to a better stage.", "number", unit="USD mn", precision=2),
-        OutputField("net_deterioration_ead", "Deteriorated less cured.", "number", unit="USD mn", precision=2),
+        OutputField("deteriorated_ead", "Exposure that moved to a worse stage.", "number", unit="SAR mn", precision=2),
+        OutputField("cured_ead", "Exposure that moved to a better stage.", "number", unit="SAR mn", precision=2),
+        OutputField("net_deterioration_ead", "Deteriorated less cured.", "number", unit="SAR mn", precision=2),
     ],
     validation_rules=[
         ValidationRule("flows_reconcile",
@@ -299,7 +299,7 @@ def stage_migration_flow(ctx: ExecutionContext) -> AnalysisResult:
             "net_deterioration_ead": rounded(deteriorated - cured, 2),
             "periods_available": available,
         },
-        units={"ead": "USD mn", "total_ecl": "USD mn"},
+        units={"ead": "SAR mn", "total_ecl": "SAR mn"},
         input_row_count=int(len(df)),
         warnings=ctx.warnings,
         meta={"grain": "One row per stage-to-stage flow."},
@@ -349,7 +349,7 @@ COVERAGE_FIELDS = [
     required_fields=COVERAGE_FIELDS,
     parameters=[PERIOD_PARAM],
     outputs=[
-        OutputField("total_ecl", "Total expected credit loss.", "number", unit="USD mn", precision=2),
+        OutputField("total_ecl", "Total expected credit loss.", "number", unit="SAR mn", precision=2),
         OutputField("overlay_share_pct", "Management overlay as a share of total ECL.", "number", unit="%", precision=2),
         OutputField("stage3_coverage_pct", "Stage 3 ECL as a percentage of Stage 3 exposure.", "number", unit="%", precision=2),
         OutputField("coverage_pct", "Total ECL as a percentage of total exposure.", "number", unit="%", precision=2),
@@ -412,7 +412,7 @@ def ecl_coverage_by_stage(ctx: ExecutionContext) -> AnalysisResult:
     if abs(reconciliation) > 0.5:
         ctx.warn(
             f"Model ECL plus overlay differs from total ECL by "
-            f"{reconciliation:,.2f} USD mn."
+            f"{reconciliation:,.2f} SAR mn."
         )
 
     return AnalysisResult(
@@ -431,8 +431,8 @@ def ecl_coverage_by_stage(ctx: ExecutionContext) -> AnalysisResult:
             ),
             "periods_available": available,
         },
-        units={"ead": "USD mn", "total_ecl": "USD mn", "model_ecl": "USD mn",
-               "macro_overlay": "USD mn", "coverage_pct": "%",
+        units={"ead": "SAR mn", "total_ecl": "SAR mn", "model_ecl": "SAR mn",
+               "macro_overlay": "SAR mn", "coverage_pct": "%",
                "overlay_share_pct": "%"},
         input_row_count=int(len(df)),
         warnings=ctx.warnings,
@@ -491,7 +491,7 @@ APPROACHING_FIELDS = [
     ],
     outputs=[
         OutputField("at_risk_facilities", "Performing facilities within reach of the threshold.", "integer"),
-        OutputField("at_risk_ead", "Exposure of those facilities.", "number", unit="USD mn", precision=2),
+        OutputField("at_risk_ead", "Exposure of those facilities.", "number", unit="SAR mn", precision=2),
         OutputField("closest_ratio", "The highest PD ratio still below the threshold.", "number", unit="x", precision=3),
     ],
     validation_rules=[
@@ -566,7 +566,7 @@ def approaching_sicr_threshold(ctx: ExecutionContext) -> AnalysisResult:
             "performing_facilities": int(len(performing)),
             "periods_available": available,
         },
-        units={"ead": "USD mn", "pd_at_origination_pct": "%", "pd_12m_pct": "%",
+        units={"ead": "SAR mn", "pd_at_origination_pct": "%", "pd_12m_pct": "%",
                "pd_ratio_to_origination": "x", "distance_to_threshold": "x"},
         input_row_count=int(len(df)),
         warnings=ctx.warnings,
@@ -634,13 +634,13 @@ DECOMPOSITION_FIELDS = [
     ],
     outputs=[
         OutputField("opening_total", "Total ECL at the opening period.",
-                    "number", unit="USD mn", precision=2),
+                    "number", unit="SAR mn", precision=2),
         OutputField("closing_total", "Total ECL at the closing period.",
-                    "number", unit="USD mn", precision=2),
+                    "number", unit="SAR mn", precision=2),
         OutputField("movement", "Closing ECL less opening ECL.", "number",
-                    unit="USD mn", precision=2),
+                    unit="SAR mn", precision=2),
         OutputField("attributed", "The component effects, summed.", "number",
-                    unit="USD mn", precision=2),
+                    unit="SAR mn", precision=2),
         OutputField("reconciles",
                     "Whether the components sum to the movement.", "boolean"),
         OutputField("largest_driver", "The component with the largest effect.",
@@ -744,7 +744,7 @@ def ecl_change_decomposition(ctx: ExecutionContext) -> AnalysisResult:
             "exited_accounts": found.departed,
             "periods_available": available,
         },
-        units={"effect": "USD mn", "share_of_movement_pct": "%"},
+        units={"effect": "SAR mn", "share_of_movement_pct": "%"},
         input_row_count=int(len(before) + len(after)),
         warnings=ctx.warnings,
         meta={"grain": "One row per driver of the movement.",

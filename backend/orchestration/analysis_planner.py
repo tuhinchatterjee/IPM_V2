@@ -79,7 +79,7 @@ COUNT_CONCEPT = "population_count"
 #: Aggregations by what the measure IS. Summing a percentage is meaningless and
 #: averaging an exposure hides the book, so neither is left to a default.
 _ROLLUP: dict[str, str] = {
-    "USD mn": "sum", "%": "avg", "x": "avg", "days": "max",
+    "SAR mn": "sum", "%": "avg", "x": "avg", "days": "max",
     "grade": "max", "notches": "sum",
 }
 

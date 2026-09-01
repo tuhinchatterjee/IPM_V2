@@ -878,7 +878,7 @@ def _columns() -> list[dict[str, Any]]:
         {"name": "component", "label": "Driver", "semantic": pr.TEXT,
          "rank": pr.RANK_SUBJECT},
         {"name": "effect", "label": "Effect on ECL", "semantic": pr.MONEY,
-         "unit": "USD mn", "decimals": 1, "rank": pr.RANK_PRIMARY},
+         "unit": "SAR mn", "decimals": 1, "rank": pr.RANK_PRIMARY},
         {"name": "share_pct", "label": "Share of movement",
          "semantic": pr.PERCENT, "unit": "%", "decimals": 1,
          "rank": pr.RANK_DERIVED},

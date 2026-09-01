@@ -96,7 +96,7 @@ def test_bare_numeric_labels_are_refused_even_when_the_semantic_lies():
 
 def test_money_and_percent_on_one_scale_is_refused():
     columns = [{"name": "sector", "semantic": "category"},
-               {"name": "ecl", "semantic": "money", "unit": "USD mn"},
+               {"name": "ecl", "semantic": "money", "unit": "SAR mn"},
                {"name": "share", "semantic": "percent", "unit": "%"}]
     rows = [{"sector": "Contracting", "ecl": 1200.0, "share": 6.4}]
     verdict = vc.validate(_visual("bar", x="sector", y=("ecl", "share")),
@@ -129,7 +129,7 @@ def test_a_scatter_of_five_thousand_marks_is_refused():
 def test_a_period_axis_out_of_order_is_flagged_but_not_fatal():
     """Order is fixable by sorting; it does not make the chart a lie."""
     columns = [{"name": "period", "semantic": "period"},
-               {"name": "ecl", "semantic": "money", "unit": "USD mn"}]
+               {"name": "ecl", "semantic": "money", "unit": "SAR mn"}]
     rows = [{"period": "Q2 2026", "ecl": 1.0}, {"period": "Q1 2026", "ecl": 2.0}]
     verdict = vc.validate(_visual("line", x="period", y=("ecl",)),
                           columns, rows)
@@ -149,7 +149,7 @@ def test_a_table_is_never_rejected():
 
 def test_an_ordinary_ranking_survives():
     columns = [{"name": "customer", "semantic": "identity", "label": "Customer"},
-               {"name": "ead", "semantic": "money", "unit": "USD mn"}]
+               {"name": "ead", "semantic": "money", "unit": "SAR mn"}]
     rows = [{"customer": f"Borrower {i}", "ead": float(100 - i)}
             for i in range(10)]
     assert vc.validate(_visual("bar_horizontal", x="customer", y=("ead",)),
@@ -178,7 +178,7 @@ def test_choose_replaces_an_invalid_chart_with_a_table_and_says_why():
 def test_choose_leaves_a_valid_chart_alone():
     columns = [
         {"name": "sector", "semantic": "category", "label": "Sector", "rank": 0},
-        {"name": "ecl", "semantic": "money", "unit": "USD mn", "label": "ECL"},
+        {"name": "ecl", "semantic": "money", "unit": "SAR mn", "label": "ECL"},
     ]
     rows = [{"sector": s, "ecl": 100.0} for s in
             ("Contracting", "Retail", "Energy", "Transport")]

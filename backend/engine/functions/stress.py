@@ -132,9 +132,9 @@ def _ratio(stressed: pd.Series, base: pd.Series) -> pd.Series:
     ],
     outputs=[
         OutputField("metric", "Metric name.", "string"),
-        OutputField("base", "Reported value before the shock.", "number", unit="USD mn", precision=2),
-        OutputField("stressed", "Value after the shock.", "number", unit="USD mn", precision=2),
-        OutputField("change", "Absolute change.", "number", unit="USD mn", precision=2),
+        OutputField("base", "Reported value before the shock.", "number", unit="SAR mn", precision=2),
+        OutputField("stressed", "Value after the shock.", "number", unit="SAR mn", precision=2),
+        OutputField("change", "Absolute change.", "number", unit="SAR mn", precision=2),
         OutputField("change_pct", "Percentage change.", "number", unit="%", precision=2),
     ],
     validation_rules=[
@@ -253,7 +253,7 @@ def stress_scenario_basic(ctx: ExecutionContext) -> AnalysisResult:
     stressed_ead = float(work["stressed_ead"].sum())
     stressed_ecl = float(work["stressed_ecl"].sum()) + migrated_extra_ecl
 
-    def line(metric: str, base: float, stressed: float, unit: str = "USD mn") -> dict:
+    def line(metric: str, base: float, stressed: float, unit: str = "SAR mn") -> dict:
         return {
             "metric": metric, "base": rounded(base, 3), "stressed": rounded(stressed, 3),
             "change": rounded(stressed - base, 3),
@@ -312,7 +312,7 @@ def stress_scenario_basic(ctx: ExecutionContext) -> AnalysisResult:
                 "stressed_coverage_pct": rounded(stressed_coverage, 3),
                 "by_sector": sector_rows,
                 "basis": "Management scenario. Not a regulatory or IFRS 9 lifetime calculation."},
-        units={"base": "USD mn", "stressed": "USD mn", "change": "USD mn", "change_pct": "%"},
+        units={"base": "SAR mn", "stressed": "SAR mn", "change": "SAR mn", "change_pct": "%"},
         input_row_count=int(len(df)),
         warnings=ctx.warnings,
         meta={"grain": "One row per metric; sector detail in values.by_sector.",
@@ -369,7 +369,7 @@ def stress_scenario_basic(ctx: ExecutionContext) -> AnalysisResult:
         OutputField("borrower_name", "Borrower name.", "string"),
         OutputField("utilisation_pct", "Current utilisation.", "number", unit="%", precision=1),
         OutputField("utilisation_change_pp", "Change since the prior period.", "number", unit="pp", precision=1),
-        OutputField("ead", "Exposure at default.", "number", unit="USD mn", precision=1),
+        OutputField("ead", "Exposure at default.", "number", unit="SAR mn", precision=1),
     ],
     validation_rules=[
         ValidationRule("above_threshold", "Every returned facility must exceed the threshold."),
@@ -431,7 +431,7 @@ def high_utilisation_watchlist(ctx: ExecutionContext) -> AnalysisResult:
         values={"period": period, "threshold_pct": threshold,
                 "matched": int(len(selected)),
                 "total_ead": rounded(float(selected["ead"].sum()), 2)},
-        units={"ead": "USD mn", "utilisation_pct": "%", "utilisation_change_pp": "pp"},
+        units={"ead": "SAR mn", "utilisation_pct": "%", "utilisation_change_pp": "pp"},
         input_row_count=int(len(df)),
         warnings=ctx.warnings,
         meta={"grain": "One row per facility.",

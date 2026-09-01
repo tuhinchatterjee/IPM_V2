@@ -843,7 +843,7 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
     elif build.shape == ap.AGGREGATE:
         column = measure.field if measure else ""
         total = float(values.get("total") or 0.0)
-        # "125,259 USD mn of exposure at default" reads correctly; a count has
+        # "125,259 SAR mn of exposure at default" reads correctly; a count has
         # no unit and "2,159  of customers" does not.
         subject = f"{unit} of {label}" if unit else label
         # "across 5 groups" is what a program says when it has forgotten what it

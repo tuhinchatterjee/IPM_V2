@@ -10,7 +10,7 @@ methods are available.
 Three rules shape this module.
 
 **Metadata only, never data.** Nothing here reads a row. The orchestrator learns
-that `portfolio_facility` carries `ead` in USD mn at facility grain; it never
+that `portfolio_facility` carries `ead` in SAR mn at facility grain; it never
 learns what any facility's EAD is. That is what keeps the model unable to state
 a figure even if it wanted to.
 

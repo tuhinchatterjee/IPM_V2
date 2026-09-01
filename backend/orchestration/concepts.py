@@ -138,7 +138,7 @@ CONCEPTS: tuple[Concept, ...] = (
     Concept(
         id="ecl", label="expected credit loss",
         pattern=r"expected credit loss|\becl\b|impairment|provision(?:ing)?",
-        unit="USD mn",
+        unit="SAR mn",
         candidates=(
             _c(IFRS9, "total_ecl",
                "The impairment charge as the IFRS 9 calculation booked it. The "
@@ -163,7 +163,7 @@ CONCEPTS: tuple[Concept, ...] = (
     Concept(
         id="ead", label="exposure at default",
         pattern=r"exposure at default|\bead\b",
-        unit="USD mn",
+        unit="SAR mn",
         candidates=(
             _c(FACILITY, "ead",
                "CCF-adjusted exposure at default on the facility position — "
@@ -178,7 +178,7 @@ CONCEPTS: tuple[Concept, ...] = (
     Concept(
         id="exposure", label="drawn exposure",
         pattern=r"drawn exposure|outstanding balance|\bexposure\b(?! at default)",
-        unit="USD mn",
+        unit="SAR mn",
         candidates=(
             _c(FACILITY, "exposure",
                "Drawn, outstanding exposure on the facility position.",
@@ -702,7 +702,7 @@ CONCEPTS_V2: tuple[Concept, ...] = (
     Concept(
         id="overlay", label="management and macro overlay",
         pattern=r"overlay|management adjustment|post[- ]?model adjustment|\bpma\b",
-        unit="USD mn",
+        unit="SAR mn",
         candidates=(
             _c(IFRS9, "macro_overlay",
                "The overlay added on top of modelled ECL. A judgement, not a "
@@ -713,7 +713,7 @@ CONCEPTS_V2: tuple[Concept, ...] = (
     Concept(
         id="model_ecl", label="modelled ECL",
         pattern=r"model(?:led|ed)? ecl|modelled impairment|pre[- ]?overlay ecl",
-        unit="USD mn",
+        unit="SAR mn",
         candidates=(_c(IFRS9, "model_ecl",
                        "ECL as the impairment model computed it, before any "
                        "overlay.", default=True),)),
@@ -750,7 +750,7 @@ CONCEPTS_V2: tuple[Concept, ...] = (
         # is to say arbitrarily.
         pattern=r"arrears (?:amount|balance)|amount (?:in arrears|overdue)|"
                 r"past[- ]?due amount|overdue amount|missed instalments?",
-        unit="USD mn",
+        unit="SAR mn",
         candidates=(
             _c(DELINQUENCY, "arrears_amount",
                "The amount currently overdue.", default=True),
@@ -800,7 +800,7 @@ CONCEPTS_V2: tuple[Concept, ...] = (
         # is reported as unavailable. Excluded, the coverage gate says so.
         pattern=r"collateral(?!\s+cover)|security(?! interest)|\bltv\b|"
                 r"net realisable value",
-        higher_is_worse=False, unit="USD mn",
+        higher_is_worse=False, unit="SAR mn",
         candidates=(
             _c(FACILITY, "collateral_value",
                "The collateral value carried on the facility position.",
@@ -816,7 +816,7 @@ CONCEPTS_V2: tuple[Concept, ...] = (
         id="limit", label="approved limit",
         pattern=r"\blimits?\b|approved (?:limit|facility)|facility size|"
                 r"committed amount",
-        unit="USD mn",
+        unit="SAR mn",
         candidates=(
             _c(FACILITY, "limit_amount",
                "The approved limit on the facility position.", default=True),
@@ -827,7 +827,7 @@ CONCEPTS_V2: tuple[Concept, ...] = (
     Concept(
         id="undrawn", label="undrawn commitment",
         pattern=r"undrawn|unutilised|unused (?:limit|commitment)|headroom on the limit",
-        unit="USD mn",
+        unit="SAR mn",
         candidates=(_c(FACILITY, "undrawn",
                        "The committed amount not yet drawn.", default=True),)),
     Concept(

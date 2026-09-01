@@ -656,12 +656,12 @@ function ComparePanel({ models }: { models: EarlyWarningModel[] }) {
             <Stat
               label="Into a worse band"
               value={impact.moved_to_worse_band.toLocaleString()}
-              hint={`${impact.ead_to_worse_band.toLocaleString()} USD mn`}
+              hint={`${impact.ead_to_worse_band.toLocaleString()} SAR mn`}
             />
             <Stat
               label="Into a better band"
               value={impact.moved_to_better_band.toLocaleString()}
-              hint={`${impact.ead_to_better_band.toLocaleString()} USD mn`}
+              hint={`${impact.ead_to_better_band.toLocaleString()} SAR mn`}
             />
             <Stat label="Unchanged" value={impact.unchanged.toLocaleString()} />
             <Stat

@@ -250,7 +250,7 @@ holding port 3000 and the next run tested the previous build.
    shapes across the thirteen). They do not vary in register, because the
    register is reviewed and a varying one would not be.
 
-4. **Monetary units still disagree** between the concept map (`USD mn`) and the
+4. **Monetary units still disagree** between the concept map (`SAR mn`) and the
    Early Warning taxonomy (`SAR`). Unchanged here and unchanged on a guess —
    the same finding recorded in `docs/MULTI_CONDITION.md` and
    `docs/PRODUCT_KNOWLEDGE.md`.
