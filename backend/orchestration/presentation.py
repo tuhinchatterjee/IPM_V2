@@ -90,6 +90,12 @@ class Column:
 _IDENTITY_COLUMNS = ("customer_id", "account_id", "borrower_id",
                      "borrower_name", "customer_name")
 
+#: Attributes carried onto every row for context. They describe the borrower
+#: rather than answer the question, and they do not change over a comparison
+#: window — so their closing copy is plumbing.
+_CARRIED_CONTEXT = ("sector", "region", "segment", "country", "product_type",
+                    "segment_name", "owner_analyst", "obligor_group")
+
 _KNOWN_LABELS = {
     "customer_id": "Customer",
     "account_id": "Facility",
@@ -100,6 +106,8 @@ _KNOWN_LABELS = {
     "segment": "Segment",
     "period": "Period",
     "ifrs9_stage": "IFRS 9 stage",
+    "ead": "EAD",
+    "exposure": "Drawn exposure",
     "internal_grade": "Internal grade",
     "change_pp": "Change (pp)",
     "opening_share_pct": "Share at opening",
@@ -163,9 +171,16 @@ def _unprefixed(name: str) -> str:
 
 
 def contract(runtime: Any, build: Any = None) -> list[dict[str, Any]]:
-    """A display contract for every column the result carries."""
+    """A display contract for every column the result carries, in reading order.
+
+    Sorted here rather than left to each consumer: the rank is the product's
+    opinion about what the table should look like, and a consumer that ignored
+    it showed the compiler's order instead.
+    """
     try:
-        return [c.to_dict() for c in _columns(runtime, build)]
+        placed = list(enumerate(_columns(runtime, build)))
+        placed.sort(key=lambda pair: (pair[1].rank, pair[0]))
+        return [c.to_dict() for _, c in placed]
     except Exception as e:  # noqa: BLE001 - a rendering hint must not lose an answer
         logger.warning("Could not build the presentation contract: %s", e)
         return []
@@ -220,8 +235,32 @@ def _place(columns: list[Column], build: Any) -> None:
     primary = measures[0] if measures else ""
     aggregated = bool(dimension) and dimension not in _IDENTITY_COLUMNS
 
+    # A dimension does not move over the window, so carrying it twice puts
+    # "Sector at Q2 2026" beside "Sector" in a table already eleven columns
+    # wide. Only a MEASURE earns an opening and a closing column.
+    measure_names = set(measures)
     for column in columns:
         lowered = column.name.lower()
+        closing = _CLOSING.match(lowered)
+        if closing:
+            base = closing.group("base")
+            unprefixed = _unprefixed(base)
+            if (unprefixed in _IDENTITY_COLUMNS
+                    or (unprefixed in _CARRIED_CONTEXT
+                        and unprefixed not in measure_names)
+                    or unprefixed.endswith("period")):
+                column.rank = RANK_LINEAGE
+                column.hidden = True
+                column.role = column.role or (
+                    "the same attribute at the closing date, which does not "
+                    "move over the window")
+                continue
+        if lowered.endswith("_period") and lowered not in ("period",):
+            column.rank = RANK_LINEAGE
+            column.hidden = True
+            column.role = column.role or (
+                "the reporting date this source was read at")
+            continue
 
         if dimension and lowered == dimension:
             column.rank = RANK_SUBJECT
@@ -254,6 +293,45 @@ def _place(columns: list[Column], build: Any) -> None:
             column.rank = RANK_COMPARISON
         elif column.semantic in (MONEY, PERCENT, RATIO, COUNT, DAYS, ORDINAL):
             column.rank = RANK_COMPARISON + 1
+
+    _group_by_measure(columns, measures)
+
+
+#: Where each of a measure's four columns sits within its family.
+_SLOT = {"opening": 0, "closing": 1, "change": 2, "change_pct": 3}
+
+
+def _group_by_measure(columns: list[Column], measures: list[str]) -> None:
+    """Keep a measure's opening, closing and change columns together.
+
+    The compiler emits every opening value, then every closing value, then
+    every change, because that is the order it computed them in. Read across,
+    that puts a borrower's opening rating eight columns from its closing one —
+    and the whole point of the answer is the pair. Grouped by measure, in the
+    order the question named them, the table reads the way the question was
+    asked: rating then rating then the move, ECL then ECL then the move.
+    """
+    if not measures:
+        return
+    order = {name: index for index, name in enumerate(measures)}
+    for column in columns:
+        if column.hidden or column.rank >= RANK_CONTEXT:
+            continue
+        lowered = column.name.lower()
+        slot = "opening"
+        base = lowered
+        change = _CHANGE.match(lowered)
+        if change:
+            base = change.group("base")
+            slot = "change_pct" if change.group("pct") else "change"
+        else:
+            closing = _CLOSING.match(lowered)
+            if closing:
+                base, slot = closing.group("base"), "closing"
+        family = order.get(_unprefixed(base))
+        if family is None:
+            continue
+        column.rank = RANK_PRIMARY + min(family, 4) * 4 + _SLOT[slot]
 
 
 def _column(name: str, origin: str, by_field: dict[str, Any],

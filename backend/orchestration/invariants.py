@@ -134,6 +134,19 @@ def compile_checks(build: Any, question: str = "") -> list[Check]:
     """Everything the answer promised, as checks against its own rows."""
     checks: list[Check] = []
 
+    # Under a disjunction, "every row satisfies every condition" is the wrong
+    # promise. "Covenant breach OR 90+ DPD" is satisfied by a row meeting
+    # either, and checking each condition separately fails the rows that met
+    # the other one — so a correct answer is withheld with a message saying it
+    # contradicts the question. The tree is checked as a tree instead.
+    tree = _disjunctive_tree(build)
+    if tree is not None:
+        return [Check(
+            rule="predicate_tree",
+            claim=f"every row satisfies {tree.describe()}",
+            columns=tuple(t.field for t in tree.leaves()),
+            params={"tree": tree.to_dict()})]
+
     top_n = int(getattr(build, "top_n", 0) or 0)
     if top_n:
         checks.append(Check(
@@ -194,6 +207,84 @@ def compile_checks(build: Any, question: str = "") -> list[Check]:
     checks.extend(_from_grain(build))
     checks.extend(_from_question(question, build))
     return checks
+
+
+def _disjunctive_tree(build: Any) -> Any:
+    """The plan's predicate tree, where it is NOT a plain conjunction.
+
+    Returns None for the ordinary question, so every existing check keeps
+    running and keeps naming the one condition it failed — a message worth far
+    more than "the tree was not satisfied".
+    """
+    enforcement = getattr(build, "enforcement", None)
+    tree = getattr(enforcement, "tree", None) if enforcement is not None else None
+    if tree is None or tree.empty or tree.is_conjunction():
+        return None
+    return tree
+
+
+def _satisfies(node: dict[str, Any], row: dict[str, Any]) -> bool:
+    """Whether one row satisfies one node of a predicate tree."""
+    kind = str(node.get("kind") or "")
+    if kind == "NOT":
+        children = node.get("children") or []
+        return not _satisfies(children[0], row) if children else True
+    if kind in ("AND", "OR"):
+        results = [_satisfies(c, row) for c in (node.get("children") or [])]
+        if not results:
+            return True
+        return all(results) if kind == "AND" else any(results)
+
+    test = node.get("test") or {}
+    column = str(test.get("field") or "")
+    if column not in row:
+        # A column the result does not carry cannot be checked here. Silence is
+        # right: the gate has already reported whether the plan applied it, and
+        # inventing a failure from a missing column would withhold an answer
+        # over the absence of a column nobody promised to display.
+        return True
+    left, right = row.get(column), test.get("value")
+    if left is None:
+        return False
+    op = str(test.get("op") or "=")
+    try:
+        if op in ("in", "not_in"):
+            values = right if isinstance(right, list) else [right]
+            inside = any(str(left) == str(v) for v in values)
+            return inside if op == "in" else not inside
+        if isinstance(right, bool):
+            return bool(left) is right
+        if isinstance(right, str) and not _is_number(left):
+            return (str(left) == right) if op in ("eq", "=") else True
+        left_value, right_value = float(left), float(right)
+    except (TypeError, ValueError):
+        return True
+    return {"gt": left_value > right_value, "gte": left_value >= right_value,
+            "lt": left_value < right_value, "lte": left_value <= right_value,
+            "eq": left_value == right_value,
+            "=": left_value == right_value,
+            "ne": left_value != right_value}.get(op, True)
+
+
+def _is_number(value: Any) -> bool:
+    try:
+        float(value)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def _predicate_tree(check: Check, rows: list[dict[str, Any]],
+                    runtime: Any) -> Failure | None:
+    """Every returned row must satisfy the question's Boolean structure."""
+    tree = check.params.get("tree") or {}
+    offending = [r for r in rows if not _satisfies(tree, r)]
+    if not offending:
+        return None
+    return Failure(
+        check=check, offending=len(offending),
+        detail=(f"{len(offending)} of {len(rows)} rows do not satisfy "
+                f"{check.claim.removeprefix('every row satisfies ')}."))
 
 
 def _from_grain(build: Any) -> list[Check]:
@@ -757,6 +848,7 @@ _HANDLERS: dict[str, Any] = {
     "filter_equality": _filter_equality,
     "filter_membership": _filter_membership,
     "condition": _condition,
+    "predicate_tree": _predicate_tree,
     "numerator_within_denominator": _numerator_within,
     "share_bounds": _share_bounds,
     "non_negative": _non_negative,

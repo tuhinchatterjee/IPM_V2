@@ -50,7 +50,12 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.orchestration import concepts as cx
-from backend.orchestration.dynamic import Condition, read_conditions
+from backend.orchestration import predicates as pr
+from backend.orchestration.dynamic import (
+    FIELD_LABELS,
+    Condition,
+    read_conditions,
+)
 from backend.runtime.joins import (
     Edge,
     JoinGraph,
@@ -117,7 +122,15 @@ DATASET_GRAIN = {
 #: Dimensions carried through to the output so a result is readable. Taken with
 #: `any_value` because they do not vary within a group; a sum of sectors is
 #: nonsense and an average of them is worse.
-CARRIED_DIMENSIONS = ["borrower_name", "sector", "region", "segment"]
+#: Carried on every row of a multi-dataset answer, where the base has them.
+#:
+#: `ifrs9_stage` and `ead` are here for the reader rather than for the query.
+#: "Which customers were downgraded and had ECL rise" is a table a credit
+#: officer acts on, and acting on it needs the stage the borrower is now in and
+#: the exposure at risk — without them the answer names borrowers and leaves
+#: the size of the problem to a second question.
+CARRIED_DIMENSIONS = ["borrower_name", "sector", "region", "segment",
+                      "ifrs9_stage", "ead"]
 
 _HORIZONS = [
     (r"latest year|last year|past year|year on year|over a year|twelve months|12 months", 4),
@@ -763,12 +776,16 @@ def build_plan(request: MultiRequest, *, catalogue: Any) -> PlanBuild:
         "label": f"{len(request.resolution.edges())} governed relationships used",
     })
 
-    # A category is compared, never differenced. Only quantities get a change
-    # and a percentage change derived for them.
+    # A category is compared, never differenced, and a STATE is a flag rather
+    # than a quantity — subtracting one quarter's watchlist flag from another's
+    # is not a small movement, it is a type error, and DuckDB says so by
+    # refusing to bind `-(BOOLEAN, BOOLEAN)` at the point the answer is due.
+    # Only quantities get a change and a percentage change derived for them.
     measures = list(dict.fromkeys(
         column_for[(b.dataset, b.field)] for b in request.bindings
         if (b.dataset, b.field) in column_for
-        and not b.match.concept.is_categorical))
+        and not b.match.concept.is_categorical
+        and not getattr(b.match.concept, "is_state", False)))
 
     derived: list[dict[str, Any]] = []
     for measure in measures:
@@ -822,13 +839,20 @@ def build_plan(request: MultiRequest, *, catalogue: Any) -> PlanBuild:
                 if b.condition.kind not in ("level", "order")]
     ordering_only = [b for b in request.bindings if b.condition.kind == "order"]
 
+    # The Boolean structure of the question, over the predicates that are about
+    # to be applied — built here rather than in the planner because this is
+    # where a predicate's runtime COLUMN is finally known, and a tree that
+    # named the concept rather than the column could not be checked against
+    # the filter that ran.
+    tree = _predicate_tree(request, standing, movement, column_for)
+
     if request.shape == ASSOCIATION:
         _association(operations, request, column_for, standing, movement)
     elif request.shape == RANKING:
         _ranking(operations, request, column_for, standing,
                  movement + ordering_only)
     else:
-        _cohort(operations, request, column_for, standing, movement)
+        _cohort(operations, request, column_for, standing, movement, tree)
 
     plan = {
         "id": "dynamic_multi_dataset",
@@ -842,6 +866,10 @@ def build_plan(request: MultiRequest, *, catalogue: Any) -> PlanBuild:
             "conditions": [b.condition.to_dict() for b in request.bindings],
             "concepts": [b.match.to_dict() for b in request.bindings],
             "filters": [{"field": f, "value": v} for f, v in request.filters],
+            # The Boolean structure, so the Trace and the coverage gate read
+            # the same statement of what the population was meant to be.
+            "predicates": tree.to_dict(),
+            "predicate_logic": tree.describe(),
             "join_path": request.resolution.to_dict(),
             "explanation": explain(request),
         },
@@ -858,20 +886,119 @@ def _two_period(request: Any) -> bool:
     return bool(opening and closing and opening != closing)
 
 
+def _predicate_tree(request: MultiRequest, standing: list[dict[str, Any]],
+                    movement: list[Binding],
+                    column_for: dict[tuple[str, str], str]) -> pr.Node:
+    """Every predicate about to be applied, arranged as the question arranged it.
+
+    The leaves carry the runtime column, so the tree can be compared against
+    the FILTER that actually ran; they also carry the PHRASE that asked for
+    them, which is what lets the reader place each one in the right half of an
+    "A or B" and what lets a missing condition be reported in the words the
+    person used.
+    """
+    tests: list[pr.Test] = []
+    two = _two_period(request)
+
+    values_of: dict[str, list[str]] = {}
+    for dimension, value in request.filters:
+        values_of.setdefault(dimension, []).append(value)
+    for predicate in standing:
+        column = str(predicate.get("column") or "")
+        values = predicate.get("values")
+        value = values if values is not None else predicate.get("value")
+        if column in values_of:
+            # A governed dimension value — "Stage 2", "Shipping". The phrase is
+            # the value itself, which is the word the question used for it.
+            spoken = ", ".join(str(v) for v in values_of[column])
+            tests.append(pr.Test(
+                field=column, op=("in" if values is not None else "eq"),
+                value=value, kind=pr.MEMBERSHIP, phrase=spoken,
+                label=f"{FIELD_LABELS.get(column, column.replace('_', ' '))} "
+                      f"is {spoken}"))
+            continue
+        binding = next(
+            (b for b in request.bindings
+             if b.condition.kind == "level"
+             and _condition_column(b, column_for, two_period=two) == column),
+            None)
+        if binding is None:
+            # A carried-forward population restriction. It has no phrase in
+            # this sentence, so it is conjoined rather than placed.
+            tests.append(pr.Test(
+                field=column, op=str(predicate.get("op") or "="), value=value,
+                kind=pr.LEVEL, phrase="",
+                label="restricted to the previous answer's rows"))
+            continue
+        tests.append(pr.Test(
+            field=column, op=binding.condition.op, value=binding.condition.value,
+            kind=pr.LEVEL, dataset=binding.dataset,
+            phrase=str(binding.match.phrase or ""),
+            label=binding.condition.describe()))
+
+    for binding in movement:
+        tests.append(pr.Test(
+            field=_condition_column(binding, column_for, two_period=two),
+            op=binding.condition.op, value=binding.condition.value,
+            kind=pr.MOVEMENT, dataset=binding.dataset,
+            phrase=str(binding.match.phrase or ""),
+            label=binding.condition.describe()))
+
+    return pr.read(request.question, tests)
+
+
+def predicate_tree_of(plan: dict[str, Any]) -> pr.Node | None:
+    """The Boolean structure a compiled plan recorded, rebuilt from its meta.
+
+    The tree is written onto the plan rather than returned beside it so that a
+    plan read back from storage — a refreshed investigation, an audited run —
+    can still be checked against the question it claims to answer.
+    """
+    stored = ((plan or {}).get("meta") or {}).get("predicates")
+    return _node_from(stored) if stored else None
+
+
+def _node_from(stored: dict[str, Any]) -> pr.Node | None:
+    kind = str((stored or {}).get("kind") or "")
+    if not kind:
+        return None
+    if kind == pr.TEST:
+        test = stored.get("test") or {}
+        return pr.Node.leaf(pr.Test(
+            field=str(test.get("field") or ""), op=str(test.get("op") or "="),
+            value=test.get("value"), kind=str(test.get("kind") or pr.MOVEMENT),
+            dataset=str(test.get("dataset") or ""),
+            phrase=str(test.get("phrase") or ""),
+            label=str(test.get("label") or "")))
+    children = [_node_from(c) for c in (stored.get("children") or [])]
+    return pr.Node(kind, children=tuple(c for c in children if c is not None))
+
+
 def _cohort(operations: list[dict[str, Any]], request: MultiRequest,
             column_for: dict[tuple[str, str], str],
-            standing: list[dict[str, Any]], movement: list[Binding]) -> None:
-    """Everything meeting every condition, worst first."""
+            standing: list[dict[str, Any]], movement: list[Binding],
+            tree: pr.Node | None = None) -> None:
+    """Everything meeting the question's conditions, combined as it combined them."""
     where = standing + [
         {"column": _condition_column(b, column_for,
                                      two_period=_two_period(request)),
          "op": _OPS[b.condition.op], "value": b.condition.value}
         for b in movement]
+    if tree is not None and not tree.empty and not tree.is_conjunction():
+        # An OR or a negation cannot be written as a list of predicates the
+        # runtime ANDs together. Compiled flat it would silently become a
+        # conjunction — a smaller population than the question asked for,
+        # under a heading quoting the question.
+        params = pr.compile_filter(tree, lambda t: t.field)
+        label = f"Keep only those where {tree.describe()}"
+    else:
+        params = {"where": where or [{"column": request.key,
+                                      "op": "is_not_null"}]}
+        label = "Keep only those meeting every condition"
     operations.append({
         "id": "cohort", "op": "FILTER", "inputs": ["movements"],
-        "params": {"where": where or [{"column": request.key,
-                                       "op": "is_not_null"}]},
-        "label": "Keep only those meeting every condition",
+        "params": params,
+        "label": label,
     })
 
     # The ordering the request ASKED for, where a clause asked for one. An
@@ -1186,6 +1313,7 @@ __all__ = [
     "Binding",
     "JoinGraph",
     "MultiRequest",
+    "predicate_tree_of",
     "PlanBuild",
     "build_plan",
     "explain",

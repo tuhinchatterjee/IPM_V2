@@ -47,6 +47,7 @@ MEMOS = "credit_memo_signals"
 FINANCIALS = "borrower_financials"
 LIMITS = "facility_limits"
 COLLATERAL = "collateral_register"
+LIQUIDITY = "liquidity_buffer"
 #: The Borrower 360 book. B44: a second portfolio in the same catalogue, and
 #: the two share almost every word. The concepts below are the ones that
 #: belong ONLY to it - a question that names a group structure, a beneficial
@@ -100,6 +101,16 @@ class Concept:
     #: never differenced — subtracting one sentiment from another is not a
     #: smaller number, it is a type error waiting for a production question.
     is_categorical: bool = False
+    #: A governed STATE a borrower is either in or not — on the watchlist, in
+    #: covenant breach. Naming one in a question asserts it: "which borrowers
+    #: are on watchlist" is a condition, not a column to report. Distinct from
+    #: `is_categorical`, which has several values and needs one to be named,
+    #: and from a measure, which needs a direction or a threshold before it
+    #: becomes a condition at all. Without this distinction a state named in a
+    #: question resolved to a field and then produced no predicate, which is
+    #: how "Stage 2 borrowers not on watchlist" came back as every Stage 2
+    #: borrower.
+    is_state: bool = False
     #: The values a polarity word maps onto, for a categorical concept.
     polarity: tuple[tuple[str, str], ...] = ()
     unit: str = ""
@@ -181,7 +192,11 @@ CONCEPTS: tuple[Concept, ...] = (
         )),
     Concept(
         id="rating", label="internal rating",
-        pattern=r"internal rating|risk rating|\brating\b|\bgrade\b|\bnotch(?:es)?\b|downgrad\w*|upgrad\w*",
+        # Plurals included. "Which borrowers have unchanged RATINGS" resolved
+        # to nothing at all, so the condition on the rating was not dropped by
+        # the planner — it never existed, and the answer was about PD alone.
+        pattern=r"internal ratings?|risk ratings?|\bratings?\b|\bgrades?\b"
+                r"|\bnotch(?:es)?\b|downgrad\w*|upgrad\w*",
         is_ordinal=True, unit="notches",
         candidates=(
             _c(RATINGS, "internal_grade",
@@ -289,6 +304,46 @@ CONCEPTS: tuple[Concept, ...] = (
                "covenant", "breach", "test", default=True),
             _c(FACILITY, "covenant_headroom_pct",
                "Covenant headroom as summarised on the facility position."),
+        )),
+    Concept(
+        id="covenant_breach", label="covenant breach",
+        # Deliberately ahead of `covenant_headroom` in the file, and matching
+        # only the BREACH wording: headroom is a distance and breach is a
+        # state, and reading "which borrowers are in covenant breach" as a
+        # question about headroom gave an ordering where a condition was asked
+        # for.
+        pattern=r"covenant breach(?:es|ed)?|breached? (?:a )?covenants?|"
+                r"in breach of (?:a )?covenants?|covenant violation",
+        is_state=True,
+        candidates=(
+            _c(COVENANTS, "breached",
+               "Whether the covenant test failed at this reporting date.",
+               "covenant", "test", default=True),
+        )),
+    Concept(
+        id="watchlist", label="watchlist",
+        pattern=r"watch ?list(?:ed)?|on watch\b|under watch\b",
+        is_state=True,
+        candidates=(
+            _c(FACILITY, "watchlist",
+               "Whether the facility is flagged onto the credit watchlist at "
+               "the reporting date.", "facility", "portfolio", default=True),
+            _c(DELINQUENCY, "watchlist",
+               "The watchlist flag as the collections book carries it.",
+               "collections", "delinquency", "arrears"),
+        )),
+    Concept(
+        id="liquidity", label="liquidity cover",
+        pattern=r"liquidity(?: cover(?:age)?| buffer| position| headroom)?|"
+                r"cash cover(?:age)?|months of cover",
+        higher_is_worse=False, unit="months",
+        candidates=(
+            _c(LIQUIDITY, "liquidity_coverage_months",
+               "How many months of debt service the borrower's cash and "
+               "undrawn committed lines would meet.", default=True),
+            _c(LIQUIDITY, "liquidity_buffer",
+               "Cash plus undrawn committed facilities, as an amount.",
+               "buffer", "amount", "absolute"),
         )),
     Concept(
         id="utilisation", label="utilisation",
@@ -736,7 +791,14 @@ CONCEPTS_V2: tuple[Concept, ...] = (
         )),
     Concept(
         id="collateral", label="collateral value",
-        pattern=r"collateral|security(?! interest)|\bltv\b|"
+        # "collateral COVERAGE" is deliberately excluded. It is a ratio —
+        # collateral over exposure — and the core credit book publishes only
+        # the amount. Matched here, "collateral coverage below 50%" resolved to
+        # the collateral VALUE and tested it against 50, so a question about a
+        # ratio was answered as a question about millions: a condition that
+        # looks applied and tests the wrong thing, which is worse than one that
+        # is reported as unavailable. Excluded, the coverage gate says so.
+        pattern=r"collateral(?!\s+cover)|security(?! interest)|\bltv\b|"
                 r"net realisable value",
         higher_is_worse=False, unit="USD mn",
         candidates=(

@@ -35,8 +35,8 @@ from backend.orchestration import composites as cmp
 from backend.orchestration import concepts as cx
 from backend.orchestration import context as governed_context
 from backend.orchestration import conversation as cv
+from backend.orchestration import gate, multi
 from backend.orchestration import grain as gr
-from backend.orchestration import multi
 from backend.orchestration import ordering as od
 from backend.orchestration import semantics as sm
 from backend.orchestration.capability import Reading
@@ -126,6 +126,11 @@ class AnalysisBuild:
     #: why every reader of it treats absence as "not declared" rather than as
     #: a grain.
     grain_contract: Any = None
+    #: Which of the question's conditions the compiled plan actually enforces.
+    #: Read from the FILTER that will run rather than from the reading, so an
+    #: answer cannot claim a condition the plan does not apply. None on the
+    #: shapes that set no conditions at all.
+    enforcement: Any = None
 
     @property
     def output_grain(self) -> str:
@@ -173,6 +178,8 @@ class AnalysisBuild:
                              if self.continuation is not None else None),
             "summary": self.summary,
             "warnings": list(self.warnings),
+            "enforcement": (self.enforcement.to_dict()
+                            if self.enforcement is not None else None),
         }
 
 
@@ -218,6 +225,46 @@ def plan(reading: Reading, context: GovernedContext, *,
          period: tuple[str, str] | None = None,
          state: cv.ConversationState | None = None,
          continuation: cv.Continuation | None = None) -> AnalysisBuild:
+    """Build the plan, then check it answers the question that was asked.
+
+    The check is here, wrapping every shape, rather than inside the one builder
+    that happened to need it first. A condition can be lost on any path — a
+    ranking that silently ignored a negation is the same defect as a cohort
+    that silently ignored a conjunct — and a gate that only guards the path
+    where the defect was found guards nothing.
+    """
+    build = _plan(reading, context, question=question, period=period,
+                  state=state, continuation=continuation)
+    text = question or reading.objective
+    dropped = gate.dropped_structure(
+        text, getattr(build, "enforcement", None),
+        multi.predicate_tree_of(build.plan),
+        list(build.matches), build.conditions, build.filters)
+    if dropped:
+        # Repair is attempted upstream, where a condition is read. By the time
+        # a plan exists, an unenforced condition is a limitation, and the one
+        # thing that must not happen is for it to go unsaid.
+        build.warnings.append(gate.dropped_sentence(dropped))
+        if build.enforcement is None:
+            build.enforcement = gate.Enforcement(unread=tuple(dropped))
+        else:
+            build.enforcement = gate.Enforcement(
+                requested=build.enforcement.requested,
+                executed=build.enforcement.executed,
+                missing=build.enforcement.missing,
+                logic=build.enforcement.logic,
+                headline=build.enforcement.headline,
+                tree=build.enforcement.tree,
+                unread=tuple(dict.fromkeys(
+                    list(build.enforcement.unread) + dropped)))
+    return build
+
+
+def _plan(reading: Reading, context: GovernedContext, *,
+          question: str = "",
+          period: tuple[str, str] | None = None,
+          state: cv.ConversationState | None = None,
+          continuation: cv.Continuation | None = None) -> AnalysisBuild:
     """Build the IR one reading implies, or say what is missing.
 
     Never guesses a threshold or a dimension the reading did not carry. A
@@ -948,6 +995,13 @@ def _conditions(text: str, matches: list[cx.ConceptMatch]) -> list[Condition]:
             match, sm.threshold_near(text, match.phrase))
         if level is not None:
             out.append(level)
+            continue
+        # And a governed STATE is a condition on its own — "on watchlist", "in
+        # covenant breach" name no direction and set no threshold because
+        # being in the state IS the test.
+        state = sm.state_condition(match, text)
+        if state is not None:
+            out.append(state)
     return out
 
 
@@ -2623,7 +2677,27 @@ def _two_period(reading: Reading, context: GovernedContext, text: str,
         confidence={"reading": reading.confidence},
     )
     built = multi.build_plan(request, catalogue=catalogue)
+
+    # Which of these conditions the plan that was just compiled actually
+    # applies. Read from the FILTER rather than from the reading above, so a
+    # condition that was understood and then lost is caught here rather than
+    # advertised in the answer as though it had run.
+    enforcement = gate.inspect(
+        multi.predicate_tree_of(built.plan), built.plan,
+        unread=gate.unread_conditions(text, list(matches), conditions, filters))
+
+    if enforcement.logic:
+        # The headline is rewritten from the plan for the same reason the
+        # interpretation is: a summary composed from the reading says "and"
+        # where the question said "or" or "not", and the table underneath it
+        # is then right while the sentence over it is wrong.
+        request.summary = _two_period_summary(
+            conditions, filters, opening, closing, grain,
+            logic=enforcement.logic)
+
     warnings = list(built.warnings)
+    if not enforcement.complete:
+        warnings.append(enforcement.limitation)
     if assumed:
         warnings.append(
             f"The question did not name a comparison window, so CreditProbe "
@@ -2638,6 +2712,7 @@ def _two_period(reading: Reading, context: GovernedContext, text: str,
         conditions=conditions, filters=filters, grain=grain,
         opening=opening, closing=closing, joins=built.joins,
         warnings=warnings, summary=request.summary, request=request,
+        enforcement=enforcement,
     )
 
 
@@ -2656,6 +2731,34 @@ def _is_annual(dataset: str, context: GovernedContext) -> bool:
 
 
 def _relationship_rows(context: GovernedContext) -> list[dict[str, Any]]:
+    """Every governed relationship, not the handful this question retrieved.
+
+    `context.relationships` is a RELEVANCE window — the joins between the eight
+    or so datasets the retriever surfaced for the wording of one question. That
+    is the right budget for a prompt and the wrong one for a join path: which
+    datasets the plan needs is decided by the CONCEPTS it resolved, and a
+    relationship missing from the window is reported to the user as
+    "CreditProbe cannot join ifrs9_staging to portfolio_facility: no active
+    relationship connects them" — about a relationship the installation has
+    declared and uses every day. The same question phrased more plainly was
+    answered, which is the worst kind of intermittency: the product looked as
+    though it had an opinion about the wording.
+
+    Falls back to the window if the full catalogue cannot be read, so a
+    degraded catalogue narrows the plan rather than failing it.
+    """
+    rows = [
+        {"id": r.relationship_id, "from_dataset": r.from_dataset,
+         "from_field": r.from_field, "to_dataset": r.to_dataset,
+         "to_field": r.to_field, "cardinality": r.cardinality,
+         "join_policy": r.join_policy, "temporal_rule": r.temporal_rule,
+         "semantic": r.semantic, "version": r.version,
+         "match_rate": r.match_rate, "confidence": 1.0,
+         "validated_at": True if r.match_rate is not None else None}
+        for r in governed_context.all_relationships()
+    ]
+    if rows:
+        return rows
     return [
         {"id": r.relationship_id, "from_dataset": r.from_dataset,
          "from_field": r.from_field, "to_dataset": r.to_dataset,
@@ -2724,12 +2827,20 @@ def _two_periods(reading: Reading, context: GovernedContext, text: str, *,
 
 def _two_period_summary(conditions: list[Condition],
                         filters: list[tuple[str, str]],
-                        opening: str, closing: str, grain: str) -> str:
+                        opening: str, closing: str, grain: str,
+                        logic: str = "") -> str:
+    """The headline, said the way the plan combines the conditions.
+
+    `logic` comes from the predicate tree once the plan exists. Without it the
+    conditions read as a comma-separated list, which says "and" whatever the
+    question said — so "Stage 2 borrowers NOT on watchlist" was headed "where
+    on the watchlist" over rows that were not.
+    """
     where = " ".join(v for _, v in filters)
     subject = f"{where} {grain}s" if where else f"{grain}s"
     if not conditions:
         return f"How {subject} moved between {opening} and {closing}."
-    stated = ", ".join(c.describe() for c in conditions)
+    stated = logic or ", ".join(c.describe() for c in conditions)
     return f"All {subject} where {stated}, measured between {opening} and {closing}."
 
 

@@ -102,6 +102,12 @@ class Condition:
         # "covenant headroom at or above 25" is 25 what — percent, times,
         # notches? The field says which, and the field is governed.
         unit = "%" if self.kind == "change_pct" else _unit_of(self.field)
+        # Checked before the numeric branch on purpose: in Python a boolean IS
+        # an int, so a governed state read back through it came out as
+        # "watchlist exactly 1" — arithmetically true and unrecognisable to
+        # the person who asked for borrowers on the watchlist.
+        if isinstance(self.value, bool):
+            return self.label if self.value else f"not {self.label}"
         if not isinstance(self.value, (int, float)):
             return f"{self.label} is {self.value}"
         if self.kind == "order":
@@ -112,6 +118,8 @@ class Condition:
                     "eq": "exactly"}.get(self.op, self.op)
             return f"{self.label} {word} {self.value:g}{unit}"
 
+        if self.value == 0 and self.op == "eq":
+            return f"{self.label} was unchanged"
         if self.value == 0:
             # An ordinal grade does not "rise". It is downgraded, and reading it
             # back as "internal rating rose" makes a correct answer look wrong
@@ -217,6 +225,12 @@ FIELD_LABELS = {
     "covenant_headroom_pct": "covenant headroom",
     "headroom_pct": "covenant headroom", "dscr": "DSCR",
     "raroc_pct": "RAROC", "ifrs9_stage": "IFRS 9 stage",
+    # Governed STATES, written as the whole predicate rather than as a noun.
+    # A state condition has no comparison to read back — being in the state is
+    # the test — so the label carries the verb: "watchlist exactly 1" is a
+    # correct condition that no credit officer would recognise as theirs.
+    "watchlist": "on the watchlist", "breached": "in covenant breach",
+    "liquidity_coverage_months": "months of liquidity cover",
 }
 
 #: What people call each governed field. Longest phrase wins, so "expected

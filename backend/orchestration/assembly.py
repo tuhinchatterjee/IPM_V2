@@ -22,6 +22,8 @@ from typing import Any
 
 from backend.orchestration import analysis_planner as ap
 from backend.orchestration import capability as cap
+from backend.orchestration import dynamic as dyn
+from backend.orchestration import gate
 from backend.orchestration.executor import ExecutedStep, Investigation
 from backend.orchestration.interpreter import Finding, Metric, Narrative
 from backend.orchestration.schema import (
@@ -962,7 +964,11 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
         metrics.append(Metric(label=f"{build.grain.title()}s matching",
                               value=0, unit="count", direction="up-is-bad"))
     else:
-        stated = ", ".join(c.describe() for c in build.conditions)
+        # The Boolean structure the plan applied, where there is one. A
+        # comma-separated list reads as a conjunction whatever the question
+        # said, so "Stage 2 borrowers NOT on watchlist" was headed "where on
+        # the watchlist" above rows that were not on it.
+        stated = _stated(build)
         direct = (f"{count} {_subject(build, count)} where {stated}, between "
                   f"{build.opening} and {build.closing}.")
         metrics.append(Metric(label=f"{build.grain.title()}s matching",
@@ -1181,13 +1187,31 @@ def _nothing_matched(build: ap.AnalysisBuild) -> str:
         lead = (f"None of {subject} is in {_lower(found.label)} "
                 f"{_or_list(found.wanted)}")
     else:
-        conditions = ", ".join(c.describe() for c in build.conditions)
+        conditions = _stated(build)
         lead = f"None of {subject} match {conditions or where or 'the conditions asked for'}"
 
     instead = _where_they_sit(build) if usable else ""
     if not instead:
         return f"{lead} at {at}."
     return f"{lead}; {instead} at {at}."
+
+
+def _stated(build: ap.AnalysisBuild) -> str:
+    """The conditions, combined the way the plan combined them.
+
+    One helper rather than four copies of `", ".join(...)`, because every one
+    of those copies asserted a conjunction the plan may not have applied.
+    """
+    enforcement = getattr(build, "enforcement", None)
+    if enforcement is not None:
+        # The headline form: `_subject` has already said "Stage 2 customers",
+        # so repeating the stage as a condition is noise a reader reads twice
+        # before deciding it means something.
+        said = getattr(enforcement, "headline", "") or getattr(
+            enforcement, "logic", "")
+        if said:
+            return str(said)
+    return ", ".join(c.describe() for c in build.conditions)
 
 
 def _where_they_sit(build: ap.AnalysisBuild) -> str:
@@ -1255,9 +1279,19 @@ def _subject(build: ap.AnalysisBuild, count: int) -> str:
     explicitly where it is a code, because "3 3 facilities" is not a sentence.
     """
     grain = _plural(build.grain, count)
+    enforcement = getattr(build, "enforcement", None)
+    tree = getattr(enforcement, "tree", None) if enforcement is not None else None
+    if tree is not None and not tree.empty and not tree.is_conjunction():
+        # Under a disjunction a governed value is a BRANCH, not a property of
+        # every row. "500 customers in IFRS 9 stage 3 where (PD rose and rating
+        # downgraded) or stage is 3" says the stage held for all of them, and
+        # for most of them it did not. The full logic is in the sentence
+        # already; the subject stays the bare population.
+        return grain
     adjectives = [v for f, v in build.filters
                   if not str(v).isdigit() and len(str(v)) > 2]
-    coded = [f"{f} {v}" for f, v in build.filters
+    coded = [f"{dyn.FIELD_LABELS.get(f, f.replace('_', ' '))} {v}"
+             for f, v in build.filters
              if str(v).isdigit() or len(str(v)) <= 2]
     subject = " ".join([*adjectives, grain])
     if coded:
@@ -1289,11 +1323,21 @@ def _interpretation(build: ap.AnalysisBuild, runtime: Any, count: int) -> str:
                 "dates, so the change is a movement in the book rather than a "
                 "change in what was counted.")
     if build.shape in (ap.COHORT, ap.MOVEMENT) and build.conditions:
+        # From the plan that ran, not from the question that was asked. The
+        # sentence this replaced was composed from the READING, so it claimed
+        # every condition had been tested whenever every condition had been
+        # UNDERSTOOD — and a condition understood and then dropped on the way
+        # to the runtime produced a population that met one of two conditions
+        # under a sentence swearing it met both.
+        if build.enforcement is not None:
+            said = gate.population_sentence(
+                build.enforcement, grain=build.grain,
+                opening=build.opening, closing=build.closing)
+            if said:
+                return said
         stated = " and ".join(c.describe() for c in build.conditions)
         return (f"These are the {build.grain}s where {stated} held together "
-                f"between {build.opening} and {build.closing}. Each condition "
-                "was tested on the same joined population, so the count is the "
-                "intersection rather than the sum of three lists.")
+                f"between {build.opening} and {build.closing}.")
     if build.shape == ap.RANKING and build.filters:
         scope = ", ".join(v for _, v in build.filters)
         return (f"Shares are of {scope} exposure, not of the whole book — the "

@@ -59,6 +59,14 @@ DIRECTIONS: tuple[Direction, ...] = (
                     r"jump\w*|climb\w*|expand\w*", "up"),
     Direction("down", r"decreas\w*|fell|fall\w*|drop\w*|lower|down\b|"
                       r"shrank|shrink\w*|contract\w*|reduc\w*", "down"),
+    # No movement at all, which is a condition and not the absence of one.
+    # "Unchanged ratings but materially rising PD" asks for borrowers whose
+    # rating held while their PD moved — a divergence, and the whole point of
+    # the question. Read as no condition it becomes "rising PD", which is a
+    # much larger population and a different finding.
+    Direction("unchanged", r"unchanged|\bflat\b|stable|steady|no change|"
+                           r"(?:did not|didn't|has not|hasn't) (?:move|change)|"
+                           r"held steady|stayed the same", "flat"),
     # Bounds.
     Direction("no_fall", r"(?:did not|didn't|has not|hasn't|no|without)\s+"
                          r"(?:fall|decline|decrease|drop|reduc\w*)", "up_floor"),
@@ -110,6 +118,50 @@ class Movement:
     unit: str = "absolute"
     bound: str = ""
     phrase: str = ""
+
+
+#: Words that carry no measure between a name and the movement asserted of it.
+#: "was downgraded", "a downgrade", "the increase in" — stripping these is what
+#: lets the reader see that nothing but a movement word is left.
+_FILLER = re.compile(
+    r"\b(?:a|an|the|is|are|was|were|be|been|has|have|had|its|their|this|that|"
+    r"in|of|on|to|by|and)\b|[^\w%]+", re.IGNORECASE)
+
+
+def phrase_asserts_movement(phrase: str) -> Movement | None:
+    """The movement a concept's OWN phrase asserts, where it asserts one.
+
+    This is the other half of the masking rule below, and leaving it out was a
+    release-blocking defect. "Which customers were downgraded and had expected
+    credit loss rise?" resolves "downgraded" to the internal rating — the word
+    is how the rating concept is named in that sentence — and the mask then
+    blanked it out before looking for a movement. Nothing was left to find, no
+    condition was built, no filter reached the plan, and the answer returned
+    every customer whose ECL rose whether or not they had been downgraded. The
+    heading said both conditions; the rows honoured one.
+
+    The distinction is whether the movement word is the WHOLE phrase or only a
+    part of it. "probability of credit deterioration" is the NAME of a measure
+    and asserts nothing; "downgraded" is an assertion and names nothing. So the
+    movement has to account for the entire phrase once ordinary filler is
+    removed — which "deterioration" inside a five-word noun phrase does not.
+    """
+    text = str(phrase or "").strip()
+    if not text:
+        return None
+    found: tuple[int, int] | None = None
+    for direction in DIRECTIONS:
+        at = re.search(direction.pattern, text.lower())
+        if at and (found is None or at.start() < found[0]):
+            found = (at.start(), at.end())
+    if found is None:
+        return None
+    remainder = text[:found[0]] + " " + text[found[1]:]
+    if _FILLER.sub(" ", remainder).strip():
+        # Something other than the movement word is in the phrase, so the
+        # phrase names a measure and the word is part of the name.
+        return None
+    return find_movement(text)
 
 
 def _mask(clause: str, phrase: str) -> str:
@@ -224,6 +276,13 @@ def condition_for(match: Any, movement: Movement | None) -> Condition | None:
         rising = True
     elif kind in {"down", "down_floor"}:
         rising = False
+    elif kind == "flat":
+        # Neither direction: the measure is asserted not to have moved.
+        comparison = "change_abs"
+        return Condition(
+            field=match.field, kind=comparison, op="eq", value=0.0,
+            phrase=movement.phrase or movement.direction.id,
+            higher_is_worse=higher_is_worse)
     else:  # pragma: no cover - the enum above is closed
         return None
 
@@ -272,8 +331,9 @@ def condition_for(match: Any, movement: Movement | None) -> Condition | None:
 # happens in condition_for() above, against the governed concept.
 
 _SPLIT = re.compile(
-    r"\s*(?:,\s*(?:and|or|but)?\s*|\band\b|\bwhile\b|\balong ?with\b|"
-    r"\btogether with\b|\bas well as\b|\bplus\b|;)\s*", re.IGNORECASE)
+    r"\s*(?:,\s*(?:and|or|but)?\s*|\band\b|\bor\b|\bbut\b|\bwhile\b|"
+    r"\balong ?with\b|\btogether with\b|\bas well as\b|\bplus\b|;)\s*",
+    re.IGNORECASE)
 
 
 def clauses(question: str) -> list[str]:
@@ -334,6 +394,11 @@ def movement_near(question: str, phrase: str, *,
     """
     if not phrase:
         return None
+    # A phrase that IS a movement word asserts it. Checked before the clause
+    # walk because the mask below would otherwise erase the only evidence.
+    asserted = phrase_asserts_movement(phrase)
+    if asserted is not None:
+        return asserted
     for clause in clauses(question):
         if _mentions(clause, phrase):
             # A movement word INSIDE the concept's own phrase is part of the
@@ -416,10 +481,23 @@ class Threshold:
     phrase: str = ""
 
 
+#: "90+ DPD", "30+ days past due". The plus sign IS the comparison, and a
+#: reader that only knew the word "above" dropped the condition from every
+#: question written the way a collections book writes it.
+_PLUS_BOUND = re.compile(
+    r"\b(?P<value>\d+(?:\.\d+)?)\s*\+\s*"
+    r"(?P<unit>%|percent|days?|dpd|bps|notch(?:es)?)?", re.I)
+
+
 def find_threshold(text: str) -> Threshold | None:
     """The level test in a fragment, if it states one."""
     match = _THRESHOLD.search(text or "")
     if match is None:
+        plus = _PLUS_BOUND.search(text or "")
+        if plus is not None:
+            return Threshold(op="gte", value=float(plus.group("value")),
+                             unit=(plus.group("unit") or "").lower().strip(),
+                             phrase=plus.group(0).strip())
         return None
     op = _threshold_op(match.group("word"))
     if not op:
@@ -453,10 +531,55 @@ def threshold_condition(match: Any, threshold: Threshold | None) -> Any:
     concept = match.concept
     if concept.is_categorical:
         return None
+    if getattr(concept, "is_state", False):
+        # A state has no scale, so a number standing near it in the sentence
+        # belongs to something else. "Covenant breach or 90+ DPD" produced
+        # `breached >= 90` — a comparison between a boolean and a number that
+        # the database refuses at the point the answer is due, and that would
+        # have been worse if it had silently succeeded.
+        return None
     return Condition(
         field=match.field, kind="level", op=threshold.op,
         value=threshold.value, phrase=threshold.phrase,
         higher_is_worse=concept.higher_is_worse)
+
+
+#: A state named as something to REPORT rather than to require. "Watchlist
+#: borrowers by sector" wants a breakdown; "borrowers on the watchlist" wants
+#: the watchlist. Only the first of those is not a condition, so the guard is
+#: narrow: the state has to be introduced by a grouping or reporting word.
+_REPORTED = (r"\b(?:by|per|across|grouped by|broken down by|for each|"
+             r"for every)\s+{phrase}\b"
+             r"|\b{phrase}\s+(?:breakdown|split|distribution|status|mix)\b")
+
+
+def state_condition(match: Any, question: str = "") -> Any:
+    """The Condition a governed STATE implies when a question names it.
+
+    A state is not a measure and not a category: it is a thing a borrower is
+    either in or not. Naming one asserts it, which is why it needs neither a
+    direction nor a threshold to become a condition — and why a reader that
+    demanded one dropped "on watchlist" and "in covenant breach" from every
+    question that used them.
+
+    The negative reading is NOT handled here. "Not on watchlist" is the same
+    predicate with the sentence's Boolean structure around it, and putting the
+    negation in the leaf would negate it twice on the paths that also read the
+    structure.
+    """
+    from backend.orchestration.dynamic import Condition
+
+    concept = getattr(match, "concept", None)
+    if concept is None or not getattr(concept, "is_state", False):
+        return None
+    phrase = str(getattr(match, "phrase", "") or "")
+    if question and phrase:
+        spelling = re.escape(phrase).replace(r"\ ", r"\s+")
+        if re.search(_REPORTED.format(phrase=spelling), question, re.I):
+            return None
+    return Condition(
+        field=match.field, kind="level", op="eq", value=True,
+        phrase=phrase, higher_is_worse=True)
 
 
 __all__ = [
@@ -469,6 +592,8 @@ __all__ = [
     "find_movement",
     "find_threshold",
     "movement_near",
+    "phrase_asserts_movement",
+    "state_condition",
     "threshold_condition",
     "threshold_near",
 ]

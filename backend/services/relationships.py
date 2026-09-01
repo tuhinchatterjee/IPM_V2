@@ -191,6 +191,15 @@ GOVERNED_RELATIONSHIPS: list[ShippedRelationship] = [
     _r("climate_risk", "customer_id", "borrower_financials", "customer_id",
        ONE_TO_ONE, "key", "The borrower this climate assessment describes.",
        temporal_rule=NO_PERIOD),
+    # The liquidity domain. Registered as a dataset without a join, which left
+    # every question combining liquidity with anything else — "Shipping
+    # borrowers with rising utilisation and worsening liquidity" — refused for
+    # want of a governed path, while the two tables sat in the same catalogue
+    # keyed on the same customer.
+    _r("liquidity_buffer", "customer_id", "borrower_financials", "customer_id",
+       ONE_TO_ONE, "key", "The borrower whose liquidity position this is.",
+       "One liquidity reading per borrower per reporting period: cash, "
+       "undrawn committed lines and the debt service they have to meet."),
     _r("group_structure", "customer_id", "borrower_financials", "customer_id",
        ONE_TO_ONE, "key", "The borrower's place in its obligor group.",
        temporal_rule=NO_PERIOD),
