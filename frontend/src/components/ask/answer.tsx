@@ -1070,6 +1070,20 @@ export function AnswerBlock({
           whyMultiple={narrative.why_multiple}
         />
 
+        {/* ------------------------------- 4b. A READING, NOT A MEASUREMENT
+          R2 §9 and §23. Below the grounded reading and above the figures,
+          because that is where it belongs in the argument: the analyst may go
+          past what the evidence says, and a reader must be able to see where
+          that started. Renders nothing when the analyst offered no
+          hypothesis, which is the ordinary case for a question the figures
+          answer on their own. */}
+        <Hypothesis
+          interpretation={run.analyst?.interpretation}
+          alternatives={run.analyst?.alternatives}
+          confirmOrRefute={run.analyst?.confirm_or_refute}
+          externalContext={run.analyst?.external_context}
+        />
+
         {/* --------------------------------------------------- 5. PRIMARY VISUAL */}
         {narrative.metrics.length > 0 && (
           <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">

@@ -1354,6 +1354,30 @@ export interface InvestigationResponse {
   mode: RunMode;
   stages: Stage[];
   compound?: CompoundAnswer;
+  /**
+   * The analyst's own investigation of the same question, when one ran.
+   * R2 §9 and §23: the reading it formed is carried apart from the answer so
+   * the screen can mark it as a reading rather than as a measurement.
+   */
+  analyst?: AnalystInvestigation;
+}
+
+/** What the governed investigation loop produced. R2 §9, §23. */
+export interface AnalystInvestigation {
+  path: string;
+  outcome?: string;
+  answer?: string;
+  findings?: string[];
+  unavailable?: string[];
+  limitations?: string[];
+  /** The reading, kept apart from the facts it rests on. */
+  interpretation?: string;
+  alternatives?: string[];
+  confirm_or_refute?: string[];
+  external_context?: string[];
+  analyst_available?: boolean;
+  why?: string;
+  cost?: QuestionCost;
 }
 
 export interface Briefing {

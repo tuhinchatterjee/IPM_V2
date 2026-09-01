@@ -213,7 +213,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/early-warning/signals",
     label: "Early Warning Signals",
     description:
-      "The governed conditions this book is watched for, borrower by borrower. Not one score: 34 named tests across eight families, each with a threshold, an owner and a version, and each traceable to the field it read. The screen also names what it cannot watch for.",
+      "The governed conditions this book is watched for, borrower by borrower. Not one score: 34 named tests across eight families, each with a threshold, an owner and a version, and each traceable to the field it read. Where a test could not be run on a borrower, the screen says so on that signal rather than in a blanket list.",
     icon: ListChecks,
     status: "live",
     phase: "",
