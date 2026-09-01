@@ -158,9 +158,17 @@ _DATA_WORD = re.compile(r"\bdata\b|\binformation\b", re.IGNORECASE)
 # as a filter, the other contains the word "coverage", which is a governed
 # MEASURE here as well as a property of a dataset. A period question asks about
 # the periods; a book question mentions one.
+#: A closed set of qualifiers that may sit between "which" and "periods".
+#: "Which reporting periods do we hold?" is the same question as "which
+#: periods do we hold?", and the adjective in the middle was enough to make
+#: the catalogue reader disown it — after which the analytical planner tried
+#: to count reporting periods over the book.
+_PERIOD_WORD = r"(?:reporting\s+|data\s+|available\s+|governed\s+)?"
+
 _PERIODS = re.compile(
-    r"\bwhat\s+periods?\b|\bwhich\s+periods?\b"
-    r"|\bwhat\s+quarters?\b|\bwhich\s+quarters?\b"
+    rf"\bwhat\s+{_PERIOD_WORD}periods?\b|\bwhich\s+{_PERIOD_WORD}periods?\b"
+    rf"|\bwhat\s+{_PERIOD_WORD}quarters?\b"
+    rf"|\bwhich\s+{_PERIOD_WORD}quarters?\b"
     r"|\b(?:periods?|quarters?|years?|history)\s+(?:is|are|does|do)\s+"
     r"[\w\s]{0,30}\b(?:published|available|covered|loaded)\b"
     r"|\bhow\s+much\s+history\b|\bhow\s+far\s+back\b"
@@ -173,6 +181,22 @@ _PERIODS = re.compile(
     r"|^\s*(?:the\s+)?(?:earliest|latest|first|last)\s+period\s*\??$"
     r"|\bdata\s+(?:cover|covers|go|goes)\s+(?:back\s+)?"
     r"|\bperiod\s+coverage\b|\btime\s+series\s+length\b",
+    re.IGNORECASE)
+
+#: Asking what THIS DEPLOYMENT holds. "Which reporting periods do we hold?"
+#: names no dataset and no domain, so the gate below would not claim it — and
+#: it has no reading as a question about borrowers either, which left it
+#: answered by the analytical planner as a count over the book.
+#:
+#: Narrow on purpose: the subject has to be the deployment ("we", "CreditProbe",
+#: "the platform") or the data's own state ("loaded", "installed", "published"),
+#: not merely a first-person verb.
+_WE_HOLD = re.compile(
+    r"\b(?:do|does|can)\s+(?:we|you|it|creditprobe|the platform|the system)\b"
+    r"|\b(?:we|creditprobe|the platform|the system)\s+(?:hold|holds|have|has|"
+    r"carry|carries|cover|covers)\b"
+    r"|\bare\s+(?:loaded|installed|published|available|governed)\b"
+    r"|\bis\s+(?:loaded|installed|published|available|governed)\b",
     re.IGNORECASE)
 
 #: "How many quarters of DPD history are there?" needs no named dataset to be
@@ -396,7 +420,8 @@ def read(question: str) -> Request | None:
     field_named = _field_named(text)
     if _PERIOD_COUNT.search(text) or (
             _PERIODS.search(text) and (dataset_named or domain_named
-                                       or catalogue_word or field_named)):
+                                       or catalogue_word or field_named
+                                       or _WE_HOLD.search(text))):
         return Request(kind=Kind.PERIODS, question=text,
                        subject=dataset_named or domain_named or field_named,
                        why="It asks which reporting periods are published.",

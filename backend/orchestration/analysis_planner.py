@@ -259,6 +259,22 @@ def plan(reading: Reading, context: GovernedContext, *,
     carrying = bool(continuation and continuation.carries_context and state
                     and state.has_analysis)
 
+    # Carrying a POPULATION is not the same as carrying a PLAN, and the two
+    # were gated on one flag. `has_analysis` asks whether an analysis has run,
+    # which is the right precondition for a modification — "show only the five
+    # largest" has nothing to modify without one. It is the wrong precondition
+    # for a population: the user said Shipping, and that is true whether or not
+    # a plan was ever built.
+    #
+    # The thread this broke is §26's: turn one asks why Shipping deteriorated,
+    # CreditProbe asks which figure to measure, and every turn afterwards ran
+    # over the whole book because the clarification left no IR behind. The
+    # population was on the state, the continuation said to keep it, and this
+    # one flag threw it away.
+    carrying_population = bool(
+        continuation and continuation.carries_context and state
+        and state.filter_pairs())
+
     # Concepts the question names, plus the ones the conversation is already
     # about. "Show only the five largest sectors" names no measure at all; it
     # means the measure of the answer it is modifying, and re-resolving from the
@@ -327,7 +343,7 @@ def plan(reading: Reading, context: GovernedContext, *,
         # this path, it did: every other branch below inherits the thread's
         # filters and this one built its own from the sentence alone.
         composite_filters = _filters(reading, context, text)
-        if carrying:
+        if carrying or carrying_population:
             composite_filters = _inherit_filters(
                 composite_filters, state, context, continuation, text)
         build = _composite_ranking(
@@ -356,7 +372,7 @@ def plan(reading: Reading, context: GovernedContext, *,
     planning_notes: list[str] = []
     filters = _filters(reading, context, text, planning_notes)
     _note_unresolved_dimensions(text, matches, planning_notes)
-    if carrying:
+    if carrying or carrying_population:
         filters = _inherit_filters(filters, state, context, continuation,
                                     text)
     inherited_top_n = (state.top_n if carrying and state and not _explicit_top_n(text)

@@ -1615,6 +1615,58 @@ def _population_steps(build: ap.AnalysisBuild) -> list[str] | None:
 # ------------------------------------------------------------- remembering
 
 
+#: Entity kinds that name a POPULATION rather than a measure or a date. A
+#: clarification about which figure to compute does not put the population in
+#: question, so these survive it.
+_POPULATION_KINDS: frozenset[str] = frozenset({
+    "sector", "industry", "stage", "rating", "grade", "segment", "region",
+    "country", "product", "portfolio", "group", "watchlist",
+})
+
+
+def _keep_the_population_the_question_named(state: cv.ConversationState,
+                                            answered: Answered) -> None:
+    """Hold on to the population a clarified question named. R2 §6.
+
+    A turn that ends in a clarification settles nothing, and that is right
+    almost everywhere: answering "which figure did you mean?" should continue
+    the thread rather than restart it, so the settled values must survive
+    untouched.
+
+    It is wrong in exactly one place. On the FIRST turn there is nothing to
+    continue from, and the population the question itself named is dropped
+    with everything else. "Why did Shipping deteriorate this quarter?" was
+    read correctly — the reader resolved the sector — and then CreditProbe
+    asked which figure to measure and forgot which sector it had been asked
+    about, so the reply landed on the whole book.
+
+    So: only when the state has no population, and only for entity kinds that
+    name a population rather than a measure or a date. The user said Shipping.
+    The clarification is about which figure, not about which sector, and
+    nothing about the ambiguity puts the sector in doubt.
+    """
+    if not state.filter_pairs():
+        found: list[dict[str, str]] = []
+        for entity in getattr(answered.reading, "entities", ()) or ():
+            kind = str((entity or {}).get("kind") or "").lower()
+            value = str((entity or {}).get("value") or "")
+            if kind in _POPULATION_KINDS and value:
+                found.append({"kind": kind, "value": value})
+        if found:
+            state.filters = found
+
+    # The quarter, for the same reason and with the same restraint. "Why did
+    # Shipping deteriorate THIS QUARTER" names a reporting period as
+    # definitely as it names a sector, and a thread that kept the sector while
+    # losing the quarter would answer a different question just as
+    # confidently — which is the failure mode this whole rule exists to stop.
+    if not state.periods:
+        periods = [str(p) for p in
+                   (getattr(answered.reading, "periods", ()) or ()) if p]
+        if periods:
+            state.periods = periods
+
+
 def remember(state: cv.ConversationState, answered: Answered, *,
              headline: str = "", run_id: int | None = None
              ) -> cv.ConversationState:
@@ -1641,6 +1693,7 @@ def remember(state: cv.ConversationState, answered: Answered, *,
     ))
 
     if answered.runtime is None or answered.build is None:
+        _keep_the_population_the_question_named(state, answered)
         return state
 
     if not int(getattr(answered.runtime, "row_count", 0) or 0):
