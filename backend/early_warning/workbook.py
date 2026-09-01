@@ -143,7 +143,7 @@ def borrower(standing: sg.Standing) -> bytes:
                 _value(component["current"]),
                 _value(component["previous"]),
                 _value(component["movement"]),
-                _value(component["threshold"]),
+                component["threshold_reads"] or _value(component["threshold"]),
                 component["status"],
                 component["severity"],
                 component["persistence"],
@@ -170,7 +170,10 @@ def borrower(standing: sg.Standing) -> bytes:
     for observation in standing.observations:
         row = _write(page, row, [
             observation.label, observation.dataset, observation.field_name,
-            observation.test, _value(observation.threshold),
+            observation.test,
+            (tx.BY_KEY[observation.signal].threshold_reads
+             if observation.signal in tx.BY_KEY
+             else _value(observation.threshold)),
             observation.unit, observation.threshold_owner,
             observation.threshold_version])
     _widths(page, [38, 30, 30, 14, 14, 12, 24, 10])

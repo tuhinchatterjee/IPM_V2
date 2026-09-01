@@ -172,11 +172,17 @@ function ComponentRow({
           <Movement value={component.movement} />
         </td>
         <td className="py-2 pr-3 text-text-secondary">
-          <Cell
-            value={component.threshold}
-            unit={component.unit}
-            currency={currency}
-          />
+          {/* The phrase, not the signed number: a ratio test encodes "at or
+              below 5%" as -5.0, and printing that beside a current value of
+              2.6% marked "over threshold" asks the reader to reconcile three
+              things that do not add up. */}
+          {component.threshold_reads || (
+            <Cell
+              value={component.threshold}
+              unit={component.unit}
+              currency={currency}
+            />
+          )}
         </td>
         <td className="py-2 pr-3">
           <span className={over ? "text-negative" : "text-text-secondary"}>

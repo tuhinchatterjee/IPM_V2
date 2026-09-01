@@ -72,8 +72,8 @@ High.
 | Level | Borrowers | Share |
 | --- | --- | --- |
 | HIGH | 898 | 28.1% |
-| MEDIUM | 1,379 | 43.1% |
-| LOW | 919 | 28.8% |
+| MEDIUM | 935 | 29.3% |
+| LOW | 1,363 | 42.6% |
 
 3,196 borrowers assessed at Q2 2026. Twenty-eight per cent High is high for a
 portfolio, and this portfolio is stressed by construction: 12.9% in covenant

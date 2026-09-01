@@ -74,6 +74,10 @@ class Component:
     previous: Any = None
     movement: float | None = None
     threshold: Any = None
+    #: The threshold as a phrase. The raw number alone is misleading on a
+    #: ratio test, where a negative value encodes "at or below" rather than a
+    #: negative quantity.
+    threshold_reads: str = ""
     unit: str = tx.COUNT
     status: str = WITHIN
     severity: str = tx.WATCH
@@ -96,6 +100,7 @@ class Component:
             "layer": self.layer, "layer_name": self.layer_name,
             "current": self.current, "previous": self.previous,
             "movement": self.movement, "threshold": self.threshold,
+            "threshold_reads": self.threshold_reads,
             "unit": self.unit,
             "currency": tx.CURRENCY if self.unit == tx.MONEY else "",
             "status": self.status,
@@ -187,6 +192,7 @@ def _component(observation: sg.Observation) -> Component:
         family=observation.family, layer=layer_key, layer_name=named,
         current=observation.value, previous=observation.previous,
         movement=observation.movement, threshold=observation.threshold,
+        threshold_reads=signal.threshold_reads if signal else "",
         unit=observation.unit, status=status,
         severity=observation.severity,
         persistence=_persistence(observation),

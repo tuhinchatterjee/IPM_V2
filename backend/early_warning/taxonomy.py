@@ -360,25 +360,48 @@ class Signal:
     def columns(self) -> tuple[str, ...]:
         return (self.field, self.against) if self.against else (self.field,)
 
+    @property
+    def threshold_reads(self) -> str:
+        """The line this signal holds a borrower to, as a phrase.
+
+        The raw number is not enough on its own, and on one test it is
+        actively misleading. A RATIO_ABOVE with a NEGATIVE threshold means
+        "at or below that many per cent" — the sign is how the engine encodes
+        the direction, not a negative quantity — so a screen printing "-5.0%"
+        beside a current value of 2.6% and a status of "over threshold" is
+        asking the reader to reconcile three things that do not add up.
+        """
+        if self.test == TRUE:
+            return "recorded"
+        if self.test == EQUALS:
+            return f'equals "{self.threshold}"'
+        if self.test == CHANGED:
+            return "any change from the previous period"
+        if self.test == ABOVE:
+            return f"at or above {self.threshold}"
+        if self.test == BELOW:
+            return f"below {self.threshold}"
+        if self.test == ROSE_BY:
+            return f"up {self.threshold} or more"
+        if self.test == FELL_BY:
+            return f"down {self.threshold} or more"
+        if self.test == RATIO_ABOVE:
+            limit = float(self.threshold)
+            if limit < 0:
+                return f"at or below {abs(limit):g}%"
+            return f"at or above {limit:g}%"
+        if self.test == RATIO_ROSE_BY:
+            return f"up {self.threshold} points or more"
+        return str(self.threshold)
+
     def sentence(self) -> str:
         """The threshold, said as a person would say it."""
         if self.test == TRUE:
             return self.label
-        if self.test == ABOVE:
-            return f"{self.label} ({self.field} at or above {self.threshold})"
-        if self.test == BELOW:
-            return f"{self.label} ({self.field} below {self.threshold})"
-        if self.test == ROSE_BY:
-            return f"{self.label} ({self.field} up {self.threshold} or more)"
-        if self.test == RATIO_ABOVE:
-            return (f"{self.label} ({self.field} over {self.against} at or "
-                    f"above {self.threshold}%)")
-        if self.test == RATIO_ROSE_BY:
-            return (f"{self.label} ({self.field} over {self.against} up "
-                    f"{self.threshold} points or more)")
-        if self.test == FELL_BY:
-            return f"{self.label} ({self.field} down {self.threshold} or more)"
-        return f"{self.label} ({self.field} changed)"
+        if self.test in (RATIO_ABOVE, RATIO_ROSE_BY):
+            return (f"{self.label} ({self.field} over {self.against} "
+                    f"{self.threshold_reads})")
+        return f"{self.label} ({self.field} {self.threshold_reads})"
 
     def to_dict(self) -> dict[str, Any]:
         return {"key": self.key, "family": self.family,

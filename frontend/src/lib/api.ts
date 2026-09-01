@@ -3049,6 +3049,8 @@ export interface ScorecardComponent {
   previous: number | string | null;
   movement: number | null;
   threshold: number | string | null;
+  /** The threshold as a phrase: "at or below 5%", not a signed number. */
+  threshold_reads: string;
   unit: string;
   currency: string;
   status: string;
