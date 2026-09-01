@@ -120,15 +120,28 @@ def classify(question: str) -> str:
 def wants_rows(question: str) -> bool:
     """Whether the answer's primary should be the table.
 
-    True when the question asked for rows and did not ask for a picture. The
-    chart is still built and still offered — §16 says the chart supplements
-    the analysis rather than replacing it — it simply is not what opens.
+    DATA FIRST, GRAPH OPTIONAL. The table is the default and a chart opens
+    only when the question is one whose meaning lives in a shape, or when the
+    reader asked for a picture in so many words.
+
+    This used to be the other way round for anything the vocabulary could not
+    classify: RETRIEVAL got the table, and NEUTRAL fell through to the shape
+    rule, which opens a chart whenever the columns happen to look like axes.
+    "Which datasets carry exposure?" and "how many facilities are past due?"
+    are not written in trend language, so they landed in NEUTRAL and came back
+    as bar charts of things nobody asked to see drawn. Geometry is not a
+    reason. Wanting to see a shape is.
+
+    The chart is still built and still offered — a chart supplements the
+    analysis rather than replacing it — it simply is not what opens.
     """
-    if asked_for_a_chart(question):
-        return False
+    # The table check comes FIRST because "no chart" contains "chart": read in
+    # the other order, an explicit refusal of a picture was a request for one.
     if asked_for_a_table(question):
         return True
-    return classify(question) == RETRIEVAL
+    if asked_for_a_chart(question):
+        return False
+    return classify(question) != VISUAL
 
 
 __all__ = ["NEUTRAL", "RETRIEVAL", "VISUAL", "VIZ_INTENT_VERSION",

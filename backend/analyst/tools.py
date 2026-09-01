@@ -152,30 +152,54 @@ def _plain(value: Any) -> Any:
 
 
 def list_data_domains(principal: Principal, **_: Any) -> Observation:
-    catalog = _catalog()
-    visible = _visible(principal)
-    counts: dict[str, int] = {}
-    for name, dataset in visible.items():
-        del name
-        counts[dataset.domain] = counts.get(dataset.domain, 0) + 1
-    rows = [{"domain": domain, "datasets": count}
-            for domain, count in sorted(counts.items())]
-    del catalog
+    """The business domains, from the one metadata service. §12.
+
+    This used to group the file catalogue by whatever domain each dataset
+    happened to name, which meant a heading with nothing installed under it
+    did not exist — the tool answered "5" where the Data Builder screen said
+    "7" for the same deployment. Both were reading something true and neither
+    was reading the same thing, so both now read `backend.metadata`.
+
+    Domains a heading holds are still filtered to what this principal may see,
+    because the count of DATASETS is a permission-scoped fact even when the
+    list of headings is not.
+    """
+    from backend import metadata as md
+
+    visible = set(_visible(principal))
+    rows = []
+    for heading in md.domains():
+        allowed = [n for n in heading.datasets if n in visible]
+        rows.append({
+            "domain": heading.name,
+            "datasets": len(allowed),
+            "fields": sum(len(md.fields(n)) for n in allowed),
+            "rows_published": sum(
+                (md.dataset(n).row_count if md.dataset(n) else 0)
+                for n in allowed),
+            "owner": heading.owner,
+            "description": heading.description,
+        })
     return Observation(
         tool="list_data_domains", rows=rows, total_rows=len(rows),
-        columns=["domain", "datasets"],
+        columns=["domain", "datasets", "fields", "rows_published", "owner",
+                 "description"],
         purpose="the governed business domains and how many datasets each holds")
 
 
 def list_datasets(principal: Principal, domain: str = "",
                   **_: Any) -> Observation:
-    visible = _visible(principal)
+    from backend import metadata as md
+
+    visible = set(_visible(principal))
+    wanted = md.domain(domain) if domain else None
     rows = [
-        {"dataset": dataset.name, "business_name": dataset.business_name,
-         "domain": dataset.domain, "grain": dataset.grain,
-         "fields": len(dataset.fields), "period_field": dataset.period_field}
-        for dataset in visible.values()
-        if not domain or domain.lower() in dataset.domain.lower()
+        {"dataset": found.name, "business_name": found.business_name,
+         "domain": found.domain, "grain": found.grain,
+         "fields": found.field_count, "period_field": found.period_field}
+        for found in md.datasets()
+        if found.name in visible
+        and (wanted is None or found.name in wanted.datasets)
     ]
     return Observation(
         tool="list_datasets", arguments={"domain": domain},
@@ -206,7 +230,10 @@ def describe_dataset(principal: Principal, dataset: str = "",
             "describe_dataset", {"dataset": dataset},
             f"'{dataset}' is not a governed dataset this question can read. "
             "Use list_datasets to see what is available.")
-    periods = _periods(dataset)
+    from backend import metadata as md
+
+    described = md.dataset(dataset)
+    periods = list(described.periods) if described else _periods(dataset)
     rows = [{
         "dataset": definition.name,
         "business_name": definition.business_name,

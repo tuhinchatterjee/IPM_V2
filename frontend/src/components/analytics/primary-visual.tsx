@@ -8,6 +8,7 @@ import { PeriodPlayback } from "@/components/analytics/period-playback";
 import { ResultTable } from "@/components/analytics/primitives";
 import {
   readPresentation,
+  openingView,
   showingFor,
   subscribePresentation,
   writePresentation,
@@ -68,12 +69,20 @@ export function PrimaryVisual({
   maxRows,
   runId,
   onAsk,
+  chartFirst,
 }: {
   rows: Row[];
   columns?: ColumnSpec[];
   units?: Record<string, string>;
   className?: string;
   maxRows?: number;
+  /**
+   * What the governed visualisation gate decided: true to open the chart,
+   * false to open the table with the chart one click away. Undefined where
+   * the caller has no run to ask about, and then the table opens — DATA
+   * FIRST, GRAPH OPTIONAL. Geometry alone is not a reason to draw something.
+   */
+  chartFirst?: boolean | null;
   /**
    * The analysis this result belongs to. Presentation is remembered against
    * it — §47 — so a reader who switched THIS breakdown to a table finds it as
@@ -126,8 +135,11 @@ export function PrimaryVisual({
   );
 
   // ------------------------------------------- what the reader chose, kept
-  const registryDefault: "chart" | "table" =
-    choice.kind === "table" || choice.kind === "kpi" ? "table" : "chart";
+  // The backend read the QUESTION; this component can only see the shape, and
+  // the shape cannot tell a ranking somebody asked for as a list from a
+  // distribution they asked to see. So the backend's decision wins where
+  // there is one, and where there is none the table opens.
+  const registryDefault = openingView(chartFirst);
   const remembered = React.useSyncExternalStore(
     subscribePresentation,
     () => (runId ? JSON.stringify(readPresentation(runId)) : "{}"),
@@ -143,7 +155,7 @@ export function PrimaryVisual({
       setOverride(next);
       if (runId) writePresentation(runId, { showing: next });
     },
-    [runId],
+    [runId, setOverride],
   );
 
   // The registry names the right form; this build draws six of them. When the

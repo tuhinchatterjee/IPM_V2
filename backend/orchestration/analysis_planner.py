@@ -263,7 +263,13 @@ def plan(reading: Reading, context: GovernedContext, *,
     # about. "Show only the five largest sectors" names no measure at all; it
     # means the measure of the answer it is modifying, and re-resolving from the
     # inherited labels is what turns it into a plan rather than a clarification.
-    inherited_metrics = list(state.metrics or state.concepts) if carrying else []
+    # ...unless the conversation was continued only to keep the POPULATION.
+    # "Show total ECL by sector" mid-thread names its own measure, and adding
+    # the previous turn's on top answered it with exposure at default.
+    scope_only = bool(continuation
+                      and "scope_only" in getattr(continuation, "inherited", {}))
+    inherited_metrics = (list(state.metrics or state.concepts)
+                         if carrying and not scope_only else [])
     resolved = cx.read_concepts(text, known=known, catalogue=catalogue)
     matches = list(resolved.matches)
     carried_concepts: list[str] = []
@@ -311,9 +317,22 @@ def plan(reading: Reading, context: GovernedContext, *,
     # already been reduced to one.
     composite = cmp.find(text, catalogue)
     if composite is not None:
+        # Within the population the conversation has already settled. §6.
+        #
+        # "Show exposure for Financial Services" then "which borrowers are the
+        # real issues?" is one question about one book, and the second
+        # sentence names no sector because the first one did. Running the
+        # composite over the whole portfolio answers a question nobody asked
+        # and reads as though CreditProbe forgot the last turn — which, on
+        # this path, it did: every other branch below inherits the thread's
+        # filters and this one built its own from the sentence alone.
+        composite_filters = _filters(reading, context, text)
+        if carrying:
+            composite_filters = _inherit_filters(
+                composite_filters, state, context, continuation, text)
         build = _composite_ranking(
             composite, reading, context, text,
-            _filters(reading, context, text), catalogue,
+            composite_filters, catalogue,
             top_n=_explicit_top_n(text),
             period=(period[1] if period else ""))
         if continuation is not None:
@@ -338,7 +357,8 @@ def plan(reading: Reading, context: GovernedContext, *,
     filters = _filters(reading, context, text, planning_notes)
     _note_unresolved_dimensions(text, matches, planning_notes)
     if carrying:
-        filters = _inherit_filters(filters, state, context, continuation)
+        filters = _inherit_filters(filters, state, context, continuation,
+                                    text)
     inherited_top_n = (state.top_n if carrying and state and not _explicit_top_n(text)
                        else 0)
     # Governed values are masked out before movement detection. "Contracting"
@@ -593,27 +613,63 @@ def _wants_count(text: str, reading: Reading) -> bool:
                       lowered) is not None)
 
 
+#: "by sector", "per sector", "for each sector", "across sectors", "split by
+#: sector" — the shapes that make a field the ANSWER's axis rather than a
+#: restriction on it.
+_GROUPS_A_FIELD_BY = (
+    r"\b(?:by|per|across)\s+(?:each\s+)?{field}s?\b",
+    r"\bfor\s+(?:each|every)\s+{field}s?\b",
+    r"\b(?:split|broken|break|grouped|group)\s+\w*\s*by\s+{field}s?\b",
+    r"\b{field}\s+(?:breakdown|split|mix|composition)\b",
+)
+
+
+def _groups_by(text: str, field_name: str) -> bool:
+    """Whether the question asks for one row PER value of this field."""
+    word = re.escape(str(field_name or "").replace("_", r"[ _]"))
+    if not word:
+        return False
+    lowered = " ".join(str(text or "").lower().split())
+    return any(re.search(pattern.format(field=word), lowered)
+               for pattern in _GROUPS_A_FIELD_BY)
+
+
 def _inherit_filters(filters: list[tuple[str, str]],
                      state: cv.ConversationState, context: GovernedContext,
-                     continuation: cv.Continuation | None
-                     ) -> list[tuple[str, str]]:
+                     continuation: cv.Continuation | None,
+                     text: str = "") -> list[tuple[str, str]]:
     """Carry the conversation's filters, letting this turn override per field.
 
     Per field rather than wholesale: "only show Contracting" replaces the sector
     the thread had settled, and does not also drop the stage restriction that
     was never mentioned.
+
+    A field the question GROUPS BY is not inherited as a filter. "Show total
+    ECL by sector" after a Financial Services question asks for every sector,
+    and carrying the old restriction answered it with one row — a breakdown of
+    a single group, which is a table with the answer removed from it.
     """
     named = {field_name for field_name, _ in filters}
     out = list(filters)
     carried: list[str] = []
+    dropped: list[str] = []
     for field_name, value in state.filter_pairs():
         if field_name in named:
+            continue
+        if _groups_by(text, field_name):
+            dropped.append(f"{field_name} = {value}")
             continue
         if field_name in context.dimensions and value in context.dimensions[field_name]:
             out.append((field_name, value))
             carried.append(f"{field_name} = {value}")
-    if carried and continuation is not None:
-        continuation.inherited["filters"] = ", ".join(carried)
+    if continuation is not None:
+        if carried:
+            continuation.inherited["filters"] = ", ".join(carried)
+        if dropped:
+            continuation.changes.append(
+                "the question asks for a breakdown by "
+                + ", ".join(name.split(" = ")[0] for name in dropped)
+                + ", so that restriction was not carried forward")
     return out
 
 

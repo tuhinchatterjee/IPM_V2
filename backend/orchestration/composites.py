@@ -217,7 +217,78 @@ LIQUIDITY_STRESS = Composite(
 )
 
 
-COMPOSITES: tuple[Composite, ...] = (LIQUIDITY_STRESS,)
+CREDIT_CONCERN = Composite(
+    key="credit_concern",
+    label="credit concern",
+    # What a credit officer says when they have already narrowed the book and
+    # want the names out of it: "which borrowers are the real issues?", "which
+    # names worry you?", "who are the problem accounts?". This is the second
+    # turn of nearly every real conversation, and it names no measure at all —
+    # so the planner asked "which figure should CreditProbe measure?" of a
+    # reader who had just been shown a sector and wanted the names inside it.
+    #
+    # It is deliberately narrower than "which borrowers": the sentence has to
+    # carry a word of CONCERN. "Which borrowers are in Contracting?" is a
+    # filter and must stay one.
+    pattern=(
+        r"\b(?:real\s+)?(?:issue|problem|concern|worry|worrie)\w*\b"
+        r"|\bwhich\s+(?:names?|ones?|borrowers?|customers?|clients?|"
+        r"counterparties|accounts?)\b[^?]{0,30}\b(?:worry|worries|concern\w*|"
+        r"trouble\w*|bother\w*)\b"
+        r"|\b(?:require|requiring|need|needing|deserve|deserving|warrant\w*)"
+        r"\s+(?:the\s+most\s+|urgent\s+|immediate\s+|closer\s+|closest\s+)?"
+        r"attention\b"
+        r"|\bworst\s+(?:names?|borrowers?|customers?|credits?|accounts?|"
+        r"exposures?|offenders?)\b"
+        r"|\bmost\s+(?:at\s+risk|worrying|concerning|troubl\w+)\b"
+        r"|\bwho\s+(?:are\s+)?(?:the\s+)?(?:bad|weak|troubled|problem)\s+"
+        r"(?:ones?|names?|credits?|borrowers?)\b"
+        r"|\bdeteriorat\w+\s+(?:names?|borrowers?|credits?)\b"),
+    means=("The borrowers carrying the most governed evidence of credit "
+           "difficulty at once: arrears, a stretched limit, weak debt "
+           "service, thin covenant headroom, a watchlist flag, a "
+           "non-performing classification, or a rating that has fallen."),
+    signals=(
+        Signal(key="arrears", dimension="delinquency / arrears",
+               label="In arrears",
+               dataset="portfolio_facility", field="dpd_days",
+               test=ABOVE, value=1),
+        Signal(key="seriously_late", dimension="serious delinquency",
+               label="More than 90 days past due",
+               dataset="portfolio_facility", field="dpd_days",
+               test=ABOVE, value=90),
+        Signal(key="utilisation_high", dimension="facility utilisation",
+               label="Drawn to 90% or more of its limit",
+               dataset="portfolio_facility", field="utilisation_pct",
+               test=ABOVE, value=90.0),
+        Signal(key="weak_debt_service", dimension="debt-service capacity",
+               label="Debt-service coverage below 1.2x",
+               dataset="portfolio_facility", field="dscr",
+               test=BELOW, value=1.2),
+        Signal(key="tight_covenant", dimension="covenant pressure",
+               label="Covenant headroom below 10%",
+               dataset="portfolio_facility", field="covenant_headroom_pct",
+               test=BELOW, value=10.0),
+        Signal(key="watchlisted", dimension="watchlist status",
+               label="On the watchlist",
+               dataset="portfolio_facility", field="watchlist", test=TRUE),
+        Signal(key="non_performing", dimension="non-performing status",
+               label="Classified non-performing",
+               dataset="portfolio_facility", field="npl", test=TRUE),
+        Signal(key="stage_2_or_worse", dimension="IFRS 9 stage",
+               label="In Stage 2 or Stage 3",
+               dataset="portfolio_facility", field="ifrs9_stage",
+               test=ABOVE, value=2),
+    ),
+    absent=("cash and liquidity balances", "upcoming debt maturities",
+            "external rating actions"),
+)
+
+
+# Order matters: `find` returns the FIRST match, and a question naming
+# liquidity specifically wants the liquidity reading rather than the
+# general one, even though "liquidity problems" satisfies both patterns.
+COMPOSITES: tuple[Composite, ...] = (LIQUIDITY_STRESS, CREDIT_CONCERN)
 
 
 @dataclass(frozen=True)
@@ -333,6 +404,6 @@ def _split(composite: Composite,
     return available, missing
 
 
-__all__ = ["ABOVE", "BELOW", "COMPOSITES", "COMPOSITE_VERSION", "Composite",
-           "LIQUIDITY_STRESS", "ROSE_BY", "Resolved", "Signal", "TRUE",
-           "find"]
+__all__ = ["ABOVE", "BELOW", "COMPOSITES", "COMPOSITE_VERSION",
+           "CREDIT_CONCERN", "Composite", "LIQUIDITY_STRESS", "ROSE_BY",
+           "Resolved", "Signal", "TRUE", "find"]

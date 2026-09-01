@@ -260,63 +260,56 @@ DOMAIN_ARCHIVED = "ARCHIVED"
 def domain_overview(session: Session) -> list[dict[str, Any]]:
     """Every data domain, with enough to decide what to do about it.
 
-    A domain landing page that lists names is a table of contents. What a data
-    steward actually needs to know before opening one is how much is in it, how
-    far back it goes, how big it is and whether any of it is published — so that
-    is what this returns, read from the governed catalogue rather than
-    estimated.
+    Read from `backend.metadata`, which is the one authority for what a domain
+    is and what is installed under it. §12.
 
-    Row counts come from the published lake, which means a domain whose datasets
-    are still in draft honestly reports nothing rather than a number that does
-    not exist yet.
+    This screen used to enumerate rows in the `data_domains` table, and there
+    were forty-five of them: seven business headings plus thirty-eight
+    leftovers from an earlier generator taxonomy, every one of them empty. So
+    the screen said "45 domains" while the analyst's own discovery tool said
+    "5" and the domain map said "7" — three answers to one question about one
+    deployment. Whether a stale row still sits in the table is a housekeeping
+    matter; it is not a statement about the bank's data, and it no longer
+    reaches a reader.
+
+    The steward's own edits — description, owner, status, ordering — still
+    come from the database, because those are the fields a steward owns. What
+    is IN a domain comes from the catalogue and the lake.
     """
-    from backend.data_access.duckdb_source import DuckDBSource
+    from backend import metadata as md
 
-    source = DuckDBSource()
-    readable = set(source.datasets())
-
-    by_domain: dict[str, list[DatasetDefinition]] = {}
-    for dataset in session.execute(
-        select(DatasetDefinition).order_by(DatasetDefinition.name)
-    ).scalars():
-        by_domain.setdefault(dataset.domain or "", []).append(dataset)
+    stored = {domain.name: domain for domain in list_domains(session)}
+    published: dict[str, str] = {}
+    for dataset in session.execute(select(DatasetDefinition)).scalars():
+        published[dataset.name] = dataset.lifecycle
 
     out: list[dict[str, Any]] = []
-    for domain in list_domains(session):
-        datasets = by_domain.get(domain.name, [])
-        periods: set[str] = set()
-        rows = 0
-        for dataset in datasets:
-            if dataset.name not in readable:
-                continue
-            found = source.periods(dataset.name)
-            periods.update(found)
-            try:
-                rows += source.row_count(dataset.name)
-            except Exception:  # pragma: no cover - a dataset that will not read
-                logger.warning("Could not count rows in %s", dataset.name)
-
-        ordered = _ordered_periods(periods)
-        published = [d for d in datasets if d.lifecycle == DS_PUBLISHED]
+    for heading in md.domains():
+        found = [md.dataset(name) for name in heading.datasets]
+        datasets = [d for d in found if d is not None]
+        edits = stored.get(heading.name)
         out.append({
-            "name": domain.name,
-            "description": domain.description,
-            "owner": domain.owner,
-            "status": domain.status,
-            "sort_order": domain.sort_order,
+            "name": heading.name,
+            "description": (edits.description if edits and edits.description
+                            else heading.description),
+            "owner": edits.owner if edits and edits.owner else heading.owner,
+            "status": edits.status if edits else DOMAIN_ACTIVE,
+            "sort_order": edits.sort_order if edits else 0,
             "dataset_count": len(datasets),
-            "published_count": len(published),
-            "row_count": rows,
-            "period_count": len(ordered),
-            "first_period": ordered[0] if ordered else None,
-            "last_period": ordered[-1] if ordered else None,
+            "published_count": sum(
+                1 for d in datasets
+                if published.get(d.name) == DS_PUBLISHED),
+            "row_count": heading.row_count,
+            "period_count": len(heading.periods),
+            "first_period": heading.periods[0] if heading.periods else None,
+            "last_period": heading.periods[-1] if heading.periods else None,
             "datasets": [
                 {
                     "name": d.name,
                     "business_name": d.business_name,
-                    "lifecycle": d.lifecycle,
+                    "lifecycle": published.get(d.name, DS_PUBLISHED),
                     "is_synthetic": d.is_synthetic,
-                    "readable": d.name in readable,
+                    "readable": d.readable,
                 }
                 for d in datasets
             ],
@@ -1131,7 +1124,9 @@ def refresh_governed_catalog() -> None:
     opens its own session, so an uncommitted dataset would be invisible to it and
     the refresh would silently do nothing.
     """
+    from backend import metadata as md
     from backend.data_access import reload_catalog, reset_data_source
+    from backend.orchestration import context as governed_context
     from backend.orchestration.vocabulary import reset_vocabulary
 
     reset_data_source()
@@ -1139,6 +1134,12 @@ def refresh_governed_catalog() -> None:
     # The planner's vocabulary of real sectors, regions and periods is read from
     # the governed layer, so publishing new data must invalidate it too.
     reset_vocabulary()
+    # And so is the metadata service, which every surface now reads for the
+    # domain, dataset, field, period and row-count picture. A publish that
+    # left it cached would put the Data Builder screen and the AI back into
+    # disagreement — the exact defect §12 exists to end.
+    md.invalidate()
+    governed_context.invalidate()
 
 
 def dataset_catalog_entry(session: Session, dataset: DatasetDefinition) -> dict[str, Any]:

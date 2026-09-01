@@ -115,6 +115,23 @@ export function subscribePresentation(onChange: () => void): () => void {
  * be asserted without a browser. The registry's judgement is a default and
  * never a lock; a reader who asked for the figures gets the figures.
  */
+/**
+ * Which view opens, before the reader has said anything.
+ *
+ * DATA FIRST, GRAPH OPTIONAL. The table opens unless the governed
+ * visualisation gate — which read the QUESTION, not just the column shape —
+ * said a chart should. This component can only see geometry, and geometry
+ * cannot tell a ranking somebody asked for as a list from a distribution they
+ * asked to see: both are a label column and a number column. So the screen
+ * stopped guessing from the shape, and a result with no decision attached
+ * opens as the rows.
+ */
+export function openingView(
+  chartFirst: boolean | null | undefined,
+): "chart" | "table" {
+  return chartFirst === true ? "chart" : "table";
+}
+
 export function showingFor(
   registryDefault: "chart" | "table",
   remembered: Presentation,

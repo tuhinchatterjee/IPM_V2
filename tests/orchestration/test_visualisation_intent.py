@@ -173,12 +173,19 @@ class TestTheSelectorObeysTheQuestion:
         assert chosen.chart_first is True
         assert chosen.source == "asked"
 
-    def test_no_question_leaves_the_old_behaviour_exactly_as_it_was(self):
-        """The gate is additive. Every caller that passes no question — and
-        every stored result replayed without one — sees what it saw before."""
+    def test_no_question_still_chooses_a_chart_but_does_not_open_it(self):
+        """A result replayed with no question keeps its chart, as the table.
+
+        This used to assert `chart_first is True` — the shape rule decided,
+        and a subject column beside a measure column opened as a bar chart.
+        §11 reverses that default: DATA FIRST, GRAPH OPTIONAL. Geometry alone
+        is not evidence that anybody wanted to see a picture, and with no
+        question there is no other evidence to have. The chart is still
+        chosen, still named, and still one click away.
+        """
         chosen = vz.choose(RANKING_COLUMNS, RANKING_ROWS)
-        assert chosen.chart_first is True
-        assert chosen.source == "shape"
+        assert chosen.chart == vz.HORIZONTAL_BAR
+        assert chosen.chart_first is False
 
     def test_an_empty_result_still_draws_nothing(self):
         chosen = vz.choose(RANKING_COLUMNS, [],

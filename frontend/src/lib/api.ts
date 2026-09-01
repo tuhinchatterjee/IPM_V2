@@ -395,6 +395,15 @@ export interface AnalysisRunResponse {
   trace: TraceGraph;
   node_hashes: Record<string, string>;
   analysis_run_id: number | null;
+  /**
+   * What the governed visualisation gate decided about this result: whether a
+   * chart should OPEN, or whether the table is the answer and the chart is
+   * offered beside it. The screen used to re-derive this from the column
+   * shape alone, which is blind to what was asked — so "which datasets carry
+   * exposure?" came back drawn as a bar chart because its two columns
+   * happened to look like axes.
+   */
+  visual?: { chart?: string; chart_first?: boolean; reason?: string } | null;
 }
 
 export interface StoredTrace {

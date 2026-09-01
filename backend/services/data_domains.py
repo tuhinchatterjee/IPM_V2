@@ -202,6 +202,13 @@ for _domain in DOMAINS:
         _BY_CATALOGUE[_key] = _domain.name
     for _dataset in _domain.datasets:
         _BY_DATASET[_dataset.strip().lower()] = _domain.name
+    # A heading is its own catalogue domain. The catalogue was renamed to
+    # these seven headings after this map was written, and the map went on
+    # looking only for the generator's older spellings — so `ifrs9_staging`,
+    # sitting in a catalogue domain literally called "IFRS 9 / ECL", came back
+    # UNPLACED. Twelve datasets fell out of the map that way, and a dataset
+    # that no heading claims is a dataset a person cannot find on the screen.
+    _BY_CATALOGUE.setdefault(_domain.name.strip().lower(), _domain.name)
 
 
 def business_domain(*, dataset: str = "", catalogue_domain: str = "") -> str:

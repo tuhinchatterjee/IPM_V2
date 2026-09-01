@@ -442,6 +442,7 @@ function ResultBody({
             maxRows={compact ? 6 : 25}
             runId={run.analysis_run_id}
             onAsk={onAsk}
+            chartFirst={run.visual?.chart_first ?? null}
           />
         </div>
       );

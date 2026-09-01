@@ -218,6 +218,11 @@ _RESET: tuple[str, ...] = (
     r"\bacross the (?:whole|entire|full) (?:portfolio|book)\b",
     r"\bfor the (?:whole|entire|full) (?:portfolio|book)\b",
     r"\buse the (?:whole|entire|full) (?:portfolio|book)\b",
+    # "Now show me the whole portfolio's total exposure." Three of the four
+    # patterns above need a preposition in front of "the whole portfolio",
+    # and the plainest way a person says it has none — so the sentence read
+    # as an ordinary continuation and kept the sector it was asking to drop.
+    r"\bthe (?:whole|entire|full|complete) (?:portfolio|book|bank|group)s?\b",
 )
 
 #: Asking for more data than the current scope holds.
@@ -415,6 +420,49 @@ def read(question: str) -> Reference:
                      action=action, changes=changes, because=because)
 
 
+#: A sentence that states its OWN population. Any of these means the reader
+#: has said which book they want, so nothing is inherited: a named dimension
+#: value ("in Contracting", "Stage 2", "rated BB"), or an explicit widening
+#: ("across the portfolio", "the whole book", "every borrower").
+_STATES_ITS_OWN_SCOPE: tuple[str, ...] = (
+    r"\b(?:across|for|in|within|over)\s+(?:the\s+)?"
+    r"(?:whole|entire|full|total)?\s*(?:book|portfolio|bank|group)\b",
+    # "Now show me the whole portfolio's total exposure" carries no
+    # preposition and is the plainest way there is of saying "stop filtering".
+    r"\b(?:whole|entire|full|complete)\s+(?:book|portfolio|bank|group)s?\b",
+    r"\b(?:portfolio|bank)[- ]wide\b",
+    r"\ball\s+(?:borrowers?|customers?|facilities|accounts?|sectors?|names?)\b",
+    r"\bevery\s+(?:borrower|customer|facility|account|sector|name)\b",
+    r"\bstage\s*[123]\b",
+    r"\brated?\s+[A-C]{1,3}[+-]?\b",
+)
+
+
+def states_its_own_scope(text: str, dimensions: Any = None) -> bool:
+    """Whether this sentence says which population it is about. §6.
+
+    Two ways it can. It can widen or restate the scope in words, or it can
+    name a governed dimension value — a sector, a region, a segment — in which
+    case that value IS the population and inheriting the previous one on top
+    of it would answer about the intersection of two books.
+    """
+    lowered = " ".join(str(text or "").lower().split())
+    if not lowered:
+        return False
+    if any(re.search(pattern, lowered) for pattern in _STATES_ITS_OWN_SCOPE):
+        return True
+    values = getattr(dimensions, "dimensions", dimensions) or {}
+    try:
+        for named in values.values():
+            for value in named:
+                word = str(value).lower()
+                if len(word) > 3 and word in lowered:
+                    return True
+    except Exception:  # noqa: BLE001 - no vocabulary is not a scope statement
+        return False
+    return False
+
+
 def refine(reference: Reference, memory: Any) -> Reference:
     """Sharpen a syntactic reading against what the last turn actually produced.
 
@@ -476,11 +524,69 @@ def resolve(question: str, state: cv.ConversationState, *,
         logger.info("Referent guardrail: keeping context for %r (%s)",
                     question[:70], read_back.because)
 
+    if action == cv.NEW_REQUEST and _stays_in_the_population(question, state):
+        # §6. The thread has settled a population and this sentence does not
+        # name one of its own, so it is a question ABOUT that population.
+        #
+        # "Show exposure for Financial Services" and then "which borrowers are
+        # the real issues?" is one conversation about one book. The second
+        # sentence carries no referent word, so every reader here called it a
+        # new request and the analysis ran over the whole portfolio — an answer
+        # that looks right, is arithmetically correct, and is about a different
+        # set of borrowers than the person is looking at.
+        #
+        # The narrowness is the safety. A sentence that names a sector, a
+        # stage, a rating band or the whole book states its own scope and is
+        # left alone; only a sentence that states none inherits one.
+        action = cv.CONTINUE
+        because = ("the question names no population of its own, so it "
+                   "continues the one the conversation settled")
+        carried = _finish(question, read_back, action, state, because)
+        # Scope only. The sentence stated its own measure — the guardrail's
+        # claim is about WHICH BORROWERS, not about which figure — and adding
+        # the previous turn's measure on top answered "show total ECL by
+        # sector" with exposure at default.
+        carried.inherited["scope_only"] = (
+            "the population was carried; the measure came from this question")
+        return carried
+        logger.info("Population guardrail: continuing %s for %r",
+                    ", ".join(f"{k} = {v}" for k, v in state.filter_pairs())
+                    or "the previous scope", question[:70])
+
     if action == cv.NEW_REQUEST:
         return cv.Continuation(action=cv.NEW_REQUEST,
                                because=read_back.because or "a new request")
 
     return _finish(question, read_back, action, state, because)
+
+
+def _stays_in_the_population(question: str,
+                             state: cv.ConversationState) -> bool:
+    """Whether a fresh-looking sentence is still about the settled population.
+
+    True only when there IS a settled population, the sentence names none of
+    its own, and the question is an analytical one — a question about the
+    catalogue mid-investigation is not narrowed by the sector the reader
+    happens to be looking at.
+    """
+    if not state.filter_pairs():
+        return False
+    try:
+        from backend.orchestration import capability as cap
+        from backend.orchestration.vocabulary import get_vocabulary
+
+        # A question about the CATALOGUE has no population to inherit. "What
+        # fields are available in the ratings data?" mid-thread is its own
+        # request, and narrowing the field list to the sector the reader
+        # happens to be looking at is not a narrower answer, it is a wrong
+        # one — a dataset's schema does not vary by sector.
+        intent, _, _ = cap.recognise(question)
+        if intent != cap.Capability.ANALYSIS:
+            return False
+        vocabulary = get_vocabulary()
+    except Exception:  # noqa: BLE001 - without it, do not guess
+        return False
+    return not states_its_own_scope(question, vocabulary)
 
 
 #: Actions the sentence settles on its own. A model reading cannot improve on

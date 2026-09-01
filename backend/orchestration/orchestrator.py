@@ -36,10 +36,12 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from backend.llm import get_provider, is_configured, provider_status
+from backend.metadata import answers as mda
+from backend.metadata import questions as mdq
 from backend.orchestration import analysis_planner as ap
 from backend.orchestration import (
     analyst,
@@ -299,6 +301,25 @@ def answer(question: str, *, context: Any = None,
         question,
         concepts=list(state.concepts or state.metrics),
         datasets=list(state.datasets) or list(memory.datasets))
+
+    # A question about the CATALOGUE is answered from the catalogue, and the
+    # decision needs no model at all. This is checked before the router, for
+    # two reasons. The first is correctness: "How many datasets are in the
+    # IFRS 9 data domain? List them." was read as a count over the book and
+    # answered "20,500 count of connected group size at Q2 2026" — the
+    # analytical path did exactly what it is for, and should never have been
+    # asked. The second is cost: a catalogue question has an answer that is
+    # already known, so paying a model to rediscover it is slower and less
+    # reliable than reading it.
+    # Read from the user's OWN words. The spelling normaliser is tuned for
+    # the bank's vocabulary — sector names, concept names — and turned "to
+    # assess a borrower's credit risk" into "to assets a borrowers credit
+    # risk", which is harmless for matching a concept and wrong to quote back
+    # in a sentence that repeats what was asked.
+    catalogue_question = mdq.read(original)
+    if catalogue_question is not None:
+        return _from_catalogue(original, question, catalogue_question,
+                               fixed, started, state=state, memory=memory)
 
     # Which route answers this, decided before any model is called. Cheap,
     # deterministic and recorded: a request whose route nobody can see is a
@@ -761,6 +782,121 @@ def _first_clause(question: str, context: Any) -> tuple[str, Any]:
         logger.info("Could not retrieve for the first clause of %r: %s",
                     question, e)
         return question, context
+
+
+#: Metadata questions whose subject, when unstated, is whatever the
+#: conversation is already about.
+_INHERITS_A_SUBJECT = frozenset({
+    "PERIODS", "ROW_COUNT", "FIELD_LIST", "DATASET_DETAIL", "RELATIONSHIP",
+})
+
+
+def _catalogue_subject(request: Any, state: cv.ConversationState,
+                       memory: Any) -> Any:
+    """The subject a bare catalogue question inherits from the thread.
+
+    "What IFRS 9 data do you have?" and then "What is the latest period?" is
+    one conversation about one dataset. The second sentence names none, and
+    answering it about the whole catalogue is the same forgetting §6 is
+    about, arriving on the metadata path instead of the analytical one.
+    """
+    from backend.metadata import service as svc
+
+    # Only where a missing subject MEANS "the one we are discussing". "What
+    # datasets do you have?" and "what data is installed?" are about the whole
+    # catalogue by construction, and giving them the thread's dataset turned a
+    # question about 46 datasets into a question about one.
+    if request.kind not in _INHERITS_A_SUBJECT:
+        return request
+
+    # A subject that names no governed dataset or domain is not a subject.
+    # "What is the latest period?" resolves `period` — the name of the period
+    # COLUMN — which is true and useless, and kept the question from
+    # inheriting the dataset the conversation was about.
+    named = request.subject
+    if named and (svc.dataset(named) is not None or svc.domain(named) is not None):
+        return request
+
+    # The working memory is the right place to look: it records what the last
+    # TURN was about, including the many turns that are not analyses, which is
+    # exactly the case here — "What IFRS 9 data do you have?" settles a
+    # dataset without running anything, so the analytical state stays empty.
+    carried: list[str] = []
+    if str(getattr(memory, "current_subject_type", "")).upper() == "DATASET":
+        carried.append(str(getattr(memory, "current_subject", "")))
+    carried.extend(str(n) for n in (getattr(memory, "datasets", ()) or ()))
+    carried.extend(str(n) for n in (getattr(state, "datasets", ()) or ()))
+    for name in carried:
+        if name and svc.dataset(name) is not None:
+            return replace(request, subject=name,
+                           why=(f"{request.why} It is about {name}, which the "
+                                f"conversation is already discussing."))
+    for name in list(getattr(memory, "domains", ()) or ()) + list(
+            getattr(state, "domains", ()) or ()):
+        if name and svc.domain(str(name)) is not None:
+            return replace(request, subject=str(name))
+    return request
+
+
+def _from_catalogue(original: str, question: str, request: Any,
+                    fixed: Any, started: float, *,
+                    state: cv.ConversationState | None = None,
+                    memory: Any = None) -> Answered:
+    """Answer a question about the data from the one metadata service. §12-§14.
+
+    Produces the same `Answered` every other route produces, so the API, the
+    Trace and the answer panel need to know nothing about this path. The
+    reading is recorded honestly: it was made deterministically, from the
+    question's own nouns, with no model consulted.
+    """
+    if state is not None:
+        request = _catalogue_subject(request, state, memory)
+    reading = cap.Reading(
+        intent=cap.Capability.DATA_DISCOVERY,
+        objective=request.why,
+        conversation_action=cv.NEW_REQUEST,
+        operation="list",
+        confidence=request.confidence,
+        reasoning=request.why,
+        source="catalogue",
+    )
+    answered = Answered(
+        question=original, reading=reading,
+        # A question about the catalogue is its own request — it is not a
+        # modification of the analysis on screen. Recording it as one keeps
+        # the Trace honest AND keeps the analytical population alive: the
+        # state a metadata turn does not touch is the state the next
+        # analytical turn inherits.
+        continuation=cv.Continuation(
+            action=cv.NEW_REQUEST,
+            because="the question asks about the catalogue, not the book"),
+        decision=rt.decide(question, deterministic=True),
+        read_as=fixed.text if fixed.changes else "",
+        corrections=list(fixed.changes))
+    try:
+        payload = mda.respond(request)
+    except Exception as e:  # noqa: BLE001 - a stated failure, not a substitution
+        logger.exception("The metadata service failed for %r", question)
+        answered.failure_kind = FAILED_ROUTE
+        answered.failure = (
+            f"CreditProbe could not read its own catalogue to answer that: {e}")
+        answered.duration_ms = int((time.perf_counter() - started) * 1000)
+        return answered
+
+    answered.result = handlers.HandlerResult(
+        answer=payload["answer"], rows=payload["rows"],
+        columns=payload["columns"], values=payload["values"],
+        detail=dict(payload["detail"],
+                    metadata_request=payload["metadata_request"],
+                    visualization=payload["visualization"]),
+        follow_ups=payload["follow_ups"], warnings=payload["warnings"],
+        # Never a chart. A list of datasets is not a distribution and a domain
+        # is not a time series. §11 and §13.
+        chart={},
+        execution=payload["execution"],
+        execution_label=payload["execution_label"])
+    answered.duration_ms = int((time.perf_counter() - started) * 1000)
+    return answered
 
 
 def _from_metadata(answered: Answered, question: str, reading: cap.Reading,
