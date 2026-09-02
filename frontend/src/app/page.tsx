@@ -8,7 +8,7 @@ import { PendingOfficer } from "@/components/agentic/pending";
 import { RequiresAttention } from "@/components/attention/requires-attention";
 import { EarlyWarningStrip } from "@/components/early-warning/cockpit-strip";
 import { BackLink } from "@/components/layout/back-link";
-import { useGreetingName } from "@/components/system/auth";
+import { useGreetingName } from "@/components/system/personalisation";
 import { useCanRunAnalysis } from "@/components/system/role-switcher";
 import { Card } from "@/components/ui/card";
 import { InfoPopover } from "@/components/ui/info-popover";
@@ -70,8 +70,9 @@ function Cockpit() {
   const openFrom = cameFromElsewhere ? arrivedFrom : fromCockpit();
 
   const greeting = useGreeting();
-  // The real first name of whoever is signed in. Empty when nobody is, and the
-  // greeting reads correctly without it rather than falling back to "there".
+  // What this reader has chosen to be greeted by. A PREFERENCE, not the
+  // account: changing it changes the heading and nothing else — not the
+  // identity, the role, the permissions or the audit trail.
   const name = useGreetingName();
   // A Viewer may read what others have produced but may not execute an analysis.
   // The backend refuses it either way; disabling the composer says so before the

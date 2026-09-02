@@ -3989,6 +3989,19 @@ export interface RoleDescription {
   can: string;
 }
 
+/**
+ * What a reader has chosen about how the product looks to them.
+ *
+ * Presentation only: the greeting name is what the Cockpit prints, and the
+ * account, role, permissions and audit identity are untouched by it.
+ */
+export interface Preferences {
+  greeting_name: string;
+  greeting_name_is_default: boolean;
+  default_greeting_name: string;
+  max_length: number;
+}
+
 export const api = {
   // ---- authentication ----
   /**
@@ -4155,6 +4168,15 @@ export const api = {
       `/early-warning/story/${encodeURIComponent(borrowerId)}` +
         (period ? `?period=${encodeURIComponent(period)}` : ""),
     ),
+  /** How this reader wants the product to look. Presentation only. */
+  preferences: () => request<Preferences>("/preferences"),
+  setGreetingName: (greeting_name: string) =>
+    request<Preferences>("/preferences/greeting-name", {
+      method: "PUT",
+      body: JSON.stringify({ greeting_name }),
+    }),
+  resetGreetingName: () =>
+    request<Preferences>("/preferences/greeting-name", { method: "DELETE" }),
   askMode: () => request<PlannerMode>("/ask/mode"),
   askCost: (limit = 50) => request<CostTrace>(`/ask/cost?limit=${limit}`),
   askSuggestions: () =>

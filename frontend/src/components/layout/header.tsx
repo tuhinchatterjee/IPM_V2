@@ -7,6 +7,7 @@ import { PanelLeft } from "lucide-react";
 
 import { AiPowerControl } from "@/components/system/ai-power";
 import { NotificationCentre } from "@/components/collaboration/notifications";
+import { PersonaliseControl } from "@/components/system/personalisation";
 import { BackendStatusIndicator } from "@/components/system/backend-status";
 import { DemoBadge } from "@/components/system/demo-mode";
 import { RoleSwitcher } from "@/components/system/role-switcher";
@@ -80,6 +81,7 @@ export function Header() {
             have to go to — and deliberately out of the Cockpit, whose whole
             claim is that it opens on a question rather than on everything. */}
         <NotificationCentre />
+        <PersonaliseControl />
         <ThemeMenu />
         <RoleSwitcher />
         <BackendStatusIndicator />
