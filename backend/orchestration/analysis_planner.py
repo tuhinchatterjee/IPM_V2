@@ -36,6 +36,7 @@ from backend.orchestration import composites as cmp
 from backend.orchestration import concepts as cx
 from backend.orchestration import context as governed_context
 from backend.orchestration import conversation as cv
+from backend.orchestration import dimensions as dm
 from backend.orchestration import grain as gr
 from backend.orchestration import ordering as od
 from backend.orchestration import semantics as sm
@@ -75,6 +76,12 @@ MAX_TOP_N = 200
 #: summary, the ordering, the share and the Trace exactly like a real measure,
 #: instead of becoming a special case in eight places.
 COUNT_CONCEPT = "population_count"
+
+#: The governed measure a distribution is reported in when the question names
+#: none. Exposure at default rather than "exposure", because the bare word is
+#: ambiguous between three governed amounts and a default must not resolve an
+#: ambiguity the product otherwise asks about.
+DISTRIBUTION_MEASURE = "exposure at default"
 
 #: Aggregations by what the measure IS. Summing a percentage is meaningless and
 #: averaging an exposure hides the book, so neither is left to a default.
@@ -427,6 +434,28 @@ def _plan(reading: Reading, context: GovernedContext, *,
         matches = []
         carried_concepts = []
 
+    # What the answer has one row of, read before anything else looks at the
+    # measures. §D1/§D2: the noun the question asks for decides the grain, and
+    # resolving it after the measure is how "which sectors concern you most?"
+    # became a list of borrowers and "show rating distribution" became one
+    # number.
+    grouping = _dimension(reading, context, text)
+    if grouping.conflicts:
+        raise CannotPlan(
+            f"The question asks for {grouping.entity_phrase} and also asks to "
+            f"group by {grouping.phrase}.",
+            clarification=dm.clarification(grouping))
+
+    # A concept cannot be both the measure and the breakdown. §D2.
+    #
+    # "Show rating distribution" resolved `internal_grade` as the FIGURE and
+    # then grouped by it, so the plan asked for the average rating of each
+    # rating and returned one scalar — 10.00 notches of internal rating. The
+    # noun names what the answer has one row of; it is not what the answer
+    # measures.
+    if grouping.found:
+        matches = [m for m in matches if m.field != grouping.dimension]
+
     # A composite risk concept, before anything else looks at the measures.
     #
     # "Which borrowers have the strongest evidence of liquidity stress?" names
@@ -458,6 +487,12 @@ def _plan(reading: Reading, context: GovernedContext, *,
             composite, reading, context, text,
             composite_filters, catalogue,
             top_n=_explicit_top_n(text),
+            # "Which SECTORS concern you most?" is the same governed
+            # methodology asked at a different grain. The evidence is still
+            # read per borrower — a sector does not have arrears — and then
+            # aggregated to the sector, which is what makes the answer about
+            # sectors rather than a borrower ranking with a sector heading.
+            dimension=(grouping.dimension if grouping.is_head else ""),
             # Only when the sentence POINTED at the previous rows — "which of
             # those", "the second one". A composite ranking that silently
             # pinned itself to whatever the last turn returned would answer
@@ -470,6 +505,24 @@ def _plan(reading: Reading, context: GovernedContext, *,
         if continuation is not None:
             build.continuation = continuation
         return build
+
+    distribution_default = ""
+    if (not matches and not count_grain and grouping.found
+            and grouping.rule in ("named", "breakdown")):
+        # §D2, the distribution contract. "Show sector distribution" names a
+        # governed dimension and no figure, and it has an unambiguous answer:
+        # how the book is spread across those categories. Asking which figure
+        # to measure is asking the reader to specify something the question
+        # already implies, and it is why a distribution question came back as
+        # a clarification rather than a table.
+        #
+        # Stated, never silent: the default reaches the answer's caveats the
+        # same way the governed default period does.
+        more = cx.read_concepts(DISTRIBUTION_MEASURE, known=known,
+                                catalogue=catalogue)
+        if more.matches:
+            matches = list(more.matches)
+            distribution_default = DISTRIBUTION_MEASURE
 
     if not matches and not count_grain:
         raise CannotPlan(
@@ -491,6 +544,31 @@ def _plan(reading: Reading, context: GovernedContext, *,
     if carrying or carrying_population:
         filters = _inherit_filters(filters, state, context, continuation,
                                     text)
+    # A field the question CONSTRAINS is not the field it measures. "Which
+    # sectors have the highest Stage 2 exposure at default?" resolved
+    # `ifrs9_stage` as a measure as well as a filter, so the answer led with
+    # "34.00 IFRS 9 stage in Stage 2" — the sum of a constant, quoted as the
+    # finding. Every row inside the filter carries the same value; there is
+    # nothing there to measure.
+    #
+    # Only where something else survives. A question that names one governed
+    # field and constrains it — "how many are in Stage 2?" — still has that
+    # field as its subject.
+    # Narrow on purpose: only where the question also asks for a BREAKDOWN, and
+    # only where a real measure survives. "How many borrowers are in Stage 2?"
+    # names one governed field and constrains it, and the field is still what
+    # the question is about — dropping it there leaves the plan with nothing to
+    # anchor a dataset on.
+    constrained = {field_name for field_name, _ in filters}
+    survivors = [m for m in matches
+                 if m.field not in constrained
+                 and m.concept.id != COUNT_CONCEPT]
+    if grouping.found and constrained and survivors and len(survivors) < len(matches):
+        dropped = [m for m in matches if m.field in constrained]
+        matches = [m for m in matches if m.field not in constrained]
+        logger.info("Dropped %s as a measure: the question constrains it.",
+                    ", ".join(m.concept.label for m in dropped))
+
     inherited_top_n = (state.top_n if carrying and state and not _explicit_top_n(text)
                        else 0)
     # Governed values are masked out before movement detection. "Contracting"
@@ -511,7 +589,11 @@ def _plan(reading: Reading, context: GovernedContext, *,
         # different one. Dropping the conditions here would quietly turn "the
         # Contracting names that were downgraded" into "every Contracting name".
         conditions = _restore_conditions(state.conditions, matches)
-    dimension = _dimension(reading, context, text)
+    dimension = grouping.dimension
+    if distribution_default:
+        planning_notes.append(
+            f"The question named no figure, so this distribution is measured "
+            f"by {DISTRIBUTION_MEASURE}.")
     if not dimension and carrying and state.dimensions:
         first = state.dimensions[0]
         if first in context.dimensions:
@@ -534,7 +616,8 @@ def _plan(reading: Reading, context: GovernedContext, *,
     wants_grain = gr.requested(
         text, dimension=dimension,
         population_grain=gr.GRAIN_OF_KEY.get(carried_key, ""),
-        rows_requested=bool(_explicit_top_n(text) or inherited_top_n))
+        rows_requested=bool(_explicit_top_n(text) or inherited_top_n),
+        dimension_is_head=grouping.is_head)
     if wants_grain.grain == gr.PORTFOLIO and shape == RANKING:
         shape = AGGREGATE
 
@@ -581,13 +664,151 @@ def _plan(reading: Reading, context: GovernedContext, *,
                                     or "") if carrying else ""),
             fallback_dataset=_fallback_dataset(state if carrying else None),
             preferred_datasets=list(state.datasets) if carrying else None,
+            # A distribution the reader asked for without naming a figure
+            # reports how many borrowers sit in each category as well as how
+            # much money does. §D2.
+            count_members=("customer_id" if distribution_default else ""),
             wants_grain=wants_grain)
+
+    # A cohort asked for at a dimension's grain. §D1.
+    #
+    # "Which SECTORS have borrowers with rising 12-month PD?" selects
+    # borrowers — a sector has no PD — and then has to say which sectors they
+    # are in. Without this the cohort was reported as five hundred customer
+    # rows under a question about seventeen sectors, and the borrowers named
+    # in the sentence are the CONDITION, not the answer's grain.
+    # `build.dimension` is set when the shape ALREADY groups by it — an
+    # aggregate does. `build.grain` is the source's key grain and stays
+    # `facility` even then, so testing it here rolled a by-sector aggregate up
+    # a second time and asked for a column the first grouping had consumed.
+    if (grouping.is_head and grouping.dimension
+            and not build.dimension and build.grain != gr.SEGMENT):
+        build = _roll_up_to_dimension(build, grouping.dimension, text)
 
     if carried_concepts:
         build.carried_concepts = carried_concepts
     if continuation is not None:
         build.continuation = continuation
     build.warnings.extend(planning_notes)
+    return build
+
+
+#: What a rolled-up cohort calls its count of qualifying members.
+COHORT_MEMBERS = "borrowers"
+
+#: Columns that are rates or ratios rather than amounts. Averaged when rolled
+#: up, because a sum of percentages is a number with no unit.
+_RATE_COLUMN = _re.compile(
+    r"(?:_pct|_percent|_ratio|_rate|_pct_change|_coverage|_margin)$"
+    r"|(?:^|_)(?:dscr|utilisation|coverage|pd|lgd|ccf)(?:_|$)")
+
+
+def _is_rate(column: str) -> bool:
+    return bool(_RATE_COLUMN.search(str(column or "").lower()))
+
+
+def _roll_up_to_dimension(build: AnalysisBuild, dimension: str,
+                          text: str) -> AnalysisBuild:
+    """Aggregate an entity-grain result to one row per dimension.
+
+    Appended to the plan the shape already produced rather than composing a
+    different one: the population is selected exactly as it was, and what
+    changes is only what the answer has one row of. So the sectors reported
+    here are the sectors of precisely the borrowers the cohort selected, and
+    the two can never disagree.
+
+    Returns the build unchanged when the plan does not end in the sort-limit
+    tail this can attach to, or when the dimension is not in the frame. A
+    silent partial roll-up would be worse than reporting the entity grain and
+    saying so.
+    """
+    operations = [dict(op) for op in (build.plan or {}).get("operations") or []]
+    sort_at = next((i for i in range(len(operations) - 1, -1, -1)
+                    if str(operations[i].get("op")).upper() == "SORT"), -1)
+    if sort_at < 1:
+        return build
+
+    key = gr.KEY_OF.get(build.grain, "customer_id")
+    try:
+        from backend.data_access import get_catalog
+
+        carries = {d.name: set(d.fields) for d in get_catalog().all()}
+    except Exception:  # noqa: BLE001 - without a catalogue, roll nothing up
+        return build
+    # The frame's own base, which a multi-dataset cohort does not put on the
+    # build: it reads several sources and the first SCAN is the one every
+    # other step joins onto.
+    base = build.dataset or next(
+        (str((op.get("params") or {}).get("dataset") or "")
+         for op in operations if str(op.get("op")).upper() == "SCAN"), "")
+    if dimension not in carries.get(base, set()):
+        logger.info("%s does not carry %r, so the answer stays at %s grain.",
+                    base or "the frame", dimension, build.grain)
+        return build
+
+    # The frame has to READ the column before it can group by it. The scans
+    # were composed for the measures the question named, and a dimension that
+    # is the answer's grain is not one of those.
+    reads = {c for op in operations
+             for c in ((op.get("params") or {}).get("fields") or [])}
+    if dimension not in reads:
+        for index, op in enumerate(operations):
+            params = dict(op.get("params") or {})
+            if (str(op.get("op")).upper() != "SCAN"
+                    or params.get("dataset") != base):
+                continue
+            fields = list(params.get("fields") or [])
+            if dimension not in fields:
+                params["fields"] = sorted({*fields, dimension})
+                operations[index] = {**op, "params": params}
+
+    feeder = (operations[sort_at].get("inputs") or [""])[0]
+    order = list((operations[sort_at].get("params") or {}).get("by") or [])
+
+    aggregates: list[dict[str, Any]] = [
+        {"function": "count_distinct", "column": key, "as": COHORT_MEMBERS}]
+    seen = {COHORT_MEMBERS}
+    for entry in order:
+        column = str(entry.get("column") or "")
+        if column and column not in seen and column != dimension:
+            # A rate does not add up. Summing every borrower's PD movement
+            # produces a number with no unit anyone can name; summing every
+            # borrower's EAD movement is the sector's EAD movement. So the
+            # function follows what the column IS.
+            function = "avg" if _is_rate(column) else "sum"
+            aggregates.append({"function": function, "column": column,
+                               "as": column})
+            seen.add(column)
+    readable = dimension.replace("_", " ")
+    operations.insert(sort_at, {
+        "id": "per_dimension", "op": "GROUP", "inputs": [feeder],
+        "params": {"by": [dimension], "aggregates": aggregates},
+        "label": (f"Aggregate the selected {gr.MEANS.get(build.grain, 'rows')} "
+                  f"to one row per {readable}"),
+    })
+    operations[sort_at + 1] = {**operations[sort_at + 1],
+                               "inputs": ["per_dimension"]}
+    if not order:
+        operations[sort_at + 1] = {
+            **operations[sort_at + 1],
+            "params": {"by": [{"column": COHORT_MEMBERS, "direction": "desc"}]}}
+
+    plan = dict(build.plan or {})
+    plan["operations"] = operations
+    plan["meta"] = {**(plan.get("meta") or {}), "rolled_up_to": dimension}
+    build.plan = plan
+    build.dimension = dimension
+    build.grain = gr.SEGMENT
+    build.grain_contract = gr.Contract(
+        want=gr.requested(text, dimension=dimension, dimension_is_head=True),
+        got=gr.SEGMENT, source_grain=build.grain_contract.source_grain
+        if build.grain_contract else gr.FACILITY,
+        keys=(dimension,),
+        aggregated=[f"Aggregate to one row per {readable}"],
+        pre_aggregated=[])
+    build.summary = (f"{readable.capitalize()}s containing "
+                     f"{build.summary[0].lower() + build.summary[1:]}"
+                     if build.summary else build.summary)
     return build
 
 
@@ -1074,12 +1295,50 @@ def _conditions(text: str, matches: list[cx.ConceptMatch]) -> list[Condition]:
     return out
 
 
-def _dimension(reading: Reading, context: GovernedContext, text: str) -> str:
+def _dimension(reading: Reading, context: GovernedContext,
+               text: str) -> dm.Resolved:
+    """What the answer has one row of, and which rule decided.
+
+    `dimensions.read` is asked first because it reads the NOUN THE QUESTION
+    ASKS FOR — "which sectors", "rating distribution" — which the loops below
+    never did: they saw only an explicit "by X" or a superlative, so a question
+    whose dimension is its subject arrived with no dimension at all and fell
+    through to the source dataset's own grain.
+    """
+    found = dm.read(text, context)
+    if found.found:
+        return found
+
+    # The semantic reader's own dimension, when this one saw none. Kept
+    # SECOND, not first: the reader reports a dimension it recognised in the
+    # sentence and cannot tell a head noun from a breakdown, so consulting it
+    # first threw away the conflict between "the five largest borrowers" and
+    # "grouped by sector" and answered with five sectors.
     if reading.dimensions:
         first = reading.dimensions[0]
         if first in context.dimensions:
-            return first
+            return dm.Resolved(
+                dimension=first, phrase=first.replace("_", " "),
+                rule="breakdown", entity=found.entity,
+                entity_phrase=found.entity_phrase,
+                because="the reading named this dimension")
 
+    legacy = _legacy_dimension(context, text)
+    if legacy:
+        return dm.Resolved(dimension=legacy, phrase=legacy.replace("_", " "),
+                           rule="breakdown", entity=found.entity,
+                           entity_phrase=found.entity_phrase,
+                           because="the sentence names this breakdown")
+    return found
+
+
+def _legacy_dimension(context: GovernedContext, text: str) -> str:
+    """The original phrase matching, kept as the floor under `dimensions`.
+
+    Narrower and older, and it still resolves a handful of shapes the newer
+    reader deliberately does not attempt. Nothing here overrides a governed
+    reading; it only runs when there was none.
+    """
     lowered = text.lower()
     for name in context.dimensions:
         # Both spellings. A governed dimension is `ifrs9_stage`; a person
@@ -1508,6 +1767,7 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
                    inherited_count_of: str = "",
                    fallback_dataset: str = "",
                    preferred_datasets: list[str] | None = None,
+                   count_members: str = "",
                    wants_grain: Any = None) -> AnalysisBuild:
     """AGGREGATE and RANKING: read one period, scope it, group, order, cut.
 
@@ -1802,6 +2062,20 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     # `any_value` is exact here rather than arbitrary: every row inside the
     # group satisfied the equality before the aggregation ran, so they all
     # carry the same value.
+    # How many BORROWERS sit in each category, alongside the amount. §D2's
+    # distribution contract: a reader looking at exposure by rating grade
+    # wants to know whether a grade is one very large name or four hundred
+    # small ones, and the amount alone cannot say.
+    if (count_members and dimension and group_by
+            and count_members in available
+            and count_members not in group_by
+            and not any(a["as"] == COHORT_MEMBERS for a in aggregates)):
+        aggregates.append({"function": "count_distinct",
+                           "column": count_members, "as": COHORT_MEMBERS})
+        if count_members not in read_fields:
+            operations[0]["params"]["fields"] = sorted(
+                set(read_fields) | {count_members})
+
     carried = {a["as"] for a in aggregates} | set(group_by)
     for field_name in filter_fields:
         if field_name not in carried and field_name in available:
@@ -2157,8 +2431,9 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
                        filters: list[tuple[str, str]], catalogue: Any, *,
                        top_n: int = 0,
                        population: cv.Continuation | None = None,
+                       dimension: str = "",
                        period: str = "") -> AnalysisBuild:
-    """Rank borrowers by how much governed evidence of a composite they carry.
+    """Rank by how much governed evidence of a composite is carried.
 
     One row per borrower, ordered by how many of the composite's signals
     fired, then by exposure. Every signal counts once and none is weighted —
@@ -2168,6 +2443,14 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
     every condition at once, and eight conditions over this book leave nobody:
     a true answer to a question nobody asked. "Strongest evidence" ranks the
     population; it does not filter it.
+
+    **`dimension` moves the ANSWER's grain, not the evidence's.** "Which
+    sectors concern you most?" is the same governed methodology asked about a
+    different thing: a sector has no arrears and no covenant headroom, so the
+    signals are still read per facility and reduced per borrower exactly as
+    they are for a borrower ranking, and only then aggregated to the sector.
+    Ranking sectors by anything computed straight off facility rows would
+    weight a sector by how many facilities it happens to be split across.
     """
     dataset = found.dataset
     fields_of = {d.name: set(d.fields) for d in catalogue.all()}
@@ -2201,7 +2484,25 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
                     "composite ranking reports by %r, so it was not applied.",
                     population.entity_key, key)
 
+    # The dimension the answer is at, when the question asked for one. A
+    # dimension the composite's governed source does not carry is refused
+    # rather than approximated from somewhere else: a concern ranking joined
+    # across datasets to reach its grouping column is a different analysis.
+    grouping = dimension if dimension and dimension in available else ""
+    if dimension and not grouping:
+        raise CannotPlan(
+            f"{dataset} does not carry {dimension}, so the "
+            f"{found.composite.label} evidence cannot be reported by it.",
+            clarification=(
+                f"CreditProbe reads {found.composite.label} evidence from "
+                f"{dataset}, which does not hold "
+                f"{dimension.replace('_', ' ')}. Ask for the borrowers and "
+                f"their {dimension.replace('_', ' ')} instead, or ask by a "
+                f"dimension that source carries."))
+
     read = {key, *([name] if name else []), *([size] if size else [])}
+    if grouping:
+        read.add(grouping)
     for signal in found.available:
         read.update(signal.columns)
     for field_name, _ in filters:
@@ -2258,7 +2559,7 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
                   for flag in flags]
     if size:
         aggregates.append({"function": "sum", "column": size, "as": size})
-    group_by = [key] + ([name] if name else [])
+    group_by = [key] + ([name] if name else []) + ([grouping] if grouping else [])
     operations.append({
         "id": "per_borrower", "op": "GROUP", "inputs": [current],
         "params": {"by": group_by, "aggregates": aggregates},
@@ -2275,28 +2576,39 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
     })
     current = "breadth"
 
-    order = [{"column": score, "direction": "desc"}]
-    if size:
-        order.append({"column": size, "direction": "desc"})
+    if grouping:
+        current, order, columns = _composite_by_dimension(
+            operations, current, found, grouping, key, size, flags, score)
+        cut = min(top_n or MAX_TOP_N, MAX_TOP_N)
+    else:
+        order = [{"column": score, "direction": "desc"}]
+        if size:
+            order.append({"column": size, "direction": "desc"})
+        columns = []
+        cut = min(top_n or COMPOSITE_ROWS, MAX_TOP_N)
+
     operations.append({
         "id": "ranked", "op": "SORT", "inputs": [current],
         "params": {"by": order},
         "label": ("Order by weight of evidence, then by exposure"
                   if size else "Order by weight of evidence"),
     })
-    cut = min(top_n or COMPOSITE_ROWS, MAX_TOP_N)
     operations.append({
         "id": "result", "op": "LIMIT", "inputs": ["ranked"],
         "params": {"n": cut},
         "label": f"The {cut} with the most evidence",
     })
 
-    want = gr.requested(text, dataset_grain=gr.CUSTOMER)
-    got = gr.declared(group_by, key=key)
+    want = gr.requested(text, dimension=grouping,
+                        dimension_is_head=bool(grouping),
+                        dataset_grain=gr.CUSTOMER)
+    got = gr.declared([grouping] if grouping else group_by,
+                      key="" if grouping else key,
+                      dimension=grouping)
     contract = gr.Contract(
         want=want, got=got,
         source_grain=multi.DATASET_GRAIN.get(dataset, gr.FACILITY),
-        keys=_grain_keys(got, group_by, ""),
+        keys=_grain_keys(got, [grouping] if grouping else group_by, grouping),
         aggregated=[f"Aggregate to one row per {gr.MEANS.get(got, got)}"],
         pre_aggregated=[])
     if not contract.ok:  # pragma: no cover - the grouping is built to match
@@ -2328,15 +2640,127 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
     summary = (
         f"{subject} ranked by how many of {len(found.available)} governed "
         f"{found.composite.label} signals they show at {at}.")
+    if grouping:
+        readable = grouping.replace("_", " ")
+        where = f" in {named}" if named else ""
+        summary = (
+            f"{readable.capitalize()}s{where} ranked by the share of exposure "
+            f"carried by borrowers showing governed "
+            f"{found.composite.label} evidence at {at}.")
 
     return AnalysisBuild(
         plan={"dataset": dataset, "period": at, "operations": operations,
               "meta": {"composite": found.to_dict(),
-                       "signal_columns": flags, "score_column": score}},
-        shape=RANKING, reading=reading, matches=[], conditions=[],
-        filters=filters, dataset=dataset, grain=gr.CUSTOMER, period=at,
-        dimension="", top_n=cut, warnings=warnings, summary=summary,
-        grain_contract=contract)
+                       "signal_columns": flags, "score_column": score,
+                       "dimension": grouping,
+                       "dimension_columns": columns}},
+        shape=AGGREGATE if grouping else RANKING,
+        reading=reading, matches=[], conditions=[],
+        filters=filters, dataset=dataset,
+        grain=gr.SEGMENT if grouping else gr.CUSTOMER, period=at,
+        dimension=grouping, top_n=0 if grouping else cut, warnings=warnings,
+        summary=summary, grain_contract=contract)
+
+
+#: What a dimension-grain concern answer reports, and in this order. Every one
+#: is counted or summed from the same governed signal flags the borrower
+#: ranking uses; none is weighted and none is invented.
+CONCERN_AT_RISK = "borrowers_with_concern_evidence"
+CONCERN_EXPOSURE = "exposure_with_concern_evidence"
+CONCERN_SHARE = "concern_exposure_pct"
+CONCERN_BORROWER_SHARE = "concern_borrower_pct"
+CONCERN_DEPTH = "avg_signals_per_affected_borrower"
+
+
+def _composite_by_dimension(operations: list[dict[str, Any]], current: str,
+                            found: cmp.Resolved, grouping: str, key: str,
+                            size: str, flags: list[str], score: str
+                            ) -> tuple[str, list[dict[str, str]], list[str]]:
+    """Aggregate per-borrower concern evidence up to one row per dimension.
+
+    Ranked by the SHARE OF EXPOSURE carried by borrowers showing at least one
+    governed signal, not by a count of borrowers. A sector of two hundred
+    small names with one arrear each is not the sector a credit committee
+    should look at first, and a count would put it top.
+
+    Every column is a sum or a count over the flags already derived, plus two
+    ratios of those sums. Nothing here reaches back to the source, so the
+    dimension figures and the borrower figures cannot disagree.
+    """
+    affected = {"type": "case",
+                "whens": [{"when": {"type": "function", "function": "gte",
+                                    "args": [{"type": "column", "name": score},
+                                             {"type": "literal", "value": 1}]},
+                           "then": {"type": "literal", "value": 1}}],
+                "otherwise": {"type": "literal", "value": 0}}
+    derived = [{"as": "shows_concern", "expression": affected}]
+    if size:
+        derived.append({
+            "as": CONCERN_EXPOSURE,
+            "expression": {"type": "function", "function": "multiply",
+                           "args": [{"type": "column", "name": size},
+                                    affected]}})
+    operations.append({
+        "id": "affected", "op": "DERIVE", "inputs": [current],
+        "params": {"columns": derived},
+        "label": "Mark each borrower that shows any governed signal",
+    })
+
+    readable = grouping.replace("_", " ")
+    aggregates: list[dict[str, Any]] = [
+        {"function": "count_distinct", "column": key, "as": "borrowers"},
+        {"function": "sum", "column": "shows_concern", "as": CONCERN_AT_RISK},
+        {"function": "sum", "column": score, "as": "signals_shown"},
+    ]
+    if size:
+        aggregates.append({"function": "sum", "column": size, "as": size})
+        aggregates.append({"function": "sum", "column": CONCERN_EXPOSURE,
+                           "as": CONCERN_EXPOSURE})
+    # One column per signal, so the reader can see WHICH evidence a dimension
+    # carries rather than only how much. A score nobody can decompose is the
+    # thing this layer refuses to produce.
+    aggregates += [{"function": "sum", "column": flag, "as": flag}
+                   for flag in flags]
+    operations.append({
+        "id": "per_dimension", "op": "GROUP", "inputs": ["affected"],
+        "params": {"by": [grouping], "aggregates": aggregates},
+        "label": f"Aggregate to one row per {readable}",
+    })
+
+    shares = [{
+        "as": CONCERN_BORROWER_SHARE,
+        "expression": {"type": "function", "function": "multiply",
+                       "args": [{"type": "function", "function": "safe_divide",
+                                 "args": [{"type": "column", "name": CONCERN_AT_RISK},
+                                          {"type": "column", "name": "borrowers"}]},
+                                {"type": "literal", "value": 100}]}}, {
+        "as": CONCERN_DEPTH,
+        "expression": {"type": "function", "function": "safe_divide",
+                       "args": [{"type": "column", "name": "signals_shown"},
+                                {"type": "column", "name": CONCERN_AT_RISK}]}}]
+    if size:
+        shares.insert(0, {
+            "as": CONCERN_SHARE,
+            "expression": {"type": "function", "function": "multiply",
+                           "args": [{"type": "function", "function": "safe_divide",
+                                     "args": [{"type": "column", "name": CONCERN_EXPOSURE},
+                                              {"type": "column", "name": size}]},
+                                    {"type": "literal", "value": 100}]}})
+    operations.append({
+        "id": "shares", "op": "DERIVE", "inputs": ["per_dimension"],
+        "params": {"columns": shares},
+        "label": (f"How much of each {readable}'s exposure and how many of "
+                  f"its borrowers carry the evidence"),
+    })
+
+    lead = CONCERN_SHARE if size else CONCERN_BORROWER_SHARE
+    order = [{"column": lead, "direction": "desc"}]
+    order.append({"column": CONCERN_EXPOSURE if size else CONCERN_AT_RISK,
+                  "direction": "desc"})
+    columns = [grouping, "borrowers", CONCERN_AT_RISK,
+               *( [size, CONCERN_EXPOSURE, CONCERN_SHARE] if size else []),
+               CONCERN_BORROWER_SHARE, CONCERN_DEPTH, *flags]
+    return ("shares", order, columns)
 
 
 def _signal_expression(signal: cmp.Signal) -> dict[str, Any]:

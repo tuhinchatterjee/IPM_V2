@@ -48,6 +48,7 @@ from backend.orchestration import (
     analyst,
     association,
     compound,
+    dimensions,
     entities,
     followups,
     handlers,
@@ -538,7 +539,7 @@ def answer(question: str, *, context: Any = None,
         if found is not None:
             answered.certified = found
             answered.certified_params = cert.parameters(
-                found, reading, period=period,
+                found, reading, period=period, question=question,
                 periods=list(getattr(context, "periods", [])))
             return finish(answered)
 
@@ -1149,7 +1150,14 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
     # a DRIVER, not as the measure to compute, and the gate read it as the
     # measure — so the question that most needed this method was answered with a
     # menu asking which exposure figure to use.
-    if dcp.wants(question):
+    # ...unless the question asks for a DIMENSION. "Which sectors deteriorated
+    # most this quarter?" names sectors as the thing it wants one row of, and
+    # the bridge is a portfolio attribution: it answered with one opening
+    # balance, one closing balance and five drivers, under a question about
+    # seventeen sectors. The grain the question asks for decides what answers
+    # it, and only a HEAD dimension counts here — "decompose the change in ECL
+    # by sector" still belongs to the bridge.
+    if dcp.wants(question) and not dimensions.read(question).is_head:
         return _decompose_ecl(answered, question, reading, context, period)
 
     # One word, several materially different figures. Asked rather than

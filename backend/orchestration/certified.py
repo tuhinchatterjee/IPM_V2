@@ -164,7 +164,7 @@ def match(question: str, reading: cap.Reading) -> Match | None:
 
 def parameters(found: Match, reading: cap.Reading, *,
                period: tuple[str, str] | None,
-               periods: list[str]) -> dict[str, Any]:
+               periods: list[str], question: str = "") -> dict[str, Any]:
     """The certified analysis's parameters, from the reading.
 
     Only the parameters the contract declares, resolved from what the request
@@ -188,7 +188,81 @@ def parameters(found: Match, reading: cap.Reading, *,
         kind, value = entity.get("kind"), entity.get("value")
         if kind in {"sector", "region", "segment", "product_type"} and value:
             params[str(kind)] = str(value)
+
+    grouped = _grouping(found, question)
+    if grouped:
+        params.update(grouped)
     return params
 
 
-__all__ = ["MIN_OVERLAP", "MIN_PRECISION", "Match", "match", "parameters"]
+#: Parameters a contract uses to name the dimension its answer breaks down by.
+#: Read from the contract rather than assumed: an analysis that does not
+#: declare one cannot be grouped, and asking it to would be inventing a
+#: capability the certified method does not have.
+GROUPING_PARAMS = ("group_by", "dimension", "breakdown", "by")
+
+
+def _grouping(found: Match, question: str) -> dict[str, str]:
+    """The dimension the question asks for, if the contract accepts it.
+
+    "Which sectors deteriorated most this quarter?" named the ECL Movement
+    methodology and named sectors as the thing it wants one row of. The
+    contract declares a `group_by` with `sector` among its allowed values, and
+    the request reached it with `group_by` unset — so a question about
+    seventeen sectors was answered with one portfolio bridge.
+
+    Only a HEAD dimension counts. "Decompose the change in ECL by sector" is
+    already grouped by the phrase the contract's own reader handles, and a
+    question whose dimension is a breakdown rather than its subject is not
+    asking for a different answer shape.
+    """
+    from backend.orchestration import dimensions as dm
+
+    asked = dm.read(question)
+    if not asked.is_head:
+        return {}
+    try:
+        from backend.engine.registry import get_registry
+
+        contract = get_registry().contract(found.analysis_id)
+    except Exception:  # noqa: BLE001 - an unreadable contract groups nothing
+        return {}
+    for parameter in getattr(contract, "parameters", ()) or ():
+        if str(getattr(parameter, "name", "")) not in GROUPING_PARAMS:
+            continue
+        allowed = [str(v) for v in
+                   (getattr(parameter, "allowed_values", None) or [])]
+        if asked.dimension in allowed:
+            return {str(parameter.name): asked.dimension}
+    return {}
+
+
+def declared_dimension(analysis_id: str, question: str) -> str:
+    """A dimension a certified analysis reports at WITHOUT being asked to.
+
+    `stage_distribution` is one row per IFRS 9 stage by construction: it has no
+    `group_by` because there is nothing to choose. The Scope still has to say
+    so, or an answer that is correctly at stage grain reads downstream as a
+    portfolio one.
+
+    Read from the contract's declared OUTPUT fields, so a claim that the answer
+    is broken down by something is a claim the contract itself makes.
+    """
+    from backend.orchestration import dimensions as dm
+
+    asked = dm.read(question)
+    if not asked.found:
+        return ""
+    try:
+        from backend.engine.registry import get_registry
+
+        contract = get_registry().contract(analysis_id)
+    except Exception:  # noqa: BLE001 - an unreadable contract declares nothing
+        return ""
+    fields = {str(getattr(o, "name", "")) for o in
+              (getattr(contract, "outputs", ()) or ())}
+    return asked.dimension if asked.dimension in fields else ""
+
+
+__all__ = ["GROUPING_PARAMS", "MIN_OVERLAP", "MIN_PRECISION", "Match",
+           "declared_dimension", "match", "parameters"]

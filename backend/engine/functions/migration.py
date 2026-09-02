@@ -593,18 +593,30 @@ def ecl_movement(ctx: ExecutionContext) -> AnalysisResult:
             ctx.step(NodeType.AGGREGATION, f"Attribute by {group_by}",
                      config={"group_by": [group_by]}, rows_out=len(breakdown))
 
+    # The rows follow the grain the request asked for. A question naming
+    # sectors — "which sectors deteriorated most this quarter?" — was answered
+    # with the portfolio bridge in the table and the sectors only in the
+    # sentence, so the reader's eye landed on an opening balance under a
+    # heading about seventeen sectors. The arithmetic is untouched: this is
+    # the same attribution, already computed above, put where the answer is.
+    reported = breakdown if breakdown else components
+    grain = (f"One row per {group_by}." if breakdown
+             else "One row per bridge component.")
     return AnalysisResult(
-        rows=components,
+        rows=reported,
         values={"from_period": from_period, "to_period": to_period,
                 "opening_ecl": rounded(opening_ecl, 3), "closing_ecl": rounded(closing_ecl, 3),
                 "net_change": rounded(closing_ecl - opening_ecl, 3),
                 "reconciliation_difference": rounded(difference, 4),
                 "breakdown": breakdown, "group_by": group_by,
+                # The bridge itself, kept whatever the rows are reporting, so
+                # the reconciliation is inspectable from either shape.
+                "components": components,
                 "periods_available": available},
-        units={"value": "SAR mn"},
+        units={"value": "SAR mn", "ecl_change": "SAR mn"},
         input_row_count=int(len(opening) + len(closing)),
         warnings=ctx.warnings,
-        meta={"grain": "One row per bridge component.",
+        meta={"grain": grain,
               "weighting": "Absolute ECL amounts; no weighting applied."},
     )
 

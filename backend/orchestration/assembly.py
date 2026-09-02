@@ -23,7 +23,9 @@ from typing import Any
 from backend.orchestration import analysis_planner as ap
 from backend.orchestration import capability as cap
 from backend.orchestration import dynamic as dyn
+from backend.orchestration import figures as fg
 from backend.orchestration import gate
+from backend.orchestration import grain as gr
 from backend.orchestration.executor import ExecutedStep, Investigation
 from backend.orchestration.interpreter import Finding, Metric, Narrative
 from backend.orchestration.schema import (
@@ -1036,6 +1038,107 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
     )
 
 
+def _composite_by_dimension_narrative(build: ap.AnalysisBuild,
+                                      rows: list[dict[str, Any]], count: int,
+                                      composite: dict[str, Any],
+                                      grouping: str) -> Narrative:
+    """The answer to "which SECTORS concern you most".
+
+    Every figure is read off the row the runtime returned. Nothing is
+    recomputed here: a narrative that derives its own share can disagree with
+    the table under it, and the table is the answer.
+    """
+    label = str(composite.get("label") or "the composite")
+    signals = list(composite.get("signals") or [])
+    readable = grouping.replace("_", " ")
+    top = rows[0]
+    named = str(top.get(grouping) or "")
+    # "7 carries the most governed credit concern evidence" reads as a count.
+    # A code needs its scale named; "Shipping" does not.
+    if named and not any(c.isalpha() for c in named):
+        named = f"{readable.capitalize()} {named}"
+
+    share = top.get(ap.CONCERN_SHARE)
+    affected = int(top.get(ap.CONCERN_AT_RISK) or 0)
+    borrowers = int(top.get("borrowers") or 0)
+    exposure = top.get("ead")
+
+    lead = (f"{named} carries the most governed {label} evidence of the "
+            f"{count} {readable}s in the book.")
+    if share is not None and exposure is not None:
+        lead += (f" {fg.percent(share, decimals=1)} of its "
+                 f"{fg.money(exposure, scale='SAR mn')} sits with the "
+                 f"{affected} of {borrowers} borrowers showing at least one "
+                 f"of {len(signals)} signals.")
+    elif borrowers:
+        lead += (f" {affected} of its {borrowers} borrowers show at least one "
+                 f"of {len(signals)} signals.")
+
+    metrics = [
+        Metric(label=f"Most {label} evidence", value=share, unit="%",
+               direction="negative", hint=named)
+        if share is not None else
+        Metric(label=f"Borrowers showing {label} evidence", value=affected,
+               unit="", direction="negative", hint=named),
+        Metric(label=f"{readable.capitalize()}s reported", value=count,
+               unit="", direction="neutral"),
+    ]
+
+    findings: list[Finding] = []
+    # Which signal the leading group actually carries most of. A share with no
+    # constituents is a score, and a score nobody can decompose is the thing
+    # this whole layer refuses to produce.
+    driver = _primary_driver(top, signals)
+    if driver:
+        findings.append(Finding(
+            text=(f"{named}'s most widespread signal is {driver[0]}, on "
+                  f"{driver[1]} borrowers."),
+            tone="negative",
+            evidence=[_evidence(named, driver[1], "borrowers",
+                                period=build.period or "")]))
+
+    concentrated = [str(r.get(grouping) or "") for r in rows[:5]
+                    if (r.get(ap.CONCERN_SHARE) or 0) >= 50]
+    if len(concentrated) > 1:
+        findings.append(Finding(
+            text=(f"{len(concentrated)} {readable}s carry the evidence on "
+                  f"more than half their exposure: "
+                  f"{_and_list(concentrated)}."),
+            tone="neutral", evidence=[]))
+
+    return Narrative(
+        direct_answer=lead,
+        summary=build.summary,
+        findings=findings,
+        interpretation=(
+            f"Each signal is read per facility, reduced to one answer per "
+            f"borrower, and only then aggregated to the {readable} — a "
+            f"{readable} has no arrears of its own. {readable.capitalize()}s "
+            f"are ordered by the share of exposure carried by borrowers "
+            f"showing evidence, not by how many borrowers show it: a "
+            f"{readable} of many small names with one signal each is not the "
+            f"one a committee looks at first."),
+        interpretation_points=[], metrics=metrics,
+        caveats=list(build.warnings))
+
+
+def _primary_driver(row: dict[str, Any],
+                    signals: list[dict[str, Any]]) -> tuple[str, int] | None:
+    """The signal the most borrowers in this row carry."""
+    best: tuple[str, int] | None = None
+    for signal in signals:
+        column = f"signal_{signal.get('key')}"
+        if column not in row:
+            continue
+        try:
+            borrowers = int(row.get(column) or 0)
+        except (TypeError, ValueError):
+            continue
+        if borrowers and (best is None or borrowers > best[1]):
+            best = (str(signal.get("label") or signal.get("key")), borrowers)
+    return best
+
+
 def _composite_narrative(build: ap.AnalysisBuild, runtime: Any,
                          rows: list[dict[str, Any]], count: int,
                          composite: dict[str, Any]) -> Narrative:
@@ -1058,6 +1161,15 @@ def _composite_narrative(build: ap.AnalysisBuild, runtime: Any,
                 f"governed {label} signals at {build.period}."),
             summary="", findings=[], interpretation="",
             interpretation_points=[], metrics=[], caveats=[])
+
+    # The same evidence asked about at a different grain. "Which sectors
+    # concern you most?" is answered per sector, and the borrower sentence —
+    # "17 borrowers … shows the most, at 0 of 8" — describes a table that is
+    # not the one on the screen.
+    grouping = str(((build.plan or {}).get("meta") or {}).get("dimension") or "")
+    if grouping:
+        return _composite_by_dimension_narrative(
+            build, rows, count, composite, grouping)
 
     top = rows[0]
     best = int(top.get(score) or 0)
@@ -1326,6 +1438,11 @@ def _subject(build: ap.AnalysisBuild, count: int) -> str:
     explicitly where it is a code, because "3 3 facilities" is not a sentence.
     """
     grain = _plural(build.grain, count)
+    # A segment answer says WHICH segment. "17 segments where 12-month PD
+    # rose" names the shape of the table and not the thing it is about, and
+    # the reader asked for sectors.
+    if build.grain == gr.SEGMENT and build.dimension:
+        grain = _plural(build.dimension.replace("_", " "), count)
     enforcement = getattr(build, "enforcement", None)
     tree = getattr(enforcement, "tree", None) if enforcement is not None else None
     if tree is not None and not tree.empty and not tree.is_conjunction():
