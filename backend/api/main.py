@@ -45,6 +45,7 @@ from backend.api.routers import hierarchy as hierarchy_router
 from backend.api.routers import intelligence as intelligence_router
 from backend.api.routers import learning as learning_router
 from backend.api.routers import lenses as lenses_router
+from backend.api.routers import messages as messages_router
 from backend.api.routers import metadata as metadata_router
 from backend.api.routers import playbooks as playbooks_router
 from backend.api.routers import preferences as preferences_router
@@ -288,6 +289,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router.router, prefix=API_PREFIX)
     app.include_router(users_router.router, prefix=API_PREFIX)
     app.include_router(preferences_router.router, prefix=API_PREFIX)
+    app.include_router(messages_router.router, prefix=API_PREFIX)
     app.include_router(data_builder_router.router, prefix=API_PREFIX)
     app.include_router(metadata_router.router, prefix=API_PREFIX)
     app.include_router(engine_router.engine_router, prefix=API_PREFIX)

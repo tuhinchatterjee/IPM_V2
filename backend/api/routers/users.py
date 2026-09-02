@@ -12,9 +12,11 @@ with Argon2id; resetting one is an administrator action recorded in the log.
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import func
 
 from backend.api.auth import Account, normalise_role
 from backend.api.permissions import (
@@ -24,6 +26,7 @@ from backend.api.permissions import (
     Role,
 )
 from backend.config import settings
+from backend.services import collaboration as collab
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +73,18 @@ def _view(row) -> dict:
             email=row.email or "", role=normalise_role(row.role),
             team=row.team or "", is_active=bool(row.is_active),
         ).to_dict(),
+        # What this person DOES, beside what they MAY do. A user table in
+        # which four people are all "ANALYST" cannot tell a sender which of
+        # them owns the shipping book, and picking the wrong reviewer is a
+        # real cost of showing only the permission.
+        "job_title": getattr(row, "job_title", "") or "",
+        "department": getattr(row, "department", "") or "",
         "last_login_at": row.last_login_at.isoformat() if row.last_login_at else None,
         "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": (row.updated_at.isoformat()
+                       if getattr(row, "updated_at", None) else None),
+        "deactivated_at": (row.deactivated_at.isoformat()
+                           if getattr(row, "deactivated_at", None) else None),
     }
 
 
@@ -83,6 +96,8 @@ class UserIn(BaseModel):
     email: str = Field(default="", max_length=200)
     role: str = Field(default="ANALYST", max_length=24)
     team: str = Field(default="", max_length=120)
+    job_title: str = Field(default="", max_length=120)
+    department: str = Field(default="", max_length=120)
 
     @field_validator("email")
     @classmethod
@@ -96,6 +111,8 @@ class UserPatch(BaseModel):
     email: str | None = Field(default=None, max_length=200)
     role: str | None = Field(default=None, max_length=24)
     team: str | None = Field(default=None, max_length=120)
+    job_title: str | None = Field(default=None, max_length=120)
+    department: str | None = Field(default=None, max_length=120)
     is_active: bool | None = None
 
     @field_validator("email")
@@ -222,19 +239,36 @@ def create_user(payload: UserIn, principal: Principal = RequireAdmin) -> dict:
                 detail={"error": "username_taken",
                         "message": f"'{payload.username}' already has an account."},
             )
+        # Two people with one address is two people who cannot be told apart
+        # in a directory, and a message sent to the wrong one of them looks
+        # exactly like a message sent to the right one.
+        address = (payload.email or "").strip()
+        if address and session.query(User).filter(
+                func.lower(User.email) == address.lower()).first():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"error": "email_taken",
+                        "message": f"'{address}' is already in use."},
+            )
         row = User(
             username=payload.username.strip(),
             password_hash=hash_password(payload.password),
             first_name=payload.first_name.strip(),
             last_name=payload.last_name.strip(),
-            email=payload.email,
+            email=address,
             role=role.value,
             team=payload.team.strip(),
+            job_title=payload.job_title.strip(),
+            department=payload.department.strip(),
             is_active=True,
         )
         session.add(row)
         session.flush()
         body = _view(row)
+        collab.audit(session, collab.USER_CREATED, actor_id=principal.user_id,
+                     object_type="user", object_id=str(row.id),
+                     subject_user_id=row.id, username=row.username,
+                     role=row.role, job_title=row.job_title)
         session.commit()
     logger.info("User %s created by %s", body["username"], principal.user_id)
     return body
@@ -270,9 +304,32 @@ def update_user(user_id: int, payload: UserPatch,
             row.role = normalise_role(payload.role).value
         if payload.team is not None:
             row.team = payload.team.strip()
-        if payload.is_active is not None:
-            row.is_active = payload.is_active
+        if payload.job_title is not None:
+            row.job_title = payload.job_title.strip()
+        if payload.department is not None:
+            row.department = payload.department.strip()
+        if payload.is_active is not None and bool(payload.is_active) != bool(row.is_active):
+            row.is_active = bool(payload.is_active)
+            # Deactivation is an act somebody performed, not a state that
+            # drifts. Reactivating clears the flag but not the audit row: the
+            # history of a suspended account has to survive its return.
+            if row.is_active:
+                row.deactivated_at, row.deactivated_by = None, None
+                collab.audit(session, collab.USER_REACTIVATED,
+                             actor_id=principal.user_id, object_type="user",
+                             object_id=str(row.id), subject_user_id=row.id)
+            else:
+                row.deactivated_at = datetime.now(UTC)
+                row.deactivated_by = principal.user_id
+                collab.audit(session, collab.USER_DEACTIVATED,
+                             actor_id=principal.user_id, object_type="user",
+                             object_id=str(row.id), subject_user_id=row.id)
         body = _view(row)
+        collab.audit(session, collab.USER_UPDATED, actor_id=principal.user_id,
+                     object_type="user", object_id=str(row.id),
+                     subject_user_id=row.id,
+                     changed=sorted(k for k, v in payload.model_dump().items()
+                                    if v is not None))
         session.commit()
     return body
 
