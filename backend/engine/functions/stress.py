@@ -11,6 +11,8 @@ otherwise would be the kind of overclaim that discredits everything around it.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pandas as pd
 
 from backend.data_access.catalog import FACILITY_POSITION
@@ -323,6 +325,20 @@ def stress_scenario_basic(ctx: ExecutionContext) -> AnalysisResult:
 # ============================================================ user-defined example
 
 
+def _number(value: Any, fallback: float) -> float:
+    """A supplied number, honouring nought.
+
+    `value or fallback` throws away 0 and 0.0 because both are falsy, which is
+    how a threshold of "everything" became a threshold of 90%.
+    """
+    if value is None:
+        return float(fallback)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(fallback)
+
+
 @register(AnalysisContract(
     id="high_utilisation_watchlist",
     period_requirement=PeriodRequirement.POINT_IN_TIME,
@@ -385,8 +401,14 @@ def stress_scenario_basic(ctx: ExecutionContext) -> AnalysisResult:
 ))
 def high_utilisation_watchlist(ctx: ExecutionContext) -> AnalysisResult:
     period, _, _ = resolve_periods(ctx.source, FACILITY, ctx.params.get("period"), None)
-    threshold = float(ctx.params.get("threshold_pct") or 90.0)
-    top_n = int(ctx.params.get("top_n") or 20)
+    # NOT `ctx.params.get(...) or 90.0`. Nought is falsy, so asking for a 0%
+    # threshold — "show me everything" — was silently rewritten to 90%, and
+    # `top_n=0` to 20. A governed parameter the caller set, replaced without
+    # saying so, is the silent substitution the contract forbids; the contract
+    # has already applied its own defaults by the time this runs, so the `or`
+    # bought nothing and cost that.
+    threshold = _number(ctx.params.get("threshold_pct"), 90.0)
+    top_n = int(_number(ctx.params.get("top_n"), 20))
 
     fields = ["account_id", "customer_id", "borrower_name", "sector", "ead",
               "limit_amount", "utilisation_pct", "prev_utilisation_pct",
@@ -426,10 +448,28 @@ def high_utilisation_watchlist(ctx: ExecutionContext) -> AnalysisResult:
         for _, r in selected.iterrows()
     ]
 
+    # Nothing matched: say what the book actually holds, rather than leaving a
+    # reader to wonder whether the panel is broken. On the current book the
+    # highest utilisation is around 72%, so the governed 90% threshold is
+    # legitimately never met — and an empty answer that cannot explain itself
+    # is indistinguishable from one that failed. The figure below is measured,
+    # not asserted.
+    observed = work.loc[~work["watchlist"].fillna(False).astype(bool),
+                        "utilisation_pct"]
+    highest = rounded(float(observed.max()), 2) if len(observed) else None
+    said = ""
+    if not len(selected):
+        said = (f"No facility is utilised above {threshold:g}%. The highest "
+                f"outside the watchlist is {highest:g}%."
+                if highest is not None else
+                f"No facility is utilised above {threshold:g}%.")
+
     return AnalysisResult(
         rows=rows,
         values={"period": period, "threshold_pct": threshold,
                 "matched": int(len(selected)),
+                "highest_utilisation_pct": highest,
+                "statement": said,
                 "total_ead": rounded(float(selected["ead"].sum()), 2)},
         units={"ead": "SAR mn", "utilisation_pct": "%", "utilisation_change_pp": "pp"},
         input_row_count=int(len(df)),
