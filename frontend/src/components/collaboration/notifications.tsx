@@ -126,7 +126,7 @@ export function NotificationCentre() {
 
           <footer className="border-t border-border px-3.5 py-2">
             <Link
-              href="/workflow"
+              href="/reviews"
               onClick={() => setOpen(false)}
               className="text-[11px] text-accent hover:underline"
             >
@@ -200,7 +200,7 @@ function NotificationLine({
  * notification is conceptually standing even if they clicked from the header.
  */
 export function deepLink(note: NotificationRow): string | null {
-  const from = { href: "/workflow", label: "Workflow", type: "workflow" as const };
+  const from = { href: "/reviews", label: "My reviews", type: "workflow" as const };
   const id = note.object_id;
   if (!id) return null;
 

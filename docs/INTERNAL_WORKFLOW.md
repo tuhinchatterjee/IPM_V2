@@ -10,6 +10,143 @@ Read this before changing anything under `backend/services/collaboration.py`,
 
 ---
 
+## 0. Three concepts, and the boundaries between them
+
+The 1.1 correction exists because these three had blurred into each other. They
+are separate, and the separation is the product:
+
+### A. MESSAGES — all communication between people
+
+Everything one person sends another is a message and stays a message. Plain
+text, a shared analysis, an investigation, a report, a workbook, a review
+request, an action request, a notification from CreditProbe itself. **What a
+message CARRIES never changes what it IS.** A message with an analysis attached
+is not "a shared analysis" filed somewhere else; it is a message that carries an
+analysis, and it lives in the same Inbox and the same Sent as every other
+message. Moving a review request from Open to Responded does not move the
+conversation out of anybody's mailbox either — a request is a message with a
+state, not a record in a different system.
+
+Mailboxes are views over those messages, never folders a message is moved
+between: **Inbox, Sent, Drafts, Archived, Action required.**
+
+### B. WORKFLOW — administrative oversight, and nothing else
+
+`/workflow` is an **administrator-only operational view of how work is running
+across the institution**. Who is active, who has unread work piling up, whose
+review requests have gone past their date, who has stopped signing in. Per user:
+role, team, job title, status, last active, message activity counts, shared
+object counts, and a link to Administration → Users.
+
+It is **not a mailbox**. No conversation is listed there, no message is
+relocated there, and there are no mailbox tabs on it.
+
+It is **not surveillance**. There is no subject line and no message body
+anywhere in it, because there is no route that would return one to an
+administrator. Reading a conversation requires being in it, and administering an
+account is not being in it. Where governance genuinely needs to know who sent
+what to whom, `collaboration_audit` answers that by act rather than by content —
+and `tests/api/test_messaging_corrections.py` sends a message with a unique
+string as its subject and body, then asserts that string appears in neither the
+overview nor the per-user profile.
+
+Non-administrators do not see Workflow in the sidebar, and
+`/api/v1/messages/admin/*` refuses them at the route. The navigation is the
+courtesy; the route is the control.
+
+A person's own review queue — what has been sent to *them* for approval, what
+*they* are waiting on — was never oversight, and now lives at **`/reviews`**
+("My reviews"), which everybody sees.
+
+### C. NOTIFICATIONS — derived, never a separate truth
+
+Every badge, tab, tile and card in the product reads **one** endpoint,
+`GET /api/v1/messages/counts`, through **one** frontend store,
+`frontend/src/lib/attention.ts`. Nothing else fetches counts. Reading a message
+refreshes that store, and the header badge, the mailbox tab, the summary tile
+and the workspace card all move together, immediately, with no reload and no
+route change.
+
+Before the correction each of those four fetched its own number, and they
+drifted the moment one of them forgot a predicate — which is how a badge
+survives a message being read. A count that is sometimes wrong is worse than no
+count, because the reader cannot tell which time it is.
+
+**The audit of every badge in the header**, since there are two and they used to
+overlap:
+
+| Badge | Shows | Source |
+| --- | --- | --- |
+| Envelope (`UnreadMessages`) | unread conversations + open requests addressed to me | `attention_summary`, via the shared store |
+| Bell (`NotificationCentre`) | everything else that happened — an agent run, a data release, a review raised against an object, being named on a workflow item | `workflow.notifications`, excluding `object_type = 'message_thread'` |
+
+They are now **disjoint**. Delivering a message still writes a `notifications`
+row — that row is the record that the person was told, and the audit and the
+message itself depend on nothing here — but the bell no longer counts it,
+because the envelope already does. A reader with one unread message used to see
+a 1 and a 20 with no way to tell whether they were about the same thing.
+
+---
+
+## 0a. The mailbox contract
+
+Each mailbox is one predicate, evaluated in the backend. Nothing below is a
+frontend filter over a wider result, and nothing below is decided by workflow
+state.
+
+| Mailbox / count | Predicate |
+| --- | --- |
+| **Inbox** | a `thread_participants` row for me with `addressed = true` and `archived_at IS NULL`. One row per conversation. |
+| **Unread** | the above, with `read_at IS NULL`. |
+| **Sent** | `messages.sender_user_id = me AND status = 'SENT'`. What I sent — never what happened to it afterwards, and never derived from `request_status`. |
+| **Drafts** | `messages.sender_user_id = me AND status = 'DRAFT'`. A draft has no recipients until it is sent. |
+| **Archived** | addressed participation with `archived_at IS NOT NULL`. Archiving is a fact about MY copy; the conversation stays in everybody else's Inbox. |
+| **Action required** | distinct SENT messages naming me in `message_recipients` whose `request_type` is `review` or `action` and whose `request_status` is still open. A filter over messages, not a queue they were moved into. Being copied into a thread is not being asked to do something. |
+| **Shared with me** | un-revoked `object_shares` rows in my name. |
+
+Three consequences worth stating, because each was a reported defect:
+
+* **Sending to yourself is a real send.** People mail themselves constantly — to
+  file a result where they will see it tomorrow, to keep a copy of what they
+  sent a colleague, to check a share works before using it on somebody else.
+  A self-addressed message appears **once in Sent and once in Inbox**, unread,
+  and any governed object on it is granted to the sender like any other
+  recipient. `_resolve_recipients` deliberately does not filter `sender_id`;
+  previously it did, which left the message with no recipients at all and the
+  send was then refused as empty.
+* **The author's own message is never unread to them.** Starting a conversation
+  writes the author's participation with `addressed = false`, so it does not
+  appear in their own Inbox — unless they addressed themselves, in which case
+  the recipient loop finds that same row and flips it, and the two cases become
+  indistinguishable, which is what "I sent this to myself" means. Writing a
+  reply also marks the author's own row read: their own words must never appear
+  in their own unread count.
+* **Action required lists conversations; the count counts requests.** One
+  conversation can hold two open requests, so the list is the smaller of the
+  pair. Every other count equals the total of the box it names, and
+  `TestOneSummaryReconcilesWithTheBoxes` asserts exactly that.
+
+### Sending twice is sending once
+
+The composer mints a `client_token` on the first press of Send and reuses it for
+any retry. The backend stores it in the same unique `event_key` column system
+messages use, so a double-click or a request the browser retried after a timeout
+collides at the index and returns the first message rather than delivering a
+second copy. A send with no token is not collapsed — two genuinely repeated
+messages are two messages.
+
+### Sharing is picked, not pasted
+
+`GET /api/v1/messages/shareable?object_type=analysis` returns the governed
+objects **this sender can actually read**, as cards. Every one has been through
+`can_read_object` for the person asking, so a card that appears can be attached
+and a card that cannot be attached does not appear. Pasting a URL was a guess
+that could point at something deleted, something the sender could not read, or
+something that was not an analysis at all — and the sender found out only when
+the send failed.
+
+---
+
 ## 1. What was reused, and what was deliberately not
 
 | Existing thing | Decision |
@@ -17,7 +154,7 @@ Read this before changing anything under `backend/services/collaboration.py`,
 | `users` table (`backend/db/models.py`) | **Reused.** There is no second identity. A participant is a `users.id`, a sender is a `users.id`. Extended with `job_title`, `department`, `updated_at`, `deactivated_at`, `deactivated_by`. |
 | Session cookie + `Account` (`backend/api/auth.py`) | **Reused unchanged.** No new authentication. |
 | `Role` / `Principal` / `require()` (`backend/api/permissions.py`) | **Reused unchanged.** Nothing here can grant a permission the registry does not already recognise. |
-| `notifications` table | **Reused.** A message writes a Notification row through the same path everything else uses, so the header badge does not fork into two numbers that disagree. |
+| `notifications` table | **Reused.** A message writes a Notification row through the same path everything else uses. The unread MESSAGE count is a separate and more precise question, answered by `attention_summary` — see §0C. |
 | `workflow_items` + friends | **Left alone.** That model is ANCHORED: every row is a review of one governed object, and `object_type`/`object_id` are the reason the row exists. Right for "certify this analysis"; wrong for "here are three things, please look before the committee". |
 | `Investigation`, `SavedAnalysis` | **Read, never modified.** Sharing writes a grant beside them. |
 | `publish_dataset` (Data Builder) | **Untouched.** The new event hook is called BY a publisher; it does not reach into one. |
@@ -300,7 +437,15 @@ integration. No table below `users` would change.
 
 ## 12. Known limitations
 
-Truthfully, and none of them hidden:
+Truthfully, and none of them hidden.
+
+**Closed by the 1.1 correction** (kept here so the history is legible): the
+recipient directory returning nothing until something was typed; a
+self-addressed message being refused as having no recipients; the personal
+review queue occupying the Workflow page; four independent count fetches that
+drifted; and the sender of a governed object not being granted it.
+
+**Still open:**
 
 1. **No DataVersion rows on a script-built lake.** The demonstration lake is
    built by `scripts/generate_saudi_universe.py` and friends, which write
@@ -317,7 +462,8 @@ Truthfully, and none of them hidden:
    without asking would be exactly the silent permission escalation §8 of the
    brief forbids.
 4. **No CC-only distinction in the UI.** The API accepts `cc` and stores the
-   distinction; the thread view lists participants without separating them.
+   distinction; the thread view lists participants without separating them, and
+   the composer offers no CC field.
 5. **Attachment upload is one file at a time.** Multi-select would be a
    frontend change only.
 6. **`report` attachments share the file path.** A generated PDF or DOCX is
@@ -327,3 +473,18 @@ Truthfully, and none of them hidden:
 7. **No external email, Slack or push.** Out of scope, and deliberately so: the
    product's promise is that work addressed to you is visible when you open
    CreditProbe.
+8. **Unread is counted per conversation, not per message.** One Inbox row is one
+   conversation, opening it reads everything currently in it, and the badge
+   counts rows. A thread with three unread replies counts once. This is
+   deliberate — the number matches what the reader sees in the list — but it is
+   a choice, not an inevitability, and a per-message count would need a
+   `message_reads` table rather than a `read_at` on participation.
+9. **Development databases carry test-fixture accounts.** A database that has
+   had the suite run against it accumulates users with no name and no email.
+   They are real rows and are not deleted, so the directory ranks named,
+   reachable people first rather than hiding anybody. On a clean deployment the
+   ranking is a no-op.
+10. **The admin overview pages at 500 users.** Nine grouped aggregates,
+    independent of the number of users, then one page of rows. Beyond a few
+    thousand accounts the per-user counts would want materialising rather than
+    recomputing on each load.

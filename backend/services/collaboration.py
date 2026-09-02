@@ -51,7 +51,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 
 from backend.config import settings
 from backend.models.collaboration import (
@@ -87,11 +87,13 @@ __all__ = [
     "ATTACHMENT_TYPES", "BOX_ACTION", "BOX_ARCHIVED", "BOX_DRAFTS",
     "BOX_INBOX", "BOX_SENT", "SYSTEM_SENDER_NAME",
     "CollaborationUnavailable", "InvalidRequest", "NotFound", "NotPermitted",
+    "admin_overview", "admin_user_profile", "attention_summary",
     "audit", "can_read_object", "change_request_status", "create_draft",
     "data_release_recipients", "directory", "download_artifact",
     "download_artifact_view", "get_thread", "grant_share", "list_box",
     "mark_read", "publish_data_release_event", "request_history",
-    "send_message", "send_system_message", "set_archived", "shared_with_me",
+    "send_message", "send_system_message", "set_archived", "shareable_objects",
+    "shared_with_me",
     "store_artifact", "store_artifact_view", "unread_count", "update_draft",
 ]
 
@@ -257,6 +259,29 @@ def _people(session: Any, ids: set[int]) -> dict[int, dict[str, Any]]:
     return {r.id: _person(r) for r in rows}
 
 
+def _matches(User: Any, text: str) -> Any:
+    """One predicate for "find me this person", used by every people search.
+
+    Every field a sender might type, plus the two name columns joined.
+    Somebody looking for Alex Rahman types "Alex Rahman", and no single column
+    holds that: matching column by column found nothing, which made a
+    directory of twenty-one colleagues look like an empty institution. The
+    concatenation is what a person means by a name.
+    """
+    like = f"%{text.lower()}%"
+    return or_(
+        func.lower(User.first_name + " " + User.last_name).like(like),
+        func.lower(User.first_name).like(like),
+        func.lower(User.last_name).like(like),
+        func.lower(User.username).like(like),
+        func.lower(User.email).like(like),
+        func.lower(User.job_title).like(like),
+        func.lower(User.department).like(like),
+        func.lower(User.team).like(like),
+        func.lower(User.role).like(like),
+    )
+
+
 def directory(session: Any, *, query: str = "", limit: int = 50,
               include_inactive: bool = False) -> list[dict[str, Any]]:
     """Who a message can be addressed to.
@@ -272,19 +297,17 @@ def directory(session: Any, *, query: str = "", limit: int = 50,
         stmt = stmt.where(User.is_active.is_(True))
     text = (query or "").strip()
     if text:
-        like = f"%{text.lower()}%"
-        stmt = stmt.where(or_(
-            func.lower(User.first_name).like(like),
-            func.lower(User.last_name).like(like),
-            func.lower(User.username).like(like),
-            func.lower(User.email).like(like),
-            func.lower(User.job_title).like(like),
-            func.lower(User.department).like(like),
-            func.lower(User.team).like(like),
-            func.lower(User.role).like(like),
-        ))
+        stmt = stmt.where(_matches(User, text))
+    # People with a real name and address come first. A development database
+    # accumulates accounts created by test runs — no first name, no email —
+    # and ordering by first name alone floats every one of them above the
+    # colleagues a sender is actually looking for.
+    named = case((or_(User.first_name != "", User.last_name != ""), 0),
+                 else_=1)
+    reachable = case((User.email != "", 0), else_=1)
     rows = session.execute(
-        stmt.order_by(User.first_name, User.last_name, User.username)
+        stmt.order_by(named, reachable, User.first_name, User.last_name,
+                      User.username)
         .limit(max(1, min(int(limit or 50), 200)))
     ).scalars().all()
     return [_person(r) for r in rows]
@@ -714,8 +737,37 @@ def list_box(session: Any, *, user_id: int, box: str = BOX_INBOX,
     }
 
 
-def unread_count(session: Any, user_id: int) -> dict[str, int]:
-    """The badge. Three numbers a personal dashboard reconciles to."""
+def attention_summary(session: Any, user_id: int) -> dict[str, int]:
+    """**The one number source.** Every badge, tab and tile reads this.
+
+    The product previously counted the same things in four places — a header
+    badge, a mailbox tab, a summary tile and a workspace card — and four
+    counters computed independently drift the moment one of them forgets a
+    predicate. There is now exactly one function, and each key below is
+    stated as a predicate so a screen showing a different number is a bug in
+    the screen rather than an opinion about what "unread" means.
+
+    ============  ======================================================
+    key           predicate
+    ============  ======================================================
+    inbox         a `thread_participants` row for me, addressed, not
+                  archived. One per conversation, because one Inbox row
+                  is one conversation.
+    unread        the above, with `read_at IS NULL`.
+    sent          `messages.sender_user_id = me AND status = 'SENT'`.
+                  What I sent, never what happened to it afterwards.
+    drafts        `messages.sender_user_id = me AND status = 'DRAFT'`.
+    archived      addressed participation with `archived_at NOT NULL`.
+    action_req…   distinct SENT messages naming me in
+                  `message_recipients` whose request_type is review or
+                  action and whose status is still open. Being copied
+                  into a thread is not being asked to do something.
+    shared_wi…    un-revoked `object_shares` rows in my name.
+    ============  ======================================================
+
+    A person who addressed a message to themselves is counted by both `sent`
+    and `inbox`, once each, because they genuinely did both.
+    """
     from backend.models.collaboration import (
         Message,
         MessageRecipient,
@@ -723,29 +775,40 @@ def unread_count(session: Any, user_id: int) -> dict[str, int]:
         ThreadParticipant,
     )
 
-    unread = session.execute(
-        select(func.count()).select_from(ThreadParticipant).where(
-            ThreadParticipant.user_id == user_id,
-            ThreadParticipant.addressed.is_(True),
-            ThreadParticipant.archived_at.is_(None),
-            ThreadParticipant.read_at.is_(None),
-        )
-    ).scalar_one()
-    action = session.execute(
+    def count(stmt: Any) -> int:
+        return int(session.execute(stmt).scalar_one())
+
+    mine = (ThreadParticipant.user_id == user_id,
+            ThreadParticipant.addressed.is_(True))
+    live = select(func.count()).select_from(ThreadParticipant).where(
+        *mine, ThreadParticipant.archived_at.is_(None))
+
+    inbox = count(live)
+    unread = count(live.where(ThreadParticipant.read_at.is_(None)))
+    archived = count(select(func.count()).select_from(ThreadParticipant)
+                     .where(*mine, ThreadParticipant.archived_at.is_not(None)))
+    sent = count(select(func.count()).select_from(Message).where(
+        Message.sender_user_id == user_id, Message.status == MSG_SENT))
+    drafts = count(select(func.count()).select_from(Message).where(
+        Message.sender_user_id == user_id, Message.status == MSG_DRAFT))
+    action = count(
         select(func.count(func.distinct(Message.id)))
         .join(MessageRecipient, MessageRecipient.message_id == Message.id)
         .where(MessageRecipient.user_id == user_id,
                Message.status == MSG_SENT,
                Message.request_type.in_((REQ_REVIEW, REQ_ACTION)),
-               Message.request_status.in_(REQUEST_OPEN_STATES))
-    ).scalar_one()
-    shared = session.execute(
-        select(func.count()).select_from(ObjectShare).where(
-            ObjectShare.user_id == user_id, ObjectShare.revoked_at.is_(None)
-        )
-    ).scalar_one()
-    return {"unread": int(unread), "action_required": int(action),
-            "shared_with_me": int(shared)}
+               Message.request_status.in_(REQUEST_OPEN_STATES)))
+    shared = count(select(func.count()).select_from(ObjectShare).where(
+        ObjectShare.user_id == user_id, ObjectShare.revoked_at.is_(None)))
+
+    return {"inbox": inbox, "unread": unread, "archived": archived,
+            "sent": sent, "drafts": drafts, "action_required": action,
+            "shared_with_me": shared}
+
+
+def unread_count(session: Any, user_id: int) -> dict[str, int]:
+    """Kept for callers written before the summary existed."""
+    return attention_summary(session, user_id)
 
 
 # ==========================================================================
@@ -819,6 +882,55 @@ OBJECT_CARDS = {
     ATT_INVESTIGATION: _investigation_card,
     ATT_ANALYSIS: _analysis_card,
 }
+
+
+def shareable_objects(session: Any, *, user_id: int, object_type: str,
+                      query: str = "", limit: int = 20) -> list[dict[str, Any]]:
+    """Governed objects this person can actually share, as cards.
+
+    This exists so that attaching an analysis is picking one off a list rather
+    than pasting a URL. A URL is a guess: it can point at something that was
+    deleted, something the sender cannot read, or something that is not an
+    analysis at all, and the sender finds out only when the send fails. Every
+    row below has been through `can_read_object` for the person asking, so a
+    card that appears can be attached and a card that cannot be attached does
+    not appear.
+
+    The read check runs per candidate rather than as a join, so the query is
+    bounded by `limit` (a small page) and not by the size of the library.
+    """
+    from backend.models.platform import Investigation, SavedAnalysis
+
+    kind = (object_type or "").strip().lower()
+    if kind not in OBJECT_CARDS:
+        raise InvalidRequest(f"'{object_type}' is not a shareable object.")
+    limit = max(1, min(int(limit or 20), 50))
+    text = (query or "").strip().lower()
+
+    model = Investigation if kind == ATT_INVESTIGATION else SavedAnalysis
+    stmt = select(model)
+    if text:
+        stmt = stmt.where(func.lower(model.title).like(f"%{text}%"))
+    # Read a few more than asked for: some candidates will fail the access
+    # check and drop out, and a page that comes back short because of that
+    # looks like the end of the library.
+    rows = session.execute(
+        stmt.order_by(model.id.desc()).limit(limit * 4)
+    ).scalars().all()
+
+    reader = OBJECT_CARDS[kind]
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        try:
+            meta, version = reader(session, str(row.id), user_id)
+        except (NotFound, NotPermitted, ValueError):
+            continue
+        out.append({"object_type": kind, "object_id": str(row.id),
+                    "object_version": version,
+                    "label": meta.get("title") or "", "meta": meta})
+        if len(out) >= limit:
+            break
+    return out
 
 
 def can_read_object(session: Any, object_type: str, object_id: str,
@@ -1015,6 +1127,16 @@ def _resolve_recipients(session: Any, user_ids: list[int],
     A suspended account is refused rather than silently dropped: a sender who
     is told "delivered" and was not is worse off than one who is told the
     person has left.
+
+    **Addressing yourself is a real send.** People mail themselves constantly —
+    to file a result where they will see it tomorrow, to keep a copy of what
+    they sent somebody else, to test that a share works before using it on a
+    colleague. Dropping the sender from their own recipient list produced a
+    message with no recipients at all, which this function then refused as
+    empty. So `sender_id` is deliberately *not* filtered here; `send_message`
+    addresses the sender's own participation row like anybody else's, and the
+    message lands in Sent and in Inbox, which is what "I sent this to myself"
+    means.
     """
     from backend.db.models import User
 
@@ -1025,10 +1147,7 @@ def _resolve_recipients(session: Any, user_ids: list[int],
             uid = int(raw)
         except (TypeError, ValueError):
             raise InvalidRequest(f"'{raw}' is not a user.") from None
-        if uid in seen or uid == int(sender_id):
-            # Addressing yourself is a no-op, not an error: the sender is
-            # already a participant and would otherwise get their own message
-            # in their own inbox.
+        if uid in seen:
             continue
         seen.add(uid)
         wanted.append(uid)
@@ -1135,7 +1254,8 @@ def send_message(session: Any, *, sender_id: int, to: list[int],
                  priority: str = PRIORITY_NORMAL,
                  due_at: datetime | None = None,
                  thread_id: int | None = None,
-                 draft_id: int | None = None) -> dict[str, Any]:
+                 draft_id: int | None = None,
+                 client_token: str = "") -> dict[str, Any]:
     """Send one message. The whole act, in one transaction.
 
     Recipients, participation, attachments, share grants, the notification and
@@ -1143,6 +1263,13 @@ def send_message(session: Any, *, sender_id: int, to: list[int],
     delivered but grants no access to what it carries, or one whose recipient
     never gets a badge, is a half-sent message — and half-sent is the state
     this function exists to make unreachable.
+
+    `client_token` makes the send idempotent. A composer whose Send button is
+    pressed twice, or a request the browser retries after a timeout it did not
+    see the answer to, must not put two copies of the same message in somebody's
+    inbox. The token is stored in the same unique `event_key` column system
+    messages use, so the second attempt collides at the index rather than
+    relying on the caller to behave.
     """
     from backend.models.collaboration import (
         Message,
@@ -1150,6 +1277,22 @@ def send_message(session: Any, *, sender_id: int, to: list[int],
         MessageThread,
         ThreadParticipant,
     )
+
+    token = (client_token or "").strip()[:120]
+    if token:
+        key = f"send:{int(sender_id)}:{token}"
+        already = session.execute(
+            select(Message).where(Message.event_key == key)
+        ).scalars().first()
+        if already is not None:
+            # The same send, arriving twice. Answer with what the first one did.
+            return {"message_id": already.id, "thread_id": already.thread_id,
+                    "subject": (session.get(MessageThread, already.thread_id)
+                                .subject if already.thread_id else ""),
+                    "status": already.status, "duplicate": True,
+                    "recipients": [r.user_id for r in already.recipients]}
+    else:
+        key = ""
 
     request_type = (request_type or REQ_FYI).strip().lower()
     if request_type not in REQUEST_TYPES:
@@ -1181,6 +1324,10 @@ def send_message(session: Any, *, sender_id: int, to: list[int],
                                created_by=sender_id, origin=SENDER_USER)
         session.add(thread)
         session.flush()
+        # The author's own row. `addressed=False` keeps a conversation you
+        # started out of your own Inbox — until the recipient loop below finds
+        # this row because you addressed yourself, and flips it. Sending to
+        # yourself is then indistinguishable from being sent to.
         session.add(ThreadParticipant(thread_id=thread.id, user_id=sender_id,
                                       addressed=False, read_at=_now()))
         message = Message(thread_id=thread.id, sender_type=SENDER_USER,
@@ -1196,6 +1343,8 @@ def send_message(session: Any, *, sender_id: int, to: list[int],
 
     message.status = MSG_SENT
     message.sent_at = _now()
+    if key:
+        message.event_key = key
     message.request_type = request_type
     message.request_status = (None if request_type == REQ_FYI else REQ_OPEN)
     message.priority = priority
@@ -1229,6 +1378,14 @@ def send_message(session: Any, *, sender_id: int, to: list[int],
             existing.read_at = None
             existing.archived_at = None
 
+    if sender_id not in {p.id for p in everyone}:
+        # Writing in a conversation is reading it. Leaving the author's own row
+        # unread after they replied would put their own words in their unread
+        # count, which is the fastest way to make the badge untrustworthy.
+        mine = _participation(session, thread.id, sender_id)
+        if mine is not None:
+            mine.read_at = mine.read_at or _now()
+
     thread.message_count = (thread.message_count or 0) + 1
     thread.last_message_at = message.sent_at
 
@@ -1257,6 +1414,7 @@ def send_message(session: Any, *, sender_id: int, to: list[int],
     session.flush()
     return {"message_id": message.id, "thread_id": thread.id,
             "subject": thread.subject, "status": MSG_SENT,
+            "duplicate": False,
             "recipients": [p.id for p in everyone]}
 
 
@@ -1754,6 +1912,200 @@ def publish_data_release_event(
             "published_at": published_at,
         },
     )
+
+
+# ==========================================================================
+# Administrative oversight
+# ==========================================================================
+#
+# What this is, and what it deliberately is not.
+#
+# An administrator runs the place: they need to know who is active, who is
+# drowning, whose review requests have gone past their date, and who has not
+# signed in for a month. That is an operational question and it is answered
+# below, entirely in counts.
+#
+# What an administrator does not get is anybody's mail. There is no function
+# here that returns a subject line or a body, because the reason to read one
+# would always be curiosity dressed as governance. Participation remains the
+# only thing that opens a thread, and an ADMIN is not a participant in
+# conversations they were not part of. Where governance genuinely needs to
+# know who sent what to whom, `collaboration_audit` answers it — by act, not
+# by content.
+#
+# Every number here is a grouped aggregate over the whole table, computed once
+# and then indexed by user. Nine queries, whatever the size of the directory:
+# a per-user loop would be an N+1 that gets slower every time somebody joins.
+
+
+def _grouped(session: Any, stmt: Any) -> dict[int, int]:
+    """`{user_id: count}` from a two-column (id, count) select."""
+    return {int(k): int(v) for k, v in session.execute(stmt).all() if k}
+
+
+def admin_overview(session: Any, *, query: str = "",
+                   include_inactive: bool = True,
+                   limit: int = 100, offset: int = 0) -> dict[str, Any]:
+    """Every user, with what is actually happening to them. Counts only."""
+    from backend.db.models import User
+    from backend.models.collaboration import (
+        Message,
+        MessageRecipient,
+        ObjectShare,
+        ThreadParticipant,
+    )
+
+    limit = max(1, min(int(limit or 100), 500))
+    offset = max(0, int(offset or 0))
+
+    stmt = select(User)
+    if not include_inactive:
+        stmt = stmt.where(User.is_active.is_(True))
+    text = (query or "").strip()
+    if text:
+        stmt = stmt.where(_matches(User, text))
+    total = int(session.execute(
+        select(func.count()).select_from(stmt.subquery())
+    ).scalar_one())
+    # Active first, then people with a real name — the same ranking the
+    # recipient picker uses, so an administrator and a sender see the
+    # directory in the same order.
+    rows = session.execute(
+        stmt.order_by(User.is_active.desc(),
+                      case((or_(User.first_name != "", User.last_name != ""), 0),
+                           else_=1),
+                      User.first_name, User.last_name, User.username)
+        .limit(limit).offset(offset)
+    ).scalars().all()
+
+    addressed = (ThreadParticipant.addressed.is_(True),)
+    received = _grouped(session, select(
+        ThreadParticipant.user_id, func.count()
+    ).where(*addressed).group_by(ThreadParticipant.user_id))
+    unread = _grouped(session, select(
+        ThreadParticipant.user_id, func.count()
+    ).where(*addressed, ThreadParticipant.archived_at.is_(None),
+            ThreadParticipant.read_at.is_(None))
+        .group_by(ThreadParticipant.user_id))
+    read = _grouped(session, select(
+        ThreadParticipant.user_id, func.count()
+    ).where(*addressed, ThreadParticipant.read_at.is_not(None))
+        .group_by(ThreadParticipant.user_id))
+    sent = _grouped(session, select(
+        Message.sender_user_id, func.count()
+    ).where(Message.status == MSG_SENT,
+            Message.sender_user_id.is_not(None))
+        .group_by(Message.sender_user_id))
+    drafts = _grouped(session, select(
+        Message.sender_user_id, func.count()
+    ).where(Message.status == MSG_DRAFT,
+            Message.sender_user_id.is_not(None))
+        .group_by(Message.sender_user_id))
+
+    open_request = (Message.status == MSG_SENT,
+                    Message.request_type.in_((REQ_REVIEW, REQ_ACTION)),
+                    Message.request_status.in_(REQUEST_OPEN_STATES))
+    action = _grouped(session, select(
+        MessageRecipient.user_id, func.count(func.distinct(Message.id))
+    ).join(Message, MessageRecipient.message_id == Message.id)
+        .where(*open_request).group_by(MessageRecipient.user_id))
+    now = _now()
+    overdue = _grouped(session, select(
+        MessageRecipient.user_id, func.count(func.distinct(Message.id))
+    ).join(Message, MessageRecipient.message_id == Message.id)
+        .where(*open_request, Message.due_at.is_not(None),
+               Message.due_at < now)
+        .group_by(MessageRecipient.user_id))
+    # Requests this person is waiting on somebody else to answer.
+    awaiting = _grouped(session, select(
+        Message.sender_user_id, func.count()
+    ).where(*open_request, Message.sender_user_id.is_not(None))
+        .group_by(Message.sender_user_id))
+    shared_with = _grouped(session, select(
+        ObjectShare.user_id, func.count()
+    ).where(ObjectShare.revoked_at.is_(None))
+        .group_by(ObjectShare.user_id))
+    shared_by = _grouped(session, select(
+        ObjectShare.granted_by, func.count()
+    ).where(ObjectShare.revoked_at.is_(None),
+            ObjectShare.granted_by.is_not(None))
+        .group_by(ObjectShare.granted_by))
+
+    people = []
+    for row in rows:
+        person = _person(row)
+        person.update({
+            "status": "active" if row.is_active else "suspended",
+            "last_active": (row.last_login_at.isoformat()
+                            if row.last_login_at else None),
+            "deactivated_at": (row.deactivated_at.isoformat()
+                               if row.deactivated_at else None),
+            "activity": {
+                "received": received.get(row.id, 0),
+                "unread": unread.get(row.id, 0),
+                "read": read.get(row.id, 0),
+                "sent": sent.get(row.id, 0),
+                "drafts": drafts.get(row.id, 0),
+                "action_required": action.get(row.id, 0),
+                "overdue": overdue.get(row.id, 0),
+                "awaiting_others": awaiting.get(row.id, 0),
+                "shared_with_them": shared_with.get(row.id, 0),
+                "shared_by_them": shared_by.get(row.id, 0),
+            },
+        })
+        people.append(person)
+
+    return {
+        "total": total, "limit": limit, "offset": offset, "users": people,
+        "totals": {
+            "users": total,
+            "active": int(session.execute(
+                select(func.count()).select_from(User)
+                .where(User.is_active.is_(True))).scalar_one()),
+            "suspended": int(session.execute(
+                select(func.count()).select_from(User)
+                .where(User.is_active.is_(False))).scalar_one()),
+            "messages_sent": int(session.execute(
+                select(func.count()).select_from(Message)
+                .where(Message.status == MSG_SENT)).scalar_one()),
+            "unread": sum(unread.values()),
+            "action_required": sum(action.values()),
+            "overdue": sum(overdue.values()),
+            "shares": int(session.execute(
+                select(func.count()).select_from(ObjectShare)
+                .where(ObjectShare.revoked_at.is_(None))).scalar_one()),
+        },
+    }
+
+
+def admin_user_profile(session: Any, user_id: int) -> dict[str, Any]:
+    """One person's operational profile. Still no message content.
+
+    The recent activity below comes from `collaboration_audit` and names the
+    act and its time — "sent a message", "shared an analysis" — never the
+    subject and never the body.
+    """
+    from backend.db.models import User
+    from backend.models.collaboration import CollaborationAudit
+
+    row = session.get(User, int(user_id))
+    if row is None:
+        raise NotFound(f"User {user_id} is not available.")
+    page = admin_overview(session, query=row.username, include_inactive=True,
+                          limit=500)
+    profile = next((u for u in page["users"] if u["id"] == row.id),
+                   _person(row))
+    events = session.execute(
+        select(CollaborationAudit)
+        .where(CollaborationAudit.actor_id == row.id)
+        .order_by(CollaborationAudit.created_at.desc()).limit(25)
+    ).scalars().all()
+    profile["recent_activity"] = [{
+        "action": e.action,
+        "object_type": e.object_type or "",
+        "at": e.created_at.isoformat() if e.created_at else None,
+    } for e in events]
+    return profile
 
 
 def _quote(text: str) -> str:

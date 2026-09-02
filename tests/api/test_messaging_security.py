@@ -317,7 +317,10 @@ class TestWhoMayReachTheseRoutesAtAll:
     def test_a_signed_in_person_reads_their_own_counts(self, alpha):
         r = alpha.get(f"{MESSAGES}/counts")
         assert r.status_code == 200
-        assert set(r.json()) == {"unread", "action_required", "shared_with_me"}
+        # A superset since the counts route became the one attention summary
+        # every badge reads; what this test is about is that a signed-in caller
+        # gets THEIR OWN numbers, not the exact shape of the payload.
+        assert {"unread", "action_required", "shared_with_me"} <= set(r.json())
 
     def test_creating_a_user_is_still_administrator_only(self, alpha):
         # The messaging feature must not have opened a side door into

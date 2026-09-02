@@ -13,6 +13,7 @@ import {
 } from "@/components/messages/parts";
 import { Button } from "@/components/ui/button";
 import { api, type Message, type RequestStatus } from "@/lib/api";
+import { refreshAttention } from "@/lib/attention";
 import { useAsync } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 
@@ -37,7 +38,14 @@ export function ThreadView({ threadId }: { threadId: number }) {
   React.useEffect(() => {
     if (!thread.data || marked.current) return;
     marked.current = true;
-    void api.markThreadRead(threadId, true).catch(() => {});
+    // Mark read, then tell the one count store. Without the second half the
+    // header badge, the mailbox tab and the workspace card kept the number
+    // they were rendered with, and the reader saw a badge for a message they
+    // were looking at.
+    void api
+      .markThreadRead(threadId, true)
+      .then(() => refreshAttention())
+      .catch(() => {});
   }, [thread.data, threadId]);
 
   if (thread.loading) {
@@ -81,6 +89,7 @@ export function ThreadView({ threadId }: { threadId: number }) {
             size="sm"
             onClick={async () => {
               await api.archiveMessageThread(threadId, !data.archived);
+              await refreshAttention();
               setReload((n) => n + 1);
             }}
           >
@@ -171,6 +180,9 @@ function RequestPanel({ message, onChanged }: {
     setError(null);
     try {
       await api.changeRequestStatus(message.id, to);
+      // Closing a review takes it out of Action Required for everybody who was
+      // asked. The count that says so must move with it.
+      await refreshAttention();
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not change the status.");
@@ -246,6 +258,7 @@ function ReplyBox({ threadId, onSent }: {
     try {
       await api.replyToThread(threadId, { body });
       setBody("");
+      await refreshAttention();
       onSent();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not send the reply.");

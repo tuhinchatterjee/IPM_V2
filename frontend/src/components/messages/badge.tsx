@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Mail } from "lucide-react";
 import * as React from "react";
 
-import { api } from "@/lib/api";
+import { useAttention } from "@/lib/attention";
 
 /**
  * The unread indicator in the header.
@@ -14,33 +14,26 @@ import { api } from "@/lib/api";
  * notification centre beside it already opens; a second thing that opens would
  * make the header a place people go rather than a place people glance at.
  *
- * The count is refetched when the route changes, so opening a thread updates it
- * on the way back without a poll running behind every screen in the product.
- * A count nobody is signed in for simply does not render — a "0" for an
- * anonymous caller is a claim about a mailbox that does not exist.
+ * The number comes from the shared attention store, which is the only thing in
+ * the product that fetches `/messages/counts`. That is what makes reading a
+ * message clear this badge the instant it is read rather than the next time the
+ * route changes: the thread view refreshes the store, and the store tells this
+ * component. A count nobody is signed in for simply does not render — a "0" for
+ * an anonymous caller is a claim about a mailbox that does not exist.
+ *
+ * The route change is still a refresh, because things happen elsewhere: a
+ * colleague sends something while this tab sits on one page all afternoon.
  */
 export function UnreadMessages() {
   const pathname = usePathname();
-  const [count, setCount] = React.useState<number | null>(null);
+  const { counts, refresh } = useAttention();
 
   React.useEffect(() => {
-    let cancelled = false;
-    api
-      .messageCounts()
-      .then((c) => {
-        if (!cancelled) setCount(c.unread + c.action_required);
-      })
-      .catch(() => {
-        // Signed out, or the database is not there. Either way the honest
-        // rendering is no badge rather than a zero.
-        if (!cancelled) setCount(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname]);
+    void refresh();
+  }, [pathname, refresh]);
 
-  if (count === null) return null;
+  if (counts === null) return null;
+  const count = counts.unread + counts.action_required;
 
   return (
     <Link

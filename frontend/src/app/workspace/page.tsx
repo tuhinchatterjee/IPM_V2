@@ -12,6 +12,7 @@ import {
   when,
 } from "@/components/messages/parts";
 import { api, type MessageSummary } from "@/lib/api";
+import { useAttention } from "@/lib/attention";
 import { useAsync } from "@/lib/hooks";
 
 /**
@@ -27,7 +28,9 @@ import { useAsync } from "@/lib/hooks";
  * people that the numbers on this screen are decorative.
  */
 export default function WorkspacePage() {
-  const counts = useAsync(() => api.messageCounts(), []);
+  // The same store the header badge and the mailbox tabs read, so this
+  // card cannot show a number the rest of the product disagrees with.
+  const { safe: counts } = useAttention();
   const unread = useAsync(
     () => api.mailbox("inbox", { unread: true, limit: 5 }),
     [],
@@ -44,12 +47,12 @@ export default function WorkspacePage() {
       />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Unread messages" value={counts.data?.unread ?? 0}
+        <Stat label="Unread messages" value={counts.unread}
               href="/messages?box=inbox" />
         <Stat label="Awaiting my review"
-              value={counts.data?.action_required ?? 0}
+              value={counts.action_required}
               href="/messages?box=action" />
-        <Stat label="Shared with me" value={counts.data?.shared_with_me ?? 0}
+        <Stat label="Shared with me" value={counts.shared_with_me}
               href="/messages?box=inbox" />
         <Stat label="Recent investigations"
               value={recent.data?.investigations.length ?? 0}

@@ -26,7 +26,11 @@ from typing import Any
 from fastapi import APIRouter, File, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel, Field
 
-from backend.api.permissions import Principal, RequireCommenter
+from backend.api.permissions import (
+    Principal,
+    RequireAdmin,
+    RequireCommenter,
+)
 from backend.config import settings
 from backend.services import collaboration as collab
 
@@ -124,6 +128,10 @@ class SendIn(BaseModel):
     due_at: datetime | None = None
     thread_id: int | None = None
     draft_id: int | None = None
+    #: A value the composer generates once per Send press. Sending it twice —
+    #: a double-click, a retried request — returns the first message rather
+    #: than creating a second one.
+    client_token: str = Field(default="", max_length=120)
 
 
 class ReplyIn(BaseModel):
@@ -156,9 +164,16 @@ def _specs(items: list[AttachmentIn] | None) -> list[dict[str, Any]] | None:
 # ------------------------------------------------------------------- reads
 
 
-@router.get("/counts", summary="Unread, action required, shared with me")
+@router.get("/counts", summary="The one personal-attention summary")
 def counts(principal: Principal = RequireCommenter) -> dict:
-    return _run(collab.unread_count, _me(principal))
+    """Every badge, tab and tile in the product reads this one route.
+
+    Returning box totals alongside the unread count is the point: a header
+    badge and a mailbox tab that each count for themselves eventually disagree,
+    and the number people stop believing is the one that governs whether they
+    open the page at all.
+    """
+    return _run(collab.attention_summary, _me(principal))
 
 
 @router.get("/directory", summary="Who a message can be sent to")
@@ -180,6 +195,18 @@ def mailbox(box: str = collab.BOX_INBOX, limit: int = 50, offset: int = 0,
 @router.get("/threads/{thread_id}", summary="One conversation in full")
 def thread(thread_id: int, principal: Principal = RequireCommenter) -> dict:
     return _run(collab.get_thread, thread_id, user_id=_me(principal))
+
+
+@router.get("/shareable", summary="Objects I can attach, as cards")
+def shareable(object_type: str, q: str = "", limit: int = 20,
+              principal: Principal = RequireCommenter) -> dict:
+    """What the composer's "Share from CreditProbe" selector lists.
+
+    Every card here has already been access-checked for the caller, so the
+    picker cannot offer something the send would then refuse.
+    """
+    return {"items": _run(collab.shareable_objects, user_id=_me(principal),
+                          object_type=object_type, query=q, limit=limit)}
 
 
 @router.get("/shared-with-me", summary="Objects other people have shared")
@@ -219,7 +246,7 @@ def send(payload: SendIn, principal: Principal = RequireCommenter) -> dict:
                 attachments=_specs(payload.attachments),
                 request_type=payload.request_type, priority=payload.priority,
                 due_at=payload.due_at, thread_id=payload.thread_id,
-                draft_id=payload.draft_id)
+                draft_id=payload.draft_id, client_token=payload.client_token)
 
 
 @router.post("/threads/{thread_id}/reply", status_code=201,
@@ -309,3 +336,27 @@ def download(artifact_id: int,
             "X-Content-SHA256": payload["sha256"],
         },
     )
+
+
+# ------------------------------------------------------- admin oversight
+#
+# ADMIN only, and counts only. These two routes exist so an administrator can
+# see how the workflow is actually running — who has unread work, whose
+# requests are overdue, who has not signed in — without any route anywhere
+# returning the contents of somebody's mail. There is no message body, and no
+# subject line, in either response.
+
+
+@router.get("/admin/overview", summary="Operational overview of every user")
+def admin_overview(q: str = "", include_inactive: bool = True,
+                   limit: int = 100, offset: int = 0,
+                   principal: Principal = RequireAdmin) -> dict:
+    _me(principal)
+    return _run(collab.admin_overview, query=q,
+                include_inactive=include_inactive, limit=limit, offset=offset)
+
+
+@router.get("/admin/users/{user_id}", summary="One user's operational profile")
+def admin_user(user_id: int, principal: Principal = RequireAdmin) -> dict:
+    _me(principal)
+    return _run(collab.admin_user_profile, user_id)

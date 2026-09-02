@@ -956,6 +956,22 @@ def notify_playbook_finding(*, user_id: int, playbook: str, title: str,
         session.commit()
 
 
+#: Notifications the MESSAGES badge already accounts for.
+#:
+#: Delivering a message writes a `notifications` row, which is right — it is the
+#: record that the person was told. But the header carries two badges, and both
+#: were counting that row: the envelope, which is unread messages, and the bell,
+#: which was everything. A reader with one unread message saw a 1 and a 20 and
+#: could not tell whether they were about the same thing.
+#:
+#: So the two are now disjoint. The envelope is messages, read from the one
+#: attention summary. The bell is everything else that happened — an agent run,
+#: a data release, a review raised against an object, somebody naming you on a
+#: workflow item. The row is still written, and the audit and the message
+#: itself are unaffected; it simply is not counted twice on one toolbar.
+MESSAGE_NOTIFICATION = "message_thread"
+
+
 def notifications(user_id: int | None, *, unread_only: bool = False,
                   limit: int = 50) -> list[dict[str, Any]]:
     if not settings.has_database or user_id is None:
@@ -968,7 +984,8 @@ def notifications(user_id: int | None, *, unread_only: bool = False,
     with get_session() as session:
         query = (
             select(Notification)
-            .where(Notification.user_id == user_id)
+            .where(Notification.user_id == user_id,
+                   Notification.object_type != MESSAGE_NOTIFICATION)
             .order_by(Notification.created_at.desc())
             .limit(limit)
         )
@@ -1023,7 +1040,9 @@ def unread_count(user_id: int | None) -> int:
         return int(session.execute(
             select(func.count())
             .select_from(Notification)
-            .where(Notification.user_id == user_id, Notification.read_at.is_(None))
+            .where(Notification.user_id == user_id,
+                   Notification.read_at.is_(None),
+                   Notification.object_type != MESSAGE_NOTIFICATION)
         ).scalar() or 0)
 
 

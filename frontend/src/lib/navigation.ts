@@ -331,15 +331,33 @@ export const NAV_ITEMS: NavItem[] = [
     demo: "core",
   },
   {
-    href: "/workflow",
-    label: "Workflow",
+    href: "/reviews",
+    label: "My reviews",
     description:
-      "Share, review and approve the things that carry institutional weight, with an append-only decision history.",
+      "What has been sent to you for review or approval, and what you are waiting on, with an append-only decision history.",
     icon: ClipboardCheck,
     status: "live",
     phase: "",
     group: "Govern",
     demo: "core",
+  },
+  {
+    // Workflow is operational OVERSIGHT, not a mailbox and not a personal
+    // queue. It answers "how is the workflow running across the institution"
+    // — who has unread work, whose requests are overdue, who has not signed
+    // in — and only an administrator has a reason to ask that. The backend
+    // refuses the aggregate routes to everybody else; this keeps the entry
+    // out of the sidebar so nobody finds that out by being refused.
+    href: "/workflow",
+    label: "Workflow",
+    description:
+      "Administrative oversight of message and review activity across every user. Counts and status only — never the contents of anybody's mail.",
+    icon: Users,
+    status: "live",
+    phase: "",
+    group: "Admin",
+    demo: "core",
+    roles: ["ADMIN"],
   },
 
   // ---- ADMIN ----

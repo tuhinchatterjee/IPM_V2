@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import * as React from "react";
 
 import {
@@ -20,7 +20,9 @@ import {
   type Person,
   type RequestType,
   type SentSummary,
+  type ShareableObject,
 } from "@/lib/api";
+import { useAttention } from "@/lib/attention";
 import { useAsync } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 
@@ -47,7 +49,6 @@ const BOXES: { key: Mailbox; label: string }[] = [
 ];
 
 export function MessageCentre() {
-  const router = useRouter();
   const params = useSearchParams();
   const initial = (params.get("box") as Mailbox) ?? "inbox";
 
@@ -59,8 +60,15 @@ export function MessageCentre() {
   const [unreadOnly, setUnreadOnly] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
   const [reload, setReload] = React.useState(0);
+  const [notice, setNotice] = React.useState("");
 
-  const counts = useAsync(() => api.messageCounts(), [reload]);
+  // Not a fetch of its own: the tiles, the tabs and the header badge all read
+  // the same store, so a number that moves moves everywhere at once.
+  const { safe: counts, refresh: refreshCounts } = useAttention();
+  React.useEffect(() => {
+    void refreshCounts();
+  }, [reload, refreshCounts]);
+
   const page = useAsync(
     () => api.mailbox(box, { q: search, unread: unreadOnly, limit: 50 }),
     [box, search, unreadOnly, reload],
@@ -75,12 +83,26 @@ export function MessageCentre() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="grid grid-cols-3 gap-2 sm:max-w-md">
-          <Stat label="Unread" value={counts.data?.unread ?? 0} />
-          <Stat label="Action required" value={counts.data?.action_required ?? 0} />
-          <Stat label="Shared with me" value={counts.data?.shared_with_me ?? 0} />
+          <Stat label="Unread" value={counts.unread} />
+          <Stat label="Action required" value={counts.action_required} />
+          <Stat label="Shared with me" value={counts.shared_with_me} />
         </div>
         <Button onClick={() => setComposing(true)}>New message</Button>
       </div>
+
+      {notice && (
+        <div
+          role="status"
+          className="flex items-center justify-between rounded-md border border-positive/30 bg-positive/5 px-3 py-2 text-xs text-text-primary"
+        >
+          <span>{notice}</span>
+          <button type="button" aria-label="Dismiss"
+                  className="text-text-muted hover:text-text-primary"
+                  onClick={() => setNotice("")}>
+            ×
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 border-b border-border pb-2">
         {BOXES.map((b) => (
@@ -97,14 +119,14 @@ export function MessageCentre() {
             )}
           >
             {b.label}
-            {b.key === "inbox" && (counts.data?.unread ?? 0) > 0 && (
-              <span className="ml-1.5 tabular-nums">
-                {counts.data?.unread}
+            {b.key === "inbox" && counts.unread > 0 && (
+              <span className="ml-1.5 tabular-nums" data-testid="tab-unread">
+                {counts.unread}
               </span>
             )}
-            {b.key === "action" && (counts.data?.action_required ?? 0) > 0 && (
+            {b.key === "action" && counts.action_required > 0 && (
               <span className="ml-1.5 tabular-nums">
-                {counts.data?.action_required}
+                {counts.action_required}
               </span>
             )}
           </button>
@@ -148,11 +170,19 @@ export function MessageCentre() {
       )}
       {page.data && page.data.items.length > 0 && (
         <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
-          {page.data.items.map((item) =>
-            box === "sent" ? (
+          {/*
+            The row shape follows the DATA, not the tab. `page.data.box` is
+            what the backend actually returned; `box` is what the reader has
+            most recently clicked. Between the click and the response arriving
+            they disagree for one render, and choosing by the tab drew Sent
+            rows over Inbox items — a crash, because an inbox row has no
+            recipient list to draw.
+          */}
+          {page.data.items.map((item, _i, _all, shown = page.data!.box) =>
+            shown === "sent" ? (
               <SentRow key={(item as SentSummary).message_id}
                        item={item as SentSummary} />
-            ) : box === "drafts" ? (
+            ) : shown === "drafts" ? (
               <DraftRow key={(item as DraftSummary).message_id}
                         item={item as DraftSummary} />
             ) : (
@@ -171,10 +201,19 @@ export function MessageCentre() {
       {composing && (
         <Compose
           onClose={() => setComposing(false)}
-          onSent={(threadId) => {
+          onSent={(sent) => {
+            // Close, confirm, and land in Sent — where the thing that just
+            // happened is visible. Opening the thread instead would mark it
+            // read on arrival, and a self-addressed message would clear its own
+            // unread badge before the sender ever saw it appear.
             setComposing(false);
+            setNotice(
+              sent.recipients > 1
+                ? `Message sent to ${sent.recipients} people.`
+                : "Message sent.",
+            );
+            setBox("sent");
             setReload((n) => n + 1);
-            router.push(`/messages/${threadId}`);
           }}
         />
       )}
@@ -312,28 +351,56 @@ function DraftRow({ item }: { item: DraftSummary }) {
 /**
  * Compose.
  *
- * The recipient picker searches the governed directory, which excludes anybody
- * whose account has been suspended: offering somebody who cannot sign in
- * produces a message that is delivered and never read, and that looks exactly
- * like a message that was ignored.
+ * Two things here were wrong and are the reason this component was rewritten.
+ *
+ * The recipient list rendered only once something had been typed, so a sender
+ * who clicked into the To field saw an empty box and concluded there were no
+ * colleagues configured. A directory people have to guess their way into is not
+ * a directory. It now loads on focus and shows who is there; typing narrows it
+ * across name, username, email, job title, department, team and role.
+ *
+ * And attaching a governed object meant knowing its id. Now "Share from
+ * CreditProbe" lists the analyses and investigations THIS sender can actually
+ * read, as cards — the backend access-checks every one before offering it, so
+ * a card that appears can be attached and the send cannot fail for a reason the
+ * picker already knew about.
  */
 function Compose({ onClose, onSent }: {
   onClose: () => void;
-  onSent: (threadId: number) => void;
+  onSent: (sent: { threadId: number; recipients: number }) => void;
 }) {
   const [to, setTo] = React.useState<Person[]>([]);
   const [find, setFind] = React.useState("");
+  const [picking, setPicking] = React.useState(false);
   const [subject, setSubject] = React.useState("");
   const [body, setBody] = React.useState("");
   const [requestType, setRequestType] = React.useState<RequestType>("fyi");
   const [attachments, setAttachments] = React.useState<AttachmentSpec[]>([]);
   const [attachLabels, setAttachLabels] = React.useState<string[]>([]);
+  const [sharing, setSharing] = React.useState<"analysis" | "investigation" | null>(
+    null,
+  );
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const directory = useAsync(() => api.messageDirectory(find, 20), [find]);
+  // One token per send attempt, minted on the first press of Send and kept for
+  // any retry of it. Pressing Send twice — or a request the browser retried
+  // after a timeout it never saw the answer to — carries the same token, and
+  // the backend answers with the message it already created rather than
+  // putting a second copy in somebody's inbox.
+  //
+  // Minted in the handler rather than during render: a value drawn from the
+  // clock or the random source while rendering is not a pure render, and a
+  // re-render would silently change the identity of the send in flight.
+  const token = React.useRef("");
+
+  // Empty query included: the point is that focusing the field shows people.
+  const directory = useAsync(() => api.messageDirectory(find, 50), [find]);
+  const chosen = new Set(to.map((p) => p.id));
+  const offered = (directory.data?.users ?? []).filter((p) => !chosen.has(p.id));
 
   async function send() {
+    if (!token.current) token.current = crypto.randomUUID();
     setBusy(true);
     setError(null);
     try {
@@ -343,11 +410,14 @@ function Compose({ onClose, onSent }: {
         body,
         attachments,
         request_type: requestType,
+        client_token: token.current,
       });
-      onSent(sent.thread_id);
+      onSent({ threadId: sent.thread_id, recipients: to.length });
     } catch (e) {
+      // A send that failed says so and leaves the composer open with
+      // everything still in it. Closing on failure would look exactly like
+      // success and lose what was written.
       setError(e instanceof Error ? e.message : "Could not send.");
-    } finally {
       setBusy(false);
     }
   }
@@ -363,7 +433,6 @@ function Compose({ onClose, onSent }: {
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save.");
-    } finally {
       setBusy(false);
     }
   }
@@ -378,6 +447,16 @@ function Compose({ onClose, onSent }: {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not attach that file.");
     }
+  }
+
+  function attachObject(item: ShareableObject) {
+    setAttachments((a) => [
+      ...a,
+      { type: item.object_type as AttachmentSpec["type"],
+        object_id: item.object_id, label: item.label },
+    ]);
+    setAttachLabels((l) => [...l, item.label || `${item.object_type} ${item.object_id}`]);
+    setSharing(null);
   }
 
   return (
@@ -406,50 +485,87 @@ function Compose({ onClose, onSent }: {
                    className="mb-1 block text-xs font-medium text-text-secondary">
               To
             </label>
-            <div className="mb-1.5 flex flex-wrap gap-1.5">
-              {to.map((p) => (
-                <span key={p.id}
+            {to.length > 0 && (
+              <ul className="mb-1.5 flex flex-wrap gap-1.5">
+                {to.map((p) => (
+                  <li key={p.id}
+                      data-testid="recipient-chip"
                       className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-2.5 py-1 text-xs text-accent">
-                  {p.name}
-                  <button type="button"
-                          aria-label={`Remove ${p.name}`}
-                          onClick={() => setTo((c) => c.filter((x) => x.id !== p.id))}>
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
+                    {p.name}
+                    <button type="button"
+                            aria-label={`Remove ${p.name}`}
+                            onClick={() => setTo((c) => c.filter((x) => x.id !== p.id))}>
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
             <input
               id="compose-to"
               value={find}
-              onChange={(e) => setFind(e.target.value)}
+              onFocus={() => setPicking(true)}
+              onChange={(e) => {
+                setFind(e.target.value);
+                setPicking(true);
+              }}
+              autoComplete="off"
               placeholder="Search by name, job title, team or role"
               className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
             />
-            {find && directory.data && (
-              <ul className="mt-1 max-h-44 overflow-y-auto rounded-md border border-border">
-                {directory.data.users
-                  .filter((p) => !to.some((x) => x.id === p.id))
-                  .map((p) => (
-                    <li key={p.id}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTo((c) => [...c, p]);
-                          setFind("");
-                        }}
-                        className="flex w-full items-baseline gap-2 px-3 py-2 text-left text-xs hover:bg-surface-sunken"
-                      >
-                        <span className="font-medium text-text-primary">
-                          {p.name}
-                        </span>
-                        <span className="text-text-muted">
-                          {[p.job_title, p.team].filter(Boolean).join(" · ")}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-              </ul>
+            {picking && (
+              <div className="mt-1 rounded-md border border-border">
+                {directory.loading && (
+                  <p className="px-3 py-2 text-xs text-text-muted">
+                    Loading the directory…
+                  </p>
+                )}
+                {directory.error && (
+                  <p className="px-3 py-2 text-xs text-negative">
+                    {directory.error}
+                  </p>
+                )}
+                {!directory.loading && !directory.error && offered.length === 0 && (
+                  <p className="px-3 py-2 text-xs text-text-muted">
+                    {find
+                      ? "Nobody matched that."
+                      : "No other active accounts are configured."}
+                  </p>
+                )}
+                {offered.length > 0 && (
+                  <ul data-testid="recipient-options"
+                      className="max-h-56 overflow-y-auto">
+                    {offered.map((p) => (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTo((c) => [...c, p]);
+                            setFind("");
+                          }}
+                          className="flex w-full flex-col gap-0.5 px-3 py-2 text-left text-xs hover:bg-surface-sunken"
+                        >
+                          <span className="font-medium text-text-primary">
+                            {p.name}
+                          </span>
+                          <span className="text-text-muted">
+                            {[p.job_title, p.team, p.role]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="border-t border-border px-3 py-1.5 text-right">
+                  <button type="button"
+                          className="text-[11px] text-text-muted hover:text-text-primary"
+                          onClick={() => setPicking(false)}>
+                    Done
+                  </button>
+                </div>
+              </div>
             )}
           </div>
 
@@ -480,6 +596,44 @@ function Compose({ onClose, onSent }: {
             />
           </div>
 
+          <div className="rounded-md border border-border bg-surface-sunken/40 px-3 py-2.5">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+              Share from CreditProbe
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button"
+                      onClick={() => setSharing(
+                        sharing === "analysis" ? null : "analysis")}
+                      className="rounded-md border border-border px-2.5 py-1 text-xs text-text-secondary hover:text-text-primary">
+                + Analysis
+              </button>
+              <button type="button"
+                      onClick={() => setSharing(
+                        sharing === "investigation" ? null : "investigation")}
+                      className="rounded-md border border-border px-2.5 py-1 text-xs text-text-secondary hover:text-text-primary">
+                + Investigation
+              </button>
+              <label className="cursor-pointer rounded-md border border-border px-2.5 py-1 text-xs text-text-secondary hover:text-text-primary">
+                + File
+                <input
+                  type="file"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void upload(file);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              <span className="text-[11px] text-text-muted">
+                Workbooks and reports attach as files.
+              </span>
+            </div>
+            {sharing && (
+              <ObjectPicker kind={sharing} onPick={attachObject} />
+            )}
+          </div>
+
           <div className="flex flex-wrap items-center gap-3">
             <label className="text-xs font-medium text-text-secondary">
               This message is
@@ -494,32 +648,29 @@ function Compose({ onClose, onSent }: {
                 <option value="action">an action request</option>
               </select>
             </label>
-            <label className="cursor-pointer text-xs font-medium text-accent">
-              Attach a file
-              <input
-                type="file"
-                className="sr-only"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) void upload(file);
-                  e.target.value = "";
-                }}
-              />
-            </label>
           </div>
 
           {attachLabels.length > 0 && (
             <ul className="flex flex-wrap gap-1.5">
               {attachLabels.map((name, i) => (
                 <li key={`${name}-${i}`}
-                    className="rounded border border-border bg-surface-sunken px-2 py-1 text-xs text-text-secondary">
+                    data-testid="attachment-chip"
+                    className="inline-flex items-center gap-1.5 rounded border border-border bg-surface-sunken px-2 py-1 text-xs text-text-secondary">
                   {name}
+                  <button type="button"
+                          aria-label={`Remove ${name}`}
+                          onClick={() => {
+                            setAttachments((a) => a.filter((_, j) => j !== i));
+                            setAttachLabels((l) => l.filter((_, j) => j !== i));
+                          }}>
+                    ×
+                  </button>
                 </li>
               ))}
             </ul>
           )}
 
-          {error && <p className="text-xs text-negative">{error}</p>}
+          {error && <p role="alert" className="text-xs text-negative">{error}</p>}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
@@ -530,10 +681,75 @@ function Compose({ onClose, onSent }: {
             onClick={send}
             disabled={busy || to.length === 0 || !subject.trim()}
           >
-            Send
+            {busy ? "Sending…" : "Send"}
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The list behind "+ Analysis" and "+ Investigation".
+ *
+ * Cards, not identifiers. Each row is something the signed-in person can
+ * already open, described the way the attachment will describe it in the
+ * recipient's inbox — so what the sender picked and what the reader receives
+ * are visibly the same object.
+ */
+function ObjectPicker({ kind, onPick }: {
+  kind: "analysis" | "investigation";
+  onPick: (item: ShareableObject) => void;
+}) {
+  const [q, setQ] = React.useState("");
+  const list = useAsync(() => api.shareableObjects(kind, q, 20), [kind, q]);
+
+  return (
+    <div className="mt-2.5 rounded-md border border-border bg-surface">
+      <input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        aria-label={`Search ${kind === "analysis" ? "analyses" : "investigations"}`}
+        placeholder={`Search your ${kind === "analysis" ? "analyses" : "investigations"}`}
+        className="w-full rounded-t-md border-b border-border bg-surface px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:outline-none"
+      />
+      {list.loading && (
+        <p className="px-3 py-2 text-xs text-text-muted">Loading…</p>
+      )}
+      {list.error && (
+        <p className="px-3 py-2 text-xs text-negative">{list.error}</p>
+      )}
+      {!list.loading && list.data && list.data.items.length === 0 && (
+        <p className="px-3 py-2 text-xs text-text-muted">
+          Nothing here you can share yet.
+        </p>
+      )}
+      {list.data && list.data.items.length > 0 && (
+        <ul data-testid="shareable-list" className="max-h-56 overflow-y-auto">
+          {list.data.items.map((item) => (
+            <li key={`${item.object_type}-${item.object_id}`}>
+              <button
+                type="button"
+                onClick={() => onPick(item)}
+                className="flex w-full flex-col gap-0.5 border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-surface-sunken"
+              >
+                <span className="text-xs font-medium text-text-primary">
+                  {item.label || "Untitled"}
+                </span>
+                <span className="text-[11px] text-text-muted">
+                  {[
+                    String(item.meta.period ?? ""),
+                    String(item.meta.scope ?? item.meta.domain ?? ""),
+                    String(item.meta.certification ?? item.meta.status ?? ""),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

@@ -2,551 +2,357 @@
 
 import Link from "next/link";
 import * as React from "react";
-import {
-  AtSign,
-  CheckCircle2,
-  Clock,
-  CornerDownRight,
-  Inbox,
-  Send,
-  Users,
-} from "lucide-react";
+import { AlertTriangle, Mail, Share2, Users } from "lucide-react";
 
-import { WorkflowStateBadge } from "@/components/collaboration/share";
 import { PageHeader } from "@/components/layout/page-header";
-import { ReadOnlyNotice, useCanRunAnalysis } from "@/components/system/role-switcher";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { useRole } from "@/components/system/role-switcher";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs } from "@/components/ui/tabs";
 import {
   api,
-  type Directory,
-  type WorkflowDetail,
-  type WorkflowItemRow,
+  type WorkflowUserRow,
 } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
-import { linkBack } from "@/lib/return-to";
 import { cn } from "@/lib/utils";
 
 /**
- * The Workflow Inbox. §46.
+ * Workflow — administrative oversight.
  *
- * Five lists, and the split is the whole idea:
+ * What this page is
+ * -----------------
+ * The operational answer to "how is the workflow actually running". Who is
+ * active, who is drowning in unread work, whose review requests have gone past
+ * their date, who has not signed in for a month. Counts, per user, across the
+ * whole institution.
  *
- *   ASSIGNED TO ME  what I have to do, including work sent to a team I am in
- *   SENT BY ME      what I am waiting on
- *   MENTIONS        where somebody named me. Being asked a question is not the
- *                   same as being given the work, and an inbox that cannot tell
- *                   them apart is one people stop reading
- *   DUE SOON        assigned to me, with a date inside a week
- *   COMPLETED       closed, however it closed
+ * What this page is NOT
+ * ---------------------
+ * A mailbox. Messages live in Messages, whatever they carry: a message with an
+ * analysis attached is still a message, and a review request that moves from
+ * Open to Responded is still the same conversation in the same inbox. Nothing
+ * is relocated here because of what it contains or what state it is in.
  *
- * Opening a row shows what §46 asks for: the object it is about with a link
- * that opens it, the message thread, the actions the state machine actually
- * permits, and the append-only audit history.
+ * And not surveillance. There is no subject line and no message body anywhere
+ * on this page, because there is no route that would return one to an
+ * administrator: reading somebody's mail requires being in the conversation,
+ * and administering an account is not being in it. Where governance genuinely
+ * needs to know who sent what to whom, the audit log answers that by act.
  *
- * Every row is a real workflow item from PostgreSQL. Approving something writes
- * an immutable event and notifies the person who asked; nothing on this page is
- * a mock-up of a process.
+ * Non-administrators do not see this in the sidebar and the two routes behind
+ * it refuse them, so the notice below is the honest thing to show rather than
+ * a blank page.
  */
-
-const PRIORITY_CLASS: Record<string, string> = {
-  urgent: "text-negative",
-  high: "text-warning",
-  normal: "text-text-muted",
-  low: "text-text-muted",
-};
-
-type View =
-  | "assigned_to_me"
-  | "sent_by_me"
-  | "mentions"
-  | "due_soon"
-  | "completed";
-
 export default function WorkflowPage() {
-  const [tab, setTab] = React.useState<View>("assigned_to_me");
+  const { role } = useRole();
+  const [q, setQ] = React.useState("");
+  const [search, setSearch] = React.useState("");
   const [selected, setSelected] = React.useState<number | null>(null);
-  const [nonce, setNonce] = React.useState(0);
 
-  const inbox = useAsync(() => api.workflowInbox(), [nonce]);
-  const directory = useAsync(() => api.directory(), []);
-  // A Viewer may read a decision history and reply to a thread, but may not
-  // make a decision. The backend refuses it; the buttons are hidden so nobody
-  // discovers that by being refused.
-  const canDecide = useCanRunAnalysis();
+  const page = useAsync(
+    () => api.workflowOverview({ q: search, limit: 200 }),
+    [search],
+  );
 
-  const lists = inbox.data;
-  const rows: WorkflowItemRow[] = lists?.[tab] ?? [];
+  if (role && role !== "ADMIN") {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Workflow"
+          description="Administrative oversight of message and review activity."
+          status="live"
+        />
+        <Card className="p-6">
+          <p className="text-sm text-text-primary">
+            This is an administrator&rsquo;s view of how the workflow is running
+            across every account. It is not your mailbox.
+          </p>
+          <p className="mt-2 text-sm text-text-secondary">
+            Your own messages are in{" "}
+            <Link href="/messages" className="text-accent hover:underline">
+              Messages
+            </Link>
+            , and what has been sent to you for review is in{" "}
+            <Link href="/reviews" className="text-accent hover:underline">
+              My reviews
+            </Link>
+            .
+          </p>
+        </Card>
+      </div>
+    );
+  }
 
-  const count = (view: View) => lists?.[view]?.length ?? 0;
+  const totals = page.data?.totals;
+  const users = page.data?.users ?? [];
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Workflow"
-        description="Send a Project, an Investigation or an Analysis to somebody for review, approval, sign-off or comment. Every decision is written to an append-only history with who made it and when, and the conversation stays against the object rather than in email."
+        description="How message and review activity is running across every account: who has unread work, whose requests are overdue, who has stopped signing in. Counts and status only — never the contents of anybody's mail."
         status="live"
       />
 
-      {!canDecide && <ReadOnlyNotice action="approve or reject a review" />}
-
-      {inbox.error && (
-        <Card className="border-negative/40 p-4 text-sm text-negative">{inbox.error}</Card>
-      )}
-
-      <div className="grid gap-3 sm:grid-cols-4">
-        <Stat label="Assigned to me" value={count("assigned_to_me")} icon={Inbox} />
-        <Stat label="Sent by me" value={count("sent_by_me")} icon={Send} />
-        <Stat label="Due soon" value={count("due_soon")} icon={Clock} />
-        <Stat label="Completed" value={count("completed")} icon={CheckCircle2} />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Tile icon={Users} label="Active accounts"
+              value={totals ? `${totals.active}` : "—"}
+              note={totals ? `${totals.suspended} suspended` : ""} />
+        <Tile icon={Mail} label="Messages sent"
+              value={totals ? totals.messages_sent.toLocaleString() : "—"}
+              note={totals ? `${totals.unread.toLocaleString()} unread across all inboxes` : ""} />
+        <Tile icon={AlertTriangle} label="Open requests"
+              value={totals ? `${totals.action_required}` : "—"}
+              note={totals ? `${totals.overdue} past their date` : ""}
+              alert={Boolean(totals && totals.overdue > 0)} />
+        <Tile icon={Share2} label="Objects shared"
+              value={totals ? `${totals.shares}` : "—"}
+              note="Live grants, not revoked" />
       </div>
 
-      <Tabs
-        active={tab}
-        onChange={(id) => {
-          setTab(id as View);
-          setSelected(null);
+      <form
+        className="flex items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setSearch(q.trim());
         }}
-        tabs={[
-          { id: "assigned_to_me", label: "Assigned to me", count: count("assigned_to_me") },
-          { id: "sent_by_me", label: "Sent by me", count: count("sent_by_me") },
-          { id: "mentions", label: "Mentions", count: count("mentions") },
-          { id: "due_soon", label: "Due soon", count: count("due_soon") },
-          { id: "completed", label: "Completed", count: count("completed") },
-        ]}
-      />
+      >
+        <input
+          id="workflow-search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Find a person by name, job title, team or role"
+          aria-label="Find a person"
+          className="w-80 rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+        />
+        <Link href="/users"
+              className="ml-auto text-xs font-medium text-accent hover:underline">
+          Manage users →
+        </Link>
+      </form>
 
-      {inbox.loading && <Skeleton className="h-48 w-full" />}
-
-      {!inbox.loading && rows.length === 0 && (
-        <Card className="px-5 py-10 text-center">
-          <p className="text-sm text-text-secondary">{EMPTY[tab]}</p>
-          <p className="mt-1 text-xs text-text-muted">
-            Send is under every answer, every project and every saved analysis.
-          </p>
-        </Card>
+      {page.loading && <Skeleton className="h-64 w-full" />}
+      {page.error && (
+        <p className="py-8 text-center text-sm text-negative">{page.error}</p>
       )}
 
-      {rows.length > 0 && (
-        <Card className="divide-y divide-border">
-          {rows.map((item) => (
-            <div key={item.id}>
-              <button
-                type="button"
-                onClick={() => setSelected(selected === item.id ? null : item.id)}
-                className="flex w-full items-start gap-3 px-5 py-3.5 text-left transition-colors hover:bg-surface-hover"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-text-primary">
-                    {item.title}
-                  </p>
-                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-text-muted">
-                    <span>{nameOf(directory.data, item.requested_by)}</span>
-                    <span>·</span>
-                    <span>{item.object_type_label ?? item.object_type}</span>
-                    {item.object_version && <span>v{item.object_version}</span>}
-                    {item.action_label && (
-                      <>
-                        <span>·</span>
-                        <span className="text-text-secondary">{item.action_label}</span>
-                      </>
-                    )}
-                    {item.due_at && (
-                      <>
-                        <span>·</span>
-                        <span className={cn(PRIORITY_CLASS[item.priority ?? "normal"])}>
-                          due {when(item.due_at)}
-                        </span>
-                      </>
-                    )}
-                    {(item.messages ?? 0) > 0 && (
-                      <>
-                        <span>·</span>
-                        <span>
-                          {item.messages}{" "}
-                          {item.messages === 1 ? "message" : "messages"}
-                        </span>
-                      </>
-                    )}
-                    <span>·</span>
-                    <span>{when(item.updated_at)}</span>
-                  </p>
-                </div>
-                {item.priority && item.priority !== "normal" && (
-                  <Badge variant="outline" className={PRIORITY_CLASS[item.priority]}>
-                    {item.priority}
-                  </Badge>
-                )}
-                <WorkflowStateBadge state={item.state} label={item.state_label} />
-              </button>
-              {selected === item.id && (
-                <ItemDetail
-                  itemId={item.id}
-                  canDecide={canDecide}
-                  directory={directory.data ?? null}
-                  onChanged={() => setNonce((n) => n + 1)}
-                />
-              )}
-            </div>
-          ))}
-        </Card>
+      {page.data && (
+        <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+          <table className="w-full min-w-[52rem] text-left text-xs">
+            <thead className="border-b border-border text-[11px] uppercase tracking-wide text-text-muted">
+              <tr>
+                <th scope="col" className="px-3 py-2 font-medium">Person</th>
+                <th scope="col" className="px-3 py-2 font-medium">Role &amp; team</th>
+                <th scope="col" className="px-3 py-2 font-medium">Status</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">Unread</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">Received</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">Sent</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">Action required</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">Overdue</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">Shared</th>
+                <th scope="col" className="px-3 py-2 font-medium">Last active</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {users.map((u) => (
+                <Row key={u.id} user={u}
+                     open={selected === u.id}
+                     onToggle={() => setSelected(selected === u.id ? null : u.id)} />
+              ))}
+            </tbody>
+          </table>
+          {users.length === 0 && (
+            <p className="px-3 py-8 text-center text-xs text-text-muted">
+              Nobody matched that.
+            </p>
+          )}
+        </div>
+      )}
+
+      {page.data && page.data.total > users.length && (
+        <p className="text-center text-xs text-text-muted">
+          Showing {users.length} of {page.data.total.toLocaleString()} accounts.
+        </p>
       )}
     </div>
   );
 }
 
-const EMPTY: Record<View, string> = {
-  assigned_to_me: "Nothing is waiting on you.",
-  sent_by_me: "You have not sent anything.",
-  mentions: "Nobody has named you.",
-  due_soon: "Nothing is due in the next week.",
-  completed: "Nothing has been through review yet.",
-};
-
-function Stat({
-  label,
-  value,
-  icon: Icon,
-}: {
+function Tile({ icon: Icon, label, value, note, alert }: {
+  icon: typeof Users;
   label: string;
-  value: number;
-  icon: typeof Inbox;
+  value: string;
+  note?: string;
+  alert?: boolean;
 }) {
   return (
     <Card className="p-4">
-      <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-text-muted">
-        <Icon className="size-3.5" aria-hidden />
-        {label}
+      <div className="flex items-center gap-2 text-text-muted">
+        <Icon className="size-[13px]" aria-hidden />
+        <span className="text-[11px] uppercase tracking-wide">{label}</span>
+      </div>
+      <p className={cn("mt-1.5 text-2xl font-semibold tabular-nums",
+                       alert ? "text-warning" : "text-text-primary")}>
+        {value}
       </p>
-      <p className="mt-1.5 text-2xl font-semibold tabular text-text-primary">{value}</p>
+      {note && <p className="mt-0.5 text-[11px] text-text-muted">{note}</p>}
     </Card>
   );
 }
 
-/**
- * One item, opened: what it is about, what was said, what can be done, and
- * everything that has happened to it.
- *
- * The decision buttons are exactly the transitions the backend's state machine
- * permits from the current state. Offering one that would be refused is a worse
- * failure than offering none.
- */
-function ItemDetail({
-  itemId,
-  canDecide,
-  directory,
-  onChanged,
-}: {
-  itemId: number;
-  canDecide: boolean;
-  directory: Directory | null;
-  onChanged: () => void;
+/** How long ago, in the coarsest unit that is still informative. */
+function ago(iso: string | null): string {
+  if (!iso) return "Never signed in";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "—";
+  const days = Math.floor((Date.now() - then) / 86_400_000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 30) return `${days} days ago`;
+  const months = Math.floor(days / 30);
+  return months === 1 ? "A month ago" : `${months} months ago`;
+}
+
+function Row({ user, open, onToggle }: {
+  user: WorkflowUserRow;
+  open: boolean;
+  onToggle: () => void;
 }) {
-  const [detail, setDetail] = React.useState<WorkflowDetail | null>(null);
-  const [comment, setComment] = React.useState("");
-  const [message, setMessage] = React.useState("");
-  const [replyTo, setReplyTo] = React.useState<number | null>(null);
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-
-  // Opening it IS the OPENED status. Recorded here rather than claimed by the
-  // list, because the list renders every row and opening one row is not
-  // opening all of them.
-  React.useEffect(() => {
-    let live = true;
-    api
-      .openWorkflow(itemId)
-      .then((d) => live && setDetail(d))
-      .catch(() =>
-        api
-          .workflowItem(itemId)
-          .then((d) => live && setDetail(d))
-          .catch((e) => live && setError(String(e))),
-      );
-    return () => {
-      live = false;
-    };
-  }, [itemId]);
-
-  const move = async (state: string) => {
-    setBusy(true);
-    setError(null);
-    try {
-      setDetail(await api.moveWorkflow(itemId, state, comment));
-      setComment("");
-      onChanged();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "That decision was refused.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const say = async () => {
-    if (!message.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await api.sayOnWorkflow(itemId, { body: message, parentId: replyTo });
-      setMessage("");
-      setReplyTo(null);
-      setDetail(await api.workflowItem(itemId));
-      onChanged();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "That message was not sent.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (error && !detail) {
-    return <p className="border-t border-border px-5 py-3 text-xs text-negative">{error}</p>;
-  }
-  if (!detail) {
-    return (
-      <div className="px-5 py-3">
-        <Skeleton className="h-20 w-full" />
-      </div>
-    );
-  }
-
-  const target = objectHref(detail);
+  const a = user.activity;
+  const profile = useAsync(
+    () => (open ? api.workflowUserProfile(user.id) : Promise.resolve(null)),
+    [open, user.id],
+  );
 
   return (
-    <div className="space-y-5 border-t border-border bg-surface-sunken px-5 py-4">
-      {/* ------------------------------------------------- object preview */}
-      <section>
-        <p className="meta mb-1.5 text-text-muted">
-          {detail.action_label ?? "Review"} requested
-        </p>
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="text-sm text-text-primary">{detail.title}</span>
-          <span className="text-xs text-text-muted">
-            {detail.object_type_label ?? detail.object_type}
-            {detail.object_version ? ` · version ${detail.object_version}` : ""}
+    <>
+      <tr
+        onClick={onToggle}
+        className="cursor-pointer align-middle hover:bg-surface-sunken/60"
+      >
+        <td className="px-3 py-2">
+          <span className="block font-medium text-text-primary">{user.name}</span>
+          <span className="block text-[11px] text-text-muted">
+            {user.job_title || user.username}
           </span>
-          {target && (
-            <Link href={target} className="text-xs font-medium text-accent hover:underline">
-              Open it
-            </Link>
-          )}
-        </div>
-        {detail.message && (
-          <p className="prose-ai mt-2 max-w-[68ch] border-l-2 border-border pl-3 text-xs leading-relaxed text-text-secondary">
-            {detail.message}
-          </p>
-        )}
-        {detail.recipients.length > 0 && (
-          <p className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-text-muted">
-            <Users className="size-3" aria-hidden />
-            {detail.recipients.map((r) => (
-              <span key={r.id}>
-                {r.team_id !== null
-                  ? teamOf(directory, r.team_id)
-                  : nameOf(directory, r.user_id)}
-                {r.opened_at ? " (opened)" : ""}
-              </span>
-            ))}
-          </p>
-        )}
-      </section>
+        </td>
+        <td className="px-3 py-2 text-text-secondary">
+          {[user.role, user.team].filter(Boolean).join(" · ") || "—"}
+        </td>
+        <td className="px-3 py-2">
+          <span className={cn(
+            "rounded-full px-2 py-0.5 text-[11px]",
+            user.status === "active"
+              ? "bg-positive/10 text-positive"
+              : "bg-surface-sunken text-text-muted",
+          )}>
+            {user.status === "active" ? "Active" : "Suspended"}
+          </span>
+        </td>
+        <td className={cn("px-3 py-2 text-right tabular-nums",
+                          a.unread > 0 ? "font-semibold text-text-primary"
+                                       : "text-text-muted")}>
+          {a.unread}
+        </td>
+        <td className="px-3 py-2 text-right tabular-nums text-text-secondary">
+          {a.received}
+        </td>
+        <td className="px-3 py-2 text-right tabular-nums text-text-secondary">
+          {a.sent}
+        </td>
+        <td className="px-3 py-2 text-right tabular-nums text-text-secondary">
+          {a.action_required}
+        </td>
+        <td className={cn("px-3 py-2 text-right tabular-nums",
+                          a.overdue > 0 ? "font-semibold text-warning"
+                                        : "text-text-muted")}>
+          {a.overdue}
+        </td>
+        <td className="px-3 py-2 text-right tabular-nums text-text-secondary">
+          {a.shared_with_them}
+        </td>
+        <td className="px-3 py-2 text-text-muted">{ago(user.last_active)}</td>
+      </tr>
 
-      {/* --------------------------------------------------- message thread */}
-      <section>
-        <p className="meta mb-2 text-text-muted">Conversation</p>
-        {detail.thread.length === 0 ? (
-          <p className="text-xs text-text-muted">Nothing said yet.</p>
-        ) : (
-          <ul className="space-y-2.5">
-            {detail.thread.map((entry) => (
-              <li
-                key={entry.id}
-                className={cn(
-                  "text-xs",
-                  entry.parent_id !== null && "ml-5 border-l border-border pl-3",
-                )}
-              >
-                <p className="flex flex-wrap items-baseline gap-x-2 text-text-muted">
-                  <span className="font-medium text-text-secondary">
-                    {nameOf(directory, entry.author_id)}
-                  </span>
-                  <span>{when(entry.created_at)}</span>
-                  {entry.resolved && <Badge variant="outline">resolved</Badge>}
-                </p>
-                <p className="prose-ai mt-0.5 max-w-[68ch] text-text-primary">
-                  {entry.body}
-                </p>
-                {entry.attachments.length > 0 && (
-                  <p className="mt-1 flex flex-wrap gap-2">
-                    {entry.attachments.map((a) => (
-                      <span key={`${a.type}-${a.id}`} className="text-[11px] text-text-muted">
-                        {a.label ?? `${a.type} ${a.id}`}
-                      </span>
-                    ))}
+      {open && (
+        <tr>
+          <td colSpan={10} className="bg-surface-sunken/40 px-3 py-4">
+            <div className="grid gap-5 md:grid-cols-2">
+              <div>
+                <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                  Operational profile
+                </h3>
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+                  <Fact label="Email" value={user.email || "—"} />
+                  <Fact label="Department" value={user.department || "—"} />
+                  <Fact label="Read conversations" value={String(a.read)} />
+                  <Fact label="Unsent drafts" value={String(a.drafts)} />
+                  <Fact label="Waiting on others" value={String(a.awaiting_others)} />
+                  <Fact label="Objects they have shared"
+                        value={String(a.shared_by_them)} />
+                </dl>
+                <Link
+                  href={`/users?user=${user.id}`}
+                  className="mt-3 inline-block text-xs font-medium text-accent hover:underline"
+                >
+                  Manage user →
+                </Link>
+              </div>
+              <div>
+                <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                  Recent activity
+                </h3>
+                {profile.loading && <Skeleton className="h-20 w-full" />}
+                {profile.data && profile.data.recent_activity.length === 0 && (
+                  <p className="text-xs text-text-muted">
+                    Nothing recorded yet.
                   </p>
                 )}
-                <div className="mt-1 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setReplyTo(entry.id)}
-                    className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-accent"
-                  >
-                    <CornerDownRight className="size-3" aria-hidden />
-                    Reply
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await api.resolveWorkflowMessage(entry.id, !entry.resolved);
-                      setDetail(await api.workflowItem(itemId));
-                    }}
-                    className="text-[11px] text-text-muted hover:text-accent"
-                  >
-                    {entry.resolved ? "Reopen" : "Mark resolved"}
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <div className="mt-3 space-y-1.5">
-          {replyTo !== null && (
-            <p className="flex items-center gap-1.5 text-[11px] text-text-muted">
-              <AtSign className="size-3" aria-hidden />
-              Replying
-              <button
-                type="button"
-                onClick={() => setReplyTo(null)}
-                className="text-accent hover:underline"
-              >
-                cancel
-              </button>
-            </p>
-          )}
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            rows={2}
-            placeholder="Say something about this"
-            className="w-full resize-none rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-          />
-          <Button size="sm" variant="outline" disabled={busy || !message.trim()} onClick={() => void say()}>
-            Send message
-          </Button>
-        </div>
-      </section>
-
-      {/* ----------------------------------------------------- the decision */}
-      {detail.next_states.length > 0 && canDecide ? (
-        <section>
-          <p className="meta mb-2 text-text-muted">Decision</p>
-          <textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            rows={2}
-            placeholder="Add a note with your decision"
-            className="w-full resize-none rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-          />
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {detail.next_states.map((state) => (
-              <Button
-                key={state}
-                size="sm"
-                variant={state === "approved" ? "default" : "outline"}
-                disabled={busy}
-                onClick={() => void move(state)}
-              >
-                {detail.next_state_labels[state] ?? state}
-              </Button>
-            ))}
-          </div>
-        </section>
-      ) : (
-        <p className="text-xs text-text-muted">
-          {detail.next_states.length === 0
-            ? "This is closed. Wanting another look means sending it again, which leaves this decision standing."
-            : "Your acting role can read this and reply to it, but cannot decide it."}
-        </p>
-      )}
-
-      {error && <p className="text-xs text-negative">{error}</p>}
-
-      {/* ------------------------------------------------------ audit trail */}
-      <section>
-        <p className="meta mb-2 text-text-muted">History</p>
-        <ol className="space-y-1.5">
-          {detail.events.map((event, i) => (
-            <li key={i} className="flex items-start gap-2 text-xs">
-              <Clock className="mt-0.5 size-3 shrink-0 text-text-muted" aria-hidden />
-              <span className="min-w-0 flex-1">
-                <span className="text-text-primary">{event.to_state_label}</span>
-                <span className="ml-1.5 text-text-muted">
-                  {nameOf(directory, event.actor_id)} · {when(event.created_at)}
-                </span>
-                {event.comment && (
-                  <span className="block text-text-secondary">{event.comment}</span>
+                {profile.data && profile.data.recent_activity.length > 0 && (
+                  <ul className="space-y-1 text-xs text-text-secondary">
+                    {profile.data.recent_activity.slice(0, 8).map((e, i) => (
+                      <li key={`${e.action}-${i}`} className="flex gap-2">
+                        <span className="text-text-muted">
+                          {e.at ? new Date(e.at).toLocaleDateString() : "—"}
+                        </span>
+                        <span>{ACTION_LABEL[e.action] ?? e.action}</span>
+                      </li>
+                    ))}
+                  </ul>
                 )}
-              </span>
-            </li>
-          ))}
-        </ol>
-      </section>
-    </div>
+                <p className="mt-3 text-[11px] leading-[1.5] text-text-muted">
+                  Acts, not contents. No subject line or message body is
+                  available here, to an administrator or to anybody else who is
+                  not in the conversation.
+                </p>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
-/**
- * Where the object being reviewed lives.
- *
- * Carrying the Workflow inbox as the return context: somebody who opens an
- * investigation from a review is coming back to the review.
- */
-function objectHref(detail: WorkflowDetail): string | null {
-  const from = { href: "/workflow", label: "Workflow", type: "workflow" as const };
-  switch (detail.object_type) {
-    case "investigation":
-      return linkBack(`/investigations/${detail.object_id}`, from);
-    case "project":
-      return linkBack(`/projects/${detail.object_id}`, from);
-    case "analysis":
-      return linkBack(`/engine-builder/${detail.object_id}`, from);
-    case "dataset":
-      return linkBack(
-        `/data-builder/dataset/${encodeURIComponent(detail.object_id)}`,
-        from,
-      );
-    case "scenario":
-      return "/stress";
-    case "document":
-      return `/documents/${detail.object_id}`;
-    default:
-      return null;
-  }
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <>
+      <dt className="text-text-muted">{label}</dt>
+      <dd className="text-text-primary">{value}</dd>
+    </>
+  );
 }
 
-/** A person's name, or an honest placeholder — never a fabricated one. */
-function nameOf(directory: Directory | null, id: number | null | undefined): string {
-  if (id === null || id === undefined) return "CreditProbe";
-  const person = directory?.people.find((p) => p.id === id);
-  return person?.name ?? `User ${id}`;
-}
-
-function teamOf(directory: Directory | null, id: number): string {
-  return directory?.teams.find((t) => t.id === id)?.name ?? `Team ${id}`;
-}
-
-function when(iso: string | null): string {
-  if (!iso) return "";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+/** The audit vocabulary, said in English. */
+const ACTION_LABEL: Record<string, string> = {
+  message_sent: "Sent a message",
+  message_replied: "Replied in a conversation",
+  message_read: "Read a conversation",
+  message_archived: "Archived a conversation",
+  object_shared: "Shared a governed object",
+  file_downloaded: "Downloaded an attachment",
+  workflow_status_changed: "Moved a request along",
+  user_created: "Created a user",
+  user_updated: "Updated a user",
+  user_deactivated: "Suspended a user",
+  user_reactivated: "Restored a user",
+};

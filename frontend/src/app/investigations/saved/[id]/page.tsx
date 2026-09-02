@@ -376,7 +376,7 @@ function Collaboration({
               </Button>
             )}
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/workflow">
+              <Link href="/reviews">
                 Workflow
                 <ArrowRight aria-hidden />
               </Link>

@@ -2508,10 +2508,71 @@ export interface MailboxPage<T> {
   items: T[];
 }
 
+/**
+ * The one personal-attention summary. Every badge, tab and tile reads it.
+ *
+ * Each field is a backend predicate, not a client-side filter — see
+ * `attention_summary` in the collaboration service for the table of them.
+ */
 export interface MessageCounts {
+  inbox: number;
   unread: number;
+  archived: number;
+  sent: number;
+  drafts: number;
   action_required: number;
   shared_with_me: number;
+}
+
+/** One user's operational counts, as the admin Workflow overview shows them. */
+export interface UserActivity {
+  received: number;
+  unread: number;
+  read: number;
+  sent: number;
+  drafts: number;
+  action_required: number;
+  overdue: number;
+  awaiting_others: number;
+  shared_with_them: number;
+  shared_by_them: number;
+}
+
+export interface WorkflowUserRow extends Person {
+  status: string;
+  last_active: string | null;
+  deactivated_at: string | null;
+  activity: UserActivity;
+}
+
+export interface WorkflowOverview {
+  total: number;
+  limit: number;
+  offset: number;
+  users: WorkflowUserRow[];
+  totals: {
+    users: number;
+    active: number;
+    suspended: number;
+    messages_sent: number;
+    unread: number;
+    action_required: number;
+    overdue: number;
+    shares: number;
+  };
+}
+
+export interface WorkflowUserProfile extends WorkflowUserRow {
+  recent_activity: { action: string; object_type: string; at: string | null }[];
+}
+
+/** A governed object the signed-in user may attach, offered as a card. */
+export interface ShareableObject {
+  object_type: string;
+  object_id: string;
+  object_version: string;
+  label: string;
+  meta: Record<string, unknown>;
 }
 
 export interface SharedObject {
@@ -2550,6 +2611,13 @@ export interface SendMessageInput {
   due_at?: string | null;
   thread_id?: number | null;
   draft_id?: number | null;
+  /**
+   * Generated once per press of Send. Sending it twice — a double-click, or a
+   * request the browser retried after a timeout it never saw the answer to —
+   * returns the first message instead of putting a second copy in somebody's
+   * inbox.
+   */
+  client_token?: string;
 }
 
 async function request<T>(
@@ -4417,6 +4485,18 @@ export const api = {
   },
   messageThread: (threadId: number) =>
     request<MessageThread>(`/messages/threads/${threadId}`),
+  shareableObjects: (objectType: string, q = "", limit = 20) =>
+    request<{ items: ShareableObject[] }>(
+      `/messages/shareable?object_type=${encodeURIComponent(objectType)}` +
+        `&q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+  workflowOverview: (opts: { q?: string; limit?: number } = {}) =>
+    request<WorkflowOverview>(
+      `/messages/admin/overview?q=${encodeURIComponent(opts.q ?? "")}` +
+        `&limit=${opts.limit ?? 100}`,
+    ),
+  workflowUserProfile: (userId: number) =>
+    request<WorkflowUserProfile>(`/messages/admin/users/${userId}`),
   sharedWithMe: (limit = 25) =>
     request<{ items: SharedObject[] }>(
       `/messages/shared-with-me?limit=${limit}`,
@@ -4444,6 +4524,8 @@ export const api = {
       thread_id: number;
       subject: string;
       recipients: number[];
+      /** True when this was a replay of a send that had already happened. */
+      duplicate?: boolean;
     }>("/messages/send", { method: "POST", body: JSON.stringify(body) }),
   replyToThread: (
     threadId: number,

@@ -285,11 +285,14 @@ export function Stat({ label, value, href }: {
   );
   const shell =
     "block rounded-lg border border-border bg-surface px-4 py-3 transition-colors";
+  // The label is on the tile itself so acceptance can name a specific number
+  // rather than guessing at the DOM around it.
+  const id = `stat-${label.toLowerCase().replace(/[^a-z]+/g, "-")}`;
   return href ? (
-    <Link href={href} className={cn(shell, "hover:border-accent")}>
+    <Link href={href} data-testid={id} className={cn(shell, "hover:border-accent")}>
       {inner}
     </Link>
   ) : (
-    <div className={shell}>{inner}</div>
+    <div data-testid={id} className={shell}>{inner}</div>
   );
 }
