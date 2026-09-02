@@ -218,3 +218,69 @@ grain work rather than bolted onto this guard.
 Until then the ordering is wrong and the population is right, which is the way
 round to be wrong.
 
+
+## Known gap: a cohort with no movement in it still reads two periods
+
+    "Which Stage 2 or worse borrowers are on watchlist?"
+
+is withheld. The governed runtime refuses the plan:
+
+    movements: a DERIVE needs 'columns'.
+    cohort: 'closing_watchlist' is not a column available at this step.
+
+Nothing in that sentence compares two dates. It names a population — stage 2
+or worse — and one thing that must be true of it at one date. But `_shape`
+reads *any* condition as a cohort, and every cohort is built by `_two_period`:
+an opening scan, a closing scan, a join with a `closing_` prefix, and a DERIVE
+of the movements. With no movement to derive the DERIVE is empty, the runtime
+rejects it, and the columns the later steps reach for never exist.
+
+`Condition.kind` already tells the two apart. A `change_pct` or `change_abs`
+condition genuinely needs both ends of a comparison; a `level` or `order`
+condition is a test at one date, and "on the watchlist" is a level.
+
+The plan the same sentence should produce is a single-period scan, the stage
+restriction at `>= 2`, the watchlist test as a filter, and one row per
+borrower. Three things stand between here and there, and all three are in
+`_single_period`:
+
+* it accepts `filters` — `(field, value)` string pairs — and not
+  `Condition`s, so a level test has nowhere to go;
+* the predicate compilation, the coverage gate, the invariants and the
+  fidelity contract each read conditions from the two-period build, and each
+  would need the single-period one to carry them;
+* the ordinal widening recorded in `AnalysisBuild.widened` reaches the
+  two-period path today. On the evidence of the plan actually built, it is not
+  reaching this one either: "Stage 2 or worse" compiles to an OR of two
+  equalities rather than to `ifrs9_stage >= 2`, and the answer is grouped by
+  stage rather than by borrower.
+
+So this is one defect with three surfaces, and the fix is a level-condition
+path through `_single_period` rather than a patch at the point of failure.
+Emitting no DERIVE when there is nothing to derive would make the plan run and
+would leave every other part of it wrong — a two-period join, an OR where a
+range belongs, and an answer at stage grain to a question about borrowers.
+A confident wrong answer is worse than a withheld one, so the plan stays
+withheld until the path exists.
+
+### And the two that are already right
+
+    "Which Stage 2 or worse borrowers had rising PD?"
+
+asks *"Over which horizon? Twelve-month and lifetime PD are different measures,
+and IFRS 9 uses each in different stages."* That is the correct answer. The
+sentence is genuinely ambiguous between two governed measures, and a
+clarification naming both is what the ambiguity gate is for — it is not the
+earlier defect, where the question was read as an OR and answered at stage
+grain.
+
+    "Show Stage 2 borrowers."
+    "Show Stage 3 borrowers."
+
+ask which figure to measure. The question names a population and no measure,
+and the distribution default — which supplies exposure at default for a
+question that names a dimension and no figure — does not fire for a plain
+population list. The same reasoning applies: a request for the borrowers in a
+stage has an unambiguous answer, and asking the reader to name a figure asks
+them to specify something the question already implies. That is a second,
+smaller gap in the same family and is not fixed here either.
