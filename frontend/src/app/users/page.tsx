@@ -167,6 +167,14 @@ function UserRow({
               <span className="ml-2 text-xs text-text-muted">deactivated</span>
             )}
           </p>
+          <p className="truncate text-[11px] text-text-secondary">
+            {/* Job title first: it is what tells a colleague whether this is
+                the person who owns the shipping book. The role is the select
+                beside it, and the username is an identifier rather than a
+                description. */}
+            {user.job_title || "—"}
+            {user.department && ` · ${user.department}`}
+          </p>
           <p className="mono truncate text-[11px] text-text-muted">
             {user.username}
             {user.email && ` · ${user.email}`}
@@ -283,6 +291,8 @@ function NewUser({
     lastName: "",
     email: "",
     team: "",
+    jobTitle: "",
+    department: "",
     role: "ANALYST" as Role,
   });
   const [busy, setBusy] = React.useState(false);
@@ -327,6 +337,20 @@ function NewUser({
             value={form.email}
             placeholder="omar.nasser@bank.com"
             onChange={(e) => set("email", e.target.value)}
+          />
+        </Field>
+        <Field label="Job title">
+          <Input
+            value={form.jobTitle}
+            placeholder="Corporate Credit Manager"
+            onChange={(e) => set("jobTitle", e.target.value)}
+          />
+        </Field>
+        <Field label="Department">
+          <Input
+            value={form.department}
+            placeholder="Credit Risk"
+            onChange={(e) => set("department", e.target.value)}
           />
         </Field>
         <Field label="Team">

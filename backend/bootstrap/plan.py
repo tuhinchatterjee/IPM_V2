@@ -239,6 +239,43 @@ def _seed_users() -> str:
             f"{len(result.kept)} already present")
 
 
+def _workflow_needed() -> bool:
+    """Whether the example conversations are absent.
+
+    Probed on the threads themselves rather than on a marker row: a marker can
+    say "done" about a database somebody has since reset, and the seed is
+    cheap enough to re-probe honestly.
+    """
+    from sqlalchemy import func, select
+
+    from backend.models.collaboration import MessageThread
+
+    with _session() as session:
+        return not (session.execute(
+            select(func.count()).select_from(MessageThread)).scalar() or 0)
+
+
+def _seed_workflow() -> str:
+    from backend.services import demo_workflow
+
+    with _session() as session:
+        conversations = demo_workflow.seed(session)
+        session.commit()
+    with _session() as session:
+        release = demo_workflow.seed_data_release(session)
+        session.commit()
+    said = (f"{len(conversations.created)} conversation(s) created, "
+            f"{len(conversations.kept)} already present")
+    if release.get("created"):
+        said += "; one data-release notification"
+    elif release.get("reason"):
+        # Said rather than swallowed. "No governed release to describe" is a
+        # fact about this deployment, and hiding it would make the absent
+        # message look like a bug in the messaging feature.
+        said += f"; no data-release notification ({release['reason']})"
+    return said
+
+
 def _portfolio_needed() -> bool:
     return not _lake_has(*readiness.PORTFOLIO_DATASETS)
 
@@ -457,6 +494,12 @@ def steps() -> tuple[Step, ...]:
              _workspace_needed, _seed_workspace, needs_database=True),
         Step("review", "L", f"Run the {readiness.PERIOD} portfolio review",
              _review_needed, _run_review, needs_database=True),
+        # M last, because it attaches REAL investigations and analyses and
+        # describes a REAL data release. Seeded before the workspace and the
+        # lake exist, it would have nothing to point at, and an example
+        # workflow whose attachment cards open onto nothing is worse than none.
+        Step("workflow", "M", "Seed the example internal workflow",
+             _workflow_needed, _seed_workflow, needs_database=True),
     )
 
 

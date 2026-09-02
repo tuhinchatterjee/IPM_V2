@@ -10,8 +10,10 @@ import {
   FlaskConical,
   Gauge,
   GitBranch,
+  Inbox,
   LayoutGrid,
   ListChecks,
+  Mail,
   Network,
   Radar,
   Search,
@@ -128,6 +130,29 @@ export const NAV_ITEMS: NavItem[] = [
     description:
       "Ask a question in plain language. CreditProbe AI plans the investigation, runs certified analyses and explains the result.",
     icon: Sparkles,
+    status: "live",
+    phase: "",
+    group: "Home",
+    demo: "core",
+  },
+
+  {
+    href: "/workspace",
+    label: "My workspace",
+    description:
+      "What is waiting on you: unread messages, reviews you have been asked for, and the investigations and analyses colleagues have shared with you.",
+    icon: Inbox,
+    status: "live",
+    phase: "",
+    group: "Home",
+    demo: "core",
+  },
+  {
+    href: "/messages",
+    label: "Messages",
+    description:
+      "Send a colleague an investigation, an analysis or a workbook, ask for a review, and read what CreditProbe has told you.",
+    icon: Mail,
     status: "live",
     phase: "",
     group: "Home",

@@ -79,6 +79,22 @@ from backend.models.collaboration import (
 
 logger = logging.getLogger(__name__)
 
+# What this module offers. The lifecycle VOCABULARY is not re-exported here:
+# it belongs to `models.collaboration` and callers import it from there, so
+# there is one place a state is named rather than two that can drift.
+__all__ = [
+    "ALLOWED_UPLOAD_TYPES", "ATT_ANALYSIS", "ATT_INVESTIGATION",
+    "ATTACHMENT_TYPES", "BOX_ACTION", "BOX_ARCHIVED", "BOX_DRAFTS",
+    "BOX_INBOX", "BOX_SENT", "SYSTEM_SENDER_NAME",
+    "CollaborationUnavailable", "InvalidRequest", "NotFound", "NotPermitted",
+    "audit", "can_read_object", "change_request_status", "create_draft",
+    "data_release_recipients", "directory", "download_artifact",
+    "download_artifact_view", "get_thread", "grant_share", "list_box",
+    "mark_read", "publish_data_release_event", "request_history",
+    "send_message", "send_system_message", "set_archived", "shared_with_me",
+    "store_artifact", "store_artifact_view", "unread_count", "update_draft",
+]
+
 #: How the product signs its own messages. Never a provider name: the reader is
 #: told which product spoke to them, and which foundation model produced the
 #: text is an implementation detail they did not ask about and must not be shown.

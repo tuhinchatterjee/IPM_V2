@@ -40,23 +40,28 @@ def require_database():
 
 @pytest.fixture(scope="module")
 def app():
-    # Signing in is the whole point here, so this suite turns the product's
-    # own default back on rather than relying on the header path the rest of
-    # the suite uses.
-    import importlib
-    import os
+    """Signing in is the whole point here, so this suite is the one place that
+    turns the product's own default back on.
 
-    previous = os.environ.get("REQUIRE_LOGIN")
-    os.environ["REQUIRE_LOGIN"] = "true"
-    import backend.config
+    It patches `permissions.settings` rather than reloading `backend.config`.
+    Reloading builds a NEW settings object while `backend.api.permissions` goes
+    on holding a reference to the old one — so the reload appears to work,
+    every session-based test still passes, and the single test that asserts the
+    production posture quietly asserts nothing. That is exactly how this suite
+    passed alone and failed inside the full run.
 
-    importlib.reload(backend.config)
+    The same mechanism `tests/api/test_login_required.py` uses, for the same
+    reason. One way to establish a posture, not two.
+    """
+    from dataclasses import replace
+
+    import backend.api.permissions as permissions
+    from backend.config import settings
+
+    original = permissions.settings
+    permissions.settings = replace(settings, require_login=True)
     yield
-    if previous is None:
-        os.environ.pop("REQUIRE_LOGIN", None)
-    else:
-        os.environ["REQUIRE_LOGIN"] = previous
-    importlib.reload(backend.config)
+    permissions.settings = original
 
 
 @pytest.fixture(scope="module")

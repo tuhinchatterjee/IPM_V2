@@ -2367,6 +2367,191 @@ interface RequestOptions extends Omit<RequestInit, "signal"> {
   rawBody?: boolean;
 }
 
+
+/* ------------------------------------------------------------------ messages
+ *
+ * The internal workflow surface. Every shape here mirrors what
+ * `backend/api/routers/messages.py` returns; keeping the names identical is
+ * what makes a drift between the two obvious in review rather than at runtime.
+ *
+ * Note what a MessageSummary does NOT carry: bodies beyond a short preview,
+ * attachment payloads, or participant lists. A fifty-row inbox that loads fifty
+ * workbooks to draw itself is a page nobody waits for, so the list endpoint
+ * returns counts and kinds and the thread endpoint returns the rest.
+ */
+
+export type SenderType = "USER" | "SYSTEM";
+export type RequestType = "fyi" | "review" | "action";
+export type RequestStatus = "open" | "in_review" | "responded" | "closed";
+export type AttachmentType = "investigation" | "analysis" | "report" | "file";
+export type Mailbox = "inbox" | "sent" | "drafts" | "archived" | "action";
+
+export interface Person {
+  id: number;
+  username: string;
+  name: string;
+  email: string;
+  job_title: string;
+  department: string;
+  team: string;
+  role: string;
+  is_active: boolean;
+}
+
+export interface MessageSender {
+  /** SYSTEM messages have no user behind them — `user` is null, by design. */
+  type: SenderType;
+  name: string;
+  user: Person | null;
+}
+
+export interface MessageAttachment {
+  id: number;
+  type: AttachmentType;
+  object_id: string;
+  /** What the object was when it was sent, not what it is now. */
+  object_version: string;
+  label: string;
+  meta: Record<string, unknown>;
+  file?: {
+    artifact_id: number;
+    filename: string;
+    content_type: string;
+    size_bytes: number;
+    sha256: string;
+  };
+}
+
+export interface MessageAction {
+  action: string;
+  label: string;
+  href: string;
+  context?: Record<string, unknown>;
+}
+
+export interface Message {
+  id: number;
+  thread_id: number;
+  parent_id: number | null;
+  sender: MessageSender;
+  body: string;
+  status: "draft" | "sent";
+  request_type: RequestType;
+  request_status: RequestStatus | null;
+  priority: string;
+  due_at: string | null;
+  actions: MessageAction[];
+  context: Record<string, unknown>;
+  created_at: string | null;
+  sent_at: string | null;
+  recipients: Person[];
+  attachments: MessageAttachment[];
+}
+
+export interface MessageThread {
+  id: number;
+  subject: string;
+  origin: SenderType;
+  created_at: string | null;
+  last_message_at: string | null;
+  participants: Person[];
+  messages: Message[];
+  read_at: string | null;
+  archived: boolean;
+}
+
+export interface MessageSummary {
+  thread_id: number;
+  subject: string;
+  origin: SenderType;
+  sender: MessageSender;
+  preview: string;
+  message_count: number;
+  attachment_count: number;
+  attachment_types: AttachmentType[];
+  request_type: RequestType;
+  request_status: RequestStatus | null;
+  priority: string;
+  due_at: string | null;
+  last_message_at: string | null;
+  unread: boolean;
+  archived: boolean;
+}
+
+export interface SentSummary {
+  message_id: number;
+  thread_id: number;
+  subject: string;
+  preview: string;
+  recipients: Person[];
+  attachment_count: number;
+  attachment_types: AttachmentType[];
+  request_type: RequestType;
+  request_status: RequestStatus | null;
+  sent_at: string | null;
+}
+
+export interface DraftSummary {
+  message_id: number;
+  thread_id: number;
+  subject: string;
+  preview: string;
+  attachment_count: number;
+  created_at: string | null;
+}
+
+export interface MailboxPage<T> {
+  box: Mailbox;
+  total: number;
+  limit: number;
+  offset: number;
+  items: T[];
+}
+
+export interface MessageCounts {
+  unread: number;
+  action_required: number;
+  shared_with_me: number;
+}
+
+export interface SharedObject {
+  object_type: string;
+  object_id: string;
+  object_version: string;
+  label: string;
+  meta: Record<string, unknown>;
+  shared_by: string;
+  shared_at: string | null;
+}
+
+export interface RequestEvent {
+  from_status: RequestStatus | null;
+  to_status: RequestStatus;
+  actor: string;
+  note: string;
+  at: string | null;
+}
+
+export interface AttachmentSpec {
+  type: AttachmentType;
+  object_id?: string;
+  artifact_id?: number;
+  label?: string;
+}
+
+export interface SendMessageInput {
+  to: number[];
+  cc?: number[];
+  subject?: string;
+  body?: string;
+  attachments?: AttachmentSpec[];
+  request_type?: RequestType;
+  priority?: string;
+  due_at?: string | null;
+  thread_id?: number | null;
+  draft_id?: number | null;
+}
+
 async function request<T>(
   path: string,
   options: RequestOptions = {},
@@ -3955,8 +4140,20 @@ export interface SignedInUser {
 }
 
 export interface UserRecord extends SignedInUser {
+  /**
+   * What this person DOES, beside `role`, which is what they MAY do.
+   *
+   * A directory in which four people are all "ANALYST" cannot tell a sender
+   * which of them owns the shipping book, and sending a review request to the
+   * wrong one of them is a real cost of showing only the permission.
+   */
+  job_title: string;
+  department: string;
   last_login_at: string | null;
   created_at: string | null;
+  updated_at: string | null;
+  /** When the account was suspended. Null while it is active. */
+  deactivated_at: string | null;
 }
 
 /** One person work can be sent to. §47. */
@@ -4045,6 +4242,8 @@ export const api = {
     email?: string;
     role?: Role;
     team?: string;
+    jobTitle?: string;
+    department?: string;
   }) =>
     request<UserRecord>("/users", {
       method: "POST",
@@ -4056,6 +4255,8 @@ export const api = {
         email: payload.email ?? "",
         role: payload.role ?? "ANALYST",
         team: payload.team ?? "",
+        job_title: payload.jobTitle ?? "",
+        department: payload.department ?? "",
       }),
     }),
   updateUser: (
@@ -4066,6 +4267,8 @@ export const api = {
       email?: string;
       role?: Role;
       team?: string;
+      jobTitle?: string;
+      department?: string;
       isActive?: boolean;
     },
   ) =>
@@ -4077,6 +4280,8 @@ export const api = {
         email: payload.email ?? null,
         role: payload.role ?? null,
         team: payload.team ?? null,
+        job_title: payload.jobTitle ?? null,
+        department: payload.department ?? null,
         is_active: payload.isActive ?? null,
       }),
     }),
@@ -4183,6 +4388,113 @@ export const api = {
     request<{ questions: { question: string; note: string }[] }>(
       "/ask/suggestions",
     ),
+
+  // ---------------------------------------------------------------- messages
+  messageCounts: () => request<MessageCounts>("/messages/counts"),
+  messageDirectory: (q = "", limit = 50) =>
+    request<{ users: Person[] }>(
+      `/messages/directory?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+  mailbox: (
+    box: Mailbox = "inbox",
+    opts: {
+      limit?: number;
+      offset?: number;
+      q?: string;
+      unread?: boolean;
+      attachmentType?: string;
+    } = {},
+  ) => {
+    const p = new URLSearchParams({ box });
+    if (opts.limit) p.set("limit", String(opts.limit));
+    if (opts.offset) p.set("offset", String(opts.offset));
+    if (opts.q) p.set("q", opts.q);
+    if (opts.unread) p.set("unread", "true");
+    if (opts.attachmentType) p.set("attachment_type", opts.attachmentType);
+    return request<MailboxPage<MessageSummary | SentSummary | DraftSummary>>(
+      `/messages?${p.toString()}`,
+    );
+  },
+  messageThread: (threadId: number) =>
+    request<MessageThread>(`/messages/threads/${threadId}`),
+  sharedWithMe: (limit = 25) =>
+    request<{ items: SharedObject[] }>(
+      `/messages/shared-with-me?limit=${limit}`,
+    ),
+  requestHistory: (messageId: number) =>
+    request<{ events: RequestEvent[] }>(
+      `/messages/requests/${messageId}/history`,
+    ),
+  createDraft: (body: { subject?: string; body?: string; thread_id?: number }) =>
+    request<{ message_id: number; thread_id: number; subject: string }>(
+      "/messages/drafts",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  updateDraft: (
+    messageId: number,
+    body: { subject?: string; body?: string; attachments?: AttachmentSpec[] },
+  ) =>
+    request<{ message_id: number; thread_id: number }>(
+      `/messages/drafts/${messageId}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    ),
+  sendMessage: (body: SendMessageInput) =>
+    request<{
+      message_id: number;
+      thread_id: number;
+      subject: string;
+      recipients: number[];
+    }>("/messages/send", { method: "POST", body: JSON.stringify(body) }),
+  replyToThread: (
+    threadId: number,
+    body: {
+      body: string;
+      attachments?: AttachmentSpec[];
+      request_type?: RequestType;
+    },
+  ) =>
+    request<{ message_id: number; thread_id: number }>(
+      `/messages/threads/${threadId}/reply`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  markThreadRead: (threadId: number, read = true) =>
+    request<{ thread_id: number; read: boolean }>(
+      `/messages/threads/${threadId}/read`,
+      { method: "POST", body: JSON.stringify({ read }) },
+    ),
+  // `archiveThread` already means "archive an investigation" below. Two
+  // different objects called a thread is a naming collision the product
+  // inherited; the messaging side takes the longer name rather than shadowing
+  // the older one.
+  archiveMessageThread: (threadId: number, archived = true) =>
+    request<{ thread_id: number; archived: boolean }>(
+      `/messages/threads/${threadId}/archive`,
+      { method: "POST", body: JSON.stringify({ archived }) },
+    ),
+  changeRequestStatus: (messageId: number, status: RequestStatus, note = "") =>
+    request<{ message_id: number; request_status: RequestStatus }>(
+      `/messages/requests/${messageId}/status`,
+      { method: "POST", body: JSON.stringify({ status, note }) },
+    ),
+  uploadAttachment: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<{
+      artifact_id: number;
+      filename: string;
+      size_bytes: number;
+      sha256: string;
+    }>("/messages/artifacts", { method: "POST", body: form, rawBody: true });
+  },
+  /**
+   * Where the browser fetches an attached file from.
+   *
+   * A URL rather than a fetch: the download is authorized per request by the
+   * backend against thread participation, so letting the browser navigate to
+   * it keeps the file name, the content type and the save dialog native.
+   */
+  attachmentUrl: (artifactId: number) =>
+    `${API_BASE_URL}${API_PREFIX}/messages/artifacts/${artifactId}`,
   briefing: () => request<Briefing>("/ask/briefing", { timeoutMs: 60_000 }),
   recentInvestigations: (limit = 8) =>
     request<{ investigations: RecentInvestigation[] }>(
