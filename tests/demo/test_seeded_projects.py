@@ -148,14 +148,31 @@ class TestTheLeakIsClosed:
             "the product's own residue check is failing on something a "
             f"client would see: {found}")
 
-    def test_no_investigation_is_left_without_a_message(self, session) -> None:
-        from backend.models.platform import Investigation, InvestigationMessage
+    def test_no_seeded_investigation_is_left_without_a_message(
+            self, session) -> None:
+        from backend.models.platform import (
+            Investigation,
+            InvestigationMessage,
+            Project,
+        )
 
-        threads = {t.id for t in session.query(Investigation.id).all()}
+        # Scoped to the SEEDED workspace, which is what Part 4 guarantees.
+        # Asserted globally it also caught rows other test modules create
+        # during the same session and sweep in their own teardown, and rows
+        # the route crawl seeds to resolve its dynamic ids — neither of which
+        # this is about. A seeded thread that opens onto an empty
+        # conversation still fails here, which is the defect being held.
+        seeded = {p.id for p in session.query(Project).all()
+                  if (p.default_context or {}).get(sp.SEED_KEY) == sp.SEED_VALUE}
+        if not seeded:
+            pytest.skip("the seeded workspace is not present")
+        threads = {t.id for t in session.query(Investigation).all()
+                   if t.project_id in seeded}
         spoken = {m.investigation_id
                   for m in session.query(
                       InvestigationMessage.investigation_id).all()}
         silent = threads - spoken
+        assert threads, "the seeded projects carry no threads at all"
         assert not silent, (
-            f"{len(silent)} Investigation(s) carry no message at all; each one "
-            "opens onto an empty conversation")
+            f"{len(silent)} seeded Investigation(s) carry no message at all; "
+            "each one opens onto an empty conversation")
