@@ -158,3 +158,30 @@ re-verified with it.
 - The concern methodology at a dimension's grain requires the dimension to be
   carried by the governed source the signals are read from. One that is not is
   refused with a statement rather than joined to from somewhere else.
+
+
+## A breakdown the base dataset does not carry
+
+"Show IFRS 9 EAD by internal rating for the latest period" anchors on the
+impairment run — that is the dataset the measure was matched on, and it has the
+quarter the question asked for. It has no rating column. The internal grade is
+one governed hop away, on the facility book.
+
+The planner already handled this: a dimension the base cannot express is
+DEFERRED, registered as something the enrichment must bring in, and the joined
+column becomes the grouping. That mechanism worked in matches — the objects the
+enrichment resolver reasons about — and so it could only defer a dimension that
+a CONCEPT match had named.
+
+Resolving the requested dimension from the sentence, which is what this whole
+document is about, produces dimensions no concept match names: "by internal
+rating" asks for a governed column without naming a measure on the dataset that
+carries it. Those had nothing to hop on. The breakdown was dropped, the answer
+came back as one portfolio row, and the grain postcondition — correctly —
+refused to show it and asked instead.
+
+`_dimension_match` stands a match up for such a column. It is not pretending to
+be a concept the reader recognised: its confidence is zero and its reason says
+it came from the requested breakdown. It exists so the governed hop machinery
+can carry a governed column, which is what it was built to do.
+

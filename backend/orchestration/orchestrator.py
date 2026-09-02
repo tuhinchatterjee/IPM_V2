@@ -534,6 +534,14 @@ def answer(question: str, *, context: Any = None,
     # A methodology asked for by name is answered with the bank's approved
     # analysis. This is checked BEFORE composing, which is what makes it a route
     # rather than the rescue that used to sit after a failed composition.
+    # A follow-up that drills into a step of the analysis already on screen is
+    # answered by that analysis, over the same population, rather than by a
+    # fresh composition that shares a subject with it and nothing else.
+    drilled = _drill_into_the_previous_analysis(question, state)
+    if drilled is not None:
+        answered.certified, answered.certified_params = drilled
+        return finish(answered)
+
     if use_certified and not continuation.carries_context:
         found = cert.match(question, reading)
         if found is not None:
@@ -545,6 +553,40 @@ def answer(question: str, *, context: Any = None,
 
     return finish(_analyse(answered, question, reading, context, state,
                            continuation, period, extra_filters))
+
+
+def _drill_into_the_previous_analysis(
+        question: str, state: cv.ConversationState | None
+        ) -> tuple[cert.Match, dict[str, Any]] | None:
+    """A follow-up that drills into a step of the answer already on screen.
+
+    Only the ECL bridge supports this today, and only immediately after it has
+    run. The drill re-runs the SAME certified analysis with the same period and
+    filters and publishes the borrowers behind one of its steps — figures out
+    of the calculation the reader is looking at, not a new ranking beside it.
+    """
+    if state is None or not state.certified_analysis:
+        return None
+    from backend.orchestration import bridge_drill
+
+    found = bridge_drill.read(question, state.certified_analysis)
+    if found is None:
+        return None
+
+    params = dict(state.certified_params)
+    params.update(found.parameters())
+
+    match = cert.Match(
+        analysis_id=state.certified_analysis,
+        name="ECL Decomposition",
+        overlap=1.0,
+        matched="the step of the decomposition already on screen",
+        when_to_use=found.because,
+        period_requirement="point_in_time",
+        params=params)
+    logger.info("Follow-up %r drills into %s of %s.", question[:60],
+                params[bridge_drill.PARAMETER], state.certified_analysis)
+    return match, params
 
 
 def _as_association(question: str, reading: cap.Reading) -> cap.Reading:
@@ -1892,6 +1934,23 @@ def remember(state: cv.ConversationState, answered: Answered, *,
     # and asks nothing. Cleared the moment a turn settles something, so a
     # clarification answered two turns later is not silently re-merged.
     state.pending = answered.question if answered.clarification else ""
+
+    # Which certified analysis is on screen, and what it ran with. A follow-up
+    # that drills into one of its steps needs both: the analysis to re-run and
+    # the population to re-run it over. Cleared by any analytical turn that
+    # settles something else, so a drill-down cannot reach past the answer it
+    # is actually looking at.
+    # A certified route is recorded when it is SELECTED: the analysis itself is
+    # executed downstream, so `answered.answered` is still false here and
+    # waiting for it would mean never recording the one route a drill-down
+    # needs. A clarification or a stated failure settles nothing, as everywhere
+    # else in this function.
+    if answered.certified is not None:
+        state.certified_analysis = answered.certified.analysis_id
+        state.certified_params = dict(answered.certified_params)
+    elif answered.answered:
+        state.certified_analysis = ""
+        state.certified_params = {}
 
     if answered.runtime is None or answered.build is None:
         _keep_the_population_the_question_named(state, answered)

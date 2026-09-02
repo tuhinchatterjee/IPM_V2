@@ -14,9 +14,11 @@ parameters the contract has already validated.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pandas as pd
 
-from backend.data_access.catalog import IFRS9_STAGING
+from backend.data_access.catalog import FACILITY_POSITION, IFRS9_STAGING
 from backend.engine.contracts import (
     AnalysisContract,
     AnswerShape,
@@ -31,6 +33,7 @@ from backend.engine.contracts import (
 )
 from backend.engine.execution import ExecutionContext
 from backend.engine.helpers import (
+    FACILITY,
     STAGING,
     frame_to_rows,
     resolve_periods,
@@ -38,6 +41,7 @@ from backend.engine.helpers import (
     safe_ratio,
 )
 from backend.engine.registry import AnalysisResult, register
+from backend.ifrs9 import decomposition as bridge
 from backend.trace.model import NodeType
 
 OWNER = "Credit Risk Analytics"
@@ -754,3 +758,372 @@ def ecl_change_decomposition(ctx: ExecutionContext) -> AnalysisResult:
               "proves": found.proves(),
               "does_not_prove": found.does_not_prove()},
     )
+
+
+# ============================================ the IFRS 9 ECL step bridge
+
+#: The facility and staging columns the bridge reads. Declared here as the
+#: contract's required fields; the engine module owns the authoritative list.
+BRIDGE_FACILITY_FIELDS = list(bridge.FACILITY_FIELDS)
+BRIDGE_STAGING_FIELDS = list(bridge.STAGING_FIELDS)
+
+
+@register(AnalysisContract(
+    id="ecl_decomposition",
+    period_requirement=PeriodRequirement.POINT_IN_TIME,
+    governed_default_period=True,
+    answer_shape=AnswerShape.MOVEMENT,
+    when_to_use=(
+        "Use when the question is HOW the reported provision is built up from "
+        "its governed inputs at one reporting date — a bridge from a flat "
+        "through-the-cycle baseline to the reported ECL, one input replaced at "
+        "a time. This is not the ECL total, not a split of ECL by sector or "
+        "stage, and not the movement between two quarters: 'what drove the "
+        "CHANGE in ECL since Q1' is the two-period ECL Change Decomposition."
+    ),
+    trigger_questions=[
+        "Give me an ECL decomposition.",
+        "Show me the ECL bridge.",
+        "Show me the ECL waterfall.",
+        "Decompose ECL into its components.",
+        "What drives our expected credit loss?",
+        "What drove ECL this quarter?",
+        "How is our ECL built up?",
+        "Break down how ECL is built up.",
+        "Walk me through the ECL build-up from PD, staging and collateral.",
+    ],
+    limitations=(
+        "A build-up at one reporting date, not a movement between two. Each "
+        "step is the effect of replacing one governed input while everything "
+        "before it stays as the previous step left it, so the steps are "
+        "ORDER-DEPENDENT by construction — that is what makes them a bridge "
+        "rather than an attribution, and a different order would give "
+        "different step sizes with the same start and end. It does not "
+        "establish cause: a large point-in-time step says the current PDs sit "
+        "above the through-the-cycle ones, not why. This installation governs "
+        "no PD calibration artefact and no separately treated non-calibrated "
+        "portfolio, so those two steps are omitted rather than estimated, and "
+        "the omission is reported."
+    ),
+    required_domains=[FACILITY_POSITION, IFRS9_STAGING],
+    name="ECL Decomposition",
+    description=(
+        "The reported expected credit loss built up in six governed steps — a "
+        "flat through-the-cycle baseline, the rating distribution, the "
+        "point-in-time and forward-looking view, IFRS 9 staging, collateral "
+        "and loss given default, and the management overlay — each step "
+        "re-measuring every facility, reconciling to the reported provision."
+    ),
+    category=Category.INVESTIGATE,
+    version=bridge.DECOMPOSITION_VERSION,
+    owner=OWNER,
+    certification=Certification.CERTIFIED,
+    required_datasets=[FACILITY, STAGING],
+    required_fields=sorted({*BRIDGE_FACILITY_FIELDS, *BRIDGE_STAGING_FIELDS}),
+    parameters=[
+        PERIOD_PARAM,
+        Parameter("segment", ParamType.STRING,
+                  "Restrict the bridge to one configured segment."),
+        Parameter("sector", ParamType.STRING,
+                  "Restrict the bridge to one sector."),
+        Parameter("contributors_for", ParamType.ENUM,
+                  "Return the borrowers behind one step instead of the six "
+                  "portfolio steps. The bridge is computed identically; only "
+                  "what is published changes, so the rows sum to that step's "
+                  "impact exactly. 'largest' takes the step with the biggest "
+                  "absolute impact.",
+                  allowed_values=[*bridge.STEP_ORDER, "largest"]),
+        Parameter("limit", ParamType.INTEGER,
+                  "How many borrowers a drill-down returns.",
+                  default=15, minimum=1, maximum=200),
+    ],
+    outputs=[
+        OutputField("baseline_ecl",
+                    "ECL at the flat through-the-cycle baseline.", "number",
+                    unit="SAR mn", precision=2),
+        OutputField("final_ecl", "ECL after the final step.", "number",
+                    unit="SAR mn", precision=2),
+        OutputField("reported_ecl", "The reported provision for the period.",
+                    "number", unit="SAR mn", precision=2),
+        OutputField("residual", "Reported less the final step.", "number",
+                    unit="SAR mn", precision=4),
+        OutputField("reconciles",
+                    "Whether the bridge lands on the reported provision.",
+                    "boolean"),
+        OutputField("largest_step",
+                    "The step with the largest absolute impact.", "string"),
+        OutputField("overlay_impact", "The management overlay, on its own.",
+                    "number", unit="SAR mn", precision=2),
+    ],
+    validation_rules=[
+        ValidationRule("bridge_reconciles",
+                       "The final step must equal the reported provision "
+                       "within the governed tolerance."),
+        ValidationRule("steps_are_additive",
+                       "Each step impact must equal that step's ECL less the "
+                       "previous step's, and the impacts must sum to the "
+                       "final ECL less the baseline."),
+        ValidationRule("borrower_contributions_sum",
+                       "Every step impact must equal the sum of its "
+                       "borrower-level contributions."),
+    ],
+    supported_visualizations=[VisualizationType.WATERFALL,
+                              VisualizationType.TABLE],
+    calculation_description=(
+        "Every facility is measured six times with the same arithmetic — "
+        "exposure x loss rate x the applicable probability of default — with "
+        "exactly one governed input replaced at each step. Step 1 holds every "
+        "facility at one through-the-cycle PD (the unweighted mean, the "
+        "average credit quality of the book) and the exposure-weighted "
+        "portfolio LGD. Step 2 replaces the flat PD with each facility's "
+        "rating-grade through-the-cycle PD, exposure-weighted within the "
+        "grade. Step 3 replaces through-the-cycle with the governed "
+        "point-in-time PD, which carries the forward-looking and "
+        "scenario-weighted view. Step 4 applies the IFRS 9 measurement basis: "
+        "twelve-month PD in Stage 1, lifetime PD in Stage 2, the "
+        "credit-impaired treatment in Stage 3. Step 5 replaces the portfolio "
+        "LGD with each facility's own, which carries its collateral. Step 6 "
+        "adds the governed management overlay. Because only one term moves "
+        "per step, the difference between two steps is attributable to that "
+        "term and to nothing else, and the bridge adds up without a plug."
+    ),
+))
+def ecl_decomposition(ctx: ExecutionContext) -> AnalysisResult:
+    period, _, available = resolve_periods(
+        ctx.source, FACILITY, ctx.params.get("period"), None)
+
+    facility, facility_node = ctx.read(
+        FACILITY, fields=BRIDGE_FACILITY_FIELDS, period=period,
+        label=f"Facility book · {period}")
+    staging, staging_node = ctx.read(
+        STAGING, fields=BRIDGE_STAGING_FIELDS, period=period,
+        label=f"IFRS 9 staging · {period}")
+
+    filters = {name: str(value)
+               for name in ("segment", "sector")
+               if (value := ctx.params.get(name))}
+    book = bridge.join_book(facility, staging, filters=filters)
+
+    ctx.step(NodeType.JOIN,
+             "Join the facility book to its staging record on account_id",
+             parents=[facility_node, staging_node],
+             config={"key": "account_id", "how": "inner",
+                     "ttc_source": bridge.TTC_COLUMN,
+                     "pit_source": bridge.PIT_COLUMN,
+                     "filters": filters or "none",
+                     "why": ("The through-the-cycle anchor lives on the "
+                             "staging record and the measurement inputs on "
+                             "the facility, so the bridge needs both.")},
+             rows_in=int(len(facility) + len(staging)), rows_out=int(len(book)))
+
+    if book.empty:
+        raise ValueError(
+            "No facilities match that population, so there is nothing to "
+            "decompose.")
+
+    built = bridge.build(book, period=period, filters=filters)
+
+    ctx.step(NodeType.CALCULATION,
+             f"Measure {built.facilities:,} facilities at each of "
+             f"{len(built.steps)} governed steps",
+             config={
+                 "steps": [{"step": s.number, "name": s.name,
+                            "changes": s.description} for s in built.steps],
+                 "formula": ("ECL = EAD x LGD x PD, with exactly one input "
+                             "replaced per step"),
+                 "flat_ttc_pd_pct": rounded(
+                     built.assumptions["flat_ttc_pd_pct"], 4),
+                 "flat_lgd_pct": rounded(built.assumptions["flat_lgd_pct"], 4),
+                 "staging_basis": {
+                     "Stage 1": "12-month PD",
+                     "Stage 2": "Lifetime PD",
+                     "Stage 3": "credit-impaired treatment"},
+                 "omitted": [dict(o) for o in built.omitted],
+                 "order": ("The steps are order-dependent by construction: "
+                           "each measures the effect of one input given "
+                           "everything before it."),
+             },
+             rows_in=int(len(book)), rows_out=len(built.steps),
+             summary={s.name: rounded(s.ecl, 3) for s in built.steps})
+
+    ctx.step(NodeType.AGGREGATION,
+             f"Roll {built.borrowers:,} borrowers up to the portfolio bridge",
+             config={"grain_in": "facility", "grain_out": "bridge step",
+                     "borrower_rows": int(len(built.contributions)),
+                     "why": ("Every step is computed per facility first, so a "
+                             "step impact can be traced to the borrowers that "
+                             "produced it.")},
+             rows_in=int(len(book)), rows_out=len(built.steps))
+
+    reconciliation = built.reconciliation
+    ctx.step(NodeType.RECONCILIATION,
+             "Reconcile the final step to the reported provision",
+             config={"rule": "bridge_reconciles",
+                     "tolerance_pct": reconciliation.tolerance_pct,
+                     "reported_source": "portfolio_facility.total_ecl"},
+             summary=reconciliation.to_dict())
+
+    if not reconciliation.reconciles:
+        ctx.warn(
+            f"The bridge does not reconcile: the final step is "
+            f"{reconciliation.final_step_ecl:,.3f} against a reported "
+            f"provision of {reconciliation.reported_ecl:,.3f}, a residual of "
+            f"{reconciliation.residual:,.4f}. This result is NOT a complete "
+            "decomposition of the reported ECL.")
+
+    impacts = [s for s in built.steps if s.number > 1]
+    largest = max(impacts, key=lambda s: abs(s.impact)) if impacts else None
+    overlay = built.step(bridge.OVERLAY)
+
+    # A drill-down publishes the borrowers behind ONE step. The bridge above
+    # was computed identically either way, so the rows on screen come out of
+    # the same calculation as the portfolio figure they explain — which is the
+    # whole reason a drill-down is worth having rather than a fresh ranking
+    # that happens to share a subject.
+    drilled = _drill_step(built, ctx.params.get("contributors_for"), largest)
+    if drilled is not None:
+        return _contributor_result(ctx, built, drilled,
+                                   limit=int(ctx.params.get("limit") or 15),
+                                   period=period, available=available,
+                                   read_rows=int(len(book)))
+
+    rows = built.rows()
+
+    units = {"ecl": built.unit, "step_impact": built.unit, "change_pct": "%"}
+    units.update({key: built.unit for key in rows[0]
+                  if key.endswith("_ecl")} if rows else {})
+
+    return AnalysisResult(
+        rows=rows,
+        values={
+            "period": period,
+            "baseline_ecl": rounded(built.steps[0].ecl, 2),
+            "final_ecl": rounded(built.final.ecl, 2),
+            "reported_ecl": rounded(reconciliation.reported_ecl, 2),
+            "residual": rounded(reconciliation.residual, 4),
+            "reconciles": reconciliation.reconciles,
+            "largest_step": largest.name if largest else "",
+            "largest_step_impact": rounded(largest.impact, 2) if largest else 0.0,
+            "overlay_impact": rounded(overlay.impact, 2) if overlay else 0.0,
+            "facilities": built.facilities,
+            "borrowers": built.borrowers,
+            "segments": list(built.segments),
+            "periods_available": available,
+        },
+        units=units,
+        input_row_count=int(len(book)),
+        warnings=ctx.warnings,
+        meta={
+            "grain": "One row per step of the ECL bridge.",
+            "decomposition": built.to_dict(),
+            "waterfall": _bridge_waterfall(built),
+            "contributors": {
+                key: frame_to_rows(bridge.contributors(built, key, limit=10))
+                for key in bridge.STEP_ORDER[1:]},
+            "omitted_steps": [dict(o) for o in built.omitted],
+            "reconciliation": reconciliation.to_dict(),
+            "assumptions": {k: rounded(v, 4)
+                            for k, v in built.assumptions.items()},
+        },
+    )
+
+
+def _drill_step(built: bridge.Bridge, requested: Any,
+                largest: bridge.Step | None) -> bridge.Step | None:
+    """Which step a drill-down was asked for, or None if it was not a drill.
+
+    "largest" is resolved against the bridge that has just run rather than
+    against a remembered answer, so the step the reading names is the step
+    whose borrowers are listed.
+    """
+    if not requested:
+        return None
+    if str(requested) == "largest":
+        return largest
+    return built.step(str(requested))
+
+
+def _contributor_result(ctx: ExecutionContext, built: bridge.Bridge,
+                        step: bridge.Step, *, limit: int, period: str,
+                        available: list[str],
+                        read_rows: int) -> AnalysisResult:
+    """The borrowers behind one step, out of the bridge's own calculation."""
+    frame = bridge.contributors(built, step.key, limit=limit)
+    rows = frame_to_rows(frame)
+    total = float(built.contributions[f"impact_{step.key}"].sum())
+    shown = float(frame[f"impact_{step.key}"].sum()) if len(frame) else 0.0
+
+    ctx.step(NodeType.AGGREGATION,
+             f"Read the borrowers behind step {step.number}: {step.name}",
+             config={"step": step.key, "step_number": step.number,
+                     "grain": "one row per borrower",
+                     "ordered_by": f"|impact_{step.key}| descending",
+                     "population": f"{built.borrowers:,} borrowers, "
+                                   f"{built.facilities:,} facilities",
+                     "period": period,
+                     "filters": built.filters or "none",
+                     "rule": ("These are the same per-facility measurements "
+                              "the portfolio step was summed from, so the "
+                              "borrower impacts sum to the step impact "
+                              "exactly.")},
+             rows_in=int(len(built.contributions)), rows_out=len(rows),
+             summary={"step_impact": rounded(step.impact, 3),
+                      "shown_impact": rounded(shown, 3)})
+
+    if abs(total - step.impact) > 1e-6:
+        ctx.warn(
+            f"The borrower contributions for {step.name} sum to "
+            f"{total:,.4f} against a step impact of {step.impact:,.4f}. This "
+            "drill-down does not account for the step.")
+
+    return AnalysisResult(
+        rows=rows,
+        values={
+            "period": period,
+            "step": step.number,
+            "step_key": step.key,
+            "step_name": step.name,
+            "step_impact": rounded(step.impact, 3),
+            "step_ecl": rounded(step.ecl, 3),
+            "shown_impact": rounded(shown, 3),
+            "shown_share_pct": rounded(safe_ratio(shown, step.impact), 2),
+            "borrowers": built.borrowers,
+            "facilities": built.facilities,
+            "reported_ecl": rounded(built.reconciliation.reported_ecl, 2),
+            "periods_available": available,
+        },
+        units={f"impact_{step.key}": built.unit, f"ecl_{step.key}": built.unit,
+               "ead": built.unit, "reported_ecl": built.unit,
+               "shown_share_pct": "%"},
+        input_row_count=read_rows,
+        warnings=ctx.warnings,
+        meta={"grain": "One row per borrower.",
+              "drilled_into": {"step": step.number, "key": step.key,
+                               "name": step.name, "detail": step.description,
+                               "impact": rounded(step.impact, 3)},
+              "decomposition": built.to_dict(),
+              "reconciliation": built.reconciliation.to_dict()},
+    )
+
+
+def _bridge_waterfall(built: bridge.Bridge) -> list[dict[str, object]]:
+    """The chart, read off the same step values the table publishes.
+
+    Built here rather than in the frontend so the two cannot disagree: a chart
+    that recomputes its own bars is a second answer.
+    """
+    bars: list[dict[str, object]] = []
+    running = 0.0
+    for step in built.steps:
+        first_or_last = step.number in (1, len(built.steps))
+        value = step.ecl if first_or_last else step.impact
+        bars.append({
+            "label": step.name,
+            "step": step.number,
+            "kind": "total" if first_or_last else "delta",
+            "value": rounded(value, 3),
+            "start": rounded(0.0 if first_or_last else running, 3),
+            "end": rounded(step.ecl, 3),
+        })
+        running = step.ecl
+    return bars

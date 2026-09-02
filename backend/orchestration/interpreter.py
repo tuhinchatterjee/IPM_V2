@@ -1079,6 +1079,126 @@ INTERPRETERS = {
 }
 
 
+def _ecl_decomposition(values: dict, rows: list[dict],
+                       index: int) -> tuple[list[Metric], list[Finding]]:
+    """The ECL bridge, or the borrowers behind one of its steps."""
+    if values.get("step_key"):
+        return _ecl_decomposition_drill(values, rows, index)
+    return _ecl_bridge(values, rows, index)
+
+
+def _ecl_decomposition_drill(values: dict, rows: list[dict],
+                             index: int) -> tuple[list[Metric], list[Finding]]:
+    """A drill into one step: who is behind the figure, and how much of it.
+
+    The step's own impact leads, because that is the number on the screen
+    above. The borrowers follow in the order the engine ranked them, which is
+    by their contribution to that step and nothing else.
+    """
+    unit = "SAR mn"
+    step = str(values.get("step_name") or "the step")
+    column = f"impact_{values.get('step_key')}"
+    metrics = [
+        Metric(f"{step} impact", values.get("step_impact"), unit, None, "",
+               "up-is-bad", f"{values.get('period', '')} — the whole step", index),
+        Metric("Shown here", values.get("shown_impact"), unit, None, "",
+               "neutral",
+               f"{len(rows)} borrowers, {pct(values.get('shown_share_pct'))} "
+               "of the step", index),
+    ]
+    findings = [Finding(
+        f"{step} moves expected credit loss by "
+        f"{signed_money(values.get('step_impact'))} across "
+        f"{int(_n(values.get('borrowers')) or 0):,} borrowers. The "
+        f"{len(rows)} largest contributors account for "
+        f"{signed_money(values.get('shown_impact'))}, "
+        f"{pct(values.get('shown_share_pct'))} of it.",
+        tone_for(_n(values.get("step_impact"))),
+        [{"label": step, "value": values.get("step_impact"), "unit": unit}],
+        index,
+    )]
+    for row in rows[:3]:
+        findings.append(Finding(
+            f"{row.get('borrower_name', 'A borrower')} contributes "
+            f"{signed_money(row.get(column))} on "
+            f"{money(row.get('ead'))} of exposure at default, at Stage "
+            f"{int(_n(row.get('worst_stage')) or 0)}.",
+            tone_for(_n(row.get(column))),
+            [{"label": str(row.get("borrower_name", "")),
+              "value": row.get(column), "unit": unit}],
+            index,
+        ))
+    return metrics, findings
+
+
+def _ecl_bridge(values: dict, rows: list[dict],
+                index: int) -> tuple[list[Metric], list[Finding]]:
+    """Read the ECL bridge: where it starts, what moved it, where it lands.
+
+    Every figure quoted here is a step value or a step impact the engine
+    returned. Nothing is recomputed and nothing is ranked a second time — the
+    observations pick out the steps the engine already measured as the largest,
+    which is what makes them defensible as drivers rather than as commentary.
+    """
+    unit = "SAR mn"
+    steps = [r for r in rows if isinstance(r, dict)]
+    baseline = steps[0] if steps else {}
+    final = steps[-1] if steps else {}
+    moves = sorted((r for r in steps if r.get("step") != 1),
+                   key=lambda r: -abs(_n(r.get("step_impact")) or 0.0))
+
+    metrics = [
+        Metric("Reported ECL", values.get("reported_ecl"), unit, None, "",
+               "up-is-bad", f"{values.get('period', '')} — where the bridge lands",
+               index),
+        Metric("Baseline ECL", values.get("baseline_ecl"), unit, None, "",
+               "neutral", "flat through-the-cycle PD, portfolio LGD", index),
+        Metric("Largest step", values.get("largest_step_impact"), unit, None, "",
+               "up-is-bad", str(values.get("largest_step", "")), index),
+    ]
+
+    findings = [Finding(
+        f"Expected credit loss builds from a flat through-the-cycle baseline of "
+        f"{money(baseline.get('ecl'))} to {money(final.get('ecl'))} at "
+        f"{values.get('period', 'the reporting date')} across "
+        f"{len(steps)} governed steps, reconciling to the reported provision of "
+        f"{money(values.get('reported_ecl'))}.",
+        "neutral",
+        [{"label": "Baseline", "value": baseline.get("ecl"), "unit": unit},
+         {"label": "Reported", "value": values.get("reported_ecl"), "unit": unit}],
+        index,
+    )]
+
+    # Three to five observations, one per material step, largest first. The
+    # engine measured these impacts; the sentence names the step and quotes it.
+    for row in moves[:4]:
+        impact = _n(row.get("step_impact")) or 0.0
+        change = row.get("change_pct")
+        movement = ("adds" if impact > 0 else "removes")
+        share = f" ({pct(abs(_n(change) or 0.0))} of the step before it)" if change is not None else ""
+        findings.append(Finding(
+            f"{row.get('description', 'A step')} {movement} "
+            f"{money(abs(impact))}{share}, taking the provision to "
+            f"{money(row.get('ecl'))}.",
+            tone_for(impact),
+            [{"label": str(row.get("description", "")),
+              "value": row.get("step_impact"), "unit": unit}],
+            index,
+        ))
+
+    residual = _n(values.get("residual")) or 0.0
+    if not values.get("reconciles", True):
+        findings.append(Finding(
+            f"The bridge does not reconcile: the final step differs from the "
+            f"reported provision by {money(abs(residual))}. Treat the steps as "
+            "indicative rather than as a complete decomposition.",
+            "negative",
+            [{"label": "Residual", "value": values.get("residual"), "unit": unit}],
+            index,
+        ))
+    return metrics, findings
+
+
 READERS = {
     "arrears_position": _arrears_position,
     "credit_file_signals": _credit_file_signals,
@@ -1090,6 +1210,7 @@ READERS = {
     "dpd_migration": lambda v, r, i: _migration(v, r, i, subject="moved to a worse arrears bucket"),
     "rating_transition_matrix": _rating_transition,
     "ecl_movement": _ecl_movement,
+    "ecl_decomposition": _ecl_decomposition,
     "top_deteriorating_borrowers": _top_deteriorating,
     "stress_scenario_basic": _stress,
     "high_utilisation_watchlist": _watchlist,

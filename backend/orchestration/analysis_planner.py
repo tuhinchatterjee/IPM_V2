@@ -1892,9 +1892,16 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
         # resolves a path to its dataset.
         for name, fields in fields_of.items():
             if name != base and deferred_dimension in fields:
-                for match in by_dataset.get(name, []):
-                    if match.field == deferred_dimension:
-                        extras.setdefault(name, []).append(match)
+                found = [m for m in by_dataset.get(name, [])
+                         if m.field == deferred_dimension]
+                # The dimension may have been resolved from the SENTENCE
+                # rather than from a concept — "by internal rating" names a
+                # governed dimension without naming a measure — in which case
+                # there is no match to hop on and the breakdown was silently
+                # dropped. The column is governed either way, so one is stood
+                # up for it here.
+                extras.setdefault(name, []).extend(
+                    found or [_dimension_match(name, deferred_dimension)])
                 break
     enrichment = _resolve_enrichment(base, extras)
     for name in enrichment.unreachable:
@@ -2250,6 +2257,27 @@ def _period_field(catalogue: Any, dataset: str) -> str:
         return str(catalogue.dataset(dataset).period_field or "period")
     except Exception:  # noqa: BLE001
         return "period"
+
+
+def _dimension_match(dataset: str, field: str) -> cx.ConceptMatch:
+    """A ConceptMatch standing for a governed dimension nothing else named.
+
+    The enrichment resolver works in matches, because a measure joined in from
+    another dataset is one. A breakdown column reached the same way is not a
+    measure and may have no concept behind it — the field name IS what the
+    question asked for. This wraps it so the same hop machinery can bring it,
+    without pretending it is a concept the reader recognised: the confidence
+    is zero and the reason says where it came from.
+    """
+    label = field.replace("_", " ")
+    candidate = cx.Candidate(dataset=dataset, field=field,
+                             definition=f"{label} on {dataset}")
+    concept = cx.Concept(id=field, label=label, pattern=label,
+                         candidates=(candidate,), is_categorical=True)
+    return cx.ConceptMatch(
+        concept=concept, candidate=candidate, phrase=label, confidence=0.0,
+        reason=("the question asked for a breakdown by this governed "
+                "dimension, which the base dataset does not carry"))
 
 
 def _base_dataset(by_dataset: dict[str, list[cx.ConceptMatch]],

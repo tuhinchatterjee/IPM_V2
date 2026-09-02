@@ -353,13 +353,21 @@ CAPABILITIES: tuple[Capability, ...] = (
         does="Reads staging, 12-month and lifetime PD, LGD, EAD, ECL and "
              "coverage, tracks stage migration and SICR triggers, and "
              "distinguishes the BOOKED accounting position from a predictive "
-             "signal.",
+             "signal. It also DECOMPOSES the provision: a bridge from a flat "
+             "through-the-cycle baseline through the rating distribution, the "
+             "point-in-time and forward-looking view, IFRS 9 staging, "
+             "collateral and loss given default, and the management overlay, "
+             "each step re-measuring every facility and the last step "
+             "reconciling to the reported figure.",
         matters="Impairment is where credit risk becomes a number in the "
                 "accounts, and the movement between two dates is the question "
                 "the audit committee actually asks.",
         used_by="An IFRS 9 owner reconciles the quarter's ECL movement, "
                 "identifies the borrowers driving it, and checks which "
-                "migrations were rating-driven rather than model-driven.",
+                "migrations were rating-driven rather than model-driven. "
+                "Asked for an ECL decomposition, the same owner gets the "
+                "build-up of the provision rather than its total, with each "
+                "step's contribution traceable to the borrowers behind it.",
         areas=("Analyses",),
         domains=("IFRS 9 / ECL",),
         evidence=_datasets_in("IFRS 9 / ECL")),

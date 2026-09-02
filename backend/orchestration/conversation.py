@@ -223,6 +223,12 @@ class ConversationState:
     result: ResultShape = field(default_factory=ResultShape)
     visualization: str = ""
     certified_methods: list[str] = field(default_factory=list)
+    #: The certified analysis the last analytical turn ran, and the parameters
+    #: it ran with. Carried so a follow-up can drill into what is on screen —
+    #: "which borrowers drove that step?" — instead of composing a fresh
+    #: ranking that shares a subject with the answer above it and nothing else.
+    certified_analysis: str = ""
+    certified_params: dict[str, Any] = field(default_factory=dict)
     turns: list[Turn] = field(default_factory=list)
     #: The question CreditProbe could not plan and asked about, held so the
     #: reply can be merged with it instead of read as a fresh request. §9: a
@@ -286,6 +292,8 @@ class ConversationState:
             "result": self.result.to_dict(),
             "visualization": self.visualization,
             "certified_methods": list(self.certified_methods),
+            "certified_analysis": self.certified_analysis,
+            "certified_params": dict(self.certified_params),
             "turns": [t.to_dict() for t in self.turns],
             "pending": self.pending,
         }
@@ -317,6 +325,8 @@ class ConversationState:
             result=ResultShape.from_dict(raw.get("result") or {}),
             visualization=str(raw.get("visualization") or ""),
             certified_methods=[str(v) for v in raw.get("certified_methods") or []],
+            certified_analysis=str(raw.get("certified_analysis") or ""),
+            certified_params=dict(raw.get("certified_params") or {}),
             turns=[Turn.from_dict(t) for t in raw.get("turns") or []],
             pending=str(raw.get("pending") or ""),
         )

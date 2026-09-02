@@ -79,6 +79,16 @@ const PERIOD_HINT = /(^|_)(period|quarter|month|year|as_of|date)($|_)/i;
 const CHANGE_HINT = /(change|movement|delta|_pp$|_diff)/i;
 
 /**
+ * A column named for an IMPACT, which is a change only if it is signed.
+ *
+ * An ECL bridge's `step_impact` is a movement and belongs on a zero line. A
+ * network model's `debtrank_impact` is a score that never goes below zero and
+ * is a level, whatever it is called. The name alone cannot tell them apart, so
+ * the values are asked as well.
+ */
+const IMPACT_HINT = /(^|_)impact($|_)/i;
+
+/**
  * A column that is a SHARE OF the measure beside it rather than a measure.
  *
  * `exposure_at_default_share_pct` is not a second thing that was measured; it
@@ -129,8 +139,13 @@ export function shapeOf(columns: ColumnSpec[], rows: Row[]): Shaped {
   const categorical = rest.filter(
     (c) => !c.is_identity && !numeric.includes(c),
   );
+  const signed = (c: ColumnSpec) =>
+    rows.some((row) => typeof row[c.name] === "number" && (row[c.name] as number) < 0);
   const change = numeric.filter(
-    (c) => CHANGE_HINT.test(c.name) || c.role === "change",
+    (c) =>
+      CHANGE_HINT.test(c.name) ||
+      c.role === "change" ||
+      (IMPACT_HINT.test(c.name) && signed(c)),
   );
   const derived = numeric.filter(
     (c) => DERIVED_SHARE_HINT.test(c.name) || c.role === "share",
@@ -231,10 +246,15 @@ export function chooseVisualization(
         `${rows.length} contributors is past the point where bars can be read.`,
       );
     }
+    // A percentage restatement of a change is not a second change. Drawing
+    // `change_pct` where `step_impact` is present plots the derived figure and
+    // leaves the money — which is what the reader came for — off the chart.
+    const drawn =
+      shape.change.find((c) => !/pct|percent/i.test(c.name)) ?? shape.change[0];
     return {
       kind: "diverging-bar",
       x: dimension.name,
-      series: [shape.change[0].name],
+      series: [drawn.name],
       because: "The figures are signed changes, so the zero line is the point.",
       alternatives: ["waterfall", "bar", "table"],
     };

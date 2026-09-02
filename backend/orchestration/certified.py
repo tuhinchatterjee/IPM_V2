@@ -125,7 +125,7 @@ def match(question: str, reading: cap.Reading) -> Match | None:
         return None
 
     named = {m.strip().lower() for m in reading.candidate_methods}
-    best: Match | None = None
+    found: list[Match] = []
 
     for entry in analyses:
         contract = entry.contract
@@ -146,20 +146,62 @@ def match(question: str, reading: cap.Reading) -> Match | None:
                 score = max(score, MIN_OVERLAP)
             if score < MIN_OVERLAP:
                 continue
-            if best is None or score > best.overlap:
-                best = Match(
-                    analysis_id=entry.id, name=contract.name, overlap=score,
-                    matched=f"the certified analysis's {kind}: “{text}”",
-                    when_to_use=contract.when_to_use or "",
-                    period_requirement=str(
-                        getattr(contract, "period_requirement", "")
-                        or "point_in_time"),
-                )
+            found.append(Match(
+                analysis_id=entry.id, name=contract.name, overlap=score,
+                matched=f"the certified analysis's {kind}: “{text}”",
+                when_to_use=contract.when_to_use or "",
+                period_requirement=str(
+                    getattr(contract, "period_requirement", "")
+                    or "point_in_time"),
+            ))
 
+    best = _pick(found, question, reading)
     if best is not None:
         logger.info("Request %r names the certified analysis %s (overlap %.2f).",
                     question[:70], best.analysis_id, best.overlap)
     return best
+
+
+#: Words that say the question is about a CHANGE between two dates rather than
+#: about a position at one. Read from the request, not guessed from the
+#: methodology: it is the request that decides which of two equally well-named
+#: analyses was meant.
+_CHANGE = re.compile(
+    r"\b(?:change[ds]?|changing|movement|moved?|move|increase[ds]?|"
+    r"decrease[ds]?|rise|rose|risen|rising|fell|fall(?:en|ing)?|drop(?:ped)?|"
+    r"grew|grow(?:th|n)?|since|versus|vs|between|compared?|quarter-on-quarter|"
+    r"year-on-year|deteriorat\w*|improv\w*)\b", re.I)
+
+
+def _pick(found: list[Match], question: str, reading: cap.Reading) -> Match | None:
+    """The best of several matches, broken by what the QUESTION is shaped like.
+
+    Two certified methodologies can be named equally well by the same words —
+    "show me the ECL waterfall" describes both the build-up of the provision at
+    one date and the bridge between two quarters, and both contracts declare it.
+    Overlap alone cannot separate those, and whichever the registry happened to
+    yield first would win, which is a coin toss dressed as a routing decision.
+
+    So a tie is broken on the one thing that genuinely distinguishes them: a
+    question that names two periods or speaks of a change wants the two-period
+    methodology, and a question that does neither wants the point-in-time one.
+    This is general — it reads only the contract's declared period requirement
+    — and it decides nothing when the top match is unique.
+    """
+    if not found:
+        return None
+    top = max(m.overlap for m in found)
+    leading = [m for m in found if m.overlap >= top - 1e-9]
+    if len(leading) == 1:
+        return leading[0]
+
+    wants_change = (len({p for p in reading.periods if p}) >= 2
+                    or bool(_CHANGE.search(question or "")))
+    wanted = "two_period" if wants_change else "point_in_time"
+    fitting = [m for m in leading if str(m.period_requirement) == wanted]
+    if fitting:
+        return fitting[0]
+    return leading[0]
 
 
 def parameters(found: Match, reading: cap.Reading, *,

@@ -254,3 +254,38 @@ class TestTheConcernMethodologyAtSectorGrain:
         assert "Shipping" in said
         assert "sectors" in said
         assert "borrower" in said
+
+
+class TestABreakdownTheBaseDatasetDoesNotCarry:
+    """A governed dimension one hop away is joined in, not dropped.
+
+    "Show IFRS 9 EAD by internal rating" anchors on the impairment run, which
+    has the quarter the question asked for and no rating column. The grade is
+    one governed hop away on the facility book. Dropping the breakdown returned
+    a single row of portfolio totals under a heading promising one row per
+    grade — and once the grain postcondition existed, it stopped returning
+    anything at all and asked instead.
+
+    The planner already deferred such a dimension and joined it. It could only
+    do so where a CONCEPT match named the column; a dimension resolved from the
+    sentence alone had nothing to hop on.
+    """
+
+    QUESTION = "Show IFRS 9 EAD by internal rating for the latest period."
+
+    def test_it_answers_rather_than_asking(self, client):
+        body = ask(client, self.QUESTION)
+        assert body["status"] == "succeeded", (
+            (body.get("clarification") or {}).get("question"))
+
+    def test_there_is_one_row_per_internal_grade(self, client):
+        rows = rows_of(ask(client, self.QUESTION))
+        assert len(rows) == 10
+        column = next(c for c in rows[0] if c.endswith("internal_grade"))
+        assert len({r[column] for r in rows}) == 10
+
+    def test_the_grades_still_sum_to_the_whole_book(self, client):
+        rows = rows_of(ask(client, self.QUESTION))
+        assert sum(float(r["ead"]) for r in rows) == pytest.approx(
+            125454.51, rel=1e-4)
+
