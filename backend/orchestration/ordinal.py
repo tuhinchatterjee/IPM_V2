@@ -72,6 +72,20 @@ _QUALIFIERS: tuple[tuple[str, str], ...] = (
 #: different clause and applies it to the wrong condition.
 _WINDOW = 24
 
+#: Words that may sit between the value and its qualifier without breaking the
+#: link. "90 days or more" names the UNIT before qualifying the number, which
+#: is how a credit officer writes it and what the docstring above promised;
+#: the reader required the qualifier to touch the digits and read that shape as
+#: no qualifier at all.
+#:
+#: A closed list, not a wildcard. Anything may not sit here: "PD above 2 or
+#: rating below BB" has a whole condition between the value and an "or" that
+#: belongs to the other clause, and attaching it would widen a population the
+#: question did not widen. Units are safe because a unit is part of the value.
+_UNITS = (r"days?|months?|years?|quarters?|notches?|grades?|points?|pp|bps"
+          r"|per\s*cent|percent|%")
+_BRIDGE = rf"(?:\s+(?:{_UNITS}))?"
+
 
 @dataclass(frozen=True)
 class Qualified:
@@ -125,7 +139,8 @@ def read(question: str, field: str, value: str) -> Qualified | None:
     for match in re.finditer(rf"\b{re.escape(spelled)}\b", said, re.IGNORECASE):
         tail = said[match.end():match.end() + _WINDOW]
         for pattern, qualifier in _QUALIFIERS:
-            found = re.match(rf"\s*(?:{pattern})\b", tail, re.IGNORECASE)
+            found = re.match(rf"{_BRIDGE}\s*(?:{pattern})\b", tail,
+                             re.IGNORECASE)
             if not found:
                 continue
             phrase = said[match.start():match.end() + found.end()].strip()

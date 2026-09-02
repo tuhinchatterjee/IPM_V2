@@ -145,6 +145,13 @@ class AnalysisBuild:
     #: Movements this plan cannot measure, because both ends of the comparison
     #: read the same source cycle. Part 12.
     collapsed: Any = None
+    #: Value restrictions the SENTENCE widened — "stage 2 or worse" is a range,
+    #: not an equality. Recorded once, where the predicate is compiled, so the
+    #: promise checked against the rows and the phrase shown to the reader come
+    #: from the same reading as the filter that ran. Three modules re-reading
+    #: the question is three chances for them to disagree, and the one that
+    #: disagreed withheld correct answers.
+    widened: list[Any] = field(default_factory=list)
 
     @property
     def output_grain(self) -> str:
@@ -257,6 +264,16 @@ def plan(reading: Reading, context: GovernedContext, *,
     build = _plan(reading, context, question=question, period=period,
                   state=state, continuation=continuation)
     text = question or reading.objective
+
+    # Which value restrictions the sentence WIDENED. Recorded on the build, on
+    # the one path every shape returns through, so the promise checked against
+    # the rows and the phrase shown to the reader are the same reading as the
+    # predicate that ran. Reading the question separately in each consumer is
+    # how the invariant came to demand `= 2` of rows the plan had correctly
+    # selected at `>= 2`, and withheld a right answer for it.
+    build.widened = [q for q in (ordinal.read(text, name, value)
+                                 for name, value in build.filters)
+                     if q is not None]
     dropped = gate.dropped_structure(
         text, getattr(build, "enforcement", None),
         multi.predicate_tree_of(build.plan),
@@ -559,6 +576,17 @@ def _plan(reading: Reading, context: GovernedContext, *,
     # names one governed field and constrains it, and the field is still what
     # the question is about — dropping it there leaves the plan with nothing to
     # anchor a dataset on.
+    #
+    # KNOWN GAP. Without a breakdown the rule does not fire, so "show exposure
+    # at default for Stage 2 borrowers" is still ranked by the stage column
+    # rather than by exposure. Widening the guard fixes that ranking and breaks
+    # two other things: "how many borrowers are in Stage 2?" re-anchors on the
+    # connected-group book, which carries no stage, and the two-period cohort
+    # path stops applying the stage at the grain it reconciles on. The fix is
+    # to keep the constrained field available for anchoring and reading while
+    # excluding it from the MEASURE role, which is a change to how `matches`
+    # carries roles rather than to this condition. Left as it is rather than
+    # traded for a worse defect. See docs/ANSWER_GRAIN.md.
     constrained = {field_name for field_name, _ in filters}
     survivors = [m for m in matches
                  if m.field not in constrained

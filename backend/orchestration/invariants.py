@@ -39,6 +39,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from backend.orchestration import ordering as od
+from backend.orchestration import ordinal
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +131,22 @@ _OPS = {
 }
 
 
+def _widened_on(build: Any, field_name: str, value: str,
+                question: str) -> Any:
+    """The qualifier the PLAN recorded for this restriction, if it recorded one.
+
+    The build is asked first, because the build is what ran. Reading the
+    question here as well is a fallback for the shapes that reach this layer
+    without a planner build behind them (a reused result, a certified step) —
+    same reader, same answer, so the two cannot diverge.
+    """
+    for found in (getattr(build, "widened", None) or []):
+        if getattr(found, "field", "") == field_name and \
+                str(getattr(found, "value", "")) == str(value):
+            return found
+    return ordinal.read(question, field_name, value)
+
+
 def compile_checks(build: Any, question: str = "") -> list[Check]:
     """Everything the answer promised, as checks against its own rows."""
     checks: list[Check] = []
@@ -170,6 +187,24 @@ def compile_checks(build: Any, question: str = "") -> list[Check]:
     for field_name, values in wanted.items():
         readable = field_name.replace("_", " ")
         if len(values) == 1:
+            # "Stage 2 or worse" is a RANGE, and the plan compiles it as one.
+            # The promise has to be read from the same sentence by the same
+            # reader, or this layer demands `= 2` of rows the plan correctly
+            # selected at `>= 2` and withholds a right answer for contradicting
+            # a question it never asked. Part 12's widening was implemented in
+            # the planner and not here, and a check that disagrees with the
+            # plan is worse than no check: it fails only correct answers.
+            widened = _widened_on(build, field_name, values[0], question)
+            if widened is not None:
+                checks.append(Check(
+                    rule="filter_bound",
+                    claim=f"{readable} is {widened.says.split('reads ', 1)[-1]}"
+                          if "reads " in widened.says else
+                          f"{readable} is at or beyond {values[0]}",
+                    columns=(field_name,),
+                    params={"column": field_name, "value": values[0],
+                            "op": widened.op, "phrase": widened.phrase}))
+                continue
             checks.append(Check(
                 rule="filter_equality",
                 claim=f"{readable} is {values[0]}",
@@ -684,6 +719,44 @@ def _filter_equality(check: Check, rows: list[dict[str, Any]],
                 f"are not — the first is {bad[0].get(column)!r}."))
 
 
+def _filter_bound(check: Check, rows: list[dict[str, Any]],
+                  runtime: Any) -> Failure | None:
+    """A restriction the question WIDENED — "stage 2 or worse" — holds as a range.
+
+    Adjudicated numerically, because every governed ordinal this fires on
+    (IFRS 9 stage, internal grade, days past due, twelve-month PD) is a number.
+    Where a row's value will not parse as one the check declines to rule rather
+    than inventing an order for a scale it does not govern: a check that cannot
+    read the column cannot honestly say the answer contradicts the question.
+    """
+    del runtime
+    column = str(check.params["column"])
+    op = str(check.params.get("op") or "gte")
+    try:
+        bound = float(str(check.params["value"]).strip())
+    except (TypeError, ValueError):
+        return None
+
+    def outside(value: Any) -> bool:
+        try:
+            found = float(str(value).strip())
+        except (TypeError, ValueError):
+            return False
+        return found < bound if op == "gte" else found > bound
+
+    present = [r for r in rows if column in r and r.get(column) is not None]
+    bad = [r for r in present if outside(r.get(column))]
+    if not bad:
+        return None
+    direction = "at or above" if op == "gte" else "at or below"
+    return Failure(
+        check=check, offending=len(bad), example=dict(bad[0]),
+        detail=(f"The question said “{check.params.get('phrase', '')}”, so "
+                f"{_readable(column)} must be {direction} {bound:g}; "
+                f"{len(bad)} of {len(present)} rows are not — the first is "
+                f"{bad[0].get(column)!r}."))
+
+
 def _filter_membership(check: Check, rows: list[dict[str, Any]],
                        runtime: Any) -> Failure | None:
     """A question naming several values of one dimension asks for ANY of them.
@@ -926,6 +999,7 @@ _HANDLERS: dict[str, Any] = {
     "period_span": _period_span,
     "ordering": _ordering,
     "filter_equality": _filter_equality,
+    "filter_bound": _filter_bound,
     "filter_membership": _filter_membership,
     "condition": _condition,
     "predicate_tree": _predicate_tree,

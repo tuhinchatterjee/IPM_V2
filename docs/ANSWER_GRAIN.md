@@ -185,3 +185,36 @@ be a concept the reader recognised: its confidence is zero and its reason says
 it came from the requested breakdown. It exists so the governed hop machinery
 can carry a governed column, which is what it was built to do.
 
+
+## Known gap: a constrained field can still be ranked as a measure
+
+"Show exposure at default for Stage 2 borrowers" ranks by the **stage** column
+rather than by exposure, and returns the ten smallest exposures in the book
+under a heading promising the largest.
+
+The rule that stops a constrained field being measured — a field the question
+pins to a VALUE carries the same value in every row, so there is nothing there
+to measure — fires only where the question ALSO asks for a breakdown. This
+question asks for none, so the rule does not fire.
+
+Widening that guard was tried and reverted, because it trades one defect for
+two worse ones:
+
+* "How many borrowers are in Stage 2?" resolves *borrowers* to a
+  connected-group size on the group book, which carries no stage column at
+  all. Dropping the stage leaves the plan anchored there and filtering on a
+  column it does not have.
+* The two-period cohort path stops applying the stage at the grain it
+  reconciles on, and a stage 1 borrower came back inside a "stage 2 or worse"
+  population — a wrong answer, where the ranking bug is only a badly ordered
+  right one.
+
+The real fix is not a different condition here. `matches` currently serves two
+roles at once — it names the measures AND anchors the dataset — and the rule
+needs to remove a field from the first without removing it from the second.
+That is a change to how a match carries its role, and it belongs with the
+grain work rather than bolted onto this guard.
+
+Until then the ordering is wrong and the population is right, which is the way
+round to be wrong.
+

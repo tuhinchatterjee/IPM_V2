@@ -861,7 +861,7 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
         spec = {c["name"]: c for c in _presented(runtime, build)}
         shown = (presentation.render(mean, spec[column]) if column in spec
                  else figures.text(mean))
-        where = (" in " + _scope_phrase(build.filters)) if build.filters else ""
+        where = (" in " + _scope_phrase(build.filters, build.widened)) if build.filters else ""
         direct = (f"{_opening(label)} averages {shown} across the {count} "
                   f"{_dimension_word(build)}"
                   f"{'s' if count != 1 else ''}{where} at {build.period}.")
@@ -876,7 +876,7 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
         # "across 5 groups" is what a program says when it has forgotten what it
         # grouped by. Name the dimension, or the grain when a carried population
         # is what is on screen.
-        where = (" in " + _scope_phrase(build.filters)) if build.filters else ""
+        where = (" in " + _scope_phrase(build.filters, build.widened)) if build.filters else ""
         if build.dimension:
             direct = (f"{_fmt(total)} {subject}{where} across {count} "
                       f"{_dimension_word(build)}{'s' if count != 1 else ''} at "
@@ -1293,14 +1293,31 @@ _NEEDS_ITS_NAME = {"ifrs9_stage": "Stage", "internal_grade": "grade",
                    "dpd_bucket": "DPD bucket", "charge_rank": "charge rank"}
 
 
-def _scope_phrase(filters: list[tuple[str, str]]) -> str:
-    """The filters as a credit officer would say them."""
+#: How a widened restriction reads in a sentence. "stage 2" and "stage 2 or
+#: worse" are different populations, and an answer that says the first while
+#: showing the second has misdescribed its own rows.
+_WIDENED_SAYS = {"gte": "or worse", "lte": "or better"}
+
+
+def _scope_phrase(filters: list[tuple[str, str]],
+                  widened: list[Any] | None = None) -> str:
+    """The filters as a credit officer would say them.
+
+    A restriction the question widened is said as widened. The qualifier comes
+    from the plan's own record of what it compiled, not from a second reading
+    of the sentence: the phrase on the screen and the predicate that ran have
+    to be the same fact.
+    """
+    qualifiers = {(getattr(q, "field", ""), str(getattr(q, "value", ""))):
+                  getattr(q, "op", "") for q in (widened or [])}
     parts: list[str] = []
     for field_name, value in filters:
         prefix = _NEEDS_ITS_NAME.get(field_name)
         if prefix is None and str(value).replace(".", "").isdigit():
             prefix = field_name.replace("_", " ")
-        parts.append(f"{prefix} {value}" if prefix else str(value))
+        said = f"{prefix} {value}" if prefix else str(value)
+        tail = _WIDENED_SAYS.get(qualifiers.get((field_name, str(value)), ""))
+        parts.append(f"{said} {tail}" if tail else said)
     return ", ".join(parts)
 
 
@@ -1325,7 +1342,7 @@ def _nothing_matched(build: ap.AnalysisBuild) -> str:
     reader still not knowing the answer is half a finding.
     """
     population = (build.plan.get("meta") or {}).get("population") or {}
-    where = _scope_phrase(build.filters)
+    where = _scope_phrase(build.filters, build.widened)
     carried = int(population.get("count") or 0)
     if carried:
         subject = (f"the {_spelled(carried)} "
@@ -1452,9 +1469,22 @@ def _subject(build: ap.AnalysisBuild, count: int) -> str:
         # for most of them it did not. The full logic is in the sentence
         # already; the subject stays the bare population.
         return grain
-    adjectives = [v for f, v in build.filters
+    # A restriction the question WIDENED is said as widened. "customers in
+    # IFRS 9 stage 2" over a population that includes stage 3 has described
+    # rows that are not the rows on the screen, and the reader who checks the
+    # stage column is right to stop trusting the heading.
+    qualifiers = {(getattr(q, "field", ""), str(getattr(q, "value", ""))):
+                  _WIDENED_SAYS.get(getattr(q, "op", ""), "")
+                  for q in (getattr(build, "widened", None) or [])}
+
+    def _said(field_name: str, value: str, text: str) -> str:
+        tail = qualifiers.get((field_name, str(value)), "")
+        return f"{text} {tail}" if tail else text
+
+    adjectives = [_said(f, v, str(v)) for f, v in build.filters
                   if not str(v).isdigit() and len(str(v)) > 2]
-    coded = [f"{dyn.FIELD_LABELS.get(f, f.replace('_', ' '))} {v}"
+    coded = [_said(f, v,
+                   f"{dyn.FIELD_LABELS.get(f, f.replace('_', ' '))} {v}")
              for f, v in build.filters
              if str(v).isdigit() or len(str(v)) <= 2]
     subject = " ".join([*adjectives, grain])
