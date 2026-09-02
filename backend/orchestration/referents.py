@@ -40,6 +40,7 @@ from functools import lru_cache
 from typing import Any
 
 from backend.orchestration import conversation as cv
+from backend.orchestration import movement as mv
 from backend.orchestration import nth
 
 logger = logging.getLogger(__name__)
@@ -131,6 +132,13 @@ _CONTINUE: tuple[str, ...] = (
     r"^\s*split (?:that|this|it)\b", r"^\s*group (?:that|this|it)\b",
     r"\beach one'?s?\b", r"\bper (?:one|each)\b", r"\bfor (?:each|every) one\b",
     r"^\s*(?:ok(?:ay)?|right|good)[,.]?\s+(?:now|then)\b",
+    # "What moved?", "What has changed?" — a change question with nothing else
+    # in it. The measure is not missing; it is the one the conversation is
+    # already about, and asking which figure to measure asks the reader to
+    # repeat what they said one sentence ago. Anchored at both ends in
+    # `movement.SUBJECTLESS`: "what changed in Real Estate?" names a population
+    # of its own and stays a fresh request.
+    mv.SUBJECTLESS.pattern,
 )
 
 #: A change to how the previous result is *shown*, with no new arithmetic.

@@ -24,6 +24,7 @@ from backend.llm import LLMError, get_provider
 from backend.orchestration import capability as cap
 from backend.orchestration import conversation as cv
 from backend.orchestration import guardrail as gr
+from backend.orchestration import movement as mv
 from backend.orchestration import routing as rt
 from backend.orchestration.context import GovernedContext, retrieve
 
@@ -411,8 +412,10 @@ _OPERATIONS: tuple[tuple[str, str], ...] = (
     ("rank", r"\b(?:top|largest|biggest|smallest|bottom|worst|best|"
              r"rank|ranked|five|ten|\d+)\b.{0,25}\b(?:by|customers?|borrowers?)\b"),
     ("rank", r"\b(?:top|largest|biggest|smallest|bottom)\b"),
-    ("compare", r"\b(?:compare|versus|\bvs\b|change|movement|increase|decrease|"
-                r"rose|fell|grew|declin|worsen|improv|deteriorat|downgrade|upgrade)"),
+    # One vocabulary, in `movement`. The private list this used to carry read
+    # "movement" and not "moved", so the same question compiled to a comparison
+    # or to a level depending on which spelling the user reached for.
+    ("compare", rf"\b(?:{mv.CHANGE})\b"),
     ("distribution", r"\b(?:distribution|breakdown|split|by sector|by region|"
                      r"by segment|by stage|by rating)\b"),
     ("average", r"\b(?:average|mean of|median)\b"),
@@ -425,7 +428,11 @@ _OPERATIONS: tuple[tuple[str, str], ...] = (
 def _operation(question: str) -> str:
     import re
 
-    text = (question or "").lower()
+    # Masked by the same rule the period requirement uses. "Which of these
+    # moved to Stage 3?" is a list of accounts that crossed a boundary, not a
+    # comparison of a measure across two dates, and reading it as one produced
+    # "0.00 stage migration in Stage 3" where a list of names belonged.
+    text = mv.without_migration((question or "").lower())
     for name, pattern in _OPERATIONS:
         if re.search(pattern, text):
             return name
@@ -497,10 +504,7 @@ def _period_requirement(question: str, intent: str) -> str:
     # "PD rose last quarter; who is most likely to deteriorate next year?"
     # keeps its "rose" and stays a two-period question.
     text = _FORWARD.sub(lambda m: " " * len(m.group(0)), text)
-    if re.search(r"\b(?:increase|decrease|rose|fell|grew|declin|worsen|improv|"
-                 r"deteriorat|downgrade|upgrade|change|movement|compare|versus|"
-                 r"\bvs\b|over the (?:latest|last|past)|year on year|"
-                 r"quarter on quarter|trend)\w*", text):
+    if mv.asks_for_change(text):
         return "two_period"
     return "point_in_time"
 

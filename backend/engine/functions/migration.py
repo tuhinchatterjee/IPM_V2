@@ -464,6 +464,8 @@ ECL_FIELDS = ["account_id", "customer_id", "borrower_name", "ead", "total_ecl", 
     ),
     trigger_questions=[
         "How has ECL changed?",
+        "How has ECL moved?",
+        "How has the impairment moved?",
         "Which sectors deteriorated the most?",
         "What drove the impairment charge?",
     ],

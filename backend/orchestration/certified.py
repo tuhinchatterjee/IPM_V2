@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.orchestration import capability as cap
+from backend.orchestration import movement as mv
 
 logger = logging.getLogger(__name__)
 
@@ -166,11 +167,11 @@ def match(question: str, reading: cap.Reading) -> Match | None:
 #: about a position at one. Read from the request, not guessed from the
 #: methodology: it is the request that decides which of two equally well-named
 #: analyses was meant.
-_CHANGE = re.compile(
-    r"\b(?:change[ds]?|changing|movement|moved?|move|increase[ds]?|"
-    r"decrease[ds]?|rise|rose|risen|rising|fell|fall(?:en|ing)?|drop(?:ped)?|"
-    r"grew|grow(?:th|n)?|since|versus|vs|between|compared?|quarter-on-quarter|"
-    r"year-on-year|deteriorat\w*|improv\w*)\b", re.I)
+#: `weak=True`: this reader is already choosing between two methodologies the
+#: request named equally well, so "between Q1 and Q2" and "since last year" are
+#: safe here in a way they would not be for a reader deciding from nothing.
+def _wants_change(question: str) -> bool:
+    return mv.asks_for_change(question, weak=True)
 
 
 def _pick(found: list[Match], question: str, reading: cap.Reading) -> Match | None:
@@ -196,7 +197,7 @@ def _pick(found: list[Match], question: str, reading: cap.Reading) -> Match | No
         return leading[0]
 
     wants_change = (len({p for p in reading.periods if p}) >= 2
-                    or bool(_CHANGE.search(question or "")))
+                    or _wants_change(question))
     wanted = "two_period" if wants_change else "point_in_time"
     fitting = [m for m in leading if str(m.period_requirement) == wanted]
     if fitting:
