@@ -145,6 +145,15 @@ class AnalysisBuild:
     #: Movements this plan cannot measure, because both ends of the comparison
     #: read the same source cycle. Part 12.
     collapsed: Any = None
+    #: Words of the question this build's reading ALREADY accounts for, which
+    #: no predicate will show. A composite is the whole point of the example:
+    #: "which borrowers are weakening but are not yet on the watchlist?" has
+    #: no `weakening` column and no NOT node, and the coverage gate — which
+    #: reads predicates — reported both as conditions CreditProbe could not
+    #: apply, on the same screen as the caveat saying the watchlist had been
+    #: removed. Two sentences, contradicting each other, both from CreditProbe.
+    covered: list[str] = field(default_factory=list)
+
     #: Value restrictions the SENTENCE widened — "stage 2 or worse" is a range,
     #: not an equality. Recorded once, where the predicate is compiled, so the
     #: promise checked against the rows and the phrase shown to the reader come
@@ -277,7 +286,8 @@ def plan(reading: Reading, context: GovernedContext, *,
     dropped = gate.dropped_structure(
         text, getattr(build, "enforcement", None),
         multi.predicate_tree_of(build.plan),
-        list(build.matches), build.conditions, build.filters)
+        list(build.matches), build.conditions, build.filters,
+        covered=list(build.covered))
     # Whether this is the same KIND of answer the question asked for. The
     # coverage gate compares predicates, and a plan that abandoned the question
     # outright has no predicates to be missing — which is how "which Shipping
@@ -2482,6 +2492,15 @@ def _summary(shape: str, measures: list[cx.ConceptMatch],
 COMPOSITE_ROWS = 25
 
 
+#: How each governed exclusion flag reads in a sentence a credit officer would
+#: write. Named rather than derived from the column, because "not npl
+#: borrowers" is not a sentence.
+_EXCLUSION_SAYS: dict[str, str] = {
+    "watchlist": "yet on the watchlist",
+    "npl": "classified non-performing",
+}
+
+
 def _composite_ranking(found: cmp.Resolved, reading: Reading,
                        context: GovernedContext, text: str,
                        filters: list[tuple[str, str]], catalogue: Any, *,
@@ -2556,11 +2575,20 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
                 f"their {dimension.replace('_', ' ')} instead, or ask by a "
                 f"dimension that source carries."))
 
+    # Governed flags the question asked to leave out. "Which borrowers are
+    # weakening but are NOT YET on the watchlist?" restricts the population to
+    # the names that have not been formally marked — the early-warning question
+    # the columns exist to answer, and one the ordinary cohort path compiled
+    # into a predicate the runtime refused outright.
+    exclusions = cmp.excluded(text, available)
+
     read = {key, *([name] if name else []), *([size] if size else [])}
     if grouping:
         read.add(grouping)
     for signal in found.available:
         read.update(signal.columns)
+    for exclusion in exclusions:
+        read.add(exclusion.field)
     for field_name, _ in filters:
         if field_name in available:
             read.add(field_name)
@@ -2594,6 +2622,16 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
                       f"conversation is about"),
         })
         current = "population"
+
+    if exclusions:
+        operations.append({
+            "id": "excluded", "op": "FILTER", "inputs": [current],
+            "params": {"where": [{"column": e.field, "op": "=",
+                                  "value": False} for e in exclusions]},
+            "label": ("Leave out " + _list_of(
+                f"names where {e.field} is set" for e in exclusions)),
+        })
+        current = "excluded"
 
     # One 0/1 column per signal, at the grain the source is keyed on.
     flags = [f"signal_{s.key}" for s in found.available]
@@ -2676,6 +2714,11 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
                 "question asked for."))
 
     warnings: list[str] = []
+    for exclusion in exclusions:
+        warnings.append(
+            f"The question said “{exclusion.phrase}”, so borrowers where "
+            f"{exclusion.field} is set were removed before the evidence was "
+            f"counted. This is not the whole book.")
     if found.unavailable:
         warnings.append(
             f"The governed catalogue holds no measure for "
@@ -2693,15 +2736,25 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
     if scoped_to:
         subject = (f"The {len(scoped_to)} {'borrower' if len(scoped_to) == 1 else 'borrowers'} "
                    f"the conversation is about")
+    # An exclusion changes WHICH borrowers are on the screen, and a ranking
+    # that reads exactly like the unrestricted one leaves the reader no way to
+    # tell. The name at the top of the whole book carries six of seven signals;
+    # with the watchlist left out the top carries two, and without this
+    # sentence that difference looks like a different portfolio.
+    left_out = ""
+    if exclusions:
+        left_out = " not " + _list_of(
+            _EXCLUSION_SAYS.get(e.field, f"flagged {e.field}")
+            for e in exclusions)
     summary = (
-        f"{subject} ranked by how many of {len(found.available)} governed "
-        f"{found.composite.label} signals they show at {at}.")
+        f"{subject}{left_out} ranked by how many of {len(found.available)} "
+        f"governed {found.composite.label} signals they show at {at}.")
     if grouping:
         readable = grouping.replace("_", " ")
         where = f" in {named}" if named else ""
         summary = (
             f"{readable.capitalize()}s{where} ranked by the share of exposure "
-            f"carried by borrowers showing governed "
+            f"carried by borrowers{left_out} showing governed "
             f"{found.composite.label} evidence at {at}.")
 
     return AnalysisBuild(
@@ -2715,6 +2768,12 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
         filters=filters, dataset=dataset,
         grain=gr.SEGMENT if grouping else gr.CUSTOMER, period=at,
         dimension=grouping, top_n=0 if grouping else cut, warnings=warnings,
+        # What this reading accounts for without a predicate: the composite
+        # phrase itself, and every exclusion applied above. The coverage gate
+        # reads predicates and would otherwise report both as conditions
+        # CreditProbe could not apply, contradicting the caveats it just wrote.
+        covered=([found.matched] if found.matched else [])
+                + [e.phrase for e in exclusions],
         summary=summary, grain_contract=contract)
 
 
@@ -2834,6 +2893,9 @@ def _signal_expression(signal: cmp.Signal) -> dict[str, Any]:
                 "args": [column, {"type": "literal", "value": signal.value}]}
     elif signal.test == cmp.BELOW:
         when = {"type": "function", "function": "lt",
+                "args": [column, {"type": "literal", "value": signal.value}]}
+    elif signal.test == cmp.EQUALS:
+        when = {"type": "function", "function": "eq",
                 "args": [column, {"type": "literal", "value": signal.value}]}
     else:  # ROSE_BY
         when = {"type": "function", "function": "gte",

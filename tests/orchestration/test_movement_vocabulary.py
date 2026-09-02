@@ -12,9 +12,9 @@ import pytest
 
 from backend.orchestration import capability as cap
 from backend.orchestration import certified as cert
+from backend.orchestration import conversation as cv
 from backend.orchestration import movement as mv
 from backend.orchestration import referents
-from backend.orchestration import conversation as cv
 from backend.orchestration.router import _operation, _period_requirement
 
 
