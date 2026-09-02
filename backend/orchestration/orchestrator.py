@@ -1878,6 +1878,13 @@ def remember(state: cv.ConversationState, answered: Answered, *,
                 ("failed" if answered.failure else "needs_clarification")),
     ))
 
+    # §9: a clarification must not destroy context. The question CreditProbe
+    # could not plan is held so the reply — "expected credit loss." — can be
+    # merged with it rather than read as a fresh request that names a measure
+    # and asks nothing. Cleared the moment a turn settles something, so a
+    # clarification answered two turns later is not silently re-merged.
+    state.pending = answered.question if answered.clarification else ""
+
     if answered.runtime is None or answered.build is None:
         _keep_the_population_the_question_named(state, answered)
         return state

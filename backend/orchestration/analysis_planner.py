@@ -340,6 +340,24 @@ def _plan(reading: Reading, context: GovernedContext, *,
     carrying = bool(continuation and continuation.carries_context and state
                     and state.has_analysis)
 
+    # "Why Shipping?" names a book and no measure at all. §5.
+    #
+    # The analytical half of such a turn — which figure, which shape, which
+    # composite — is the one the previous question settled; only the SCOPE
+    # comes from the sentence in front of us. Reading both halves from three
+    # words is what produced "which figure should CreditProbe measure?", the
+    # product asking the reader to restate the analysis it had just run and
+    # then losing the thread for every turn after it.
+    #
+    # `settled_text` is the previous question, used ONLY where this sentence
+    # resolves nothing. A narrowing that named its own measure keeps it.
+    narrowing = bool(continuation is not None and state is not None
+                     and continuation.action == cv.NARROW_SCOPE)
+    settled_text = ""
+    if narrowing and state is not None:
+        settled_text = (state.result.question
+                        or (state.turns[-1].question if state.turns else ""))
+
     # Carrying a POPULATION is not the same as carrying a PLAN, and the two
     # were gated on one flag. `has_analysis` asks whether an analysis has run,
     # which is the right precondition for a modification — "show only the five
@@ -368,6 +386,13 @@ def _plan(reading: Reading, context: GovernedContext, *,
     inherited_metrics = (list(state.metrics or state.concepts)
                          if carrying and not scope_only else [])
     resolved = cx.read_concepts(text, known=known, catalogue=catalogue)
+    if not resolved.matches and settled_text:
+        # The narrowing sentence named no concept, so the measure is the one
+        # the settled question named. Re-read rather than recalled: what
+        # reaches the plan is a governed concept resolved against the
+        # catalogue, never a label copied out of the conversation.
+        resolved = cx.read_concepts(settled_text, known=known,
+                                    catalogue=catalogue)
     matches = list(resolved.matches)
     carried_concepts: list[str] = []
     if carrying and inherited_metrics:
@@ -413,6 +438,8 @@ def _plan(reading: Reading, context: GovernedContext, *,
     # starts choosing between measures, because by then the question has
     # already been reduced to one.
     composite = cmp.find(text, catalogue)
+    if composite is None and settled_text:
+        composite = cmp.find(settled_text, catalogue)
     if composite is not None:
         # Within the population the conversation has already settled. §6.
         #
@@ -431,6 +458,14 @@ def _plan(reading: Reading, context: GovernedContext, *,
             composite, reading, context, text,
             composite_filters, catalogue,
             top_n=_explicit_top_n(text),
+            # Only when the sentence POINTED at the previous rows — "which of
+            # those", "the second one". A composite ranking that silently
+            # pinned itself to whatever the last turn returned would answer
+            # "which borrowers are the real issues?" over the previous
+            # ranking's rows rather than over the book the conversation has
+            # settled, which is a narrower question than the one asked.
+            population=(continuation if continuation is not None
+                        and continuation.referent else None),
             period=(period[1] if period else ""))
         if continuation is not None:
             build.continuation = continuation
@@ -2121,6 +2156,7 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
                        context: GovernedContext, text: str,
                        filters: list[tuple[str, str]], catalogue: Any, *,
                        top_n: int = 0,
+                       population: cv.Continuation | None = None,
                        period: str = "") -> AnalysisBuild:
     """Rank borrowers by how much governed evidence of a composite they carry.
 
@@ -2152,6 +2188,19 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
     size = next((c for c in ("ead", "exposure", "limit_amount")
                  if c in available), "")
 
+    # The identities the conversation is carrying, when it carries any. A
+    # composite ranking used to build its population from the sentence alone,
+    # so "why does the second one worry you?" — which names exactly one
+    # borrower — came back as a ranking of the whole book. Every other shape in
+    # this planner already restricts to the carried rows; this one did not.
+    scoped_to = (list(population.entity_ids)
+                 if population is not None and population.has_population
+                 and str(population.entity_key or "") == key else [])
+    if population is not None and population.has_population and not scoped_to:
+        logger.info("The carried population is keyed by %r, which this "
+                    "composite ranking reports by %r, so it was not applied.",
+                    population.entity_key, key)
+
     read = {key, *([name] if name else []), *([size] if size else [])}
     for signal in found.available:
         read.update(signal.columns)
@@ -2178,6 +2227,16 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
             "label": "Restrict to " + _filter_label(filters),
         })
         current = "scoped"
+
+    if scoped_to:
+        operations.append({
+            "id": "population", "op": "FILTER", "inputs": [current],
+            "params": {"where": [{"column": key, "op": "in",
+                                  "values": list(scoped_to)}]},
+            "label": (f"Restrict to the {len(scoped_to)} {key} the "
+                      f"conversation is about"),
+        })
+        current = "population"
 
     # One 0/1 column per signal, at the grain the source is keyed on.
     flags = [f"signal_{s.key}" for s in found.available]
@@ -2256,8 +2315,18 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
             f"{len(found.available)} signals it does carry: "
             f"{_list_of(found.dimensions)}.")
 
+    # The population the ranking was built over, in the summary rather than
+    # only in the Trace. A narrowed answer that reads exactly like the
+    # unnarrowed one leaves the reader no way to tell that "Why Shipping?"
+    # was heard, and the whole point of carrying scope forward is that the
+    # answer shows it.
+    named = ", ".join(value for _, value in filters)
+    subject = f"{named} borrowers" if named else "Borrowers"
+    if scoped_to:
+        subject = (f"The {len(scoped_to)} {'borrower' if len(scoped_to) == 1 else 'borrowers'} "
+                   f"the conversation is about")
     summary = (
-        f"Borrowers ranked by how many of {len(found.available)} governed "
+        f"{subject} ranked by how many of {len(found.available)} governed "
         f"{found.composite.label} signals they show at {at}.")
 
     return AnalysisBuild(

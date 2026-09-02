@@ -388,6 +388,17 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
 
     window = period or settled_period(context)
 
+    # §9: the reply to a clarification is merged with the question that
+    # provoked it. "How has it moved?" → "Which figure?" → "Expected credit
+    # loss." reached the planner as three words naming a concept and asking
+    # nothing, so it was answered as a level and the movement the reader
+    # actually asked about was lost — along with every turn that followed.
+    #
+    # The user's own words are what is stored as their message, above. What is
+    # merged is only what reaches the planner, and the Trace shows both.
+    settled = cv.load(context)
+    asked, resumed = resume(context, question)
+
     # The governed answer, wrapped in the officer record. §4 asks for an
     # officer level on every user-requested analysis, and this is the function
     # the browser actually calls — putting it anywhere else would give the
@@ -400,9 +411,9 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
     # three governed domains.
     with get_session() as session:
         officer = agentic.run(
-            session, question=question, user_id=user_id,
+            session, question=asked, user_id=user_id,
             project_id=project_id, investigation_id=thread_id,
-            period=window, state=cv.load(context),
+            period=window, state=settled,
             # The TYPED memory as well as the analytical state. Without it a
             # follow-up about a field set reached the planner with no "those"
             # to resolve — which worked in tests that drove the orchestrator
@@ -411,6 +422,10 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
 
     result = officer.investigation
     answered = officer.answered
+    if resumed:
+        result.narrative.caveats.append(
+            f"Read as an answer to the question CreditProbe asked, so this "
+            f"was computed for \u201c{asked}\u201d.")
     remember(thread_id, result, answered)
 
     if result.status == "needs_clarification":
@@ -435,6 +450,48 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
     return {"status": result.status, "run": result.to_dict(),
             "agentic": officer.agentic(),
             "thread": load(thread_id).to_dict()}
+
+
+def resume(context: dict[str, Any] | None, question: str) -> tuple[str, str]:
+    """The question to plan, given what CreditProbe last asked. §9.
+
+    Returns `(asked, resumed)`. `resumed` is the pending question when this
+    sentence answered it and empty otherwise, so a caller can say on the
+    answer that two sentences were read together.
+
+    One function, called by every entry point that continues an investigation,
+    because a clarification answered in the Cockpit and the same clarification
+    answered in a Project thread are the same conversational act and reading
+    them differently is how a mechanism becomes two mechanisms that disagree.
+    """
+    from backend.orchestration import conversation as cv
+
+    settled = cv.load(context)
+    if settled.pending and cv.answers_a_clarification(question):
+        return (f"{settled.pending} {question.strip()}", settled.pending)
+    return (question, "")
+
+
+def context_of(thread_id: int) -> dict[str, Any]:
+    """An investigation's stored context, or an empty one.
+
+    Never raises. A caller that cannot read the context should answer the
+    question without it rather than fail, which is what it did before this
+    existed anyway.
+    """
+    if not settings.has_database:
+        return {}
+    try:
+        from backend.db.engine import get_session
+        from backend.models.platform import Investigation
+
+        with get_session() as session:
+            row = session.get(Investigation, thread_id)
+            return dict(row.context or {}) if row is not None else {}
+    except Exception as e:  # noqa: BLE001 - no context is not a failure
+        logger.warning("Could not read the context of investigation %s: %s",
+                       thread_id, e)
+        return {}
 
 
 def remember(thread_id: int, run: Any, answered: Any) -> None:

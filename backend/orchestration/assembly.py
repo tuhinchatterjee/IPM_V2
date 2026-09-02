@@ -487,6 +487,30 @@ def _reuse_scope_line(cached: Any) -> str:
 # ------------------------------------------------------------ analytical answers
 
 
+def _name_the_row(narrative: Narrative, build: ap.AnalysisBuild) -> None:
+    """Say WHO, when the question pointed at one row of the previous answer.
+
+    "Why the second one?" resolves to a borrower and the analysis then reports
+    that borrower's figure — correctly, and as "7.06 SAR mn of exposure at
+    default in Stage 2", which never says whose. A reader cannot check an
+    answer about a company that does not name the company, so the identity the
+    reference bound to is put in front of the figure.
+
+    Skipped where the answer already names it, which is the ranking and
+    composite case: those sentences lead with the borrower.
+    """
+    ordinal = dict(getattr(build.continuation, "ordinal", {}) or {})
+    if not ordinal.get("resolved"):
+        return
+    label = str(ordinal.get("label") or "")
+    direct = str(narrative.direct_answer or "")
+    if not label or not direct or label.lower() in direct.lower():
+        return
+    narrative.direct_answer = (
+        f"{label} — {ordinal.get('phrase') or 'the row'} of the "
+        f"{ordinal.get('of') or 0} the previous answer returned. {direct}")
+
+
 def from_analysis(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
                   runtime: Any, *, duration_ms: int,
                   mode: dict[str, Any]) -> Investigation:
@@ -528,6 +552,7 @@ def from_analysis(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
     # computation that can disagree with the answer it is describing.
     values = _values(build, runtime)
     narrative = _narrative(question, build, runtime, values)
+    _name_the_row(narrative, build)
     step = ExecutedStep(
         index=0, analysis_id="dynamic_analysis", title=_title(build),
         rationale=_rationale(build),
@@ -1037,11 +1062,33 @@ def _composite_narrative(build: ap.AnalysisBuild, runtime: Any,
     top = rows[0]
     best = int(top.get(score) or 0)
     named = str(top.get("borrower_name") or top.get("customer_id") or "")
-    direct = (
-        f"{count} borrower{'s' if count != 1 else ''}, ranked by how many of "
-        f"{len(signals)} governed {label} signals each one shows at "
-        f"{build.period}. {named} shows the most, at {best} of "
-        f"{len(signals)}.")
+    # The population the ranking was built over, said in the first sentence.
+    # A ranking narrowed to Shipping that opens exactly like the portfolio-wide
+    # one gives the reader no way to tell that "Why Shipping?" was heard, and
+    # the whole value of carrying scope forward is that the answer shows it.
+    scope_said = ", ".join(str(value) for _, value in (build.filters or []))
+    where = f" in {scope_said}" if scope_said else ""
+    carried = getattr(build.continuation, "referent", "") or ""
+    ordinal = dict(getattr(build.continuation, "ordinal", {}) or {})
+    if count == 1 and ordinal.get("resolved"):
+        # One borrower, named by pointing at a row of the previous answer.
+        # "1 borrower in Shipping, of the second one, ranked by ..." is what
+        # the plural sentence becomes here, and it reads as though the product
+        # is describing a table rather than answering about a company.
+        direct = (
+            f"{named} — {ordinal.get('phrase') or 'the row'} of the "
+            f"{ordinal.get('of') or count} the previous answer returned — "
+            f"shows {best} of {len(signals)} governed {label} signals at "
+            f"{build.period}.")
+    else:
+        if carried:
+            where = (f" of {carried}" if not scope_said
+                     else f"{where}, of {carried}")
+        direct = (
+            f"{count} borrower{'s' if count != 1 else ''}{where}, ranked by "
+            f"how many of {len(signals)} governed {label} signals each one "
+            f"shows at {build.period}. {named} shows the most, at {best} of "
+            f"{len(signals)}.")
 
     metrics = [
         Metric(label=f"Most {label} signals", value=best, unit="signals",
@@ -1513,9 +1560,15 @@ def _prior_context(graph: TraceGraph, build: ap.AnalysisBuild) -> str:
             "population_sample": carried.get("entity_names"),
             "inherited": carried.get("inherited"),
             "because": carried.get("because"),
+            # How an ordinal reference — "the second one" — bound, or why it
+            # did not. Shown whether it resolved or not: a reference the
+            # product could not follow is a fact the Trace has to carry.
+            "ordinal": carried.get("ordinal") or {},
             "rule": ("A reference such as \u201cthese\u201d resolves to the "
                      "identities the previous run RETURNED, not to a "
-                     "re-derivation of the question that produced them."),
+                     "re-derivation of the question that produced them. An "
+                     "ordinal such as \u201cthe second one\u201d reads that "
+                     "stored order by position and re-ranks nothing."),
         }))
     node.mark_ok(rows_out=carried.get("entity_count") or None)
     graph.connect("intent", "prior")

@@ -30,7 +30,7 @@ from backend.engine.registry import get_registry
 from backend.engine.runner import run_analysis
 from backend.orchestration import modification as modification_service
 from backend.orchestration import store
-from backend.orchestration.executor import STAGES, run_investigation
+from backend.orchestration.executor import STAGES, answer_investigation
 from backend.orchestration.planner import planner_mode
 from backend.orchestration.schema import PlanRejected
 from backend.orchestration.vocabulary import get_vocabulary
@@ -288,15 +288,39 @@ def _ask(payload: AskIn, principal: Principal) -> dict[str, Any]:
             (payload.from_period, payload.to_period)
             if payload.from_period and payload.to_period else None
         )
-        investigation = run_investigation(
-            payload.question,
+        # An `investigation_id` means this question continues that
+        # investigation, and it has to carry what the investigation settled.
+        # It did not: this route passed the id along so the answer would be
+        # FILED against the thread and then planned the sentence as though
+        # nothing had been asked before it — so a caller that named the thread
+        # got no population, no measure and no period from it, and "which of
+        # those" reached the planner with no "those" to resolve.
+        #
+        # The same three functions the Investigation route uses, so there is
+        # one mechanism rather than two that disagree.
+        asked, state, memory = payload.question, None, None
+        if payload.investigation_id:
+            from backend.orchestration import conversation as cv
+            from backend.orchestration import memory as wm
+            from backend.services import threads as th
+
+            context = th.context_of(payload.investigation_id)
+            asked, _resumed = th.resume(context, payload.question)
+            state, memory = cv.load(context), wm.load(context)
+
+        investigation, answered = answer_investigation(
+            asked,
             user_id=principal.user_id,
             project_id=payload.project_id,
             investigation_id=payload.investigation_id,
             persist=payload.persist,
             period=period,
+            state=state,
+            memory=memory,
         )
-    except PlanRejected as e:  # pragma: no cover - run_investigation returns instead
+        if payload.investigation_id and payload.persist:
+            th.remember(payload.investigation_id, investigation, answered)
+    except PlanRejected as e:  # pragma: no cover - the executor returns instead
         raise HTTPException(status_code=422,
                             detail={"error": "plan_rejected", "message": str(e),
                                     "reasons": e.reasons}) from e
