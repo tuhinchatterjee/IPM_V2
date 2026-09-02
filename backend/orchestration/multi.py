@@ -609,6 +609,27 @@ def explain(request: MultiRequest) -> str:
 
 #: How a measure rolls up when a side has to be aggregated to the analysis
 #: grain. An ordinal takes its worst value; money sums; a rate takes its worst.
+def _carry(column: str) -> str:
+    """How a FILTER or dimension column survives the roll-up to the grain.
+
+    A dimension is a property of the borrower — one sector, one region — so any
+    facility's value is the borrower's and `any_value` is exact.
+
+    An ORDINAL is not. A borrower with a stage 1 facility and a stage 3 facility
+    is a stage 3 borrower; `any_value` picks whichever row the engine reached
+    first, so "which Stage 2 or worse borrowers had rising PD?" selected its
+    population from an arbitrary facility per name and agreed with neither
+    reading of the question. The single-period path already rolls the stage up
+    with the governed direction, and this is the same rule in the same words —
+    `ordinal.DIRECTION` says which end is worse.
+    """
+    from backend.orchestration import ordinal
+
+    if column in ordinal.DIRECTION:
+        return "max" if ordinal.DIRECTION[column] else "min"
+    return "any_value"
+
+
 def _rollup(match: cx.ConceptMatch) -> str:
     if match.concept.is_categorical:
         return "any_value"
@@ -731,7 +752,7 @@ def build_plan(request: MultiRequest, *, catalogue: Any) -> PlanBuild:
                     "aggregates": [
                         *[{"function": _rollup(m), "column": column, "as": column}
                           for column, m in gathered],
-                        *[{"function": "any_value", "column": c, "as": c}
+                        *[{"function": _carry(c), "column": c, "as": c}
                           for c in dict.fromkeys([*dimensions, *filter_fields,
                                                   "period"])
                           if c != key and c in base_fields],

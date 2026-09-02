@@ -151,6 +151,38 @@ def read(question: str, field: str, value: str) -> Qualified | None:
     return None
 
 
+#: The qualifier as it appears AFTER a value, for masking. The same shape the
+#: reader above matches, written once more without the field it belongs to,
+#: because a caller that has to blank the words does not know which measure
+#: they qualify.
+_QUALIFIER_AFTER_VALUE = re.compile(
+    rf"(?<=\d)(?:\s+(?:{_UNITS}))?\s+"
+    r"(?:or|and)\s+"
+    r"(?:worse|better|more|less|higher|lower|above|below|greater|fewer|"
+    r"over|under|above\s+that|below\s+that)\b",
+    re.IGNORECASE)
+
+
+def without_qualifiers(question: str) -> str:
+    """The sentence with "or worse" blanked out, offsets preserved.
+
+    The "or" in "stage 2 or worse" is part of a RANGE, not a choice between two
+    conditions. A Boolean reader that splits the sentence on it turns
+
+        "Which Stage 2 or worse borrowers had rising PD?"
+
+    into "stage is 2 OR PD rose" — a population several times larger than the
+    one asked for, and a heading that says so in the reader's own answer.
+
+    Blanked rather than removed so every offset a caller already computed still
+    points where it did, and so the phrase a leaf is attached by still matches.
+    """
+    said = str(question or "")
+    if not said:
+        return said
+    return _QUALIFIER_AFTER_VALUE.sub(lambda m: " " * len(m.group(0)), said)
+
+
 def apply(question: str,
           restrictions: list[tuple[str, str]],
           ) -> tuple[list[tuple[str, str]], list[Qualified]]:
@@ -168,4 +200,5 @@ def apply(question: str,
     return list(restrictions), found
 
 
-__all__ = ["DIRECTION", "ORDINAL_VERSION", "Qualified", "apply", "read"]
+__all__ = ["DIRECTION", "ORDINAL_VERSION", "Qualified", "apply", "read",
+           "without_qualifiers"]

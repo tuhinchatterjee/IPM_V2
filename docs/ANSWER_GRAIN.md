@@ -219,68 +219,146 @@ Until then the ordering is wrong and the population is right, which is the way
 round to be wrong.
 
 
-## Known gap: a cohort with no movement in it still reads two periods
+## Closed: a single-period filter is not a two-period cohort
 
     "Which Stage 2 or worse borrowers are on watchlist?"
+    "Show Stage 2 borrowers."
 
-is withheld. The governed runtime refuses the plan:
+were both withheld. The governed runtime refused the plan:
 
     movements: a DERIVE needs 'columns'.
     cohort: 'closing_watchlist' is not a column available at this step.
 
-Nothing in that sentence compares two dates. It names a population — stage 2
-or worse — and one thing that must be true of it at one date. But `_shape`
-reads *any* condition as a cohort, and every cohort is built by `_two_period`:
-an opening scan, a closing scan, a join with a `closing_` prefix, and a DERIVE
-of the movements. With no movement to derive the DERIVE is empty, the runtime
-rejects it, and the columns the later steps reach for never exist.
+Nothing in either sentence compares two dates. Each names a population and,
+in the first, one thing that must be true of it at one date. But `_shape` read
+*any* condition as a cohort, and every cohort was built by `_two_period`: an
+opening scan, a closing scan, a join with a `closing_` prefix, and a DERIVE of
+the movements. With no movement to derive the DERIVE was empty, the runtime
+rejected it, and the columns the later steps reached for never existed.
 
-`Condition.kind` already tells the two apart. A `change_pct` or `change_abs`
-condition genuinely needs both ends of a comparison; a `level` or `order`
-condition is a test at one date, and "on the watchlist" is a level.
+### What decides now
 
-The plan the same sentence should produce is a single-period scan, the stage
-restriction at `>= 2`, the watchlist test as a filter, and one row per
-borrower. Three things stand between here and there, and all three are in
-`_single_period`:
+`Condition.kind` already told the two apart; nothing was reading it. It does
+now, in `analysis_planner`:
 
-* it accepts `filters` — `(field, value)` string pairs — and not
-  `Condition`s, so a level test has nowhere to go;
-* the predicate compilation, the coverage gate, the invariants and the
-  fidelity contract each read conditions from the two-period build, and each
-  would need the single-period one to carry them;
-* the ordinal widening recorded in `AnalysisBuild.widened` reaches the
-  two-period path today. On the evidence of the plan actually built, it is not
-  reaching this one either: "Stage 2 or worse" compiles to an OR of two
-  equalities rather than to `ifrs9_stage >= 2`, and the answer is grouped by
-  stage rather than by borrower.
+* `change_pct` and `change_abs` — collected as `MOVEMENT_KINDS` — genuinely
+  need both ends of a comparison, and `asserts_movement()` sends them to
+  `COHORT`.
+* `level` and `order` are tests at ONE date. "on the watchlist", "Stage 2 or
+  worse", "in Shipping", "rated BB or below" are all levels, and a question
+  built only from them is planned as a single-period population.
 
-So this is one defect with three surfaces, and the fix is a level-condition
-path through `_single_period` rather than a patch at the point of failure.
-Emitting no DERIVE when there is nothing to derive would make the plan run and
-would leave every other part of it wrong — a two-period join, an OR where a
-range belongs, and an answer at stage grain to a question about borrowers.
-A confident wrong answer is worse than a withheld one, so the plan stays
-withheld until the path exists.
+The decision is on the kind of condition, not on the words of the question. A
+level condition nobody has phrased before takes the single-period path for the
+same reason these two do.
 
-### And the two that are already right
+### The four things that had to follow
+
+The shape decision alone would have produced a plan that ran and was wrong
+everywhere else. Four mechanisms moved with it:
+
+* **`_single_period` accepts conditions.** It compiles each testable one
+  through the same Boolean reader the two-period path uses, emits it as a
+  `tested` FILTER, and carries the tested columns into the GROUP aggregates so
+  the rows on screen prove the predicate (QF-3). An untestable condition raises
+  `CannotPlan` rather than being dropped.
+* **A range is a range.** "Stage 2 or worse" compiles to `ifrs9_stage >= 2`,
+  the ordered predicate the domain supports, not to an OR of two equalities.
+  The widening is recorded on `AnalysisBuild.widened`, and the answer says "or
+  worse" because the plan says `gte` — the sentence and the predicate are the
+  same fact.
+* **The head noun decides the grain.** A dimension the question pins to a
+  value is a RESTRICTION, not a breakdown: "Stage 2 borrowers" is a list of
+  borrowers, not a table of stages. `dimensions._noun` steps over pinned
+  restrictions FIRST and only then cuts at the verb — cutting first would stop
+  at the "or" inside "2 or worse" and lose the borrowers entirely.
+* **A measure is not required.** A question that names a population and no
+  figure returns a governed borrower profile — exposure, ECL, stage, rating,
+  12-month PD, watchlist, early-warning status — taking each concept from its
+  own governed rollup, and taking only the fields this installation actually
+  carries rather than failing on the ones it does not.
+
+### What it returns
+
+Verified against `portfolio_facility` read directly, at Q2 2026, borrower
+grain, exact identity sets:
+
+| Question | Borrowers | Independently counted |
+| --- | --- | --- |
+| Show Stage 2 borrowers. | 1,167 | 1,167 |
+| Show Stage 3 borrowers. | 718 | 718 |
+| Show Stage 2 or worse borrowers. | 1,647 | 1,647 |
+| Which Stage 2 or worse borrowers are on watchlist? | 1,647 | 1,647 |
+| Which watchlist borrowers are Stage 2? | 1,167 | 1,167 |
+| Which Stage 3 borrowers are not on the watchlist? | 0 | 0 |
+| Which borrowers are in Shipping? | 153 | 153 |
+
+Zero missing, zero extra, on every row. The empty answer is a real one: every
+stage 2 and stage 3 facility in this book is watchlisted, so "Stage 3 and not
+on the watchlist" is genuinely nobody, and the product says so rather than
+implying a gap.
+
+`tests/orchestration/test_single_period_population.py` holds all of it —
+the shape decision, the range predicate, the negation, the head noun, the
+profile, the base-dataset choice, and the identity sets themselves.
+
+
+## Closed: a population, said out loud
+
+The single-period answers were right and described themselves as `2`:
+
+    Together these 10 hold 11.50% of 2 exposure at default.
+    Shares are of 2 exposure, not of the whole book.
+    Each row's share of 2, not of the whole book.
+    2 · Q2 2026 · exposure at default, expected credit loss, IFRS 9 stage
+
+Four surfaces, four separate `", ".join(value for _, value in filters)`
+expressions, and a reader with no way to tell what the percentages are OF.
+The first sentence — "1,167 customers in IFRS 9 stage 2" — was right the whole
+time, because it went through a reader that knew a coded value needs its
+field's name. The other four did not have one.
+
+The rule is one function now, `scope.say` / `scope.phrase`, on the leaf module
+both the frame and the narrative can reach. A coded value is named by its field
+("Stage 2", "grade 7"); a value that is already a name is left alone
+("Shipping"). A field nobody has phrased yet falls back to its own name rather
+than to a bare digit.
+
+The widening travels with it. `ScopeFrame` outlives the build — it is what the
+next turn reads and what the payload serialises — so the qualifier is stored
+beside the restriction (`{"field": ..., "value": ..., "op": "gte"}`) rather
+than left behind on the plan. Without that the strip above the table said
+"Stage 2" over rows the sentence below correctly called "Stage 2 or worse".
+
+One figure also had two values on one screen: the prose rounded the covered
+share to two decimals and the evidence card to one, so 8.65% in the sentence
+sat beside 8.60% in the figure. Both are two decimals now.
+
+`tests/orchestration/test_spoken_filters.py` covers the naming rule, both
+filter shapes, the qualifier's survival through serialisation, and a mechanism
+check that no caller has gone back to joining raw values.
+
+
+## Still open: which end of the window a cohort filters on
 
     "Which Stage 2 or worse borrowers had rising PD?"
 
-asks *"Over which horizon? Twelve-month and lifetime PD are different measures,
-and IFRS 9 uses each in different stages."* That is the correct answer. The
-sentence is genuinely ambiguous between two governed measures, and a
-clarification naming both is what the ambiguity gate is for — it is not the
-earlier defect, where the question was read as an OR and answered at stage
-grain.
+first asks *"Over which horizon? Twelve-month and lifetime PD are different
+measures, and IFRS 9 uses each in different stages."* That is correct: the
+sentence is genuinely ambiguous between two governed measures. Answering
+"12-month PD" resumes the original question with the population, the stage
+condition, the period context and the borrower grain all intact.
 
-    "Show Stage 2 borrowers."
-    "Show Stage 3 borrowers."
+The population it returns is **740**, and that is the count of borrowers who
+were Stage 2 or worse at the OPENING period. Read at the closing period it is
+939. Both are defensible readings of the English; the answer does not currently
+say which one it used, and it should. The static filter is applied at the
+opening scan because that is where the cohort establishes its membership, and
+changing it is a change to what a cohort MEANS rather than a formatting fix —
+so it is recorded here rather than adjusted quietly.
 
-ask which figure to measure. The question names a population and no measure,
-and the distribution default — which supplies exposure at default for a
-question that names a dimension and no figure — does not fire for a plain
-population list. The same reasoning applies: a request for the borrowers in a
-stage has an unambiguous answer, and asking the reader to name a figure asks
-them to specify something the question already implies. That is a second,
-smaller gap in the same family and is not fixed here either.
+Separately, the interpretation for "Which borrowers were downgraded?" still
+logs `Ungrounded figure(s) ['51']`. That predates this work and reproduces
+identically at the baseline commit; it is not a regression from the change
+described above.
+

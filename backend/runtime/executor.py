@@ -462,6 +462,13 @@ def _reconcile(graph: TraceGraph, parent: str, plan: AnalyticalPlan,
     Best-effort by design: a diagnostic that fails must not lose an answer the
     user already has.
     """
+    # A caller that names the steps has decided this plan's population is worth
+    # counting. Two datasets is the rule of thumb for when it is worth it
+    # UNASKED — a join is where a book quietly loses a fifth of itself — and it
+    # is not a reason to refuse a caller who asked. A single-dataset entity
+    # list is counted because the answer shows ten of it and the reader needs
+    # to know ten of what.
+    asked = bool(steps)
     wanted = list(steps or [])
     if not wanted:
         wanted = [op.id for op in plan.operations
@@ -469,7 +476,7 @@ def _reconcile(graph: TraceGraph, parent: str, plan: AnalyticalPlan,
                                     "RECONCILE_GRAIN", "AGGREGATE_BEFORE_JOIN",
                                     "TEMPORAL_ALIGN", "DERIVE", "FILTER",
                                     "LIMIT")]
-    if len(plan.datasets()) < 2 or not wanted:
+    if not wanted or (len(plan.datasets()) < 2 and not asked):
         return []
 
     names = [query.steps[s] for s in wanted if s in query.steps]

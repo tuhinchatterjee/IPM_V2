@@ -1842,8 +1842,14 @@ def _population_steps(build: ap.AnalysisBuild) -> list[str] | None:
     Only the two-period shapes have a population that narrows across several
     steps; a single-period aggregate has one scan and one group, and
     reconciling that would be a table with two rows saying nothing.
+
+    An ENTITY LIST is the exception. "Show Stage 2 borrowers" is answered with
+    the largest ten, and ten is a cut — a reader of a population question needs
+    to know what it was cut from, and the reconciliation is where that number
+    already lives.
     """
-    if build.shape not in (ap.COHORT, ap.MOVEMENT):
+    if build.shape not in (ap.COHORT, ap.MOVEMENT) \
+            and not getattr(build, "entity_list", False):
         return None
     return [str(op.get("id")) for op in build.plan.get("operations") or []]
 

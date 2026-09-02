@@ -119,7 +119,11 @@ _HEAD = re.compile(
     r"(?:(?:\d+|top|bottom|first|last|largest|biggest|smallest|worst|best|"
     r"highest|lowest|riskiest|weakest|strongest|one|two|three|four|five|six|"
     r"seven|eight|nine|ten|twenty|fifty)\s+){0,3}"
-    r"(?P<phrase>[a-z0-9][a-z0-9 ]{1,30}?)\b")
+    # Greedy, and trimmed by `_candidates`. It used to stop at the first word
+    # boundary, so "show stage 2 borrowers" offered the reader's head phrase as
+    # "stage" — and the restriction that follows it, which is the only thing
+    # that says stage is PINNED rather than requested, was never in view.
+    r"(?P<phrase>[a-z0-9][a-z0-9 ]{1,60})")
 
 #: How many words of the head phrase are tried, longest first. Three is enough
 #: for "rating grade", "product type", "ifrs 9 stage".
@@ -245,15 +249,141 @@ def _as_concept(phrase: str) -> str:
     return ""
 
 
-def _candidates(phrase: str) -> list[str]:
-    """The head phrase, longest sensible noun first."""
-    words = [w for w in str(phrase or "").lower().split() if w]
-    out: list[str] = []
-    for size in range(min(_HEAD_WORDS, len(words)), 0, -1):
-        head = words[:size]
-        if head[-1] in _STOP:
+#: Words that may sit between a pinned dimension's value and the noun the
+#: question is really about. "Stage 2 OR WORSE borrowers" restricts the stage
+#: and asks about borrowers; the qualifier belongs to the restriction.
+_AFTER_VALUE = frozenset({
+    "or", "and", "worse", "better", "above", "below", "higher", "lower",
+    "more", "less", "over", "under", "plus", "greater", "smaller", "up",
+    "down", "rated", "graded", "stage", "grade",
+})
+
+#: How many words a governed value may be. "Government-Related Entities" and
+#: "Sub-investment grade" are the long ones.
+_VALUE_WORDS = 4
+
+
+def _values_of(name: str, dimensions: Any) -> tuple[str, ...]:
+    """The governed values of a dimension, lowercased, or ()."""
+    table = getattr(dimensions, "dimensions", dimensions)
+    try:
+        found = table[name]
+    except Exception:  # noqa: BLE001 - a concept-dimension has no value list
+        return ()
+    try:
+        return tuple(str(v).lower() for v in found)
+    except Exception:  # noqa: BLE001
+        return ()
+
+
+def _value_words(name: str, words: list[str], index: int,
+                 dimensions: Any) -> int:
+    """How many words at `index` spell a governed value of `name`.
+
+    A bare integer counts where the dimension governs no value list of its own.
+    "Grade 7 borrowers" pins an ordinal scale whose grades the vocabulary does
+    not enumerate, and the number is unmistakably a value rather than a noun.
+    """
+    if index >= len(words):
+        return 0
+    values = _values_of(name, dimensions)
+    if not values:
+        return 1 if words[index].isdigit() else 0
+    for size in range(min(_VALUE_WORDS, len(words) - index), 0, -1):
+        if " ".join(words[index:index + size]) in values:
+            return size
+    return 0
+
+
+def _pinned(words: list[str], start: int, dimensions: Any) -> int:
+    """Words to skip when the phrase at `start` PINS a dimension to a value.
+
+    "Stage 2 borrowers" names a governed dimension and, immediately after it,
+    one of that dimension's governed values. That is a restriction on the
+    population — the answer has one row per BORROWER, restricted to stage 2 —
+    and reading it as a request to break the answer down by stage returned one
+    row per stage to a question about borrowers.
+
+    A dimension named WITHOUT a value is unchanged: "show the stage
+    distribution" still has one row per stage, and "which sectors concern you
+    most?" is still a question about sectors.
+
+    Returns 0 when nothing is pinned, so the caller reads the phrase exactly as
+    it did before.
+    """
+    for size in range(min(_HEAD_WORDS, len(words) - start), 0, -1):
+        name = _as_dimension(" ".join(words[start:start + size]), dimensions)
+        if not name:
             continue
-        out.append(" ".join(head))
+        taken = _value_words(name, words, start + size, dimensions)
+        if not taken:
+            continue
+        after = start + size + taken
+        while after < len(words) and words[after] in _AFTER_VALUE:
+            after += 1
+        return after - start
+
+    # A governed VALUE standing on its own is a restriction too. "Show Shipping
+    # borrowers" names no dimension at all — "Shipping" IS the sector — and the
+    # head noun is the word after it.
+    resolve = getattr(dimensions, "resolve_dimension_value", None)
+    if callable(resolve):
+        for size in range(min(_VALUE_WORDS, len(words) - start), 0, -1):
+            spelled = " ".join(words[start:start + size])
+            try:
+                found = resolve(spelled)
+            except Exception:  # noqa: BLE001 - a vocabulary that cannot answer
+                found = None
+            if found and str(found[1]).lower() == spelled:
+                after = start + size
+                while after < len(words) and words[after] in _AFTER_VALUE:
+                    after += 1
+                return after - start
+    return 0
+
+
+def _candidates(phrase: str, dimensions: Any = None) -> list[str]:
+    """The head phrase, longest sensible noun first.
+
+    Prefixes only, until a dimension is PINNED to a value. "Stage 2 borrowers"
+    offered "stage 2 borrowers", "stage 2" and "stage" — and never
+    "borrowers", because the head noun sits after the restriction and a prefix
+    scan can never reach it. So the scan steps over a pinned dimension and
+    keeps going.
+    """
+    noun = _noun(phrase, dimensions)
+    return [" ".join(noun[:size])
+            for size in range(min(_HEAD_WORDS, len(noun)), 0, -1)]
+
+
+def _noun(phrase: str, dimensions: Any = None) -> list[str]:
+    """The head noun phrase: restrictions stepped over, then cut at the verb.
+
+    Two rules, and the ORDER of them is the whole point.
+
+    **Restrictions first.** "Stage 2 or worse borrowers" pins a governed
+    dimension to a value; those words describe the population, not the thing
+    the answer has one row of, so the scan steps over them — including the
+    qualifier, because "or worse" belongs to the restriction and not to the
+    next clause.
+
+    **Then cut at the first stop word.** A head noun phrase ends where the verb
+    begins. Cutting FIRST would stop at the "or" inside "2 or worse" and lose
+    the borrowers the question is about; cutting SECOND leaves "borrowers".
+    """
+    words = [w for w in str(phrase or "").lower().split() if w]
+    start, skipped = 0, 0
+    while dimensions is not None and start < len(words) and skipped < _HEAD_WORDS:
+        skip = _pinned(words, start, dimensions)
+        if not skip:
+            break
+        start += skip
+        skipped += 1
+    out: list[str] = []
+    for word in words[start:]:
+        if word in _STOP:
+            break
+        out.append(word)
     return out
 
 
@@ -309,7 +439,7 @@ def read(text: str, dimensions: Any = None) -> Resolved:
 
     head = _HEAD.match(lowered)
     if head is not None:
-        for candidate in _candidates(head.group("phrase")):
+        for candidate in _candidates(head.group("phrase"), dimensions):
             found = _as_dimension(candidate, dimensions)
             if found:
                 return Resolved(
@@ -332,7 +462,27 @@ def _head_entity(lowered: str, dimensions: Any) -> tuple[str, str]:
     head = _HEAD.match(lowered)
     if head is None:
         return ("", "")
-    for candidate in _candidates(head.group("phrase")):
+
+    # English noun phrases are right-headed: the head of "stage 2 borrowers",
+    # "watchlist borrowers" and "Shipping borrowers" is BORROWERS, and
+    # everything before it qualifies the population. The prefix scan below can
+    # only ever reach the first word, so those three came back with no entity
+    # at all and the answer was planned at whatever grain the source happened
+    # to be keyed on.
+    #
+    # Only within the noun phrase — up to the first verb or preposition. After
+    # that the sentence has moved on to what the entity must satisfy, and
+    # "which sectors have BORROWERS with rising PD" is a question about
+    # sectors whose last noun is not its head.
+    noun = _noun(head.group("phrase"), dimensions)
+    if noun:
+        last = noun[-1]
+        if _CUSTOMER_NOUNS.match(last):
+            return ("customer", last)
+        if _FACILITY_NOUNS.match(last):
+            return ("facility", last)
+
+    for candidate in _candidates(head.group("phrase"), dimensions):
         if _as_dimension(candidate, dimensions):
             return ("", "")
         if _CUSTOMER_NOUNS.match(candidate):

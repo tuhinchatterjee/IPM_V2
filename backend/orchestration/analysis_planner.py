@@ -39,6 +39,7 @@ from backend.orchestration import conversation as cv
 from backend.orchestration import dimensions as dm
 from backend.orchestration import grain as gr
 from backend.orchestration import ordering as od
+from backend.orchestration import predicates as pr
 from backend.orchestration import semantics as sm
 from backend.orchestration.capability import Reading
 from backend.orchestration.context import GovernedContext
@@ -145,6 +146,13 @@ class AnalysisBuild:
     #: Movements this plan cannot measure, because both ends of the comparison
     #: read the same source cycle. Part 12.
     collapsed: Any = None
+    #: True when the answer IS a list of governed entities — the head noun said
+    #: what one row is, and the columns are that entity's governed profile
+    #: rather than a figure the question named. The reconciliation counts the
+    #: population for one of these, because "the 10 largest" is a cut and a
+    #: reader of a population question needs to know what it was cut from.
+    entity_list: bool = False
+
     #: Words of the question this build's reading ALREADY accounts for, which
     #: no predicate will show. A composite is the whole point of the example:
     #: "which borrowers are weakening but are not yet on the watchlist?" has
@@ -551,7 +559,14 @@ def _plan(reading: Reading, context: GovernedContext, *,
             matches = list(more.matches)
             distribution_default = DISTRIBUTION_MEASURE
 
-    if not matches and not count_grain:
+    # An entity question is not refused here. "Which borrowers are in
+    # Shipping?" names no figure and does not need one: the head noun says
+    # what the answer has one row of, and a list of borrowers IS an analytical
+    # answer. The decision is deferred until the restrictions are read, below,
+    # because a profile is only worth building over a population that has been
+    # narrowed — and refused there if none can be.
+    lists_entities = grouping.entity in ("customer", "facility")
+    if not matches and not count_grain and not lists_entities:
         raise CannotPlan(
             "No governed measure was named.",
             clarification=(
@@ -638,6 +653,46 @@ def _plan(reading: Reading, context: GovernedContext, *,
             dimension = first
     shape = _shape(reading, conditions, dimension, text)
 
+    # The governed profile of the entities this question selects.
+    #
+    # Placed after the shape, and only for a SINGLE-PERIOD one. "Which
+    # borrowers moved from Stage 1 to Stage 2?" is a transition and "which
+    # borrowers were downgraded?" is a movement; both name an entity as their
+    # head noun, and neither is answered by a snapshot of that entity's
+    # governed columns. Attaching a profile to them replaced a migration
+    # analysis with a portfolio total carrying seven borrower columns.
+    #
+    # Built from ONE governed source so that no borrower can be lost to a join,
+    # and only over a population the question NARROWED: what makes an entity
+    # list an answer is that it has been restricted, and "show borrowers" over
+    # the whole book is a question the reader should narrow rather than one
+    # four thousand rows improve on.
+    entity_list = False
+    if lists_entities and shape not in (COHORT, MOVEMENT):
+        from backend.data_access import get_catalog
+
+        carries = {d.name: set(d.fields) for d in get_catalog().all()}
+        profile, described_by = _entity_profile(
+            matches, filters, conditions, carries,
+            gr.KEY_OF.get(gr.CUSTOMER if grouping.entity == "customer"
+                          else gr.FACILITY, "customer_id"))
+        if profile:
+            matches = profile
+            entity_list = True
+            planning_notes.append(
+                f"The question asked for "
+                f"{grouping.entity_phrase or 'borrowers'} and named no figure, "
+                f"so the answer carries the governed profile CreditProbe holds "
+                f"for them in {described_by}: "
+                + _list_of(m.concept.label for m in profile) + ".")
+    if lists_entities and not matches and not count_grain:
+        raise CannotPlan(
+            "An entity list needs a population to list.",
+            clarification=(
+                "Which borrowers? Name a sector, a stage, a rating or another "
+                "governed restriction — CreditProbe will list them with their "
+                "exposure, stage, rating and impairment."))
+
     # What one row of the answer is, decided from the objective before the plan
     # is built rather than read off whatever the source happened to be keyed
     # on. §4.
@@ -706,7 +761,14 @@ def _plan(reading: Reading, context: GovernedContext, *,
             # reports how many borrowers sit in each category as well as how
             # much money does. §D2.
             count_members=("customer_id" if distribution_default else ""),
+            # Level tests reach this shape now. They restrict the population at
+            # one reporting date — which is what makes a single-period plan the
+            # right one for them — and the build records them so the coverage
+            # gate, the invariants and the fidelity contract all see the same
+            # conditions the FILTER applied.
+            conditions=conditions,
             wants_grain=wants_grain)
+        build.entity_list = entity_list
 
     # A cohort asked for at a dimension's grain. §D1.
     #
@@ -1067,18 +1129,53 @@ def _inherit_filters(filters: list[tuple[str, str]],
 # --------------------------------------------------------------- the pieces
 
 
+#: The condition kinds that genuinely need both ends of a comparison. A
+#: `change_pct` or `change_abs` test asks how a measure MOVED, and no single
+#: reporting date can answer that.
+MOVEMENT_KINDS: frozenset[str] = frozenset({"change_pct", "change_abs"})
+
+
+def asserts_movement(conditions: list[Condition]) -> bool:
+    """Whether any condition compares a measure across two dates."""
+    return any(str(getattr(c, "kind", "")) in MOVEMENT_KINDS for c in conditions)
+
+
 def _shape(reading: Reading, conditions: list[Condition],
            dimension: str, text: str) -> str:
-    """Which of the four shapes this reading is.
+    """Which of the shapes this reading is.
 
-    Order matters. A question with movement conditions is a cohort even if it
-    also names a dimension, because the conditions are what select the
-    population and the dimension is only how it is displayed.
+    A CONDITION IS NOT A COMPARISON
+    -------------------------------
+    This read any condition at all as a cohort, and every cohort is built from
+    two periods — an opening scan, a closing scan, a join, and a DERIVE of the
+    movements. So
+
+        "Which Stage 2 or worse borrowers are on watchlist?"
+
+    which compares nothing across two dates, was planned with an empty DERIVE
+    the governed runtime refused outright, and the reader got a validator
+    message where the answer belonged. "Which watchlist borrowers are Stage 2?"
+    survived the same treatment only by accident, and announced itself
+    "between Q2 2025 and Q2 2026" — two periods quoted at a question about one.
+
+    `Condition.kind` already separates the two. A **movement** test asks how a
+    measure changed between two dates and needs both of them. A **level** test —
+    "on the watchlist", "headroom below 15%", "in Stage 3" — is true or false
+    at ONE date, and is a restriction on the population rather than a
+    comparison. So a question whose conditions are all level tests is a
+    single-period population question, and is planned as one.
+
+    Order still matters among the rest: a question with movement conditions is
+    a cohort even if it also names a dimension, because the conditions are what
+    select the population and the dimension is only how it is displayed.
     """
-    if conditions:
+    if conditions and asserts_movement(conditions):
         return COHORT
     if reading.period_requirement == "two_period":
-        return MOVEMENT
+        # The sentence named two dates or a change. A level test inside such a
+        # question still belongs to the cohort — "which names were watchlisted
+        # and had rising ECL" is one population read at both ends.
+        return COHORT if conditions else MOVEMENT
     if reading.operation == "rank" or _explicit_top_n(text):
         # "The five largest sectors" is a grouped total that has been cut to
         # five, not a ranking of five rows at the record grain. Keeping it an
@@ -1606,6 +1703,28 @@ def _period_for(reading: Reading, context: GovernedContext,
 #: Which IR operator a widened ordinal restriction compiles to.
 _ORDINAL_OP = {"gte": ">=", "lte": "<="}
 
+#: A condition's operator, as the runtime spells it. `Condition.op` is named
+#: for the comparison rather than for SQL, and the two vocabularies have to
+#: meet somewhere; here, once, rather than at each call site.
+_CONDITION_OP = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "eq": "=",
+                 "ne": "!="}
+
+
+def _level_predicate(condition: Condition) -> dict[str, Any]:
+    """One level test, as a flat IR predicate.
+
+    The FILTER above is compiled from the Boolean TREE, which is the only form
+    that can carry a negation or an either/or. This is the single-leaf shape,
+    kept for the callers that hold one condition and no structure.
+    """
+    if str(getattr(condition, "kind", "")) in MOVEMENT_KINDS:
+        raise CannotPlan(
+            f"{condition.field} asks how a measure moved, which one reporting "
+            "date cannot answer.")
+    return {"column": condition.column,
+            "op": _CONDITION_OP.get(str(condition.op), "="),
+            "value": condition.value}
+
 
 def _predicates(filters: list[tuple[str, str]],
                 question: str = "") -> list[dict[str, Any]]:
@@ -1806,6 +1925,7 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
                    fallback_dataset: str = "",
                    preferred_datasets: list[str] | None = None,
                    count_members: str = "",
+                   conditions: list[Condition] | None = None,
                    wants_grain: Any = None) -> AnalysisBuild:
     """AGGREGATE and RANKING: read one period, scope it, group, order, cut.
 
@@ -1831,7 +1951,8 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     fields_of = {d.name: set(d.fields) for d in catalogue.all()}
     base = (_base_dataset(by_dataset, fields_of, filters, dimension, population,
                           preferred=preferred_datasets,
-                          period=_asked_period(reading, context))
+                          period=_asked_period(reading, context),
+                          conditions=conditions)
             or fallback_dataset)
     if not base:
         raise CannotPlan(
@@ -1872,6 +1993,29 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
             counted, count_key = grain, key
 
     warnings: list[str] = []
+    # Level tests the question stated — "on the watchlist", "headroom below
+    # 15%". They restrict the population at ONE date, which is why this shape
+    # can carry them at all; a movement test never reaches here.
+    applied: pr.Node | None = None
+    level = [c for c in (conditions or [])
+             if str(getattr(c, "kind", "")) not in MOVEMENT_KINDS]
+    testable = [c for c in level if c.column in available]
+    for condition in level:
+        if condition.column not in available:
+            # A condition that cannot be tested is not a caveat, it is a
+            # different question — the same rule the dropped filter below
+            # follows, and for the same reason.
+            raise CannotPlan(
+                f"{base} does not carry {condition.column}.",
+                clarification=(
+                    f"CreditProbe cannot restrict this answer to "
+                    f"{condition.describe()}: the governed data behind it "
+                    f"({base}) does not carry "
+                    f"{condition.column.replace('_', ' ')}, and no active "
+                    "relationship brings it in. Ask without that restriction, "
+                    "or ask a data steward to relate the two datasets in Data "
+                    "Builder."))
+    condition_fields = [c.column for c in testable]
     filter_fields = [f for f, _ in filters if f in available]
     dropped = sorted({f for f, _ in filters if f not in available})
     if dropped:
@@ -1960,7 +2104,8 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
             f"{base} does not carry, so this answer covers the whole "
             "population rather than only those rows.")
 
-    wanted_fields = {key, *filter_fields, *([dimension] if dimension else []),
+    wanted_fields = {key, *filter_fields, *condition_fields,
+                     *([dimension] if dimension else []),
                      *([population.entity_key] if scoped else []),
                      *([count_key] if count_key else []),
                      *[m.field for m in base_measures]}
@@ -1999,6 +2144,28 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
             "label": "Restrict to " + _filter_label(filters),
         })
         current = "scoped"
+
+    if testable:
+        # Compiled through the SAME Boolean reader the two-period cohort uses,
+        # not a second one written here. "Which Stage 3 borrowers are NOT on
+        # the watchlist?" carries its negation in the sentence's structure
+        # rather than in the leaf — `state_condition` says so in as many words —
+        # so a path that reads the leaves alone silently answers the opposite
+        # question. It did: the plan compiled `watchlist = true`.
+        applied = pr.read(text, [
+            pr.Test(field=c.column, op=str(c.op), value=c.value,
+                    kind=pr.LEVEL, dataset=base,
+                    phrase=str(getattr(c, "phrase", "") or ""),
+                    label=c.describe())
+            for c in testable])
+        tree = applied
+        operations.append({
+            "id": "tested", "op": "FILTER", "inputs": [current],
+            "params": pr.compile_filter(tree, lambda t: t.field),
+            "label": "Keep only rows where "
+                     + _list_of(c.describe() for c in testable),
+        })
+        current = "tested"
 
     current, joined_columns, joins = _apply_enrichment(
         operations, current, enrichment=enrichment, base=base, period=period,
@@ -2122,6 +2289,14 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
                 set(read_fields) | {count_members})
 
     carried = {a["as"] for a in aggregates} | set(group_by)
+    # QF-3: every predicate on the heading must be checkable in the rows. A
+    # watchlist restriction that aggregates the watchlist column away leaves
+    # the invariant that proves the heading with nothing to read.
+    for field_name in condition_fields:
+        if field_name not in carried and field_name in available:
+            aggregates.append({"function": "max", "column": field_name,
+                               "as": field_name})
+            carried.add(field_name)
     for field_name in filter_fields:
         if field_name not in carried and field_name in available:
             aggregates.append({"function": "any_value", "column": field_name,
@@ -2282,9 +2457,25 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
             "explanation": summary,
         },
     }
+    # What this plan ENFORCED, from the tree it compiled — the same record the
+    # two-period cohort keeps. Without it the answer read the conditions'
+    # leaves and lost the sentence's negation: an empty "which Stage 3
+    # borrowers are NOT on the watchlist?" was explained as "None of Stage 3
+    # customers is in IFRS 9 stage 3; all 2,138 are in stage 1", which
+    # contradicts itself and quotes a figure from a population the question
+    # never asked about.
+    enforcement = (gate.inspect(applied, plan_doc)
+                   if applied is not None and not applied.empty else None)
+
     return AnalysisBuild(
         plan=plan_doc, shape=shape, reading=reading, matches=used,
-        conditions=[], filters=filters, dataset=base, grain=grain,
+        enforcement=enforcement,
+        # The level tests this plan actually applied. Recorded rather than
+        # left empty: the invariant that proves the heading against the rows,
+        # the coverage gate and the fidelity contract all read `conditions`,
+        # and a restriction the plan enforced but the build does not admit to
+        # is a restriction nothing downstream can check.
+        conditions=list(testable), filters=filters, dataset=base, grain=grain,
         period=period, dimension=dimension, top_n=top_n, warnings=warnings,
         summary=summary, joins=joins, grain_contract=contract,
     )
@@ -2318,12 +2509,115 @@ def _dimension_match(dataset: str, field: str) -> cx.ConceptMatch:
                 "dimension, which the base dataset does not carry"))
 
 
+#: What a borrower list is worth showing, in the order a credit officer reads
+#: it. Governed concepts, not columns: each resolves through the catalogue, so
+#: an installation that carries fewer of them shows fewer rather than failing,
+#: and the rule for aggregating each one to the borrower is the concept's own
+#: (`_rollup_for`) rather than a second opinion invented here.
+#:
+#: Exposure leads because a borrower population is read largest-first, and the
+#: first measure is what the ranking orders by.
+#:
+#: The IFRS 9 stage is an ordinal whose higher value is the worse one, so a
+#: borrower drawn from a facility book carries the WORST stage across its
+#: facilities. That is the borrower-stage semantics the rest of the product
+#: already uses; it is inherited here rather than restated.
+PROFILE_CONCEPTS: tuple[str, ...] = (
+    "ead", "ecl", "stage", "rating", "pd_12m", "dpd", "watchlist",
+)
+
+
+def _concept(concept_id: str) -> Any:
+    return next((c for c in cx.CONCEPTS if c.id == concept_id), None)
+
+
+def _profile_matches(dataset: str, fields: set[str]) -> list[cx.ConceptMatch]:
+    """The governed profile of an entity, as concept matches on one dataset.
+
+    One dataset on purpose. A borrower list assembled across four sources is
+    four joins, each of them a place to lose a borrower, and losing borrowers
+    from a population question is the failure that matters most here.
+    """
+    out: list[cx.ConceptMatch] = []
+    for concept_id in PROFILE_CONCEPTS:
+        concept = _concept(concept_id)
+        if concept is None:
+            continue
+        candidate = next((c for c in concept.candidates
+                          if c.dataset == dataset and c.field in fields), None)
+        if candidate is None:
+            continue
+        out.append(cx.ConceptMatch(
+            concept=concept, candidate=candidate, phrase="", confidence=1.0,
+            reason=(f"{dataset}.{candidate.field} describes the borrowers this "
+                    f"question selects; the question named no figure of its "
+                    f"own.")))
+    return out
+
+
+def _profile_dataset(fields_of: dict[str, set[str]], needed: set[str],
+                     key: str) -> str:
+    """The one dataset that can both RESTRICT and DESCRIBE the population.
+
+    It must carry the entity key and every column the question restricts on —
+    a source that cannot test "on the watchlist" cannot answer a question that
+    says it. Among those, the one that describes the borrower best wins.
+    """
+    best, best_score = "", (-1, -1)
+    for name, fields in sorted(fields_of.items()):
+        if key not in fields or not needed <= fields:
+            continue
+        described = len(_profile_matches(name, fields))
+        score = (described, -len(fields))
+        if score > best_score:
+            best, best_score = name, score
+    return best
+
+
+def _entity_profile(matches: list[cx.ConceptMatch],
+                    filters: list[tuple[str, str]],
+                    conditions: list[Condition],
+                    fields_of: dict[str, set[str]],
+                    key: str) -> tuple[list[cx.ConceptMatch], str]:
+    """The governed columns for a question whose answer is a list of entities.
+
+    "Show Stage 2 borrowers." names a population and no figure. Every path
+    below reasons from resolved MEASURES, so the question was reduced to "no
+    governed measure was named" and came back asking the reader which figure to
+    measure — of a sentence whose head noun already said what the answer has
+    one row of. An entity listing IS an analytical answer.
+
+    Where the sentence DID name a measure it constrains — "Stage 2 borrowers"
+    resolves the stage — that measure is not what the answer is about either.
+    Every row inside the restriction carries the same value, so ranking by it
+    orders the table by a constant and the heading promised "the 10 largest
+    customers by IFRS 9 stage".
+
+    Returns ([], "") and changes nothing when the question named a measure of
+    its own, when no single governed source can both restrict and describe the
+    population, or when there is nothing to restrict by — "show borrowers" over
+    the whole book is a question the reader should narrow, and answering it
+    with four thousand rows is not an improvement on asking.
+    """
+    if not filters and not conditions:
+        return ([], "")
+    pinned = {f for f, _ in filters} | {c.column for c in conditions}
+    if any(m.field not in pinned for m in matches):
+        return ([], "")
+    dataset = _profile_dataset(fields_of, pinned, key)
+    if not dataset:
+        return ([], "")
+    found = _profile_matches(dataset, fields_of.get(dataset, set()))
+    return (found, dataset) if found else ([], "")
+
+
 def _base_dataset(by_dataset: dict[str, list[cx.ConceptMatch]],
                   fields_of: dict[str, set[str]],
                   filters: list[tuple[str, str]], dimension: str,
                   population: cv.Continuation | None,
                   preferred: list[str] | None = None,
-                  period: str = "") -> str:
+                  period: str = "",
+                  conditions: list[Condition] | None = None) -> str:
     """Which dataset the frame is built from.
 
     The one that can express the question's scope, preferred over the one that
@@ -2337,6 +2631,11 @@ def _base_dataset(by_dataset: dict[str, list[cx.ConceptMatch]],
     building from it forced an as-of chain through two hops that lost every row.
     """
     wanted = {f for f, _ in filters} | ({dimension} if dimension else set())
+    # A level test is scope too. Without this, "which Stage 2 or worse
+    # borrowers are on watchlist?" chose the impairment run — which carries the
+    # stage and not the watchlist — and the answer was refused for a column the
+    # facility book has had all along.
+    wanted |= {c.column for c in (conditions or [])}
     if population and population.has_population:
         wanted.add(population.entity_key)
 
