@@ -221,7 +221,48 @@ _JUDGEMENTS: dict[str, Judgement] = {
     "/agent-operations": Judgement(
         "Agent Operations: runs, workers, schedules, budgets and approvals.",
         role="Administrator"),
-    "/workflow": Judgement("Assigned work, comments and notifications."),
+    "/workflow": Judgement(
+        "Administrative oversight of message and review activity across every "
+        "account: who is active, who has unread work, whose requests are "
+        "overdue, who has stopped signing in, with a link to Users. Counts "
+        "and status only.",
+        role="Administrator",
+        limitation="Deliberately carries no subject line and no message body. "
+                   "Reading a conversation requires being in it, and "
+                   "administering an account is not being in it; governance "
+                   "reads the audit log, which records acts rather than "
+                   "contents."),
+    "/reviews": Judgement(
+        "One person's own review queue: what has been sent to them for "
+        "review, approval, sign-off or comment, what they are waiting on, "
+        "where they were named, what is due, and what is closed. Every "
+        "decision writes to an append-only history.",
+        limitation="A Viewer may read a decision history and reply, but not "
+                   "decide; the decision buttons are hidden rather than "
+                   "shown and refused."),
+    "/messages": Judgement(
+        "The message centre: Inbox, Action required, Sent, Drafts and "
+        "Archived over one set of messages, with search and an unread "
+        "filter. Composing offers the governed directory on focus and shares "
+        "analyses, investigations and files as access-checked cards.",
+        limitation="Unread counts conversations rather than individual "
+                   "messages: one Inbox row is one conversation, and opening "
+                   "it reads everything currently in it."),
+    "/messages/[threadId]": Judgement(
+        "One conversation: every message in order, the attachments as cards "
+        "that open the object, the review actions the state machine permits, "
+        "and the append-only status history. Opening it marks it read and "
+        "the unread count falls immediately.",
+        limitation="Forwarding is not implemented; reply and reply-to-thread "
+                   "are. Whether an attachment's share grant should travel "
+                   "with a forward is a permission decision nobody has "
+                   "made."),
+    "/workspace": Judgement(
+        "My workspace: what is waiting on this person, what colleagues have "
+        "shared with them, and what they have recently worked on. Every tile "
+        "is a count of real rows that can be clicked through to.",
+        limitation="Reads the same attention summary as the header badge and "
+                   "the mailbox tabs, so the four cannot disagree."),
     "/users": Judgement("Users, roles and teams.", role="Administrator"),
     "/settings": Judgement("Theme, display preferences and session."),
     "/lenses": Judgement(

@@ -492,14 +492,17 @@ def steps() -> tuple[Step, ...]:
              _relationships_needed, _seed_relationships, needs_database=True),
         Step("workspace", "K", "Seed the workspace",
              _workspace_needed, _seed_workspace, needs_database=True),
-        Step("review", "L", f"Run the {readiness.PERIOD} portfolio review",
-             _review_needed, _run_review, needs_database=True),
-        # M last, because it attaches REAL investigations and analyses and
-        # describes a REAL data release. Seeded before the workspace and the
-        # lake exist, it would have nothing to point at, and an example
-        # workflow whose attachment cards open onto nothing is worse than none.
-        Step("workflow", "M", "Seed the example internal workflow",
+        # After the workspace, because it attaches REAL investigations and
+        # analyses and describes a REAL data release: seeded before those exist
+        # it would have nothing to point at, and an example workflow whose
+        # attachment cards open onto nothing is worse than none. Before the
+        # review, because the review must stay last — it is the step that reads
+        # the finished book and reports on it, and anything that runs after it
+        # is something the review did not see.
+        Step("workflow", "L", "Seed the example internal workflow",
              _workflow_needed, _seed_workflow, needs_database=True),
+        Step("review", "M", f"Run the {readiness.PERIOD} portfolio review",
+             _review_needed, _run_review, needs_database=True),
     )
 
 

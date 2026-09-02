@@ -1,6 +1,6 @@
 # Full-system feature verification matrix
 
-Generated from the build at `08922e9` by `scripts/feature_matrix.py`.
+Generated from the build at `835bfcb` by `scripts/feature_matrix.py`.
 
 This inventory is enumerated, not remembered. Every row comes from a page that exists on disk or an endpoint in the live OpenAPI spec, so a route added and forgotten appears here anyway. Three columns cannot be generated and are curated by hand - expected behaviour, defect and remaining limitation - because each is a claim somebody is accountable for, and deriving them from the code would produce a document that agrees with the code by construction and therefore establishes nothing.
 
@@ -8,13 +8,13 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | | |
 |---|---|
-| Pages | 44 |
-| Reviewed | 44 |
+| Pages | 48 |
+| Reviewed | 48 |
 | Not yet reviewed | 0 |
 | Carrying a known defect | 2 |
 | Not fully OK | 5 |
-| API endpoints | 418 across 34 areas |
-| Browser-crawled routes | 91 |
+| API endpoints | 460 across 38 areas |
+| Browser-crawled routes | 98 |
 
 ## Pages
 
@@ -28,10 +28,10 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/ai-studio/brain-center` | Administrator | The Brain Center: what Brain is running, the Learning Ledger, the three export formats, quarantined imports, the Lift Lab, the Merge Lab, installation history, rollbacks, compatibility and security. | `intelligence` (45) | - | - | OK | - | Imports, Lift Lab, Merge Lab, Installations and Rollbacks read empty on a fresh installation, because nothing has been imported. That is the honest state, not a missing screen: the pipeline, the resolution set and the enforced security rules render regardless so a reviewer can see what would happen before it does. |
-| `/ai-studio/continuous-learning` | Administrator, Data Steward or Analyst | Continuous Learning: what was captured since a chosen baseline and — separately — what measurably changed, the six dimensions on development against validation, the measurement timeline, the three evaluation sets and the thresholds behind every figure. | `intelligence` (45) | - | - | OK | - | Reads NO BASELINE on a fresh installation and NOT MEASURED IN THIS WINDOW once a baseline exists but no evaluation has run inside the selected window. Those are different states and are worded differently, because 'nothing to compare against' and 'nobody looked' read identically as a zero. No sealed-holdout question or gold answer appears here, by §58. |
+| `/ai-studio/brain-center` | Administrator | The Brain Center: what Brain is running, the Learning Ledger, the three export formats, quarantined imports, the Lift Lab, the Merge Lab, installation history, rollbacks, compatibility and security. | `intelligence` (45) | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Imports, Lift Lab, Merge Lab, Installations and Rollbacks read empty on a fresh installation, because nothing has been imported. That is the honest state, not a missing screen: the pipeline, the resolution set and the enforced security rules render regardless so a reviewer can see what would happen before it does. |
+| `/ai-studio/continuous-learning` | Administrator, Data Steward or Analyst | Continuous Learning: what was captured since a chosen baseline and — separately — what measurably changed, the six dimensions on development against validation, the measurement timeline, the three evaluation sets and the thresholds behind every figure. | `intelligence` (45) | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Reads NO BASELINE on a fresh installation and NOT MEASURED IN THIS WINDOW once a baseline exists but no evaluation has run inside the selected window. Those are different states and are worded differently, because 'nothing to compare against' and 'nobody looked' read identically as a zero. No sealed-holdout question or gold answer appears here, by §58. |
 | `/ai-studio/feedback-learning` | Administrator | Feedback and the governed learning queue: observations, candidates, review and releases. | `intelligence` (45) | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/ai-studio` | Administrator | AI Intelligence Studio: the six Intelligence Dimensions, the current release, evaluations and health. | `intelligence` (45) | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | All 18 tabs the final brief names. Three of them — Continuous Learning, Brain Center and Regulatory Learning — open onto areas with their own tab bars rather than rendering a panel, because eleven tabs nested inside one tab produce a bar nobody reads. |
+| `/ai-studio` | Administrator | AI Intelligence Studio: the six Intelligence Dimensions, the current release, evaluations and health. | `intelligence` (45) | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | All 18 tabs the final brief names. Three of them — Continuous Learning, Brain Center and Regulatory Learning — open onto areas with their own tab bars rather than rendering a panel, because eleven tabs nested inside one tab produce a bar nobody reads. |
 
 ### analyses
 
@@ -49,23 +49,23 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/borrower-360` | Every role can open it; the relationship graph is Administrator, Data Steward or Analyst; the named natural persons behind a borrower are Administrator or Data Steward; the export is separate again. | Borrower 360: one corporate borrower and everything the bank knows about it, across thirteen tabs, with eleven views of its relationship network, the six ways of grouping it shown side by side rather than reconciled, its hidden-relationship candidates, the graph data-quality register, and a seventeen-sheet export. | none | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Every figure is computed over synthetic demonstration data marked SYNTHETIC_DEMO, which describes no real company and no real ownership structure. The connected counterparty groups are CANDIDATES for assessment, not determinations - graph connectivity is not regulatory connectedness. The Network Risk Score is a relative ranking within this population and is not a probability, a rating, an IFRS 9 stage or an expected credit loss. The group and single-name limit thresholds are UNVERIFIED REGULATORY PARAMETERS. A quarter the derivation has not been run for reads NOT COMPUTED rather than showing a blank. |
+| `/borrower-360` | Every role can open it; the relationship graph is Administrator, Data Steward or Analyst; the named natural persons behind a borrower are Administrator or Data Steward; the export is separate again. | Borrower 360: one corporate borrower and everything the bank knows about it, across thirteen tabs, with eleven views of its relationship network, the six ways of grouping it shown side by side rather than reconciled, its hidden-relationship candidates, the graph data-quality register, and a seventeen-sheet export. | none | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Every figure is computed over synthetic demonstration data marked SYNTHETIC_DEMO, which describes no real company and no real ownership structure. The connected counterparty groups are CANDIDATES for assessment, not determinations - graph connectivity is not regulatory connectedness. The Network Risk Score is a relative ranking within this population and is not a probability, a rating, an IFRS 9 stage or an expected credit loss. The group and single-name limit thresholds are UNVERIFIED REGULATORY PARAMETERS. A quarter the derivation has not been run for reads NOT COMPUTED rather than showing a blank. |
 
 ### cockpit
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/` | any signed-in role | The Cockpit: ask a question, see recent investigations, and see what requires attention. Counts reflect what actually moved this period. | `ask` (7) | 9 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Requires Attention shows Portfolio and Data as empty at Q2 2026 because nothing moved at those levels. Nothing is invented to fill a filter. |
+| `/` | any signed-in role | The Cockpit: ask a question, see recent investigations, and see what requires attention. Counts reflect what actually moved this period. | `ask` (8) | 10 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Requires Attention shows Portfolio and Data as empty at Q2 2026 because nothing moved at those levels. Nothing is invented to fill a filter. |
 
 ### data-builder
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
 | `/data-builder/browse` | Administrator, Analyst | Every governed dataset, searchable. | `data-builder` (51) | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/data-builder/dataset/[name]` | Administrator, Analyst | One dataset: its grain, its fields, its authority and a real data grid. | `data-builder` (51) | 7 file(s) | `/data-builder/dataset/borrower_financials` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/data-builder/domain/[...domain]` | Administrator, Analyst | One domain and the datasets under it. | `data-builder` (51) | 6 file(s) | - | OK | - | - |
+| `/data-builder/dataset/[name]` | Administrator, Analyst | One dataset: its grain, its fields, its authority and a real data grid. | `data-builder` (51) | 7 file(s) | `/data-builder/dataset/borrower_cash_flow` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/data-builder/domain/[...domain]` | Administrator, Analyst | One domain and the datasets under it. | `data-builder` (51) | 6 file(s) | `/data-builder/domain/Core%20Portfolio%20/%20Facility` ADMIN pass; `/data-builder/domain/Corporate%20Ratings` ADMIN pass | OK | - | - |
 | `/data-builder/inbox` | Administrator | Incoming data, its drift against the contract, and what to do about it. | `data-builder` (51) | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/data-builder/new` | Administrator | Register a new dataset. | `data-builder` (51) | - | ADMIN pass | OK | - | - |
+| `/data-builder/new` | Administrator | Register a new dataset. | `data-builder` (51) | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 | `/data-builder` | Administrator, Analyst | The governed catalogue: domains, datasets, families and authority. | `data-builder` (51) | 14 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 | `/data-builder/relationships` | Administrator, Analyst | The governed relationship graph, its cardinalities and its proposals. | `data-builder` (51) | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 
@@ -80,33 +80,40 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/early-warning/lab` | Administrator | The signal's specification, weights and out-of-time backtest. Model internals are labelled technical. | `early-warning` (15) | - | ADMIN pass | OK | - | - |
-| `/early-warning` | Administrator, Analyst | The Forward Risk Signal: which facilities are deteriorating and what is driving each score. | `early-warning` (15) | 3 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/early-warning/signals` | Administrator, Analyst | The governed early-warning taxonomy, borrower by borrower: which named conditions fire, in which families, with the threshold each crossed and who owns it. Deliberately carries no score, and names both what could not be tested and what this deployment cannot watch for at all. | `early-warning` (15) | 1 file(s) | - | OK | - | - |
+| `/early-warning/lab` | Administrator | The signal's specification, weights and out-of-time backtest. Model internals are labelled technical. | `early-warning` (21) | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/early-warning` | Administrator, Analyst | The Forward Risk Signal: which facilities are deteriorating and what is driving each score. | `early-warning` (21) | 5 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/early-warning/signals` | Administrator, Analyst | The governed early-warning taxonomy, borrower by borrower: which named conditions fire, in which families, with the threshold each crossed and who owns it. Deliberately carries no score, and names both what could not be tested and what this deployment cannot watch for at all. | `early-warning` (21) | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 
 ### engine-builder
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/engine-builder/[analysisId]` | Administrator, Analyst | One registered analysis. | `engine` (7) | 3 file(s) | `/engine-builder/approaching_sicr_threshold` ADMIN pass | OK | - | - |
-| `/engine-builder/new` | Administrator | Register a new engine analysis. | `engine` (7) | - | - | OK | - | - |
-| `/engine-builder` | Administrator, Analyst | Registered engine analyses. | `engine` (7) | 3 file(s) | ADMIN pass | OK | - | - |
+| `/engine-builder/[analysisId]` | Administrator, Analyst | One registered analysis. | `engine` (7) | 4 file(s) | `/engine-builder/approaching_sicr_threshold` ADMIN pass; `/engine-builder/arrears_position` ADMIN pass | OK | - | - |
+| `/engine-builder/new` | Administrator | Register a new engine analysis. | `engine` (7) | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/engine-builder` | Administrator, Analyst | Registered engine analyses. | `engine` (7) | 4 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 
 ### investigations
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/investigations/[id]` | any signed-in role | One Investigation: its thread, its analyses, its Trace, its assurance record and How CreditProbe Performed. | `investigations` (16) | 12 file(s) | `/investigations/7619` ADMIN pass, ANALYST pass, VIEWER pass; `/investigations/new` ADMIN pass | OK | - | - |
-| `/investigations` | any signed-in role | Global Investigations, newest first, with their status. | `investigations` (16) | 12 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/investigations/saved/[id]` | any signed-in role | A saved Investigation at a chosen version, refreshable against a new period. | `investigations` (16) | - | `/investigations/saved/7620` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/investigations/[id]` | any signed-in role | One Investigation: its thread, its analyses, its Trace, its assurance record and How CreditProbe Performed. | `investigations` (16) | 16 file(s) | `/investigations/11806` ADMIN pass; `/investigations/11807` ADMIN pass | OK | - | - |
+| `/investigations` | any signed-in role | Global Investigations, newest first, with their status. | `investigations` (16) | 16 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/investigations/saved/[id]` | any signed-in role | A saved Investigation at a chosen version, refreshable against a new period. | `investigations` (16) | - | - | OK | - | - |
 
 ### lenses
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/lenses/[lensId]` | Administrator, Analyst | One Lens and its panels. | `lenses` (9) | 2 file(s) | `/lenses/272` ADMIN pass; `/lenses/273` ADMIN pass | OK | - | - |
-| `/lenses/cro` | Administrator, Analyst | The CRO Lens: the executive story. | `lenses` (9) | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/lenses` | any signed-in role | Saved dashboards of governed analyses. | `lenses` (9) | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | PARTIAL | A Viewer sees the Lenses link and gets a dashboard of refusals: every tile runs an analysis and running one requires an Analyst. | The permission is deliberate; the invitation is the rough edge. Sign in as Analyst or Administrator. |
+| `/lenses/[lensId]` | Administrator, Analyst | One Lens and its panels. | `lenses` (9) | 3 file(s) | `/lenses/cro` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/lenses/cro` | Administrator, Analyst | The CRO Lens: the executive story. | `lenses` (9) | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/lenses` | any signed-in role | Saved dashboards of governed analyses. | `lenses` (9) | 3 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | PARTIAL | A Viewer sees the Lenses link and gets a dashboard of refusals: every tile runs an analysis and running one requires an Analyst. | The permission is deliberate; the invitation is the rough edge. Sign in as Analyst or Administrator. |
+
+### messages
+
+| Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
+|---|---|---|---|---|---|---|---|---|
+| `/messages/[threadId]` | any signed-in role | One conversation: every message in order, the attachments as cards that open the object, the review actions the state machine permits, and the append-only status history. Opening it marks it read and the unread count falls immediately. | `messages` (18) | 10 file(s) | - | OK | - | Forwarding is not implemented; reply and reply-to-thread are. Whether an attachment's share grant should travel with a forward is a permission decision nobody has made. |
+| `/messages` | any signed-in role | The message centre: Inbox, Action required, Sent, Drafts and Archived over one set of messages, with search and an unread filter. Composing offers the governed directory on focus and shares analyses, investigations and files as access-checked cards. | `messages` (18) | 10 file(s) | - | OK | - | Unread counts conversations rather than individual messages: one Inbox row is one conversation, and opening it reads everything currently in it. |
 
 ### playbooks
 
@@ -118,8 +125,14 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/projects/[id]` | any signed-in role | One Project: its Investigations, its people, its workflow and its Risk Cases. Project-scoped work stays inside it until published. | `workspace` (18) | 4 file(s) | `/projects/3764` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | A Project holds context, threads, analyses and people but not a structured operating plan; the governed Project Plan is not built. |
+| `/projects/[id]` | any signed-in role | One Project: its Investigations, its people, its workflow and its Risk Cases. Project-scoped work stays inside it until published. | `workspace` (18) | 4 file(s) | `/projects/6403` ADMIN pass; `/projects/6404` ADMIN pass | OK | - | A Project holds context, threads, analyses and people but not a structured operating plan; the governed Project Plan is not built. |
 | `/projects` | any signed-in role | Credit Projects the signed-in user can reach. | `workspace` (18) | 4 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+
+### reviews
+
+| Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
+|---|---|---|---|---|---|---|---|---|
+| `/reviews` | any signed-in role | One person's own review queue: what has been sent to them for review, approval, sign-off or comment, what they are waiting on, where they were named, what is due, and what is closed. Every decision writes to an append-only history. | none | 1 file(s) | - | OK | - | A Viewer may read a decision history and reply, but not decide; the decision buttons are hidden rather than shown and refused. |
 
 ### scorecard-validation
 
@@ -137,16 +150,16 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/stress` | Administrator, Analyst | Scenario definitions and their impact. | none | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/stress` | Administrator, Analyst | Scenario definitions and their impact. | none | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 
 ### studio
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/studio/[methodId]` | Administrator, Analyst | One method: its definition, its validation and its certification. | `studio` (14) | 3 file(s) | `/studio/approaching_sicr` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/studio/new` | Administrator, Analyst | Define a new method for validation. | `studio` (14) | - | - | OK | - | - |
-| `/studio` | Administrator, Analyst | Analysis Studio: the certified method library. | `studio` (14) | 3 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/studio/regulatory-intelligence` | Administrator or Data Steward | Regulatory Intelligence: the document library, the sixteen-stage processing pipeline, extracted requirements with their citations and confidence, one-by-one review, contradictions and their governed resolutions, draft method candidates and the audit trail. | `studio` (14) | - | - | OK | - | Reads empty on a fresh installation until a regulatory document has been processed. The pipeline, the fifteen requirement types, the twelve contradiction classes and the ten resolutions render regardless, so a reviewer can see what would happen before it does. Extraction produces proposed requirements only — nothing here changes a method, a policy or the ontology. |
+| `/studio/[methodId]` | Administrator, Analyst | One method: its definition, its validation and its certification. | `studio` (14) | 4 file(s) | `/studio/approaching_sicr` ADMIN pass, ANALYST pass, VIEWER pass; `/studio/new` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/studio/new` | Administrator, Analyst | Define a new method for validation. | `studio` (14) | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/studio` | Administrator, Analyst | Analysis Studio: the certified method library. | `studio` (14) | 4 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/studio/regulatory-intelligence` | Administrator or Data Steward | Regulatory Intelligence: the document library, the sixteen-stage processing pipeline, extracted requirements with their citations and confidence, one-by-one review, contradictions and their governed resolutions, draft method candidates and the audit trail. | `studio` (14) | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Reads empty on a fresh installation until a regulatory document has been processed. The pipeline, the fifteen requirement types, the twelve contradiction classes and the ten resolutions render regardless, so a reviewer can see what would happen before it does. Extraction produces proposed requirements only — nothing here changes a method, a policy or the ontology. |
 
 ### trace
 
@@ -159,13 +172,19 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/users` | Administrator | Users, roles and teams. | `users` (5) | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/users` | Administrator | Users, roles and teams. | `users` (5) | 4 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 
 ### workflow
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/workflow` | any signed-in role | Assigned work, comments and notifications. | `workspace` (18) | 3 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/workflow` | Administrator | Administrative oversight of message and review activity across every account: who is active, who has unread work, whose requests are overdue, who has stopped signing in, with a link to Users. Counts and status only. | `workspace` (18) | 4 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Deliberately carries no subject line and no message body. Reading a conversation requires being in it, and administering an account is not being in it; governance reads the audit log, which records acts rather than contents. |
+
+### workspace
+
+| Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
+|---|---|---|---|---|---|---|---|---|
+| `/workspace` | any signed-in role | My workspace: what is waiting on this person, what colleagues have shared with them, and what they have recently worked on. Every tile is a count of real rows that can be clicked through to. | `workspace` (18) | 4 file(s) | - | OK | - | Reads the same attention summary as the header badge and the mailbox tabs, so the four cannot disagree. |
 
 ## Capabilities with no page
 
@@ -183,20 +202,20 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | Area | Endpoints |
 |---|---|
 | `agentic` | 22 |
-| `ai` | 6 |
+| `ai` | 7 |
 | `analyses` | 7 |
 | `analysis-runs` | 3 |
-| `ask` | 7 |
+| `ask` | 8 |
 | `auth` | 3 |
 | `brain` | 24 |
 | `build` | 1 |
 | `catalog` | 1 |
 | `continuous-learning` | 14 |
-| `corporate` | 16 |
+| `corporate` | 17 |
 | `data-builder` | 51 |
 | `demo` | 1 |
 | `domain-intelligence` | 3 |
-| `early-warning` | 15 |
+| `early-warning` | 21 |
 | `engine` | 7 |
 | `feedback` | 11 |
 | `health` | 1 |
@@ -204,7 +223,10 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `investigations` | 16 |
 | `learning` | 24 |
 | `lenses` | 9 |
+| `messages` | 18 |
+| `metadata` | 6 |
 | `playbooks` | 8 |
+| `preferences` | 3 |
 | `projects` | 7 |
 | `readiness` | 1 |
 | `regulatory` | 13 |
@@ -215,6 +237,7 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `teaching-corpus` | 3 |
 | `trace` | 6 |
 | `users` | 5 |
+| `whatif` | 6 |
 | `workspace` | 18 |
 
 ## What this document does not claim
