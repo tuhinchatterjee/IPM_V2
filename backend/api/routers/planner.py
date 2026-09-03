@@ -43,6 +43,7 @@ from backend.config import settings
 from backend.db.engine import SessionLocal
 from backend.models.planner import PlannerProject
 from backend.planner import access as acl
+from backend.planner import agent as ai
 from backend.planner import monitor as mon
 from backend.planner import query as pq
 from backend.planner import service as svc
@@ -530,6 +531,40 @@ def patch_raid(raid_id: int, payload: RaidPatch,
 
 
 # ============================================================== history
+
+
+# ============================================================== the briefs
+
+
+@router.get("/projects/{project_id}/brief",
+            summary="What you need to know about this project")
+def project_brief(project_id: int, session: Session = Depends(get_db),
+                  principal: Principal = RequireCommenter) -> dict:
+    return _guard(lambda: ai.project_brief(session, principal, project_id))
+
+
+@router.get("/brief", summary="The estate, in one read")
+def portfolio_brief(limit: int = Query(default=6, ge=1, le=20),
+                    session: Session = Depends(get_db),
+                    principal: Principal = RequireCommenter) -> dict:
+    return ai.portfolio_brief(session, principal, limit=limit)
+
+
+@router.get("/projects/{project_id}/chases",
+            summary="Who to ask for an update, and the words to use")
+def chases(project_id: int, task_id: int | None = None,
+           tone: str = Query(default="neutral",
+                             pattern="^(neutral|warm|formal)$"),
+           session: Session = Depends(get_db),
+           principal: Principal = RequireCommenter) -> dict:
+    """Drafts only.
+
+    The deterministic rules decide who should be asked; this writes the
+    sentence and hands it back. Nothing is sent and nothing on the project
+    changes — the person doing the chasing owns the act of chasing.
+    """
+    return _guard(lambda: ai.draft_update_request(
+        session, principal, project_id, task_id=task_id, tone=tone))
 
 
 # ============================================================== the sweep

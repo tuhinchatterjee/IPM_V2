@@ -281,7 +281,7 @@ RAID_SHEET = Sheet(
         Column("severity", "Severity", "", 12, choices=SEVERITIES),
         Column("status", "Status", "", 14, choices=RAID_STATUSES),
         Column("owner_username", "Owner", "", 22),
-        Column("due_date", "Due", "YYYY-MM-DD.", 14),
+        Column("target_date", "Target Resolution", "YYYY-MM-DD.", 18),
         Column("mitigation", "Mitigation / Action", "", 44),
         Column("resolution", "Resolution", "", 44),
     ))
@@ -550,7 +550,8 @@ def export(session: Any, principal: Any, project_id: int) -> bytes:
             "code": r.code, "raid_type": r.raid_type, "title": r.title,
             "description": r.description, "severity": r.severity,
             "status": r.status, "owner_username": who(r.owner_id),
-            "due_date": _iso(r.due_date), "mitigation": r.mitigation,
+            "target_date": _iso(r.target_date),
+            "mitigation": r.mitigation,
             "resolution": r.resolution,
         } for r in raid],
         "UPDATES": [{
@@ -1377,7 +1378,8 @@ def _raid_row(context: _Context, sheet: Sheet, row: dict) -> Change | None:
         "status": _cell(context, sheet, row, columns["status"]),
         "owner_id": _person_cell(context, sheet, row,
                                  columns["owner_username"]),
-        "due_date": _date_cell(context, sheet, row, columns["due_date"]),
+        "target_date": _date_cell(context, sheet, row,
+                                  columns["target_date"]),
         "mitigation": _text_of(row.get("mitigation")) or None,
         "resolution": _text_of(row.get("resolution")) or None,
     }

@@ -76,6 +76,25 @@ DRAFT_INVESTIGATION = "draft_investigation"
 DRAFT_RISK_CASE = "draft_risk_case"
 ADD_TO_PROJECT = "add_to_project"
 
+# The Project Planner. Every one of these READS. There is deliberately no
+# registered tool that completes a task, moves a date, changes an owner or
+# closes a risk: §4 gives those to people, and the safest way to enforce that
+# is for the capability not to exist rather than for a permission check to be
+# written correctly. The one writer, PLANNER_DRAFT_UPDATE, produces text for
+# a person to send — it does not send it.
+PLANNER_PORTFOLIO = "planner_portfolio"
+PLANNER_PROJECT = "planner_project"
+PLANNER_MY_WORK = "planner_my_work"
+PLANNER_ATTENTION = "planner_attention"
+PLANNER_CHANGES = "planner_changes"
+PLANNER_ACTIVITY = "planner_activity"
+PLANNER_TASKS = "planner_tasks"
+PLANNER_DEPENDENCIES = "planner_dependencies"
+PLANNER_RAID = "planner_raid"
+PLANNER_MILESTONES = "planner_milestones"
+PLANNER_CHASE_LIST = "planner_chase_list"
+PLANNER_DRAFT_UPDATE = "planner_draft_update"
+
 
 class ToolDenied(PermissionError):
     """An agent asked for something it is not permitted to do."""
@@ -247,6 +266,78 @@ TOOLS: tuple[Tool, ...] = (
          "backend.services.projects",
          parameters=("project_id", "object_type", "object_id"),
          required=("project_id", "object_type", "object_id"), writes=True),
+
+    # ---------------------------------------------------------- the planner
+    # `reads_data=True` on all of them, which is what carries the principal
+    # into the handler: a project is readable by its participants and nobody
+    # else, and an agent runs with the permissions of whoever asked it.
+    Tool(PLANNER_PORTFOLIO, "Project portfolio",
+         "Every delivery project this person can see, with its status, "
+         "health, progress and how many tasks are overdue or blocked.",
+         "backend.planner.query",
+         parameters=("status", "health", "manager_id", "search", "limit"),
+         reads_data=True),
+    Tool(PLANNER_PROJECT, "Project detail",
+         "One project in full: plan, workstreams, tasks, milestones, RAID, "
+         "people, and the calculated health with its reason.",
+         "backend.planner.query",
+         parameters=("project",), required=("project",), reads_data=True),
+    Tool(PLANNER_MY_WORK, "My work",
+         "What this person owns, in buckets: overdue, due today, due this "
+         "week, blocked, waiting on them, and needing an update.",
+         "backend.planner.query",
+         parameters=("horizon_days",), reads_data=True),
+    Tool(PLANNER_ATTENTION, "Needs attention",
+         "The projects that need somebody to act, ranked deterministically "
+         "with the reason for each.",
+         "backend.planner.query",
+         parameters=("limit",), reads_data=True),
+    Tool(PLANNER_CHANGES, "What changed",
+         "What actually moved on a project since a date, read from the "
+         "append-only history rather than by comparing two snapshots.",
+         "backend.planner.query",
+         parameters=("project", "since", "days"), required=("project",),
+         reads_data=True),
+    Tool(PLANNER_ACTIVITY, "Project activity",
+         "The project's timeline of updates, who wrote each and whether it "
+         "came from a person, a workbook or the system.",
+         "backend.planner.query",
+         parameters=("project", "limit"), required=("project",),
+         reads_data=True),
+    Tool(PLANNER_TASKS, "Project tasks",
+         "The tasks on a project, filtered by status, owner or lateness.",
+         "backend.planner.query",
+         parameters=("project", "status", "owner_id", "overdue_only",
+                     "blocked_only", "limit"),
+         required=("project",), reads_data=True),
+    Tool(PLANNER_DEPENDENCIES, "Dependencies",
+         "What is waiting on what, and what a given task is holding up.",
+         "backend.planner.control",
+         parameters=("project", "task"), required=("project",),
+         reads_data=True),
+    Tool(PLANNER_RAID, "Risks and decisions",
+         "The live risks, assumptions, issues and decisions on a project.",
+         "backend.planner.query",
+         parameters=("project", "raid_type", "status"), required=("project",),
+         reads_data=True),
+    Tool(PLANNER_MILESTONES, "Milestones",
+         "The dates a project is judged on, and whether each is at risk.",
+         "backend.planner.query",
+         parameters=("project", "horizon_days"), required=("project",),
+         reads_data=True),
+    Tool(PLANNER_CHASE_LIST, "Who needs chasing",
+         "Which owners the deterministic rules say should be asked for an "
+         "update, and the reason for each. The rules decide who; a model may "
+         "only word the request.",
+         "backend.planner.control",
+         parameters=("project",), reads_data=True),
+    Tool(PLANNER_DRAFT_UPDATE, "Draft a status request",
+         "Compose the text of a request for an update. Produces a draft for "
+         "a person to send; it does not send anything and does not change "
+         "the project.",
+         "backend.planner.agent",
+         parameters=("project", "task", "tone"), required=("project",),
+         writes=True),
 )
 
 _BY_ID: dict[str, Tool] = {t.tool_id: t for t in TOOLS}
@@ -273,6 +364,16 @@ NO_TOOL_EXISTS: tuple[str, ...] = (
     # Not actions in §21's list, but the same prohibition: capabilities that
     # would make every other permission in this file decorative.
     "alter_certified_method",
+    # The planner's own forbidden list. A person owns their commitments: an
+    # agent that could quietly mark a task done, move a deadline or close a
+    # risk would make every status report in the product unreliable, and the
+    # reliable way to prevent that is for there to be no such capability.
+    "complete_task",
+    "change_task_owner",
+    "move_due_date",
+    "cancel_task",
+    "close_risk",
+    "set_project_health",
     "execute_sql",
     "execute_python",
     "fetch_url",
@@ -450,6 +551,18 @@ def invoke(agent: Any, tool_id: str, parameters: dict[str, Any] | None = None,
 
 __all__ = [
     "ADD_TO_PROJECT",
+    "PLANNER_ACTIVITY",
+    "PLANNER_ATTENTION",
+    "PLANNER_CHANGES",
+    "PLANNER_CHASE_LIST",
+    "PLANNER_DEPENDENCIES",
+    "PLANNER_DRAFT_UPDATE",
+    "PLANNER_MILESTONES",
+    "PLANNER_MY_WORK",
+    "PLANNER_PORTFOLIO",
+    "PLANNER_PROJECT",
+    "PLANNER_RAID",
+    "PLANNER_TASKS",
     "CATALOGUE_LOOKUP",
     "DATA_QUALITY",
     "DRAFT_INVESTIGATION",
