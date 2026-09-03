@@ -438,19 +438,19 @@ def _plan(reading: Reading, context: GovernedContext, *,
     matches = list(resolved.matches)
     carried_concepts: list[str] = []
     if carrying and inherited_metrics:
-        named = {m.concept.label for m in matches}
+        named = {m.label for m in matches}
         extra = [label for label in inherited_metrics if label not in named]
         if extra:
             more = cx.read_concepts(" ".join(extra), known=known,
                                     catalogue=catalogue)
-            fresh = [m for m in more.matches if m.concept.label not in named]
+            fresh = [m for m in more.matches if m.label not in named]
             if continuation and continuation.action == cv.MODIFY_PREVIOUS \
                     and matches:
                 # "Rank those by ECL instead" REPLACES the measure. Carrying the
                 # old one as well would answer a question with two orderings.
                 fresh = []
             matches.extend(fresh)
-            carried_concepts = [m.concept.label for m in fresh]
+            carried_concepts = [m.label for m in fresh]
 
     matches = _drop_explanation_only(text, matches)
 
@@ -620,7 +620,7 @@ def _plan(reading: Reading, context: GovernedContext, *,
         dropped = [m for m in matches if m.field in constrained]
         matches = [m for m in matches if m.field not in constrained]
         logger.info("Dropped %s as a measure: the question constrains it.",
-                    ", ".join(m.concept.label for m in dropped))
+                    ", ".join(m.label for m in dropped))
 
     inherited_top_n = (state.top_n if carrying and state and not _explicit_top_n(text)
                        else 0)
@@ -684,7 +684,7 @@ def _plan(reading: Reading, context: GovernedContext, *,
                 f"{grouping.entity_phrase or 'borrowers'} and named no figure, "
                 f"so the answer carries the governed profile CreditProbe holds "
                 f"for them in {described_by}: "
-                + _list_of(m.concept.label for m in profile) + ".")
+                + _list_of(m.label for m in profile) + ".")
     if lists_entities and not matches and not count_grain:
         raise CannotPlan(
             "An entity list needs a population to list.",
@@ -2113,7 +2113,7 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
                 break
     enrichment = _resolve_enrichment(base, extras)
     for name in enrichment.unreachable:
-        labels = ", ".join(m.concept.label for m in extras[name])
+        labels = ", ".join(m.label for m in extras[name])
         warnings.append(
             f"{labels} could not be brought in: no active relationship "
             f"connects {name} to {base}. A data steward can declare one in "
@@ -2376,7 +2376,7 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
             "id": "denominator", "op": "WINDOW", "inputs": [current],
             "params": {"function": "sum", "column": order_column,
                        "as": f"{order_column}_population"},
-            "label": ("Total " + (ordered_by.concept.label if ordered_by
+            "label": ("Total " + (ordered_by.label if ordered_by
                                   else "count")
                       + (" across " + _filter_label(filters) if filters
                          else " across the population")),
@@ -2397,7 +2397,7 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
             "params": {"by": [{"column": order_column,
                                "direction": "desc" if descending else "asc"}]},
             "label": ("Order by "
-                      + (ordered_by.concept.label if ordered_by
+                      + (ordered_by.label if ordered_by
                          else f"number of {grain}s")
                       + (", largest first" if descending else ", smallest first")),
         })
@@ -2815,7 +2815,7 @@ def _rolled_up_before_join(operations: list[dict[str, Any]]) -> list[str]:
 def _summary(shape: str, measures: list[cx.ConceptMatch],
              filters: list[tuple[str, str]], dimension: str, period: str,
              grain: str, top_n: int, *, output_grain: str = "") -> str:
-    names = ", ".join(m.concept.label for m in measures)
+    names = ", ".join(m.label for m in measures)
     where = " for " + ", ".join(v for _, v in filters) if filters else ""
     if output_grain == gr.PORTFOLIO:
         # Said explicitly, because "ECL at Q4 2025" reads as a figure about
@@ -3350,10 +3350,10 @@ def _movement(reading: Reading, context: GovernedContext, text: str,
     operations.append({
         "id": "result", "op": "SORT", "inputs": ["totals"],
         "params": {"by": [{"column": measures[0].field, "direction": "desc"}]},
-        "label": f"Largest {measures[0].concept.label} first",
+        "label": f"Largest {measures[0].label} first",
     })
 
-    label = measures[0].concept.label
+    label = measures[0].label
     summary = (f"How {label} moved between {opening} and {closing}"
                + (f", by {dimension}" if dimension else "") + ".")
     warnings: list[str] = []
@@ -3421,7 +3421,7 @@ def _qualifier(text: str, matches: list[cx.ConceptMatch],
             continue
         raw = found.group(1)
         value: Any = float(raw) if "." in raw else int(raw)
-        return match.field, value, f"{match.concept.label} {raw}"
+        return match.field, value, f"{match.label} {raw}"
     return None
 
 
@@ -3526,7 +3526,7 @@ def _conditional_share(reading: Reading, context: GovernedContext, text: str,
                 conditional("closing_qualified", closing, True),
                 conditional("closing_total", closing, False),
             ]},
-        "label": (f"{label} and total {measure.concept.label} at each date"
+        "label": (f"{label} and total {measure.label} at each date"
                   + (f", by {dimension}" if dimension else "")),
     })
     def share_of(numerator: str, denominator: str) -> dict[str, Any]:
@@ -3572,7 +3572,7 @@ def _conditional_share(reading: Reading, context: GovernedContext, text: str,
         "label": "Largest increase in the share first",
     })
 
-    summary = (f"{label} as a share of total {measure.concept.label}"
+    summary = (f"{label} as a share of total {measure.label}"
                + (f", by {dimension}" if dimension else "")
                + f", between {opening} and {closing}, ranked by the largest "
                "increase.")

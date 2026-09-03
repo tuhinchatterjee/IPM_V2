@@ -345,6 +345,28 @@ def answer(question: str, *, context: Any = None,
         return _from_whatif(original, question, scenario_reading, fixed,
                             started, state=state)
 
+    # "What datasets do you have?", "Tell me about Corporate IFRS 9",
+    # "Show Q1 2025" — the dataset-aware half of the catalogue, answered from
+    # the LIVE catalogue and the published rows. A list that was true when it
+    # was written is wrong the first time a steward publishes a period, and
+    # being confidently wrong about your own contents is worse than having
+    # none.
+    #
+    # Above `mdq.read` because these three shapes need more than the metadata
+    # service returns — a frequency, a semantic profile, and the actual rows —
+    # and above the investigation gate because "tell me about" is in both
+    # vocabularies and only one of them is right here. "Tell me about
+    # Corporate IFRS 9" ran four governed probes over a population called
+    # "Corporate" and reported that its ratings had been downgraded: a real
+    # answer to a question about a DATASET. Everything else about the
+    # catalogue still falls through to the one metadata service below.
+    about_data = _about_the_data(original, memory=memory)
+    if about_data is not None:
+        return _from_catalogue(original, question, about_data,
+                               fixed, started, state=state, memory=memory,
+                               result=about_data.result,
+                               dataset=about_data.dataset)
+
     catalogue_question = mdq.read(original)
     if catalogue_question is not None:
         return _from_catalogue(original, question, catalogue_question,
@@ -740,6 +762,86 @@ def demo_safe() -> bool:
     return policy.enabled()
 
 
+@dataclass
+class _DataAnswer:
+    """A catalogue answer that is ready to return, and what it was about."""
+
+    result: Any
+    dataset: str = ""
+    why: str = "the question asks about the governed data itself"
+    confidence: float = 1.0
+
+
+def _about_the_data(question: str, *, memory: Any = None) -> Any:
+    """The catalogue, one dataset, or that dataset at another period.
+
+    Returns None for everything else, which is nearly every question. The
+    three shapes are a thread: the second inherits nothing and the third
+    inherits everything, because a reader who has just been shown a dataset
+    and then types a period label means that dataset at that period.
+    """
+    from backend.orchestration import catalogue_answers as cat
+
+    reading = cap.Reading(intent=cap.Capability.DATA_DISCOVERY,
+                          objective="what the governed catalogue holds",
+                          operation="list", source="catalogue")
+    try:
+        if cat.wants_catalogue(question):
+            return _DataAnswer(
+                result=cat.catalogue_result(question, reading))
+
+        wanted = cat.resolve(question)
+        period = cat.period_in(question)
+        limit = cat.rows_wanted(question)
+
+        if wanted is not None and (cat.wants_dataset(question)
+                                   or cat.names_only_a_dataset(question)):
+            return _DataAnswer(
+                result=cat.overview_result(question, reading, wanted,
+                                           period=period, limit=limit),
+                dataset=wanted.name,
+                why=f"the question asks about the {wanted.business_name} dataset")
+
+        # "Show Q1 2025." / "Show me 50 rows." — the dataset already on the
+        # table. Only when there IS one: a bare period with no dataset behind
+        # it is a period for whatever question comes next, not a subject.
+        carried = _carried_dataset(memory)
+        if carried is None:
+            return None
+        asked_period = cat.bare_period(question)
+        if asked_period:
+            return _DataAnswer(
+                result=cat.overview_result(question, reading, carried,
+                                           period=asked_period, limit=limit),
+                dataset=carried.name,
+                why=(f"a period on its own, which continues the "
+                     f"{carried.business_name} dataset already on the table"))
+        if limit != cat.PREVIEW_ROWS and cat.asks_for_rows(question):
+            return _DataAnswer(
+                result=cat.overview_result(
+                    question, reading, carried,
+                    period=period
+                    or str(getattr(memory, "current_period", "") or ""),
+                    limit=limit),
+                dataset=carried.name,
+                why=f"more rows of the {carried.business_name} dataset")
+    except Exception as e:  # noqa: BLE001 - a catalogue answer is not worth a 500
+        logger.warning("Could not answer %r from the catalogue: %s",
+                       question, e)
+    return None
+
+
+def _carried_dataset(memory: Any) -> Any:
+    """The dataset the thread is already looking at, if any."""
+    from backend.metadata import service as svc_meta
+
+    for name in list(getattr(memory, "datasets", None) or []):
+        found = svc_meta.dataset(str(name))
+        if found is not None:
+            return found
+    return None
+
+
 def _investigate(answered: Answered, question: str, context: Any,
                  memory: Any = None) -> Answered | None:
     """A broad look at a named population, or None to answer it normally.
@@ -912,7 +1014,9 @@ def _catalogue_subject(request: Any, state: cv.ConversationState,
 def _from_catalogue(original: str, question: str, request: Any,
                     fixed: Any, started: float, *,
                     state: cv.ConversationState | None = None,
-                    memory: Any = None) -> Answered:
+                    memory: Any = None,
+                    result: Any = None,
+                    dataset: str = "") -> Answered:
     """Answer a question about the data from the one metadata service. §12-§14.
 
     Produces the same `Answered` every other route produces, so the API, the
@@ -920,7 +1024,7 @@ def _from_catalogue(original: str, question: str, request: Any,
     reading is recorded honestly: it was made deterministically, from the
     question's own nouns, with no model consulted.
     """
-    if state is not None:
+    if state is not None and result is None:
         request = _catalogue_subject(request, state, memory)
     reading = cap.Reading(
         intent=cap.Capability.DATA_DISCOVERY,
@@ -944,6 +1048,17 @@ def _from_catalogue(original: str, question: str, request: Any,
         decision=rt.decide(question, deterministic=True),
         read_as=fixed.text if fixed.changes else "",
         corrections=list(fixed.changes))
+    if dataset:
+        # So "Show Q1 2025" on the next turn knows which dataset it means.
+        # Carried on the reading because that is where the working memory
+        # reads a turn's datasets from. `Reading` is frozen, so it is rebuilt
+        # rather than mutated.
+        reading = replace(reading, datasets=(dataset,))
+    if result is not None:
+        answered.reading = reading
+        answered.result = result
+        answered.duration_ms = int((time.perf_counter() - started) * 1000)
+        return answered
     try:
         payload = mda.respond(request)
     except Exception as e:  # noqa: BLE001 - a stated failure, not a substitution

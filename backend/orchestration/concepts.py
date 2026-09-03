@@ -74,10 +74,17 @@ class Candidate:
     qualifiers: tuple[str, ...] = ()
     #: The candidate used when nothing in the question chooses.
     is_default: bool = False
+    #: What to CALL this figure in a sentence, when the concept's own label
+    #: would be wrong for it. The `exposure` concept is labelled "drawn
+    #: exposure" because that is its default, and an answer computed from
+    #: `ifrs9_staging.ead` was headed "16,686 SAR mn of drawn exposure" — the
+    #: right number under the name of a different measure. Empty means the
+    #: concept's label is right for this candidate, which is the usual case.
+    label: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {"dataset": self.dataset, "field": self.field,
-                "definition": self.definition,
+                "definition": self.definition, "label": self.label,
                 "qualifiers": list(self.qualifiers), "is_default": self.is_default}
 
 
@@ -123,9 +130,10 @@ class Concept:
 
 
 def _c(dataset: str, field_: str, definition: str, *qualifiers: str,
-       default: bool = False) -> Candidate:
+       default: bool = False, label: str = "") -> Candidate:
     return Candidate(dataset=dataset, field=field_, definition=definition,
-                     qualifiers=tuple(qualifiers), is_default=default)
+                     qualifiers=tuple(qualifiers), is_default=default,
+                     label=label)
 
 
 #: The concepts CreditProbe understands, and where each one lives.
@@ -182,10 +190,12 @@ CONCEPTS: tuple[Concept, ...] = (
         candidates=(
             _c(FACILITY, "exposure",
                "Drawn, outstanding exposure on the facility position.",
-               "outstanding", "drawn", "operational", default=True),
+               "outstanding", "drawn", "operational", default=True,
+               label="drawn exposure"),
             _c(FACILITY, "ead",
                "CCF-adjusted exposure at default, which includes an allowance "
-               "for undrawn commitments.", "at default", "ccf", "committed"),
+               "for undrawn commitments.", "at default", "ccf", "committed",
+               label="exposure at default"),
             _c(IFRS9, "ead",
                "Exposure as the impairment calculation used it.",
                # The IFRS 9 vocabulary IS the qualifier. "Stage 2 exposure",
@@ -197,7 +207,8 @@ CONCEPTS: tuple[Concept, ...] = (
                "regulatory", "ifrs9", "ifrs 9",
                "stage 1", "stage 2", "stage 3", "ifrs 9 stage",
                "expected credit loss", "ecl", "impairment", "provision",
-               "12-month pd", "lifetime pd", "loss given default"),
+               "12-month pd", "lifetime pd", "loss given default",
+               label="exposure at default"),
         )),
     Concept(
         id="notches_since_origination", label="notches since origination",
@@ -952,10 +963,21 @@ class ConceptMatch:
     def field(self) -> str:
         return self.candidate.field
 
+    @property
+    def label(self) -> str:
+        """What to call the figure that was actually computed.
+
+        The candidate's own name where it has one, and the concept's
+        otherwise. A concept spanning three measures that differ by material
+        amounts cannot have one label that is true of all three, and the
+        sentence has to name the one that ran.
+        """
+        return self.candidate.label or self.concept.label
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "concept": self.concept.id,
-            "label": self.concept.label,
+            "label": self.label,
             "phrase": self.phrase,
             "dataset": self.dataset,
             "field": self.field,

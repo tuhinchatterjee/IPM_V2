@@ -279,8 +279,9 @@ def from_handler(question: str, reading: cap.Reading,
     composed_of = list(getattr(result, "analyses", None) or [])
     step = ExecutedStep(
         index=0, analysis_id=f"capability_{reading.intent.lower()}",
-        title=("What was checked, and what it found" if composed_of
-               else reading.label),
+        title=(str(getattr(result, "title", "") or "")
+               or ("What was checked, and what it found" if composed_of
+                   else reading.label)),
         rationale=reading.reasoning,
         params={"intent": reading.intent}, filters={}, period="",
         status="succeeded", certification="metadata", analysis_version="",
@@ -327,6 +328,35 @@ def from_handler(question: str, reading: cap.Reading,
         except Exception as e:  # noqa: BLE001 - one block must not lose the rest
             logger.warning("Could not assemble a composed analysis %r: %s",
                            sub.get("title"), e)
+    # Extra tables the answer carries in its own right. A dataset overview is
+    # a semantic profile AND the first twenty actual rows, and a reader needs
+    # both — the profile is a description, and a description is something they
+    # have to take on trust.
+    for extra in list(getattr(result, "tables", None) or []):
+        rows = list(extra.get("rows") or [])
+        if not rows:
+            continue
+        steps.append(ExecutedStep(
+            index=len(steps),
+            analysis_id=f"capability_{reading.intent.lower()}",
+            title=str(extra.get("title") or "Detail"),
+            rationale=str(extra.get("because") or ""),
+            params={"intent": reading.intent}, filters={}, period="",
+            status="succeeded", certification="metadata", analysis_version="",
+            duration_ms=0,
+            result={
+                "values": {}, "units": {}, "input_row_count": len(rows),
+                "meta": {"execution": "metadata", "intent": reading.intent},
+                "rows": rows, "columns": list(extra.get("columns") or []),
+                "warnings": [], "chart": {}, "truncated": False,
+                "certification": "metadata",
+                "certification_label": "Governed metadata",
+                "capability": reading.to_dict(),
+                "asked": str(extra.get("title") or ""),
+                "finding": str(extra.get("because") or ""),
+            },
+            error=None, trace=None, node_hashes={}, role="supporting"))
+
     if len(steps) > 1:
         plan.steps.extend(
             PlanStep(analysis_id="dynamic_analysis", title=sub.title,
@@ -917,7 +947,7 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
     rows = runtime.rows
     count = runtime.row_count
     measure = build.matches[0] if build.matches else None
-    label = measure.concept.label if measure else "the measure"
+    label = measure.label if measure else "the measure"
     unit = (measure.concept.unit or "") if measure else ""
 
     metrics: list[Metric] = []
@@ -1758,7 +1788,7 @@ def formulas(build: ap.AnalysisBuild) -> list[dict[str, str]]:
     for condition in build.conditions:
         match = next((m for m in build.matches if m.field == condition.field),
                      None)
-        label = match.concept.label if match else condition.field
+        label = match.label if match else condition.field
         if condition.kind == "change_pct":
             out.append({
                 "name": f"{label} change %",
@@ -1793,10 +1823,10 @@ def formulas(build: ap.AnalysisBuild) -> list[dict[str, str]]:
                      or "the population")
             of = build.dimension or build.grain
             out.append({
-                "name": f"{measure.concept.label} share %",
+                "name": f"{measure.label} share %",
                 "column": f"{measure.field}_share_pct",
-                "formula": (f"{of} {measure.concept.label} ÷ total "
-                            f"{measure.concept.label} across {scope} × 100"),
+                "formula": (f"{of} {measure.label} ÷ total "
+                            f"{measure.label} across {scope} × 100"),
                 "means": f"Each row's share of {scope}, not of the whole book.",
             })
     return out
@@ -1812,10 +1842,10 @@ def plain_english(build: ap.AnalysisBuild) -> str:
             f"This query reads {sources} at {build.period}"
             + (f", keeps only rows where {where}" if where else "")
             + f", groups them by {build.dimension or 'the whole population'}, "
-            f"sums {build.matches[0].concept.label if build.matches else 'the measure'} "
+            f"sums {build.matches[0].label if build.matches else 'the measure'} "
             "within each group, and orders the groups largest first.")
     if build.shape == ap.RANKING:
-        measure = (build.matches[0].concept.label if build.matches
+        measure = (build.matches[0].label if build.matches
                    else "the measure")
         return (
             f"This query reads {sources} at {build.period}"
@@ -1916,7 +1946,7 @@ def analysis_graph(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
         config={
             "intent": reading.intent, "intent_label": reading.label,
             "objective": build.summary,
-            "concepts": [m.concept.label for m in build.matches],
+            "concepts": [m.label for m in build.matches],
             "metrics": [f"{m.dataset}.{m.field}" for m in build.matches],
             "entities": [dict(e) for e in reading.entities],
             "dimensions": [build.dimension] if build.dimension else [],
