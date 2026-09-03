@@ -250,6 +250,37 @@ def _journey_b(page: Any, report: Report, project_id: int) -> None:
                  "the seeded blocker text was not on screen")
     report.check("B", "dependencies are shown", "Dependencies" in plan)
 
+    # RAID and milestones must be addable, not only readable. A project page
+    # that can show a risk but not accept one sends people back to email.
+    page.click("button:text-is('RAID')")
+    page.wait_for_timeout(400)
+    raid = page.inner_text("body")
+    report.check("B", "a risk can be raised from the page",
+                 "Raise a risk" in raid, raid[-300:])
+
+    page.click("button:text-is('Milestones')")
+    page.wait_for_timeout(400)
+    milestones = page.inner_text("body")
+    report.check("B", "a milestone can be added from the page",
+                 "Add a milestone" in milestones, milestones[-300:])
+
+    page.click("button:text-is('Overview')")
+    page.wait_for_timeout(600)
+    overview = page.inner_text("body")
+    # The chase list is the agentic half of §22 made visible. It must say it
+    # sends nothing, because a list of messages that looks sent is worse than
+    # no list.
+    if not report.check("B", "somebody owes an update on this plan",
+                        "owes an update" in overview,
+                        "the deterministic rules drafted no chase — on the "
+                        "seeded plan that is a defect, not a quiet week"):
+        return
+    report.check("B", "the chase list says nothing is sent",
+                 "Nothing is sent" in overview, overview[-400:])
+    report.check("B", "each chase says why",
+                 "overdue" in overview.lower()
+                 or "blocked" in overview.lower())
+
 
 # --------------------------------------------------------------- journey C
 

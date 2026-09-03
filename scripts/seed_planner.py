@@ -497,12 +497,20 @@ def _backdate(session: Any, project_id: int,
     Done by direct UPDATE and only here. Every other path in the product
     stamps `created_at` from the server clock, and it stays that way: a
     history somebody can backdate is not evidence of anything.
+
+    The task's own `last_update_at` is moved with it. That column is a
+    denormalised copy of "when did anybody last say something about this",
+    and it is what staleness and the chase rules read. Leaving it at the
+    seed's own write time produced a plan whose history said a task had not
+    been touched for five days while the task itself claimed it had been
+    updated a moment ago — and the chase list was empty as a result, which is
+    a plan that looks healthier than the story it tells.
     """
     from datetime import UTC, datetime
 
     from sqlalchemy import select
 
-    from backend.models.planner import PlannerUpdate
+    from backend.models.planner import PlannerTask, PlannerUpdate
 
     rows = list(session.execute(
         select(PlannerUpdate)
@@ -510,8 +518,20 @@ def _backdate(session: Any, project_id: int,
                PlannerUpdate.action == "comment")
         .order_by(PlannerUpdate.id)).scalars())
     now = datetime.now(UTC)
+
+    latest: dict[int, datetime] = {}
     for row, (_code, _author, ago, _text) in zip(rows, updates, strict=False):
-        row.created_at = now - timedelta(days=int(ago))
+        when = now - timedelta(days=int(ago))
+        row.created_at = when
+        if row.entity_type == "TASK" and row.entity_id is not None:
+            key = int(row.entity_id)
+            if when > latest.get(key, when - timedelta(days=1)):
+                latest[key] = when
+
+    for task_id, when in latest.items():
+        task = session.get(PlannerTask, task_id)
+        if task is not None:
+            task.last_update_at = when
 
 
 def _counts(session: Any, project_id: int) -> dict[str, int]:

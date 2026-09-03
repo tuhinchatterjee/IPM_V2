@@ -18,6 +18,7 @@ import {
   when,
 } from "@/components/planner/parts";
 import { QuickUpdate } from "@/components/planner/quick-update";
+import { AddMilestone, RaiseRaid } from "@/components/planner/raise-forms";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
@@ -151,6 +152,7 @@ export default function DeliveryProjectPage() {
             <SectionCard title="What the schedule rules flag">
               <FindingList findings={findings} />
             </SectionCard>
+            <Chases projectId={projectId} mayChase={mayEdit} />
             <SectionCard title="Workstreams">
               {workstreams.length === 0 ? (
                 <Empty>No workstreams yet.</Empty>
@@ -242,6 +244,10 @@ export default function DeliveryProjectPage() {
 
         {tab === "milestones" && (
           <SectionCard title={`Milestones (${milestones.length})`}>
+            {mayEdit && (
+              <AddMilestone projectId={projectId}
+                            onAdded={() => detail.reload()} />
+            )}
             {milestones.length === 0 ? (
               <Empty>No milestones set. Nothing is being judged by a date.</Empty>
             ) : (
@@ -283,6 +289,13 @@ export default function DeliveryProjectPage() {
 
         {tab === "raid" && (
           <SectionCard title={`Risks, assumptions, issues and decisions (${raid.length})`}>
+            {/* CONTRIBUTOR, not EDITOR. Noticing a problem is not the same as
+                having authority over the plan, and a product where only
+                editors may raise risks is one where risks go unraised. */}
+            {access.access !== "VIEWER" && (
+              <RaiseRaid projectId={projectId}
+                         onRaised={() => detail.reload()} />
+            )}
             {raid.length === 0 ? (
               <Empty>Nothing has been raised on this project.</Empty>
             ) : (
@@ -469,6 +482,69 @@ export default function DeliveryProjectPage() {
     </div>
   );
 }
+
+/**
+ * Who to ask for an update, and the words to use.
+ *
+ * The deterministic rules decide who is on this list and why; the draft is
+ * composed from those rules. Nothing is sent from here and nothing on the
+ * project changes — the person doing the chasing owns the act of chasing,
+ * which is exactly the line §4 draws.
+ */
+function Chases({
+  projectId,
+  mayChase,
+}: {
+  projectId: number;
+  mayChase: boolean;
+}) {
+  const chases = useAsync(() => api.planner.chases(projectId), [projectId],
+                          { enabled: mayChase });
+  const [copied, setCopied] = React.useState<number | null>(null);
+  if (!mayChase) return null;
+  const drafts = chases.data?.drafts ?? [];
+  if (chases.loading || drafts.length === 0) return null;
+
+  return (
+    <SectionCard
+      title={`Who owes an update (${drafts.length})`}
+      action={<span className="text-xs text-text-muted">Drafts. Nothing is sent.</span>}
+    >
+      <ul className="divide-y divide-border">
+        {drafts.map((draft) => (
+          <li key={draft.task_id} className="px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[11px] text-text-muted">
+                {draft.task_code}
+              </span>
+              <span className="text-sm text-text-primary">
+                {"name" in (draft.to ?? {})
+                  ? (draft.to as { name: string }).name
+                  : "the owner"}
+              </span>
+              <Badge variant="outline">
+                {draft.trigger.replace(/_/g, " ")}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(draft.body);
+                  setCopied(draft.task_id);
+                }}
+              >
+                {copied === draft.task_id ? "Copied" : "Copy the message"}
+              </Button>
+            </div>
+            <p className="mt-1 text-sm text-text-secondary">{draft.why}</p>
+          </li>
+        ))}
+      </ul>
+    </SectionCard>
+  );
+}
+
 
 /** A note on the project, with nothing else changed. */
 function PostUpdate({
