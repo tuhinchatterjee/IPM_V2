@@ -6683,6 +6683,466 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  // ---- Project Planner ----------------------------------------------------
+  // One namespace rather than twenty flat names, because the planner is a
+  // whole area of the product and `api.plannerProjectsListWithFilters` is not
+  // a name anybody wants to read twice.
+  planner: {
+    portfolio: (params: {
+      status?: string;
+      health?: string;
+      manager_id?: number;
+      search?: string;
+      include_archived?: boolean;
+      limit?: number;
+      offset?: number;
+    } = {}) => {
+      const query = new URLSearchParams();
+      if (params.status) query.set("status", params.status);
+      if (params.health) query.set("health", params.health);
+      if (params.manager_id) query.set("manager_id", String(params.manager_id));
+      if (params.search) query.set("search", params.search);
+      if (params.include_archived) query.set("include_archived", "true");
+      query.set("limit", String(params.limit ?? 100));
+      if (params.offset) query.set("offset", String(params.offset));
+      return request<PlannerPortfolio>(`/planner/projects?${query}`);
+    },
+    attention: (limit = 10) =>
+      request<{ items: PlannerAttentionItem[] }>(
+        `/planner/attention?limit=${limit}`),
+    myWork: (horizonDays = 30) =>
+      request<PlannerMyWork>(`/planner/my-work?horizon_days=${horizonDays}`),
+    project: (id: number) =>
+      request<PlannerProjectDetail>(`/planner/projects/${id}`),
+    createProject: (body: Record<string, unknown>) =>
+      request<PlannerProjectDetail>("/planner/projects", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    updateProject: (id: number, body: Record<string, unknown>) =>
+      request<PlannerProjectDetail>(`/planner/projects/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    overrideHealth: (id: number, health: string, reason: string) =>
+      request<PlannerProjectDetail>(`/planner/projects/${id}/health`, {
+        method: "POST",
+        body: JSON.stringify({ health, reason }),
+      }),
+    recalculate: (id: number) =>
+      request<PlannerProjectDetail>(`/planner/projects/${id}/recalculate`, {
+        method: "POST",
+      }),
+    addParticipant: (id: number, body: Record<string, unknown>) =>
+      request<PlannerProjectDetail>(`/planner/projects/${id}/participants`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    removeParticipant: (id: number, userId: number) =>
+      request<PlannerProjectDetail>(
+        `/planner/projects/${id}/participants/${userId}`,
+        { method: "DELETE" }),
+    createWorkstream: (id: number, body: Record<string, unknown>) =>
+      request<PlannerProjectDetail>(`/planner/projects/${id}/workstreams`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    createTask: (id: number, body: Record<string, unknown>) =>
+      request<{ id: number; code: string }>(
+        `/planner/projects/${id}/tasks`,
+        { method: "POST", body: JSON.stringify(body) }),
+    /**
+     * A quick update. `expected_version` is what the drawer read; sending it
+     * turns "two people edited this at once" from a silent overwrite into a
+     * 409 the person can see.
+     */
+    updateTask: (taskId: number, body: Record<string, unknown>) =>
+      request<{ task: PlannerTaskRow; project: Record<string, unknown> }>(
+        `/planner/tasks/${taskId}`,
+        { method: "PATCH", body: JSON.stringify(body) }),
+    deleteTask: (taskId: number) =>
+      request<{ deleted: number; project_id: number }>(
+        `/planner/tasks/${taskId}`, { method: "DELETE" }),
+    createMilestone: (id: number, body: Record<string, unknown>) =>
+      request<{ id: number; code: string }>(
+        `/planner/projects/${id}/milestones`,
+        { method: "POST", body: JSON.stringify(body) }),
+    updateMilestone: (milestoneId: number, body: Record<string, unknown>) =>
+      request<{ id: number; status: string }>(
+        `/planner/milestones/${milestoneId}`,
+        { method: "PATCH", body: JSON.stringify(body) }),
+    createDependency: (id: number, body: Record<string, unknown>) =>
+      request<{ id: number }>(`/planner/projects/${id}/dependencies`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    deleteDependency: (dependencyId: number) =>
+      request<{ deleted: number }>(`/planner/dependencies/${dependencyId}`, {
+        method: "DELETE",
+      }),
+    createRaid: (id: number, body: Record<string, unknown>) =>
+      request<{ id: number; code: string }>(`/planner/projects/${id}/raid`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    updateRaid: (raidId: number, body: Record<string, unknown>) =>
+      request<{ id: number; status: string }>(`/planner/raid/${raidId}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    postUpdate: (id: number, body: Record<string, unknown>) =>
+      request<{ id: number; posted_at: string | null }>(
+        `/planner/projects/${id}/updates`,
+        { method: "POST", body: JSON.stringify(body) }),
+    activity: (id: number, limit = 100) =>
+      request<PlannerActivity>(
+        `/planner/projects/${id}/activity?limit=${limit}`),
+    changes: (id: number, days = 7) =>
+      request<Record<string, unknown>>(
+        `/planner/projects/${id}/changes?days=${days}`),
+    brief: (id: number) =>
+      request<PlannerBrief>(`/planner/projects/${id}/brief`),
+    portfolioBrief: (limit = 6) =>
+      request<PlannerPortfolioBrief>(`/planner/brief?limit=${limit}`),
+    chases: (id: number, tone = "neutral") =>
+      request<PlannerChases>(
+        `/planner/projects/${id}/chases?tone=${tone}`),
+    /** Download links, not fetches: the browser has to do the saving. */
+    templateUrl: () => `${API_BASE_URL}${API_PREFIX}/planner/template`,
+    exportUrl: (id: number) =>
+      `${API_BASE_URL}${API_PREFIX}/planner/projects/${id}/export`,
+    upload: (id: number, file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return request<PlannerImportPreview>(
+        `/planner/projects/${id}/import`,
+        { method: "POST", body: form, rawBody: true });
+    },
+    commitImport: (importId: number) =>
+      request<{ import_id: number; project_id: number;
+                applied: Record<string, number>; total: number }>(
+        `/planner/imports/${importId}/commit`, { method: "POST" }),
+  },
+};
+
+
+// ---------------------------------------------------------------------------
+// Project Planner — delivery projects, tasks, RAID
+//
+// Distinct from `Project` above, which is the analytical workspace a piece of
+// credit work lives in. These are the projects a team DELIVERS: who owes what,
+// by when, and what is late. The backend keeps them in planner_* tables for
+// the same reason.
+// ---------------------------------------------------------------------------
+
+export type PlannerHealth = "GREEN" | "AMBER" | "RED" | "UNKNOWN";
+
+export type PlannerPerson = {
+  id: number;
+  name: string;
+  first_name?: string;
+  username?: string;
+  job_title?: string;
+} | null;
+
+export type PlannerFinding = {
+  rule: string;
+  severity: "info" | "warn" | "critical";
+  detail: string;
+  entity_type: string;
+  entity_id: number | null;
+  entity_code: string;
+  value: number | null;
+};
+
+export type PlannerTaskRow = {
+  id: number;
+  code: string;
+  title: string;
+  project_id: number;
+  project_code: string;
+  project_name: string;
+  status: string;
+  priority: string;
+  percent_complete: number;
+  due_date: string | null;
+  start_date: string | null;
+  days_overdue: number | null;
+  days_until_due: number | null;
+  blocked: boolean;
+  blocker_reason: string;
+  next_step: string;
+  critical: boolean;
+  owner: PlannerPerson;
+  workstream_id: number | null;
+  last_update_at: string | null;
+  last_update_text: string;
+  version: number;
+  description?: string;
+  reviewer?: PlannerPerson;
+  contributors?: PlannerPerson[];
+  parent_id?: number | null;
+  weight?: number;
+  effort_days?: number | null;
+  tags?: string[];
+  completed_date?: string | null;
+  blocks?: number[];
+};
+
+export type PlannerProjectRow = {
+  id: number;
+  code: string;
+  name: string;
+  status: string;
+  priority: string;
+  health: PlannerHealth;
+  health_reason: string;
+  health_overridden: boolean;
+  percent_complete: number;
+  manager: PlannerPerson;
+  target_end_date: string | null;
+  open_tasks: number;
+  overdue_tasks: number;
+  blocked_tasks: number;
+  next_milestone: string;
+  next_milestone_date: string | null;
+  last_update_at: string | null;
+  access: string;
+};
+
+export type PlannerPortfolio = {
+  projects: PlannerProjectRow[];
+  totals: {
+    projects: number;
+    red: number;
+    amber: number;
+    green: number;
+    unknown: number;
+    overdue_tasks: number;
+    blocked_tasks: number;
+  };
+  count: number;
+};
+
+export type PlannerAttentionItem = {
+  id: number;
+  code: string;
+  name: string;
+  health: PlannerHealth;
+  reason: string;
+  health_overridden: boolean;
+  percent_complete: number;
+  findings: PlannerFinding[];
+};
+
+export type PlannerMyWork = {
+  buckets: Record<string, PlannerTaskRow[]>;
+  counts: Record<string, number>;
+};
+
+export type PlannerWorkstream = {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  status: string;
+  lead: PlannerPerson;
+  start_date: string | null;
+  target_end_date: string | null;
+  sequence: number;
+  percent_complete: number;
+  task_count: number;
+};
+
+export type PlannerMilestone = {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  status: string;
+  target_date: string | null;
+  actual_date: string | null;
+  critical: boolean;
+  owner?: PlannerPerson;
+  workstream_id?: number | null;
+};
+
+export type PlannerRaidItem = {
+  id: number;
+  code: string;
+  raid_type: string;
+  title: string;
+  description: string;
+  severity: string;
+  status: string;
+  owner: PlannerPerson;
+  target_date: string | null;
+  mitigation: string;
+  resolution: string;
+};
+
+export type PlannerParticipantRow = {
+  id: number;
+  user: PlannerPerson;
+  project_role: string;
+  access: string;
+  workstream_id: number | null;
+  notifications_enabled: boolean;
+  notes: string;
+};
+
+export type PlannerDependencyRow = {
+  id: number;
+  predecessor_type: string;
+  predecessor_id: number;
+  predecessor: string;
+  successor_type: string;
+  successor_id: number;
+  successor: string;
+  dependency_type: string;
+  lag_days: number;
+};
+
+export type PlannerProjectDetail = {
+  project: {
+    id: number;
+    code: string;
+    name: string;
+    description: string;
+    objective: string;
+    business_context: string;
+    status: string;
+    priority: string;
+    health: PlannerHealth;
+    health_reason: string;
+    health_overridden: boolean;
+    calculated_health: string;
+    calculated_health_reason: string;
+    manual_health_by: PlannerPerson;
+    manual_health_at: string | null;
+    percent_complete: number;
+    manager: PlannerPerson;
+    sponsor: PlannerPerson;
+    start_date: string | null;
+    target_end_date: string | null;
+    actual_end_date: string | null;
+    reporting_cadence: string;
+    reminder_days: number[];
+    stale_after_days: number;
+    archived: boolean;
+    version: number;
+    created_at: string | null;
+    updated_at: string | null;
+  };
+  access: { level: string; role: string; is_admin?: boolean };
+  findings: PlannerFinding[];
+  workstreams: PlannerWorkstream[];
+  tasks: PlannerTaskRow[];
+  milestones: PlannerMilestone[];
+  raid: PlannerRaidItem[];
+  participants: PlannerParticipantRow[];
+  dependencies: PlannerDependencyRow[];
+};
+
+export type PlannerUpdateRow = {
+  id: number;
+  entity_type: string;
+  entity_id: number | null;
+  entity_code: string;
+  action: string;
+  author: PlannerPerson;
+  old_status: string;
+  new_status: string;
+  old_percent: number | null;
+  new_percent: number | null;
+  narrative: string;
+  blocker: string;
+  next_step: string;
+  changes: Record<string, unknown>;
+  source: string;
+  at: string | null;
+};
+
+export type PlannerActivity = { count: number; items: PlannerUpdateRow[] };
+
+export type PlannerStatement = {
+  kind: "FACT" | "INFERENCE" | "RECOMMENDATION" | "NOT RECORDED";
+  text: string;
+  evidence: string[];
+};
+
+export type PlannerBrief = {
+  project_id: number;
+  project_code: string;
+  project_name: string;
+  as_of: string;
+  headline: string;
+  statements: PlannerStatement[];
+  open_questions: string[];
+  grounding: string;
+};
+
+export type PlannerPortfolioBrief = {
+  as_of: string;
+  headline: string;
+  statements: PlannerStatement[];
+  attention: PlannerAttentionItem[];
+  grounding: string;
+};
+
+export type PlannerChase = {
+  to: PlannerPerson | { id: number };
+  task_id: number;
+  task_code: string;
+  trigger: string;
+  why: string;
+  subject: string;
+  body: string;
+};
+
+export type PlannerChases = {
+  project_id: number;
+  project_code: string;
+  as_of: string;
+  drafts: PlannerChase[];
+  sent: boolean;
+  note: string;
+};
+
+export type PlannerImportIssue = {
+  sheet: string;
+  row: number;
+  column: string;
+  message: string;
+};
+
+export type PlannerImportChange = {
+  sheet: string;
+  row: number;
+  entity: string;
+  action: "CREATE" | "UPDATE" | "UNCHANGED";
+  identity: string;
+  label: string;
+  values: Record<string, unknown>;
+  changed: string[];
+};
+
+export type PlannerImportPreview = {
+  import_id: number;
+  project_id: number;
+  project_code: string;
+  filename: string;
+  summary: {
+    by_entity: Record<string, Record<string, number>>;
+    creates: number;
+    updates: number;
+    unchanged: number;
+    issues: number;
+    ok: boolean;
+  };
+  changes: PlannerImportChange[];
+  issues: PlannerImportIssue[];
 };
 
 /** §52. One section of the CBUAE-aligned report, as the API returns it. */

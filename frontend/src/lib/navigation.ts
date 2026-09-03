@@ -3,6 +3,7 @@ import {
   BarChart3,
   Bot,
   Boxes,
+  CalendarClock,
   Brain,
   ClipboardCheck,
   Database,
@@ -166,6 +167,17 @@ export const NAV_ITEMS: NavItem[] = [
     description:
       "The master workspace. A Project holds investigations, saved analyses, documents, people and context.",
     icon: Boxes,
+    status: "live",
+    phase: "",
+    group: "Work",
+    demo: "core",
+  },
+  {
+    href: "/delivery",
+    label: "Project Planner",
+    description:
+      "Delivery plans: workstreams, tasks, milestones, dependencies and RAID. What is late, what is blocked, who owes an update, and what is due next. Distinct from Projects, which is the analytical workspace a piece of credit work lives in.",
+    icon: CalendarClock,
     status: "live",
     phase: "",
     group: "Work",
