@@ -579,10 +579,69 @@ export interface RelationshipRow {
 }
 
 export interface DatasetDetail extends DatasetSummary {
+  coverage: DatasetCoverage;
   latest_upload: UploadRecord | null;
   mappings: FieldMappingRow[];
   fields: DictionaryField[];
   relationships: RelationshipRow[];
+}
+
+/**
+ * What the dataset actually holds, read from the governed catalogue.
+ *
+ * The definition says there is a period field. This says which periods are in
+ * the lake, how many, and how often they arrive — the three things somebody
+ * checks before deciding the next one is late.
+ */
+export interface DatasetCoverage {
+  periods: string[];
+  period_count: number;
+  frequency: string;
+  coverage: string;
+  earliest: string;
+  latest: string;
+  rows: number;
+  field_count: number;
+  /** What version is in service, said in a way that is true of this dataset. */
+  version: string;
+  released_period: string;
+  released_at: string | null;
+}
+
+/** The lifecycle one uploaded reporting period walks through. */
+export type ReleaseState =
+  | "UPLOADED"
+  | "VALIDATING"
+  | "FAILED"
+  | "VALIDATED"
+  | "REVIEW"
+  | "LOCKED"
+  | "PUBLISHED"
+  | "SUPERSEDED"
+  | "DISCARDED";
+
+/** One release of one period. Never destroyed — superseded. */
+export interface PeriodRelease {
+  id: number;
+  period: string;
+  version: number;
+  mode: string;
+  state: ReleaseState;
+  rows: number;
+  fields: number;
+  source_filename: string;
+  source_sha256: string;
+  validation: {
+    passed?: boolean;
+    error_count?: number;
+    warning_count?: number;
+    findings?: { rule: string; severity: string; detail: string; count?: number }[];
+  };
+  note: string;
+  uploaded_at: string | null;
+  reviewed_at: string | null;
+  published_at: string | null;
+  superseded_by: number | null;
 }
 
 export interface QualityFinding {
@@ -4879,6 +4938,70 @@ export const api = {
    * A URL rather than a fetch: the browser downloads it directly, so a large
    * file never passes through JavaScript memory on its way to disk.
    */
+  /** The same rows as the CSV, in a workbook that says what they are. */
+  datasetWorkbookUrl: (name: string, opts: DatasetQuery = {}) => {
+    const query = datasetQuery(opts);
+    const suffix = query.toString() ? `?${query}` : "";
+    return (
+      `${API_BASE_URL}${API_PREFIX}/data-builder/datasets/` +
+      `${encodeURIComponent(name)}/workbook${suffix}`
+    );
+  },
+
+  // ---- one reporting period at a time ----
+  //
+  // A file that arrives is staged and checked. It is never published as a side
+  // effect of arriving: somebody reads it, locks it, and publishes it, and each
+  // of those is a separate call by somebody with the right to make it.
+
+  /** Every release of every period, newest first. */
+  periodHistory: (name: string, period = "") =>
+    request<{ dataset: string; period: string; count: number; releases: PeriodRelease[] }>(
+      `/data-builder/datasets/${encodeURIComponent(name)}/periods` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+    ),
+
+  /** Stage and validate one period. This does not publish it. */
+  uploadPeriod: (
+    name: string,
+    file: File,
+    period: string,
+    mode: "NEW_PERIOD" | "REPLACE_PERIOD",
+    sheet?: string,
+  ) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("period", period);
+    form.append("mode", mode);
+    if (sheet) form.append("sheet", sheet);
+    return request<{ dataset: string; release: PeriodRelease }>(
+      `/data-builder/datasets/${encodeURIComponent(name)}/periods/upload`,
+      { method: "POST", body: form, rawBody: true, timeoutMs: 180_000 },
+    );
+  },
+
+  /** Move a staged release along its lifecycle. */
+  periodAction: (
+    releaseId: number,
+    action: "review" | "lock" | "discard",
+    note = "",
+  ) =>
+    request<{ release: PeriodRelease }>(`/data-builder/periods/${releaseId}/${action}`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    }),
+
+  /** Write the partition, refresh the catalogue, tell the bank. */
+  publishPeriod: (releaseId: number) =>
+    request<{
+      release: PeriodRelease;
+      announcement: Record<string, unknown>;
+      message: string;
+    }>(`/data-builder/periods/${releaseId}/publish`, {
+      method: "POST",
+      timeoutMs: 180_000,
+    }),
+
   datasetExportUrl: (name: string, opts: DatasetQuery = {}) => {
     const query = datasetQuery(opts);
     const suffix = query.toString() ? `?${query}` : "";

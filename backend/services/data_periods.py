@@ -432,7 +432,16 @@ def stage(session: Session, dataset_name: str, *, content: bytes,
 
     previous = _read_published(dataset, _previous_period(dataset, period))
     if mode == PERIOD_MODE_REPLACE:
-        previous = _read_published(dataset, period) or previous
+        # A correction is measured against the version it corrects, not against
+        # the quarter before: a restatement that halves one sector is a drift
+        # of 50% from last quarter and a drift of 50% from what it replaces,
+        # and only the second of those is the one a reviewer needs to see.
+        #
+        # `or` cannot be used to choose between two frames — pandas refuses to
+        # say whether a DataFrame is true — so the empty case is explicit.
+        standing = _read_published(dataset, period)
+        if standing is not None and not standing.empty:
+            previous = standing
     report = check(dataset, frame, period, previous=previous)
     release.validation = report.to_dict()
     release.state = PERIOD_VALIDATED if report.passed else PERIOD_FAILED

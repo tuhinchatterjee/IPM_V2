@@ -190,6 +190,73 @@ def _dataset_out(dataset, session: Session) -> dict[str, Any]:
     }
 
 
+def _coverage_out(name: str, dataset, session: Session) -> dict[str, Any]:
+    """What periods this dataset actually holds, and how often they arrive.
+
+    The definition says a dataset has a period field. It does not say which
+    periods are in the lake, how many there are, or whether they come every
+    month or every quarter — and those are the first three things a steward
+    looks for before deciding whether the next one is missing. They are read
+    from the governed catalogue rather than from the definition, so a period
+    published a minute ago is here.
+    """
+    from backend.metadata import frequency as freq
+    from backend.metadata import service as catalogue
+
+    # What the version actually is, said once.
+    #
+    # A dataset shipped with the platform has no `published_version`: nobody
+    # ever pressed Publish on it, because it was there from the start. The page
+    # used to render that as "not published" beside a badge reading "published"
+    # and a banner reading "available to the engine", which is two of the three
+    # being wrong. So the answer comes from what is on the record: a
+    # dataset-wide publication if there was one, otherwise the newest published
+    # period release, otherwise the honest statement that it arrived with the
+    # platform.
+    release = _latest_release(dataset, session)
+    if dataset.published_version:
+        version = f"v{dataset.published_version}"
+    elif release is not None:
+        version = f"{release.period} v{release.version}"
+    else:
+        version = ("shipped with the platform"
+                   if dataset.lifecycle == "published" else "not published")
+
+    found = catalogue.dataset(name)
+    if found is None:
+        return {"periods": [], "period_count": 0, "frequency": "",
+                "coverage": "", "earliest": "", "latest": "", "rows": 0,
+                "field_count": 0, "version": version,
+                "released_at": None, "released_period": ""}
+    ordered = list(found.periods)
+    return {
+        "periods": ordered,
+        "period_count": len(ordered),
+        "frequency": freq.of(tuple(ordered)),
+        "coverage": freq.coverage(tuple(ordered)),
+        "earliest": freq.earliest_of(ordered),
+        "latest": freq.latest_of(ordered),
+        "rows": found.row_count,
+        "field_count": found.field_count,
+        "version": version,
+        "released_period": release.period if release is not None else "",
+        "released_at": (
+            release.published_at.isoformat()
+            if release is not None and release.published_at
+            else (dataset.published_at.isoformat()
+                  if dataset.published_at else None)),
+    }
+
+
+def _latest_release(dataset, session: Session):
+    """The newest period of this dataset that somebody published."""
+    from backend.models.platform import PERIOD_PUBLISHED, DataPeriodRelease
+
+    return session.query(DataPeriodRelease).filter_by(
+        dataset_id=dataset.id, state=PERIOD_PUBLISHED,
+    ).order_by(DataPeriodRelease.published_at.desc()).first()
+
+
 def _mapping_out(m) -> dict[str, Any]:
     return {
         "source_column": m.source_column,
@@ -332,6 +399,7 @@ def get_dataset(name: str, session: Session = Depends(get_db)) -> dict:
     upload = db_service.latest_upload(session, dataset)
     return {
         **_dataset_out(dataset, session),
+        "coverage": _coverage_out(dataset.name, dataset, session),
         "latest_upload": _upload_out(upload) if upload else None,
         "mappings": [_mapping_out(m) for m in db_service.get_mappings(session, dataset)],
         "fields": [

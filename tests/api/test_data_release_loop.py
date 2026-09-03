@@ -499,3 +499,101 @@ class TestSharingKeepsEveryBlock:
         payload = store.load_version(int(shared["run_id"]))
         package = payload.get("package") or {}
         assert package.get("counts", {}).get("analyses") == shared["blocks"]
+
+
+# ======================================== 17. the quarter comes back corrected
+#
+# A new period is the easy half. The half that destroys a book is the
+# correction: the same period arrives again, and a publisher who rebuilds the
+# dataset to take it loses every other quarter, while one who simply writes
+# over the partition loses the fact that there ever was a first version.
+#
+# So a correction is its own mode. It supersedes rather than overwrites, it
+# leaves the period count alone, and the figure the engine answers with
+# afterwards is the corrected one.
+
+
+@pytest.fixture(scope="module")
+def correction(client, loop):
+    """Send the same quarter again, corrected, and publish it."""
+    if loop.get("publish") is None or loop["publish"].status_code != 200:
+        pytest.skip("The first publication did not happen; nothing to correct.")
+
+    base = "/api/v1/data-builder"
+    from backend.data_access import get_data_source
+
+    frame = loop["built"].copy()
+    steps: dict = {
+        "periods_before": list(get_data_source().periods(DATASET)),
+        "first": loop["release"],
+    }
+
+    # A real correction changes figures, not row counts: one more row would be
+    # a different book, and this has to be the same book restated.
+    money = next((c for c in ("exposure_at_default", "ead", "gross_carrying_amount")
+                  if c in frame.columns), "")
+    if not money:
+        pytest.skip("This dataset has no money column to correct.")
+    steps["money_column"] = money
+    steps["total_before"] = float(frame[money].sum())
+    frame[money] = frame[money] * 1.10
+    steps["total_after"] = float(frame[money].sum())
+
+    upload = client.post(
+        f"{base}/datasets/{DATASET}/periods/upload",
+        data={"period": NEW_PERIOD, "mode": "REPLACE_PERIOD"},
+        files={"file": (f"{DATASET}_{NEW_PERIOD}_corrected.csv",
+                        io.BytesIO(frame.to_csv(index=False).encode()),
+                        "text/csv")})
+    steps["upload"] = upload
+    if upload.status_code != 200:
+        return steps
+
+    release_id = upload.json()["release"]["id"]
+    steps["second"] = upload.json()["release"]
+    client.post(f"{base}/periods/{release_id}/review",
+                json={"note": "A restatement of the same quarter."})
+    client.post(f"{base}/periods/{release_id}/lock", json={"note": "Checked."})
+    steps["publish"] = client.post(f"{base}/periods/{release_id}/publish")
+    steps["history"] = client.get(f"{base}/datasets/{DATASET}/periods",
+                                  params={"period": NEW_PERIOD})
+    steps["periods_after"] = list(get_data_source().periods(DATASET))
+    return steps
+
+
+class TestACorrectionSupersedesRatherThanOverwrites:
+
+    def test_the_correction_is_accepted_and_versioned(self, correction) -> None:
+        assert correction["upload"].status_code == 200, correction["upload"].text
+        assert correction["second"]["mode"] == "REPLACE_PERIOD"
+        assert correction["second"]["version"] == correction["first"]["version"] + 1
+
+    def test_it_publishes(self, correction) -> None:
+        response = correction.get("publish")
+        assert response is not None and response.status_code == 200, (
+            response.text if response is not None else "not attempted")
+        assert response.json()["release"]["state"] == "PUBLISHED"
+
+    def test_the_first_version_is_superseded_not_deleted(self, correction) -> None:
+        releases = {r["version"]: r for r in correction["history"].json()["releases"]}
+        first = releases[correction["first"]["version"]]
+        assert first["state"] == "SUPERSEDED", (
+            "the first release must still be on the record")
+        assert first["superseded_by"] == correction["second"]["id"]
+
+    def test_the_period_count_does_not_change(self, correction) -> None:
+        assert correction["periods_after"] == correction["periods_before"], (
+            "a correction restates one period; it does not add or remove any")
+
+    def test_the_engine_answers_with_the_corrected_figure(self, correction) -> None:
+        """The point of the whole exercise: the new number is the one served."""
+        from backend.data_access import AnalysisContext, get_data_source
+
+        frame = get_data_source().fetch(
+            DATASET, context=AnalysisContext(period=NEW_PERIOD),
+            fields=[correction["money_column"]], period=NEW_PERIOD)
+        served = float(frame[correction["money_column"]].sum())
+        assert served == pytest.approx(correction["total_after"], rel=1e-6), (
+            f"the engine is still serving {served:,.0f} where the correction "
+            f"said {correction['total_after']:,.0f}")
+        assert served != pytest.approx(correction["total_before"], rel=1e-6)
