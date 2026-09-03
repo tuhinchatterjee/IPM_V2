@@ -711,6 +711,37 @@ async def upload_workbook(project_id: int, file: UploadFile = File(...),
     return preview.to_dict()
 
 
+@router.post("/imports", summary="Upload a workbook that creates a project")
+async def upload_new_project(file: UploadFile = File(...),
+                             session: Session = Depends(get_db),
+                             principal: Principal = RequireAnalyst) -> dict:
+    """Create a project from a workbook, rather than update one.
+
+    Deliberately a different route from the update path. "Which project is
+    this going into?" is the whole difference between the two, and a single
+    endpoint that guessed from whether a code matched would silently create a
+    second project the first time somebody typed a code wrong.
+
+    Nothing is written here — not even the project. It comes into existence at
+    commit, which is the only way "nothing is applied if validation fails" can
+    be true of the project itself.
+    """
+    content = await file.read()
+    try:
+        parsed = wb.parse(content, file.filename or "")
+    except wb.ImportRefused as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error": "unreadable_workbook",
+                    "message": str(exc)}) from exc
+    preview = _guard(lambda: wb.validate(
+        session, principal, None, parsed,
+        filename=file.filename or "", content=content))
+    body = preview.to_dict()
+    body["mode"] = "CREATE"
+    return body
+
+
 @router.post("/imports/{import_id}/commit",
              summary="Apply a workbook you have already seen")
 def commit_import(import_id: int, session: Session = Depends(get_db),

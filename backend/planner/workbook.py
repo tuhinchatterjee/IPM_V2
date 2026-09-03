@@ -827,7 +827,7 @@ def _text_of(value: Any) -> str:
     return str(value).strip()
 
 
-def validate(session: Any, principal: Any, project_id: int,
+def validate(session: Any, principal: Any, project_id: int | None,
              parsed: dict[str, list[dict]], *, filename: str = "",
              content: bytes = b"") -> Preview:
     """Decide what every row means, and say so without writing anything.
@@ -835,7 +835,16 @@ def validate(session: Any, principal: Any, project_id: int,
     Row-level: one bad date does not reject the workbook, it rejects that
     row and names the sheet, the row number and the column. A person fixing
     forty rows one upload at a time gives up at about the fourth.
+
+    `project_id` of None means the workbook is creating a project rather than
+    updating one. Same sheets, same column contract, same row checks — what
+    differs is that there is nothing to compare against, so every row is a
+    creation, and the access check is "may this person start a project" rather
+    than "may they edit this one".
     """
+    if project_id is None:
+        return _validate_new(session, principal, parsed, filename=filename,
+                             content=content)
     granted = acl.require(session, project_id, principal, "EDITOR",
                           "import a plan")
     project = session.get(PlannerProject, int(project_id))
@@ -910,6 +919,102 @@ def validate(session: Any, principal: Any, project_id: int,
     return preview
 
 
+def _validate_new(session: Any, principal: Any,
+                  parsed: dict[str, list[dict]], *, filename: str = "",
+                  content: bytes = b"") -> Preview:
+    """Preview a workbook that would create a project.
+
+    Nothing is written, including the project. The PROJECT row is staged like
+    every other change and the project comes into existence at commit, which
+    is the only way "nothing is applied if validation fails" can be true of
+    the project itself.
+    """
+    rows = parsed.get("PROJECT") or []
+    if not rows:
+        raise ImportRefused(
+            "This workbook has no PROJECT sheet, or the sheet is empty. A new "
+            "project is created from that row: its code, its name and its "
+            "dates. Download the template if you need the layout.")
+    if len(rows) > 1:
+        raise ImportRefused(
+            f"The PROJECT sheet has {len(rows)} rows. A workbook creates one "
+            "project, so there is one row.")
+
+    code = _text_of(rows[0].get("code"))
+    if code:
+        clash = session.execute(
+            select(PlannerProject).where(
+                PlannerProject.code == code)).scalar_one_or_none()
+        if clash is not None:
+            raise ImportRefused(
+                f"A project with the code {code!r} already exists — "
+                f"{clash.name}. To change it, open it and import the workbook "
+                "there; this route only creates projects that do not yet "
+                "exist.")
+
+    issues: list[RowIssue] = []
+    changes: list[Change] = []
+    names: set[str] = set()
+    for sheet in SHEETS:
+        for row in parsed.get(sheet.name, []):
+            for column in sheet.columns:
+                if column.key.endswith("_username") or column.key == "username":
+                    value = _text_of(row.get(column.key))
+                    if value:
+                        names.add(value)
+    directory = _usernames(session, names)
+
+    pending: dict[str, set[str]] = {
+        "workstream": set(), "task": set(), "milestone": set()}
+    for name, key in (("WORKSTREAMS", "workstream"), ("TASKS", "task"),
+                      ("MILESTONES", "milestone")):
+        for row in parsed.get(name, []):
+            found = _text_of(row.get("code"))
+            if found:
+                pending[key].add(found)
+
+    # The person creating a project owns it. There is nobody else it could
+    # belong to, and an OWNER grant is what lets the PARTICIPANTS sheet name
+    # other owners in the same file.
+    granted = acl.Grant(project_id=0, user_id=getattr(principal, "user_id", None),
+                        access="OWNER", project_role="MANAGER")
+    context = _Context(project=None, existing=_existing(session, None),
+                       directory=directory, pending=pending,
+                       granted=granted, issues=issues)
+
+    for sheet in SHEETS:
+        found = parsed.get(sheet.name)
+        if found is None:
+            continue
+        handler = _HANDLERS[sheet.name]
+        for row in found:
+            change = handler(context, sheet, row)
+            if change is not None:
+                changes.append(change)
+
+    staged = PlannerImport(
+        project_id=None, project_code=code,
+        filename=(filename or "")[:300],
+        file_sha256=hashlib.sha256(content).hexdigest() if content else "",
+        state="VALIDATED" if not issues else "FAILED",
+        staged={"mode": "CREATE",
+                "changes": [
+                    {"sheet": c.sheet, "row": c.row, "entity": c.entity,
+                     "action": c.action, "identity": c.identity,
+                     "label": c.label, "values": _jsonable(c.values)}
+                    for c in changes]},
+        findings={"issues": [i.to_dict() for i in issues]},
+        uploaded_by=getattr(principal, "user_id", None))
+    session.add(staged)
+    session.flush()
+
+    preview = Preview(import_id=int(staged.id), project_id=0,
+                      project_code=code, filename=filename,
+                      changes=changes, issues=issues)
+    staged.summary = preview.summary()
+    return preview
+
+
 def _jsonable(values: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for key, value in values.items():
@@ -955,6 +1060,12 @@ def _existing(session: Any, project: Any) -> dict[str, dict[str, Any]]:
     """Everything already in the project, by code. Four queries, not four
     hundred: a 500-row workbook that looked each row up individually would
     take a minute a person spends watching a spinner."""
+    if project is None:
+        # A workbook creating a project has nothing to compare against, so
+        # every row is a creation. Returning empty maps rather than special
+        # -casing each handler keeps one validation path for both modes.
+        return {"workstream": {}, "task": {}, "milestone": {}, "raid": {},
+                "participant": {}, "dependency": {}}
     pid = int(project.id)
     return {
         "workstream": {w.code: w for w in session.execute(
@@ -1119,12 +1230,22 @@ def _snapshot(row: Any, keys: Any, extra: dict[str, Any] | None = None
 def _project_row(context: _Context, sheet: Sheet, row: dict) -> Change | None:
     columns = _by_key(sheet)
     code = _text_of(row.get("code"))
-    if code and code != context.project.code:
+    creating = context.project is None
+    if not creating and code and code != context.project.code:
         context.fail(
             sheet.name, row["_row"], "Project Code",
             f"This workbook says it is project {code!r}, but it is being "
             f"imported into {context.project.code!r}. Import it into the "
             "right project, or correct the code.")
+        return None
+    if creating and not code:
+        context.fail(sheet.name, row["_row"], "Project Code",
+                     "A new project needs a code. It is what every other "
+                     "sheet in this workbook refers to it by.")
+        return None
+    if creating and not _text_of(row.get("name")):
+        context.fail(sheet.name, row["_row"], "Project Name",
+                     "A new project needs a name.")
         return None
     values = {
         "name": _text_of(row.get("name")) or None,
@@ -1142,6 +1263,12 @@ def _project_row(context: _Context, sheet: Sheet, row: dict) -> Change | None:
                                          columns["stale_after_days"],
                                          integer=True),
     }
+    if creating:
+        # `None` for the before, not an empty mapping: a project that does not
+        # exist yet is a creation, and an empty mapping makes every non-null
+        # value read as a change to something.
+        values["code"] = code
+        return _change(sheet, row, "project", code, code, values, None)
     return _change(sheet, row, "project", context.project.code,
                    context.project.code, values,
                    _snapshot(context.project, values))
@@ -1464,16 +1591,27 @@ def commit(session: Any, principal: Any, import_id: int) -> dict[str, Any]:
             f"That import is {staged.state.lower()} and cannot be applied. "
             "Only a workbook that passed its checks can be.")
 
-    project_id = int(staged.project_id or 0)
-    acl.require(session, project_id, principal, "EDITOR", "import a plan")
     if staged.uploaded_by is not None and getattr(
             principal, "user_id", None) != staged.uploaded_by:
         raise svc.PlannerError(
             "That upload belongs to somebody else. Upload the file yourself "
             "to see what it would do before applying it.")
 
-    project = session.get(PlannerProject, project_id)
     changes = list(staged.staged.get("changes", []))
+    creating = staged.staged.get("mode") == "CREATE"
+    if creating:
+        project = _create_project_from(session, principal, changes)
+        project_id = int(project.id)
+        staged.project_id = project_id
+        # Everything after this point is an ordinary import into a project
+        # that now exists, applied in the same transaction: if any row fails,
+        # the project it would have belonged to is rolled back with it.
+        changes = [c for c in changes if c["entity"] != "project"]
+    else:
+        project_id = int(staged.project_id or 0)
+        acl.require(session, project_id, principal, "EDITOR",
+                    "import a plan")
+        project = session.get(PlannerProject, project_id)
     counts = {"project": 0, "participant": 0, "workstream": 0, "task": 0,
               "milestone": 0, "dependency": 0, "raid": 0, "update": 0}
 
@@ -1520,6 +1658,30 @@ class _CodeIndex:
         self.raid = {r.code: int(r.id) for r in session.execute(
             select(PlannerRaid).where(
                 PlannerRaid.project_id == pid)).scalars()}
+
+
+def _create_project_from(session: Any, principal: Any,
+                         changes: list[dict]) -> Any:
+    """Bring the project into existence from the staged PROJECT row.
+
+    At commit rather than at upload, so that "nothing is written if validation
+    fails" is true of the project as well as of its contents. The person who
+    uploaded the workbook becomes its manager: there is nobody else it could
+    belong to, and a project with no manager is one nothing can be chased on.
+    """
+    row = next((c for c in changes if c["entity"] == "project"), None)
+    if row is None:
+        raise svc.PlannerError(
+            "This import has no project row, so there is nothing to create.")
+    values = {k: v for k, v in row["values"].items() if v is not None}
+    code = values.pop("code", "") or row["identity"]
+    name = values.pop("name", "") or code
+    project = svc.create_project(
+        session, principal, code=code, name=name,
+        manager_id=getattr(principal, "user_id", None),
+        source=SOURCE_EXCEL, **values)
+    session.flush()
+    return project
 
 
 def _apply(session: Any, principal: Any, project: Any, change: dict,
