@@ -92,13 +92,31 @@ class DuckDBSource:
     def _dataset_dir(self, dataset: str) -> Path:
         return self.root / dataset
 
+    def _partition_key(self, dataset: str) -> str:
+        """The column a dataset is partitioned by on disk.
+
+        Most datasets partition on `period`, but not all: the retail scorecard
+        datasets partition on `observation_month` and `application_month`,
+        which is what their own `period_field` says. Assuming `period=` meant
+        that `periods()` could list a month the reader then could not open —
+        the error even printed the period it was refusing among the available
+        ones — so no analysis could be scoped to a period on those datasets at
+        all.
+        """
+        try:
+            field = str(self.catalog.dataset(dataset).period_field or "")
+        except Exception:  # noqa: BLE001 - unknown dataset, use the default
+            return "period"
+        return field or "period"
+
     def _glob(self, dataset: str, period: str | None) -> str:
         """The Parquet path pattern for a dataset, optionally one period."""
         base = self._dataset_dir(dataset)
         if period:
             # Period values contain a space ("Q1 2026"); DuckDB handles that fine
             # inside a quoted path string.
-            return str(base / f"period={period}" / "*.parquet")
+            key = self._partition_key(dataset)
+            return str(base / f"{key}={period}" / "*.parquet")
         return str(base / "**" / "*.parquet")
 
     def _require_files(self, dataset: str, period: str | None) -> str:
@@ -109,7 +127,8 @@ class DuckDBSource:
                 f"No data on disk for dataset '{dataset}'. Expected {directory}. "
                 "Run `python scripts/generate_saudi_universe.py` to build the analytical layer."
             )
-        if period and not (directory / f"period={period}").exists():
+        key = self._partition_key(dataset)
+        if period and not (directory / f"{key}={period}").exists():
             available = ", ".join(self.periods(dataset)) or "(none)"
             raise DataAccessError(
                 f"Dataset '{dataset}' has no data for period '{period}'. Available: {available}"
