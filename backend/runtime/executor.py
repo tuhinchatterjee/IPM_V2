@@ -180,8 +180,15 @@ def execute(plan: AnalyticalPlan | dict[str, Any], *,
     reconciliation = _reconcile(graph, sql_node, plan, query, population_steps,
                                 limits)
 
+    # Every compiled query carries `LIMIT max_output_rows`, so a kernel can be
+    # handed a frame that is the first N rows of a larger population without
+    # anything saying so. A correlation on a truncated frame is misleading; a
+    # Gini on one is simply wrong. The kernel is told, and decides.
+    truncated = len(frame) >= int(limits.max_output_rows)
     for operation in query.kernel_steps:
-        frame, cursor = _run_kernel_step(graph, cursor, operation, frame)
+        frame, cursor = _run_kernel_step(graph, cursor, operation, frame,
+                                         truncated=truncated,
+                                         row_limit=int(limits.max_output_rows))
 
     duration_ms = int((time.perf_counter() - started) * 1000)
     result = _shape(run_id, plan, frame, query, report, certification, duration_ms)
@@ -661,7 +668,8 @@ def _node(node_id: str, node_type: NodeType, label: str,
 
 
 def _run_kernel_step(graph: TraceGraph, parent: str, op: Operation,
-                     frame: pd.DataFrame) -> tuple[pd.DataFrame, str]:
+                     frame: pd.DataFrame, *, truncated: bool = False,
+                     row_limit: int = 0) -> tuple[pd.DataFrame, str]:
     """Run one allowlisted numerical operation on the query's result."""
     kernel = kernel_for(op)
     node = graph.add_node(TraceNode(
@@ -680,11 +688,18 @@ def _run_kernel_step(graph: TraceGraph, parent: str, op: Operation,
     node.rows_in = int(len(frame))
     node.mark_started()
 
+    params = dict(op.params)
+    params["_truncated"] = bool(truncated)
+    params["_row_limit"] = int(row_limit)
     try:
-        out = run_kernel(kernel, frame, op.params)
+        out = run_kernel(kernel, frame, params)
     except PlanError as e:
         node.mark_failed(str(e))
         raise
+    if truncated:
+        node.warnings.append(
+            f"The query returned the maximum {row_limit:,} rows, so this was "
+            "computed on part of the population rather than all of it.")
 
     node.output_summary = {"columns": list(out.columns), "kernel": kernel.name}
     node.mark_ok(rows_out=int(len(out)))

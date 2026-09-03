@@ -5500,3 +5500,132 @@ class ScorecardReportEvidence(Base):
         Index("ix_scorecard_report_evidence_report", "tenant", "report_id",
               "position"),
     )
+
+
+# ================================================== the metric catalogue
+
+
+class UserMetric(Base):
+    """A metric somebody in the bank defined, stored the same way as a governed one.
+
+    The governed catalogue lives in code
+    (:mod:`backend.metrics.library`) because it is part of what CreditProbe
+    means; a metric an analyst builds on a Tuesday lives here. Both are the
+    same shape when read — a :class:`~backend.metrics.catalogue.MetricDefinition`
+    — because a lens tile, an info panel and a search result must not have to
+    care which kind they are holding.
+
+    What they must care about is `status`. A user metric arrives as DRAFT,
+    becomes CALCULATION_READY when it compiles and executes, and only reaches
+    VERIFIED when a person has checked it against their own number in the
+    verification workspace and said so. Every surface that shows a metric shows
+    that word, so nobody mistakes an untested definition for a governed one.
+
+    `definition` holds the serialised Formula: terms, aggregations, filters and
+    the combining rule. Nothing here is free text that later becomes SQL — the
+    formula is compiled to the same validated analytical plan as everything
+    else, so a metric cannot reach data its author could not read.
+    """
+
+    __tablename__ = "user_metrics"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    #: Stable public identifier, e.g. "user.7.arrears-watch". Unique so a lens
+    #: can name a metric without holding a database row number.
+    metric_id: Mapped[str] = mapped_column(String(160), unique=True,
+                                           nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    definition_text: Mapped[str] = mapped_column(Text, nullable=False,
+                                                 default="")
+    #: The serialised Formula.
+    definition: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                             default=dict)
+    #: Presentation and documentation: unit, decimals, visuals, not_this,
+    #: exclusions, period_rule, aliases. Everything the §6 panel shows that is
+    #: not the arithmetic itself.
+    presentation: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                               default=dict)
+    unit: Mapped[str] = mapped_column(String(24), nullable=False,
+                                      default="number")
+    domain: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    portfolio: Mapped[str] = mapped_column(String(120), nullable=False,
+                                           default="")
+    #: DRAFT | CALCULATION_READY | VERIFICATION_REQUIRED | VERIFIED |
+    #: PUBLISHED | DEPRECATED. The vocabulary is
+    #: backend.metrics.catalogue.STATUSES.
+    status: Mapped[str] = mapped_column(String(32), nullable=False,
+                                        default="DRAFT")
+    version: Mapped[str] = mapped_column(String(16), nullable=False,
+                                         default="1.0.0")
+    owner: Mapped[str] = mapped_column(String(160), nullable=False, default="")
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"),
+                                                   nullable=True)
+    #: Who last confirmed it against their own number, and when.
+    verified_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"),
+                                                    nullable=True)
+    verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    #: What that person wrote when they accepted it.
+    verification_note: Mapped[str] = mapped_column(Text, nullable=False,
+                                                   default="")
+    #: A metric nobody may see but its author until it is shared.
+    shared: Mapped[bool] = mapped_column(Boolean, nullable=False,
+                                         server_default=text("false"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+        onupdate=func.now())
+
+    __table_args__ = (
+        Index("ix_user_metrics_owner", "created_by", "status"),
+        Index("ix_user_metrics_domain", "domain"),
+    )
+
+
+class MetricVerification(Base):
+    """One attempt to check a metric against a number somebody already trusted.
+
+    §10 asks that a person can put their own figure beside the computed one and
+    record what they concluded. This is that record, and it is kept whether the
+    two agreed or not: a verification history showing three disagreements
+    before a definition was corrected is more useful than one showing only the
+    final tick.
+
+    `computed` is never overwritten by `expected`. If they differ, the
+    difference is stored and the metric does not become VERIFIED. Making the
+    engine agree with the analyst by assignment would defeat the entire point
+    of the exercise.
+    """
+
+    __tablename__ = "metric_verifications"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    #: The public metric identifier — governed or user-built. Not a foreign key,
+    #: because governed metrics live in code and still deserve a record here.
+    metric_id: Mapped[str] = mapped_column(String(160), nullable=False)
+    period: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    #: What CreditProbe calculated, and the run that produced it.
+    computed: Mapped[float | None] = mapped_column(Float, nullable=True)
+    run_id: Mapped[str] = mapped_column(String(48), nullable=False, default="")
+    #: What the person expected, and where they got it.
+    expected: Mapped[float | None] = mapped_column(Float, nullable=True)
+    expected_source: Mapped[str] = mapped_column(String(240), nullable=False,
+                                                 default="")
+    difference: Mapped[float | None] = mapped_column(Float, nullable=True)
+    #: MATCH | WITHIN_TOLERANCE | DIFFERS | NOT_COMPARED
+    outcome: Mapped[str] = mapped_column(String(24), nullable=False,
+                                         default="NOT_COMPARED")
+    tolerance: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: ACCEPTED | REJECTED | RECORDED — what the person decided afterwards.
+    decision: Mapped[str] = mapped_column(String(24), nullable=False,
+                                          default="RECORDED")
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"),
+                                                   nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_metric_verifications_metric", "metric_id", "created_at"),
+    )

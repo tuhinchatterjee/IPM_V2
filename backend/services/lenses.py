@@ -50,7 +50,15 @@ STATUSES = (STATUS_DRAFT, STATUS_PUBLISHED, STATUS_ARCHIVED)
 #: and quietly relabelled.
 VISUALS = ("auto", "kpi", "table", "bar", "line", "matrix")
 
+#: How many ANALYSIS panels a lens may hold. Each one runs a full analysis, and
+#: beyond a dozen nobody reads the lens, they scroll past it.
 MAX_PANELS = 12
+
+#: How many METRIC tiles a lens may hold. Higher, because a tile is one number
+#: with a label — a real IFRS 9 committee pack carries about eighteen — and
+#: because tiles are grouped into named sections rather than presented as one
+#: undifferentiated run. The analysis limit above is unchanged.
+MAX_TILES = 24
 
 SLUG_RE = re.compile(r"[^a-z0-9]+")
 
@@ -86,38 +94,78 @@ def slugify(name: str) -> str:
 # ------------------------------------------------------------- the definition
 
 
+#: The two things a panel can be. An ANALYSIS panel runs a registered analysis
+#: through the Engine Registry; a METRIC panel calculates one governed or
+#: user-built metric from the Metric Catalogue. Both go through the same
+#: validated analytical plan and the same executor — the difference is which
+#: definition they name, not how the number is produced.
+KIND_ANALYSIS = "analysis"
+KIND_METRIC = "metric"
+KINDS = (KIND_ANALYSIS, KIND_METRIC)
+
+
 @dataclass
 class Panel:
-    """One thing on a Lens."""
+    """One thing on a Lens.
 
-    analysis_id: str
+    Two kinds share this shape rather than becoming two classes, because a lens
+    holds an ordered list of things to draw and everything that walks that list
+    — validation, revision, rendering, layout — should not have to branch on
+    which sort of tile it is holding until the moment it actually runs one.
+    """
+
+    analysis_id: str = ""
     title: str = ""
     visual: str = "auto"
     params: dict[str, Any] = field(default_factory=dict)
     #: Governed filters, applied to this panel only.
     filters: dict[str, Any] = field(default_factory=dict)
     note: str = ""
+    kind: str = KIND_ANALYSIS
+    #: Set on a metric panel; the id of a governed or user-built metric.
+    metric_id: str = ""
+    #: A period this tile pins itself to, overriding the lens period. Empty
+    #: means it follows whatever the lens is showing.
+    period: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "kind": self.kind,
             "analysis_id": self.analysis_id,
+            "metric_id": self.metric_id,
             "title": self.title,
             "visual": self.visual,
             "params": dict(self.params),
             "filters": dict(self.filters),
+            "period": self.period,
             "note": self.note,
         }
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> Panel:
+        metric_id = str(payload.get("metric_id") or "")
+        # A definition written before metric panels existed has no `kind`, and
+        # naming a metric is unambiguous, so the kind is inferred rather than
+        # requiring every stored lens to be rewritten.
+        kind = str(payload.get("kind")
+                   or (KIND_METRIC if metric_id else KIND_ANALYSIS))
         return cls(
             analysis_id=str(payload.get("analysis_id") or ""),
+            metric_id=metric_id,
+            kind=kind,
             title=str(payload.get("title") or ""),
             visual=str(payload.get("visual") or "auto"),
             params=dict(payload.get("params") or {}),
             filters=dict(payload.get("filters") or {}),
+            period=str(payload.get("period") or ""),
             note=str(payload.get("note") or ""),
         )
+
+    @classmethod
+    def metric(cls, metric_id: str, *, title: str = "", visual: str = "kpi",
+               period: str = "", note: str = "") -> Panel:
+        return cls(kind=KIND_METRIC, metric_id=metric_id, title=title,
+                   visual=visual, period=period, note=note)
 
 
 def validate(panels: list[Panel]) -> None:
@@ -126,15 +174,30 @@ def validate(panels: list[Panel]) -> None:
 
     if not panels:
         raise InvalidLens("A lens needs at least one panel.")
-    if len(panels) > MAX_PANELS:
+
+    analyses = [p for p in panels if p.kind != KIND_METRIC]
+    tiles = [p for p in panels if p.kind == KIND_METRIC]
+    if len(analyses) > MAX_PANELS:
         raise InvalidLens(
-            f"A lens may hold at most {MAX_PANELS} panels. "
+            f"A lens may hold at most {MAX_PANELS} analysis panels. "
             "Beyond that nobody reads it, they scroll past it."
+        )
+    if len(tiles) > MAX_TILES:
+        raise InvalidLens(
+            f"A lens may hold at most {MAX_TILES} metric tiles. "
+            "Beyond that it stops being a view and becomes a list."
         )
 
     registry = get_registry()
     known = {c.id: c for c in registry.contracts()}
     for panel in panels:
+        if panel.kind not in KINDS:
+            raise InvalidLens(
+                f"'{panel.kind}' is not a kind of panel. "
+                f"Available: {', '.join(KINDS)}.")
+        if panel.kind == KIND_METRIC:
+            _validate_metric_panel(panel)
+            continue
         contract = known.get(panel.analysis_id)
         if contract is None:
             raise InvalidLens(
@@ -156,6 +219,44 @@ def validate(panels: list[Panel]) -> None:
             )
 
 
+def _validate_metric_panel(panel: Panel) -> None:
+    """Refuse a metric tile that cannot honestly be drawn as asked.
+
+    Two separate checks, and the second is the interesting one. A metric that
+    does not exist is an obvious refusal. A metric drawn as something it has
+    not declared itself drawable as is the quiet failure: a single ratio
+    rendered as a bar chart of one bar, or a distribution flattened to a KPI,
+    both of which look like a working tile and mislead.
+    """
+    from backend.metrics import service as metrics
+
+    if not panel.metric_id:
+        raise InvalidLens("A metric panel has to name a metric.")
+
+    absent = metrics.unavailable(panel.metric_id)
+    if absent is not None:
+        raise InvalidLens(
+            f"{absent.name} cannot be calculated in this deployment. "
+            f"{absent.because}")
+
+    try:
+        metric = metrics.resolve(panel.metric_id)
+    except metrics.MetricNotFound as e:
+        raise InvalidLens(
+            f"'{panel.metric_id}' is not a metric in the catalogue. A lens can "
+            "only show metrics CreditProbe governs or somebody has built."
+        ) from e
+
+    if panel.visual not in VISUALS:
+        raise InvalidLens(
+            f"'{panel.visual}' is not a way a panel may be drawn. "
+            f"Available: {', '.join(VISUALS)}.")
+    if panel.visual != "auto" and panel.visual not in metric.visuals:
+        raise InvalidLens(
+            f"{metric.name} should not be drawn as a {panel.visual}. It can "
+            f"honestly be shown as: {', '.join(metric.visuals)}.")
+
+
 # ------------------------------------------------------------------- shape
 
 
@@ -167,6 +268,15 @@ class LensView:
     description: str
     audience: str
     panels: list[dict[str, Any]]
+    #: Optional grouping of panels into named sections, each holding the
+    #: indices of the panels it contains. A lens with no sections is one
+    #: unbroken run of tiles, which is what every lens was before this.
+    sections: list[dict[str, Any]]
+    #: What this lens deliberately does NOT show, and why. A view that quietly
+    #: omits the metric a reader came for teaches them not to trust it; one
+    #: that says "retail IFRS 9 staging is not available in this deployment,
+    #: because there is no retail impairment dataset" does the opposite.
+    notes: list[dict[str, Any]]
     status: str
     version: int
     origin: str
@@ -183,6 +293,8 @@ class LensView:
             "description": self.description,
             "audience": self.audience,
             "panels": self.panels,
+            "sections": self.sections,
+            "notes": self.notes,
             "status": self.status,
             "version": self.version,
             "origin": self.origin,
@@ -221,6 +333,8 @@ def _view(session: Any, row: Any, *, with_revisions: bool = False) -> LensView:
         description=row.description,
         audience=row.audience,
         panels=list(definition.get("panels") or []),
+        sections=list(definition.get("sections") or []),
+        notes=list(definition.get("notes") or []),
         status=row.status,
         version=row.version,
         origin=row.origin,
@@ -231,22 +345,42 @@ def _view(session: Any, row: Any, *, with_revisions: bool = False) -> LensView:
     )
 
 
+def _definition(panels: list[Panel],
+                sections: list[dict[str, Any]] | None,
+                notes: list[dict[str, Any]] | None) -> dict[str, Any]:
+    definition: dict[str, Any] = {"panels": [p.to_dict() for p in panels]}
+    if sections:
+        definition["sections"] = [dict(s) for s in sections]
+    if notes:
+        definition["notes"] = [dict(n) for n in notes]
+    return definition
+
+
 # ------------------------------------------------------------------ writing
 
 
 def create(*, name: str, panels: list[Panel], description: str = "",
            audience: str = "", origin: str = "manual",
            project_id: int | None = None, request: str = "",
-           user_id: int | None = None) -> LensView:
+           user_id: int | None = None, slug: str = "",
+           sections: list[dict[str, Any]] | None = None,
+           notes: list[dict[str, Any]] | None = None) -> LensView:
+    """Store a new lens.
+
+    `slug` is normally derived from the name. A caller installing a lens the
+    platform ships passes it explicitly, because that slug is the lens's
+    address — it is what a link, a seeder and a test all name it by — and a
+    slug derived from a name is not stable enough to be an address.
+    """
     _require_db()
     validate(panels)
 
     from backend.db.engine import get_session
     from backend.models.platform import Lens, LensRevision
 
-    definition = {"panels": [p.to_dict() for p in panels]}
+    definition = _definition(panels, sections, notes)
     with get_session() as session:
-        slug = slugify(name)
+        slug = slugify(slug) if slug else slugify(name)
         existing = {s for (s,) in session.query(Lens.slug).all()}
         if slug in existing:
             n = 2
@@ -273,7 +407,9 @@ def create(*, name: str, panels: list[Panel], description: str = "",
 
 
 def revise(lens_id: int, panels: list[Panel], *, request: str = "",
-           change_summary: str = "", user_id: int | None = None) -> LensView:
+           change_summary: str = "", user_id: int | None = None,
+           sections: list[dict[str, Any]] | None = None,
+           notes: list[dict[str, Any]] | None = None) -> LensView:
     """Store a new revision. The previous one is kept, so it can be put back."""
     _require_db()
     validate(panels)
@@ -281,7 +417,7 @@ def revise(lens_id: int, panels: list[Panel], *, request: str = "",
     from backend.db.engine import get_session
     from backend.models.platform import Lens, LensRevision
 
-    definition = {"panels": [p.to_dict() for p in panels]}
+    definition = _definition(panels, sections, notes)
     with get_session() as session:
         row = session.get(Lens, lens_id)
         if row is None:
@@ -319,13 +455,15 @@ def restore(lens_id: int, version: int, *, user_id: int | None = None) -> LensVi
         ).scalars().first()
         if wanted is None:
             raise LensNotFound(f"Lens {lens_id} has no version {version}.")
-        panels = [Panel.from_dict(p)
-                  for p in (wanted.definition or {}).get("panels") or []]
+        stored = dict(wanted.definition or {})
+        panels = [Panel.from_dict(p) for p in stored.get("panels") or []]
+        sections = list(stored.get("sections") or [])
+        notes = list(stored.get("notes") or [])
 
     return revise(
         lens_id, panels, request=f"Restore version {version}",
         change_summary=f"Restored the definition from version {version}.",
-        user_id=user_id,
+        user_id=user_id, sections=sections, notes=notes,
     )
 
 
@@ -426,6 +564,10 @@ def render(lens_id: int, *, period: str | None = None,
     panels: list[dict[str, Any]] = []
     for entry in view.panels:
         panel = Panel.from_dict(entry)
+        if panel.kind == KIND_METRIC:
+            panels.append(_render_metric(panel, period=period,
+                                         user_id=user_id))
+            continue
         try:
             outcome = run_analysis(
                 panel.analysis_id, params=panel.params, period=period,
@@ -447,16 +589,75 @@ def render(lens_id: int, *, period: str | None = None,
             "result": outcome.result.to_dict() if outcome.result else None,
         })
 
-    failed = [p for p in panels if p["status"] != "succeeded"]
+    # A gap in the book and a gap in the platform are different things, and a
+    # reader told the wrong one wastes their afternoon. `unavailable` is the
+    # first; `failed` is the second, and does not include it.
+    unavailable = [p for p in panels if p["status"] == "unavailable"]
+    failed = [p for p in panels
+              if p["status"] not in ("succeeded", "unavailable")]
+    note = ""
+    if failed:
+        note = (f"{len(failed)} of {len(panels)} panels could not be "
+                "produced.")
+    elif unavailable:
+        note = (f"{len(unavailable)} of {len(panels)} panels have no data for "
+                "this period. Each says why.")
     return {
         "lens": view.to_dict(),
         "period": period,
+        "sections": view.sections,
+        "notes": view.notes,
         "panels": panels,
         "failed": len(failed),
-        "note": (
-            f"{len(failed)} of {len(panels)} panels could not be produced."
-            if failed else ""
-        ),
+        "unavailable": len(unavailable),
+        "note": note,
+    }
+
+
+def _render_metric(panel: Panel, *, period: str | None,
+                   user_id: int | None) -> dict[str, Any]:
+    """One metric tile: the number, the working, and how it is defined.
+
+    The §6 info panel travels with the tile rather than being fetched when
+    somebody opens it. A tile that has to make a second request before it can
+    explain itself is a tile whose explanation people stop opening.
+
+    A metric with no data for the period is `unavailable`, not `failed`. The
+    distinction matters on screen: one is a gap in the book, the other is a
+    gap in the platform, and telling a reader the wrong one wastes their time.
+    """
+    from backend.metrics import service as metrics
+
+    wanted = panel.period or (period or "")
+    try:
+        outcome = metrics.value(panel.metric_id, period=wanted,
+                                user_id=user_id)
+    except metrics.MetricNotFound as e:
+        return {**panel.to_dict(), "status": "failed", "error": str(e),
+                "result": None, "metric": None}
+    except Exception as e:  # pragma: no cover - a genuinely broken metric
+        logger.warning("metric panel %s could not be produced",
+                       panel.metric_id, exc_info=True)
+        return {**panel.to_dict(), "status": "failed", "error": str(e),
+                "result": None, "metric": None}
+
+    definition = outcome["metric"]
+    return {
+        **panel.to_dict(),
+        "title": panel.title or definition["name"],
+        "status": "succeeded" if outcome["available"] else "unavailable",
+        "error": "",
+        "unavailable": outcome["unavailable"],
+        "value": outcome["value"],
+        "unit": outcome["unit"],
+        "decimals": outcome["decimals"],
+        "higher_is_better": definition["higher_is_better"],
+        "period_used": outcome["period"],
+        # Everything §6 asks an info control to show, so the tile can explain
+        # itself without another round trip.
+        "metric": definition,
+        "calculation": outcome["calculation"],
+        "result": None,
     }
 
 
@@ -568,7 +769,7 @@ def propose(request: str, *, existing: list[Panel] | None = None) -> Proposal:
               note=getattr(c, "when_to_use", "") or c.description)
         for c in added
     ]
-    if len(panels) > MAX_PANELS:
+    if len([p for p in panels if p.kind != KIND_METRIC]) > MAX_PANELS:
         raise InvalidLens(
             f"That would take the lens to {len(panels)} panels, and the limit "
             f"is {MAX_PANELS}. Remove something first."

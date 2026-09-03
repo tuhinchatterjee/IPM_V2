@@ -137,6 +137,7 @@ class OpType(StrEnum):
     STAT_TEST = "STAT_TEST"
     REGRESSION = "REGRESSION"
     SCENARIO = "SCENARIO"
+    DISCRIMINATION = "DISCRIMINATION"  # Gini, AUC, KS, calibration ratio
 
     # ---- output
     VISUALIZE = "VISUALIZE"          # declare the intended chart, computes nothing
@@ -152,6 +153,7 @@ KERNEL_OPS = frozenset({
     OpType.OUTLIER,
     OpType.TREND,
     OpType.SCENARIO,
+    OpType.DISCRIMINATION,
 })
 
 #: Operations that read from no input — the roots of a plan.

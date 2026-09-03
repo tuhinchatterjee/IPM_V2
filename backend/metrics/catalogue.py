@@ -77,6 +77,12 @@ STATUS_LABELS = {
 PERIOD_LATEST = "latest_available"
 PERIOD_SELECTED = "as_selected"
 PERIOD_ROLLING = "rolling_window"
+#: The most recent period whose performance window has closed. Distinct from
+#: `latest_available`, and the distinction matters: a scorecard's Gini for last
+#: month is not "zero" or "unknown", it does not exist yet, because none of
+#: those accounts has had time to default. A validation metric that quietly
+#: used the latest month would report on a cohort with no outcomes in it.
+PERIOD_LATEST_MATURED = "latest_matured"
 
 #: Visualisations a metric may honestly be drawn as. A single ratio has no
 #: business being a bar chart of one bar, and this is where that is said.
@@ -287,6 +293,7 @@ __all__ = [
     "STATUS_DRAFT", "STATUS_CALCULATION_READY", "STATUS_VERIFICATION_REQUIRED",
     "STATUS_VERIFIED", "STATUS_PUBLISHED", "STATUS_DEPRECATED", "STATUSES",
     "LABELS", "STATUS_LABELS",
-    "PERIOD_LATEST", "PERIOD_SELECTED", "PERIOD_ROLLING", "VISUALS",
+    "PERIOD_LATEST", "PERIOD_SELECTED", "PERIOD_ROLLING",
+    "PERIOD_LATEST_MATURED", "VISUALS",
     "Unsupported", "MetricDefinition",
 ]

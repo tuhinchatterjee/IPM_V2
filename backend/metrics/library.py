@@ -26,6 +26,7 @@ each says which it is in its name.
 from __future__ import annotations
 
 from backend.metrics.catalogue import (
+    PERIOD_LATEST_MATURED,
     PERIOD_SELECTED,
     STATUS_PUBLISHED,
     MetricDefinition,
@@ -34,7 +35,7 @@ from backend.metrics.catalogue import (
     _t,
     _total,
 )
-from backend.metrics.formula import Formula, Side, Term
+from backend.metrics.formula import Condition, Formula, Side, Term
 
 LIBRARY_VERSION = "1.0.0"
 
@@ -290,8 +291,10 @@ RETAIL_VALIDATION: tuple[MetricDefinition, ...] = (
                       "actual_default"))),
                function_args={"score_field": "score_incumbent",
                               "outcome_field": "actual_default",
-                              "direction": "lower_score_is_worse"}),
+                              "direction": "HIGHER_SCORE_IS_BETTER"}),
        unit="ratio", domain=RETAIL, portfolio="Retail",
+       scope=(Condition("matured_flag", "=", True),),
+       period_rule=PERIOD_LATEST_MATURED,
        aliases=("gini", "gini coefficient", "discriminatory power", "auroc",
                 "accuracy ratio"),
        formula_text="Gini = 2 × AUROC − 1, over (score_incumbent, "
@@ -318,35 +321,15 @@ RETAIL_VALIDATION: tuple[MetricDefinition, ...] = (
                    _t("bad", "Default outcome", BEHAVIOURAL, "avg",
                       "actual_default"))),
                function_args={"score_field": "score_incumbent",
-                              "outcome_field": "actual_default"}),
+                              "outcome_field": "actual_default",
+                              "direction": "HIGHER_SCORE_IS_BETTER"}),
        unit="ratio", domain=RETAIL, portfolio="Retail",
+       scope=(Condition("matured_flag", "=", True),),
+       period_rule=PERIOD_LATEST_MATURED,
        aliases=("ks", "ks statistic", "kolmogorov smirnov", "separation"),
        formula_text="KS = max |F_bad(s) − F_good(s)|",
        decimals=4, higher_is_better=True,
        not_this="Not comparable across score scales with different ranges."),
-
-    _m("retail.scorecard.psi", "Score Population Stability Index",
-       "How far the score distribution in this period has moved from the "
-       "development reference distribution.",
-       Formula(kind="function", function="psi",
-               numerator=Side(terms=(
-                   _t("score", "Score", BEHAVIOURAL, "avg",
-                      "score_incumbent"),)),
-               function_args={"score_field": "score_incumbent",
-                              "reference": "retail_behavioral_scorecard_"
-                                           "development_reference",
-                              "bins": 10}),
-       unit="index", domain=RETAIL, portfolio="Retail",
-       aliases=("psi", "population stability", "stability index",
-                "distribution shift"),
-       formula_text="PSI = Σ (actual% − expected%) × ln(actual% / expected%)",
-       decimals=4, higher_is_better=False,
-       transformation="Ten equal-count bins taken from the development "
-                      "reference distribution, held fixed across periods so "
-                      "that the index measures movement rather than "
-                      "rebinning.",
-       not_this="Not a measure of performance. A stable population can still "
-                "have a scorecard that no longer ranks."),
 
     _m("retail.scorecard.calibration", "Predicted Versus Observed Default",
        "The production model's average predicted probability of default "
@@ -356,6 +339,8 @@ RETAIL_VALIDATION: tuple[MetricDefinition, ...] = (
               [_t("obs", "Observed default rate", BEHAVIOURAL, "avg",
                   "actual_default")], scale=1.0, kind="ratio"),
        unit="ratio", domain=RETAIL, portfolio="Retail",
+       scope=(Condition("matured_flag", "=", True),),
+       period_rule=PERIOD_LATEST_MATURED,
        aliases=("calibration", "predicted versus observed",
                 "calibration ratio", "observed versus expected"),
        formula_text="AVG(pd_incumbent) / AVG(actual_default)",
@@ -471,8 +456,11 @@ RETAIL_ORIGINATION: tuple[MetricDefinition, ...] = (
                    _t("bad", "Default outcome", APPLICATIONS, "avg",
                       "actual_default"))),
                function_args={"score_field": "score_incumbent",
-                              "outcome_field": "actual_default"}),
+                              "outcome_field": "actual_default",
+                              "direction": "HIGHER_SCORE_IS_BETTER"}),
        unit="ratio", domain=RETAIL_ANALYTICS, portfolio="Retail",
+       scope=(Condition("matured_flag", "=", True),),
+       period_rule=PERIOD_LATEST_MATURED,
        aliases=("application gini", "origination gini"),
        formula_text="Gini = 2 × AUROC − 1, over (score_incumbent, "
                     "actual_default)",
@@ -736,6 +724,17 @@ UNSUPPORTED: tuple[Unsupported, ...] = (
         "approval rate cannot be derived from it without assuming that every "
         "application with an outcome was approved, which is not true.",
         needs=("a decision outcome field on the application dataset",)),
+    Unsupported(
+        "retail.scorecard.psi", "Score Population Stability Index", RETAIL,
+        "PSI compares this period's score distribution against the reference "
+        "distribution the model was built on. That is a comparison of two "
+        "populations, and the metric engine computes one period at a time. "
+        "CreditProbe does report PSI: the scorecard validation module "
+        "computes it against each model's declared reference window, where "
+        "the reference is part of the model rather than a parameter of a "
+        "dashboard tile.",
+        needs=("the scorecard validation module's stability report, surfaced "
+               "as a lens panel",)),
     Unsupported(
         "retail.roll_rate", "Delinquency Roll Rate", RETAIL,
         "A roll rate is a movement between two consecutive months for the "

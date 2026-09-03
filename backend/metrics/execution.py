@@ -24,8 +24,10 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.data_access.protocol import DataAccessError
 from backend.metrics.formula import Formula, FormulaError, Side, Term
 from backend.runtime import ir
+from backend.runtime.ir import PlanError
 
 EXECUTION_VERSION = "1.0.0"
 
@@ -267,6 +269,21 @@ def evaluate(formula: Formula, row: dict[str, Any], *,
     the verification workspace can re-run the arithmetic without re-running
     the query.
     """
+    if formula.kind == "function":
+        # A function metric is not a ratio of two sums, and combining its
+        # terms as if it were produces a plausible-looking number that is not
+        # the metric at all — an average score plus an average default flag,
+        # in the case of Gini. Refuse it here so that no path can reach a
+        # fabricated value: `run()` sends these to `_run_function` instead.
+        calculation = Calculation(
+            value=None, formula=formula, rows_considered=rows_considered,
+            dataset=formula.datasets[0] if formula.datasets else "")
+        calculation.unavailable = (
+            f"{formula.function or 'This metric'} is computed by a governed "
+            "function over the underlying rows, not by combining aggregates. "
+            "It cannot be evaluated from a summary row.")
+        return calculation
+
     top = _side(formula.numerator, row, "Numerator") if (
         formula.numerator.terms) else None
     bottom = (_side(formula.denominator, row, "Denominator")
@@ -318,6 +335,9 @@ def run(formula: Formula, *, period: str = "",
     would be a second path with its own bugs and its own permissions.
     """
     from backend.runtime.executor import execute
+
+    if formula.kind == "function":
+        return _run_function(formula, period=period, scope=scope)
 
     plan = compile_metric(formula, period=period, scope=scope)
     result = execute(plan, question=question or formula.describe(),
@@ -454,3 +474,157 @@ __all__ = [
     "TermValue", "SideValue", "Calculation",
     "compile_metric", "evaluate", "run", "sample",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Function metrics
+# ---------------------------------------------------------------------------
+
+#: Governed functions a metric may name, and what each needs.
+#:
+#: Every one of these delegates to `backend.scorecard.metrics`, which already
+#: computes them for the model validation module and has been tested there.
+#: Reimplementing a Gini here would be a second implementation of one
+#: definition, which is the exact thing this package exists to stop.
+FUNCTIONS = ("gini", "auc", "ks", "psi", "calibration_ratio")
+
+
+def _function_plan(formula: Formula, *, period: str,
+                   scope: tuple[Any, ...], columns: list[str],
+                   params: dict[str, Any]) -> ir.AnalyticalPlan:
+    """A plan that computes the statistic INSIDE the runtime.
+
+    The tempting shape — read the rows back and compute in Python — is wrong,
+    and quietly so: `runtime.executor` returns a 200-row preview of the result,
+    and a Gini computed on the first 200 of 475,000 rows looks like a Gini. So
+    the ranking happens in a governed kernel that sees the whole frame, and
+    what comes back is the single answer.
+    """
+    datasets = formula.datasets
+    if not datasets:
+        raise FormulaError("This metric names no dataset to read.")
+
+    steps: list[ir.Operation] = []
+    scan: dict[str, Any] = {"dataset": datasets[0]}
+    if period:
+        scan["period"] = period
+    steps.append(ir.Operation(id="scan", op=ir.OpType.SCAN, params=scan))
+    source = "scan"
+    if scope:
+        steps.append(ir.Operation(
+            id="scope", op=ir.OpType.FILTER, inputs=("scan",),
+            params={"where": [{"column": c.field, "op": c.op, "value": c.value}
+                              for c in scope]}))
+        source = "scope"
+    steps.append(ir.Operation(
+        id="pick", op=ir.OpType.SELECT, inputs=(source,),
+        params={"columns": columns}))
+    steps.append(ir.Operation(
+        id="measure", op=ir.OpType.DISCRIMINATION, inputs=("pick",),
+        params=params))
+
+    return ir.AnalyticalPlan(
+        objective=f"{params.get('statistic')} over the rows in scope",
+        operations=steps, output="measure")
+
+
+def _run_function(formula: Formula, *, period: str,
+                  scope: tuple[Any, ...]) -> Calculation:
+    """Compute a metric whose value is a governed function of the rows.
+
+    Where the function or its arguments are not something CreditProbe can
+    honour, the calculation comes back with no value and a sentence saying so.
+    It never comes back with a number produced some other way: a Gini that is
+    silently an average of two columns is worse than no Gini, because somebody
+    will put it in a validation report.
+    """
+    from backend.runtime.executor import execute
+
+    args = dict(formula.function_args or {})
+    calculation = Calculation(
+        value=None, formula=formula, period=period,
+        dataset=formula.datasets[0] if formula.datasets else "")
+
+    statistic = (formula.function or "").strip().lower()
+    if statistic not in FUNCTIONS:
+        calculation.unavailable = (
+            f"'{formula.function}' is not a governed function. CreditProbe "
+            f"computes: {', '.join(FUNCTIONS)}.")
+        return calculation
+
+    if statistic == "psi":
+        calculation.unavailable = (
+            "Population stability compares a period against a reference "
+            "window, and a metric computes one period at a time. The "
+            "scorecard validation module reports PSI against the reference "
+            "distribution its model declares.")
+        return calculation
+
+    outcome = str(args.get("outcome_field") or "")
+    if not outcome:
+        calculation.unavailable = (
+            f"{statistic} needs an outcome field, and this metric does not "
+            "name one.")
+        return calculation
+
+    columns = [outcome]
+    params: dict[str, Any] = {"statistic": statistic, "target": outcome}
+    if statistic == "calibration_ratio":
+        predicted = str(args.get("pd_field") or "")
+        if not predicted:
+            calculation.unavailable = (
+                "A calibration ratio needs the field holding the predicted "
+                "probability of default, and this metric does not name one.")
+            return calculation
+        params["pd_column"] = predicted
+        columns.append(predicted)
+    else:
+        score = str(args.get("score_field") or "")
+        if not score:
+            calculation.unavailable = (
+                f"{statistic} needs a score field to rank on, and this metric "
+                "does not name one.")
+            return calculation
+        params["score"] = score
+        direction = str(args.get("direction") or "")
+        if not direction:
+            calculation.unavailable = (
+                f"{statistic} needs to know which way the score runs, and "
+                "this metric does not say. Without it the answer would have "
+                "the right magnitude and possibly the wrong sign.")
+            return calculation
+        params["direction"] = direction
+        columns.append(score)
+
+    # The maturity gate reads this column when it is present, and every one of
+    # these metrics scopes itself to matured rows.
+    if "matured_flag" not in columns:
+        columns.append("matured_flag")
+
+    plan = _function_plan(formula, period=period, scope=scope,
+                          columns=columns, params=params)
+    try:
+        result = execute(plan, question=f"{statistic} for {period or 'latest'}",
+                         intent="metric_function")
+    except (PlanError, DataAccessError) as e:
+        # An immature cohort, a sample with no defaults, or a period the data
+        # does not hold. All three are facts, and all three reach the reader
+        # as sentences rather than as a number produced some other way.
+        calculation.unavailable = str(e)
+        return calculation
+
+    if not result.rows:
+        calculation.unavailable = (
+            "The query returned no rows, so there was nothing to measure.")
+        return calculation
+
+    row = dict(result.rows[0])
+    calculation.value = (float(row["value"])
+                         if row.get("value") is not None else None)
+    calculation.rows_considered = int(row.get("observations") or 0)
+    calculation.run_id = result.run_id
+    calculation.sql = result.query.sql if result.query else ""
+    calculation.warnings = [str(row.get("note") or "")] + list(result.warnings)
+    if row.get("evidence"):
+        calculation.warnings.append(f"Evidence: {row['evidence']}.")
+    return calculation

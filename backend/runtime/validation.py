@@ -1135,7 +1135,8 @@ def _kernel(op: Operation, inputs: list[StepSchema], catalog: Any, limits: Limit
 
     source = inputs[0]
     kernel = kernel_for(op)
-    for key in ("column", "columns", "x", "y", "of", "target", "features"):
+    for key in ("column", "columns", "x", "y", "of", "target", "features",
+                "score", "pd_column"):
         value = op.params.get(key)
         for name in ([value] if isinstance(value, str) else (value or [])):
             _column(op, str(name), source)
@@ -1203,6 +1204,7 @@ _HANDLERS: dict[OpType, Any] = {
     OpType.STAT_TEST: _kernel,
     OpType.REGRESSION: _kernel,
     OpType.SCENARIO: _kernel,
+    OpType.DISCRIMINATION: _kernel,
     OpType.VISUALIZE: _visualize,
 }
 

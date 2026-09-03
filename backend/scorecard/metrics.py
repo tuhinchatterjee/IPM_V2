@@ -104,6 +104,33 @@ def _clean(y: pd.Series, x: pd.Series) -> tuple[np.ndarray, np.ndarray]:
             frame["x"].to_numpy(dtype=float))
 
 
+def _midranks(values: np.ndarray) -> np.ndarray:
+    """Ranks that share the average position across ties.
+
+    Two reasons, and the second is the one that matters here. The first is
+    that midranks are the standard treatment of ties in the Mann-Whitney
+    statistic, so the AUC this produces is the AUC everyone else's tooling
+    produces. The second is reproducibility: ordinal ranks break a tie by
+    whichever row came first, so a scorecard with 6,673 distinct scores across
+    19,000 accounts would give a slightly different Gini every time the rows
+    arrived in a different order. §11 says the same question gets the same
+    answer.
+    """
+    order = np.argsort(values, kind="mergesort")
+    ordered = values[order]
+    positions = np.arange(1, len(values) + 1, dtype=float)
+
+    ranks = np.empty(len(values), dtype=float)
+    start = 0
+    while start < len(ordered):
+        stop = start
+        while stop + 1 < len(ordered) and ordered[stop + 1] == ordered[start]:
+            stop += 1
+        ranks[order[start:stop + 1]] = (positions[start] + positions[stop]) / 2.0
+        start = stop + 1
+    return ranks
+
+
 def _risk_ordered(x: np.ndarray, score_direction: str) -> np.ndarray:
     """Turn a score into a risk ordering, so higher always means riskier.
 
@@ -112,7 +139,15 @@ def _risk_ordered(x: np.ndarray, score_direction: str) -> np.ndarray:
     """
     if score_direction == equation_mod.HIGHER_SCORE_IS_BETTER:
         return -x
-    return x
+    if score_direction == equation_mod.LOWER_SCORE_IS_BETTER:
+        return x
+    # Neither. Defaulting would silently pick a convention, and picking the
+    # wrong one does not fail — it returns a Gini of the right magnitude and
+    # the wrong sign, which reads as a scorecard that ranks backwards.
+    raise MetricError(
+        f"'{score_direction}' is not a score direction. It is one of: "
+        f"{', '.join(equation_mod.SCORE_DIRECTIONS)}. Without it there is no "
+        "way to know whether a high score is a good customer or a bad one.")
 
 
 # ------------------------------------------------------------ §23 discrimination
@@ -211,13 +246,13 @@ def discrimination(frame: pd.DataFrame, *, score: str, target: str,
             "sample has only one.")
 
     risk = _risk_ordered(raw, score_direction)
-    ranks = np.argsort(np.argsort(risk)) + 1.0
+    ranks = _midranks(risk)
     negatives = len(y) - events
     auc = float((ranks[y == 1].sum() - events * (events + 1) / 2)
                 / (events * negatives))
     gini = 2.0 * auc - 1.0
 
-    order = np.argsort(risk)
+    order = np.argsort(risk, kind="mergesort")
     bad_cumulative = np.cumsum(y[order]) / events
     good_cumulative = np.cumsum(1 - y[order]) / negatives
     gaps = np.abs(bad_cumulative - good_cumulative)
