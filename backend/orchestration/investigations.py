@@ -305,8 +305,20 @@ def load(investigation_id: int, version: int | None = None) -> SavedInvestigatio
                 f"Investigation {investigation_id} has no stored answer."
             )
 
+        # A version that is not there is refused, not substituted.
+        #
+        # This used to fall back to the newest one. An investigation is
+        # evidence of what the book said at the time it was run, and somebody
+        # following a link to version 1 of a report that has since been
+        # refreshed would have been handed today's figures under version 1's
+        # heading, with nothing on the page to say the number had moved.
         wanted = version or row.current_version
-        current = next((v for v in versions if v.version_number == wanted), versions[-1])
+        current = next((v for v in versions if v.version_number == wanted), None)
+        if current is None:
+            held = ", ".join(str(v.version_number) for v in versions)
+            raise InvestigationNotFound(
+                f"Investigation {investigation_id} has no version {wanted}. "
+                f"It holds version {held}.")
 
         return SavedInvestigation(
             id=row.id,

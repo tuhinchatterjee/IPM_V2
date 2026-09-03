@@ -237,7 +237,7 @@ def _domain_aliases(domain: str) -> list[str]:
 
 __all__ = ["CATALOGUE_VERSION", "PREVIEW_ROWS", "PREVIEW_ROWS_MAX",
            "wants_catalogue", "wants_dataset", "bare_period", "rows_wanted",
-           "resolve"]
+           "resolve", "named_but_unknown", "unknown_dataset_result"]
 
 
 # ------------------------------------------------------------- the listing
@@ -658,6 +658,91 @@ def _overview_sentence(dataset: Any, period: str, rows: int) -> str:
 
 
 # ------------------------------------------------------------ the answers
+
+
+#: The words a sentence wraps a dataset name in. Stripped to leave the name.
+_NAME_FRAME = re.compile(
+    r"^\s*(?:please\s+)?(?:can you\s+)?"
+    r"(?:tell me about|show me|describe|profile|open|what(?:'s| is) in)\s+"
+    r"(?:the\s+)?(?P<name>.+?)"
+    r"(?:\s+(?:dataset|data\s*set|table|book))?\s*[.?!]*\s*$",
+    re.IGNORECASE)
+
+
+def named_but_unknown(question: str) -> str:
+    """A dataset this sentence names that the catalogue does not hold.
+
+    Empty for everything else — including a sentence that names one it does
+    hold, and a sentence that names none at all.
+    """
+    if not wants_dataset(question) or resolve(question) is not None:
+        return ""
+    match = _NAME_FRAME.match(" ".join((question or "").split()))
+    if not match:
+        return ""
+    name = " ".join(match.group("name").split())
+    # A pronoun or a period label is a reference, not a name. Those are the
+    # thread's business, and answering them here would break the follow-up.
+    if len(name) < 3 or bare_period(name) or name.lower() in _NOT_A_NAME:
+        return ""
+    return name
+
+
+#: Words that occupy a name's position without being one.
+_NOT_A_NAME = frozenset({
+    "it", "this", "that", "them", "those", "these", "the data", "data",
+    "the catalogue", "catalogue", "everything", "more", "rows", "the rows",
+})
+
+
+def unknown_dataset_result(question: str, reading: Any, name: str) -> Any:
+    """Say the name is not one we hold, and offer the nearest that are.
+
+    Falling through used to answer this with the whole catalogue: a reader who
+    asked about one dataset by a name the bank uses internally was told how
+    many datasets exist in total, which answers a question nobody asked and
+    hides the fact that the name was not recognised.
+    """
+    from backend.metadata import service as ms
+    from backend.orchestration.handlers import HandlerResult, _graph
+
+    near = list(ms.search(name, limit=5))
+    rows = [{"dataset": d.business_name, "governed_name": d.name,
+             "domain": d.catalogue_domain or d.domain, "grain": d.grain,
+             "periods": d.period_count, "rows": d.row_count} for d in near]
+    if rows:
+        answer = (f"There is no governed dataset called **{name}**. "
+                  f"The {'closest is' if len(rows) == 1 else 'closest are'} "
+                  + ", ".join(f"**{r['dataset']}**" for r in rows) + ".")
+    else:
+        answer = (f"There is no governed dataset called **{name}**, and "
+                  "nothing in the catalogue is close to that name. Ask what "
+                  "datasets are available to see the whole list.")
+    return HandlerResult(
+        answer=answer,
+        title=f"No dataset called {name}",
+        rows=rows,
+        columns=[
+            {"name": "dataset", "label": "Dataset", "semantic": "text"},
+            {"name": "governed_name", "label": "Technical id",
+             "semantic": "text"},
+            {"name": "domain", "label": "Data domain", "semantic": "text"},
+            {"name": "grain", "label": "One row per", "semantic": "text"},
+            {"name": "periods", "label": "Periods", "semantic": "count",
+             "decimals": 0, "align": "right"},
+            {"name": "rows", "label": "Rows", "semantic": "count",
+             "decimals": 0, "align": "right"},
+        ],
+        values={"matches": len(rows)},
+        detail={"asked_for": name,
+                "rule": ("A name the catalogue does not hold is said to be "
+                         "unknown. It is never answered with a different "
+                         "dataset, and never with the catalogue as a whole.")},
+        graph=_graph(question, reading, consulted="Data Builder catalogue",
+                     detail={"asked_for": name, "matches": len(rows)}),
+        follow_ups=([f"Tell me about {rows[0]['dataset']}."] if rows else [])
+        + ["What datasets do you have?"],
+    )
 
 
 def catalogue_result(question: str, reading: Any, context: Any = None) -> Any:

@@ -267,7 +267,8 @@ def plan(reading: Reading, context: GovernedContext, *,
          question: str = "",
          period: tuple[str, str] | None = None,
          state: cv.ConversationState | None = None,
-         continuation: cv.Continuation | None = None) -> AnalysisBuild:
+         continuation: cv.Continuation | None = None,
+         thread_datasets: list[str] | None = None) -> AnalysisBuild:
     """Build the plan, then check it answers the question that was asked.
 
     The check is here, wrapping every shape, rather than inside the one builder
@@ -279,7 +280,8 @@ def plan(reading: Reading, context: GovernedContext, *,
     contract = fidelity.read(question or reading.objective,
                              reading=reading, state=state)
     build = _plan(reading, context, question=question, period=period,
-                  state=state, continuation=continuation)
+                  state=state, continuation=continuation,
+                  thread_datasets=thread_datasets)
     text = question or reading.objective
 
     # Which value restrictions the sentence WIDENED. Recorded on the build, on
@@ -340,7 +342,8 @@ def _plan(reading: Reading, context: GovernedContext, *,
           question: str = "",
           period: tuple[str, str] | None = None,
           state: cv.ConversationState | None = None,
-          continuation: cv.Continuation | None = None) -> AnalysisBuild:
+          continuation: cv.Continuation | None = None,
+          thread_datasets: list[str] | None = None) -> AnalysisBuild:
     """Build the IR one reading implies, or say what is missing.
 
     Never guesses a threshold or a dimension the reading did not carry. A
@@ -427,14 +430,22 @@ def _plan(reading: Reading, context: GovernedContext, *,
                       and "scope_only" in getattr(continuation, "inherited", {}))
     inherited_metrics = (list(state.metrics or state.concepts)
                          if carrying and not scope_only else [])
-    resolved = cx.read_concepts(text, known=known, catalogue=catalogue)
+    # The books this thread is on, so a concept that lives in several of them
+    # resolves to the one the reader is looking at. See `_preferred_datasets`
+    # and `cx.resolve_concept`: it settles a choice between fields that all
+    # carry the concept, and is ranked below both an explicit qualifier and a
+    # steward's declaration of authority.
+    reading_order = _preferred_datasets(state, carrying, thread_datasets)
+    resolved = cx.read_concepts(text, known=known, catalogue=catalogue,
+                                preferred_datasets=reading_order)
     if not resolved.matches and settled_text:
         # The narrowing sentence named no concept, so the measure is the one
         # the settled question named. Re-read rather than recalled: what
         # reaches the plan is a governed concept resolved against the
         # catalogue, never a label copied out of the conversation.
         resolved = cx.read_concepts(settled_text, known=known,
-                                    catalogue=catalogue)
+                                    catalogue=catalogue,
+                                    preferred_datasets=reading_order)
     matches = list(resolved.matches)
     carried_concepts: list[str] = []
     if carrying and inherited_metrics:
@@ -756,7 +767,21 @@ def _plan(reading: Reading, context: GovernedContext, *,
             inherited_count_of=(str((state.ir.get("meta") or {}).get("count_of")
                                     or "") if carrying else ""),
             fallback_dataset=_fallback_dataset(state if carrying else None),
-            preferred_datasets=list(state.datasets) if carrying else None,
+            # Which book the thread is already reading.
+            #
+            # `state.datasets` is filled by the previous ANALYSIS, so a thread
+            # that established its dataset by asking about it — "Show me the
+            # Facility IFRS 9 dataset", then "which sectors have the highest
+            # Stage 2 exposure?" — carried nothing, and the second question
+            # resolved a dataset of its own. The reader is looking at one book
+            # and being answered from another, with nothing on screen saying so.
+            #
+            # It stays a TIE-BREAK. `_base_dataset` ranks calendar first, then
+            # how much of the question's scope the source can express, and only
+            # then this: a dataset the thread named but which cannot carry the
+            # filter still loses, which is what stops a carried name from
+            # quietly narrowing an answer.
+            preferred_datasets=reading_order,
             # A distribution the reader asked for without naming a figure
             # reports how many borrowers sit in each category as well as how
             # much money does. §D2.
@@ -988,6 +1013,21 @@ def _note_unresolved_dimensions(text: str, matches: list[cx.ConceptMatch],
         f"governed catalogue holds no measure for "
         f"{'those' if len(missing) > 1 else 'that'}. This answer is composed "
         f"on {kept or 'the measures it could resolve'} alone.")
+
+
+def _preferred_datasets(state: cv.ConversationState | None, carrying: bool,
+                        thread: list[str] | None) -> list[str] | None:
+    """The sources this thread has on the table, most recent first.
+
+    The analysis that ran is the stronger signal, so it leads; the datasets the
+    conversation merely looked at follow it. Either way this is a preference,
+    never a restriction — see the note at the call site.
+    """
+    order: list[str] = []
+    if carrying and state is not None:
+        order.extend(str(name) for name in state.datasets)
+    order.extend(str(name) for name in (thread or []))
+    return list(dict.fromkeys(order)) or None
 
 
 def _fallback_dataset(state: cv.ConversationState | None) -> str:

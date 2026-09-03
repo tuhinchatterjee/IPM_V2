@@ -1046,10 +1046,34 @@ def _client_authority_over(chosen: Candidate, usable: list[Candidate],
     return client[0]
 
 
+def _carried_candidate(usable: list[Any],
+                       preferred: list[str] | None) -> Any | None:
+    """The first preferred dataset that actually carries this concept.
+
+    Order is the caller's: the dataset an analysis used comes before one the
+    conversation merely looked at.
+    """
+    for name in preferred or []:
+        for candidate in usable:
+            if candidate.dataset == name:
+                return candidate
+    return None
+
+
 def resolve_concept(concept: Concept, question: str, *,
                     known: dict[str, set[str]], catalogue: Any = None,
-                    phrase: str = "") -> ConceptMatch | None:
-    """Choose the field this concept means in THIS question."""
+                    phrase: str = "",
+                    preferred_datasets: list[str] | None = None
+                    ) -> ConceptMatch | None:
+    """Choose the field this concept means in THIS question.
+
+    `preferred_datasets` is the book the conversation is already reading. It
+    settles a choice BETWEEN fields that all carry this concept, and nothing
+    else: it cannot introduce a field the concept does not have, and it is
+    ranked below both an explicit qualifier in the sentence and a steward's
+    declaration of authority. Every use of it is written into the match's
+    reason, so the answer says which source it read and why.
+    """
     lowered = question.lower()
     usable = [c for c in concept.candidates if _available(c, known)]
     if not usable:
@@ -1093,6 +1117,25 @@ def resolve_concept(concept: Concept, question: str, *,
                         "a steward has declared it authoritative; the "
                         f"synthetic source {chosen.dataset}.{chosen.field} "
                         "was not used."))
+        # The dataset this thread is already reading, where it carries the
+        # concept too.
+        #
+        # A reader who asked about Corporate IFRS 9 and then asked a question
+        # about stage and exposure was answered from the facility book, because
+        # the default candidate is chosen without reference to the
+        # conversation. Both figures are governed and both are defensible; the
+        # one the reader is looking at is the one they meant.
+        carried = _carried_candidate(usable, preferred_datasets)
+        if carried is not None and carried is not chosen:
+            return ConceptMatch(
+                concept=concept, candidate=carried, phrase=phrase,
+                confidence=0.85,
+                alternatives=tuple(c for c in usable if c is not carried),
+                reason=(f"'{concept.label}' exists in {len(usable)} governed "
+                        f"datasets. CreditProbe used {carried.dataset}."
+                        f"{carried.field} because this conversation is already "
+                        f"reading {carried.dataset}; the usual default is "
+                        f"{chosen.dataset}.{chosen.field}."))
         others = tuple(c for c in usable if c is not chosen)
         catalogue_note = ""
         if catalogue is not None:
@@ -1108,7 +1151,24 @@ def resolve_concept(concept: Concept, question: str, *,
                     f"{chosen.dataset}.{chosen.field}: {chosen.definition}"
                     + catalogue_note))
 
-    # 3. Genuinely ambiguous. Ask.
+    # 3. Ambiguous — unless the conversation has already settled it.
+    #
+    # Asking which of four datasets a reader meant, one turn after they said
+    # which dataset they were interested in, is the product forgetting what it
+    # was just told. Where the thread names one of the candidates the answer is
+    # given and says which source it used.
+    carried = _carried_candidate(usable, preferred_datasets)
+    if carried is not None:
+        return ConceptMatch(
+            concept=concept, candidate=carried, phrase=phrase, confidence=0.7,
+            alternatives=tuple(c for c in usable if c is not carried),
+            reason=(f"'{concept.label}' could mean any of "
+                    + ", ".join(f"{c.dataset}.{c.field}" for c in usable)
+                    + f". CreditProbe used {carried.dataset}.{carried.field}, "
+                      "because that is the dataset this conversation is "
+                      "reading."))
+
+    # 4. Genuinely ambiguous. Ask.
     return ConceptMatch(
         concept=concept, candidate=usable[0], phrase=phrase, confidence=0.4,
         alternatives=tuple(usable[1:]), needs_clarification=True,
@@ -1146,7 +1206,8 @@ class Reading:
 
 
 def read_concepts(question: str, *, known: dict[str, set[str]],
-                  catalogue: Any = None) -> Reading:
+                  catalogue: Any = None,
+                  preferred_datasets: list[str] | None = None) -> Reading:
     """Every concept the question names, resolved to a governed field.
 
     Deterministic. The reading decides which datasets are joined and therefore
@@ -1164,7 +1225,8 @@ def read_concepts(question: str, *, known: dict[str, set[str]],
         if not match or concept.id in seen:
             continue
         resolved = resolve_concept(concept, text, known=known,
-                                   catalogue=catalogue, phrase=match.group(0))
+                                   catalogue=catalogue, phrase=match.group(0),
+                                   preferred_datasets=preferred_datasets)
         if resolved is None:
             reading.unresolved.append(
                 f"'{match.group(0)}' means {concept.label}, which no governed "

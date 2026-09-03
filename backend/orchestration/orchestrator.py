@@ -574,7 +574,8 @@ def answer(question: str, *, context: Any = None,
             return finish(answered)
 
     return finish(_analyse(answered, question, reading, context, state,
-                           continuation, period, extra_filters))
+                           continuation, period, extra_filters,
+                           thread_datasets=list(memory.datasets)))
 
 
 def _drill_into_the_previous_analysis(
@@ -801,6 +802,19 @@ def _about_the_data(question: str, *, memory: Any = None) -> Any:
                                            period=period, limit=limit),
                 dataset=wanted.name,
                 why=f"the question asks about the {wanted.business_name} dataset")
+
+        # A name the catalogue does not hold.
+        #
+        # Falling through answered "show me the Facility Master dataset" with
+        # "there are 77 governed datasets", which answers a question nobody
+        # asked and hides the fact that the name was not recognised. Checked
+        # before the carried dataset, because naming a dataset — even one that
+        # is not there — is not a follow-up about the last one.
+        unknown = cat.named_but_unknown(question)
+        if unknown and _carried_dataset(memory) is None:
+            return _DataAnswer(
+                result=cat.unknown_dataset_result(question, reading, unknown),
+                why=f"the question names a dataset called {unknown}")
 
         # "Show Q1 2025." / "Show me 50 rows." — the dataset already on the
         # table. Only when there IS one: a bare period with no dataset behind
@@ -1307,7 +1321,8 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
              context: Any, state: cv.ConversationState,
              continuation: cv.Continuation,
              period: tuple[str, str] | None,
-             extra_filters: dict[str, Any] | None) -> Answered:
+             extra_filters: dict[str, Any] | None,
+             thread_datasets: list[str] | None = None) -> Answered:
     """Compose, validate, run and interpret. Or say why it could not."""
     from backend.runtime.executor import ExecutionClass, execute
 
@@ -1348,7 +1363,8 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
     build = None
     try:
         build = ap.plan(reading, context, question=question, period=period,
-                        state=state, continuation=continuation)
+                        state=state, continuation=continuation,
+                        thread_datasets=thread_datasets)
     except ap.CannotPlan as e:
         # A clarification offers a menu, and a menu is only useful to somebody
         # who named something on it. Asked "what is the CEO's tenure?",
