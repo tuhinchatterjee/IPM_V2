@@ -1,6 +1,6 @@
 # Project Planner — final engineering report
 
-Branch `claude/vigilant-darwin-eohyi1`, twelve commits on top of `94e1ca3`.
+Branch `claude/vigilant-darwin-eohyi1`, fifteen commits on top of `94e1ca3`.
 
 ---
 
@@ -27,7 +27,7 @@ both directions, an overnight sweep, a seeded plan and 112 backend tests.
 | Agent | 572 |
 | API router | 698 |
 | Frontend (3 screens, 3 components, formatters) | 1,790 |
-| Tests (backend + frontend) | 2,050 |
+| Tests (backend + frontend) | 2,530 |
 | Seed + browser acceptance | 990 |
 
 The naming collision was real and resolved deliberately: `projects` already
@@ -160,7 +160,7 @@ project, no route edits history, and no registered tool changes a commitment.
 
 ## H. Tests — exactly what was executed
 
-**112 backend tests** in `tests/planner/`, all passing, 10.3 seconds:
+**158 backend tests** in `tests/planner/`, all passing, 10.7 seconds:
 
 | File | Tests | What it proves |
 |---|---|---|
@@ -170,6 +170,7 @@ project, no route edits history, and no registered tool changes a commitment.
 | `test_agent.py` | 19 | The registry's shape, grounding labels, brief/detail agreement, chases as drafts, handler-level permission |
 | `test_adversarial.py` | 32 | Cross-project references, hostile ids, codes and text, value bounds, cycles, concurrency, imports as an attack surface, absent capabilities |
 | `test_performance.py` | 7 | Every read inside a 20-query ceiling with 800 tasks behind it |
+| `test_control.py` | 46 | The deterministic engine directly: lateness boundaries, staleness, weighted progress, cycles, health bands and their sentences, chasing, milestones, and the calendar |
 
 **460 frontend tests** (`npm test`), all passing — 12 of them new, pinning the
 planner's display rules.
@@ -267,7 +268,7 @@ Stated, not hidden.
 
 ## L. Repository state
 
-Branch `claude/vigilant-darwin-eohyi1`, pushed. Twelve commits:
+Branch `claude/vigilant-darwin-eohyi1`, pushed. Fifteen commits:
 
 ```
 196130e A project plan is a schedule, not a spreadsheet of statuses
@@ -282,6 +283,9 @@ cea7357 Nine defects a typecheck could not see
 ecda1cf The sentences in one place, with tests on them
 23ee3ed What did you try?
 23eb484 A knob that changes nothing is worse than no knob
+0b6181a A page that shows a risk but cannot accept one sends people back to email
+c42873f Three pages nobody had made a claim about
+dfc1550 The engine, on its own, and two things it was not doing
 ```
 
 No pull request has been opened. Nothing was merged to `main`, no history was
