@@ -7,6 +7,18 @@ import * as React from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import { ImportPanel } from "@/components/planner/import-panel";
 import {
+  AddTask,
+  AddWorkstream,
+  EditMilestone,
+  EditProject,
+  EditRaid,
+  EditTask,
+  ManageDependencies,
+  ManagePeople,
+} from "@/components/planner/manage";
+import { UpdateRequests } from "@/components/planner/requests";
+import { Timeline } from "@/components/planner/timeline";
+import {
   Due,
   Empty,
   FindingList,
@@ -41,6 +53,7 @@ import { useAsync } from "@/lib/hooks";
 const TABS = [
   { id: "overview", label: "Overview" },
   { id: "plan", label: "Plan" },
+  { id: "timeline", label: "Timeline" },
   { id: "milestones", label: "Milestones" },
   { id: "raid", label: "RAID" },
   { id: "people", label: "People" },
@@ -53,6 +66,12 @@ export default function DeliveryProjectPage() {
   const projectId = Number(params.id);
   const [tab, setTab] = React.useState("overview");
   const [open, setOpen] = React.useState<PlannerTaskRow | null>(null);
+  /** Which row is being edited, by kind and id. One at a time, deliberately. */
+  const [editing, setEditing] = React.useState<string | null>(null);
+  const directory = useAsync(() => api.users(), []);
+  const people = React.useMemo(
+    () => (directory.data?.users ?? []).filter((p) => p.is_active),
+    [directory.data]);
 
   const detail = useAsync(() => api.planner.project(projectId), [projectId]);
   const brief = useAsync(
@@ -152,7 +171,19 @@ export default function DeliveryProjectPage() {
             <SectionCard title="What the schedule rules flag">
               <FindingList findings={findings} />
             </SectionCard>
+            {mayEdit && (
+              <SectionCard title="Project settings">
+                <EditProject detail={detail.data!} people={people}
+                             onSaved={() => detail.reload()} />
+                <p className="px-4 py-2 text-xs text-text-muted">
+                  Dates, cadence and the chase window all feed rules: they
+                  decide what counts as late and when somebody hears about it.
+                </p>
+              </SectionCard>
+            )}
             <Chases projectId={projectId} mayChase={mayEdit} />
+            <UpdateRequests projectId={projectId}
+                            title="Who we have asked, and who has replied" />
             <SectionCard title="Workstreams">
               {workstreams.length === 0 ? (
                 <Empty>No workstreams yet.</Empty>
@@ -201,16 +232,50 @@ export default function DeliveryProjectPage() {
                 </span>
               }
             >
+              {mayEdit && (
+                <>
+                  <AddWorkstream projectId={projectId} people={people}
+                                 onSaved={() => detail.reload()} />
+                  <AddTask detail={detail.data!} people={people}
+                           onSaved={() => detail.reload()} />
+                </>
+              )}
               {openTasks.length === 0 ? (
                 <Empty>Every task on this project is closed.</Empty>
               ) : (
                 openTasks.map((task) => (
-                  <TaskLine key={task.id} task={task} onOpen={setOpen} />
+                  <div key={task.id}>
+                    <div className="flex items-center">
+                      <div className="min-w-0 flex-1">
+                        <TaskLine task={task} onOpen={setOpen} />
+                      </div>
+                      {mayEdit && (
+                        <Button
+                          size="sm" variant="ghost" className="mr-3 shrink-0"
+                          onClick={() => setEditing(
+                            editing === `task-${task.id}`
+                              ? null : `task-${task.id}`)}>
+                          {editing === `task-${task.id}` ? "Close" : "Edit"}
+                        </Button>
+                      )}
+                    </div>
+                    {editing === `task-${task.id}` && (
+                      <div className="px-4 pb-3">
+                        <EditTask detail={detail.data!} task={task}
+                                  people={people}
+                                  onSaved={() => detail.reload()}
+                                  onClose={() => setEditing(null)} />
+                      </div>
+                    )}
+                  </div>
                 ))
               )}
             </SectionCard>
             <SectionCard title={`Dependencies (${dependencies.length})`}>
-              {dependencies.length === 0 ? (
+              {mayEdit ? (
+                <ManageDependencies detail={detail.data!}
+                                    onSaved={() => detail.reload()} />
+              ) : dependencies.length === 0 ? (
                 <Empty>Nothing is linked to anything yet.</Empty>
               ) : (
                 <ul className="divide-y divide-border">
@@ -240,6 +305,11 @@ export default function DeliveryProjectPage() {
                            onApplied={() => detail.reload()} />
             )}
           </>
+        )}
+
+        {tab === "timeline" && (
+          <Timeline projectId={projectId} detail={detail.data!}
+                    mayEdit={mayEdit} />
         )}
 
         {tab === "milestones" && (
@@ -280,6 +350,20 @@ export default function DeliveryProjectPage() {
                     <span className="w-40 text-right text-xs">
                       <Due date={m.target_date} />
                     </span>
+                    {mayEdit && (
+                      <Button size="sm" variant="ghost"
+                              onClick={() => setEditing(
+                                editing === `ms-${m.id}` ? null : `ms-${m.id}`)}>
+                        {editing === `ms-${m.id}` ? "Close" : "Edit"}
+                      </Button>
+                    )}
+                    {editing === `ms-${m.id}` && (
+                      <div className="basis-full pt-2">
+                        <EditMilestone milestone={m} people={people}
+                                       onSaved={() => detail.reload()}
+                                       onClose={() => setEditing(null)} />
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -322,7 +406,22 @@ export default function DeliveryProjectPage() {
                       <span className="ml-auto text-xs text-text-muted">
                         {r.status.toLowerCase()} · {r.owner?.name ?? "no owner"}
                       </span>
+                      {mayEdit && (
+                        <Button size="sm" variant="ghost"
+                                onClick={() => setEditing(
+                                  editing === `raid-${r.id}`
+                                    ? null : `raid-${r.id}`)}>
+                          {editing === `raid-${r.id}` ? "Close" : "Edit"}
+                        </Button>
+                      )}
                     </div>
+                    {editing === `raid-${r.id}` && (
+                      <div className="mt-2">
+                        <EditRaid item={r} people={people}
+                                  onSaved={() => detail.reload()}
+                                  onClose={() => setEditing(null)} />
+                      </div>
+                    )}
                     {r.description && (
                       <p className="mt-1 text-sm text-text-secondary">
                         {r.description}
@@ -347,25 +446,30 @@ export default function DeliveryProjectPage() {
 
         {tab === "people" && (
           <SectionCard title={`People (${participants.length})`}>
-            <ul className="divide-y divide-border">
-              {participants.map((p) => (
-                <li key={p.id}
-                    className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                  <span className="min-w-0 flex-1 truncate text-text-primary">
-                    {p.user?.name ?? "Unknown"}
-                    {p.user?.job_title && (
-                      <span className="ml-2 text-xs text-text-muted">
-                        {p.user.job_title}
-                      </span>
-                    )}
-                  </span>
-                  <Badge variant="outline">
-                    {p.project_role.replace(/_/g, " ").toLowerCase()}
-                  </Badge>
-                  <Badge variant="default">{p.access.toLowerCase()}</Badge>
-                </li>
-              ))}
-            </ul>
+            {mayEdit ? (
+              <ManagePeople detail={detail.data!} people={people}
+                            onSaved={() => detail.reload()} />
+            ) : (
+              <ul className="divide-y divide-border">
+                {participants.map((p) => (
+                  <li key={p.id}
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                    <span className="min-w-0 flex-1 truncate text-text-primary">
+                      {p.user?.name ?? "Unknown"}
+                      {p.user?.job_title && (
+                        <span className="ml-2 text-xs text-text-muted">
+                          {p.user.job_title}
+                        </span>
+                      )}
+                    </span>
+                    <Badge variant="outline">
+                      {p.project_role.replace(/_/g, " ").toLowerCase()}
+                    </Badge>
+                    <Badge variant="default">{p.access.toLowerCase()}</Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
           </SectionCard>
         )}
 

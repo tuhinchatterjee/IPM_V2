@@ -6822,6 +6822,32 @@ export const api = {
       request<{ import_id: number; project_id: number;
                 applied: Record<string, number>; total: number }>(
         `/planner/imports/${importId}/commit`, { method: "POST" }),
+    /**
+     * A workbook that CREATES a project, rather than one that updates an
+     * existing one. A separate call for the same reason it is a separate
+     * route: "which project is this going into?" is the whole difference,
+     * and guessing it is how somebody ends up with two of them.
+     */
+    uploadNewProject: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return request<PlannerImportPreview>(
+        "/planner/imports", { method: "POST", body: form, rawBody: true });
+    },
+    schedule: (id: number) =>
+      request<PlannerSchedule>(`/planner/projects/${id}/schedule`),
+    slip: (id: number, code: string, days: number) =>
+      request<PlannerSlip>(
+        `/planner/projects/${id}/slip?code=${encodeURIComponent(code)}` +
+        `&days=${days}`),
+    requests: (state = "sent") =>
+      request<{ requests: PlannerUpdateRequest[]; count: number;
+                state: string }>(
+        `/planner/requests?state=${encodeURIComponent(state)}`),
+    projectRequests: (id: number, state = "sent") =>
+      request<{ requests: PlannerUpdateRequest[]; count: number;
+                state: string }>(
+        `/planner/projects/${id}/requests?state=${encodeURIComponent(state)}`),
   },
 };
 
@@ -6836,6 +6862,88 @@ export const api = {
 // ---------------------------------------------------------------------------
 
 export type PlannerHealth = "GREEN" | "AMBER" | "RED" | "UNKNOWN";
+
+/**
+ * One node of the calculated schedule.
+ *
+ * `marked_critical` is what somebody ticked; `calculated_critical` is what the
+ * arithmetic says. They are separate fields on purpose — `disagrees` is the
+ * column a project manager reads first.
+ */
+export type PlannerScheduleNode = {
+  kind: string;
+  id: number;
+  code: string;
+  name: string;
+  duration_days: number;
+  duration_from: string;
+  planned_start: string | null;
+  planned_finish: string | null;
+  early_start: string;
+  early_finish: string;
+  late_start: string;
+  late_finish: string;
+  total_float_days: number;
+  calculated_critical: boolean;
+  marked_critical: boolean;
+  complete: boolean;
+  disagrees: boolean;
+};
+
+export type PlannerSchedule = {
+  computed: boolean;
+  basis: string;
+  version: string;
+  nodes: PlannerScheduleNode[];
+  critical_path: string[];
+  project_start: string | null;
+  project_finish: string | null;
+  /** Present exactly when `computed` is false. Never empty in that case. */
+  cannot_because: string[];
+  marked_not_calculated: string[];
+  calculated_not_marked: string[];
+  project_id?: number;
+  project_code?: string;
+};
+
+export type PlannerSlip = {
+  computed: boolean;
+  code: string;
+  days: number;
+  moved?: {
+    code: string; name: string; kind: string; days: number;
+    was: string; now: string; float_before: number;
+  }[];
+  finish_moves_by?: number;
+  absorbed?: boolean;
+  project_finish_before?: string | null;
+  project_finish_after?: string | null;
+  cannot_because?: string[];
+};
+
+/** A chase: a reminder somebody is expected to answer. */
+export type PlannerUpdateRequest = {
+  id: number;
+  project_id: number;
+  project_code: string;
+  project_name: string;
+  task_id: number;
+  task_code: string;
+  task_title: string;
+  task_status: string;
+  task_percent: number | null;
+  person: { id: number; name: string; username: string } | null;
+  requested_by: { id: number; name: string; username: string } | null;
+  reason: string;
+  trigger: string;
+  state: string;
+  sent_at: string | null;
+  responded_at: string | null;
+  response: {
+    narrative: string; blocker: string; next_step: string;
+    new_percent: number | null; new_status: string;
+  } | null;
+};
 
 export type PlannerPerson = {
   id: number;

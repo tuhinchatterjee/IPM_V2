@@ -203,3 +203,126 @@ export function ImportPanel({
     </SectionCard>
   );
 }
+
+/**
+ * The other half: a workbook that CREATES a project.
+ *
+ * Same two steps and the same reasons — see what it would do, then apply it —
+ * but nothing exists to import into yet, so the preview is of a project as
+ * well as its contents. Nothing is written until the second click, including
+ * the project: a workbook with a bad date in TASKS row 2 leaves no half-made
+ * project behind.
+ */
+export function ImportNewProject({
+  onCreated,
+}: {
+  onCreated: (projectId: number) => void;
+}) {
+  const [preview, setPreview] = React.useState<PlannerImportPreview | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const input = React.useRef<HTMLInputElement>(null);
+
+  async function choose(file: File) {
+    setBusy(true);
+    setError(null);
+    setPreview(null);
+    try {
+      setPreview(await api.planner.uploadNewProject(file));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That file could not be read.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function apply() {
+    if (!preview) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.planner.commitImport(preview.import_id);
+      onCreated(result.project_id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That could not be applied.");
+      setBusy(false);
+    }
+  }
+
+  const summary = preview?.summary;
+
+  return (
+    <div className="px-4 py-3">
+      <input
+        ref={input}
+        type="file"
+        accept=".xlsx"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void choose(file);
+          e.target.value = "";
+        }}
+      />
+      <Button variant="outline" size="sm" disabled={busy}
+              onClick={() => input.current?.click()}>
+        {busy ? "Reading…" : "Choose a workbook"}
+      </Button>
+
+      {error && <p className="mt-3 text-sm text-negative">{error}</p>}
+
+      {preview && summary && (
+        <div className="mt-4 rounded-md border border-border">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+            <span className="text-sm font-medium text-text-primary">
+              {preview.project_code || preview.filename}
+            </span>
+            <Badge variant="info">{summary.creates} to create</Badge>
+            {summary.issues > 0 && (
+              <Badge variant="negative">{summary.issues} to fix</Badge>
+            )}
+            <div className="ml-auto flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setPreview(null)}>
+                Discard
+              </Button>
+              <Button size="sm" disabled={!summary.ok || busy} onClick={apply}>
+                {summary.ok ? "Create the project" : "Fix the errors first"}
+              </Button>
+            </div>
+          </div>
+
+          {preview.issues.length > 0 && (
+            <ul className="max-h-56 overflow-y-auto border-b border-border">
+              {preview.issues.map((issue, i) => (
+                <li key={i}
+                    className="flex gap-3 border-t border-border px-3 py-1.5 text-xs first:border-0">
+                  <span className="w-40 shrink-0 font-mono text-text-muted">
+                    {issue.sheet} row {issue.row}
+                  </span>
+                  <span className="w-32 shrink-0 text-text-secondary">
+                    {issue.column}
+                  </span>
+                  <span className="text-text-primary">{issue.message}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <ul className="max-h-72 overflow-y-auto">
+            {preview.changes.map((c, i) => (
+              <li key={i}
+                  className="flex gap-3 border-t border-border px-3 py-1.5 text-xs first:border-0">
+                <span className="w-24 shrink-0 font-mono text-text-muted">
+                  {c.sheet}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-text-primary">
+                  {c.label}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}

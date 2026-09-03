@@ -64,6 +64,9 @@ export default function DeliveryPortfolioPage() {
             <Button asChild variant="outline" size="sm">
               <a href={api.planner.templateUrl()}>Plan template</a>
             </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/delivery/new">New project</Link>
+            </Button>
             <Button asChild size="sm">
               <Link href="/delivery/my-work">My work</Link>
             </Button>

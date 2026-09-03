@@ -5,6 +5,7 @@ import * as React from "react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { QuickUpdate } from "@/components/planner/quick-update";
+import { UpdateRequests } from "@/components/planner/requests";
 import { SectionCard, Stat, TaskLine } from "@/components/planner/parts";
 import type { PlannerTaskRow } from "@/lib/api";
 import { api } from "@/lib/api";
@@ -101,6 +102,10 @@ export default function MyWorkPage() {
             </SectionCard>
           );
         })}
+        {/* What CreditProbe has asked YOU for. Separate from the buckets
+            because a request is not a task: it is somebody waiting on a
+            sentence, and it closes when you write one. */}
+        <UpdateRequests title="What you have been asked for" />
       </div>
 
       {open && (
