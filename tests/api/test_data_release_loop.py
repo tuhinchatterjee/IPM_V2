@@ -161,6 +161,12 @@ def loop(client):
     """
     from backend.data_access import get_data_source
 
+    # Residue from a run that was interrupted before its teardown would make
+    # this one stage v2 and fail an assertion about v1 — which reads as a
+    # defect in the product and is a defect in the housekeeping. Cleared
+    # first, so the loop starts from the same place every time.
+    _forget(NEW_PERIOD)
+
     before = list(get_data_source().periods(DATASET))
     assert NEW_PERIOD not in before, (
         f"{NEW_PERIOD} is already published; the loop needs a period that is "
@@ -213,7 +219,10 @@ def _run(client, steps: dict, source_period: str) -> dict:
                                   json={"note": "Read before locking."})
     steps["lock"] = client.post(f"{base}/periods/{release_id}/lock",
                                 json={"note": "Checked against Q2."})
-    steps["publish"] = client.post(f"{base}/periods/{release_id}/publish")
+    # Identified on purpose. Publishing is recorded against whoever did it,
+    # and an audit row with no named actor answers nothing.
+    steps["publish"] = client.post(f"{base}/periods/{release_id}/publish",
+                                   headers={"X-IPM-User-Id": "1"})
 
     # ---- 7-11. the questions ----------------------------------------------
     from backend.orchestration import memory as wm
@@ -499,6 +508,37 @@ class TestSharingKeepsEveryBlock:
         payload = store.load_version(int(shared["run_id"]))
         package = payload.get("package") or {}
         assert package.get("counts", {}).get("analyses") == shared["blocks"]
+
+
+class TestPublishingLeavesARecord:
+    """Publishing a period changes what every later answer is computed from.
+
+    It is the most consequential thing anybody does on that screen, and it
+    left no audit row at all until this test was written.
+    """
+
+    def test_the_publication_is_audited(self, loop) -> None:
+        from sqlalchemy import select
+
+        from backend.db.engine import get_session
+        from backend.models.collaboration import CollaborationAudit
+
+        release = loop["publish"].json()["release"]
+        with get_session() as session:
+            rows = list(session.execute(
+                select(CollaborationAudit).where(
+                    CollaborationAudit.action == "DATA_PERIOD_PUBLISHED",
+                    CollaborationAudit.object_id == str(release["id"]))
+            ).scalars())
+        assert rows, "publishing a period wrote no audit record"
+        detail = rows[0].detail or {}
+        assert detail.get("dataset") == DATASET
+        assert detail.get("period") == NEW_PERIOD
+        assert detail.get("rows") == release["rows"]
+        assert detail.get("source_sha256"), (
+            "the record must say which file this came from")
+        assert rows[0].actor_id == 1, (
+            "the record must name whoever published it")
 
 
 # ======================================== 17. the quarter comes back corrected

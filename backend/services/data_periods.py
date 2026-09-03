@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import shutil
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -296,8 +297,35 @@ def check(dataset: DatasetDefinition, frame: pd.DataFrame, period: str, *,
 # ------------------------------------------------------------- the lifecycle
 
 
+#: What a reporting period label is allowed to be.
+#:
+#: A period reaches the filesystem twice — the staging directory and the
+#: published partition — and it arrives from an upload form. Before this,
+#: `period=../../../../tmp/x` wrote a partition outside the data lake
+#: entirely: the staging path stripped "/" but the partition path did not,
+#: and neither stripped a dot segment. Sanitising the two paths separately is
+#: how that kind of hole reopens, so the label is checked once, at the door,
+#: and everything downstream can treat it as a name.
+#:
+#: Positive rather than a blocklist: letters, digits, spaces and a few
+#: separators that real period labels use — "Q3 2026", "2026-09", "FY2026",
+#: "Sep 2026". Nothing that is a path, a dot segment, or a control character.
+PERIOD_LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _.\-]{0,63}$")
+
+
+def check_period_label(period: str) -> str:
+    """The label, cleaned, or a refusal saying why it is not one."""
+    label = " ".join(str(period or "").split())
+    if not PERIOD_LABEL.match(label) or ".." in label:
+        raise DataBuilderError(
+            f"{period!r} is not a reporting period label. A period is written "
+            "the way the dataset publishes it — Q3 2026, 2026-09, FY2026 — "
+            "using letters, digits, spaces, dots, hyphens and underscores.")
+    return label
+
+
 def _staging_dir(dataset_name: str, period: str) -> Path:
-    safe = str(period).replace("/", "-").replace(" ", "_")
+    safe = check_period_label(period).replace(" ", "_")
     return Path(settings.raw_dir) / "staged" / dataset_name / safe
 
 
@@ -382,12 +410,12 @@ def stage(session: Session, dataset_name: str, *, content: bytes,
     person moves it from there.
     """
     dataset = get_dataset(session, dataset_name)
-    period = " ".join(str(period or "").split())
-    if not period:
+    if not str(period or "").strip():
         raise DataBuilderError(
             "A period upload has to say which period it is. "
             f"{dataset.business_name or dataset.name} publishes by "
             f"{_period_field(dataset) or 'no period column'}.")
+    period = check_period_label(period)
 
     if mode not in (PERIOD_MODE_NEW, PERIOD_MODE_REPLACE):
         raise DataBuilderError(
@@ -510,8 +538,17 @@ def publish(session: Session, release_id: int, *,
             f"{dataset.name} publishes no period column, so it cannot take a "
             "period release.")
 
+    # Checked again here rather than trusted from the row. A release is
+    # staged and published by two separate calls, and a label that was legal
+    # when it was staged is the only thing standing between an upload form and
+    # a write outside the data lake.
     part = (Path(settings.analytics_dir) / dataset.name
-            / f"{field_name}={release.period}")
+            / f"{field_name}={check_period_label(release.period)}")
+    lake = Path(settings.analytics_dir).resolve()
+    if not str(part.resolve()).startswith(str(lake)):  # pragma: no cover
+        raise DataBuilderError(
+            f"{release.period!r} does not name a partition inside the "
+            "governed data lake.")
     part.mkdir(parents=True, exist_ok=True)
     frame.to_parquet(part / "data.parquet", index=False)
 
@@ -579,6 +616,7 @@ def describe(release: DataPeriodRelease) -> dict[str, Any]:
     }
 
 
-__all__ = ["PERIODS_VERSION", "ROW_COUNT_DRIFT", "ERROR", "WARNING", "INFO",
+__all__ = ["PERIODS_VERSION", "ROW_COUNT_DRIFT", "PERIOD_LABEL",
+           "check_period_label", "ERROR", "WARNING", "INFO",
            "Finding", "Report", "check", "stage", "send_to_review", "lock",
            "publish", "discard", "history", "current_release", "describe"]

@@ -1179,6 +1179,16 @@ async def upload_period(
     person moves it on from there.
     """
     content = await file.read()
+    # The same cap every other upload route applies. This one did not, and an
+    # upload route without one is a way to take the process down with a single
+    # request.
+    if len(content) > settings.max_upload_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail={"error": "file_too_large",
+                    "message": f"The file is larger than the "
+                               f"{settings.max_upload_mb} MB limit."},
+        )
     try:
         release = periods_service.stage(
             session, name, content=content, filename=file.filename or "upload",
@@ -1193,7 +1203,13 @@ async def upload_period(
 @router.get("/datasets/{name}/periods",
             summary="Every release of every period, newest first")
 def period_history(name: str, period: str = "",
-                   session: Session = Depends(get_db)) -> dict:
+                   session: Session = Depends(get_db),
+                   principal: Principal = RequireDataSteward) -> dict:
+    # Every other route on this router names who may call it. This one did
+    # not, and answered an unauthenticated caller with the release history:
+    # source filenames, checksums, who uploaded and reviewed each version,
+    # and what the checks found. That is operational detail about the bank's
+    # own data, and it sat behind no session at all.
     try:
         releases = periods_service.history(session, name, period=period)
     except DataBuilderError as e:
@@ -1267,6 +1283,22 @@ def period_publish(release_id: int, session: Session = Depends(get_db),
 
     dataset = session.get(DatasetDefinition, release.dataset_id)
     label = (getattr(dataset, "business_name", "") or release.period)
+
+    # Who published which period of what, when — inside the same transaction
+    # as the publication itself, so the log cannot say it happened when it did
+    # not. Publishing a period changes what every later answer is computed
+    # from; it is the most consequential thing anybody does on this screen and
+    # it was the one thing on it that left no record.
+    collaboration.audit(
+        session, "DATA_PERIOD_PUBLISHED", actor_id=principal.user_id,
+        object_type="data_period_release", object_id=str(release.id),
+        dataset=getattr(dataset, "name", ""), period=release.period,
+        version=release.version, mode=release.mode,
+        rows=release.row_count, fields=release.field_count,
+        source_filename=release.source_filename,
+        source_sha256=release.source_sha256,
+        validated=bool((release.validation or {}).get("passed")),
+    )
     session.commit()
 
     # The analytical engine cannot see a period it has not been told about.
