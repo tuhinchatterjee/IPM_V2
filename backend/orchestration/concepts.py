@@ -188,7 +188,16 @@ CONCEPTS: tuple[Concept, ...] = (
                "for undrawn commitments.", "at default", "ccf", "committed"),
             _c(IFRS9, "ead",
                "Exposure as the impairment calculation used it.",
-               "regulatory", "ifrs9", "ifrs 9"),
+               # The IFRS 9 vocabulary IS the qualifier. "Stage 2 exposure",
+               # "the exposure behind the ECL", "exposure-weighted PD" all
+               # name the impairment exposure, and asking which of three
+               # measures was meant is asking a question the sentence already
+               # answered. Written as the words a person uses rather than as
+               # the word "ifrs9", which nobody types.
+               "regulatory", "ifrs9", "ifrs 9",
+               "stage 1", "stage 2", "stage 3", "ifrs 9 stage",
+               "expected credit loss", "ecl", "impairment", "provision",
+               "12-month pd", "lifetime pd", "loss given default"),
         )),
     Concept(
         id="notches_since_origination", label="notches since origination",

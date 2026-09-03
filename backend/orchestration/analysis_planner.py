@@ -3838,6 +3838,16 @@ def _two_periods(reading: Reading, context: GovernedContext, text: str, *,
     return default.from_period, default.to_period, "", True
 
 
+def _plural_grain(grain: str) -> str:
+    """A grain word in the plural, spelled the way English spells it."""
+    word = (grain or "row").strip()
+    if word.endswith("y") and not word.endswith(("ay", "ey", "oy", "uy")):
+        return word[:-1] + "ies"
+    if word.endswith(("s", "x", "z", "ch", "sh")):
+        return word + "es"
+    return word + "s"
+
+
 def _two_period_summary(conditions: list[Condition],
                         filters: list[tuple[str, str]],
                         opening: str, closing: str, grain: str,
@@ -3849,8 +3859,15 @@ def _two_period_summary(conditions: list[Condition],
     question said — so "Stage 2 borrowers NOT on watchlist" was headed "where
     on the watchlist" over rows that were not.
     """
-    where = " ".join(v for _, v in filters)
-    subject = f"{where} {grain}s" if where else f"{grain}s"
+    # Through the scope frame, which is where "stage 2" rather than bare "2"
+    # lives. This headline printed the filter VALUE with no dimension name in
+    # front of it, so a question about Stage 2 came back headed "All 2
+    # facilitys" — a number that reads as a count, on a plural nobody writes.
+    from backend.orchestration import scope as sc
+
+    where = sc.phrase(filters) if filters else ""
+    subject = f"{where} {_plural_grain(grain)}" if where \
+        else _plural_grain(grain)
     if not conditions:
         return f"How {subject} moved between {opening} and {closing}."
     stated = logic or ", ".join(c.describe() for c in conditions)

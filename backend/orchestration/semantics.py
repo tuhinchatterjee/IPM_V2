@@ -211,6 +211,17 @@ def find_movement(text: str) -> Movement | None:
         # "ECL rose by more than six", which is a different and much smaller
         # cohort — and nothing on screen said so.
         magnitude = None
+    if magnitude and _is_a_label(tail, magnitude):
+        # "What drove the increase in STAGE 2 exposure?" says WHICH, not HOW
+        # MUCH. The 2 is the name of a stage, and reading it as a threshold
+        # produced "IFRS 9 stage is 2 and IFRS 9 stage rose and EAD rose more
+        # than 2" — three conditions from a sentence that states one, and two
+        # facilities where the question was about a portfolio.
+        #
+        # Same shape as the period guard above and for the same reason: a
+        # category label is a TYPE, not a quantity, and the two must not share
+        # a parser.
+        magnitude = None
     if not magnitude:
         return Movement(direction=direction, phrase=text.strip())
 
@@ -242,6 +253,19 @@ _TIME_UNIT = re.compile(
     r"^\s*(?:(?:reporting|calendar|fiscal|financial|trading|business|"
     r"consecutive|full)\s+)?"
     r"(?:months?|quarters?|years?|weeks?|days?|periods?)\b", re.I)
+
+
+#: Nouns whose following number NAMES a category rather than sizing a change.
+#: "stage 2", "grade 7", "bucket 3", "band 4" are all the identity of a class.
+#: Notches are deliberately absent: "deteriorated two notches" IS a magnitude.
+_LABEL_NOUN = re.compile(
+    r"(?:stages?|grades?|buckets?|bands?|tiers?|categor(?:y|ies)|classes|"
+    r"class|levels?|rating grades?)\s*$", re.I)
+
+
+def _is_a_label(tail: str, magnitude: Any) -> bool:
+    """Whether the number after a movement word names a category."""
+    return bool(_LABEL_NOUN.search(tail[:magnitude.start()]))
 
 
 def _is_a_period(tail: str, magnitude: Any) -> bool:

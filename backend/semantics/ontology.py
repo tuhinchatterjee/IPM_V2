@@ -320,8 +320,18 @@ CONTRACTS: tuple[SemanticContract, ...] = (
                         "The full facility limit, drawn or not. What "
                         "concentration and appetite reporting use."),
             ),
+            # An IFRS 9 context settles it. "Which sectors have the highest
+            # Stage 2 exposure?" was answered with "which exposure figure
+            # should CreditProbe use?" — a question the sentence had already
+            # answered, on one of the Cockpit's own starter questions. Stage,
+            # ECL, impairment and the risk parameters all mean the exposure
+            # the impairment calculation uses, which is EAD.
             resolvers=("drawn", "outstanding", "at default", "ead", "ccf",
-                       "committed", "limit", "regulatory", "ifrs 9", "ifrs9"),
+                       "committed", "limit", "regulatory", "ifrs 9", "ifrs9",
+                       "stage 1", "stage 2", "stage 3",
+                       "expected credit loss", "ecl", "impairment",
+                       "provision", "12-month pd", "lifetime pd",
+                       "loss given default"),
         ),
         natural_grain="facility",
         unit="SAR mn",
