@@ -97,8 +97,13 @@ _FACILITY_NOUNS = re.compile(
 
 #: 1. An explicit instruction to break the answer down.
 _BREAKDOWN = re.compile(
-    r"\b(?:for each|for every|grouped by|group by|broken down by|split by|"
-    r"by|per|across)\s+(?P<phrase>[a-z0-9][a-z0-9 ]{1,30}?)"
+    # "in each" and "in every" are the same instruction as "for each", and
+    # they are how the question is usually put when the measure is a count:
+    # "how many facilities are in each IFRS 9 stage". Without them the
+    # breakdown was not read at all, so the count grouped by the facility key
+    # and came back one row per facility under a question about three stages.
+    r"\b(?:for each|for every|in each|in every|grouped by|group by|"
+    r"broken down by|split by|by|per|across)\s+(?P<phrase>[a-z0-9][a-z0-9 ]{1,30}?)"
     r"\s*(?:,|\.|;|\?|$|\band\b|\bshow\b|\bwith\b|\bin the\b|\bfor the\b|"
     r"\bat\b|\bover the\b|\bduring\b|\bthis\b|\blast\b)")
 

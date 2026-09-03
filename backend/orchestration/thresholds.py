@@ -95,8 +95,21 @@ _PLUS_SUFFIX = re.compile(r"(?P<number>\d+(?:\.\d+)?)\s*\+", re.IGNORECASE)
 #: that "fell below" crossed downward; one that "rose above" crossed upward.
 #: `became` and `went` are included because "became 30+ DPD" and "went above
 #: 90%" are the two most common ways a credit officer says it.
-_DOWNWARD = r"fell|fall\w*|declin\w*|drop\w*|slip\w*|sank|sunk|went|moved|dipped"
-_UPWARD = r"ros\w*|rose|increas\w*|climb\w*|grew|jump\w*|went|moved|became|hit|reach\w*"
+#: The movement words a bound can follow. Kept in step with
+#: `semantics.DIRECTIONS`, which is the canonical vocabulary: this reader only
+#: has to know that a movement word came first, not which way it points.
+#:
+#: The evaluative half was missing, and its absence was a real defect rather
+#: than a gap. "rating deteriorated at least two notches" states a DISTANCE
+#: after a movement word — two notches of movement — and with "deteriorated"
+#: unknown here the guard below did not fire, so the magnitude was read as a
+#: level: a one-date test that the rating IS at least two, on a two-date
+#: question about how far it moved.
+_DOWNWARD = (r"fell|fall\w*|declin\w*|drop\w*|slip\w*|sank|sunk|went|moved"
+             r"|dipped|deteriorat\w*|worsen\w*|weaken\w*|downgrad\w*"
+             r"|eroded?|under ?perform\w*")
+_UPWARD = (r"ros\w*|rose|increas\w*|climb\w*|grew|jump\w*|went|moved|became"
+           r"|hit|reach\w*|improv\w*|strengthen\w*|recover\w*|upgrad\w*")
 
 #: The bounds that state a POSITION rather than a distance.
 #:
@@ -129,6 +142,12 @@ _CROSSING_PLUS = re.compile(
     r"(?:into\s+|to\s+)?(?P<number>\d+(?:\.\d+)?)\s*\+",
     re.IGNORECASE,
 )
+
+
+#: Where one clause of a compound condition stops. A bound binds to the measure
+#: in its own clause and no further.
+_CLAUSE_END = re.compile(r"[,;]|\band\b|\bor\b|\bwhile\b|\bwhereas\b",
+                         re.IGNORECASE)
 
 
 def _bound_op(word: str) -> str:
@@ -230,7 +249,15 @@ def read_levels(text: str, *, resolver: Any = None, whole: str = ""
             # days past due" carries its measure across the unit word, and
             # cutting after "30 days" leaves "past due", which the governed
             # lexicon spells "days past due" and so does not match.
-            after = text[match.start():]
+            # ...and only as far as the end of THIS clause. Reading to the
+            # end of the sentence let one bound reach across a comma into the
+            # next condition's measure: in "ECL increased more than 20%,
+            # rating deteriorated at least two notches, and DSCR fell below
+            # 1.2x" the first bound found "rating" three clauses later and
+            # produced a level test that the internal grade is above 20 — a
+            # condition the sentence never states, on a measure it never
+            # bounded.
+            after = _CLAUSE_END.split(text[match.start():], 1)[0]
             found = _field_for(after, resolver, whole or text)
             if not found:
                 continue

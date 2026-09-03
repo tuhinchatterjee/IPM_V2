@@ -60,6 +60,18 @@ class HandlerResult:
     #: the judgment bridge, the Assurance collector and the proof probe, all
     #: of which want the object rather than a rendering of it. §3.
     composition: Any = None
+    #: The sub-analyses THEMSELVES, when this answer was composed out of
+    #: several. Each entry is `{"title", "asked", "because", "finding",
+    #: "answered"}` and the `answered` carries a real build and runtime.
+    #:
+    #: Before this field existed a composed answer had nowhere to put its
+    #: parts: four governed analyses over a sector produced four tables of
+    #: real rows, and the response contract could only return one result, so
+    #: the composition flattened them into four sentences and discarded the
+    #: rows. The sentences are still the synthesis; these are the analyses.
+    #: Not serialized by `to_dict` for the same reason `composition` is not —
+    #: the assembler wants the objects.
+    analyses: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {

@@ -273,9 +273,15 @@ def from_handler(question: str, reading: cap.Reading,
         findings=[], interpretation="", interpretation_points=[],
         caveats=list(result.warnings),
     )
+    # A composed review's first block is the SUMMARY of what was checked, and
+    # calling it "Analysis" told a reader nothing — least of all that four
+    # more analyses follow it, each with its own figures.
+    composed_of = list(getattr(result, "analyses", None) or [])
     step = ExecutedStep(
         index=0, analysis_id=f"capability_{reading.intent.lower()}",
-        title=reading.label, rationale=reading.reasoning,
+        title=("What was checked, and what it found" if composed_of
+               else reading.label),
+        rationale=reading.reasoning,
         params={"intent": reading.intent}, filters={}, period="",
         status="succeeded", certification="metadata", analysis_version="",
         duration_ms=duration_ms,
@@ -295,6 +301,39 @@ def from_handler(question: str, reading: cap.Reading,
         trace=result.graph.to_dict() if result.graph else None,
         node_hashes={}, role="primary",
     )
+    # ------------------------------------------------ the composed analyses
+    # A composed answer is not one result. "Investigate Shipping" runs four
+    # governed analyses, and until these were carried through, three of them
+    # reached the reader only as a sentence in a summary table. Each one is
+    # built here exactly the way a single answer's analysis is built, so the
+    # rows, the columns, the chosen visual, the query and the Trace all
+    # survive.
+    steps: list[ExecutedStep] = [step]
+    for sub in composed_of:
+        answered = sub.get("answered")
+        build = getattr(answered, "build", None)
+        runtime = getattr(answered, "runtime", None)
+        if build is None or runtime is None:
+            continue
+        try:
+            steps.append(analysis_step(
+                str(sub.get("asked") or question),
+                getattr(answered, "reading", reading), build, runtime,
+                index=len(steps), role="supporting",
+                title=str(sub.get("title") or ""),
+                rationale=str(sub.get("because") or ""),
+                asked=str(sub.get("asked") or ""),
+                finding=str(sub.get("finding") or "")))
+        except Exception as e:  # noqa: BLE001 - one block must not lose the rest
+            logger.warning("Could not assemble a composed analysis %r: %s",
+                           sub.get("title"), e)
+    if len(steps) > 1:
+        plan.steps.extend(
+            PlanStep(analysis_id="dynamic_analysis", title=sub.title,
+                     rationale=sub.rationale, params=dict(sub.params),
+                     filters=dict(sub.filters), role=StepRole.SUPPORTING)
+            for sub in steps[1:])
+
     graph = result.graph or TraceGraph()
     # Every other assembly path opens the Trace with the question and how it
     # was read. This one did not, so a broad investigation — the most
@@ -319,7 +358,7 @@ def from_handler(question: str, reading: cap.Reading,
         node.mark_ok()
         graph.connect("question", "intent")
     return Investigation(
-        question=question, plan=plan, steps=[step], narrative=narrative,
+        question=question, plan=plan, steps=steps, narrative=narrative,
         graph=graph, node_hashes=graph.compute_hashes(),
         duration_ms=duration_ms, status="succeeded",
         mode={**mode, "execution": result.execution,
@@ -524,6 +563,85 @@ def _name_the_row(narrative: Narrative, build: ap.AnalysisBuild) -> None:
         f"{ordinal.get('of') or 0} the previous answer returned. {direct}")
 
 
+def analysis_step(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
+                  runtime: Any, *, index: int = 0, role: str = "primary",
+                  values: dict[str, Any] | None = None,
+                  title: str = "", rationale: str = "",
+                  asked: str = "", finding: str = "") -> ExecutedStep:
+    """One computed analysis, as a step the answer surface can render.
+
+    Extracted so a COMPOSED answer builds its sub-analyses exactly the way a
+    single answer builds its one. Before this, a broad investigation ran four
+    governed analyses and then had nowhere to put three of them: the response
+    contract said an answer was one result, so the composition flattened four
+    tables of real rows into four sentences about them and threw the rows
+    away. Four analyses paid for, one paragraph delivered.
+
+    `title`, `rationale`, `asked` and `finding` are the composition's own words
+    for a sub-analysis — "Expected credit loss", "a rise is deterioration",
+    the governed question it was asked as. A single answer supplies none of
+    them and gets the shape-derived defaults.
+    """
+    values = _values(build, runtime) if values is None else values
+    return ExecutedStep(
+        index=index, analysis_id="dynamic_analysis",
+        title=title or _title(build),
+        rationale=rationale or _rationale(build),
+        params={"shape": build.shape, "grain": build.grain,
+                "period": build.period, "opening_period": build.opening,
+                "closing_period": build.closing, "datasets": build.datasets,
+                "dimension": build.dimension, "top_n": build.top_n},
+        filters={f: v for f, v in build.filters},
+        period=build.closing or build.period, status="succeeded",
+        certification=runtime.certification, analysis_version="",
+        duration_ms=runtime.duration_ms,
+        result={
+            "values": values,
+            "units": _units(build),
+            "input_row_count": runtime.row_count,
+            "meta": {"execution": runtime.certification, "shape": build.shape,
+                     "grain": build.grain},
+            "rows": runtime.rows,
+            # Columns carry what they ARE, not only what they are called. A
+            # float printed at full precision looks like a defect, and a bare
+            # measure column in a two-period plan is the OPENING value —
+            # labelling it with the measure alone put a zero beside a claim
+            # that the figure had risen.
+            "columns": _presented(runtime, build),
+            "warnings": [*runtime.warnings, *build.warnings],
+            "chart": runtime.chart, "truncated": runtime.truncated,
+            # What to DRAW, decided from the shape of the result and from what
+            # the user asked for — never from the values. Carries its own
+            # reason and always a table toggle: a chart a credit officer
+            # cannot check against its figures is one they may not act on.
+            "visual": _visual(runtime, build, asked or question).to_dict(),
+            "certification": runtime.certification,
+            "certification_label": runtime.certification_label,
+            "capability": reading.to_dict(),
+            "reading": build.to_dict(),
+            "plan": build.plan,
+            "query": runtime.query.to_dict() if runtime.query else None,
+            "joins": runtime.joins,
+            "reconciliation": runtime.reconciliation,
+            "fingerprint": runtime.fingerprint,
+            "datasets": build.datasets,
+            "explanation": build.summary,
+            "formulas": formulas(build),
+            "plain_english": plain_english(build),
+            "join_plan": (build.request.resolution.to_dict()
+                          if build.request is not None
+                          and build.request.resolution else None),
+            # The composition's own labelling, where there is one. Read by the
+            # response package so a block can say what it asked and what it
+            # found without re-deriving either.
+            "asked": asked or question,
+            "finding": finding,
+        },
+        error=None,
+        trace=None, node_hashes={}, role=role,
+    )
+
+
 def from_analysis(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
                   runtime: Any, *, duration_ms: int,
                   mode: dict[str, Any]) -> Investigation:
@@ -566,57 +684,8 @@ def from_analysis(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
     values = _values(build, runtime)
     narrative = _narrative(question, build, runtime, values)
     _name_the_row(narrative, build)
-    step = ExecutedStep(
-        index=0, analysis_id="dynamic_analysis", title=_title(build),
-        rationale=_rationale(build),
-        params={"shape": build.shape, "grain": build.grain,
-                "period": build.period, "opening_period": build.opening,
-                "closing_period": build.closing, "datasets": build.datasets,
-                "dimension": build.dimension, "top_n": build.top_n},
-        filters={f: v for f, v in build.filters},
-        period=build.closing or build.period, status="succeeded",
-        certification=runtime.certification, analysis_version="",
-        duration_ms=runtime.duration_ms,
-        result={
-            "values": values,
-            "units": _units(build),
-            "input_row_count": runtime.row_count,
-            "meta": {"execution": runtime.certification, "shape": build.shape,
-                     "grain": build.grain},
-            "rows": runtime.rows,
-            # Columns carry what they ARE, not only what they are called. A
-            # float printed at full precision looks like a defect, and a bare
-            # measure column in a two-period plan is the OPENING value —
-            # labelling it with the measure alone put a zero beside a claim
-            # that the figure had risen.
-            "columns": _presented(runtime, build),
-            "warnings": [*runtime.warnings, *build.warnings],
-            "chart": runtime.chart, "truncated": runtime.truncated,
-            # What to DRAW, decided from the shape of the result and from what
-            # the user asked for — never from the values. Carries its own
-            # reason and always a table toggle: a chart a credit officer
-            # cannot check against its figures is one they may not act on.
-            "visual": _visual(runtime, build, question).to_dict(),
-            "certification": runtime.certification,
-            "certification_label": runtime.certification_label,
-            "capability": reading.to_dict(),
-            "reading": build.to_dict(),
-            "plan": build.plan,
-            "query": runtime.query.to_dict() if runtime.query else None,
-            "joins": runtime.joins,
-            "reconciliation": runtime.reconciliation,
-            "fingerprint": runtime.fingerprint,
-            "datasets": build.datasets,
-            "explanation": build.summary,
-            "formulas": formulas(build),
-            "plain_english": plain_english(build),
-            "join_plan": (build.request.resolution.to_dict()
-                          if build.request is not None
-                          and build.request.resolution else None),
-        },
-        error=None,
-        trace=None, node_hashes={}, role="primary",
-    )
+    step = analysis_step(question, reading, build, runtime, index=0,
+                         role="primary", values=values)
 
     graph = analysis_graph(question, reading, build, runtime, narrative)
     step.trace = graph.to_dict()

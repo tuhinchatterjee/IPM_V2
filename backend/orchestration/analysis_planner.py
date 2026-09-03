@@ -2258,6 +2258,15 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     elif shape == AGGREGATE and dimension:
         group_by = [dimension]
         label = f"Total by {dimension}"
+    elif count_grain and dimension and not want.explicit:
+        # "How many facilities are in each IFRS 9 stage?" is one row per
+        # STAGE. Grouping by the entity key as well made the count a column of
+        # ones and the answer six hundred and fourteen rows long — one per
+        # facility, headed by a question about three stages. The thing being
+        # counted is already carried in `count_key`; putting it in the
+        # grouping too counts each group member against itself.
+        group_by = [dimension]
+        label = f"Count by {dimension}"
     elif shape == RANKING:
         group_by = ([key] if key else []) + ([dimension] if dimension else [])
         label = f"Aggregate to one row per {grain}"
@@ -3672,6 +3681,13 @@ def _two_period(reading: Reading, context: GovernedContext, text: str,
                     if scoped and population else None),
         summary=_two_period_summary(conditions, filters, opening, closing, grain),
         confidence={"reading": reading.confidence},
+        # A stated count is a predicate, not a rendering preference. "Show me
+        # the top ten customers with an increase in ECL" came back with a
+        # hundred and six of them, because the cohort builder cut at its
+        # display limit and nothing carried the ten this far. It does not
+        # invent one: a question that states no count still gets its whole
+        # population, which is what the covenant-headroom cohort depends on.
+        top_n=_explicit_top_n(text),
     )
     built = multi.build_plan(request, catalogue=catalogue)
 

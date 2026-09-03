@@ -232,6 +232,15 @@ class MultiRequest:
     clarifications: list[cx.ConceptMatch] = field(default_factory=list)
     #: How sure the reading is, per stage. Low anywhere means ask.
     confidence: dict[str, float] = field(default_factory=dict)
+    #: How many rows the question ASKED for, when it said. Zero means it did
+    #: not say, and the cohort is the population.
+    #:
+    #: "Show me the top ten customers with an increase in ECL" used to come
+    #: back with a hundred and six of them: the cohort builder capped at
+    #: MAX_ROWS, which is a display limit, and nothing carried the ten. A
+    #: stated count is a predicate like any other, and dropping it answers a
+    #: question nobody asked under a heading quoting the one they did.
+    top_n: int = 0
 
     @property
     def datasets(self) -> list[str]:
@@ -335,6 +344,20 @@ def _bind_ordering(request: Any, reading: Any, *, resolver: Any,
     # turning it into one would drop the conditions that define the cohort.
 
 
+def _stated_top_n(text: str) -> int:
+    """How many rows the question asked for, or 0 when it did not say.
+
+    Delegated to the analysis planner's reader rather than written twice: two
+    readers of "the top ten" are two chances for one of them to say eleven.
+    """
+    from backend.orchestration import analysis_planner as ap
+
+    try:
+        return int(ap._explicit_top_n(text) or 0)
+    except Exception:  # noqa: BLE001 - an unread count is not a failure
+        return 0
+
+
 def read_question(question: str, *, catalogue: Any, periods: list[str],
                   dimensions: dict[str, list[str]] | None = None,
                   relationships: list[dict[str, Any]] | None = None,
@@ -362,6 +385,9 @@ def read_question(question: str, *, catalogue: Any, periods: list[str],
     request.clarifications = list(request.reading.needs_clarification)
     request.confidence["fields"] = (
         min((m.confidence for m in request.reading.matches), default=0.0))
+
+    # A stated row count is part of the request, not a rendering preference.
+    request.top_n = _stated_top_n(request.question)
 
     # ---- 2. grain and periods
     request.grain = _grain_of(request.question)
@@ -1111,10 +1137,12 @@ def _cohort(operations: list[dict[str, Any]], request: MultiRequest,
         "params": {"by": [{"column": sort_column, "direction": direction}]},
         "label": sort_label,
     })
+    cut = min(request.top_n, MAX_ROWS) if request.top_n else MAX_ROWS
     operations.append({
         "id": "result", "op": "LIMIT", "inputs": ["ranked"],
-        "params": {"n": MAX_ROWS},
-        "label": f"The first {MAX_ROWS} rows",
+        "params": {"n": cut},
+        "label": (f"The {cut} the question asked for" if request.top_n
+                  else f"The first {cut} rows"),
     })
 
 

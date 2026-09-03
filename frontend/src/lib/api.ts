@@ -1355,11 +1355,58 @@ export interface InvestigationResponse {
   stages: Stage[];
   compound?: CompoundAnswer;
   /**
+   * The Investigation Response Package: which blocks this answer carries and
+   * what each one is. One question does not imply one analysis, so a review
+   * that ran four governed analyses arrives with four analysis blocks plus a
+   * summary, and an ordinary question arrives with one.
+   */
+  package?: ResponsePackage;
+  /**
    * The analyst's own investigation of the same question, when one ran.
    * R2 §9 and §23: the reading it formed is carried apart from the answer so
    * the screen can mark it as a reading rather than as a measurement.
    */
   analyst?: AnalystInvestigation;
+}
+
+/**
+ * One block of a response: a governed analysis, presented in the shape its own
+ * result earns. A block carries no figures — `step_index` points at the
+ * executed step that computed them, so there is exactly one copy of every
+ * number in a response.
+ */
+export interface ResponseBlock {
+  block_id: string;
+  /** What to render, in order: narrative | kpi | table | chart | matrix | decomposition | synthesis. */
+  kinds: string[];
+  title: string;
+  question: string;
+  because: string;
+  finding: string;
+  /** Which executed step holds the rows. -1 for a block with no step. */
+  step_index: number;
+  role: string;
+  /** The chart shape chosen for these rows, or "" where none leads. */
+  visual: string;
+  visual_reason: string;
+  row_count: number;
+  /** Why this result earns these kinds. */
+  why: string;
+  drawn: boolean;
+}
+
+/** The response contract: an ordered list of blocks, and how it was chosen. */
+export interface ResponsePackage {
+  version: string;
+  blocks: ResponseBlock[];
+  /** Analyses that ran and are not blocks, with the reason. */
+  withheld: { title?: string; why?: string }[];
+  counts: {
+    blocks: number;
+    analyses: number;
+    tables: number;
+    drawn: number;
+  };
 }
 
 /** What the governed investigation loop produced. R2 §9, §23. */

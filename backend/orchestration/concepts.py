@@ -191,6 +191,26 @@ CONCEPTS: tuple[Concept, ...] = (
                "regulatory", "ifrs9", "ifrs 9"),
         )),
     Concept(
+        id="notches_since_origination", label="notches since origination",
+        # A DISTANCE from where the facility was written, not a grade. The
+        # generic `rating` concept below matches the bare word "notches", so
+        # "how far have grades slipped since origination" resolved to
+        # `customer_ratings.internal_grade` and came back as a distribution of
+        # rating GRADES — a real answer to a question nobody asked. The longer
+        # phrase wins because `_widest` keeps the longer match.
+        pattern=r"notch(?:es)? (?:since|below|from) origination"
+                r"|grade slippage|slipp\w* since origination"
+                r"|notches_since_origination",
+        is_ordinal=True, unit="notches",
+        candidates=(
+            _c(IFRS9, "notches_since_origination",
+               "How many grades below its origination rating the facility is "
+               "carried at now. Zero means it is where it was written; three "
+               "or more is the SICR threshold most banks watch.",
+               "facility", "account", "staging", "ifrs9", "ifrs 9",
+               default=True),
+        )),
+    Concept(
         id="rating", label="internal rating",
         # Plurals included. "Which borrowers have unchanged RATINGS" resolved
         # to nothing at all, so the condition on the rating was not dropped by
