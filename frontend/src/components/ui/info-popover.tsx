@@ -21,11 +21,19 @@ export function InfoPopover({
   title,
   children,
   className,
+  label,
 }: {
   /** Heading inside the panel. Defaults to "About this screen". */
   title?: string;
   children: React.ReactNode;
   className?: string;
+  /**
+   * What the trigger announces. Defaults to asking about the screen, which is
+   * right for the one at the top of a page and wrong for the twenty-one on a
+   * lens — a screen reader user should not hear "what is this screen for?"
+   * once per tile.
+   */
+  label?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const container = React.useRef<HTMLDivElement>(null);
@@ -52,7 +60,11 @@ export function InfoPopover({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        aria-label={open ? "Hide the explanation" : "What is this screen for?"}
+        aria-label={
+          open
+            ? "Hide the explanation"
+            : (label ?? "What is this screen for?")
+        }
         className={cn(
           "inline-flex size-5 items-center justify-center rounded-full border transition-colors",
           open

@@ -48,7 +48,10 @@ export function MetricTile({ panel }: { panel: RenderedPanel }) {
         <div className="flex items-start justify-between gap-2">
           <p className="text-xs font-medium text-text-secondary">{title}</p>
           {metric && (
-            <InfoPopover title={metric.name}>
+            <InfoPopover
+              title={metric.name}
+              label={`How ${metric.name} is calculated`}
+            >
               <MetricInfo metric={metric} calculation={panel.calculation} />
             </InfoPopover>
           )}
@@ -71,7 +74,10 @@ export function MetricTile({ panel }: { panel: RenderedPanel }) {
           {title}
         </p>
         {metric && (
-          <InfoPopover title={metric.name}>
+          <InfoPopover
+              title={metric.name}
+              label={`How ${metric.name} is calculated`}
+            >
             <MetricInfo metric={metric} calculation={panel.calculation} />
           </InfoPopover>
         )}
