@@ -88,7 +88,7 @@ export default function DeliveryProjectPage() {
 
   const { project, access, findings, workstreams, tasks, milestones, raid,
           participants, dependencies } = detail.data;
-  const mayEdit = ["EDITOR", "OWNER"].includes(access.level);
+  const mayEdit = ["EDITOR", "OWNER"].includes(access.access);
   const openTasks = tasks.filter(
     (t) => !["COMPLETED", "CANCELLED"].includes(t.status));
 
@@ -131,7 +131,7 @@ export default function DeliveryProjectPage() {
         <span className="text-xs text-text-muted">
           {project.manager?.name ?? "No manager"}
         </span>
-        <Badge variant="outline">{access.level.toLowerCase()} access</Badge>
+        <Badge variant="outline">{access.access.toLowerCase()} access</Badge>
       </div>
 
       {project.health_overridden && (
@@ -215,9 +215,13 @@ export default function DeliveryProjectPage() {
                   {dependencies.map((d) => (
                     <li key={d.id}
                         className="flex items-center gap-2 px-4 py-2 text-sm">
-                      <span className="text-text-primary">{d.predecessor}</span>
+                      <span className="font-mono text-xs text-text-primary">
+                        {d.predecessor_code}
+                      </span>
                       <Badge variant="outline">{d.dependency_type}</Badge>
-                      <span className="text-text-primary">{d.successor}</span>
+                      <span className="font-mono text-xs text-text-primary">
+                        {d.successor_code}
+                      </span>
                       {d.lag_days !== 0 && (
                         <span className="text-xs text-text-muted">
                           {d.lag_days > 0 ? "+" : ""}
@@ -289,7 +293,7 @@ export default function DeliveryProjectPage() {
                       <span className="font-mono text-[11px] text-text-muted">
                         {r.code}
                       </span>
-                      <Badge variant="outline">{r.raid_type.toLowerCase()}</Badge>
+                      <Badge variant="outline">{r.type.toLowerCase()}</Badge>
                       <Badge
                         variant={
                           r.severity === "CRITICAL" || r.severity === "HIGH"

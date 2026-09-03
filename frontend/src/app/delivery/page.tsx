@@ -73,8 +73,9 @@ export default function DeliveryPortfolioPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Stat label="Projects" value={totals?.projects ?? 0} />
-        <Stat label="Red" value={totals?.red ?? 0} tone="negative" />
-        <Stat label="Amber" value={totals?.amber ?? 0} tone="warning" />
+        <Stat label="Red" value={totals?.by_health.RED ?? 0} tone="negative" />
+        <Stat label="Amber" value={totals?.by_health.AMBER ?? 0}
+              tone="warning" />
         <Stat label="Overdue tasks" value={totals?.overdue_tasks ?? 0}
               tone={totals?.overdue_tasks ? "negative" : undefined} />
         <Stat label="Blocked" value={totals?.blocked_tasks ?? 0}
@@ -143,7 +144,7 @@ export default function DeliveryPortfolioPage() {
                     <th className="px-3 py-2 font-medium text-right">Blocked</th>
                     <th className="px-3 py-2 font-medium">Next milestone</th>
                     <th className="px-3 py-2 font-medium">Manager</th>
-                    <th className="px-4 py-2 font-medium">Last update</th>
+                    <th className="px-4 py-2 font-medium">Recalculated</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -199,7 +200,7 @@ export default function DeliveryPortfolioPage() {
                         {row.manager?.name ?? "—"}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-text-muted">
-                        {when(row.last_update_at)}
+                        {when(row.calculated_at)}
                       </td>
                     </tr>
                   ))}

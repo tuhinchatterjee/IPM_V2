@@ -455,6 +455,23 @@ def task_detail(session: Any, principal: Any, task_id: int) -> dict[str, Any]:
 # =========================================================== one project
 
 
+def _entity_code(kind: str, entity_id: Any, tasks: Any, milestones: Any
+                 ) -> str:
+    """The human-readable code of one end of a dependency.
+
+    Falls back to the id rather than to an empty string: a link to something
+    that has since been deleted should read as "115" and be obviously wrong,
+    not vanish and leave the arrow pointing at nothing.
+    """
+    if entity_id is None:
+        return ""
+    rows = milestones if str(kind).upper() == "MILESTONE" else tasks
+    for row in rows:
+        if int(row.id) == int(entity_id):
+            return row.code
+    return str(entity_id)
+
+
 def project_detail(session: Any, principal: Any, project_id: int
                    ) -> dict[str, Any]:
     """A whole project, as the detail page reads it."""
@@ -562,12 +579,20 @@ def project_detail(session: Any, principal: Any, project_id: int
                              else 0),
             "version": int(m.version or 1),
         } for m in milestones],
+        # The codes as well as the ids. A dependency shown as "115 → 119" is
+        # unreadable, and every caller that had only the ids was re-deriving
+        # the codes from the task list — three lookups, three chances to get
+        # the type branch wrong.
         "dependencies": [{
             "id": int(d.id),
             "predecessor_type": d.predecessor_type,
             "predecessor_id": int(d.predecessor_id),
+            "predecessor_code": _entity_code(
+                d.predecessor_type, d.predecessor_id, tasks, milestones),
             "successor_type": d.successor_type,
             "successor_id": int(d.successor_id),
+            "successor_code": _entity_code(
+                d.successor_type, d.successor_id, tasks, milestones),
             "dependency_type": d.dependency_type,
             "lag_days": int(d.lag_days or 0), "notes": d.notes or "",
         } for d in deps],

@@ -22,15 +22,17 @@ import { useAsync } from "@/lib/hooks";
  * twice makes a list of nine items look like a list of eleven, and the first
  * thing somebody does with a list they distrust is stop reading it.
  */
-const BUCKETS: { key: string; title: string; note: string }[] = [
+type Bucket = "overdue" | "today" | "upcoming" | "blocked" | "reviews" | "later";
+
+const BUCKETS: { key: Bucket; title: string; note: string }[] = [
   { key: "overdue", title: "Overdue", note: "Past the date you agreed." },
   { key: "today", title: "Due today", note: "" },
-  { key: "week", title: "Due this week", note: "" },
+  { key: "upcoming", title: "Coming up", note: "" },
   { key: "blocked", title: "Blocked", note: "Waiting on somebody else." },
   {
-    key: "needs_update",
-    title: "Needs an update",
-    note: "Coming up, and nobody has said how it is going.",
+    key: "reviews",
+    title: "Waiting on your review",
+    note: "Somebody else's work, with your name on it as reviewer.",
   },
   { key: "later", title: "Later", note: "" },
 ];
@@ -40,9 +42,9 @@ export default function MyWorkPage() {
   const [open, setOpen] = React.useState<PlannerTaskRow | null>(null);
 
   const counts = work.data?.counts ?? {};
-  const buckets = work.data?.buckets ?? {};
   const nothing =
-    work.data && Object.values(buckets).every((list) => list.length === 0);
+    work.data &&
+    BUCKETS.every(({ key }) => (work.data?.[key] ?? []).length === 0);
 
   return (
     <div className="mx-auto w-full max-w-4xl px-6 py-6">
@@ -62,7 +64,7 @@ export default function MyWorkPage() {
               tone={counts.overdue ? "negative" : undefined} />
         <Stat label="Due today" value={counts.today ?? 0}
               tone={counts.today ? "warning" : undefined} />
-        <Stat label="This week" value={counts.week ?? 0} />
+        <Stat label="Coming up" value={counts.upcoming ?? 0} />
         <Stat label="Blocked" value={counts.blocked ?? 0}
               tone={counts.blocked ? "warning" : undefined} />
       </div>
@@ -80,7 +82,7 @@ export default function MyWorkPage() {
 
       <div className="mt-6 flex flex-col gap-4">
         {BUCKETS.map(({ key, title, note }) => {
-          const list = buckets[key] ?? [];
+          const list = work.data?.[key] ?? [];
           if (list.length === 0) return null;
           return (
             <SectionCard

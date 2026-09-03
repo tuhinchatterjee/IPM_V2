@@ -53,7 +53,15 @@ EXIT_INCOMPLETE = 1
 EXIT_CANNOT_RUN = 2
 
 #: The people the plan needs. Matched on username; created only if absent, and
-#: never given a usable password — these are figures in a plan, not accounts.
+#: an existing account's password is NEVER touched — the same rule as
+#: `backend.services.demo_users`, and for the same reason: re-seeding a
+#: password every boot would be a published back door on any deployment that
+#: happens to have a user with one of these names.
+#:
+#: They get the shared demonstration password so that a person walking through
+#: the product can sign in as Priya and see HER work rather than an
+#: administrator's view of everybody's. That is the whole point of the My Work
+#: screen and it cannot be demonstrated from one account.
 CAST = [
     ("amina.hassan", "Amina", "Hassan", "ANALYST",
      "Head of Credit Risk Analytics"),
@@ -100,7 +108,11 @@ def _people(session: Any) -> dict[str, int]:
         existing = session.execute(
             select(User).where(User.username == username)).scalar_one_or_none()
         if existing is None:
-            existing = User(username=username, password_hash="!",
+            from backend.auth.security import hash_password
+            from backend.services.demo_users import DEMO_PASSWORD
+
+            existing = User(username=username,
+                            password_hash=hash_password(DEMO_PASSWORD),
                             role=role, first_name=first, last_name=last,
                             email=f"{username}@example.invalid",
                             job_title=title, department="Risk",

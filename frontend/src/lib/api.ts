@@ -6841,9 +6841,10 @@ export type PlannerHealth = "GREEN" | "AMBER" | "RED" | "UNKNOWN";
 export type PlannerPerson = {
   id: number;
   name: string;
-  first_name?: string;
-  username?: string;
-  job_title?: string;
+  username: string;
+  email: string;
+  job_title: string;
+  team: string;
 } | null;
 
 export type PlannerFinding = {
@@ -6901,26 +6902,37 @@ export type PlannerProjectRow = {
   health_overridden: boolean;
   percent_complete: number;
   manager: PlannerPerson;
+  sponsor: PlannerPerson;
+  start_date: string | null;
   target_end_date: string | null;
   open_tasks: number;
   overdue_tasks: number;
   blocked_tasks: number;
+  due_soon_tasks: number;
+  open_raid: number;
   next_milestone: string;
   next_milestone_date: string | null;
-  last_update_at: string | null;
+  calculated_at: string | null;
+  updated_at: string | null;
   access: string;
 };
 
+/**
+ * Counts by health and by status as MAPS, not as named fields.
+ *
+ * The vocabulary lives in `backend/models/planner.py` and a screen that
+ * hard-codes red/amber/green here goes silently blank the day a fifth colour
+ * is added. `by_health.RED ?? 0` survives that; `totals.red` does not.
+ */
 export type PlannerPortfolio = {
   projects: PlannerProjectRow[];
   totals: {
     projects: number;
-    red: number;
-    amber: number;
-    green: number;
-    unknown: number;
+    by_health: Record<string, number>;
+    by_status: Record<string, number>;
     overdue_tasks: number;
     blocked_tasks: number;
+    due_soon_tasks: number;
   };
   count: number;
 };
@@ -6936,8 +6948,20 @@ export type PlannerAttentionItem = {
   findings: PlannerFinding[];
 };
 
+/**
+ * Six buckets, and every task is in exactly one.
+ *
+ * They are top-level lists rather than a `buckets` map because the set is
+ * closed and named: a screen that iterates an open map cannot put them in the
+ * order that makes the screen readable, which is the whole point of bucketing.
+ */
 export type PlannerMyWork = {
-  buckets: Record<string, PlannerTaskRow[]>;
+  overdue: PlannerTaskRow[];
+  today: PlannerTaskRow[];
+  upcoming: PlannerTaskRow[];
+  blocked: PlannerTaskRow[];
+  reviews: PlannerTaskRow[];
+  later: PlannerTaskRow[];
   counts: Record<string, number>;
 };
 
@@ -6963,23 +6987,32 @@ export type PlannerMilestone = {
   status: string;
   target_date: string | null;
   actual_date: string | null;
+  days_overdue: number | null;
   critical: boolean;
-  owner?: PlannerPerson;
-  workstream_id?: number | null;
+  owner: PlannerPerson;
+  workstream_id: number | null;
+  version: number;
 };
 
 export type PlannerRaidItem = {
   id: number;
   code: string;
-  raid_type: string;
+  /** RISK | ASSUMPTION | ISSUE | DECISION. Named `type` on the wire. */
+  type: string;
   title: string;
   description: string;
   severity: string;
+  probability: string;
+  impact: string;
   status: string;
   owner: PlannerPerson;
+  workstream_id: number | null;
+  raised_date: string | null;
   target_date: string | null;
+  resolved_date: string | null;
   mitigation: string;
   resolution: string;
+  version: number;
 };
 
 export type PlannerParticipantRow = {
@@ -6996,12 +7029,13 @@ export type PlannerDependencyRow = {
   id: number;
   predecessor_type: string;
   predecessor_id: number;
-  predecessor: string;
+  predecessor_code: string;
   successor_type: string;
   successor_id: number;
-  successor: string;
+  successor_code: string;
   dependency_type: string;
   lag_days: number;
+  notes: string;
 };
 
 export type PlannerProjectDetail = {
@@ -7035,7 +7069,19 @@ export type PlannerProjectDetail = {
     created_at: string | null;
     updated_at: string | null;
   };
-  access: { level: string; role: string; is_admin?: boolean };
+  /**
+   * What this caller may do on this project, as `backend.planner.access.Grant`
+   * writes it. The field is `access`, not `level` — an earlier draft of this
+   * type invented `level`, which typechecked perfectly and crashed the page
+   * the first time a real response arrived.
+   */
+  access: {
+    project_id: number;
+    user_id: number | null;
+    access: string;
+    project_role: string;
+    administrative: boolean;
+  };
   findings: PlannerFinding[];
   workstreams: PlannerWorkstream[];
   tasks: PlannerTaskRow[];

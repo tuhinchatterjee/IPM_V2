@@ -114,6 +114,11 @@ SCREENS: tuple[tuple[str, str], ...] = (
     # viewports and four themes, without an error boundary.
     ("/scorecard-validation", "main"),
     ("/borrower-360", "main"),
+    # The Project Planner. The portfolio table is the densest grid in the
+    # product after the Data Builder grid, so the 1366 and 390 viewports are
+    # exactly where it would break; the crawl is what proves it does not.
+    ("/delivery", "main"),
+    ("/delivery/my-work", "main"),
 )
 
 #: Words that may never label a figure with no independent reference. §184.
