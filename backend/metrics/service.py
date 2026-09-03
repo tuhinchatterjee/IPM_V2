@@ -291,10 +291,18 @@ def periods_with_rows(datasets: Iterable[str],
     try:
         result = execute(plan, question="which periods carry rows",
                          intent="metric_period")
-    except Exception:  # noqa: BLE001 - fall back to the caller's period
+    except Exception as e:  # noqa: BLE001 - re-raised as a data problem below
+        # Not swallowed. An empty list here means "this source has no period
+        # concept", and returning it for a query that merely failed would put
+        # the caller back on the unfiltered scan — one figure pooled across
+        # every snapshot, labelled with no period. A metric that cannot say
+        # which period it is for must not produce a number at all, so this
+        # surfaces as the data problem it is and the tile says so.
         logger.warning("could not resolve the periods carrying rows for %s",
                        names[0], exc_info=True)
-        return []
+        raise DataAccessError(
+            f"Could not work out which period to use for {names[0]}: {e}"
+        ) from e
 
     found = [str(dict(row).get(field) or "") for row in result.rows
              if int(dict(row).get("rows") or 0) > 0]
@@ -356,8 +364,12 @@ def value(metric_id: str, *, period: str = "", user_id: int | None = None,
     recalculate by hand.
     """
     metric = resolve(metric_id, user_id=user_id, readable=readable)
-    period = period or default_period(metric)
     try:
+        # Inside the guard, not before it: resolving which period a metric
+        # means is itself a read of the lake, and it fails the same way the
+        # metric's own query does. Outside, an unreachable source came back
+        # as a raw 500 on a page that had been working.
+        period = period or default_period(metric)
         calculation = execution.run(
             metric.formula, period=period, scope=metric.scope,
             question=question
@@ -393,11 +405,19 @@ def rows(metric_id: str, *, period: str = "", limit: int = execution.SAMPLE_ROWS
     filter means what they meant.
     """
     metric = resolve(metric_id, user_id=user_id, readable=readable)
-    # The same period the number came from. Rows drawn from every snapshot
-    # beside a figure computed for one would not be evidence for it.
-    period = period or default_period(metric)
-    return execution.sample(metric.formula, period=period,
-                            scope=metric.scope, limit=limit)
+    try:
+        # The same period the number came from. Rows drawn from every snapshot
+        # beside a figure computed for one would not be evidence for it.
+        period = period or default_period(metric)
+        return execution.sample(metric.formula, period=period,
+                                scope=metric.scope, limit=limit)
+    except DataAccessError as e:
+        # No rows and the reason, as the value route already does. Letting
+        # this out would be a raw 500 on a page that had been working, from a
+        # gap in the book rather than a fault in the platform.
+        return {"columns": [], "rows": [], "period": period,
+                "dataset": metric.datasets[0] if metric.datasets else "",
+                "limit": int(limit), "unavailable": str(e)}
 
 
 # ------------------------------------------------------------- user metrics

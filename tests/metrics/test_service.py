@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 
 from backend.config import settings
+from backend.data_access.protocol import DataAccessError
 from backend.metrics import execution
 from backend.metrics import library as lib
 from backend.metrics import service as S
@@ -440,3 +441,28 @@ def test_a_verification_records_the_period_it_actually_checked(mine):
     assert history[0]["period"] == computed["period"], (
         "a verification stored against a blank period could not later be "
         "told apart from one against any other quarter")
+
+
+def test_a_period_that_cannot_be_resolved_is_said_not_pooled(monkeypatch):
+    """The failure path must not quietly become the bug this replaced.
+
+    An empty period list means "this source has no period concept". Returning
+    it for a query that merely failed would put the caller back on the
+    unfiltered scan — one figure pooled across every snapshot, labelled with
+    no period, indistinguishable on screen from the one they asked for.
+    """
+    metric = next(m for m in lib.ALL if m.metric_id == "corporate.npl_rate")
+
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("the lake is unreachable")
+
+    monkeypatch.setattr("backend.runtime.executor.execute", broken)
+
+    with pytest.raises(DataAccessError, match="which period"):
+        S.latest_period(metric.datasets, metric.scope)
+
+    # And through the route the caller uses, it is an honest refusal.
+    out = S.value(metric.metric_id)
+    assert out["available"] is False
+    assert "period" in out["unavailable"]
+    assert out["value"] is None

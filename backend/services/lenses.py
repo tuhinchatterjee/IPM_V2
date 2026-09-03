@@ -698,7 +698,14 @@ def _render_metric(panel: Panel, *, period: str | None,
                     "result": None, "metric": None}
         key = (definition.datasets, definition.scope, definition.period_rule)
         if key not in periods:
-            periods[key] = metrics.default_period(definition)
+            try:
+                periods[key] = metrics.default_period(definition)
+            except Exception:  # noqa: BLE001 - handled where it is reported
+                # Left unresolved on purpose. `metrics.value` resolves it
+                # again inside its own guard and turns the failure into a
+                # tile that says why, so the reason reaches the reader
+                # through one path rather than two that could disagree.
+                periods[key] = ""
         wanted = periods[key]
 
     try:
