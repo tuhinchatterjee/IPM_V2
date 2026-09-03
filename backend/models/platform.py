@@ -805,6 +805,106 @@ class DatasetRelationshipVersion(Base):
     )
 
 
+#: The lifecycle one period of one dataset moves through. Publication is never
+#: a side effect of an upload: a file that arrives is UPLOADED, and every state
+#: after that is something a person or a check did to it.
+#:
+#: There are two ends. A file that fails its contract is FAILED and stops
+#: there — it is not "published with warnings", because a period a reader can
+#: see is a period they will act on. A file that passes is VALIDATED, then goes
+#: to REVIEW where a human reads what changed, then LOCKED, and only then
+#: PUBLISHED. When a period is republished the previous release of THAT period
+#: becomes SUPERSEDED rather than disappearing: an investigation run last
+#: quarter still names the version it read, and a lineage that deletes its own
+#: history cannot answer "what did we see at the time".
+PERIOD_UPLOADED = "UPLOADED"
+PERIOD_VALIDATING = "VALIDATING"
+PERIOD_FAILED = "FAILED"
+PERIOD_VALIDATED = "VALIDATED"
+PERIOD_REVIEW = "REVIEW"
+PERIOD_LOCKED = "LOCKED"
+PERIOD_PUBLISHED = "PUBLISHED"
+PERIOD_SUPERSEDED = "SUPERSEDED"
+
+PERIOD_STATES: tuple[str, ...] = (
+    PERIOD_UPLOADED, PERIOD_VALIDATING, PERIOD_FAILED, PERIOD_VALIDATED,
+    PERIOD_REVIEW, PERIOD_LOCKED, PERIOD_PUBLISHED, PERIOD_SUPERSEDED,
+)
+
+#: What the uploader said they were doing. Declared rather than inferred: a
+#: file that turns out to be a period the book already holds is a REPLACEMENT,
+#: and treating it as a new arrival would silently double the quarter.
+PERIOD_MODE_NEW = "NEW_PERIOD"
+PERIOD_MODE_REPLACE = "REPLACE_PERIOD"
+
+
+class DataPeriodRelease(Base):
+    """One reporting period of one dataset, staged and then published.
+
+    Why this is not a `DataVersion`
+    --------------------------------
+    A `DataVersion` is the whole dataset at a moment. Publishing one rewrites
+    every period, which is right when a book is loaded in full and wrong when
+    a steward sends the next quarter: adding Q3 2026 to a fifteen-quarter book
+    must not require re-sending fourteen quarters, and must not delete them if
+    it does not.
+
+    So a release is scoped to a period, versioned within that period, and
+    publishing one touches exactly one partition. `version` counts from 1 per
+    (dataset, period): replacing Q1 2025 makes a v2 and marks v1 SUPERSEDED,
+    and both rows stay.
+    """
+
+    __tablename__ = "data_period_releases"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dataset_id: Mapped[int] = mapped_column(
+        ForeignKey("dataset_definitions.id", ondelete="CASCADE"), nullable=False
+    )
+    period: Mapped[str] = mapped_column(String(64), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    mode: Mapped[str] = mapped_column(String(24), nullable=False,
+                                      default=PERIOD_MODE_NEW)
+    state: Mapped[str] = mapped_column(String(24), nullable=False,
+                                       default=PERIOD_UPLOADED)
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    field_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: Where the staged rows sit before publication, and where they went after.
+    staged_path: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    published_path: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: The file as it arrived, so a published figure can be traced to bytes.
+    source_filename: Mapped[str] = mapped_column(String(255), nullable=False,
+                                                 default="")
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False,
+                                               default="")
+    #: Every check that ran, whether it passed, and what it found.
+    validation: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: Why it is where it is. Written on every transition.
+    note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    uploaded_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True)
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    reviewed_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    published_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    #: The release that replaced this one, where one did.
+    superseded_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data_period_releases.id", ondelete="SET NULL"), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("dataset_id", "period", "version",
+                         name="uq_period_release"),
+        Index("ix_period_release_dataset", "dataset_id", "period"),
+        Index("ix_period_release_state", "state"),
+    )
+
+
 class DataVersion(Base):
     """An immutable published release of a dataset.
 

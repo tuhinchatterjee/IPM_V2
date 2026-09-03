@@ -1048,14 +1048,26 @@ def _from_catalogue(original: str, question: str, request: Any,
         decision=rt.decide(question, deterministic=True),
         read_as=fixed.text if fixed.changes else "",
         corrections=list(fixed.changes))
+    # A metadata question that names a dataset leaves that dataset in the
+    # thread. "What periods of ifrs9_staging do you have?" followed by "Show me
+    # Q3 2026" is one conversation, and a reader who has just been told which
+    # periods exist should not have to name the dataset again to open one.
+    if not dataset and result is None:
+        named = str(getattr(request, "subject", "") or "")
+        from backend.metadata import service as svc_meta
+
+        if named and svc_meta.dataset(named) is not None:
+            dataset = named
     if dataset:
         # So "Show Q1 2025" on the next turn knows which dataset it means.
         # Carried on the reading because that is where the working memory
         # reads a turn's datasets from. `Reading` is frozen, so it is rebuilt
         # rather than mutated.
         reading = replace(reading, datasets=(dataset,))
-    if result is not None:
+        # `Answered` was built with the reading as it was, so the rebuilt one
+        # has to be put back or the thread learns nothing.
         answered.reading = reading
+    if result is not None:
         answered.result = result
         answered.duration_ms = int((time.perf_counter() - started) * 1000)
         return answered
