@@ -98,6 +98,12 @@ PLANNER_CRITICAL_PATH = "planner_critical_path"
 PLANNER_SLIP_IMPACT = "planner_slip_impact"
 PLANNER_REQUESTS = "planner_requests"
 
+# The three things a person may change by saying so. Narrow on purpose: see
+# backend/planner/actions.py for why each one is here and what is not.
+PLANNER_POST_TASK_UPDATE = "planner_post_task_update"
+PLANNER_SET_TASK_BLOCKER = "planner_set_task_blocker"
+PLANNER_CREATE_RAID_ITEM = "planner_create_raid_item"
+
 
 class ToolDenied(PermissionError):
     """An agent asked for something it is not permitted to do."""
@@ -307,6 +313,29 @@ TOOLS: tuple[Tool, ...] = (
          "backend.planner.query",
          parameters=("project", "limit"), required=("project",),
          reads_data=True),
+    Tool(PLANNER_POST_TASK_UPDATE, "Report progress on a task",
+         "Records progress, a narrative, a next step and the blocked flag on "
+         "a task the requesting person is allowed to update. Cannot change "
+         "the owner, the dates, the status or the weight: those are changes "
+         "to a commitment rather than reports on one.",
+         "backend.planner.actions",
+         parameters=("project", "task", "percent", "narrative", "next_step",
+                     "blocked", "blocker"),
+         required=("project", "task"), writes=True, reads_data=True),
+    Tool(PLANNER_SET_TASK_BLOCKER, "Say what a task is waiting for",
+         "Marks a task blocked with a reason, or clears the block. A blocker "
+         "with no reason is refused.",
+         "backend.planner.actions",
+         parameters=("project", "task", "reason", "clear"),
+         required=("project", "task"), writes=True, reads_data=True),
+    Tool(PLANNER_CREATE_RAID_ITEM, "Raise a risk or issue",
+         "Adds a risk, assumption, issue or decision to the project's "
+         "register. Raising only — closing one is a judgement somebody should "
+         "make on a screen with their name against it.",
+         "backend.planner.actions",
+         parameters=("project", "title", "type", "severity", "description",
+                     "mitigation"),
+         required=("project", "title"), writes=True, reads_data=True),
     Tool(PLANNER_CRITICAL_PATH, "Critical path",
          "The calculated schedule: earliest and latest dates, float, and the "
          "chain that determines the end date. Says why it cannot be "

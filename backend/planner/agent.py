@@ -571,7 +571,13 @@ def handlers(session: Any) -> dict[str, Any]:
                                 state=("" if state == "all" else state))
         return {"requests": rows, "count": len(rows)}
 
+    from backend.planner import actions
+
     return {
+        # The three governed writers. They live in their own module because
+        # "what can a conversation change?" deserves a file somebody can read
+        # in one sitting.
+        **actions.handlers(session),
         reg.PLANNER_CRITICAL_PATH: critical_path,
         reg.PLANNER_SLIP_IMPACT: slip_impact,
         reg.PLANNER_REQUESTS: update_requests,

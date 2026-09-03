@@ -172,9 +172,15 @@ ENTITY_TYPES = (ENTITY_TASK, ENTITY_MILESTONE, ENTITY_PROJECT, ENTITY_RAID)
 SOURCE_UI = "UI"
 SOURCE_API = "API"
 SOURCE_AI = "AI"
+#: A change a person asked for in conversation and the agent applied on their
+#: behalf. Distinct from `AI` on purpose: "an agent did this" and "a named
+#: person told the agent to do this, in these words" are different governance
+#: facts, and only the second one has somebody who can be asked about it.
+SOURCE_AI_CHAT = "AI_CHAT"
 SOURCE_EXCEL = "EXCEL_IMPORT"
 SOURCE_SYSTEM = "SYSTEM"
-SOURCES = (SOURCE_UI, SOURCE_API, SOURCE_AI, SOURCE_EXCEL, SOURCE_SYSTEM)
+SOURCES = (SOURCE_UI, SOURCE_API, SOURCE_AI, SOURCE_AI_CHAT, SOURCE_EXCEL,
+           SOURCE_SYSTEM)
 
 CADENCE_WEEKLY = "WEEKLY"
 CADENCE_FORTNIGHTLY = "FORTNIGHTLY"
@@ -683,7 +689,7 @@ class PlannerUpdate(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "source IN ('UI','API','AI','EXCEL_IMPORT','SYSTEM')",
+            "source IN ('UI','API','AI','AI_CHAT','EXCEL_IMPORT','SYSTEM')",
             name="ck_planner_update_source"),
         # "What changed in this project since Friday?" is exactly this index.
         Index("ix_planner_updates_project_time", "project_id", "created_at"),
@@ -828,7 +834,8 @@ __all__ = [
     "DEP_FINISH_TO_FINISH", "DEP_START_TO_FINISH",
     "ENTITY_TYPES", "ENTITY_TASK", "ENTITY_MILESTONE", "ENTITY_PROJECT",
     "ENTITY_RAID",
-    "SOURCES", "SOURCE_UI", "SOURCE_API", "SOURCE_AI", "SOURCE_EXCEL",
+    "SOURCES", "SOURCE_UI", "SOURCE_API", "SOURCE_AI", "SOURCE_AI_CHAT",
+    "SOURCE_EXCEL",
     "SOURCE_SYSTEM",
     "CADENCES", "CADENCE_WEEKLY", "CADENCE_FORTNIGHTLY", "CADENCE_MONTHLY",
     "CADENCE_NONE",

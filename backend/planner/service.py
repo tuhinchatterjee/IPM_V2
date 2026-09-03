@@ -840,6 +840,17 @@ def update_task(session: Any, principal: Any, task_id: int, *,
         task.blocked = bool(fields["blocked"])
         if task.blocked != was:
             changes["blocked"] = [was, task.blocked]
+        # Status leads everywhere else, but not here. A task whose status is
+        # BLOCKED and whose flag has just been cleared is a contradiction, and
+        # `_align_task_state` resolves it by putting the flag back — so
+        # unticking "blocked" did nothing at all, on this path and in the
+        # quick-update drawer. The status has to move off BLOCKED with it, and
+        # progress is the only honest thing to move it to.
+        if not task.blocked and task.status == "BLOCKED":
+            resumed = ("IN_PROGRESS" if int(task.percent_complete or 0) > 0
+                       else "NOT_STARTED")
+            changes["status"] = [task.status, resumed]
+            task.status = resumed
     if "blocker_reason" in fields and fields["blocker_reason"] is not None:
         task.blocker_reason = _text(fields["blocker_reason"])
     if "next_step" in fields and fields["next_step"] is not None:
