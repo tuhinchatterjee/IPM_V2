@@ -38,7 +38,7 @@ const BUCKETS: { key: Bucket; title: string; note: string }[] = [
 ];
 
 export default function MyWorkPage() {
-  const work = useAsync(() => api.planner.myWork(30), []);
+  const work = useAsync(() => api.planner.myWork(), []);
   const [open, setOpen] = React.useState<PlannerTaskRow | null>(null);
 
   const counts = work.data?.counts ?? {};

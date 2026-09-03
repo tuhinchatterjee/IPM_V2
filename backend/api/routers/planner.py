@@ -126,10 +126,15 @@ def attention(limit: int = Query(default=10, ge=1, le=50),
 
 
 @router.get("/my-work", summary="What you have to do")
-def my_work(horizon_days: int = Query(default=30, ge=1, le=365),
-            session: Session = Depends(get_db),
+def my_work(session: Session = Depends(get_db),
             principal: Principal = RequireCommenter) -> dict:
-    return pq.my_work(session, principal, horizon_days=horizon_days)
+    """Everything with your name on it, in six buckets.
+
+    No horizon parameter. There was one and it changed nothing, which is the
+    worst kind of API surface: somebody tunes it, sees a different-looking
+    screen for unrelated reasons, and draws a conclusion.
+    """
+    return pq.my_work(session, principal)
 
 
 # ============================================================== projects

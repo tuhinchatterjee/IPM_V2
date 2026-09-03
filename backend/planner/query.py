@@ -332,14 +332,21 @@ def _iso(value: Any) -> str | None:
 # ============================================================== my work
 
 
-def my_work(session: Any, principal: Any, *, horizon_days: int = 30
-            ) -> dict[str, Any]:
+def my_work(session: Any, principal: Any) -> dict[str, Any]:
     """What this person has to do, grouped the way they think about it.
 
     Six buckets, and a task appears in exactly one: whichever is most urgent.
     A task that is overdue AND blocked is in Blocked, because the blocker is
     what has to be dealt with first and listing it twice makes the page look
     twice as bad as the day actually is.
+
+    Everything the person owns is here, however far out it is. There used to
+    be a `horizon_days` parameter; it did nothing — both branches that
+    consulted it appended to the same bucket — and a knob in an API that
+    changes nothing is worse than no knob, because somebody will eventually
+    tune it and believe the result. Hiding far-off work would be the wrong fix
+    anyway: this is the one screen that shows a person everything with their
+    name on it.
     """
     user_id = getattr(principal, "user_id", None)
     if user_id is None:
@@ -380,9 +387,6 @@ def my_work(session: Any, principal: Any, *, horizon_days: int = 30
               and 0 < (row.due_date - now).days
               <= control.DEFAULT_POLICY.due_soon_days):
             buckets["upcoming"].append(item)
-        elif (row.due_date is not None
-              and (row.due_date - now).days <= horizon_days):
-            buckets["later"].append(item)
         else:
             buckets["later"].append(item)
 

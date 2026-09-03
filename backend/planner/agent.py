@@ -419,9 +419,8 @@ def handlers(session: Any) -> dict[str, Any]:
         return pq.project_detail(session, principal,
                                  _project_id(session, principal, project))
 
-    def my_work(principal=None, **kw):
-        return pq.my_work(session, principal,
-                          horizon_days=int(kw.get("horizon_days") or 30))
+    def my_work(principal=None, **_kw):
+        return pq.my_work(session, principal)
 
     def attention(principal=None, **kw):
         return {"items": pq.attention(session, principal,

@@ -283,10 +283,10 @@ TOOLS: tuple[Tool, ...] = (
          "backend.planner.query",
          parameters=("project",), required=("project",), reads_data=True),
     Tool(PLANNER_MY_WORK, "My work",
-         "What this person owns, in buckets: overdue, due today, due this "
-         "week, blocked, waiting on them, and needing an update.",
+         "What this person owns, in buckets: blocked, overdue, awaiting "
+         "their review, due today, due this week, and later.",
          "backend.planner.query",
-         parameters=("horizon_days",), reads_data=True),
+         reads_data=True),
     Tool(PLANNER_ATTENTION, "Needs attention",
          "The projects that need somebody to act, ranked deterministically "
          "with the reason for each.",

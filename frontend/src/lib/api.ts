@@ -6711,8 +6711,7 @@ export const api = {
     attention: (limit = 10) =>
       request<{ items: PlannerAttentionItem[] }>(
         `/planner/attention?limit=${limit}`),
-    myWork: (horizonDays = 30) =>
-      request<PlannerMyWork>(`/planner/my-work?horizon_days=${horizonDays}`),
+    myWork: () => request<PlannerMyWork>("/planner/my-work"),
     project: (id: number) =>
       request<PlannerProjectDetail>(`/planner/projects/${id}`),
     createProject: (body: Record<string, unknown>) =>
