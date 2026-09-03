@@ -1073,6 +1073,22 @@ def create_raid(session: Any, principal: Any, project_id: int, *,
         raise PlannerError(f"RAID item {code} already exists on this project.")
 
     actor = getattr(principal, "user_id", None)
+    # A risk may point at the task it is about — and only at one in THIS
+    # project. Storing the id unchecked is a latent leak: nothing resolves it
+    # today, so nothing shows the other project's code, but the first screen
+    # that renders the link would, and by then the rows are already written.
+    linked_kind = (_one_of(linked_entity_type, ENTITY_TYPES, "entity type")
+                   if linked_entity_type else "")
+    linked_id = int(linked_entity_id) if linked_entity_id else None
+    if linked_id is not None:
+        if linked_kind not in (ENTITY_TASK, ENTITY_MILESTONE):
+            raise PlannerError(
+                "A linked item is a TASK or a MILESTONE. Say which.")
+        # Raises by name if it belongs to another project, which is the
+        # answer somebody wants: "T-104 is not part of this project" beats
+        # "invalid request".
+        _entity_in_project(session, project_id, linked_kind, linked_id)
+
     row = PlannerRaid(
         project_id=int(project_id), code=code, raid_type=kind,
         title=_text(title, 300), description=_text(description),
@@ -1085,10 +1101,8 @@ def create_raid(session: Any, principal: Any, project_id: int, *,
         severity=_one_of(severity, SEVERITIES, "severity", "MEDIUM"),
         status=_one_of(status, RAID_STATUSES, "RAID status", "OPEN"),
         mitigation=_text(mitigation), resolution=_text(resolution),
-        linked_entity_type=(_one_of(linked_entity_type, ENTITY_TYPES,
-                                    "entity type")
-                            if linked_entity_type else ""),
-        linked_entity_id=int(linked_entity_id) if linked_entity_id else None,
+        linked_entity_type=linked_kind,
+        linked_entity_id=linked_id,
         created_by=actor, updated_by=actor)
     session.add(row)
     session.flush()
