@@ -374,21 +374,43 @@ pull request opened. No history rewritten, no force-push.**
 
 ## Y. Full backend regression on final HEAD
 
-    .venv/bin/python -m pytest tests -p no:randomly
+    .venv/bin/python -m pytest tests -p no:randomly --tb=short
 
-**In flight at the time this file was committed, and not yet reported here.**
-The count will be added in a follow-up commit against this same HEAD. It is
-left blank rather than estimated: a regression figure nobody watched finish is
-not a regression figure.
+Run against `a9981a5`, with the dev servers stopped so nothing competed for CPU.
+`671dc9a` adds only this file, so the result stands for both.
 
-What *is* already established on `a9981a5`, each from a run that completed:
+```
+12022 passed, 35 skipped, 25 warnings in 1501.39s (0:25:01)
+```
 
-| Suite | Result |
+**Exit 0. Zero failures, zero errors** — `grep -cE "^(FAILED|ERROR)"` over the
+full output returns 0. 12,057 tests collected; 12,022 ran and passed.
+
+The 25 warnings are all one deprecation from `dash` in `tests/legacy/`, which
+is the preserved original application and not part of this work.
+
+**I did not enumerate the 35 skips.** The run was made without `-rs`, so the
+reasons are not in its output, and re-running the suite for that alone would
+cost another 25 minutes. What is established: the platform database was
+reachable for this run, so the eight `PostgreSQL not reachable` gates and their
+siblings did **not** fire; and one skip is the live-model evaluation behind
+`RUN_LIVE_LLM_EVALS=1`, which was deliberately left unset because no call was
+made to any model provider in this work. The remaining skips are not
+characterised here, because guessing at them would be worse than saying so.
+
+None of the 35 is a test disabled during this work. No assertion was loosened,
+no tolerance widened, no test skipped or xfailed to make new code pass — the
+four times my own changes broke a protected invariant, listed in §R, were fixed
+in the code rather than in the test.
+
+### Everything else, on the same HEAD
+
+| Suite or gate | Result |
 | --- | --- |
-| `tests/metrics` | **115 passed** |
-| `tests/metrics` + `tests/api/test_metrics_api.py` + `tests/api/test_lens_layout_api.py` | **151 passed** |
-| `tests/api` + `tests/metrics` + `tests/runtime` + `tests/scorecard` | **1,487 passed, 2 skipped** — measured one commit earlier, at `f1b034c`'s parent, and re-run in part since |
-| Frontend `npm test` | **474 passed** |
-| Browser journeys A–H | **76 / 76** |
-
-Two skips in the backend figure are environmental, not disabled tests.
+| Full backend suite | **12,022 passed, 35 skipped, 0 failed** |
+| `tests/metrics` | 115 passed |
+| `tests/api/test_lens_layout_api.py` | 11 passed |
+| Frontend `npm test` | 474 passed |
+| Browser journeys A–H | 76 / 76 |
+| Performance, six paths | all inside budget |
+| `ruff`, decimals, `tsc`, `eslint`, build | clean |
