@@ -103,11 +103,27 @@ def test_adding_something_already_present_is_refused_rather_than_duplicated():
 
 
 @pytest.fixture
-def lens() -> ln.LensView:
-    return ln.create(
+def lens():
+    """A lens for one test, removed when the test ends.
+
+    The teardown is the point. These objects live in the same tables the
+    product's own seeded workspace does, so a fixture that creates one and
+    walks away leaves "Test lens" sitting in a demonstration environment for
+    ever — which is exactly what the residue check in
+    `tests/demo/test_seeded_projects.py` exists to catch, and what it was
+    catching. A test may use the real store; it may not leave anything in it.
+    """
+    view = ln.create(
         name="Test lens",
         panels=[ln.Panel(analysis_id="portfolio_summary", title="Position")],
     )
+    try:
+        yield view
+    finally:
+        try:
+            ln.delete(view.id)
+        except Exception:  # pragma: no cover - already gone is a clean end
+            pass
 
 
 def test_revising_keeps_the_previous_version(lens):
@@ -176,8 +192,9 @@ def test_a_playbook_must_run_something():
 
 
 @pytest.fixture
-def playbook() -> pb.PlaybookView:
-    return pb.create(
+def playbook():
+    """A playbook for one test, removed when the test ends. See `lens` above."""
+    view = pb.create(
         name="Test appetite check",
         analyses=[{"analysis_id": "portfolio_summary"}],
         conditions=[
@@ -189,6 +206,13 @@ def playbook() -> pb.PlaybookView:
              "threshold": 1.0, "severity": "info"},
         ],
     )
+    try:
+        yield view
+    finally:
+        try:
+            pb.delete(view.id)
+        except Exception:  # pragma: no cover - already gone is a clean end
+            pass
 
 
 def test_a_run_tests_every_condition_against_an_engine_figure(playbook):

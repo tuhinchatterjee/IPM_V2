@@ -1134,10 +1134,20 @@ def _inherit_filters(filters: list[tuple[str, str]],
 #: reporting date can answer that.
 MOVEMENT_KINDS: frozenset[str] = frozenset({"change_pct", "change_abs"})
 
+#: The two halves of a THRESHOLD CROSSING. Not movements — they compare levels
+#: rather than distances — but they need the same two-period frame, because
+#: "headroom fell below 15%" is a claim about where the measure WAS as well as
+#: where it now is.
+CROSSING_KINDS: frozenset[str] = frozenset({"level_open", "level_close"})
+
+#: Everything that cannot be answered from one reporting date.
+TWO_PERIOD_KINDS: frozenset[str] = MOVEMENT_KINDS | CROSSING_KINDS
+
 
 def asserts_movement(conditions: list[Condition]) -> bool:
     """Whether any condition compares a measure across two dates."""
-    return any(str(getattr(c, "kind", "")) in MOVEMENT_KINDS for c in conditions)
+    return any(str(getattr(c, "kind", "")) in TWO_PERIOD_KINDS
+               for c in conditions)
 
 
 def _shape(reading: Reading, conditions: list[Condition],
@@ -1407,9 +1417,25 @@ def _conditions(text: str, matches: list[cx.ConceptMatch]) -> list[Condition]:
     under a heading promising below 15% — a contradiction visible in the
     answer's own table.
     """
+    from backend.orchestration import thresholds as th
+
     out: list[Condition] = []
     for match in matches:
         movement = sm.movement_near(text, match.phrase)
+        # A movement whose number is introduced by a POSITIONAL word states a
+        # crossing, not a distance. "headroom fell below 15%" is a line that
+        # was crossed; "headroom fell by 15%" is how far it moved. Read first,
+        # because `condition_for` below has no way to tell them apart and
+        # resolves the bound against the direction as though it qualified the
+        # size — which turned "crossed under fifteen" into "fell by more than
+        # fifteen" and admitted borrowers whose headroom had risen.
+        if movement is not None:
+            crossing = th.crossing_for(
+                match.field, match.concept.higher_is_worse,
+                movement.phrase or "")
+            if crossing:
+                out.extend(crossing)
+                continue
         condition = sm.condition_for(match, movement)
         if condition is not None:
             out.append(condition)
@@ -1998,7 +2024,7 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     # can carry them at all; a movement test never reaches here.
     applied: pr.Node | None = None
     level = [c for c in (conditions or [])
-             if str(getattr(c, "kind", "")) not in MOVEMENT_KINDS]
+             if str(getattr(c, "kind", "")) not in TWO_PERIOD_KINDS]
     testable = [c for c in level if c.column in available]
     for condition in level:
         if condition.column not in available:
@@ -2374,7 +2400,18 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     # silently puts the other ten sectors back on screen.
     stated = _explicit_top_n(text)
     top_n = 0
-    if shape == RANKING:
+    # A ranking is cut to a default ten because "which customers are worst" has
+    # to stop somewhere. A ranking whose population is already DEFINED by a
+    # level test is a different question: the threshold has selected the
+    # population, and cutting it to ten answers "the ten largest under the
+    # line" instead of "the ones under the line".
+    #
+    # That was the defect. "Which customers have covenant headroom below 15%?"
+    # returned ten rows and described them as "the 10 largest customers by
+    # covenant headroom" — a true sentence about a question nobody asked, when
+    # 1,209 customers qualified.
+    defines_population = bool(testable)
+    if shape == RANKING and not defines_population:
         top_n = stated or inherited_top_n or DEFAULT_TOP_N
     elif stated or inherited_top_n:
         top_n = stated or inherited_top_n

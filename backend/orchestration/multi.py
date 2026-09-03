@@ -429,6 +429,55 @@ def read_question(question: str, *, catalogue: Any, periods: list[str],
             field=match.field, kind="level", op=comparison, value=value,
             phrase=match.phrase, higher_is_worse=match.concept.higher_is_worse))
 
+    # Numeric thresholds — "headroom below 15%", "DSCR below 1.2x", "utilisation
+    # above 90%" — and the crossings that share their vocabulary. Read from the
+    # WHOLE question rather than from the defining clauses, for the same reason
+    # `_read_levels` above is: a threshold states where the population IS, and
+    # the defining-clause extraction is tuned for how a measure MOVED.
+    #
+    # Without this the bound was dropped in silence and the question became a
+    # ranking: "customers with headroom below 15%" returned the ten largest
+    # headrooms in the book, described as such, when 1,209 customers qualified.
+    from backend.orchestration import thresholds as th
+
+    bounded, bound_unread = th.read(request.question, resolver=resolver,
+                                    whole=request.question)
+    import os as _os
+    if _os.environ.get("CP_DEBUG_THRESHOLDS"):
+        print("[TH] q=", request.question[:60],
+              "| bounded=", [(c.field, c.kind, c.op, c.value) for c in bounded],
+              "| unread=", bound_unread, flush=True)
+    already = {(c.field, c.kind) for c in conditions}
+    crossed = {c.field for c in bounded
+               if c.kind in ("level_open", "level_close")}
+    if crossed:
+        # A crossing and a magnitude on the same measure are two readings of
+        # one phrase. The crossing is the one the sentence actually made.
+        conditions = [c for c in conditions
+                      if not (c.field in crossed
+                              and c.kind in ("change_pct", "change_abs"))]
+        already = {(c.field, c.kind) for c in conditions}
+    for condition in bounded:
+        if (condition.field, condition.kind) in already:
+            continue
+        local = cx.read_concepts(condition.phrase, known=known,
+                                 catalogue=catalogue)
+        match = next((m for m in local.matches if m.field == condition.field),
+                     None) or by_phrase.get(condition.field)
+        if match is None:
+            # Traced to no governed concept: reported rather than applied, so
+            # the answer says what it could not read instead of quietly
+            # answering a wider question.
+            request.reasons.append(
+                f"CreditProbe could not trace '{condition.phrase}' to a "
+                "governed measure.")
+            continue
+        by_phrase[condition.field] = match
+        conditions.append(condition)
+    for phrase in bound_unread:
+        request.reasons.append(
+            f"CreditProbe could not read: '{phrase}'")
+
     lowered = request.question.lower()
     if re.search(_ASSOCIATION_WORDS, lowered):
         request.shape = ASSOCIATION
@@ -1160,6 +1209,14 @@ def _condition_column(binding: Binding,
     return {"change_pct": f"{measure}_change_pct",
             "change_abs": f"{measure}_change",
             "level": at_close,
+            # The two halves of a CROSSING. "fell below 15%" tests where the
+            # measure WAS at the opening date and where it IS at the closing
+            # one, and the closing half is the value that qualifies the row —
+            # the one the answer must show, and the one the threshold applies
+            # to. Naming both explicitly is what stops the opening figure being
+            # cited as though it were the qualifying figure.
+            "level_open": measure,
+            "level_close": at_close,
             # An ordering binding filters on nothing; it names the column the
             # answer is sorted by — and "closest to breach" means closest now.
             "order": at_close}[binding.condition.kind]

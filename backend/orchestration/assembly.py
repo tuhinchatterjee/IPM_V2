@@ -919,7 +919,29 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
         # count comes from the reconciliation the plan already computes, so
         # nothing here is derived twice.
         whole = _population_count(build, runtime)
-        if getattr(build, "entity_list", False) and count and whole > count:
+        # A population defined by a THRESHOLD is a population, not a ranking.
+        # "Which customers have covenant headroom below 15%?" answered "the 10
+        # largest customers by covenant headroom" — true of the ten rows on
+        # screen, and a description of a question nobody asked, when 1,209
+        # customers were under the line. The test is what selected them, so the
+        # test is what the sentence has to say.
+        tests = [c for c in (getattr(build, "conditions", None) or [])
+                 if str(getattr(c, "kind", "")) == "level"]
+        defined_by_test = bool(tests)
+        if defined_by_test and count:
+            # `count` is the size of the qualifying population; `rows` is what
+            # the table shows. The reconciliation count is preferred where the
+            # plan computed one, but it is not always available and a headline
+            # of "0 customers" above two hundred rows is worse than no headline.
+            population = whole or count
+            said = " and ".join(c.describe() for c in tests)
+            # Only the population is asserted. The number of rows on screen is
+            # a property of the display, not a governed figure, and stating it
+            # here put an ungrounded number in a sentence whose whole purpose
+            # is that every number in it can be checked.
+            direct = (f"{population:,} {_subject(build, population)} with "
+                      f"{said} at {build.period}.")
+        elif getattr(build, "entity_list", False) and count and whole > count:
             # The test as well as the subject. "1,647 customers in IFRS 9
             # stage 2 or worse" is the right count for "…and on the
             # watchlist", and a heading that quotes the count without the
