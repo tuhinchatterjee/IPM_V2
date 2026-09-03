@@ -90,6 +90,39 @@ the owner, the origin, the status, the version, and the aliases.
 `not_this` is frequently the most-read line. "Not a roll rate. This is a level
 at a point in time, not a movement between two."
 
+### What it costs
+
+    .venv/bin/python scripts/acceptance/lens_performance.py
+
+Measured over HTTP against a running backend, signed in as an analyst, so what
+is timed is what a person waits for. Median and near-worst of five runs, first
+call discarded — the first pays for a DuckDB connection and a cold catalogue
+read that nobody after the first person pays again.
+
+| What | p50 | p95 | Budget |
+| --- | ---: | ---: | ---: |
+| Metric typeahead | 16 ms | 18 ms | 200 ms |
+| The whole catalogue | 11 ms | 11 ms | 600 ms |
+| One metric, calculated | 96 ms | 98 ms | 1,500 ms |
+| Corporate IFRS 9, 21 tiles | 923 ms | 948 ms | 4,000 ms |
+| Retail Credit Risk, 16 tiles | 717 ms | 759 ms | 4,000 ms |
+| Retail Analytics, 12 tiles | 742 ms | 765 ms | 4,000 ms |
+
+A lens costs roughly 45 ms per tile: each runs its own query, and none of them
+is cached, because a Lens is what the book says today. The budgets are what a
+person notices, not what the hardware can do.
+
+**These are not a capacity claim.** One process, one client, no concurrency,
+synthetic data on local disk, in a sandbox with shared CPU. They are useful for
+telling whether a change made a screen slower, and for nothing else.
+
+Resolving the period is why the render is not twice this. Left per-tile, every
+tile asked its dataset which periods carry rows — twenty-one identical
+questions — and the IFRS 9 lens took 1.7 s. It is resolved once per source per
+render instead, which also removes the way two tiles could land on different
+periods and stop reconciling. The memo lives for the one render: a cache that
+outlived it would serve yesterday's latest period after a load.
+
 ### Arranging a lens
 
 Two ways in, one set of rules. `POST /lenses/{id}/ask` changes a lens by

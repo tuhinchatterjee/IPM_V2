@@ -608,12 +608,24 @@ def render(lens_id: int, *, period: str | None = None,
     view = get(lens_id)
     from backend.engine.runner import persist_run, run_analysis
 
+    # Which period each metric means when the lens is not pinned to one.
+    # Resolved once per source rather than once per tile: twenty-one tiles
+    # reading the same dataset asked the same question twenty-one times, and —
+    # worse than the cost — two tiles that resolved separately could land on
+    # different periods, so an IFRS 9 lens whose stage exposures are meant to
+    # sum to its total would stop summing to it.
+    #
+    # The memo lives for this render alone. A cache that outlived it would
+    # keep serving yesterday's latest period after a load, which is the one
+    # kind of staleness a lens must not have.
+    periods: dict[tuple[Any, ...], str] = {}
+
     panels: list[dict[str, Any]] = []
     for entry in view.panels:
         panel = Panel.from_dict(entry)
         if panel.kind == KIND_METRIC:
             panels.append(_render_metric(panel, period=period,
-                                         user_id=user_id))
+                                         user_id=user_id, periods=periods))
             continue
         try:
             outcome = run_analysis(
@@ -662,7 +674,9 @@ def render(lens_id: int, *, period: str | None = None,
 
 
 def _render_metric(panel: Panel, *, period: str | None,
-                   user_id: int | None) -> dict[str, Any]:
+                   user_id: int | None,
+                   periods: dict[tuple[Any, ...], str] | None = None
+                   ) -> dict[str, Any]:
     """One metric tile: the number, the working, and how it is defined.
 
     The §6 info panel travels with the tile rather than being fetched when
@@ -676,6 +690,17 @@ def _render_metric(panel: Panel, *, period: str | None,
     from backend.metrics import service as metrics
 
     wanted = panel.period or (period or "")
+    if not wanted and periods is not None:
+        try:
+            definition = metrics.resolve(panel.metric_id, user_id=user_id)
+        except metrics.MetricNotFound as e:
+            return {**panel.to_dict(), "status": "failed", "error": str(e),
+                    "result": None, "metric": None}
+        key = (definition.datasets, definition.scope, definition.period_rule)
+        if key not in periods:
+            periods[key] = metrics.default_period(definition)
+        wanted = periods[key]
+
     try:
         outcome = metrics.value(panel.metric_id, period=wanted,
                                 user_id=user_id)
