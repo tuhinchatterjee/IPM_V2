@@ -44,6 +44,7 @@ from backend.db.engine import SessionLocal
 from backend.models.planner import PlannerProject
 from backend.planner import access as acl
 from backend.planner import agent as ai
+from backend.planner import channels
 from backend.planner import monitor as mon
 from backend.planner import query as pq
 from backend.planner import service as svc
@@ -570,6 +571,19 @@ def chases(project_id: int, task_id: int | None = None,
     """
     return _guard(lambda: ai.draft_update_request(
         session, principal, project_id, task_id=task_id, tone=tone))
+
+
+@router.get("/delivery-channels",
+            summary="How reminders actually reach people")
+def delivery_channels(principal: Principal = RequireCommenter) -> dict:
+    """What is delivered and what is only composed.
+
+    Exposed because "did they get an email?" is a question somebody asks on a
+    Tuesday afternoon, and the honest answer — no, there is no mail provider,
+    here is the message we would have sent — is more useful than silence.
+    """
+    _ = principal
+    return channels.describe()
 
 
 # ======================================================= the schedule
