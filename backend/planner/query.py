@@ -38,8 +38,7 @@ from backend.models.planner import (
     PlannerWorkstream,
 )
 from backend.planner import access as acl
-from backend.planner import control
-from backend.planner import schedule
+from backend.planner import control, schedule
 
 QUERY_VERSION = "1.0.0"
 

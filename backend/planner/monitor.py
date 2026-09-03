@@ -652,8 +652,8 @@ def requests(session: Any, project_ids: list[int], *,
     answered for a week is the one the manager needs, and burying it under
     this morning's is how a chase list stops being read.
     """
-    from backend.models.planner import PlannerProject, PlannerTask, PlannerUpdate
     from backend.db.models import User
+    from backend.models.planner import PlannerProject, PlannerTask, PlannerUpdate
 
     if not project_ids:
         return []

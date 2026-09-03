@@ -17,7 +17,6 @@ through the queue, the schedule table and the worker's own registration path.
 from __future__ import annotations
 
 import inspect
-import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
