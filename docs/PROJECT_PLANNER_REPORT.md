@@ -178,8 +178,20 @@ planner's display rules.
 **43 browser journey checks** (`scripts/acceptance/planner_journeys.py`), all
 passing, signed in as a real person through the real login form.
 
-**Protected regression baseline**: 14/14 groups green, identical to
-`pp-baseline-94e1ca3` group for group and count for count.
+**Full backend suite** on the final HEAD: `pytest tests -q -p no:randomly`
+over 11,737 collected tests, exit code 0, zero failures and zero errors. An
+earlier run of the same command on this branch found exactly two — both in
+`tests/docs/test_feature_matrix.py`, both caused by this work (three new pages
+with no curated expected behaviour), both fixed in `c42873f` by making the
+claim rather than widening the test.
+
+**Protected regression baseline** on the final HEAD: 14/14 groups green,
+identical to `pp-baseline-94e1ca3` group for group and count for count —
+messaging 129, system-messages 25, attention-counts 11, permissions 81 + 2
+skipped, admin-workflow 5, single-period-population 78, stage-widening 44,
+movement-vocabulary 60, context-carry-forward 75, ordinal-reference 30,
+answer-grain 68, multi-condition 137 + 10 skipped, ecl-decomposition 115,
+cockpit 74.
 
 **Lint**: `ruff check backend/ scripts/ tests/planner/` clean; `eslint` clean.
 **Types**: `tsc --noEmit` clean. **Build**: `next build` clean, all three
