@@ -47,7 +47,13 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from backend.db.models import Base
+# `users` and `teams` are defined in these modules, and the foreign keys below
+# point at them. Importing them here rather than relying on the caller means
+# `import backend.models.planner` is enough on its own: without it, a test or a
+# script that imports only this module gets NoReferencedTableError from deep
+# inside SQLAlchemy's flush, which names the column and not the missing import.
+import backend.models.platform  # noqa: F401 — registers `teams`
+from backend.db.models import Base  # noqa: E402 — registers `users`
 
 # ============================================================== vocabularies
 #
