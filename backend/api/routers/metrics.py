@@ -133,6 +133,92 @@ def browse_metrics(principal: Principal = RequireAnalyst) -> dict:
     }
 
 
+@router.get("/vocabulary", summary="What a metric may be built from")
+def metric_vocabulary(principal: Principal = RequireAnalyst) -> dict:
+    """The datasets, fields and operations a metric may name.
+
+    The builder offers only these. That is the point: a person composing a
+    metric picks from what the governed catalogue actually holds, so a
+    definition naming a field that does not exist cannot be assembled in the
+    first place — and the server refuses it again on submission, because a
+    picker is a convenience and never a control.
+    """
+    from backend.metrics import formula as formula_mod
+
+    datasets: list[dict] = []
+    catalog = service._catalog()
+    if catalog is not None:
+        # The datasets the governed library already reads. A metric builder
+        # that offered all 77 would be offering a person the chance to build
+        # something nobody can interpret.
+        for name in sorted({d for m in library.ALL for d in m.datasets}):
+            try:
+                entry = catalog.dataset(name)
+            except Exception:  # noqa: BLE001 - a dataset that has gone
+                continue
+            datasets.append({
+                "name": entry.name,
+                "business_name": entry.business_name,
+                "purpose": entry.purpose,
+                "grain": entry.grain,
+                "period_field": entry.period_field,
+                "fields": [{
+                    "name": field.name,
+                    "business_name": field.business_name,
+                    "definition": field.definition,
+                    "data_type": field.data_type,
+                    "unit": field.unit,
+                    "allowed_values": list(field.allowed_values or []),
+                } for field in entry.fields.values()],
+            })
+
+    return {
+        "datasets": datasets,
+        "kinds": list(formula_mod.KINDS),
+        "aggregations": dict(formula_mod.AGGREGATIONS),
+        "comparisons": dict(formula_mod.COMPARISONS),
+        "combiners": list(formula_mod.COMBINERS),
+        "units": list(formula_mod.UNITS),
+        "needs_denominator": list(formula_mod.NEEDS_DENOMINATOR),
+        "domains": sorted({m.domain for m in library.ALL if m.domain}),
+    }
+
+
+@router.post("/preview", summary="What a formula would produce, before storing it")
+def preview_metric(payload: MetricIn,
+                   period: str = Query(default="", max_length=32),
+                   principal: Principal = RequireAnalyst) -> dict:
+    """Compile and run a formula without keeping it.
+
+    So somebody building a metric sees the number and the working before they
+    commit to a definition, and sees the refusal — with the reason — before
+    they have named something that cannot calculate.
+    """
+    from backend.metrics import execution
+
+    try:
+        formula = service.formula_from_dict(payload.formula)
+    except service.MetricRefused as e:
+        raise _refused(e) from e
+
+    try:
+        calculation = execution.run(formula, period=period,
+                                    question=payload.name or "metric preview")
+    except Exception as e:  # noqa: BLE001 - a preview must never 500
+        logger.info("metric preview could not be produced", exc_info=True)
+        return {"available": False, "value": None, "unavailable": str(e),
+                "formula": formula.describe()}
+
+    return {
+        "available": calculation.value is not None,
+        "value": calculation.value,
+        "unit": payload.unit,
+        "unavailable": calculation.unavailable,
+        "formula": formula.describe(),
+        "calculation": calculation.to_dict(),
+    }
+
+
 @router.get("/{metric_id}", summary="Everything one metric means")
 def read_metric(metric_id: str,
                 principal: Principal = RequireAnalyst) -> dict:

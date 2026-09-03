@@ -403,8 +403,11 @@ def _discrimination(frame: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame
             "events": int(found.events),
             "score_direction": found.score_direction,
             "evidence": found.evidence,
-            "note": (f"{found.events:,} defaults in {found.observations:,} "
-                     f"rows; AUC {found.auc:.4f}."),
+            # The sample size, and only the sample size. The AUC belongs in
+            # the answer, not in the caveat beside it — and the display
+            # contract governs figures a reader sees, which this is.
+            "note": (f"{found.events:,} defaults in "
+                     f"{found.observations:,} rows."),
         }])
     except scorecard.MetricError as e:
         # An immature cohort, or a sample with no defaults in it. Both are

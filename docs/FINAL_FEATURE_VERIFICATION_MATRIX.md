@@ -1,6 +1,6 @@
 # Full-system feature verification matrix
 
-Generated from the build at `0b6181a` by `scripts/feature_matrix.py`.
+Generated from the build at `8380742` by `scripts/feature_matrix.py`.
 
 This inventory is enumerated, not remembered. Every row comes from a page that exists on disk or an endpoint in the live OpenAPI spec, so a route added and forgotten appears here anyway. Three columns cannot be generated and are curated by hand - expected behaviour, defect and remaining limitation - because each is a claim somebody is accountable for, and deriving them from the code would produce a document that agrees with the code by construction and therefore establishes nothing.
 
@@ -8,12 +8,12 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | | |
 |---|---|
-| Pages | 51 |
-| Reviewed | 51 |
+| Pages | 53 |
+| Reviewed | 53 |
 | Not yet reviewed | 0 |
 | Carrying a known defect | 2 |
 | Not fully OK | 6 |
-| API endpoints | 498 across 39 areas |
+| API endpoints | 518 across 40 areas |
 | Browser-crawled routes | 98 |
 
 ## Pages
@@ -73,8 +73,9 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/delivery/[id]` | any signed-in role | One delivery project across seven tabs — Overview, Plan, Milestones, RAID, People, Updates, Brief — with the export and workbook import, the chase drafts, and an AI brief whose every line is labelled Fact, Reading, Suggested or Not recorded. | none | - | - | PARTIAL | - | Risks and milestones can be raised and added here but not edited here: closing a risk or marking a milestone achieved is still API-and-workbook only. There is no Gantt or timeline renderer, and the critical-path flag is a marker rather than a computed longest path — the engine refuses to present a critical path it has not calculated. |
+| `/delivery/[id]` | any signed-in role | One delivery project across its tabs — Overview, Plan, Timeline, Workstreams, Milestones, People, Updates, Brief — with the export and workbook import, the chase drafts, and an AI brief whose every line is labelled Fact, Reading, Suggested or Not recorded. The Timeline draws the plan against dates and marks the calculated critical path. | none | - | - | PARTIAL | - | Risks and milestones can be raised and added here but not edited here: closing a risk or marking a milestone achieved is still API-and-workbook only. The critical path is now computed by the scheduling engine rather than read off a marker, and where the plan does not support one the Timeline says why instead of drawing a guess. |
 | `/delivery/my-work` | any signed-in role | Every task with your name on it, across every delivery project, in six buckets ordered by what needs you first. Clicking one opens the quick update: status, progress, a sentence, and blocked with a reason. | none | - | - | OK | - | Owner and due date are deliberately absent from the quick update. Reporting progress and moving a commitment are different acts, the second needs editor access, and a field that can only ever produce a 403 is worse than no field. The drawer says so rather than leaving it to be discovered. |
+| `/delivery/new` | any signed-in role | Create a delivery project: name, code, dates, the manager, and the participants, or import a plan from a workbook. Every field the planner needs, and nothing it does not. | none | - | - | OK | - | A project can be created here but its plan is built afterwards, on the project page or by importing a workbook. There is no task grid on this screen. |
 | `/delivery` | any signed-in role | The delivery portfolio: every project you are a participant on, with its health and the sentence behind it, weighted progress, overdue and blocked counts, next milestone and manager. An Attention panel above the table names the projects that need somebody, with the reason for each, and a portfolio read labels every claim as a fact or a reading of the facts. | none | - | - | OK | - | A project nobody has put you on is not listed and cannot be opened by its URL. That is the access boundary, not a gap: CreditProbe is single-tenant, so participation IS the boundary. |
 
 ### documents
@@ -123,6 +124,12 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 | `/messages/[threadId]` | any signed-in role | One conversation: every message in order, the attachments as cards that open the object, the review actions the state machine permits, and the append-only status history. Opening it marks it read and the unread count falls immediately. | `messages` (18) | 10 file(s) | - | OK | - | Forwarding is not implemented; reply and reply-to-thread are. Whether an attachment's share grant should travel with a forward is a permission decision nobody has made. |
 | `/messages` | any signed-in role | The message centre: Inbox, Action required, Sent, Drafts and Archived over one set of messages, with search and an unread filter. Composing offers the governed directory on focus and shares analyses, investigations and files as access-checked cards. | `messages` (18) | 10 file(s) | - | OK | - | Unread counts conversations rather than individual messages: one Inbox row is one conversation, and opening it reads everything currently in it. |
 
+### metrics
+
+| Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
+|---|---|---|---|---|---|---|---|---|
+| `/metrics` | any signed-in role | The Metric Catalogue: what CreditProbe means by each number. Search by whatever you call it — “NPL rate”, “bad rate” and “default rate” are one metric — then read the definition, the formula, the fields it reads, what it excludes and what it is not. Calculate it for a period, look at the rows behind it, and check it against a number you already trusted. | `metrics` (14) | 1 file(s) | - | OK | - | Sixty-one governed metrics over five published datasets. What this deployment cannot calculate is listed with the reason rather than omitted: retail IFRS 9 staging and ECL, roll and cure rates, the approval rate, PSI, and the ECL movement bridge. Building a metric is available through the API and the preview endpoint; there is no form on this screen yet. |
+
 ### playbooks
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
@@ -133,8 +140,8 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/projects/[id]` | any signed-in role | One Project: its Investigations, its people, its workflow and its Risk Cases. Project-scoped work stays inside it until published. | `workspace` (18) | 8 file(s) | `/projects/6403` ADMIN pass; `/projects/6404` ADMIN pass | OK | - | A Project holds context, threads, analyses and people but not a structured operating plan; the governed Project Plan is not built. |
-| `/projects` | any signed-in role | Credit Projects the signed-in user can reach. | `workspace` (18) | 8 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/projects/[id]` | any signed-in role | One Project: its Investigations, its people, its workflow and its Risk Cases. Project-scoped work stays inside it until published. | `workspace` (18) | 10 file(s) | `/projects/6403` ADMIN pass; `/projects/6404` ADMIN pass | OK | - | A Project holds context, threads, analyses and people but not a structured operating plan; the governed Project Plan is not built. |
+| `/projects` | any signed-in role | Credit Projects the signed-in user can reach. | `workspace` (18) | 10 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 
 ### reviews
 
@@ -233,7 +240,8 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `lenses` | 9 |
 | `messages` | 18 |
 | `metadata` | 6 |
-| `planner` | 31 |
+| `metrics` | 14 |
+| `planner` | 37 |
 | `playbooks` | 8 |
 | `preferences` | 3 |
 | `projects` | 7 |

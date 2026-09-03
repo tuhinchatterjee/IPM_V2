@@ -5050,6 +5050,57 @@ export const api = {
         (period ? `&period=${encodeURIComponent(period)}` : ""),
       { timeoutMs: 120_000 },
     ),
+  /**
+   * The datasets, fields and operations a metric may be built from.
+   *
+   * The builder offers only these, so a definition naming a field that does
+   * not exist cannot be assembled — and the server refuses it again on
+   * submission, because a picker is a convenience and never a control.
+   */
+  metricVocabulary: () =>
+    request<{
+      datasets: {
+        name: string;
+        business_name: string;
+        purpose: string;
+        grain: string;
+        period_field: string;
+        fields: {
+          name: string;
+          business_name: string;
+          definition: string;
+          data_type: string;
+          unit: string | null;
+          allowed_values: string[];
+        }[];
+      }[];
+      kinds: string[];
+      aggregations: Record<string, string>;
+      comparisons: Record<string, string>;
+      combiners: string[];
+      units: string[];
+      needs_denominator: string[];
+      domains: string[];
+    }>("/metrics/vocabulary"),
+  previewMetric: (
+    payload: {
+      name: string;
+      formula: Record<string, unknown>;
+      unit?: string;
+    },
+    period = "",
+  ) =>
+    request<{
+      available: boolean;
+      value: number | null;
+      unit?: string;
+      unavailable: string;
+      formula: string;
+      calculation?: MetricCalculation;
+    }>(
+      `/metrics/preview${period ? `?period=${encodeURIComponent(period)}` : ""}`,
+      { method: "POST", body: JSON.stringify(payload), timeoutMs: 120_000 },
+    ),
   createMetric: (payload: {
     name: string;
     definition?: string;

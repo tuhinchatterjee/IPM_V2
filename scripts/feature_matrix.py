@@ -90,18 +90,40 @@ _JUDGEMENTS: dict[str, Judgement] = {
                    "field. The drawer says so rather than leaving it to be "
                    "discovered."),
     "/delivery/[id]": Judgement(
-        "One delivery project across seven tabs — Overview, Plan, Milestones, "
-        "RAID, People, Updates, Brief — with the export and workbook import, "
-        "the chase drafts, and an AI brief whose every line is labelled Fact, "
-        "Reading, Suggested or Not recorded.",
+        "One delivery project across its tabs — Overview, Plan, Timeline, "
+        "Workstreams, Milestones, People, Updates, Brief — with the export "
+        "and workbook import, the chase drafts, and an AI brief whose every "
+        "line is labelled Fact, Reading, Suggested or Not recorded. The "
+        "Timeline draws the plan against dates and marks the calculated "
+        "critical path.",
         status=PARTIAL,
         limitation="Risks and milestones can be raised and added here but not "
                    "edited here: closing a risk or marking a milestone "
-                   "achieved is still API-and-workbook only. There is no "
-                   "Gantt or timeline renderer, and the critical-path flag is "
-                   "a marker rather than a computed longest path — the engine "
-                   "refuses to present a critical path it has not "
-                   "calculated."),
+                   "achieved is still API-and-workbook only. The critical "
+                   "path is now computed by the scheduling engine rather than "
+                   "read off a marker, and where the plan does not support "
+                   "one the Timeline says why instead of drawing a guess."),
+    "/delivery/new": Judgement(
+        "Create a delivery project: name, code, dates, the manager, and the "
+        "participants, or import a plan from a workbook. Every field the "
+        "planner needs, and nothing it does not.",
+        limitation="A project can be created here but its plan is built "
+                   "afterwards, on the project page or by importing a "
+                   "workbook. There is no task grid on this screen."),
+    "/metrics": Judgement(
+        "The Metric Catalogue: what CreditProbe means by each number. Search "
+        "by whatever you call it — \u201cNPL rate\u201d, \u201cbad rate\u201d "
+        "and \u201cdefault rate\u201d are one metric — then read the "
+        "definition, the formula, the fields it reads, what it excludes and "
+        "what it is not. Calculate it for a period, look at the rows behind "
+        "it, and check it against a number you already trusted.",
+        limitation="Sixty-one governed metrics over five published datasets. "
+                   "What this deployment cannot calculate is listed with the "
+                   "reason rather than omitted: retail IFRS 9 staging and "
+                   "ECL, roll and cure rates, the approval rate, PSI, and the "
+                   "ECL movement bridge. Building a metric is available "
+                   "through the API and the preview endpoint; there is no "
+                   "form on this screen yet."),
     "/analyses": Judgement(
         "Every saved Analysis, filterable, each opening its definition."),
     "/analysis/[analysisId]": Judgement(
