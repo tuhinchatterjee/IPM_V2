@@ -67,6 +67,41 @@ _JUDGEMENTS: dict[str, Judgement] = {
         limitation="Requires Attention shows Portfolio and Data as empty at "
                    "Q2 2026 because nothing moved at those levels. Nothing "
                    "is invented to fill a filter."),
+    "/delivery": Judgement(
+        "The delivery portfolio: every project you are a participant on, with "
+        "its health and the sentence behind it, weighted progress, overdue "
+        "and blocked counts, next milestone and manager. An Attention panel "
+        "above the table names the projects that need somebody, with the "
+        "reason for each, and a portfolio read labels every claim as a fact "
+        "or a reading of the facts.",
+        limitation="A project nobody has put you on is not listed and cannot "
+                   "be opened by its URL. That is the access boundary, not a "
+                   "gap: CreditProbe is single-tenant, so participation IS "
+                   "the boundary."),
+    "/delivery/my-work": Judgement(
+        "Every task with your name on it, across every delivery project, in "
+        "six buckets ordered by what needs you first. Clicking one opens the "
+        "quick update: status, progress, a sentence, and blocked with a "
+        "reason.",
+        limitation="Owner and due date are deliberately absent from the quick "
+                   "update. Reporting progress and moving a commitment are "
+                   "different acts, the second needs editor access, and a "
+                   "field that can only ever produce a 403 is worse than no "
+                   "field. The drawer says so rather than leaving it to be "
+                   "discovered."),
+    "/delivery/[id]": Judgement(
+        "One delivery project across seven tabs — Overview, Plan, Milestones, "
+        "RAID, People, Updates, Brief — with the export and workbook import, "
+        "the chase drafts, and an AI brief whose every line is labelled Fact, "
+        "Reading, Suggested or Not recorded.",
+        status=PARTIAL,
+        limitation="Risks and milestones can be raised and added here but not "
+                   "edited here: closing a risk or marking a milestone "
+                   "achieved is still API-and-workbook only. There is no "
+                   "Gantt or timeline renderer, and the critical-path flag is "
+                   "a marker rather than a computed longest path — the engine "
+                   "refuses to present a critical path it has not "
+                   "calculated."),
     "/analyses": Judgement(
         "Every saved Analysis, filterable, each opening its definition."),
     "/analysis/[analysisId]": Judgement(
