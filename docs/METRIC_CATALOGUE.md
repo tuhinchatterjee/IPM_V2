@@ -90,6 +90,26 @@ the owner, the origin, the status, the version, and the aliases.
 `not_this` is frequently the most-read line. "Not a roll rate. This is a level
 at a point in time, not a movement between two."
 
+### Arranging a lens
+
+Two ways in, one set of rules. `POST /lenses/{id}/ask` changes a lens by
+describing the change; `PUT /lenses/{id}/layout` submits the arrangement
+directly — the order, the bands, the titles, and how each tile is drawn. Both
+run `services.lenses.validate` and both write a revision that can be restored,
+so a tile moved by hand is refused for the reasons a tile added by asking is.
+
+The layout arrives whole rather than as a list of moves: an ordering is not a
+set of independent edits, and applying five of six reorderings leaves a lens
+nobody asked for. Bands address tiles by position in the same submission, so
+an arrangement and its bands cannot disagree, and a band pointing past the end
+of the list is refused rather than rendering as a gap.
+
+How a tile may be drawn comes from the metric's own `visuals`, not from the
+platform's list of chart types. A single ratio drawn as a line of one point
+looks like a working tile and misleads, so the editor offers only what the
+definition says is honest — and the server checks again, because a select
+element is a convenience and never a control.
+
 ### Period rules
 
 | Rule | Meaning |

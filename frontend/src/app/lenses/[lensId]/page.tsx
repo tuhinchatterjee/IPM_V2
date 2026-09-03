@@ -5,6 +5,7 @@ import * as React from "react";
 import {
   GitBranch,
   History,
+  LayoutGrid,
   Loader2,
   RotateCcw,
   Sparkles,
@@ -28,6 +29,7 @@ import {
   type RenderedLens,
   type RenderedPanel,
 } from "@/lib/api";
+import { LayoutEditor } from "@/components/lenses/layout-editor";
 import { useAsync } from "@/lib/hooks";
 import { fromLens, linkBack, type ReturnContext } from "@/lib/return-to";
 
@@ -70,6 +72,7 @@ function LensView({ id }: { id: number }) {
   const [changed, setChanged] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [showHistory, setShowHistory] = React.useState(false);
+  const [arranging, setArranging] = React.useState(false);
 
   async function ask() {
     if (!request.trim() || busy) return;
@@ -121,7 +124,20 @@ function LensView({ id }: { id: number }) {
 
       <Header lens={lens} rendered={rendered.data} />
 
-      <LensBody rendered={rendered.data} lens={lens} />
+      {arranging ? (
+        <LayoutEditor
+          lensId={id}
+          rendered={rendered.data}
+          onSaved={() => {
+            setArranging(false);
+            setChanged("Saved the new arrangement as a version of its own.");
+            setNonce((n) => n + 1);
+          }}
+          onCancel={() => setArranging(false)}
+        />
+      ) : (
+        <LensBody rendered={rendered.data} lens={lens} />
+      )}
 
       {changed && <p className="text-xs text-positive">{changed}</p>}
       {refusals.map((refusal) => (
@@ -149,6 +165,14 @@ function LensView({ id }: { id: number }) {
           <Button size="sm" onClick={ask} disabled={busy || !request.trim()}>
             {busy ? <Loader2 className="animate-spin" aria-hidden /> : <Sparkles aria-hidden />}
             Apply
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setArranging((a) => !a)}
+          >
+            <LayoutGrid aria-hidden />
+            {arranging ? "Stop arranging" : "Arrange"}
           </Button>
           <Button
             variant="ghost"

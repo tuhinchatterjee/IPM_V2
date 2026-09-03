@@ -5185,6 +5185,23 @@ export const api = {
 
   restoreLens: (id: number, version: number) =>
     request<Lens>(`/lenses/${id}/restore/${version}`, { method: "POST" }),
+  // The layout arrives whole rather than as a list of moves: an ordering is
+  // not a set of independent edits, and applying five of six reorderings
+  // leaves a lens nobody asked for. Sections address tiles by position in
+  // `tiles`, so an arrangement and its bands cannot disagree.
+  setLensLayout: (
+    id: number,
+    layout: {
+      tiles: LensPanel[];
+      sections?: LensSection[];
+      change_summary?: string;
+    },
+  ) =>
+    request<Lens>(`/lenses/${id}/layout`, {
+      method: "PUT",
+      body: JSON.stringify(layout),
+      timeoutMs: 60_000,
+    }),
   setLensStatus: (id: number, status: string) =>
     request<Lens>(`/lenses/${id}/status`, {
       method: "POST",

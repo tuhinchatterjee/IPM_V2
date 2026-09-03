@@ -330,8 +330,12 @@ _JUDGEMENTS: dict[str, Judgement] = {
                "requires an Analyst.",
         limitation="The permission is deliberate; the invitation is the "
                    "rough edge. Sign in as Analyst or Administrator."),
-    "/lenses/[lensId]": Judgement("One Lens and its panels.",
-                                  role="Administrator, Analyst"),
+    "/lenses/[lensId]": Judgement(
+        "One Lens: its tiles, banded as the lens says to band them, each able "
+        "to explain how its number is calculated. Changed either by asking or "
+        "by arranging it directly — both write a version that can be put "
+        "back, and both are refused by the same rules.",
+        role="Administrator, Analyst"),
     "/lenses/cro": Judgement("The CRO Lens: the executive story.",
                              role="Administrator, Analyst"),
     "/early-warning": Judgement(

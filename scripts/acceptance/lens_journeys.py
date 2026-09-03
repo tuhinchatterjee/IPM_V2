@@ -11,6 +11,7 @@ harder: that a person can trust a number they find here.
     E  Check a figure against your own number, including when they disagree.
     F  Read what the lens deliberately does not show.
     G  Build a metric of your own, and get the right number for it.
+    H  Arrange a lens by hand, and have that be a version like any other.
 
 Each journey asserts something a screenshot cannot: that the three stage
 exposures on screen sum to the total exposure on screen, that the info panel
@@ -130,7 +131,7 @@ def run(report: Report) -> Report:
             for name, journey in (("A", _journey_a), ("B", _journey_b),
                                   ("C", _journey_c), ("D", _journey_d),
                                   ("E", _journey_e), ("F", _journey_f),
-                                  ("G", _journey_g)):
+                                  ("G", _journey_g), ("H", _journey_h)):
                 _guard(report, name, journey, page, report)
         finally:
             context.close()
@@ -675,6 +676,105 @@ def _forget_metric(page: Any, name: str) -> None:
     found = _find_metric(page, name)
     if found:
         page.request.delete(f"{API}/api/v1/metrics/{found['metric_id']}")
+
+
+# --------------------------------------------------------------- journey H
+#
+# Arrange a lens by hand, and have the change be a version like any other.
+
+
+def _journey_h(page: Any, report: Report) -> None:
+    lens = _scratch_lens(page)
+    if lens is None:
+        report.check("H", "a lens of this run's own could be made", False,
+                     "the layout journey needs a lens it may rearrange")
+        return
+    try:
+        _arrange(page, report, lens)
+    finally:
+        page.request.delete(f"{API}/api/v1/lenses/{lens['id']}")
+
+
+def _arrange(page: Any, report: Report, lens: dict) -> None:
+    before = page.request.get(
+        f"{API}/api/v1/lenses/{lens['id']}").json()
+    first = [p["metric_id"] for p in before["panels"]]
+
+    page.goto(f"{WEB}/lenses/{lens['id']}", wait_until="networkidle")
+    page.wait_for_timeout(2500)
+
+    page.get_by_role("button", name="Arrange").click()
+    page.wait_for_selector("text=Arrange this lens", timeout=10_000)
+    body = page.inner_text("body")
+    report.check("H", "the editor says a change becomes a version",
+                 "new version" in body and "stays where it is" in body)
+
+    # A metric that declares one honest visual says so, rather than offering
+    # a chart type that would misrepresent it.
+    first_metric = next((p for p in before["panels"]
+                         if p.get("metric_id")), None)
+    if first_metric:
+        panel = page.request.get(
+            f"{API}/api/v1/metrics/{first_metric['metric_id']}").json()
+        offered = page.locator("select[aria-label^='How ']").first
+        options = [o.strip() for o in offered.locator("option").all_inner_texts()]
+        report.check("H", "the chart choices are the metric's own, not the "
+                     "platform's list",
+                     set(options) - {"auto"} == set(panel["visuals"]),
+                     f"offered {options}, declared {panel['visuals']}")
+
+    page.locator("button[aria-label^='Move ']").nth(1).click()
+    page.wait_for_timeout(300)
+    page.get_by_role("button", name="Save this arrangement").click()
+    page.wait_for_timeout(3500)
+
+    after = page.request.get(f"{API}/api/v1/lenses/{lens['id']}").json()
+    now = [p["metric_id"] for p in after["panels"]]
+    report.check("H", "the new order was kept", now != first and
+                 sorted(now) == sorted(first), f"{first} -> {now}")
+    report.check("H", "it is a version, not an overwrite",
+                 after["version"] > before["version"],
+                 f"v{before['version']} -> v{after['version']}")
+    latest = after["revisions"][0]
+    report.check("H", "and the version says what changed",
+                 len(latest["change_summary"]) > 10,
+                 latest["change_summary"])
+
+    # The lens is on screen in its new order, not only in the payload.
+    page.goto(f"{WEB}/lenses/{lens['id']}", wait_until="networkidle")
+    page.wait_for_timeout(2500)
+    shown = page.inner_text("body")
+    names = [p["title"] for p in after["panels"] if p.get("title")]
+    report.check("H", "the rearranged lens renders",
+                 all(name in shown for name in names[:3]), names[:3])
+
+    # And the arrangement before it can be put back.
+    restored = page.request.post(
+        f"{API}/api/v1/lenses/{lens['id']}/restore/{before['version']}").json()
+    report.check("H", "the previous arrangement can be put back",
+                 [p["metric_id"] for p in restored["panels"]] == first)
+
+
+def _scratch_lens(page: Any) -> dict | None:
+    """A lens made for this run and deleted after it.
+
+    Never a shipped one: an acceptance run must not leave the Corporate IFRS 9
+    lens in whatever order its last assertion happened to want.
+    """
+    made = page.request.post(
+        f"{API}/api/v1/lenses",
+        data={"name": "Arrangement Under Test",
+              "description": "Made by the acceptance run, and deleted by it.",
+              "panels": [
+                  {"kind": "metric", "metric_id": "corporate.ifrs9.stage1_ead",
+                   "analysis_id": "", "title": "Stage 1", "visual": "kpi"},
+                  {"kind": "metric", "metric_id": "corporate.ifrs9.stage2_ead",
+                   "analysis_id": "", "title": "Stage 2", "visual": "kpi"},
+                  {"kind": "metric", "metric_id": "corporate.ifrs9.stage3_ead",
+                   "analysis_id": "", "title": "Stage 3", "visual": "kpi"}]})
+    if not made.ok:
+        return None
+    return made.json()
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -1,6 +1,6 @@
 # Full-system feature verification matrix
 
-Generated from the build at `8380742` by `scripts/feature_matrix.py`.
+Generated from the build at `b19d2e9` by `scripts/feature_matrix.py`.
 
 This inventory is enumerated, not remembered. Every row comes from a page that exists on disk or an endpoint in the live OpenAPI spec, so a route added and forgotten appears here anyway. Three columns cannot be generated and are curated by hand - expected behaviour, defect and remaining limitation - because each is a claim somebody is accountable for, and deriving them from the code would produce a document that agrees with the code by construction and therefore establishes nothing.
 
@@ -13,7 +13,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 | Not yet reviewed | 0 |
 | Carrying a known defect | 2 |
 | Not fully OK | 6 |
-| API endpoints | 518 across 40 areas |
+| API endpoints | 519 across 40 areas |
 | Browser-crawled routes | 98 |
 
 ## Pages
@@ -113,9 +113,9 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/lenses/[lensId]` | Administrator, Analyst | One Lens and its panels. | `lenses` (9) | 3 file(s) | `/lenses/cro` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/lenses/cro` | Administrator, Analyst | The CRO Lens: the executive story. | `lenses` (9) | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/lenses` | any signed-in role | Saved dashboards of governed analyses. | `lenses` (9) | 3 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | PARTIAL | A Viewer sees the Lenses link and gets a dashboard of refusals: every tile runs an analysis and running one requires an Analyst. | The permission is deliberate; the invitation is the rough edge. Sign in as Analyst or Administrator. |
+| `/lenses/[lensId]` | Administrator, Analyst | One Lens: its tiles, banded as the lens says to band them, each able to explain how its number is calculated. Changed either by asking or by arranging it directly — both write a version that can be put back, and both are refused by the same rules. | `lenses` (10) | 4 file(s) | `/lenses/cro` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/lenses/cro` | Administrator, Analyst | The CRO Lens: the executive story. | `lenses` (10) | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/lenses` | any signed-in role | Saved dashboards of governed analyses. | `lenses` (10) | 4 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | PARTIAL | A Viewer sees the Lenses link and gets a dashboard of refusals: every tile runs an analysis and running one requires an Analyst. | The permission is deliberate; the invitation is the rough edge. Sign in as Analyst or Administrator. |
 
 ### messages
 
@@ -237,7 +237,7 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `intelligence` | 45 |
 | `investigations` | 16 |
 | `learning` | 24 |
-| `lenses` | 9 |
+| `lenses` | 10 |
 | `messages` | 18 |
 | `metadata` | 6 |
 | `metrics` | 14 |
