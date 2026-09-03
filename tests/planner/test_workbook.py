@@ -413,3 +413,54 @@ class TestImportPermissions:
         got = client.get(f"{PREFIX}/projects/{own['id']}/export",
                          headers=headers(cast["mallory"]))
         assert got.status_code == 404
+
+
+class TestDependenciesSurviveTheTrip:
+    """Dependencies are the part of a plan a spreadsheet usually loses.
+
+    They also have four columns that have to line up with a model whose own
+    fields are called something else, which is exactly the kind of mapping
+    that is wrong until something exercises it end to end.
+    """
+
+    def test_a_link_exports_and_re_imports_as_itself(self, client, cast, own):
+        detail = client.get(f"{PREFIX}/projects/{own['id']}",
+                            headers=headers(cast["alice"])).json()
+        tasks = sorted(detail["tasks"], key=lambda t: t["id"])[:2]
+        assert len(tasks) == 2, "need two tasks to link"
+
+        linked = client.post(
+            f"{PREFIX}/projects/{own['id']}/dependencies",
+            headers=headers(cast["alice"]),
+            json={"predecessor_type": "TASK", "predecessor_id": tasks[0]["id"],
+                  "successor_type": "TASK", "successor_id": tasks[1]["id"],
+                  "dependency_type": "FS"})
+        assert linked.status_code == 201, linked.text
+
+        exported = client.get(f"{PREFIX}/projects/{own['id']}/export",
+                              headers=headers(cast["alice"]))
+        sheet = load_workbook(io.BytesIO(exported.content))["DEPENDENCIES"]
+        rows = [[c.value for c in row] for row in sheet.iter_rows(min_row=2)]
+        codes = {(r[1], r[3]) for r in rows if r[1]}
+        assert (tasks[0]["code"], tasks[1]["code"]) in codes, codes
+
+        preview = upload(client, cast, own["id"], exported.content).json()
+        assert preview["summary"]["ok"], preview["issues"]
+        deps = [c for c in preview["changes"] if c["entity"] == "dependency"]
+        assert deps, "the exported link was not read back"
+        assert all(c["action"] == "UNCHANGED" for c in deps), \
+            [c["action"] for c in deps]
+
+    def test_re_importing_does_not_duplicate_it(self, client, cast, own):
+        exported = client.get(f"{PREFIX}/projects/{own['id']}/export",
+                              headers=headers(cast["alice"]))
+        before = len(client.get(f"{PREFIX}/projects/{own['id']}",
+                                headers=headers(cast["alice"])
+                                ).json()["dependencies"])
+        preview = upload(client, cast, own["id"], exported.content).json()
+        client.post(f"{PREFIX}/imports/{preview['import_id']}/commit",
+                    headers=headers(cast["alice"]))
+        after = len(client.get(f"{PREFIX}/projects/{own['id']}",
+                               headers=headers(cast["alice"])
+                               ).json()["dependencies"])
+        assert after == before

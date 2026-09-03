@@ -539,10 +539,10 @@ def export(session: Any, principal: Any, project_id: int) -> bytes:
             "critical": bool(m.critical), "description": m.description,
         } for m in milestones],
         "DEPENDENCIES": [{
-            "from_type": d.from_type,
-            "from_code": entity_code(d.from_type, d.from_id),
-            "to_type": d.to_type,
-            "to_code": entity_code(d.to_type, d.to_id),
+            "from_type": d.predecessor_type,
+            "from_code": entity_code(d.predecessor_type, d.predecessor_id),
+            "to_type": d.successor_type,
+            "to_code": entity_code(d.successor_type, d.successor_id),
             "dependency_type": d.dependency_type, "lag_days": d.lag_days,
             "notes": d.notes,
         } for d in deps],
@@ -977,7 +977,8 @@ def _existing(session: Any, project: Any) -> dict[str, dict[str, Any]]:
             select(PlannerParticipant).where(
                 PlannerParticipant.project_id == pid)).scalars()},
         "dependency": {
-            (d.from_type, int(d.from_id), d.to_type, int(d.to_id)): d
+            (d.predecessor_type, int(d.predecessor_id),
+             d.successor_type, int(d.successor_id)): d
             for d in session.execute(
                 select(PlannerDependency).where(
                     PlannerDependency.project_id == pid)).scalars()},
@@ -1354,9 +1355,16 @@ def _dependency_row(context: _Context, sheet: Sheet, row: dict
             to_type, context.id_of(to_type, to_code))
     held = (context.existing["dependency"].get(ends)
             if None not in ends else None)
-    before = _snapshot(held, values, {
-        "from_code": from_code, "to_code": to_code,
-    }) if held is not None else None
+    # Mapped explicitly rather than by getattr: the sheet says predecessor
+    # and successor because that is what a plan calls them, and the model
+    # agrees — but the row keys here are from_/to_, and getattr on those
+    # returns None for every one, which reports an untouched link as changed.
+    before = {
+        "from_type": held.predecessor_type, "from_code": from_code,
+        "to_type": held.successor_type, "to_code": to_code,
+        "dependency_type": held.dependency_type,
+        "lag_days": held.lag_days, "notes": held.notes,
+    } if held is not None else None
     return _change(sheet, row, "dependency", label, label, values, before)
 
 
@@ -1603,8 +1611,8 @@ def _apply(session: Any, principal: Any, project: Any, change: dict,
             return
         svc.create_dependency(
             session, principal, pid, source=SOURCE_EXCEL,
-            from_type=values["from_type"], from_id=from_id,
-            to_type=values["to_type"], to_id=to_id,
+            predecessor_type=values["from_type"], predecessor_id=from_id,
+            successor_type=values["to_type"], successor_id=to_id,
             dependency_type=values.get("dependency_type") or "FS",
             lag_days=values.get("lag_days") or 0,
             notes=values.get("notes") or "")
@@ -1656,10 +1664,10 @@ def _dependency_exists(session: Any, project_id: int, from_type: str,
     found = session.execute(
         select(PlannerDependency.id).where(
             PlannerDependency.project_id == project_id,
-            PlannerDependency.from_type == from_type,
-            PlannerDependency.from_id == from_id,
-            PlannerDependency.to_type == to_type,
-            PlannerDependency.to_id == to_id)).first()
+            PlannerDependency.predecessor_type == from_type,
+            PlannerDependency.predecessor_id == from_id,
+            PlannerDependency.successor_type == to_type,
+            PlannerDependency.successor_id == to_id)).first()
     return found is not None
 
 
