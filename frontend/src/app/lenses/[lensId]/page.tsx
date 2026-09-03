@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { ResultView } from "@/components/analytics/result-view";
+import { MetricTile } from "@/components/metrics/metric-tile";
 import { DownloadResults } from "@/components/exports/download";
 import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/layout/back-link";
@@ -120,15 +121,7 @@ function LensView({ id }: { id: number }) {
 
       <Header lens={lens} rendered={rendered.data} />
 
-      <div className="space-y-6">
-        {rendered.data.panels.map((panel, index) => (
-          <PanelView
-            key={`${panel.analysis_id}-${index}`}
-            panel={panel}
-            from={fromLens(String(lens.id), lens.name)}
-          />
-        ))}
-      </div>
+      <LensBody rendered={rendered.data} lens={lens} />
 
       {changed && <p className="text-xs text-positive">{changed}</p>}
       {refusals.map((refusal) => (
@@ -209,6 +202,114 @@ function LensView({ id }: { id: number }) {
   );
 }
 
+/**
+ * The panels, grouped as the lens says to group them.
+ *
+ * A lens with no sections is one unbroken run, which is what every lens was
+ * before metric tiles existed. A lens with sections reads as bands, because a
+ * screen of eighteen equal tiles is a screen nobody reads top to bottom.
+ *
+ * Metric tiles sit three or four to a row; an analysis panel carries a whole
+ * result table and takes the full width.
+ */
+function LensBody({
+  rendered,
+  lens,
+}: {
+  rendered: RenderedLens;
+  lens: Lens;
+}) {
+  const from = fromLens(String(lens.id), lens.name);
+  const sections =
+    rendered.sections.length > 0
+      ? rendered.sections
+      : [
+          {
+            title: "",
+            subtitle: "",
+            panels: rendered.panels.map((_, index) => index),
+          },
+        ];
+
+  return (
+    <div className="space-y-8">
+      {sections.map((section, index) => {
+        const panels = section.panels
+          .map((position) => rendered.panels[position])
+          .filter(Boolean);
+        if (panels.length === 0) return null;
+        const tiles = panels.filter((panel) => panel.kind === "metric");
+        const analyses = panels.filter((panel) => panel.kind !== "metric");
+        return (
+          <section key={`${section.title}-${index}`} className="space-y-3">
+            {section.title && (
+              <div>
+                <h2 className="text-sm font-semibold tracking-tight text-text-primary">
+                  {section.title}
+                </h2>
+                {section.subtitle && (
+                  <p className="mt-0.5 max-w-3xl text-xs leading-relaxed text-text-muted">
+                    {section.subtitle}
+                  </p>
+                )}
+              </div>
+            )}
+            {tiles.length > 0 && (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {tiles.map((panel, position) => (
+                  <MetricTile
+                    key={`${panel.metric_id}-${position}`}
+                    panel={panel}
+                  />
+                ))}
+              </div>
+            )}
+            {analyses.map((panel, position) => (
+              <PanelView
+                key={`${panel.analysis_id}-${position}`}
+                panel={panel}
+                from={from}
+              />
+            ))}
+          </section>
+        );
+      })}
+
+      {rendered.notes.length > 0 && <NotShownHere notes={rendered.notes} />}
+    </div>
+  );
+}
+
+/**
+ * What this lens deliberately does not show, and why.
+ *
+ * A view that quietly omits the number somebody came for teaches them not to
+ * trust it. One that names the metric, gives the reason and says what would be
+ * needed does the opposite, and costs a paragraph.
+ */
+function NotShownHere({ notes }: { notes: RenderedLens["notes"] }) {
+  return (
+    <Card className="border-border/70 bg-surface-muted/40 p-4">
+      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted">
+        Not on this lens
+      </p>
+      <ul className="mt-2 space-y-2.5">
+        {notes.map((note) => (
+          <li key={note.metric_id} className="text-xs leading-relaxed">
+            <span className="font-medium text-text-secondary">{note.name}</span>
+            <span className="text-text-muted"> — {note.because}</span>
+            {note.needs.length > 0 && (
+              <span className="mt-0.5 block text-[11px] text-text-muted">
+                Would need: {note.needs.join("; ")}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
 function Header({ lens, rendered }: { lens: Lens; rendered: RenderedLens }) {
   return (
     <header>
@@ -239,8 +340,12 @@ function Header({ lens, rendered }: { lens: Lens; rendered: RenderedLens }) {
       <p className="mt-2 text-xs text-text-muted">
         {rendered.panels.length}{" "}
         {rendered.panels.length === 1 ? "panel" : "panels"}
+        {rendered.period && <span> · {rendered.period}</span>}
         {rendered.note && (
-          <span className="text-warning"> · {rendered.note}</span>
+          <span className={rendered.failed ? "text-negative" : "text-warning"}>
+            {" "}
+            · {rendered.note}
+          </span>
         )}
       </p>
     </header>

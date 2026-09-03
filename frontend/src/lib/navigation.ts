@@ -17,6 +17,7 @@ import {
   Mail,
   Network,
   Radar,
+  Ruler,
   Search,
   Settings,
   Sparkles,
@@ -232,6 +233,19 @@ export const NAV_ITEMS: NavItem[] = [
     demo: "optional",
     demoNote:
       "Real and seeded with one published Lens. Shown if time allows; not on the twenty-minute path.",
+  },
+  {
+    href: "/metrics",
+    label: "Metric Catalogue",
+    description:
+      "What CreditProbe means by each number: the formula, the fields it reads, what it excludes, and what it is not. Search by whatever you call it — \u201cNPL rate\u201d, \u201cbad rate\u201d and \u201cdefault rate\u201d are one metric.",
+    icon: Ruler,
+    status: "live",
+    phase: "",
+    group: "Intelligence",
+    demo: "optional",
+    demoNote:
+      "Real. Sixty-one governed metrics over the published data, and the ones this deployment cannot calculate are listed with the reason.",
   },
   {
     href: "/early-warning",

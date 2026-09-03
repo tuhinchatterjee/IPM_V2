@@ -4241,12 +4241,115 @@ export interface DatasetPage {
 
 /** One thing on a Lens: a certified analysis, drawn a particular way. */
 export interface LensPanel {
+  /** "analysis" runs a registered analysis; "metric" calculates one metric. */
+  kind: "analysis" | "metric";
   analysis_id: string;
+  metric_id: string;
   title: string;
   visual: string;
   params: Record<string, unknown>;
   filters: Record<string, unknown>;
+  /** A period this tile pins itself to; empty means it follows the lens. */
+  period: string;
   note: string;
+}
+
+/**
+ * Everything §6 requires an info control to be able to show about a number.
+ *
+ * Assembled by the backend rather than here, so that the panel on a lens, the
+ * panel in a chart and the answer to "how is this calculated?" are one thing.
+ */
+export interface MetricPanel {
+  metric_id: string;
+  name: string;
+  definition: string;
+  formula: string;
+  unit: string;
+  decimals: number;
+  numerator: string;
+  denominator: string;
+  domain: string;
+  portfolio: string;
+  datasets: string[];
+  source_fields: {
+    name: string;
+    business_name?: string;
+    definition?: string;
+    data_type?: string;
+    unit?: string;
+  }[];
+  filters: string[];
+  period_rule: string;
+  transformation: string;
+  exclusions: string;
+  /** What this metric is NOT. Often the most-read line on the panel. */
+  not_this: string;
+  visuals: string[];
+  higher_is_better: boolean | null;
+  owner: string;
+  origin: string;
+  origin_label: string;
+  status: string;
+  status_label: string;
+  governed: boolean;
+  /** Whether a lens may show it without a caveat beside it. */
+  trustworthy: boolean;
+  version: string;
+  verified_by: number | null;
+  verified_at: string;
+  last_verified_note: string;
+  aliases: string[];
+}
+
+export interface MetricCalculation {
+  value: number | null;
+  final: string;
+  numerator: { label: string; value: number | null } | null;
+  denominator: { label: string; value: number | null } | null;
+  rows_considered: number;
+  period: string;
+  dataset: string;
+  sql: string;
+  run_id: string;
+  warnings: string[];
+  unavailable: string;
+}
+
+export interface MetricValue {
+  metric: MetricPanel;
+  calculation: MetricCalculation;
+  value: number | null;
+  unit: string;
+  decimals: number;
+  period: string;
+  available: boolean;
+  unavailable: string;
+}
+
+/** One suggestion from the metric typeahead, and why it was suggested. */
+export interface MetricHit {
+  metric_id: string;
+  name: string;
+  domain: string;
+  unit: string;
+  definition: string;
+  origin: string;
+  status: string;
+  governed: boolean;
+  datasets: string[];
+  matched: string;
+  why: string;
+}
+
+/** A metric CreditProbe knows about and cannot calculate in this deployment. */
+export interface MetricUnavailable {
+  metric_id: string;
+  name: string;
+  domain: string;
+  available: false;
+  because: string;
+  needs: string[];
 }
 
 export interface Lens {
@@ -4256,6 +4359,8 @@ export interface Lens {
   description: string;
   audience: string;
   panels: LensPanel[];
+  sections: LensSection[];
+  notes: LensNote[];
   status: string;
   version: number;
   origin: string;
@@ -4272,6 +4377,10 @@ export interface Lens {
 }
 
 export interface RenderedPanel extends LensPanel {
+  /**
+   * "succeeded", "unavailable" or "failed". The middle one is a gap in the
+   * book — no data for this period — and is not a failure of the platform.
+   */
   status: string;
   error: string | null;
   certification?: string;
@@ -4279,13 +4388,41 @@ export interface RenderedPanel extends LensPanel {
   analysis_run_id?: number | null;
   duration_ms?: number;
   result: EngineResult | null;
+  /** Metric tiles only, and all present on the tile so it needs no second fetch. */
+  metric?: MetricPanel | null;
+  calculation?: MetricCalculation;
+  value?: number | null;
+  unit?: string;
+  decimals?: number;
+  higher_is_better?: boolean | null;
+  period_used?: string;
+  unavailable?: string;
+}
+
+/** A named band of tiles, holding the indices of the panels it contains. */
+export interface LensSection {
+  title: string;
+  subtitle: string;
+  panels: number[];
+}
+
+/** What a lens deliberately does not show, and why. */
+export interface LensNote {
+  kind: string;
+  metric_id: string;
+  name: string;
+  because: string;
+  needs: string[];
 }
 
 export interface RenderedLens {
   lens: Lens;
   period: string | null;
   panels: RenderedPanel[];
+  sections: LensSection[];
+  notes: LensNote[];
   failed: number;
+  unavailable: number;
   note: string;
 }
 
@@ -4872,6 +5009,128 @@ export const api = {
       body: JSON.stringify({ request: requestText, apply }),
       timeoutMs: 60_000,
     }),
+  // ------------------------------------------------------ metric catalogue
+  //
+  // The picker never opens with the whole catalogue: `searchMetrics("")`
+  // returns nothing on purpose, and `metricCatalogue()` is the deliberate way
+  // to see everything.
+  searchMetrics: (q: string, limit = 8, domain = "") =>
+    request<{
+      query: string;
+      results: MetricHit[];
+      count: number;
+      unavailable: MetricUnavailable[];
+    }>(
+      `/metrics?q=${encodeURIComponent(q)}&limit=${limit}` +
+        (domain ? `&domain=${encodeURIComponent(domain)}` : ""),
+    ),
+  metricCatalogue: () =>
+    request<{
+      domains: { domain: string; metrics: MetricPanel[] }[];
+      unavailable: MetricUnavailable[];
+      version: string;
+    }>("/metrics/all"),
+  metric: (metricId: string) =>
+    request<MetricPanel>(`/metrics/${encodeURIComponent(metricId)}`),
+  metricValue: (metricId: string, period = "") =>
+    request<MetricValue>(
+      `/metrics/${encodeURIComponent(metricId)}/value` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+      { timeoutMs: 120_000 },
+    ),
+  metricRows: (metricId: string, period = "", limit = 25) =>
+    request<{
+      columns: string[];
+      rows: Record<string, unknown>[];
+      period: string;
+      dataset: string;
+      limit: number;
+    }>(
+      `/metrics/${encodeURIComponent(metricId)}/rows?limit=${limit}` +
+        (period ? `&period=${encodeURIComponent(period)}` : ""),
+      { timeoutMs: 120_000 },
+    ),
+  createMetric: (payload: {
+    name: string;
+    definition?: string;
+    formula: Record<string, unknown>;
+    unit?: string;
+    domain?: string;
+    portfolio?: string;
+    presentation?: Record<string, unknown>;
+    shared?: boolean;
+  }) =>
+    request<MetricPanel>("/metrics", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateMetric: (metricId: string, payload: Record<string, unknown>) =>
+    request<MetricPanel>(`/metrics/${encodeURIComponent(metricId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  deleteMetric: (metricId: string) =>
+    request<void>(`/metrics/${encodeURIComponent(metricId)}`, {
+      method: "DELETE",
+    }),
+  checkMetric: (metricId: string, period = "") =>
+    request<MetricValue & { metric: MetricPanel }>(
+      `/metrics/${encodeURIComponent(metricId)}/calculate` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+      { method: "POST", timeoutMs: 120_000 },
+    ),
+  verifyMetric: (
+    metricId: string,
+    payload: {
+      expected: number | null;
+      period?: string;
+      expected_source?: string;
+      note?: string;
+      tolerance?: number;
+      decision?: string;
+    },
+  ) =>
+    request<{
+      metric_id: string;
+      period: string;
+      computed: number | null;
+      expected: number | null;
+      difference: number | null;
+      relative: number | null;
+      outcome: string;
+      agrees: boolean;
+      tolerance: number;
+      run_id: string;
+      decision: string;
+      metric_status: string;
+      note_on_status?: string;
+    }>(`/metrics/${encodeURIComponent(metricId)}/verify`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      timeoutMs: 120_000,
+    }),
+  metricVerifications: (metricId: string) =>
+    request<{
+      metric_id: string;
+      verifications: {
+        id: number;
+        period: string;
+        computed: number | null;
+        expected: number | null;
+        difference: number | null;
+        outcome: string;
+        tolerance: number;
+        expected_source: string;
+        note: string;
+        decision: string;
+        run_id: string;
+        created_by: number | null;
+        created_at: string | null;
+      }[];
+      outcomes: string[];
+      decisions: string[];
+    }>(`/metrics/${encodeURIComponent(metricId)}/verifications`),
+
   restoreLens: (id: number, version: number) =>
     request<Lens>(`/lenses/${id}/restore/${version}`, { method: "POST" }),
   setLensStatus: (id: number, status: string) =>
