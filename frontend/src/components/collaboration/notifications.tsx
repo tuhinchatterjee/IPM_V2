@@ -215,6 +215,20 @@ export function deepLink(note: NotificationRow): string | null {
       return linkBack(`/data-builder/dataset/${encodeURIComponent(id)}`, from);
     case "run":
       return linkBack(`/trace/${id}`, from);
+    case "planner_project":
+      return linkBack(`/delivery/${id}`, from);
+    // A planner task or milestone is reached through its project, so the id is
+    // stamped as "<project>:<entity>". Splitting here rather than storing two
+    // columns keeps the platform's notification table unchanged for a feature
+    // that is one of its callers.
+    case "planner_task":
+    case "planner_milestone": {
+      const [projectId, entityId] = id.split(":");
+      if (!projectId) return null;
+      const kind = note.object_type === "planner_task" ? "task" : "milestone";
+      const suffix = entityId ? `?${kind}=${encodeURIComponent(entityId)}` : "";
+      return linkBack(`/delivery/${projectId}${suffix}`, from);
+    }
     case "playbook":
       return "/playbooks";
     case "scenario":

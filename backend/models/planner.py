@@ -43,6 +43,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -721,10 +722,43 @@ class PlannerReminder(Base):
     sent_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False)
 
+    # ---- the chase, once it is a request rather than a nudge --------------
+    #
+    # An update REQUEST is a reminder somebody is expected to answer, and a
+    # project manager's real question is "who have we asked, and did they come
+    # back?". That is one row's worth of state on the reminder that carried
+    # the ask, not a second table: a chase IS a reminder with a follow-up, and
+    # the fingerprint that stops the reminder repeating is exactly the key
+    # that stops the same person being chased twice for the same thing.
+    #
+    # sent | answered | cancelled. A plain reminder stays 'sent' forever and
+    # is never shown on the requests screen, which filters on `asked`.
+    state: Mapped[str] = mapped_column(String(16), nullable=False,
+                                       default="sent",
+                                       server_default=text("'sent'"))
+    #: True only for reminders raised as an explicit request for an update.
+    asked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False,
+                                        server_default=text("false"))
+    #: Why the request was raised, in the sentence the engine wrote.
+    reason: Mapped[str] = mapped_column(Text, nullable=False, default="",
+                                        server_default=text("''"))
+    #: Who asked. Null when the monitor raised it on nobody's behalf, which is
+    #: the normal case and the point of the feature.
+    requested_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    responded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    #: The history row the owner wrote in answer, so the manager can read the
+    #: reply beside the request rather than hunting for it in the timeline.
+    response_update_id: Mapped[int | None] = mapped_column(
+        ForeignKey("planner_updates.id", ondelete="SET NULL"), nullable=True)
+
     __table_args__ = (
         UniqueConstraint("fingerprint", name="uq_planner_reminder_print"),
         Index("ix_planner_reminders_entity", "project_id", "entity_type",
               "entity_id"),
+        Index("ix_planner_reminders_asked", "project_id", "asked", "state"),
+        Index("ix_planner_reminders_user", "user_id", "state"),
     )
 
 

@@ -572,6 +572,40 @@ def chases(project_id: int, task_id: int | None = None,
         session, principal, project_id, task_id=task_id, tone=tone))
 
 
+# ==================================================== update requests
+
+
+@router.get("/requests", summary="Who has been asked for an update")
+def my_requests(state: str = Query(default="sent"),
+                limit: int = Query(default=100, ge=1, le=500),
+                session: Session = Depends(get_db),
+                principal: Principal = RequireCommenter) -> dict:
+    """Across every project you can see.
+
+    Scoped to readable projects rather than to the whole estate: a chase list
+    is a management view, and "who owes an update" on a project you are not on
+    is not your question.
+    """
+    ids = acl.readable_project_ids(session, principal)
+    rows = mon.requests(session, ids, state=("" if state == "all" else state),
+                        limit=limit)
+    return {"requests": rows, "count": len(rows), "state": state}
+
+
+@router.get("/projects/{project_id}/requests",
+            summary="Update requests on one project")
+def project_requests(project_id: int, state: str = Query(default="sent"),
+                     session: Session = Depends(get_db),
+                     principal: Principal = RequireCommenter) -> dict:
+    def run() -> dict:
+        acl.readable(session, project_id, principal)
+        rows = mon.requests(session, [project_id],
+                            state=("" if state == "all" else state))
+        return {"requests": rows, "count": len(rows), "state": state}
+
+    return _guard(run)
+
+
 # ============================================================== the sweep
 
 
@@ -591,7 +625,9 @@ def run_sweep(dry_run: bool = False,
         body["would_send"] = [
             {"user_id": m.user_id, "project": m.project_code,
              "reference": m.entity_code, "trigger": m.trigger,
-             "body": m.body} for m in outcome.messages]
+             "body": m.body, "action": m.action, "label": m.label,
+             "opens": f"{m.link_type}:{m.link_id}", "asked": m.asked}
+            for m in outcome.messages]
     return body
 
 

@@ -21,6 +21,7 @@ Excel import applies four hundred of these and must do so atomically.
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import UTC, date, datetime
 from typing import Any
@@ -65,6 +66,8 @@ from backend.models.planner import (
 from backend.planner import access as acl
 from backend.planner import control
 from backend.services import collaboration
+
+logger = logging.getLogger(__name__)
 
 SERVICE_VERSION = "1.0.0"
 
@@ -199,6 +202,27 @@ def record(session: Any, project_id: int, *, entity_type: str,
         source=_one_of(source, SOURCES, "source", SOURCE_UI))
     session.add(row)
     return row
+
+
+def signal(session: Any, project_id: int, event: str) -> None:
+    """Ask the monitor to re-evaluate this project shortly.
+
+    Best-effort on purpose. The sweep also runs on a schedule, so a queue that
+    is briefly unavailable costs a few minutes of latency on a reminder; a
+    person's edit failing because a background job could not be queued costs
+    them their work. The failure is logged rather than swallowed silently, and
+    the hourly sweep still catches whatever this missed.
+
+    Enqueued inside the caller's transaction, so a mutation that rolls back
+    takes its re-evaluation with it.
+    """
+    from backend.planner import monitor
+
+    try:
+        monitor.on_event(session, int(project_id), event)
+    except Exception:  # noqa: BLE001 - never fail a user's edit for this
+        logger.exception("could not queue a planner re-evaluation for "
+                         "project %s after %s", project_id, event)
 
 
 def audit(session: Any, action: str, *, actor_id: int | None,
@@ -383,6 +407,8 @@ def update_project(session: Any, principal: Any, project_id: int, *,
            new_status=project.status)
     audit(session, "PLANNER_PROJECT_UPDATED", actor_id=user_id,
           project_id=project.id, source=source, fields=sorted(changes))
+    if {"start_date", "target_end_date", "status"} & set(changes):
+        signal(session, int(project.id), "project_dates_changed")
     return project
 
 
@@ -487,6 +513,7 @@ def add_participant(session: Any, principal: Any, project_id: int, *,
     audit(session, "PLANNER_PARTICIPANT_ADDED", actor_id=actor,
           project_id=int(project_id), source=source,
           subject_user=int(user_id), access=wanted, role=role)
+    signal(session, int(project_id), "participant_changed")
     return row
 
 
@@ -649,6 +676,7 @@ def create_task(session: Any, principal: Any, project_id: int, *,
            entity_code=code, action="created", author_id=actor, source=source,
            new_status=row.status, new_percent=row.percent_complete,
            narrative=f"{code} — {row.title} was created.")
+    signal(session, int(project_id), "task_created")
     return row
 
 
@@ -682,6 +710,51 @@ def _align_task_state(task: Any) -> None:
     if task.blocked and task.status not in ("BLOCKED",) and task.status not in (
             TASK_COMPLETED, TASK_CANCELLED):
         task.status = "BLOCKED"
+
+
+def _close_requests(session: Any, task: Any, actor: int | None,
+                    entry: Any) -> None:
+    """An update answers the chase that asked for it.
+
+    Best-effort for the same reason `signal` is: the answer is already in the
+    history row, and a person's save must not fail because a reminder row
+    could not be marked. A request left open shows on the manager's screen as
+    outstanding, which the next sweep does not repair — so this is logged
+    loudly rather than passed over.
+    """
+    from backend.planner import monitor
+
+    try:
+        if task.status in (TASK_COMPLETED, TASK_CANCELLED):
+            monitor.cancel_requests(session, task_id=int(task.id),
+                                    why=task.status)
+        else:
+            monitor.answer_requests(session, task_id=int(task.id),
+                                    user_id=actor,
+                                    update_id=int(entry.id) if entry else None)
+    except Exception:  # noqa: BLE001 - never fail a person's update for this
+        logger.exception("could not close update requests for task %s",
+                         getattr(task, "id", "?"))
+
+
+def _task_event(changes: dict[str, Any]) -> str:
+    """Which monitor event a task change amounts to.
+
+    Ordered by what most changes a commitment: a moved due date is the reason
+    to re-evaluate even if the status moved in the same save.
+    """
+    if "due_date" in changes:
+        return "task_due_date_changed"
+    if "blocked" in changes:
+        return ("task_blocked" if changes["blocked"][1]
+                else "task_unblocked")
+    if "owner_id" in changes:
+        return "task_owner_changed"
+    if "status" in changes:
+        return "task_status_changed"
+    if "percent_complete" in changes:
+        return "task_progress_changed"
+    return "task_status_changed"
 
 
 def update_task(session: Any, principal: Any, task_id: int, *,
@@ -796,19 +869,24 @@ def update_task(session: Any, principal: Any, task_id: int, *,
     if said:
         task.last_update_text = said
 
-    record(session, int(task.project_id), entity_type=ENTITY_TASK,
-           entity_id=int(task.id), entity_code=task.code,
-           action=("status" if "status" in changes
-                   else "progress" if "percent_complete" in changes
-                   else "comment" if said and not changes else "updated"),
-           author_id=actor, source=source,
-           old_status=before_status, new_status=task.status,
-           old_percent=before_percent, new_percent=task.percent_complete,
-           narrative=said, blocker=task.blocker_reason,
-           next_step=task.next_step, changes=changes)
+    entry = record(session, int(task.project_id), entity_type=ENTITY_TASK,
+                   entity_id=int(task.id), entity_code=task.code,
+                   action=("status" if "status" in changes
+                           else "progress" if "percent_complete" in changes
+                           else "comment" if said and not changes
+                           else "updated"),
+                   author_id=actor, source=source,
+                   old_status=before_status, new_status=task.status,
+                   old_percent=before_percent,
+                   new_percent=task.percent_complete,
+                   narrative=said, blocker=task.blocker_reason,
+                   next_step=task.next_step, changes=changes)
+    session.flush()
+    _close_requests(session, task, actor, entry)
     audit(session, "PLANNER_TASK_UPDATED", actor_id=actor,
           project_id=int(task.project_id), source=source,
           task=task.code, fields=sorted(changes))
+    signal(session, int(task.project_id), _task_event(changes))
     return task
 
 
@@ -847,6 +925,7 @@ def delete_task(session: Any, principal: Any, task_id: int, *,
     audit(session, "PLANNER_TASK_DELETED", actor_id=actor,
           project_id=project_id, source=source, task=code,
           dependencies_removed=len(orphans))
+    signal(session, project_id, "task_deleted")
 
 
 # ============================================================ milestones
@@ -884,6 +963,7 @@ def create_milestone(session: Any, principal: Any, project_id: int, *,
            entity_id=row.id, entity_code=code, action="created",
            author_id=actor, source=source, new_status=row.status,
            narrative=f"Milestone {name} was created.")
+    signal(session, int(project_id), "milestone_changed")
     return row
 
 
@@ -937,6 +1017,7 @@ def update_milestone(session: Any, principal: Any, milestone_id: int, *,
     audit(session, "PLANNER_MILESTONE_UPDATED", actor_id=actor,
           project_id=int(row.project_id), source=source, milestone=row.code,
           fields=sorted(changes))
+    signal(session, int(row.project_id), "milestone_changed")
     return row
 
 
@@ -1006,6 +1087,7 @@ def create_dependency(session: Any, principal: Any, project_id: int, *,
            action="dependency", author_id=actor, source=source,
            narrative=(f"Now waits on "
                       f"{_pretty(session, pred_kind, predecessor_id)}."))
+    signal(session, int(project_id), "dependency_changed")
     return row
 
 
@@ -1037,6 +1119,7 @@ def delete_dependency(session: Any, principal: Any, dependency_id: int, *,
            entity_id=int(row.successor_id), entity_code="",
            action="dependency", author_id=actor, source=source,
            narrative="A dependency was removed.")
+    signal(session, project_id, "dependency_changed")
 
 
 # ================================================================== RAID
@@ -1113,6 +1196,7 @@ def create_raid(session: Any, principal: Any, project_id: int, *,
     audit(session, "PLANNER_RAID_RAISED", actor_id=actor,
           project_id=int(project_id), source=source, code=code, kind=kind,
           severity=row.severity)
+    signal(session, int(project_id), "raid_severity_changed")
     return row
 
 
@@ -1178,6 +1262,8 @@ def update_raid(session: Any, principal: Any, raid_id: int, *,
     audit(session, "PLANNER_RAID_UPDATED", actor_id=actor,
           project_id=int(row.project_id), source=source, code=row.code,
           fields=sorted(changes))
+    if "severity" in changes or "status" in changes:
+        signal(session, int(row.project_id), "raid_severity_changed")
     return row
 
 

@@ -65,6 +65,12 @@ BLOCKED = "blocked"
 MILESTONE_DUE = "milestone_due"
 MILESTONE_OVERDUE = "milestone_overdue"
 HEALTH_RED = "health_red"
+REVIEW = "review"
+#: A chase: a reminder the recipient is expected to answer. Separate from the
+#: plain nudges above because the project manager's screen filters on it, and
+#: because "we asked and heard nothing" is a different fact from "we told
+#: them".
+UPDATE_REQUESTED = "update_requested"
 
 #: How each reads to the person receiving it.
 _TITLES = {
@@ -75,6 +81,32 @@ _TITLES = {
     MILESTONE_DUE: "Milestone approaching",
     MILESTONE_OVERDUE: "Milestone missed",
     HEALTH_RED: "Project needs attention",
+    REVIEW: "Review required",
+    UPDATE_REQUESTED: "Action required",
+}
+
+#: What the reader is being asked to do. A notification that says a task is
+#: overdue and stops has told somebody something they can only act on by
+#: working out where to go; the line below is the difference between a feed
+#: and an inbox.
+_ACTIONS = {
+    DUE: "Please update your progress, blocker and next step.",
+    OVERDUE: "Please update your progress, blocker and next step.",
+    STALE: "Please update your progress, blocker and next step.",
+    BLOCKED: "Say what you are waiting for, and who owes it.",
+    MILESTONE_DUE: "Confirm the milestone will be met, or say what is at risk.",
+    MILESTONE_OVERDUE: "Mark it achieved, or say what is outstanding.",
+    HEALTH_RED: "Review the project and decide what changes.",
+    REVIEW: "Review the work and accept it or send it back.",
+    UPDATE_REQUESTED: "Please update your progress, blocker and next step.",
+}
+
+#: The button the notification effectively is.
+_LABELS = {
+    DUE: "Update task", OVERDUE: "Update task", STALE: "Update task",
+    BLOCKED: "Open task", MILESTONE_DUE: "Open milestone",
+    MILESTONE_OVERDUE: "Open milestone", HEALTH_RED: "Review project",
+    REVIEW: "Review task", UPDATE_REQUESTED: "Update task",
 }
 
 
@@ -92,6 +124,38 @@ class Message:
     fingerprint: str
     title: str
     body: str
+    #: True when the recipient is expected to answer, not merely to know.
+    asked: bool = False
+    #: The engine's own sentence for why they were asked. Empty for a nudge.
+    reason: str = ""
+
+    @property
+    def action(self) -> str:
+        return _ACTIONS.get(self.trigger, "")
+
+    @property
+    def label(self) -> str:
+        return _LABELS.get(self.trigger, "Open")
+
+    @property
+    def link_type(self) -> str:
+        """What the notification should open. §1.2's deep link.
+
+        A task reminder that opens the portfolio makes the reader do the
+        search again. `planner_task` carries both ids because a task page is
+        reached through its project.
+        """
+        if self.entity_type == ENTITY_TASK:
+            return "planner_task"
+        if self.entity_type == ENTITY_MILESTONE:
+            return "planner_milestone"
+        return "planner_project"
+
+    @property
+    def link_id(self) -> str:
+        if self.entity_type == ENTITY_PROJECT:
+            return str(self.project_id)
+        return f"{self.project_id}:{self.entity_id}"
 
 
 @dataclass
@@ -204,6 +268,84 @@ def _task_messages(project: Any, plan: control.Plan, today: date,
                 + ("no update on it at all."
                    if quiet is None
                    else f"not been updated for {quiet} days.")))
+    return out
+
+
+def _chase_messages(project: Any, plan: control.Plan, today: date,
+                    policy: control.Policy) -> list[Message]:
+    """Update requests: the chases `control.chase_findings` decided on.
+
+    A chase is not a second reminder about the same thing. `chase_findings`
+    only asks where the *silence* is the problem — overdue and quiet, blocked
+    and quiet, due and nothing recorded at all — which is exactly the case a
+    plain "this is overdue" nudge does not cover, because the owner already
+    knows it is overdue and has said nothing about why.
+
+    Fingerprinted on the reason rather than on the day, so a person is asked
+    once per situation. When the situation changes — a new blocker, a moved
+    date — the reason changes and a new request is right.
+    """
+    out: list[Message] = []
+    for chase in control.chase_findings(plan, today, policy=policy):
+        owner = int(chase.owner_id)
+        out.append(Message(
+            owner, int(project.id), project.code, ENTITY_TASK,
+            int(chase.task_id), chase.task_code, UPDATE_REQUESTED,
+            _print(int(project.id), ENTITY_TASK, int(chase.task_id), owner,
+                   UPDATE_REQUESTED, f"{chase.trigger}:{chase.reason[:60]}"),
+            _TITLES[UPDATE_REQUESTED],
+            f"{chase.task_code} {chase.task_title} — {chase.reason}",
+            asked=True, reason=chase.reason))
+    return out
+
+
+def _merge_chases(nudges: list[Message],
+                  chases: list[Message]) -> list[Message]:
+    """One message per task per person, even when both rules fire.
+
+    An overdue task whose owner has said nothing produces two findings that
+    mean the same thing to the person reading them: "this is late" and "we
+    need an update on this". Sending both is how a notification centre stops
+    being read.
+
+    So they merge rather than compete. The nudge keeps its trigger — which is
+    what preserves the vocabulary a screen groups by, and the fingerprint that
+    makes an overdue reminder daily and a due-date reminder once — and takes
+    on the chase's obligation: it becomes the update request, with the
+    engine's reason attached. A chase with no matching nudge, such as "due in
+    two days and no progress recorded at all" where two is not a reminder
+    threshold, still stands on its own.
+    """
+    by_task = {(m.entity_id, m.user_id): m for m in nudges}
+    out = list(nudges)
+    for chase in chases:
+        nudge = by_task.get((chase.entity_id, chase.user_id))
+        if nudge is None:
+            out.append(chase)
+            continue
+        nudge.asked = True
+        nudge.reason = chase.reason
+    return out
+
+
+def _review_messages(project: Any, plan: control.Plan) -> list[Message]:
+    """A task waiting on a reviewer tells the reviewer, not the owner.
+
+    Without this, "in review" is a state the owner can see and the reviewer
+    cannot: the work stops on somebody who was never told it had arrived.
+    """
+    out: list[Message] = []
+    for task in plan.tasks:
+        if task.status != "IN_REVIEW" or task.reviewer_id is None:
+            continue
+        out.append(Message(
+            int(task.reviewer_id), int(project.id), project.code, ENTITY_TASK,
+            int(task.id), task.code, REVIEW,
+            _print(int(project.id), ENTITY_TASK, int(task.id),
+                   int(task.reviewer_id), REVIEW,
+                   f"{task.percent_complete}:{task.last_update_at}"),
+            _TITLES[REVIEW],
+            f"{task.code} {task.title} is waiting for your review."))
     return out
 
 
@@ -335,7 +477,10 @@ def sweep(session: Any, *, today: date | None = None,
                            new_status=verdict.status,
                            narrative=verdict.reason)
 
-        pending.extend(_task_messages(project, plan, day, policy))
+        pending.extend(_merge_chases(
+            _task_messages(project, plan, day, policy),
+            _chase_messages(project, plan, day, policy)))
+        pending.extend(_review_messages(project, plan))
         pending.extend(_milestone_messages(project, milestones[pid], day,
                                            policy))
         managers = [i for i in ([project.manager_id] if project.manager_id
@@ -372,18 +517,23 @@ def _deliver(session: Any, pending: list[Message], result: Sweep) -> None:
             result.suppressed += 1
             continue
         seen.add(message.fingerprint)
+        body = message.body
+        if message.action:
+            body = f"{body}\n\n{message.action}"
         note = Notification(
             user_id=message.user_id, kind="planner",
             title=f"{message.project_code}: {message.title}",
-            body=message.body, object_type="planner_project",
-            object_id=str(message.project_id), actor_id=None)
+            body=body, object_type=message.link_type,
+            object_id=message.link_id, actor_id=None)
         session.add(note)
         session.flush()
         session.add(PlannerReminder(
             project_id=message.project_id, entity_type=message.entity_type,
             entity_id=message.entity_id, user_id=message.user_id,
             trigger=message.trigger, fingerprint=message.fingerprint,
-            notification_id=int(note.id)))
+            notification_id=int(note.id),
+            asked=bool(message.asked), reason=message.reason,
+            state="sent"))
         result.messages.append(message)
         result.sent += 1
 
@@ -391,40 +541,246 @@ def _deliver(session: Any, pending: list[Message], result: Sweep) -> None:
 # ================================================== the platform's scheduler
 
 
-def run_sweep_job(session: Any, job: Any) -> dict[str, Any]:
-    """The handler the existing agentic worker calls. Signature is theirs.
+def run_sweep_job(job: Any, should_stop: Any = None) -> dict[str, Any]:
+    """The handler the existing agentic worker calls.
 
-    Registered as a job kind rather than given its own scheduler: CreditProbe
-    already has a durable Postgres queue with idempotency, retries and
-    heartbeats, and a second one would be a second thing to operate.
+    The signature is the worker's, not this module's: `handler(job,
+    should_stop)`. It opens its own session for the same reason
+    `run_schedule_tick` does — a worker handler is given a job, never a
+    transaction, and a sweep that borrowed one would be holding it open for
+    the length of the estate.
+
+    `should_stop` is accepted and honoured before the write: a drain signal
+    part-way through a sweep should leave the queue able to re-run it, and the
+    reminder fingerprints make the re-run produce the same messages once.
     """
+    from backend.db.engine import get_session
+
     payload = getattr(job, "payload", None) or {}
     today = payload.get("today")
     day = (date.fromisoformat(today) if isinstance(today, str) and today
            else None)
-    outcome = sweep(session, today=day,
-                    project_ids=payload.get("project_ids") or None)
-    logger.info("planner sweep: %s", outcome.to_dict())
+    ids = payload.get("project_ids") or None
+
+    if should_stop is not None and should_stop():
+        logger.info("planner sweep asked to stop before it started")
+        return {"stopped": True}
+
+    with get_session() as session:
+        outcome = sweep(session, today=day, project_ids=ids)
+    logger.info("planner sweep (%s): %s",
+                payload.get("reason") or "scheduled", outcome.to_dict())
     return outcome.to_dict()
 
 
 def schedule(session: Any, *, today: date | None = None) -> tuple[int, bool]:
-    """Queue one sweep for a given day, at most once.
+    """Queue one estate-wide sweep for a given day, at most once at a time.
 
     The idempotency key is the day, so two ticks an hour apart on the same
-    date find the first job rather than running the estate twice.
+    date find the queued job rather than running the estate twice. Once that
+    job has completed the key is free again, which is what lets a schedule
+    running several times a day work: the fingerprints, not the key, are what
+    stop a person hearing the same thing twice.
     """
     from backend.agentic import queue
 
     day = (today or datetime.now(UTC).date()).isoformat()
     return queue.enqueue(session, kind=PLANNER_SWEEP,
                          idempotency_key=f"planner-sweep:{day}",
-                         payload={"today": day})
+                         payload={"today": day, "reason": "scheduled"},
+                         priority=queue.PRIORITY_SCHEDULED,
+                         timeout_seconds=600)
+
+
+# ----------------------------------------------------- answering a chase
+
+
+def answer_requests(session: Any, *, task_id: int, user_id: int | None,
+                    update_id: int | None) -> int:
+    """Close the update requests this person has just answered.
+
+    Only the requests made OF them: somebody else reporting on the task does
+    not discharge the owner's obligation, and a manager's screen that showed
+    it did would tell them the chase worked when it did not.
+
+    Returns how many were closed, so a caller can say "and that answered two
+    outstanding requests" rather than guessing.
+    """
+    if user_id is None:
+        return 0
+    rows = list(session.execute(
+        select(PlannerReminder).where(
+            PlannerReminder.entity_type == ENTITY_TASK,
+            PlannerReminder.entity_id == int(task_id),
+            PlannerReminder.user_id == int(user_id),
+            PlannerReminder.asked.is_(True),
+            PlannerReminder.state == "sent")).scalars())
+    now = datetime.now(UTC)
+    for row in rows:
+        row.state = "answered"
+        row.responded_at = now
+        if update_id is not None:
+            row.response_update_id = int(update_id)
+    return len(rows)
+
+
+def cancel_requests(session: Any, *, task_id: int, why: str = "") -> int:
+    """Close outstanding requests about a task nobody needs to report on.
+
+    A completed or cancelled task is not a person who owes an update. Left
+    open, it sits on the manager's screen as somebody who never replied — a
+    reading of the record that is precisely wrong.
+    """
+    _ = why
+    rows = list(session.execute(
+        select(PlannerReminder).where(
+            PlannerReminder.entity_type == ENTITY_TASK,
+            PlannerReminder.entity_id == int(task_id),
+            PlannerReminder.asked.is_(True),
+            PlannerReminder.state == "sent")).scalars())
+    for row in rows:
+        row.state = "cancelled"
+        row.responded_at = datetime.now(UTC)
+    return len(rows)
+
+
+def requests(session: Any, project_ids: list[int], *,
+             state: str = "", limit: int = 200) -> list[dict[str, Any]]:
+    """Who has been asked for an update, why, and whether they came back.
+
+    §1.3's screen, as data. Ordered oldest first: the request nobody has
+    answered for a week is the one the manager needs, and burying it under
+    this morning's is how a chase list stops being read.
+    """
+    from backend.models.planner import PlannerProject, PlannerTask, PlannerUpdate
+    from backend.db.models import User
+
+    if not project_ids:
+        return []
+    stmt = (select(PlannerReminder)
+            .where(PlannerReminder.project_id.in_([int(i) for i in project_ids]),
+                   PlannerReminder.asked.is_(True))
+            .order_by(PlannerReminder.sent_at.asc())
+            .limit(int(limit)))
+    if state:
+        stmt = stmt.where(PlannerReminder.state == state)
+    rows = list(session.execute(stmt).scalars())
+    if not rows:
+        return []
+
+    people = {u.id: u for u in session.execute(
+        select(User).where(User.id.in_({r.user_id for r in rows}
+                                       | {r.requested_by for r in rows
+                                          if r.requested_by}))).scalars()}
+    tasks = {t.id: t for t in session.execute(
+        select(PlannerTask).where(
+            PlannerTask.id.in_({r.entity_id for r in rows}))).scalars()}
+    projects = {p.id: p for p in session.execute(
+        select(PlannerProject).where(
+            PlannerProject.id.in_({r.project_id for r in rows}))).scalars()}
+    answers = {u.id: u for u in session.execute(
+        select(PlannerUpdate).where(
+            PlannerUpdate.id.in_({r.response_update_id for r in rows
+                                  if r.response_update_id}))).scalars()}
+
+    def person(user_id: int | None) -> dict[str, Any] | None:
+        row = people.get(user_id) if user_id else None
+        if row is None:
+            return None
+        return {"id": int(row.id),
+                "name": getattr(row, "full_name", "") or row.username,
+                "username": row.username}
+
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        task = tasks.get(row.entity_id)
+        project = projects.get(row.project_id)
+        answer = answers.get(row.response_update_id) if row.response_update_id else None
+        out.append({
+            "id": int(row.id),
+            "project_id": int(row.project_id),
+            "project_code": project.code if project else "",
+            "project_name": project.name if project else "",
+            "task_id": int(row.entity_id),
+            "task_code": task.code if task else "",
+            "task_title": task.title if task else "",
+            "task_status": task.status if task else "",
+            "task_percent": int(task.percent_complete or 0) if task else None,
+            "person": person(row.user_id),
+            "requested_by": person(row.requested_by),
+            "reason": row.reason,
+            "trigger": row.trigger,
+            "state": row.state,
+            "sent_at": row.sent_at.isoformat() if row.sent_at else None,
+            "responded_at": (row.responded_at.isoformat()
+                             if row.responded_at else None),
+            "response": ({"narrative": answer.narrative,
+                          "blocker": answer.blocker,
+                          "next_step": answer.next_step,
+                          "new_percent": answer.new_percent,
+                          "new_status": answer.new_status}
+                         if answer else None),
+        })
+    return out
+
+
+# ------------------------------------------------------- event-driven
+
+#: How long an event-driven re-evaluation waits before it runs. Long enough
+#: that somebody editing five tasks in a row produces one sweep rather than
+#: five, short enough that "I have just been made owner of something overdue"
+#: reaches them while they are still at the screen.
+EVENT_DELAY_SECONDS = 45
+
+#: The planner changes worth re-evaluating a project for. A change to a
+#: description or a title is not here: it moves no commitment, and a sweep
+#: that ran for it would be a sweep that ran for everything.
+EVENTS: tuple[str, ...] = (
+    "task_created", "task_due_date_changed", "task_status_changed",
+    "task_progress_changed", "task_blocked", "task_unblocked",
+    "task_owner_changed", "task_deleted",
+    "milestone_changed", "dependency_changed",
+    "raid_severity_changed", "participant_changed",
+    "project_dates_changed", "imported",
+)
+
+
+def on_event(session: Any, project_id: int, event: str) -> tuple[int, bool]:
+    """Re-evaluate one project shortly after something material happened.
+
+    Enqueued inside the caller's transaction on purpose: if the mutation rolls
+    back, so does the job. A sweep for a change that never happened would
+    chase somebody about a due date they never moved.
+
+    Debounced by a coarse time bucket rather than by "is one already queued":
+    a burst of edits inside the same bucket collapses to one job, and an edit
+    after the bucket rolls over gets its own. Both are correct; a per-edit job
+    is not.
+    """
+    from backend.agentic import queue
+
+    pid = int(project_id)
+    if event not in EVENTS:
+        raise ValueError(
+            f"'{event}' is not a planner event the monitor knows about. "
+            f"Known: {', '.join(EVENTS)}.")
+    now = datetime.now(UTC)
+    bucket = int(now.timestamp()) // EVENT_DELAY_SECONDS
+    return queue.enqueue(
+        session, kind=PLANNER_SWEEP,
+        idempotency_key=f"planner-event:{pid}:{bucket}",
+        payload={"project_ids": [pid], "reason": f"event:{event}"},
+        priority=queue.PRIORITY_EVENT,
+        delay_seconds=EVENT_DELAY_SECONDS,
+        timeout_seconds=300)
 
 
 __all__ = [
     "MONITOR_VERSION", "PLANNER_SWEEP", "Sweep", "Message",
     "DUE", "OVERDUE", "STALE", "BLOCKED", "MILESTONE_DUE",
     "MILESTONE_OVERDUE", "HEALTH_RED",
-    "sweep", "run_sweep_job", "schedule",
+    "EVENTS", "EVENT_DELAY_SECONDS",
+    "REVIEW", "UPDATE_REQUESTED",
+    "sweep", "run_sweep_job", "schedule", "on_event",
+    "answer_requests", "cancel_requests", "requests",
 ]

@@ -285,11 +285,216 @@ class TestItReachesTheNotificationCentre:
         mine = wf.notifications(world["bob"], limit=100)
         planner = [n for n in mine if n["kind"] == "planner"]
         assert planner, "nothing from the planner reached the centre"
-        assert planner[0]["object_type"] == "planner_project"
-        assert planner[0]["object_id"] == str(world["project_id"])
+        # The deep link is to the exact task, not to the estate: §1.2. The
+        # id carries the project as well, because a task page is reached
+        # through its project.
+        assert planner[0]["object_type"] in ("planner_task", "planner_project")
+        if planner[0]["object_type"] == "planner_task":
+            project_id, task_id = planner[0]["object_id"].split(":")
+            assert int(project_id) == world["project_id"]
+            assert int(task_id) in set(world["tasks"].values())
+        else:
+            assert planner[0]["object_id"] == str(world["project_id"])
 
     def test_they_count_towards_unread(self, world):
         from backend.services import workflow as wf
 
         run(world["project_id"])
         assert wf.unread_count(world["bob"]) > 0
+
+
+# ==================================================== update requests §1.3
+
+
+def test_a_notification_deep_links_to_the_thing_it_is_about(world):
+    """A reminder about a task that opens the portfolio is a reminder that
+    makes the reader do the search again."""
+    from backend.db.engine import get_session
+
+    with get_session() as session:
+        outcome = monitor.sweep(session, today=TODAY, send=False)
+    tasks = [m for m in outcome.messages
+             if m.entity_type == "TASK" and m.trigger != monitor.HEALTH_RED]
+    assert tasks, "the fixture should produce at least one task reminder"
+    for message in tasks:
+        assert message.link_type == "planner_task"
+        assert message.link_id == f"{message.project_id}:{message.entity_id}"
+        assert message.action, f"{message.trigger} tells nobody what to do"
+        assert message.label
+
+
+def test_the_project_reminder_opens_the_project(world):
+    from backend.db.engine import get_session
+
+    with get_session() as session:
+        outcome = monitor.sweep(session, today=TODAY, send=False)
+    for message in outcome.messages:
+        if message.trigger == monitor.HEALTH_RED:
+            assert message.link_type == "planner_project"
+            assert message.link_id == str(message.project_id)
+
+
+def test_a_chase_is_recorded_as_a_request_and_a_nudge_is_not(world):
+    from backend.db.engine import get_session
+
+    with get_session() as session:
+        outcome = monitor.sweep(session, today=TODAY, send=False)
+    asked = [m for m in outcome.messages if m.asked]
+    assert asked, "silent overdue tasks should produce update requests"
+    for message in asked:
+        # A request is either its own message, or the nudge that already
+        # covers the same task for the same person carrying the obligation.
+        # What is never true is two messages meaning "look at T-104".
+        assert message.reason, "a request with no reason cannot be answered"
+        assert message.entity_type == "TASK"
+    pairs = [(m.entity_id, m.user_id) for m in outcome.messages
+             if m.entity_type == "TASK"]
+    assert len(pairs) == len(set(pairs)), \
+        "one task told one person twice in a single sweep"
+    # Reviews and health notices are never requests for a progress update.
+    for message in outcome.messages:
+        if message.trigger in (monitor.REVIEW, monitor.HEALTH_RED):
+            assert not message.asked
+
+
+def test_answering_a_request_closes_it_and_keeps_the_reply(world):
+    """The manager's question is 'did they come back?', so the reply is
+    attached to the request rather than left in the timeline."""
+    import uuid as _uuid
+    from datetime import date as _date
+
+    from backend.db.engine import get_session
+    from backend.db.models import User
+
+    tag = _uuid.uuid4().hex[:8]
+    with get_session() as session:
+        owner = User(username=f"chase-{tag}", password_hash="x",
+                     role="ANALYST", first_name="Chase", last_name="Owner")
+        session.add(owner)
+        session.flush()
+        who = Principal(int(owner.id))
+        project = svc.create_project(
+            session, who, code=f"CHS-{tag[:6].upper()}", name="Chase fixture",
+            status="ACTIVE", manager_id=int(owner.id))
+        session.flush()
+        pid = int(project.id)
+        task = svc.create_task(
+            session, who, pid, code="T-1", title="Overdue and silent",
+            owner_id=int(owner.id), due_date="2026-06-01")
+        session.flush()
+        task.last_update_at = None
+        session.flush()
+        tid = int(task.id)
+
+    with get_session() as session:
+        outcome = monitor.sweep(session, today=_date(2026, 6, 15),
+                                project_ids=[pid])
+        assert outcome.sent >= 1
+
+    with get_session() as session:
+        rows = monitor.requests(session, [pid])
+        assert len(rows) == 1, rows
+        assert rows[0]["state"] == "sent"
+        assert rows[0]["task_code"] == "T-1"
+        assert rows[0]["person"]["id"] == int(owner.id)
+        assert rows[0]["response"] is None
+
+    with get_session() as session:
+        svc.update_task(session, Principal(int(owner.id)), tid,
+                        percent_complete=80,
+                        narrative="Overlay complete, Finance reviewing.")
+
+    with get_session() as session:
+        rows = monitor.requests(session, [pid], state="")
+        assert rows[0]["state"] == "answered"
+        assert rows[0]["responded_at"]
+        assert rows[0]["response"]["new_percent"] == 80
+        assert "Finance" in rows[0]["response"]["narrative"]
+
+
+def test_completing_a_task_cancels_its_outstanding_request(world):
+    import uuid as _uuid
+    from datetime import date as _date
+
+    from backend.db.engine import get_session
+    from backend.db.models import User
+
+    tag = _uuid.uuid4().hex[:8]
+    with get_session() as session:
+        owner = User(username=f"cancel-{tag}", password_hash="x",
+                     role="ANALYST", first_name="Cancel", last_name="Owner")
+        manager = User(username=f"cmgr-{tag}", password_hash="x",
+                       role="ANALYST", first_name="Cancel", last_name="Mgr")
+        session.add_all([owner, manager])
+        session.flush()
+        boss = Principal(int(manager.id))
+        project = svc.create_project(
+            session, boss, code=f"CAN-{tag[:6].upper()}", name="Cancel fixture",
+            status="ACTIVE", manager_id=int(manager.id))
+        session.flush()
+        pid = int(project.id)
+        svc.add_participant(session, boss, pid, user_id=int(owner.id),
+                            project_role="CONTRIBUTOR", access="CONTRIBUTOR")
+        task = svc.create_task(session, boss, pid, code="T-1",
+                               title="Overdue and silent",
+                               owner_id=int(owner.id), due_date="2026-06-01")
+        session.flush()
+        task.last_update_at = None
+        session.flush()
+        tid = int(task.id)
+
+    with get_session() as session:
+        monitor.sweep(session, today=_date(2026, 6, 15), project_ids=[pid])
+
+    with get_session() as session:
+        # The manager closes it out. Nobody owes an update on a finished task.
+        svc.update_task(session, Principal(int(manager.id)), tid,
+                        status="COMPLETED")
+
+    with get_session() as session:
+        rows = monitor.requests(session, [pid], state="")
+        assert [r["state"] for r in rows] == ["cancelled"]
+
+
+def test_somebody_else_updating_does_not_discharge_the_owner(world):
+    import uuid as _uuid
+    from datetime import date as _date
+
+    from backend.db.engine import get_session
+    from backend.db.models import User
+
+    tag = _uuid.uuid4().hex[:8]
+    with get_session() as session:
+        owner = User(username=f"own-{tag}", password_hash="x", role="ANALYST",
+                     first_name="Real", last_name="Owner")
+        manager = User(username=f"mgr-{tag}", password_hash="x", role="ANALYST",
+                       first_name="Someone", last_name="Else")
+        session.add_all([owner, manager])
+        session.flush()
+        boss = Principal(int(manager.id))
+        project = svc.create_project(
+            session, boss, code=f"OTH-{tag[:6].upper()}", name="Other fixture",
+            status="ACTIVE", manager_id=int(manager.id))
+        session.flush()
+        pid = int(project.id)
+        svc.add_participant(session, boss, pid, user_id=int(owner.id),
+                            project_role="CONTRIBUTOR", access="CONTRIBUTOR")
+        task = svc.create_task(session, boss, pid, code="T-1",
+                               title="Overdue and silent",
+                               owner_id=int(owner.id), due_date="2026-06-01")
+        session.flush()
+        task.last_update_at = None
+        session.flush()
+        tid = int(task.id)
+
+    with get_session() as session:
+        monitor.sweep(session, today=_date(2026, 6, 15), project_ids=[pid])
+
+    with get_session() as session:
+        svc.update_task(session, Principal(int(manager.id)), tid,
+                        narrative="Chasing them about this.")
+
+    with get_session() as session:
+        rows = monitor.requests(session, [pid], state="")
+        assert rows[0]["state"] == "sent", \
+            "a manager's note must not discharge the owner's obligation"

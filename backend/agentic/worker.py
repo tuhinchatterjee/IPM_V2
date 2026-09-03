@@ -62,6 +62,20 @@ HEARTBEAT_SECONDS = 20.0
 #: How often to sweep for jobs whose worker vanished.
 RECOVERY_EVERY_SECONDS = 60.0
 
+#: How often a worker offers to enqueue the governed schedule tick.
+#:
+#: Until this existed, `schedules.tick()` had no caller in the product: every
+#: schedule row was enabled, due, and never fired, because nothing put a
+#: `schedule_tick` job on the queue. The tick itself is cheap — it wakes
+#: snoozed cases, notifies owners of cases falling due, and enqueues whatever
+#: schedule is due — and it enqueues rather than runs, so a worker offering
+#: one every minute costs a row and an idempotency check.
+TICK_EVERY_SECONDS = 60.0
+
+#: The bucket the tick's idempotency key is rounded to. Several workers
+#: offering a tick in the same minute produce one job, not one each.
+TICK_BUCKET_SECONDS = 60
+
 
 # ---------------------------------------------------------------------------
 # What a handler is
@@ -117,6 +131,7 @@ def _install_defaults() -> None:
 
         register(planner_monitor.PLANNER_SWEEP,
                  planner_monitor.run_sweep_job)
+        _check_handler_shape(planner_monitor.run_sweep_job)
     except Exception:  # noqa: BLE001 - reported per job, not at boot
         logger.exception("the project planner sweep could not be loaded")
 
@@ -138,6 +153,10 @@ class Worker:
     completed: int = 0
     failed: int = 0
     _last_recovery: float = 0.0
+    #: Deliberately starts at zero rather than at "now", so a worker offers a
+    #: tick on its first pass instead of a minute after boot. A deployment
+    #: restarted at 08:59 should not miss the nine o'clock work.
+    _last_tick: float = 0.0
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -185,6 +204,7 @@ class Worker:
         try:
             while not self.draining and (max_jobs == 0 or ran < max_jobs):
                 self._maybe_recover()
+                self._maybe_tick()
                 did = self.run_once()
                 if did:
                     ran += 1
@@ -244,6 +264,33 @@ class Worker:
                 queue.complete(session, job.id, worker=self.worker_id)
                 self.completed += 1
 
+    def _maybe_tick(self) -> None:
+        """Offer the governed schedule tick, at most once a minute per worker.
+
+        Any worker may offer it; the idempotency key is a time bucket, so a
+        fleet of them produces one tick per bucket rather than one each. A
+        worker that does not claim `schedule_tick` jobs does not offer one —
+        it would be enqueuing work nobody in its own deployment runs.
+        """
+        if self.kinds and queue.SCHEDULE_TICK not in self.kinds:
+            return
+        now = time.monotonic()
+        if now - self._last_tick < TICK_EVERY_SECONDS:
+            return
+        self._last_tick = now
+        from backend.db.engine import get_session
+
+        try:
+            bucket = int(time.time()) // TICK_BUCKET_SECONDS
+            with get_session() as session:
+                queue.enqueue(session, kind=queue.SCHEDULE_TICK,
+                              idempotency_key=f"schedule-tick:{bucket}",
+                              payload={"bucket": bucket},
+                              priority=queue.PRIORITY_SCHEDULED,
+                              max_attempts=1, timeout_seconds=300)
+        except Exception:  # noqa: BLE001 - a missed tick is not fatal
+            logger.exception("could not offer a schedule tick")
+
     def _maybe_recover(self) -> None:
         """Sweep for jobs whose worker vanished.
 
@@ -261,6 +308,30 @@ class Worker:
                 queue.recover_stale(session)
         except Exception:  # noqa: BLE001 - a sweep failing is not fatal
             logger.exception("stale-job recovery failed")
+
+
+def _check_handler_shape(handler: Any) -> None:
+    """Refuse a handler the worker cannot call.
+
+    Cheap insurance against the exact defect this caught once: a handler
+    written as `(session, job)` registers happily, then fails on its first
+    real run at three in the morning with a message about `Job` having no
+    attribute `execute`. Two positional parameters, checked at registration,
+    where the traceback is somebody's own import.
+    """
+    import inspect
+
+    try:
+        params = list(inspect.signature(handler).parameters.values())
+    except (TypeError, ValueError):  # a builtin or a C callable
+        return
+    positional = [p for p in params
+                  if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]
+    required = [p for p in positional if p.default is p.empty]
+    if len(required) > 2 or len(positional) < 1:
+        raise TypeError(
+            f"{getattr(handler, '__qualname__', handler)} cannot be a job "
+            "handler: the worker calls handler(job, should_stop).")
 
 
 def _category(exc: BaseException) -> str:
