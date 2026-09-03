@@ -711,6 +711,15 @@ def health(plan: Plan, today: date, *,
         reasons.append(f"{len(critical_dependency)} critical dependency"
                        f"{'' if len(critical_dependency) == 1 else 'ies'} "
                        "unresolved".replace("dependencyies", "dependencies"))
+    # Volume alone, regardless of criticality. A project with a dozen late
+    # tasks and none of them flagged critical is in trouble whatever the flags
+    # say — somebody has stopped maintaining them, which is itself the signal.
+    # This is what `amber_overdue_count` is FOR, and until it did this the
+    # field was decoration: every branch that consulted it produced the same
+    # verdict and nearly the same sentence.
+    overdue_all = [f for f in findings if f.rule == "overdue"]
+    if len(overdue_all) >= policy.amber_overdue_count * 3:
+        reasons.append(f"{len(overdue_all)} tasks overdue")
     breached = (plan.target_end_date is not None
                 and plan.target_end_date < today
                 and any(t.open for t in plan.tasks))
@@ -721,10 +730,11 @@ def health(plan: Plan, today: date, *,
         return Health(HEALTH_RED, _sentence(reasons), tuple(findings))
 
     # ---- AMBER ------------------------------------------------------------
-    overdue = [f for f in findings if f.rule == "overdue"]
-    if len(overdue) >= policy.amber_overdue_count:
-        reasons.append(f"{len(overdue)} tasks overdue")
-    elif overdue:
+    # Any overdue task is amber. Not a threshold: a product that stays green
+    # with one late commitment on it is one nobody believes about the second.
+    # The threshold above decides when volume alone becomes RED.
+    overdue = overdue_all
+    if overdue:
         reasons.append(f"{len(overdue)} task"
                        f"{'' if len(overdue) == 1 else 's'} overdue")
     imminent_blocked = [
@@ -754,9 +764,18 @@ def health(plan: Plan, today: date, *,
         reasons.append(f"{len(threatened)} milestone"
                        f"{'' if len(threatened) == 1 else 's'} at risk")
     open_raid = [f for f in findings if f.rule == "raid"]
-    if open_raid:
-        reasons.append(f"{len(open_raid)} high-severity item"
-                       f"{'' if len(open_raid) == 1 else 's'} open")
+    if len(open_raid) == 1:
+        # Named, not counted. "1 high-severity item open" tells a manager
+        # nothing they can act on; the title tells them whether to read
+        # further. Several are counted, because a sentence listing five
+        # titles is not a sentence.
+        reasons.append(open_raid[0].detail.rstrip(".")
+                       .replace("A critical-severity item is open: ",
+                                "an open critical risk: ")
+                       .replace("A high-severity item is open: ",
+                                "an open high risk: "))
+    elif open_raid:
+        reasons.append(f"{len(open_raid)} high-severity items open")
     dependency = [f for f in findings if f.rule == "dependency"]
     if dependency:
         reasons.append(f"{len(dependency)} unresolved dependenc"
