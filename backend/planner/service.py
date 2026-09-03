@@ -1058,9 +1058,23 @@ def create_dependency(session: Any, principal: Any, project_id: int, *,
     if (pred_kind, int(predecessor_id)) == (succ_kind, int(successor_id)):
         raise PlannerError("Something cannot depend on itself.")
 
-    existing = [control.DependencyView.of(d) for d in session.execute(
+    rows = list(session.execute(
         select(PlannerDependency).where(
-            PlannerDependency.project_id == int(project_id))).scalars()]
+            PlannerDependency.project_id == int(project_id))).scalars())
+    # The same link twice is a unique-constraint violation at the database,
+    # which reaches the caller as a 500 with a SQL statement in it. It is an
+    # ordinary mistake — two people linking the same pair, or an import run
+    # again — and deserves a sentence.
+    for row in rows:
+        if ((row.predecessor_type, int(row.predecessor_id),
+             row.successor_type, int(row.successor_id))
+                == (pred_kind, int(predecessor_id), succ_kind,
+                    int(successor_id))):
+            raise PlannerError(
+                f"{_pretty(session, succ_kind, successor_id)} already waits "
+                f"on {_pretty(session, pred_kind, predecessor_id)}.")
+
+    existing = [control.DependencyView.of(d) for d in rows]
     proposed = control.DependencyView(
         pred_kind, int(predecessor_id), succ_kind, int(successor_id))
     found = control.cycle([*existing, proposed])

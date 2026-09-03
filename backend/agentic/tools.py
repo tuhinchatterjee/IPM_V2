@@ -94,6 +94,9 @@ PLANNER_RAID = "planner_raid"
 PLANNER_MILESTONES = "planner_milestones"
 PLANNER_CHASE_LIST = "planner_chase_list"
 PLANNER_DRAFT_UPDATE = "planner_draft_update"
+PLANNER_CRITICAL_PATH = "planner_critical_path"
+PLANNER_SLIP_IMPACT = "planner_slip_impact"
+PLANNER_REQUESTS = "planner_requests"
 
 
 class ToolDenied(PermissionError):
@@ -304,6 +307,24 @@ TOOLS: tuple[Tool, ...] = (
          "backend.planner.query",
          parameters=("project", "limit"), required=("project",),
          reads_data=True),
+    Tool(PLANNER_CRITICAL_PATH, "Critical path",
+         "The calculated schedule: earliest and latest dates, float, and the "
+         "chain that determines the end date. Says why it cannot be "
+         "calculated rather than guessing when durations are missing.",
+         "backend.planner.schedule",
+         parameters=("project",), required=("project",), reads_data=True),
+    Tool(PLANNER_SLIP_IMPACT, "If this slips",
+         "What moves downstream, and whether the project's end date moves, "
+         "if one task is late by a given number of days. Recomputed rather "
+         "than inferred from float.",
+         "backend.planner.schedule",
+         parameters=("project", "code", "days"),
+         required=("project", "code"), reads_data=True),
+    Tool(PLANNER_REQUESTS, "Update requests",
+         "Who has been asked for an update, why, when, and whether they have "
+         "come back yet.",
+         "backend.planner.monitor",
+         parameters=("project", "state"), reads_data=True),
     Tool(PLANNER_TASKS, "Project tasks",
          "The tasks on a project, filtered by status, owner or lateness.",
          "backend.planner.query",

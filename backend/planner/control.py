@@ -156,6 +156,12 @@ class TaskView:
     workstream_id: int | None = None
     parent_id: int | None = None
     priority: str = ""
+    #: Who has to accept the work. The monitor tells them when it arrives; the
+    #: owner cannot be the person who is told a task is waiting on review.
+    reviewer_id: int | None = None
+    #: Planned effort. The schedule engine falls back to it when a task has no
+    #: start date, which is the common case for work nobody has laid out yet.
+    effort_days: int | None = None
 
     @classmethod
     def of(cls, row: Any) -> TaskView:
@@ -171,7 +177,9 @@ class TaskView:
             blocker_reason=str(row.blocker_reason or ""),
             last_update_at=row.last_update_at,
             workstream_id=row.workstream_id, parent_id=row.parent_id,
-            priority=str(row.priority or ""))
+            priority=str(row.priority or ""),
+            reviewer_id=getattr(row, "reviewer_id", None),
+            effort_days=getattr(row, "effort_days", None))
 
     @property
     def open(self) -> bool:

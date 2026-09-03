@@ -548,7 +548,33 @@ def handlers(session: Any) -> dict[str, Any]:
             task_id=int(kw["task"]) if kw.get("task") else None,
             tone=str(kw.get("tone") or "neutral"))
 
+    def critical_path(principal=None, project=None, **_kw):
+        return pq.schedule_of(session, principal,
+                              _project_id(session, principal, project))
+
+    def slip_impact(principal=None, project=None, **kw):
+        return pq.slip_of(session, principal,
+                          _project_id(session, principal, project),
+                          code=str(kw.get("code") or ""),
+                          days=int(kw.get("days") or 1))
+
+    def update_requests(principal=None, project=None, **kw):
+        from backend.planner import monitor
+
+        state = str(kw.get("state") or "sent")
+        if project:
+            ids = [_project_id(session, principal, project)]
+            acl.readable(session, ids[0], principal)
+        else:
+            ids = acl.readable_project_ids(session, principal)
+        rows = monitor.requests(session, ids,
+                                state=("" if state == "all" else state))
+        return {"requests": rows, "count": len(rows)}
+
     return {
+        reg.PLANNER_CRITICAL_PATH: critical_path,
+        reg.PLANNER_SLIP_IMPACT: slip_impact,
+        reg.PLANNER_REQUESTS: update_requests,
         reg.PLANNER_PORTFOLIO: portfolio,
         reg.PLANNER_PROJECT: detail,
         reg.PLANNER_MY_WORK: my_work,

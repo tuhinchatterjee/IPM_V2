@@ -39,6 +39,7 @@ from backend.models.planner import (
 )
 from backend.planner import access as acl
 from backend.planner import control
+from backend.planner import schedule
 
 QUERY_VERSION = "1.0.0"
 
@@ -156,6 +157,49 @@ def plans_of(session: Any, project_ids: list[int]
             stale_after_days=(int(project.stale_after_days) if project
                               else 7))
     return out
+
+
+def schedule_of(session: Any, principal: Any, project_id: int
+                ) -> dict[str, Any]:
+    """The calculated schedule for one project.
+
+    Access is resolved before anything is read: a critical path is a statement
+    about a project's dates, and a project you are not on is one whose dates
+    you may not have.
+    """
+    acl.readable(session, project_id, principal)
+    project = session.get(PlannerProject, int(project_id))
+    plan = plan_of(session, project_id)
+    found = schedule.compute(
+        plan, project_start=project.start_date if project else None)
+    body = found.to_dict()
+    body["project_id"] = int(project_id)
+    body["project_code"] = plan.code
+    return body
+
+
+def slip_of(session: Any, principal: Any, project_id: int, *, code: str,
+            days: int) -> dict[str, Any]:
+    """What moves if one task slips.
+
+    Returns the refusal rather than an empty answer when there is no schedule
+    to reason about: "it affects nothing" and "we cannot tell" are different
+    statements and only one of them is true here.
+    """
+    acl.readable(session, project_id, principal)
+    project = session.get(PlannerProject, int(project_id))
+    plan = plan_of(session, project_id)
+    start = project.start_date if project else None
+    found = schedule.slip(plan, code, int(days), project_start=start)
+    if found is None:
+        base = schedule.compute(plan, project_start=start)
+        return {"computed": False, "code": code, "days": int(days),
+                "cannot_because": base.cannot_because or [
+                    f"'{code}' is not part of this project's dependency "
+                    "network, so nothing downstream depends on it."]}
+    body = found.to_dict()
+    body["computed"] = True
+    return body
 
 
 def refresh_calculations(session: Any, project: Any, *,

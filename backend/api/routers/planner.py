@@ -572,6 +572,38 @@ def chases(project_id: int, task_id: int | None = None,
         session, principal, project_id, task_id=task_id, tone=tone))
 
 
+# ======================================================= the schedule
+
+
+@router.get("/projects/{project_id}/schedule",
+            summary="The calculated critical path")
+def project_schedule(project_id: int, session: Session = Depends(get_db),
+                     principal: Principal = RequireCommenter) -> dict:
+    """Earliest and latest dates, float, and the chain that sets the end date.
+
+    Separate from the `critical` flag a person ticked, and reported beside it:
+    where the two disagree, that is the interesting fact and the response says
+    so rather than choosing one.
+
+    When it cannot be calculated the response says `computed: false` and
+    carries the sentences explaining which task is missing what.
+    """
+    return _guard(lambda: pq.schedule_of(session, principal, project_id))
+
+
+@router.get("/projects/{project_id}/slip",
+            summary="What moves if this slips")
+def project_slip(project_id: int,
+                 code: str = Query(min_length=1, max_length=40),
+                 days: int = Query(default=1, ge=1, le=365),
+                 session: Session = Depends(get_db),
+                 principal: Principal = RequireCommenter) -> dict:
+    """Recomputed, not reasoned about: float is only correct until something
+    else moves too."""
+    return _guard(lambda: pq.slip_of(session, principal, project_id,
+                                     code=code, days=days))
+
+
 # ==================================================== update requests
 
 
