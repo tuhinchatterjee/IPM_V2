@@ -10,7 +10,16 @@ import type {
   PlannerStatement,
   PlannerTaskRow,
 } from "@/lib/api";
+import {
+  claimLabel,
+  dueLabel,
+  healthTone,
+  progressWidth,
+  when,
+} from "@/lib/planner-format";
 import { cn } from "@/lib/utils";
+
+export { when };
 
 /**
  * The pieces every planner screen shares.
@@ -23,13 +32,6 @@ import { cn } from "@/lib/utils";
  */
 
 // ---------------------------------------------------------------- health
-
-const HEALTH_VARIANT: Record<PlannerHealth, "positive" | "warning" | "negative" | "default"> = {
-  GREEN: "positive",
-  AMBER: "warning",
-  RED: "negative",
-  UNKNOWN: "default",
-};
 
 /**
  * A colour with the word next to it, never the colour alone.
@@ -51,7 +53,7 @@ export function HealthPill({
 }) {
   return (
     <span className={cn("inline-flex items-center gap-1.5", className)}>
-      <Badge variant={HEALTH_VARIANT[health] ?? "default"} title={reason}>
+      <Badge variant={healthTone(health)} title={reason}>
         {health}
       </Badge>
       {overridden && (
@@ -75,7 +77,7 @@ export function Progress({
   percent: number;
   className?: string;
 }) {
-  const value = Math.max(0, Math.min(100, Math.round(percent)));
+  const value = progressWidth(percent);
   return (
     <span className={cn("inline-flex items-center gap-2", className)}>
       <span
@@ -113,39 +115,21 @@ export function Due({
   daysOverdue?: number | null;
   daysUntil?: number | null;
 }) {
-  if (!date) {
-    return <span className="text-text-muted">No date</span>;
-  }
-  if (daysOverdue && daysOverdue > 0) {
-    return (
-      <span className="text-negative">
-        {daysOverdue} {daysOverdue === 1 ? "day" : "days"} overdue
-        <span className="ml-1 text-text-muted">({date})</span>
-      </span>
-    );
-  }
-  if (daysUntil !== null && daysUntil !== undefined && daysUntil <= 7) {
-    return (
-      <span className={daysUntil <= 1 ? "text-warning" : undefined}>
-        {daysUntil === 0
-          ? "Due today"
-          : `In ${daysUntil} ${daysUntil === 1 ? "day" : "days"}`}
-        <span className="ml-1 text-text-muted">({date})</span>
-      </span>
-    );
-  }
-  return <span className="text-text-secondary">{date}</span>;
-}
-
-export function when(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const then = new Date(iso);
-  if (Number.isNaN(then.getTime())) return "—";
-  const days = Math.floor((Date.now() - then.getTime()) / 86_400_000);
-  if (days <= 0) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 14) return `${days} days ago`;
-  return then.toISOString().slice(0, 10);
+  const { text, tone } = dueLabel(date, daysOverdue, daysUntil);
+  const shown = text !== date && date ? date : "";
+  return (
+    <span
+      className={cn(
+        tone === "negative" && "text-negative",
+        tone === "warning" && "text-warning",
+        tone === "muted" && "text-text-muted",
+        tone === "normal" && "text-text-secondary",
+      )}
+    >
+      {text}
+      {shown && <span className="ml-1 text-text-muted">({shown})</span>}
+    </span>
+  );
 }
 
 // ------------------------------------------------------------------ tasks
@@ -251,11 +235,11 @@ export function FindingList({ findings }: { findings: PlannerFinding[] }) {
 
 // -------------------------------------------------------------- grounding
 
-const KIND_STYLE: Record<string, { variant: "default" | "info" | "accent" | "warning"; label: string }> = {
-  FACT: { variant: "info", label: "Fact" },
-  INFERENCE: { variant: "accent", label: "Reading" },
-  RECOMMENDATION: { variant: "default", label: "Suggested" },
-  "NOT RECORDED": { variant: "warning", label: "Not recorded" },
+const KIND_VARIANT: Record<string, "default" | "info" | "accent" | "warning"> = {
+  FACT: "info",
+  INFERENCE: "accent",
+  RECOMMENDATION: "default",
+  "NOT RECORDED": "warning",
 };
 
 /**
@@ -267,11 +251,11 @@ const KIND_STYLE: Record<string, { variant: "default" | "info" | "accent" | "war
  * them.
  */
 export function StatementLine({ statement }: { statement: PlannerStatement }) {
-  const style = KIND_STYLE[statement.kind] ?? KIND_STYLE.FACT;
+  const variant = KIND_VARIANT[statement.kind] ?? "default";
   return (
     <li className="flex items-start gap-3 py-2">
-      <Badge variant={style.variant} className="mt-0.5 shrink-0">
-        {style.label}
+      <Badge variant={variant} className="mt-0.5 shrink-0">
+        {claimLabel(statement.kind)}
       </Badge>
       <div className="min-w-0">
         <p className="text-sm text-text-primary">{statement.text}</p>
