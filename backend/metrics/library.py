@@ -136,7 +136,8 @@ def _dpd_rate(bucket: int, by: str) -> MetricDefinition:
                 "COUNT(accounts) × 100")
         name = f"{bucket}+ DPD Account Rate"
         alias = (f"{bucket}+ dpd", f"{bucket} plus dpd",
-                 f"{bucket}+ dpd accounts", f"{bucket} dpd rate")
+                 f"{bucket}+ dpd accounts", f"{bucket} dpd rate",
+                 f"{bucket} day delinquency", f"delinquency {bucket} accounts")
     else:
         top = [_t("late", f"{bucket}+ DPD balance", BEHAVIOURAL, "sum",
                   "current_balance", current_dpd__gte=bucket)]
@@ -146,7 +147,8 @@ def _dpd_rate(bucket: int, by: str) -> MetricDefinition:
                 "SUM(current_balance) × 100")
         name = f"{bucket}+ DPD Exposure Rate"
         alias = (f"{bucket}+ dpd exposure", f"{bucket}+ dpd balance",
-                 f"delinquent balance {bucket}")
+                 f"delinquent balance {bucket}",
+                 f"{bucket} day delinquency", f"delinquency {bucket} exposure")
     return _m(f"retail.dpd_{bucket}_{by}", name,
               f"The share of the retail book {bucket} or more days past due, "
               f"measured by {'account count' if by == 'count' else 'balance'}.",

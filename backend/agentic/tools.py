@@ -387,7 +387,7 @@ TOOLS: tuple[Tool, ...] = (
          "the project.",
          "backend.planner.agent",
          parameters=("project", "task", "tone"), required=("project",),
-         writes=True),
+         writes=True, reads_data=True),
 )
 
 _BY_ID: dict[str, Tool] = {t.tool_id: t for t in TOOLS}
