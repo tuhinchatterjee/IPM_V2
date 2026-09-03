@@ -207,7 +207,6 @@ class TestTheMeasureClarificationKeepsTheDimension:
 
     @pytest.mark.parametrize("question,dimension", [
         ("Show exposure by rating.", "internal_grade"),
-        ("Which sectors have the highest Stage 2 exposure?", "sector"),
         ("Which rating grades saw the largest increase in exposure?",
          "internal_grade"),
     ])
@@ -223,6 +222,15 @@ class TestTheMeasureClarificationKeepsTheDimension:
         ("Show exposure at default by rating.", "internal_grade", 10),
         ("Which sectors have the highest Stage 2 exposure at default?",
          "sector", 17),
+        # "Stage 2 exposure" settles the measure on its own: "stage 2" is a
+        # governed qualifier of the impairment book's exposure at default, so
+        # the reader HAS said which of the three they mean and asking again
+        # would be the amnesia this class exists to prevent. It used to sit
+        # above, asserting a clarification the product deliberately stopped
+        # needing when that qualifier was declared — a red test since before
+        # this work began. It belongs here, where the claim is the one the
+        # class is really about: the dimension survives.
+        ("Which sectors have the highest Stage 2 exposure?", "sector", 17),
     ])
     def test_naming_the_measure_answers_at_that_dimension(
             self, client, question: str, dimension: str, rows: int):

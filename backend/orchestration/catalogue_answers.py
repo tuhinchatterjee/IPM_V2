@@ -681,17 +681,31 @@ def named_but_unknown(question: str) -> str:
     if not match:
         return ""
     name = " ".join(match.group("name").split())
-    # A pronoun or a period label is a reference, not a name. Those are the
-    # thread's business, and answering them here would break the follow-up.
-    if len(name) < 3 or bare_period(name) or name.lower() in _NOT_A_NAME:
+    if len(name) < 3 or bare_period(name):
+        return ""
+    # A reference is not a name.
+    #
+    # "Open the latest dataset" points at something the conversation has just
+    # listed; it does not name a dataset the catalogue is missing. Treating it
+    # as one turned a NAVIGATE into "there is no dataset called latest", which
+    # is both wrong and unhelpful. A phrase made ONLY of referring words is a
+    # reference; one that also carries a real word is a name.
+    words = [word.strip(".,'\"") for word in name.lower().split()]
+    if all(word in _NOT_A_NAME for word in words if word):
         return ""
     return name
 
 
-#: Words that occupy a name's position without being one.
+#: Words that point at something rather than naming it: pronouns, ordinals,
+#: determiners, and the generic nouns a reader uses for "the thing we are
+#: looking at".
 _NOT_A_NAME = frozenset({
-    "it", "this", "that", "them", "those", "these", "the data", "data",
-    "the catalogue", "catalogue", "everything", "more", "rows", "the rows",
+    "a", "an", "the", "it", "this", "that", "them", "those", "these",
+    "latest", "last", "newest", "first", "next", "previous", "prior",
+    "earliest", "oldest", "recent", "current", "same", "other", "another",
+    "one", "ones", "each", "every", "all", "any", "some", "more",
+    "data", "dataset", "datasets", "catalogue", "table", "tables", "book",
+    "rows", "row", "records", "everything", "anything", "something",
 })
 
 

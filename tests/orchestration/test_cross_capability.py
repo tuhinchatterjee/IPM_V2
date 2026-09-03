@@ -269,13 +269,25 @@ class TestAnUnknownDatasetNameIsSaidToBeUnknown:
         assert cat.named_but_unknown("Show me the Portfolio Facility dataset") == ""
         assert cat.named_but_unknown("Tell me about Corporate IFRS 9") == ""
 
-    def test_a_reference_is_not_a_name(self) -> None:
-        """"Tell me about it" continues a thread; it does not name a dataset."""
+    @pytest.mark.parametrize("question", [
+        "Tell me about it",
+        "Show me 50 rows",
+        "Show Q1 2025",
+        "What datasets do you have?",
+        "Show me the catalogue",
+        # These point at something the conversation has already listed.
+        # Reading one as a name turned "open the latest dataset" into "there
+        # is no dataset called latest", which is wrong and unhelpful at once.
+        "Open the latest dataset.",
+        "Open the last one",
+        "Show me the newest dataset",
+        "Open that table",
+    ])
+    def test_a_reference_is_not_a_name(self, question) -> None:
+        """A phrase made only of referring words points; it does not name."""
         from backend.orchestration import catalogue_answers as cat
 
-        for question in ("Tell me about it", "Show me 50 rows", "Show Q1 2025",
-                         "What datasets do you have?", "Show me the catalogue"):
-            assert cat.named_but_unknown(question) == "", question
+        assert cat.named_but_unknown(question) == "", question
 
     @pytest.mark.skipif(not database_available(),
                         reason="the near matches come from the catalogue")
