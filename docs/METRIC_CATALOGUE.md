@@ -103,6 +103,23 @@ does not exist, because none of those accounts has had time to default. The
 validation metrics use it, and the panel says so in words rather than showing
 the token.
 
+**No period asked for is never "all of them."** Every dataset here is a panel:
+one row per facility per quarter, or per account per month. Left unresolved, a
+scan reads every partition and the metric returns one figure pooled across the
+whole history — fifteen quarterly snapshots of a book added together, a share
+of a portfolio that does not exist on any date, and no period label to warn
+anyone. `service.default_period()` resolves an absent period to the most
+recent one the metric *has rows in* (`service.latest_period`), and the answer
+carries that period so the reader can see which one they got. Chronologically,
+not alphabetically: `"Q4 2025"` is the string maximum over `"Q1 2026"`, and a
+wrong quarter still renders and still looks current.
+
+"The most recent period the metric has rows in" is why the maturity condition
+belongs in a metric's `scope` rather than in one term's filter. `Matured
+Performance Rows` counts matured rows; asked for the newest month in the lake
+it would answer zero — correctly, and uselessly. With the condition in scope,
+the period resolver skips the months that have none.
+
 ---
 
 ## The lenses

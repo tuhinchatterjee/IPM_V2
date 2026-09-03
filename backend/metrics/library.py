@@ -357,9 +357,17 @@ RETAIL_VALIDATION: tuple[MetricDefinition, ...] = (
        "How many rows have a performance window that has run its course, and "
        "therefore carry a usable outcome.",
        Formula(kind="count", numerator=Side(terms=(
-           _t("m", "Matured rows", BEHAVIOURAL, "count", "matured_flag",
-              matured_flag=1),))),
+           Term(id="m", label="Matured rows", dataset=BEHAVIOURAL,
+                aggregate="count"),))),
        unit="count", domain=RETAIL, portfolio="Retail",
+       # The maturity condition is the metric's scope rather than a filter on
+       # its one term, so that it is the same restriction the discrimination
+       # metrics carry — and so "the latest period" means the latest period
+       # this metric has rows in. Asked for the newest month in the lake it
+       # would answer nothing, correctly and uselessly: those accounts have
+       # not had time to mature, which is the whole reason the rule exists.
+       scope=(Condition("matured_flag", "=", True),),
+       period_rule=PERIOD_LATEST_MATURED,
        aliases=("matured", "usable outcomes", "performance window complete"),
        formula_text="COUNT(matured_flag = 1)", decimals=0,
        not_this="Not a performance metric. It is the sample size behind "

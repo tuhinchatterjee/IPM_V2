@@ -227,36 +227,58 @@ def panel(metric_id: str, *, user_id: int | None = None,
 # ------------------------------------------------------------------ running
 
 
-def latest_matured_period(metric: MetricDefinition) -> str:
-    """The most recent period in which this metric's rows have outcomes.
+def _period_order(period: str) -> tuple[int, int, str]:
+    """Chronological order for a period label, not alphabetical.
 
-    A validation metric asked for "now" must not silently answer for the
-    latest month: those accounts have not had time to default, so the answer
-    is not a low Gini, it is no Gini. This finds the newest period that
-    actually carries matured rows, and the info panel says that is the rule.
+    "Q4 2025" sorts after "Q1 2026" alphabetically, so taking the newest
+    period with `max()` on the raw strings picks the wrong quarter — and
+    picking the wrong quarter is worse than picking none, because the figure
+    still renders and still looks current.
+    """
+    text = (period or "").strip()
+    quarter = re.match(r"^Q([1-4])\s+(\d{4})$", text)
+    if quarter:
+        return (int(quarter.group(2)), int(quarter.group(1)), "")
+    month = re.match(r"^(\d{4})-(\d{1,2})$", text)
+    if month:
+        return (int(month.group(1)), int(month.group(2)), "")
+    if re.fullmatch(r"\d{4}", text):
+        return (int(text), 0, "")
+    # An unrecognised label still has to order deterministically against its
+    # own kind, so the raw text breaks the tie rather than the filesystem.
+    return (9999, 9, text)
+
+
+def periods_with_rows(datasets: Iterable[str],
+                      scope: tuple[Any, ...] = ()) -> list[str]:
+    """The periods this metric actually has rows in, oldest first.
+
+    Asked of the data rather than of the partition names: a metric scoped to
+    the matured cohort has rows in fewer periods than the dataset has
+    directories, and the difference is exactly the thing that matters.
     """
     from backend.runtime import ir
     from backend.runtime.executor import execute
 
-    datasets = metric.datasets
-    if not datasets:
-        return ""
+    names = [d for d in datasets if d]
+    if not names:
+        return []
     catalog = _catalog()
     try:
-        field = str(catalog.dataset(datasets[0]).period_field or "")
+        field = str(catalog.dataset(names[0]).period_field or "")
     except Exception:  # noqa: BLE001 - no catalogue, no period rule
-        return ""
+        return []
     if not field:
-        return ""
+        return []
 
     steps = [ir.Operation(id="scan", op=ir.OpType.SCAN,
-                          params={"dataset": datasets[0]})]
+                          params={"dataset": names[0]})]
     source = "scan"
-    if metric.scope:
+    if scope:
         steps.append(ir.Operation(
             id="scope", op=ir.OpType.FILTER, inputs=("scan",),
             params={"where": [{"column": c.field, "op": c.op, "value": c.value}
-                              for c in metric.scope]}))
+                              for c in scope]}))
         source = "scope"
     steps.append(ir.Operation(
         id="periods", op=ir.OpType.GROUP, inputs=(source,),
@@ -264,19 +286,64 @@ def latest_matured_period(metric: MetricDefinition) -> str:
                 "aggregates": [{"function": "count", "as": "rows"}]}))
 
     plan = ir.AnalyticalPlan(
-        objective=f"Which periods of {datasets[0]} carry rows in scope",
+        objective=f"Which periods of {names[0]} carry rows in scope",
         operations=steps, output="periods")
     try:
-        result = execute(plan, question="latest matured period",
+        result = execute(plan, question="which periods carry rows",
                          intent="metric_period")
     except Exception:  # noqa: BLE001 - fall back to the caller's period
-        logger.warning("could not resolve the latest matured period for %s",
-                       metric.metric_id, exc_info=True)
-        return ""
+        logger.warning("could not resolve the periods carrying rows for %s",
+                       names[0], exc_info=True)
+        return []
 
-    periods = [str(dict(row).get(field) or "") for row in result.rows
-               if int(dict(row).get("rows") or 0) > 0]
-    return max(periods) if periods else ""
+    found = [str(dict(row).get(field) or "") for row in result.rows
+             if int(dict(row).get("rows") or 0) > 0]
+    return sorted({p for p in found if p}, key=_period_order)
+
+
+def latest_period(datasets: Iterable[str], scope: tuple[Any, ...] = ()) -> str:
+    """The most recent period this metric has rows in, or "" if it has none.
+
+    This is what "no period was asked for" has to mean. Left unresolved, the
+    scan reads every partition and the metric returns one figure pooled over
+    the whole history — fifteen quarterly snapshots of a book added together
+    and labelled with no period at all. That number is not wrong arithmetic;
+    it is an answer to a question nobody asked, and it renders exactly like
+    the one they did ask for.
+    """
+    found = periods_with_rows(datasets, scope)
+    return found[-1] if found else ""
+
+
+def latest_matured_period(metric: MetricDefinition) -> str:
+    """The most recent period in which this metric's rows have outcomes.
+
+    A validation metric asked for "now" must not silently answer for the
+    latest month: those accounts have not had time to default, so the answer
+    is not a low Gini, it is no Gini. The metric's own scope carries the
+    maturity condition, so the newest period carrying rows inside that scope
+    is the newest period with outcomes.
+    """
+    return latest_period(metric.datasets, metric.scope)
+
+
+def default_period(metric: MetricDefinition) -> str:
+    """Which period a metric means when nobody named one.
+
+    Never "all of them". A metric read over an unrestricted panel returns one
+    figure pooled across every snapshot the lake holds, with no period label
+    to warn anyone — a share of a book that does not exist on any date. The
+    default is the most recent period the metric has rows in, and the answer
+    carries that period so the reader can see which one they got.
+
+    The branch is on the rule rather than on the scope on purpose: today a
+    matured-cohort metric carries its maturity condition in its own scope, so
+    both paths resolve through the same query, but it is the declared rule
+    that decides what "latest" means and it should stay that way.
+    """
+    if metric.period_rule == PERIOD_LATEST_MATURED:
+        return latest_matured_period(metric)
+    return latest_period(metric.datasets, metric.scope)
 
 
 def value(metric_id: str, *, period: str = "", user_id: int | None = None,
@@ -289,8 +356,7 @@ def value(metric_id: str, *, period: str = "", user_id: int | None = None,
     recalculate by hand.
     """
     metric = resolve(metric_id, user_id=user_id, readable=readable)
-    if not period and metric.period_rule == PERIOD_LATEST_MATURED:
-        period = latest_matured_period(metric)
+    period = period or default_period(metric)
     try:
         calculation = execution.run(
             metric.formula, period=period, scope=metric.scope,
@@ -327,6 +393,9 @@ def rows(metric_id: str, *, period: str = "", limit: int = execution.SAMPLE_ROWS
     filter means what they meant.
     """
     metric = resolve(metric_id, user_id=user_id, readable=readable)
+    # The same period the number came from. Rows drawn from every snapshot
+    # beside a figure computed for one would not be evidence for it.
+    period = period or default_period(metric)
     return execution.sample(metric.formula, period=period,
                             scope=metric.scope, limit=limit)
 
@@ -613,6 +682,10 @@ def verify(metric_id: str, *, expected: float | None, period: str = "",
                     readable=readable)
     computed = outcome["value"]
     run_id = str((outcome["calculation"] or {}).get("run_id") or "")
+    # The period the figure actually came from, not the blank the caller sent.
+    # A verification record is evidence, and evidence that does not say which
+    # period it is about supports nothing.
+    period = outcome["period"] or period
 
     verdict, difference, relative = compare(computed, expected,
                                             tolerance=tolerance)

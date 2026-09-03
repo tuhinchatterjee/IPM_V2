@@ -5095,6 +5095,7 @@ export const api = {
       value: number | null;
       unit?: string;
       unavailable: string;
+      period: string;
       formula: string;
       calculation?: MetricCalculation;
     }>(

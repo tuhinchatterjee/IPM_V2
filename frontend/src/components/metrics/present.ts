@@ -66,3 +66,21 @@ export function readablePeriodRule(rule: string): string {
       return "Whichever period is selected";
   }
 }
+
+/**
+ * A typed value out of a text box, for a filter somebody is building.
+ *
+ * Numbers and booleans go through as themselves so `stage = 2` compares
+ * numerically rather than against the string "2" — which, on an integer
+ * column, is a comparison that either errors or quietly matches nothing.
+ * Everything else stays a string: guessing harder than this is how a filter
+ * starts meaning something the person did not write.
+ */
+export function coerce(value: string): unknown {
+  const text = value.trim();
+  if (text === "") return "";
+  if (text.toLowerCase() === "true") return true;
+  if (text.toLowerCase() === "false") return false;
+  if (/^-?\d+(\.\d+)?$/.test(text)) return Number(text);
+  return text;
+}

@@ -10,12 +10,14 @@ harder: that a person can trust a number they find here.
     D  Ask for something this deployment cannot do and be told why.
     E  Check a figure against your own number, including when they disagree.
     F  Read what the lens deliberately does not show.
+    G  Build a metric of your own, and get the right number for it.
 
 Each journey asserts something a screenshot cannot: that the three stage
 exposures on screen sum to the total exposure on screen, that the info panel
 carries the formula and the source fields rather than a name, that typing a
 second word REMOVES suggestions, that a disagreement is recorded and confers
-nothing.
+nothing, and that a metric assembled on the form computes what the parquet
+says it should.
 
     .venv/bin/python scripts/acceptance/lens_journeys.py
     .venv/bin/python scripts/acceptance/lens_journeys.py --json
@@ -127,7 +129,8 @@ def run(report: Report) -> Report:
                 return report
             for name, journey in (("A", _journey_a), ("B", _journey_b),
                                   ("C", _journey_c), ("D", _journey_d),
-                                  ("E", _journey_e), ("F", _journey_f)):
+                                  ("E", _journey_e), ("F", _journey_f),
+                                  ("G", _journey_g)):
                 _guard(report, name, journey, page, report)
         finally:
             context.close()
@@ -444,6 +447,234 @@ def _journey_f(page: Any, report: Report) -> None:
     if notes:
         report.check("F", "the reason is on screen too",
                      notes[0]["name"] in body, notes[0]["name"])
+
+
+# --------------------------------------------------------------- journey G
+#
+# Build a metric on screen, and prove the number it saves is the right one.
+
+
+#: Deliberately a definition nothing in the governed library already computes,
+#: so a pass cannot come from the builder quietly resolving to a shipped
+#: metric. Three or more missed instalments is a real collections threshold
+#: and an integer comparison — which is the part that breaks if a value typed
+#: into a box reaches the compiler as the string "3".
+G_NAME = "Three Instalments Behind Share"
+G_DATASET = "facility_delinquency"
+
+
+def _journey_g(page: Any, report: Report) -> None:
+    _forget_metric(page, G_NAME)
+
+    page.goto(f"{WEB}/metrics", wait_until="networkidle")
+    page.get_by_role("button", name="Build a metric").click()
+    page.wait_for_selector("text=Build a metric", timeout=10_000)
+    page.wait_for_timeout(1200)
+
+    body = page.inner_text("body")
+    report.check("G", "the builder explains what it will and will not confer",
+                 "governed catalogue" in body and "draft" in body.lower())
+
+    # Not `exact=True`: the field labels are uppercased by CSS and
+    # Playwright matches rendered text, so "Dataset" is "DATASET" here.
+    chooser = page.get_by_label("Dataset")
+
+    # Only the governed datasets are offered. A builder that let somebody name
+    # any of the 77 tables would be a builder for definitions nobody can
+    # interpret. The count includes the "Choose…" placeholder.
+    labels = [o.strip() for o in chooser.locator("option").all_inner_texts()]
+    report.check("G", "the dataset list is the governed one, not every table",
+                 1 < len(labels) <= 10, f"{len(labels)} options: {labels}")
+
+    page.get_by_placeholder("Stretched Arrears Share").fill(G_NAME)
+    page.get_by_placeholder("Balance 30+ DPD as a share").fill(
+        "Facilities three or more instalments behind, as a share of the book.")
+
+    business = _business_name(page, G_DATASET)
+    if not report.check("G", "the delinquency dataset is offered by its "
+                        "business name", business in labels,
+                        f"{business!r} not in {labels}"):
+        return
+    chooser.select_option(label=business)
+    page.wait_for_timeout(600)
+
+    # Numerator: how many rows are three instalments behind.
+    top = page.locator("section", has_text="Numerator").first
+    top.get_by_label("Aggregation").select_option("count")
+    top.get_by_role("button", name="Only where").click()
+    top.get_by_label("Filter field").select_option(label="Instalments missed")
+    top.get_by_label("Comparison").select_option(">=")
+    top.get_by_label("Value").fill("3")
+
+    # Denominator: how many rows there are.
+    bottom = page.locator("section", has_text="Denominator").first
+    bottom.get_by_label("Aggregation").select_option("count")
+
+    page.get_by_role("button", name="Preview").click()
+    page.wait_for_timeout(4000)
+
+    truth = _instalments_share()
+    if truth is None:
+        report.check("G", "the source data could be read independently", False,
+                     "no lake on disk, so nothing was checked")
+        return
+    report.check("G", "the source data could be read independently", True,
+                 f"{truth:.6f}% straight from the Parquet")
+
+    # The figure the person is looking at, parsed off the screen and compared
+    # against the number computed in raw SQL. This is the check the journey
+    # exists for: a value typed into a box has to reach the engine as the
+    # integer 3, over one period rather than pooled across fifteen quarters.
+    card = page.locator("p.tabular").last
+    on_screen = _figure(card.inner_text()) if card.count() else None
+    report.check("G", "the preview produced a figure, not a refusal",
+                 on_screen is not None,
+                 page.inner_text("body")[-300:])
+    report.check("G", "the figure on screen is the one the data supports",
+                 on_screen is not None and abs(on_screen - truth) < 0.005,
+                 f"screen {on_screen} vs data {truth}")
+
+    api_preview = page.request.post(
+        f"{API}/api/v1/metrics/preview",
+        data={"name": G_NAME, "unit": "percent",
+              "formula": _instalments_formula()}).json()
+    report.check("G", "and so is the one the endpoint returns",
+                 api_preview.get("value") is not None and
+                 abs(api_preview["value"] - truth) < 1e-9,
+                 f"API {api_preview.get('value')} vs data {truth}")
+    report.check("G", "the preview says which period it is for",
+                 bool(api_preview.get("period")),
+                 "a share of the book with no period reads as 'now'")
+    report.check("G", "the working is shown, not just the answer",
+                 "/" in (api_preview.get("formula") or ""),
+                 api_preview.get("formula", ""))
+
+    page.get_by_role("button", name="Save as a draft").click()
+    page.wait_for_timeout(3000)
+
+    saved = _find_metric(page, G_NAME)
+    if not report.check("G", "the metric was saved", saved is not None):
+        return
+
+    report.check("G", "it is marked as built here, not governed",
+                 saved["governed"] is False, saved.get("origin_label", ""))
+    report.check("G", "it is a draft, and says so",
+                 saved["trustworthy"] is False and "draft"
+                 in (saved.get("status_label") or "").lower(),
+                 saved.get("status_label", ""))
+
+    value = page.request.get(
+        f"{API}/api/v1/metrics/{saved['metric_id']}/value").json()
+    report.check("G", "the saved metric computes the same number it previewed",
+                 value.get("value") is not None and
+                 abs(value["value"] - truth) < 1e-9,
+                 f"saved {value.get('value')} vs data {truth}")
+
+    body = page.inner_text("body")
+    report.check("G", "the new metric is on screen with its governance labels",
+                 G_NAME in body and "Draft" in body)
+
+    # Search finds it by what it was called, alongside the shipped ones.
+    found = page.request.get(
+        f"{API}/api/v1/metrics?q=three+instalments").json()
+    report.check("G", "it is findable by name straight away",
+                 any(h["metric_id"] == saved["metric_id"]
+                     for h in found.get("results", [])),
+                 [h["metric_id"] for h in found.get("results", [])])
+
+    _forget_metric(page, G_NAME)
+    report.check("G", "it is gone once deleted",
+                 _find_metric(page, G_NAME) is None)
+
+
+def _instalments_formula() -> dict:
+    """The formula the form assembles, as the form assembles it.
+
+    Written out here so the API comparison is against the same structure the
+    browser posts — 3 as a number, because that is what `coerce` produces.
+    """
+    return {
+        "kind": "percentage", "scale": 100,
+        "numerator": {"terms": [{
+            "id": "top", "label": "three behind", "dataset": G_DATASET,
+            "aggregate": "count", "field": "",
+            "where": [{"field": "instalments_missed", "op": ">=",
+                       "value": 3}]}]},
+        "denominator": {"terms": [{
+            "id": "bottom", "label": "facilities", "dataset": G_DATASET,
+            "aggregate": "count", "field": "", "where": []}]},
+    }
+
+
+def _business_name(page: Any, dataset: str) -> str:
+    vocab = page.request.get(f"{API}/api/v1/metrics/vocabulary").json()
+    for entry in vocab.get("datasets", []):
+        if entry["name"] == dataset:
+            return entry.get("business_name") or entry["name"]
+    return dataset
+
+
+def _instalments_share() -> float | None:
+    """The same share, computed straight off the Parquet, in raw DuckDB.
+
+    Independent of every layer under test: no formula object, no validator, no
+    compiler, no kernel — one SQL statement written here against the files. If
+    the two numbers agree, the builder assembled what the person described. If
+    only the metric produces one, it produced it on its own.
+    """
+    import duckdb
+
+    from backend.config import settings
+
+    directory = Path(settings.analytics_dir) / G_DATASET
+    if not directory.is_dir():
+        return None
+    pattern = str(directory / "**" / "*.parquet")
+    try:
+        con = duckdb.connect(database=":memory:")
+        # Ordered by year then quarter, not alphabetically: "Q4 2025" is the
+        # string maximum over "Q1 2026", and picking that quarter would make
+        # this check agree with a product that got the period wrong.
+        latest = con.execute(
+            f"SELECT period FROM read_parquet('{pattern}') "
+            "GROUP BY period "
+            "ORDER BY CAST(substr(period, 4, 4) AS INTEGER) DESC, "
+            "         CAST(substr(period, 2, 1) AS INTEGER) DESC "
+            "LIMIT 1").fetchone()
+        if not latest or latest[0] is None:
+            return None
+        row = con.execute(
+            "SELECT count(*) FILTER (WHERE instalments_missed >= 3) * 100.0 "
+            f"/ count(*) FROM read_parquet('{pattern}') WHERE period = ?",
+            [latest[0]]).fetchone()
+    except Exception:  # noqa: BLE001 - no lake here means no check, not a pass
+        return None
+    finally:
+        try:
+            con.close()
+        except Exception:  # noqa: BLE001
+            pass
+    return float(row[0]) if row and row[0] is not None else None
+
+
+def _find_metric(page: Any, name: str) -> dict | None:
+    catalogue = page.request.get(f"{API}/api/v1/metrics/all").json()
+    for group in catalogue.get("domains", []):
+        for metric in group.get("metrics", []):
+            if metric["name"] == name:
+                return metric
+    return None
+
+
+def _forget_metric(page: Any, name: str) -> None:
+    """Leave the catalogue as it was found.
+
+    An acceptance run must not deposit a metric somebody later trusts, and
+    must be able to run twice.
+    """
+    found = _find_metric(page, name)
+    if found:
+        page.request.delete(f"{API}/api/v1/metrics/{found['metric_id']}")
 
 
 def main(argv: list[str] | None = None) -> int:

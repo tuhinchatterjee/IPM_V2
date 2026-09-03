@@ -127,8 +127,14 @@ def test_two_metrics_written_independently_for_one_quantity_agree():
     arithmetic depended on how a formula happened to be phrased, these two
     would differ.
     """
-    governed = S.value("retail.dpd_30_balance")["value"]
-    by_hand = execution.run(_late_share()).value
+    out = S.value("retail.dpd_30_balance")
+    governed = out["value"]
+    # The same period on both sides. `execution.run` reads every partition
+    # when no period is given, so a hand-written formula left unscoped would
+    # be compared against a figure pooled over the whole history — the two
+    # would differ for a reason that has nothing to do with the arithmetic.
+    by_hand = execution.run(_late_share(), period=out["period"]).value
+    assert out["period"], "the governed metric must say which period it used"
     assert governed is not None and by_hand is not None
     assert governed == pytest.approx(by_hand, rel=1e-12)
 
@@ -363,3 +369,74 @@ def test_deleting_a_metric_takes_its_verification_history_with_it():
         assert S.verifications(again.metric_id) == []
     finally:
         S.delete(again.metric_id, user_id=1)
+
+
+# ---------------------------------------------------------- the period rule
+#
+# A metric asked for with no period used to read every partition in the lake
+# and return one figure pooled across the whole history — fifteen quarterly
+# snapshots of a book added together — labelled with no period at all. The
+# arithmetic was right and the answer was to a question nobody asked, and it
+# rendered exactly like the one they did ask for.
+
+
+def test_periods_are_ordered_by_date_not_by_spelling():
+    # "Q4 2025" sorts after "Q1 2026" alphabetically. Taking the newest period
+    # with max() on the raw strings picks the wrong quarter, and the wrong
+    # quarter still renders and still looks current.
+    ordered = sorted(["Q1 2026", "Q4 2025", "Q2 2026", "Q1 2025"],
+                     key=S._period_order)
+    assert ordered == ["Q1 2025", "Q4 2025", "Q1 2026", "Q2 2026"]
+
+
+def test_months_and_years_order_too():
+    assert sorted(["2025-10", "2025-2", "2026-01"],
+                  key=S._period_order) == ["2025-2", "2025-10", "2026-01"]
+    assert sorted(["2026", "2024"], key=S._period_order) == ["2024", "2026"]
+
+
+def test_an_unasked_period_is_the_latest_one_not_all_of_them():
+    """The default has to be a period, and the answer has to say which."""
+    metric = next(m for m in lib.ALL if m.metric_id == "corporate.npl_rate")
+    latest = S.latest_period(metric.datasets, metric.scope)
+    assert latest, "the corporate book should have periods on disk"
+
+    out = S.value(metric.metric_id)
+    assert out["period"] == latest, (
+        "a metric asked for with no period must answer for one period and "
+        "name it")
+
+    # And it is that period's number, not the pooled one.
+    for_period = execution.run(metric.formula, period=latest,
+                               scope=metric.scope).value
+    pooled = execution.run(metric.formula, period="", scope=metric.scope).value
+    assert out["value"] == pytest.approx(for_period)
+    assert out["value"] != pytest.approx(pooled), (
+        "if these agree the test proves nothing — pick a dataset with more "
+        "than one period")
+
+
+def test_the_rows_behind_a_figure_come_from_the_same_period():
+    metric = next(m for m in lib.ALL if m.metric_id == "corporate.npl_rate")
+    latest = S.latest_period(metric.datasets, metric.scope)
+    sample = S.rows(metric.metric_id, limit=5)
+    assert sample.get("period") == latest or sample.get("rows"), sample
+
+
+@needs_db
+def test_a_verification_records_the_period_it_actually_checked(mine):
+    """Evidence that does not say which period it is about supports nothing."""
+    metric = mine("Late Balance Share Period", _late_share(), unit="percent")
+    computed = S.value(metric.metric_id, user_id=1)
+    assert computed["period"], "the figure has to come from a period"
+
+    # Verified with no period named, exactly as the workspace does it.
+    S.verify(metric.metric_id, expected=computed["value"],
+             expected_source="recomputed by hand",
+             decision=S.DECISION_ACCEPTED, user_id=1)
+
+    history = S.verifications(metric.metric_id)
+    assert history, "the check must be kept"
+    assert history[0]["period"] == computed["period"], (
+        "a verification stored against a blank period could not later be "
+        "told apart from one against any other quarter")

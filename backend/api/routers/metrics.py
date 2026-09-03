@@ -201,6 +201,13 @@ def preview_metric(payload: MetricIn,
     except service.MetricRefused as e:
         raise _refused(e) from e
 
+    # An unstated period is the latest one this formula has rows in, exactly
+    # as it will be once the metric is saved. Left unresolved it would read
+    # every snapshot in the lake and return one figure pooled across the whole
+    # history — a number that renders like the one they asked for and answers
+    # a different question.
+    period = period or service.latest_period(formula.datasets)
+
     try:
         calculation = execution.run(formula, period=period,
                                     question=payload.name or "metric preview")
@@ -214,6 +221,7 @@ def preview_metric(payload: MetricIn,
         "value": calculation.value,
         "unit": payload.unit,
         "unavailable": calculation.unavailable,
+        "period": calculation.period,
         "formula": formula.describe(),
         "calculation": calculation.to_dict(),
     }

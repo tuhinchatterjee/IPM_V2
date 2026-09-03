@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { formatMetric, readablePeriodRule } from "../present.ts";
+import { coerce, formatMetric, readablePeriodRule } from "../present.ts";
 
 describe("a metric's own unit decides how it reads", () => {
   it("shows a percentage as a percentage", () => {
@@ -70,5 +70,42 @@ describe("the period rule is said in words", () => {
     ]) {
       assert.doesNotMatch(readablePeriodRule(rule), /_/);
     }
+  });
+});
+
+describe("a value typed into a filter keeps the type it was written as", () => {
+  it("reads a whole number as a number", () => {
+    // `stage = 2` against an integer column has to compare numerically. As
+    // the string "2" it either errors in the compiler or matches nothing,
+    // and a filter that quietly matches nothing is the dangerous one.
+    assert.equal(coerce("2"), 2);
+    assert.equal(coerce(" 2 "), 2);
+  });
+
+  it("reads a decimal and a negative as numbers", () => {
+    assert.equal(coerce("0.05"), 0.05);
+    assert.equal(coerce("-30"), -30);
+  });
+
+  it("reads the two boolean words as booleans", () => {
+    assert.equal(coerce("true"), true);
+    assert.equal(coerce("TRUE"), true);
+    assert.equal(coerce("false"), false);
+    assert.equal(coerce("False"), false);
+  });
+
+  it("leaves everything else a string", () => {
+    // Including things that look almost numeric. Guessing harder than this
+    // is how a filter starts meaning something nobody wrote.
+    assert.equal(coerce("Riyadh"), "Riyadh");
+    assert.equal(coerce("2025-01"), "2025-01");
+    assert.equal(coerce("30+"), "30+");
+    assert.equal(coerce("1,000"), "1,000");
+    assert.equal(coerce("1e5"), "1e5");
+  });
+
+  it("gives an empty box back as an empty string, not zero", () => {
+    assert.equal(coerce(""), "");
+    assert.equal(coerce("   "), "");
   });
 });

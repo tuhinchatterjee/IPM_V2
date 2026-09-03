@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { BookOpen, Loader2 } from "lucide-react";
+import { BookOpen, Loader2, Plus } from "lucide-react";
 
+import { MetricBuilder } from "@/components/metrics/metric-builder";
 import { MetricInfo } from "@/components/metrics/metric-panel";
 import { MetricPicker } from "@/components/metrics/metric-picker";
 import { formatMetric } from "@/components/metrics/present";
@@ -35,6 +36,7 @@ import { useAsync } from "@/lib/hooks";
 export default function MetricCataloguePage() {
   const [selected, setSelected] = React.useState<string | null>(null);
   const [browsing, setBrowsing] = React.useState(false);
+  const [building, setBuilding] = React.useState(false);
 
   return (
     <div className="space-y-6">
@@ -69,7 +71,7 @@ export default function MetricCataloguePage() {
 
       <Card className="p-4">
         <MetricPicker onPick={(hit) => setSelected(hit.metric_id)} autoFocus />
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
@@ -78,8 +80,26 @@ export default function MetricCataloguePage() {
             <BookOpen aria-hidden />
             {browsing ? "Hide the whole catalogue" : "Show the whole catalogue"}
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setBuilding((b) => !b)}
+          >
+            <Plus aria-hidden />
+            {building ? "Close the builder" : "Build a metric"}
+          </Button>
         </div>
       </Card>
+
+      {building && (
+        <MetricBuilder
+          onSaved={(metric) => {
+            setBuilding(false);
+            setSelected(metric.metric_id);
+          }}
+          onCancel={() => setBuilding(false)}
+        />
+      )}
 
       {selected && (
         <MetricDetail
@@ -259,7 +279,7 @@ function MetricDetail({
           <input
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
-            placeholder="latest"
+            placeholder="Latest"
             className="ml-2 h-8 w-40 rounded-md border border-border bg-surface px-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </label>
