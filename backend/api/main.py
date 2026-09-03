@@ -47,6 +47,7 @@ from backend.api.routers import learning as learning_router
 from backend.api.routers import lenses as lenses_router
 from backend.api.routers import messages as messages_router
 from backend.api.routers import metadata as metadata_router
+from backend.api.routers import planner as planner_router
 from backend.api.routers import playbooks as playbooks_router
 from backend.api.routers import preferences as preferences_router
 from backend.api.routers import regulatory as regulatory_router
@@ -344,6 +345,10 @@ def create_app() -> FastAPI:
     # Lab, installations and the trusted signer registry. Reading is open to
     # the Studio's audience; activating a Brain is an administrator's alone.
     app.include_router(brain_router.router, prefix=API_PREFIX)
+    # Delivery projects: the plan, who owes what, and when it is late.
+    # Distinct from hierarchy_router's /projects, which is the analytical
+    # workspace a piece of credit work lives in.
+    app.include_router(planner_router.router, prefix=API_PREFIX)
     app.include_router(workspace_router.router, prefix=API_PREFIX)
     app.include_router(validation_router.router, prefix=API_PREFIX)
     app.include_router(exports_router.runs_router, prefix=API_PREFIX)

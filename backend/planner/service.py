@@ -1167,11 +1167,68 @@ def update_raid(session: Any, principal: Any, raid_id: int, *,
     return row
 
 
+def post_update(session: Any, principal: Any, project_id: int, *,
+                narrative: str, entity_type: str = ENTITY_PROJECT,
+                entity_id: int | None = None, blocker: str = "",
+                next_step: str = "", source: str = SOURCE_UI) -> PlannerUpdate:
+    """Say something about the project without changing anything.
+
+    The weekly report, the answer to a chase, the note that Finance have
+    finally come back. It is deliberately separate from `update_task`: a
+    person who has nothing to change but something to say should not have to
+    invent a percentage to be heard, and the reminder engine needs a way to
+    see that somebody DID respond.
+
+    Contributor access, because saying something is not changing something.
+    """
+    acl.require(session, project_id, principal, ACCESS_CONTRIBUTOR,
+                "post an update")
+    said = _text(narrative)
+    if not said:
+        raise PlannerError("An update needs something in it.")
+    kind = _one_of(entity_type, ENTITY_TYPES, "entity type", ENTITY_PROJECT)
+
+    code = ""
+    if kind == ENTITY_PROJECT:
+        project = session.get(PlannerProject, int(project_id))
+        code = project.code
+        entity_id = int(project_id)
+    elif entity_id is not None:
+        # An update filed against a task in somebody else's project would be
+        # a way to write into a project you cannot see. Check the entity is
+        # this project's before the row is written, not after.
+        if not _entity_in_project(session, int(project_id), kind,
+                                  int(entity_id)):
+            raise PlannerError(
+                f"{kind.title()} {entity_id} is not part of this project.")
+        code = _code_of(session, kind, int(entity_id))
+
+    actor = getattr(principal, "user_id", None)
+    row = record(session, int(project_id), entity_type=kind,
+                 entity_id=entity_id, entity_code=code, action="comment",
+                 author_id=actor, source=source, narrative=said,
+                 blocker=_text(blocker), next_step=_text(next_step))
+
+    if kind == ENTITY_TASK and entity_id is not None:
+        # A comment IS an update as far as staleness is concerned: the task
+        # has been spoken about today, so nothing should chase it tomorrow.
+        task = session.get(PlannerTask, int(entity_id))
+        if task is not None:
+            task.last_update_at = _now()
+            task.last_update_by = actor
+            task.last_update_text = said
+
+    audit(session, "PLANNER_UPDATE_POSTED", actor_id=actor,
+          project_id=int(project_id), source=source,
+          entity_type=kind, entity_code=code)
+    return row
+
+
 __all__ = [
     "SERVICE_VERSION", "PlannerError", "StaleWrite", "check_code", "record",
     "audit", "create_project", "update_project", "set_health_override",
     "add_participant", "remove_participant", "create_workstream",
     "create_task", "update_task", "delete_task", "create_milestone",
     "update_milestone", "create_dependency", "delete_dependency",
-    "create_raid", "update_raid",
+    "create_raid", "update_raid", "post_update",
 ]
