@@ -106,7 +106,7 @@ def build_lens(payload: AskIn, principal: Principal = RequireAnalyst) -> dict:
     registry has nothing for comes back as a refusal with the reason.
     """
     try:
-        proposal = ln.propose(payload.request)
+        proposal = ln.propose(payload.request, user_id=principal.user_id)
     except ln.InvalidLens as e:
         raise _refused(e) from e
     if not proposal.panels:
@@ -156,8 +156,10 @@ def ask_lens(lens_id: int, payload: AskIn,
     and the previous one is kept so it can be put back.
     """
     try:
-        current = [ln.Panel.from_dict(p) for p in ln.get(lens_id).panels]
-        proposal = ln.propose(payload.request, existing=current)
+        before = ln.get(lens_id)
+        current = [ln.Panel.from_dict(p) for p in before.panels]
+        proposal = ln.propose(payload.request, existing=current,
+                              user_id=principal.user_id)
     except ln.LensNotFound as e:
         raise _not_found(e) from e
     except ln.InvalidLens as e:
@@ -172,6 +174,11 @@ def ask_lens(lens_id: int, payload: AskIn,
         lens = ln.revise(
             lens_id, proposal.panels, request=payload.request,
             change_summary=proposal.change_summary, user_id=principal.user_id,
+            # A revision must not scramble a lens's bands. Sections hold
+            # indices, so they are remapped by panel identity rather than
+            # carried across verbatim, and the notes travel with them.
+            sections=ln.resection(current, before.sections, proposal.panels),
+            notes=before.notes,
         )
     except ln.InvalidLens as e:
         raise _refused(e) from e

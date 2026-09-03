@@ -467,6 +467,53 @@ def restore(lens_id: int, version: int, *, user_id: int | None = None) -> LensVi
     )
 
 
+def _identity(panel: Panel) -> tuple[str, str]:
+    """What makes a panel the same panel across a revision."""
+    return (panel.kind, panel.metric_id or panel.analysis_id)
+
+
+def resection(old: list[Panel], sections: list[dict[str, Any]],
+              new: list[Panel], *,
+              added_title: str = "Added by request") -> list[dict[str, Any]]:
+    """Carry a lens's sections across a change to its panels.
+
+    Sections hold panel INDICES, so a revision that removes a tile silently
+    shifts every index after it and a lens that had four clean bands comes
+    back scrambled. This remaps by panel identity instead: a panel that
+    survives keeps its band, a panel that has gone leaves it, and anything new
+    lands in a final section of its own rather than being appended to a band it
+    has nothing to do with.
+
+    An unsectioned lens stays unsectioned.
+    """
+    if not sections:
+        return []
+
+    where: dict[tuple[str, str], int] = {}
+    for number, section in enumerate(sections):
+        for index in section.get("panels") or []:
+            if 0 <= int(index) < len(old):
+                where[_identity(old[int(index)])] = number
+
+    grouped: dict[int, list[int]] = {n: [] for n in range(len(sections))}
+    fresh: list[int] = []
+    for index, panel in enumerate(new):
+        number = where.get(_identity(panel))
+        if number is None:
+            fresh.append(index)
+        else:
+            grouped[number].append(index)
+
+    out: list[dict[str, Any]] = []
+    for number, section in enumerate(sections):
+        if not grouped[number]:
+            continue  # every panel in this band has gone
+        out.append({**section, "panels": grouped[number]})
+    if fresh:
+        out.append({"title": added_title, "subtitle": "", "panels": fresh})
+    return out
+
+
 def set_status(lens_id: int, status: str) -> LensView:
     if status not in STATUSES:
         raise InvalidLens(
@@ -683,7 +730,8 @@ class Proposal:
         }
 
 
-def propose(request: str, *, existing: list[Panel] | None = None) -> Proposal:
+def propose(request: str, *, existing: list[Panel] | None = None,
+            user_id: int | None = None) -> Proposal:
     """Turn a request into a change to a Lens definition.
 
     The matching is over the Engine Registry's own metadata — each analysis's
@@ -718,16 +766,11 @@ def propose(request: str, *, existing: list[Panel] | None = None) -> Proposal:
         chosen = [c for score, c in scored if score >= best - 0.5][:4]
 
     if not chosen:
-        return Proposal(
-            panels=current,
-            change_summary="",
-            refusals=[
-                "Nothing in the analysis library matches that request. A lens "
-                "can only show registered analyses, so it has not been changed. "
-                "Try naming what you want to see — staging, coverage, "
-                "concentration, migrations, ratings, the macro backdrop."
-            ],
-        )
+        # No analysis matched. Before refusing, ask the Metric Catalogue: a
+        # lens can hold metric tiles too, and "add ECL coverage" is a request
+        # the platform CAN honour even though no analysis is called that.
+        return _propose_metrics(request, text, current, removing,
+                                user_id=user_id)
 
     if removing:
         ids = {c.id for c in chosen}
@@ -782,6 +825,110 @@ def propose(request: str, *, existing: list[Panel] | None = None) -> Proposal:
             + ", ".join(c.name for c in added) + "."
         ),
         matched=[c.id for c in chosen],
+    )
+
+
+#: How many metric tiles one request may add. A request that resolves to
+#: eight metrics is a request nobody meant literally.
+MAX_SUGGESTED_TILES = 4
+
+
+def _propose_metrics(request: str, text: str, current: list[Panel],
+                     removing: bool, *,
+                     user_id: int | None = None) -> Proposal:
+    """Turn a request into metric tiles, using the catalogue's own search.
+
+    The same deliberate property the analysis matcher has: the only thing
+    being searched IS the list of metrics that exist, so a request can never
+    resolve to something the platform cannot calculate. Where it names
+    something CreditProbe knows about and cannot compute here, that comes back
+    as a refusal carrying the reason rather than as a tile that draws a dash.
+
+    The AI does not invent a metric, write a formula, or set a figure. It
+    selects from the catalogue, which is the whole of what it may do.
+    """
+    from backend.metrics import library as metric_library
+    from backend.metrics import search as metric_search
+    from backend.metrics import service as metrics
+
+    # The instruction words go first. "Add the roll rate" is a request about a
+    # roll rate; leaving "add" and "the" in makes every word have to match
+    # something, and nothing in the catalogue is called "add".
+    wanted = " ".join(word for word in re.findall(r"[a-z0-9+]+", text)
+                      if word not in STOP_WORDS) or text
+    pool = metrics.catalogue(user_id=user_id)
+    hits = metric_search.search(pool, wanted, limit=MAX_SUGGESTED_TILES)
+
+    if not hits:
+        absent = metric_search.unsupported_for(metric_library.UNSUPPORTED,
+                                               wanted)
+        if absent:
+            return Proposal(
+                panels=current, change_summary="",
+                refusals=[
+                    f"{entry.name} cannot be calculated in this deployment. "
+                    f"{entry.because}" for entry in absent],
+            )
+        return Proposal(
+            panels=current,
+            change_summary="",
+            refusals=[
+                "Nothing in the analysis library or the metric catalogue "
+                "matches that request, so the lens has not been changed. Try "
+                "naming what you want to see — staging, coverage, arrears, "
+                "concentration, migrations, ratings, the macro backdrop."
+            ],
+        )
+
+    if removing:
+        wanted = {hit.metric.metric_id for hit in hits}
+        remaining = [p for p in current
+                     if p.kind != KIND_METRIC or p.metric_id not in wanted]
+        removed = len(current) - len(remaining)
+        if removed == 0:
+            return Proposal(
+                panels=current, change_summary="",
+                refusals=[f"{hits[0].metric.name} is not on this lens, so "
+                          "there was nothing to remove."],
+                matched=[hit.metric.metric_id for hit in hits],
+            )
+        return Proposal(
+            panels=remaining,
+            change_summary=(
+                f"Removed {removed} {'tile' if removed == 1 else 'tiles'}: "
+                + ", ".join(hit.metric.name for hit in hits
+                            if hit.metric.metric_id in wanted) + "."),
+            matched=[hit.metric.metric_id for hit in hits],
+        )
+
+    present = {p.metric_id for p in current if p.kind == KIND_METRIC}
+    added = [hit.metric for hit in hits
+             if hit.metric.metric_id not in present]
+    if not added:
+        return Proposal(
+            panels=current, change_summary="",
+            refusals=[
+                ", ".join(hit.metric.name for hit in hits)
+                + " is already on this lens, so nothing was added."],
+            matched=[hit.metric.metric_id for hit in hits],
+        )
+
+    panels = current + [
+        Panel.metric(metric.metric_id, title=metric.name,
+                     visual=metric.visuals[0] if metric.visuals else "kpi",
+                     note=metric.definition)
+        for metric in added]
+    try:
+        validate(panels)
+    except InvalidLens:
+        raise
+
+    return Proposal(
+        panels=panels,
+        change_summary=(
+            f"Added {len(added)} {'tile' if len(added) == 1 else 'tiles'}: "
+            + ", ".join(metric.name for metric in added) + "."),
+        matched=[metric.metric_id for metric in added],
     )
 
 

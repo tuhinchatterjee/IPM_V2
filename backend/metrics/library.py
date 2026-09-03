@@ -490,7 +490,11 @@ def _stage_share(stage: int) -> MetricDefinition:
                      [_t("all", "Total EAD", STAGING, "sum", "ead")]),
               unit="percent", domain=CORPORATE_IFRS9, portfolio="Corporate",
               aliases=(f"stage {stage} ratio", f"stage {stage} %",
-                       f"stage {stage} share", f"stage {stage} percentage"),
+                       f"stage {stage} share", f"stage {stage} percentage",
+                       # "IFRS 9 staging" and "the staging profile" are what
+                       # people ask for when they mean these three shares.
+                       f"ifrs 9 staging stage {stage}",
+                       f"staging profile stage {stage}"),
               formula_text=(f"SUM(ead where ifrs9_stage = {stage}) / "
                             "SUM(ead) × 100"),
               numerator_text=f"Exposure at default in Stage {stage}",
