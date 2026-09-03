@@ -108,6 +108,18 @@ def _install_defaults() -> None:
     except Exception:  # noqa: BLE001 - reported per job, not at boot
         logger.exception("agentic handlers could not be loaded")
 
+    try:
+        # The Project Planner's overnight sweep. Registered here rather than
+        # given a scheduler of its own: this queue already has idempotency,
+        # retries and heartbeats, and a second one would be a second thing to
+        # operate at three in the morning.
+        from backend.planner import monitor as planner_monitor
+
+        register(planner_monitor.PLANNER_SWEEP,
+                 planner_monitor.run_sweep_job)
+    except Exception:  # noqa: BLE001 - reported per job, not at boot
+        logger.exception("the project planner sweep could not be loaded")
+
 
 # ---------------------------------------------------------------------------
 # The worker

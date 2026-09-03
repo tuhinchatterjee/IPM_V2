@@ -33,11 +33,17 @@ from fastapi import (
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from backend.api.permissions import Principal, RequireAnalyst, RequireCommenter
+from backend.api.permissions import (
+    Principal,
+    RequireAdmin,
+    RequireAnalyst,
+    RequireCommenter,
+)
 from backend.config import settings
 from backend.db.engine import SessionLocal
 from backend.models.planner import PlannerProject
 from backend.planner import access as acl
+from backend.planner import monitor as mon
 from backend.planner import query as pq
 from backend.planner import service as svc
 from backend.planner import workbook as wb
@@ -524,6 +530,29 @@ def patch_raid(raid_id: int, payload: RaidPatch,
 
 
 # ============================================================== history
+
+
+# ============================================================== the sweep
+
+
+@router.post("/sweep", summary="Run the overnight check now")
+def run_sweep(dry_run: bool = False,
+              session: Session = Depends(get_db),
+              principal: Principal = RequireAdmin) -> dict:
+    """Administrators only, and normally the scheduler's job.
+
+    Exposed because "why did nobody get a reminder?" is a question somebody
+    has to be able to answer on a Tuesday afternoon, and `dry_run` answers it
+    without sending anything.
+    """
+    outcome = mon.sweep(session, send=not dry_run)
+    body = outcome.to_dict()
+    if dry_run:
+        body["would_send"] = [
+            {"user_id": m.user_id, "project": m.project_code,
+             "reference": m.entity_code, "trigger": m.trigger,
+             "body": m.body} for m in outcome.messages]
+    return body
 
 
 # ============================================================ the workbook
