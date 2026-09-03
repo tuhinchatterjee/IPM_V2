@@ -20,7 +20,16 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -31,6 +40,7 @@ from backend.models.planner import PlannerProject
 from backend.planner import access as acl
 from backend.planner import query as pq
 from backend.planner import service as svc
+from backend.planner import workbook as wb
 
 logger = logging.getLogger(__name__)
 
@@ -514,6 +524,65 @@ def patch_raid(raid_id: int, payload: RaidPatch,
 
 
 # ============================================================== history
+
+
+# ============================================================ the workbook
+
+
+def _attachment(content: bytes, filename: str) -> Response:
+    return Response(
+        content=content, media_type=wb.XLSX_MIME,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@router.get("/template", summary="An empty plan workbook")
+def download_template(principal: Principal = RequireCommenter) -> Response:
+    return _attachment(wb.template(), "creditprobe-project-plan.xlsx")
+
+
+@router.get("/projects/{project_id}/export",
+            summary="This project as a workbook")
+def export_project(project_id: int, session: Session = Depends(get_db),
+                   principal: Principal = RequireCommenter) -> Response:
+    content = _guard(lambda: wb.export(session, principal, project_id))
+    project = session.get(PlannerProject, int(project_id))
+    return _attachment(content, f"{project.code}-plan.xlsx")
+
+
+@router.post("/projects/{project_id}/import",
+             summary="Upload a workbook and see what it would do")
+async def upload_workbook(project_id: int, file: UploadFile = File(...),
+                          session: Session = Depends(get_db),
+                          principal: Principal = RequireAnalyst) -> dict:
+    """Parse, check, stage — and change nothing.
+
+    The response is a preview. Applying it is a second, deliberate call, so
+    that "I uploaded the wrong file" is a thing somebody can notice before it
+    is a thing somebody has to undo.
+    """
+    content = await file.read()
+    try:
+        parsed = wb.parse(content, file.filename or "")
+    except wb.ImportRefused as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error": "unreadable_workbook",
+                    "message": str(exc)}) from exc
+    preview = _guard(lambda: wb.validate(
+        session, principal, project_id, parsed,
+        filename=file.filename or "", content=content))
+    return preview.to_dict()
+
+
+@router.post("/imports/{import_id}/commit",
+             summary="Apply a workbook you have already seen")
+def commit_import(import_id: int, session: Session = Depends(get_db),
+                  principal: Principal = RequireAnalyst) -> dict:
+    result = _guard(lambda: wb.commit(session, principal, import_id))
+    session.flush()
+    project = session.get(PlannerProject, int(result["project_id"]))
+    pq.refresh_calculations(session, project)
+    return result
 
 
 class UpdateIn(BaseModel):
