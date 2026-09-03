@@ -23,7 +23,10 @@ every one green, every time.
 | `f53af18` | Phase 3 — the dataset page says what it holds, and takes the next quarter |
 | `f002371` | Phase 4 — three defects that only exist between two capabilities |
 | `8d0ad2b` | Phase 5 — four things the release path did not refuse |
-| `54c4150` | **final HEAD** — this certification |
+| *(the commit carrying this file)* | **final HEAD** — the certification |
+
+The final HEAD is the tip of `claude/vigilant-darwin-eohyi1` — the
+commit that adds this document, which cannot name its own hash.
 
 Branch: `claude/vigilant-darwin-eohyi1`. Nothing was merged to main, no history
 was rewritten, no pull request was opened.
