@@ -81,9 +81,15 @@ OWNER = "OWNER"
 #: not approve, publish, decide, or close an action — and this ceiling holds
 #: even when the human on whose behalf it runs is the committee OWNER.
 #:
-#: The ceiling is deliberately below REVIEWER as well as below APPROVER: a
-#: review is a person saying they have read something, and an agent recording
-#: one on somebody's behalf would make the review record worthless.
+#: The ceiling alone is NOT what stops an agent recording a review. REVIEWER
+#: sits BELOW EDITOR in `ACCESS_RANK` — a reviewer on a committee is less
+#: senior than an editor — so a cap at EDITOR still satisfies `at_least(
+#: REVIEWER)`. Reviewing, approving, publishing and the rest of `AI_FORBIDDEN`
+#: are refused by an explicit `by_ai` check at the operation, not by rank.
+#:
+#: Worth stating rather than leaving to be rediscovered: a reading in which the
+#: rank cap were the only mechanism would leave the review record open, and it
+#: would look closed.
 AI_CEILING = EDITOR
 
 #: Operations no AI tool exists for, at any privilege. Kept here rather than
@@ -210,7 +216,16 @@ def normalise_source(source: str | None) -> str:
     """A source value, defaulting to UI and refusing anything unrecognised.
 
     An unknown source silently becoming "UI" would let a caller launder an AI
-    write into a human one by sending a typo.
+    write into a human one by sending a typo, so anything outside the
+    vocabulary raises.
+
+    None and "" DO become UI, because at a Python call boundary they are
+    indistinguishable from the argument not being passed at all. The property
+    that makes that safe is architectural rather than defensive: the source is
+    decided by which code path is executing — the router passes UI, the agent
+    tool passes AI — and is NEVER read from a request body or a tool argument.
+    A caller who could name their own source could name UI, and no amount of
+    validation here would help.
     """
     found = str(source or SOURCE_UI).upper()
     if found not in SOURCES:
