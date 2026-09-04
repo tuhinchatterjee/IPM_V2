@@ -5,6 +5,7 @@ import {
   Boxes,
   CalendarClock,
   Brain,
+  BookMarked,
   ClipboardCheck,
   Database,
   FileText,
@@ -342,6 +343,22 @@ export const NAV_ITEMS: NavItem[] = [
     phase: "",
     group: "Govern",
     demo: "core",
+  },
+  {
+    // The committee pack lifecycle. In GOVERN rather than WORK because a
+    // pack is not somebody's analytical workspace — it is the record a forum
+    // reads, approves and is held to.
+    href: "/playbook",
+    label: "Playbook",
+    description:
+      "Committee packs, end to end: what the committee is, when it meets, what goes in the pack, what the governed figures are, who reviewed it, what was decided, and what follows. Every figure on a pack is a frozen snapshot with the formula and dataset version behind it, so the pack tabled in the morning and the screen opened in the afternoon show the same numbers.",
+    icon: BookMarked,
+    status: "live",
+    phase: "",
+    group: "Govern",
+    demo: "core",
+    demoNote:
+      "The governance argument in one area. Open a pack, show a figure's working, then show a finding with the rule that raised it and the numbers it fired on.",
   },
   {
     href: "/reviews",

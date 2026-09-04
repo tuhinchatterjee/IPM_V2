@@ -333,7 +333,7 @@ def _movement(rule: Rule, figure: snap.Figure) -> Observation | None:
         rule, figure, observed=figure.value, threshold=rule.threshold,
         change=change, direction=moved["direction"], better=moved.get("better"),
         basis=(
-            f"{snap.display(figure.comparison_value, unit, places)} in "
+            f"{figure.comparison_display} in "
             f"{figure.comparison_period or 'the previous period'} to "
             f"{snap.display(figure.value, unit, places)} in {figure.period}: "
             f"a move of {shown} against a {limit_shown} threshold."))

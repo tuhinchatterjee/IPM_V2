@@ -7182,7 +7182,220 @@ export const api = {
                 state: string }>(
         `/planner/projects/${id}/requests?state=${encodeURIComponent(state)}`),
   },
+
+  /**
+   * Playbook — the committee pack lifecycle.
+   *
+   * Every write here goes through a route that decides the source itself. The
+   * client never sends one: a body carrying `source` would be a caller naming
+   * their own door, and the backend ignores it for exactly that reason.
+   */
+  playbook: {
+    committees: (includeInactive = false) =>
+      request<{ committees: PlaybookCommittee[] }>(
+        `/playbook/committees?include_inactive=${includeInactive}`),
+    committee: (id: number) =>
+      request<PlaybookCommitteeDetail>(`/playbook/committees/${id}`),
+    createCommittee: (body: Record<string, unknown>) =>
+      request<PlaybookCommittee>("/playbook/committees", {
+        method: "POST", body: JSON.stringify(body) }),
+    updateCommittee: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookCommittee>(`/playbook/committees/${id}`, {
+        method: "PATCH", body: JSON.stringify(body) }),
+    addMember: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookMember>(`/playbook/committees/${id}/members`, {
+        method: "POST", body: JSON.stringify(body) }),
+    updateMember: (memberId: number, body: Record<string, unknown>) =>
+      request<PlaybookMember>(`/playbook/members/${memberId}`, {
+        method: "PATCH", body: JSON.stringify(body) }),
+
+    templates: (committeeId?: number) => {
+      const query = new URLSearchParams();
+      if (committeeId) query.set("committee_id", String(committeeId));
+      return request<{ templates: PlaybookTemplate[] }>(
+        `/playbook/templates?${query}`);
+    },
+    createTemplate: (body: Record<string, unknown>) =>
+      request<PlaybookTemplate>("/playbook/templates", {
+        method: "POST", body: JSON.stringify(body) }),
+    setTemplateStatus: (id: number, status: string) =>
+      request<PlaybookTemplate>(`/playbook/templates/${id}/status`, {
+        method: "POST", body: JSON.stringify({ status }) }),
+
+    packs: (params: { committee_id?: number; status?: string;
+                      period?: string; mine?: boolean } = {}) => {
+      const query = new URLSearchParams();
+      if (params.committee_id) {
+        query.set("committee_id", String(params.committee_id));
+      }
+      if (params.status) query.set("status", params.status);
+      if (params.period) query.set("period", params.period);
+      if (params.mine) query.set("mine", "true");
+      return request<{ packs: PlaybookPackSummary[] }>(
+        `/playbook/packs?${query}`);
+    },
+    pack: (id: number) => request<PlaybookPack>(`/playbook/packs/${id}`),
+    createPack: (body: Record<string, unknown>) =>
+      request<PlaybookPackSummary>("/playbook/packs", {
+        method: "POST", body: JSON.stringify(body) }),
+    updatePack: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookPackSummary>(`/playbook/packs/${id}`, {
+        method: "PATCH", body: JSON.stringify(body) }),
+    setPackStatus: (id: number, status: string, note = "") =>
+      request<PlaybookPackSummary>(`/playbook/packs/${id}/status`, {
+        method: "POST", body: JSON.stringify({ status, note }) }),
+    generate: (id: number) =>
+      request<PlaybookGeneration>(`/playbook/packs/${id}/generate`, {
+        method: "POST" }),
+    readiness: (id: number) =>
+      request<PlaybookReadiness & { pack_id: number; code: string }>(
+        `/playbook/packs/${id}/readiness`),
+    history: (id: number, limit = 200) =>
+      request<{ pack_id: number; events: PlaybookEvent[] }>(
+        `/playbook/packs/${id}/history?limit=${limit}`),
+    compare: (id: number) =>
+      request<PlaybookComparison>(`/playbook/packs/${id}/compare`),
+    amend: (id: number, reason: string) =>
+      request<PlaybookPackSummary>(`/playbook/packs/${id}/amend`, {
+        method: "POST", body: JSON.stringify({ reason }) }),
+    reorder: (id: number, body: Record<string, unknown>) =>
+      request<{ reordered: number }>(`/playbook/packs/${id}/reorder`, {
+        method: "POST", body: JSON.stringify(body) }),
+
+    createSection: (packId: number, body: Record<string, unknown>) =>
+      request<PlaybookSection>(`/playbook/packs/${packId}/sections`, {
+        method: "POST", body: JSON.stringify(body) }),
+    updateSection: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookSection>(`/playbook/sections/${id}`, {
+        method: "PATCH", body: JSON.stringify(body) }),
+    deleteSection: (id: number) =>
+      request<void>(`/playbook/sections/${id}`, { method: "DELETE" }),
+    submitSection: (id: number) =>
+      request<PlaybookSection>(`/playbook/sections/${id}/submit`, {
+        method: "POST" }),
+    reviewSection: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookReview>(`/playbook/sections/${id}/review`, {
+        method: "POST", body: JSON.stringify(body) }),
+    requestReview: (id: number, reviewerId: number) =>
+      request<PlaybookReview>(`/playbook/sections/${id}/request-review`, {
+        method: "POST", body: JSON.stringify({ reviewer_id: reviewerId }) }),
+    draftCommentary: (id: number, instructions = "", blockId?: number) =>
+      request<PlaybookDrafted>(`/playbook/sections/${id}/commentary`, {
+        method: "POST",
+        body: JSON.stringify({ instructions, block_id: blockId ?? null }) }),
+
+    createBlock: (sectionId: number, body: Record<string, unknown>) =>
+      request<PlaybookBlock>(`/playbook/sections/${sectionId}/blocks`, {
+        method: "POST", body: JSON.stringify(body) }),
+    updateBlock: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookBlock>(`/playbook/blocks/${id}`, {
+        method: "PATCH", body: JSON.stringify(body) }),
+    deleteBlock: (id: number) =>
+      request<void>(`/playbook/blocks/${id}`, { method: "DELETE" }),
+    refreshBlock: (id: number) =>
+      request<PlaybookGeneration>(`/playbook/blocks/${id}/refresh`, {
+        method: "POST" }),
+    mapBlock: (id: number, metricId: string) =>
+      request<PlaybookMapping>(`/playbook/blocks/${id}/map`, {
+        method: "POST", body: JSON.stringify({ metric_id: metricId }) }),
+
+    findings: (params: { pack_id?: number; committee_id?: number;
+                         status?: string; severity?: string;
+                         open_only?: boolean } = {}) => {
+      const query = new URLSearchParams();
+      if (params.pack_id) query.set("pack_id", String(params.pack_id));
+      if (params.committee_id) {
+        query.set("committee_id", String(params.committee_id));
+      }
+      if (params.status) query.set("status", params.status);
+      if (params.severity) query.set("severity", params.severity);
+      if (params.open_only) query.set("open_only", "true");
+      return request<{ findings: PlaybookFinding[] }>(
+        `/playbook/findings?${query}`);
+    },
+    finding: (id: number) =>
+      request<PlaybookFinding>(`/playbook/findings/${id}`),
+    respondToFinding: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookFinding>(`/playbook/findings/${id}/respond`, {
+        method: "POST", body: JSON.stringify(body) }),
+    reopenFinding: (id: number, why: string) =>
+      request<PlaybookFinding>(`/playbook/findings/${id}/reopen`, {
+        method: "POST", body: JSON.stringify({ why }) }),
+
+    decisions: (params: { pack_id?: number; committee_id?: number;
+                          status?: string } = {}) => {
+      const query = new URLSearchParams();
+      if (params.pack_id) query.set("pack_id", String(params.pack_id));
+      if (params.committee_id) {
+        query.set("committee_id", String(params.committee_id));
+      }
+      if (params.status) query.set("status", params.status);
+      return request<{ decisions: PlaybookDecision[] }>(
+        `/playbook/decisions?${query}`);
+    },
+    createDecision: (packId: number, body: Record<string, unknown>) =>
+      request<PlaybookDecision>(`/playbook/packs/${packId}/decisions`, {
+        method: "POST", body: JSON.stringify(body) }),
+    updateDecision: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookDecision>(`/playbook/decisions/${id}`, {
+        method: "PATCH", body: JSON.stringify(body) }),
+    decide: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookDecision>(`/playbook/decisions/${id}/decide`, {
+        method: "POST", body: JSON.stringify(body) }),
+
+    actions: (params: { pack_id?: number; committee_id?: number;
+                        status?: string; mine?: boolean;
+                        overdue?: boolean } = {}) => {
+      const query = new URLSearchParams();
+      if (params.pack_id) query.set("pack_id", String(params.pack_id));
+      if (params.committee_id) {
+        query.set("committee_id", String(params.committee_id));
+      }
+      if (params.status) query.set("status", params.status);
+      if (params.mine) query.set("mine", "true");
+      if (params.overdue) query.set("overdue", "true");
+      return request<{ actions: PlaybookAction[] }>(
+        `/playbook/actions?${query}`);
+    },
+    createAction: (packId: number, body: Record<string, unknown>) =>
+      request<PlaybookAction>(`/playbook/packs/${packId}/actions`, {
+        method: "POST", body: JSON.stringify(body) }),
+    updateAction: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookAction>(`/playbook/actions/${id}`, {
+        method: "PATCH", body: JSON.stringify(body) }),
+    closeAction: (id: number, evidence: string) =>
+      request<PlaybookAction>(`/playbook/actions/${id}/close`, {
+        method: "POST", body: JSON.stringify({ evidence }) }),
+    linkActionToPlanner: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookAction>(`/playbook/actions/${id}/planner`, {
+        method: "POST", body: JSON.stringify(body) }),
+
+    sources: (packId: number) =>
+      request<{ sources: PlaybookSource[] }>(
+        `/playbook/packs/${packId}/sources`),
+    import: (packId: number, file: File, asContent = true) => {
+      const form = new FormData();
+      form.append("file", file);
+      return request<PlaybookImported>(
+        `/playbook/packs/${packId}/import?as_content=${asContent}`,
+        { method: "POST", body: form, rawBody: true });
+    },
+
+    chase: (committeeId?: number) => {
+      const query = new URLSearchParams();
+      if (committeeId) query.set("committee_id", String(committeeId));
+      return request<PlaybookChase>(`/playbook/chase?${query}`);
+    },
+
+    formats: () =>
+      request<{ formats: PlaybookExportFormat[] }>("/playbook/formats"),
+    /** A download link, not a fetch: the browser has to do the saving. */
+    exportUrl: (packId: number, format: string) =>
+      `${API_BASE_URL}${API_PREFIX}/playbook/packs/${packId}` +
+      `/export?format=${encodeURIComponent(format)}`,
+  },
 };
+
 
 
 // ---------------------------------------------------------------------------
@@ -9921,5 +10134,561 @@ export type Borrower360Lineage = {
   field_count: number;
   lineage_version: string;
   authoritative_field_count: number;
+  note: string;
+};
+
+
+// ---------------------------------------------------------------------------
+// Playbook — committee packs
+//
+// The governed lifecycle of a committee pack: what the committee is, when it
+// meets, what goes in the pack, what the numbers are, who reviewed it, what
+// was decided and what follows.
+//
+// Every figure on a pack is a SNAPSHOT rather than a live calculation, and
+// these types carry that into the UI. `PlaybookFigure` holds the display
+// string the backend already rounded, the availability reason when there is
+// no value, and the formula hash and dataset version behind it. A screen that
+// reformatted `value` itself would eventually disagree with the PDF, so the
+// rule on this side is: render `display_value`, and touch `value` only for
+// arithmetic the backend has not already done.
+// ---------------------------------------------------------------------------
+
+/**
+ * Why a figure has no value.
+ *
+ * Five different facts, and a reader told the wrong one wastes an afternoon on
+ * the wrong question. NOT_MATURED means come back next quarter; NO_DATA means
+ * the population is empty; CALCULATION_FAILED means something is broken;
+ * PERIOD_MISSING means that period was never loaded. None of them is 0.0%.
+ */
+export type PlaybookAvailability =
+  | "OK"
+  | "NO_DATA"
+  | "NOT_MATURED"
+  | "CALCULATION_FAILED"
+  | "NOT_AUTHORISED"
+  | "PERIOD_MISSING"
+  | "METRIC_UNAVAILABLE";
+
+export type PlaybookPackStatus =
+  | "DRAFT"
+  | "DATA_PENDING"
+  | "GENERATING"
+  | "CONTRIBUTOR_REVIEW"
+  | "REVIEW"
+  | "CHANGES_REQUESTED"
+  | "READY_FOR_APPROVAL"
+  | "APPROVED"
+  | "PUBLISHED"
+  | "SUPERSEDED"
+  | "ARCHIVED";
+
+export type PlaybookAccess =
+  | "VIEWER"
+  | "CONTRIBUTOR"
+  | "REVIEWER"
+  | "EDITOR"
+  | "APPROVER"
+  | "OWNER";
+
+export type PlaybookSeverity = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
+
+export type PlaybookState = "RED" | "AMBER" | "GREEN";
+
+export type PlaybookFigure = {
+  metric_id: string;
+  metric_name: string;
+  metric_version: string;
+  /** The arithmetic's fingerprint. Two figures with the same hash were
+   *  produced by the same calculation, whatever the version string says. */
+  formula_hash: string;
+  period: string;
+  comparison_period: string;
+  filters: Record<string, unknown>;
+  value: number | null;
+  comparison_value: number | null;
+  /** The rounded string the pack and the export both show. Render this. */
+  display_value: string;
+  /** The prior figure, formatted by the same rule. Also render, never derive. */
+  comparison_display: string;
+  unit: string;
+  decimals: number;
+  /** Null where the metric has no agreed direction — a count, say. Never
+   *  guessed at: a screen colouring such a movement green would be inventing
+   *  a view the metric definition does not hold. */
+  higher_is_better: boolean | null;
+  numerator: number | null;
+  denominator: number | null;
+  rows_considered: number | null;
+  series: { period: string; value: number | null }[];
+  availability: PlaybookAvailability;
+  /** Present when availability is not OK: what a reader should do about it. */
+  unavailable_reason: string;
+  dataset: string;
+  dataset_version: string;
+  source_fields: string[];
+  run_id: string;
+  /** What the calculation itself flagged — rows dropped, a period resolved
+   *  to something other than the one asked for. Shown, not swallowed. */
+  warnings: string[];
+  verification_state: string;
+  governed: boolean;
+  available: boolean;
+  snapshot_id?: number;
+  calculated_at?: string | null;
+};
+
+export type PlaybookBlock = {
+  id: number;
+  section_id: number;
+  pack_id: number;
+  block_type: string;
+  position: number;
+  title: string;
+  body: string;
+  statement_kind: string;
+  config: Record<string, unknown>;
+  filters: Record<string, unknown>;
+  period: string;
+  snapshot_id: number | null;
+  figure: PlaybookFigure | null;
+  /** True for the block types that show a governed figure. */
+  calculated: boolean;
+  /** Empty unless the block came out of an uploaded document. */
+  import_class: string;
+  source: string;
+  /** False while an AI draft is still nobody's words. */
+  ai_accepted: boolean;
+  stale: boolean;
+  author_id: number | null;
+  version: number;
+};
+
+export type PlaybookSection = {
+  id: number;
+  pack_id: number;
+  template_key: string;
+  title: string;
+  purpose: string;
+  position: number;
+  owner_id: number | null;
+  reviewer_id: number | null;
+  status: string;
+  status_label: string;
+  required: boolean;
+  due_date: string | null;
+  narrative_instructions: string;
+  version: number;
+  submitted_at: string | null;
+  approved_at: string | null;
+  approved_by: number | null;
+  updated_at: string | null;
+  /** Present on the whole-pack read; absent on a create or patch response. */
+  blocks?: PlaybookBlock[];
+};
+
+export type PlaybookReadinessReason = {
+  check: string;
+  blocking: boolean;
+  text: string;
+  entity_type: string;
+  entity_id: number | null;
+  owner_id: number | null;
+};
+
+export type PlaybookReadinessCheck = {
+  key: string;
+  label: string;
+  weight: number;
+  /** 0.0 to 1.0. */
+  progress: number;
+  state: PlaybookState;
+  /** Set where the check could not be RUN, which is not the same as failing. */
+  not_assessed: string;
+  reasons: PlaybookReadinessReason[];
+};
+
+export type PlaybookReadiness = {
+  percent: number;
+  state: PlaybookState;
+  data_state: string;
+  /** A percentage with no timestamp is a number nobody can defend. */
+  computed_at: string;
+  checks: PlaybookReadinessCheck[];
+  reasons: PlaybookReadinessReason[];
+  blocking_count: number;
+};
+
+export type PlaybookCommittee = {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  purpose: string;
+  business_area: string;
+  cadence: string;
+  meeting_weekday: number | null;
+  default_template_id: number | null;
+  standard_agenda: unknown[];
+  confidentiality: string;
+  chair_id: number | null;
+  secretary_id: number | null;
+  active: boolean;
+  demo: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type PlaybookMember = {
+  id: number;
+  committee_id: number;
+  user_id: number;
+  business_role: string;
+  access_role: PlaybookAccess;
+  title: string;
+  notify: boolean;
+  active: boolean;
+};
+
+export type PlaybookCommitteeDetail = PlaybookCommittee & {
+  /** What THIS reader may do on this committee. */
+  access: PlaybookAccess;
+  members: PlaybookMember[];
+  packs: PlaybookPackSummary[];
+  /** Days before the meeting each workflow step is due. */
+  offsets: Record<string, number>;
+};
+
+export type PlaybookTemplate = {
+  id: number;
+  committee_id: number | null;
+  code: string;
+  name: string;
+  description: string;
+  version: number;
+  status: string;
+  sections: Record<string, unknown>[];
+  /** The declared thresholds a finding is raised from. Never an LLM's idea. */
+  materiality: Record<string, unknown>[];
+  required_domains: string[];
+  required_datasets: string[];
+  export_settings: Record<string, unknown>;
+  confidentiality: string;
+  created_at: string | null;
+};
+
+export type PlaybookPackSummary = {
+  id: number;
+  code: string;
+  committee_id: number;
+  template_id: number | null;
+  name: string;
+  period: string;
+  comparison_period: string;
+  meeting_at: string | null;
+  as_of_date: string | null;
+  data_freeze_at: string | null;
+  owner_id: number | null;
+  status: PlaybookPackStatus;
+  status_label: string;
+  confidentiality: string;
+  version: number;
+  approved_version: number | null;
+  /** Set on an amendment: the approved pack this one supersedes. */
+  amends_pack_id: number | null;
+  amendment_reason: string;
+  previous_pack_id: number | null;
+  readiness_percent: number;
+  readiness_state: string;
+  readiness_at: string | null;
+  data_state: string;
+  approved_by: number | null;
+  approved_at: string | null;
+  published_at: string | null;
+  minutes: string;
+  demo: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type PlaybookPack = PlaybookPackSummary & {
+  /** What THIS reader may do. The screen renders from it; the API enforces it. */
+  access: PlaybookAccess;
+  editable: boolean;
+  locked: boolean;
+  committee: PlaybookCommittee;
+  readiness: PlaybookReadiness;
+  sections: (PlaybookSection & { blocks: PlaybookBlock[] })[];
+};
+
+export type PlaybookFinding = {
+  id: number;
+  pack_id: number;
+  section_id: number | null;
+  finding_type: string;
+  severity: PlaybookSeverity;
+  title: string;
+  description: string;
+  /** The numbers it rests on. Without this a finding is an assertion. */
+  factual_basis: string;
+  /** Which declared rule fired, and on what inputs. */
+  rule_key: string;
+  rule_detail: Record<string, unknown>;
+  metric_id: string;
+  period: string;
+  figure: {
+    metric_id: string;
+    period: string;
+    display_value: string;
+    availability: PlaybookAvailability;
+  } | null;
+  status: string;
+  answered: boolean;
+  owner_id: number | null;
+  response: string;
+  dismissed_reason: string;
+  dismissed_by: number | null;
+  dismissed_at: string | null;
+  source: string;
+  created_at: string | null;
+};
+
+export type PlaybookDecision = {
+  id: number;
+  committee_id: number;
+  pack_id: number | null;
+  section_id: number | null;
+  reference: string;
+  title: string;
+  question: string;
+  recommendation: string;
+  alternatives: string[];
+  impact: string;
+  status: string;
+  status_label: string;
+  decided: boolean;
+  requested_by: number | null;
+  owner_id: number | null;
+  decided_by: number | null;
+  decided_at: string | null;
+  decision_text: string;
+  conditions: string;
+  source: string;
+  created_at: string | null;
+};
+
+/** Live Planner state, read on every request rather than copied and kept. */
+export type PlaybookPlannerProgress = {
+  linked: boolean;
+  was_linked?: boolean;
+  linked_at?: string;
+  note?: string;
+  task_id?: number;
+  task_code?: string;
+  project_id?: number;
+  project_name?: string;
+  status?: string;
+  percent_complete?: number;
+  due_date?: string | null;
+  overdue?: boolean;
+};
+
+export type PlaybookAction = {
+  id: number;
+  committee_id: number;
+  pack_id: number | null;
+  decision_id: number | null;
+  reference: string;
+  description: string;
+  owner_id: number | null;
+  due_date: string | null;
+  priority: string;
+  status: string;
+  status_label: string;
+  latest_update: string;
+  closure_evidence: string;
+  closed: boolean;
+  overdue: boolean;
+  planner: PlaybookPlannerProgress;
+  planner_project_id: number | null;
+  planner_task_id: number | null;
+  linked_at: string | null;
+  source: string;
+  created_at: string | null;
+  closed_at: string | null;
+};
+
+export type PlaybookReview = {
+  id: number;
+  pack_id: number;
+  section_id: number | null;
+  scope: string;
+  reviewer_id: number;
+  decision: string;
+  note: string;
+  conditions: string;
+  /** The pack version read. A later edit makes this review stale, correctly. */
+  at_version: number;
+  requested_at: string | null;
+  requested_by: number | null;
+  responded_at: string | null;
+};
+
+export type PlaybookEvent = {
+  id: number;
+  at: string | null;
+  entity_type: string;
+  entity_id: number | null;
+  entity_ref: string;
+  action: string;
+  author_id: number | null;
+  /** Which door the change came through: UI, API, AI, IMPORT or SYSTEM. */
+  source: string;
+  at_version: number | null;
+  changes: Record<string, unknown>;
+  narrative: string;
+};
+
+export type PlaybookDifference = {
+  metric_id: string;
+  name: string;
+  kind: string;
+  now_value: number | null;
+  now_display: string;
+  then_value: number | null;
+  then_display: string;
+  change: number | null;
+  change_display: string;
+  direction: string;
+  better: boolean | null;
+  now_period: string;
+  then_period: string;
+  /** Why a comparison should not be read at face value, when it should not. */
+  caveat: string;
+};
+
+export type PlaybookComparison = {
+  pack_id: number;
+  pack_code: string;
+  previous_pack_id: number | null;
+  previous_pack_code: string;
+  previous_meeting: string;
+  differences: PlaybookDifference[];
+  material: PlaybookDifference[];
+  notes: string[];
+  summary: string;
+};
+
+export type PlaybookSource = {
+  id: number;
+  kind: string;
+  label: string;
+  filename: string;
+  content_type: string;
+  byte_size: number;
+  checksum: string;
+  import_class: string;
+  warnings: string[];
+  uploaded_by: number | null;
+  created_at: string | null;
+};
+
+export type PlaybookImported = {
+  source_id: number;
+  filename: string;
+  kind: string;
+  sections: number;
+  blocks: number;
+  tables: number;
+  paragraphs: number;
+  warnings: string[];
+  summary: string;
+};
+
+export type PlaybookChaseMessage = {
+  user_id: number | null;
+  committee_id: number | null;
+  pack_id: number | null;
+  trigger: string;
+  title: string;
+  body: string;
+  reason: string;
+  fingerprint: string;
+};
+
+export type PlaybookChase = {
+  outstanding: PlaybookChaseMessage[];
+  count: number;
+};
+
+export type PlaybookExportFormat = {
+  format: string;
+  label: string;
+  media_type: string;
+  purpose: string;
+};
+
+export type PlaybookGeneration = {
+  pack_id: number;
+  version: number;
+  calculated: number;
+  available: number;
+  unavailable: number;
+  failed: number;
+  moved: string[];
+  stale_blocks: number;
+  findings_raised: number;
+  findings_refreshed: number;
+  findings_cleared: number;
+  notes: string[];
+  summary: string;
+};
+
+/**
+ * A drafted commentary, with every sentence typed.
+ *
+ * `kind` is the point: a FACT is something the pack's own figures say, an
+ * INFERENCE is the model's reading of them, and a reader who cannot tell the
+ * two apart is being asked to trust the wrong thing. The screen renders the
+ * distinction rather than flattening it into a paragraph.
+ */
+export type PlaybookSentence = {
+  text: string;
+  kind: string;
+  /** The metric ids the sentence was grounded against. */
+  about: string[];
+};
+
+export type PlaybookDraft = {
+  body: string;
+  statement_kind: string;
+  sentences: PlaybookSentence[];
+  /** Exactly what the model was shown — not what is true now. */
+  evidence: Record<string, unknown>[];
+  model: string;
+  provider: string;
+  /** Sentences the grounding check refused, reported rather than hidden. */
+  refused: string[];
+};
+
+/**
+ * What the drafting route returns: the block it wrote, and the draft beside it.
+ *
+ * `accepted` is always false here. A person accepting the words is a separate
+ * act, and a screen that showed a fresh AI draft as accepted would be putting
+ * somebody's name to something they have not read.
+ */
+export type PlaybookDrafted = {
+  block: PlaybookBlock;
+  draft: PlaybookDraft;
+  accepted: boolean;
+  note: string;
+};
+
+export type PlaybookMapping = {
+  block_id: number;
+  metric_id: string;
+  import_class: string;
   note: string;
 };

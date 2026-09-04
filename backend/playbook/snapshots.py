@@ -118,6 +118,31 @@ class Figure:
     def available(self) -> bool:
         return self.availability in PRESENTABLE and self.value is not None
 
+    @property
+    def warnings(self) -> list[str]:
+        """What the calculation itself said was odd about this figure.
+
+        The metric layer records these — rows dropped for a missing field, a
+        period resolved to something other than the one asked for — and they
+        were already being STORED, inside `calculation`, and shown to nobody.
+        A committee reading a number that quietly excluded 240 facilities is
+        reading a different number from the one it thinks it is.
+        """
+        found = (self.calculation or {}).get("warnings") or []
+        return [str(w) for w in found if str(w).strip()]
+
+    @property
+    def comparison_display(self) -> str:
+        """The prior figure, formatted by the same rule as the current one.
+
+        A property rather than a stored column, and a property rather than
+        three call sites each calling `display()` with the same three
+        arguments: the movement line, the materiality basis and the screen all
+        showed the same number, and any one of them drifting is a pack that
+        contradicts itself between the page and the appendix.
+        """
+        return display(self.comparison_value, self.unit, self.decimals)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "metric_id": self.metric_id, "metric_name": self.metric_name,
@@ -127,6 +152,7 @@ class Figure:
             "comparison_period": self.comparison_period,
             "filters": dict(self.filters),
             "value": self.value, "comparison_value": self.comparison_value,
+            "comparison_display": self.comparison_display,
             "display_value": self.display_value, "unit": self.unit,
             "decimals": self.decimals,
             "higher_is_better": self.higher_is_better,
@@ -138,6 +164,7 @@ class Figure:
             "dataset": self.dataset, "dataset_version": self.dataset_version,
             "source_fields": list(self.source_fields),
             "run_id": self.run_id,
+            "warnings": self.warnings,
             "verification_state": self.verification_state,
             "governed": self.governed,
             "available": self.available,
@@ -567,8 +594,7 @@ def movement(figure: Figure) -> dict[str, Any]:
         "better": better,
         "display": display(change, figure.unit, figure.decimals),
         "from": figure.comparison_value,
-        "from_display": display(figure.comparison_value, figure.unit,
-                                figure.decimals),
+        "from_display": figure.comparison_display,
     }
 
 
