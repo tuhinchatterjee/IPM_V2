@@ -5,6 +5,10 @@
 
 Nine commits, `47ca628..a9981a5`, 39 files, +8,270 / −107.
 
+One test in the tree is red on final HEAD and is **not** caused by this
+work: a Project Planner demo assertion that decays with the calendar.
+Root cause, and why it was reported rather than papered over, in **§Z**.
+
     47ca628  The Metric Catalogue, and four numbers that were quietly wrong
     7447c18  The Metric Catalogue on screen
     1bf431b  A lens can now be given a metric by asking for it
@@ -376,41 +380,114 @@ pull request opened. No history rewritten, no force-push.**
 
     .venv/bin/python -m pytest tests -p no:randomly --tb=short
 
-Run against `a9981a5`, with the dev servers stopped so nothing competed for CPU.
-`671dc9a` adds only this file, so the result stands for both.
+Run twice against `a9981a5`, with the dev servers stopped so nothing competed
+for CPU. `671dc9a` and later add only documentation, so the result stands for
+the branch head.
 
-```
-12022 passed, 35 skipped, 25 warnings in 1501.39s (0:25:01)
-```
+| Run | Started (UTC) | Result |
+| --- | --- | --- |
+| 1 | 2026-09-03 23:09 | `12022 passed, 35 skipped` in 25:01 — exit 0 |
+| 2 (`-rs`) | 2026-09-04 00:0x | `1 failed, 12021 passed, 35 skipped` in 24:47 |
 
-**Exit 0. Zero failures, zero errors** — `grep -cE "^(FAILED|ERROR)"` over the
-full output returns 0. 12,057 tests collected; 12,022 ran and passed.
+**The two runs disagree by one test, and the cause is the calendar, not the
+code.** It is written up in §Z below rather than buried here.
 
-The 25 warnings are all one deprecation from `dash` in `tests/legacy/`, which
-is the preserved original application and not part of this work.
+12,057 tests collected. The 25 warnings are all one `dash` deprecation from
+`tests/legacy/`, the preserved original application, and are not part of this
+work.
 
-**I did not enumerate the 35 skips.** The run was made without `-rs`, so the
-reasons are not in its output, and re-running the suite for that alone would
-cost another 25 minutes. What is established: the platform database was
-reachable for this run, so the eight `PostgreSQL not reachable` gates and their
-siblings did **not** fire; and one skip is the live-model evaluation behind
-`RUN_LIVE_LLM_EVALS=1`, which was deliberately left unset because no call was
-made to any model provider in this work. The remaining skips are not
-characterised here, because guessing at them would be worse than saying so.
+### The 35 skips, enumerated
 
-None of the 35 is a test disabled during this work. No assertion was loosened,
-no tolerance widened, no test skipped or xfailed to make new code pass — the
-four times my own changes broke a protected invariant, listed in §R, were fixed
-in the code rather than in the test.
+The second run was made with `-rs` for exactly this. Every one is an
+environment gate; **none is a test disabled during this work.**
+
+| Count | Where | Reason |
+| ---: | --- | --- |
+| 12 | `tests/scripts/test_powershell_script.py` | No PowerShell runtime in this environment |
+| 8 | `tests/llm/test_live_smoke.py` | No AI provider key is configured |
+| 5 | `tests/orchestration/test_multi_condition.py` | The planner stopped to ask: `covenant_tests` does not carry `days_past_due` |
+| 3 | `tests/orchestration/test_multi_condition.py` | This shape does not compile through the multi builder |
+| 3 | `tests/orchestration/test_multi_condition.py` | This question is answered from one dataset |
+| 2 | `tests/api/test_user_administration.py` | This database has more than one administrator |
+| 1 | `tests/evals/test_ask_evaluation.py` | `set RUN_LIVE_LLM_EVALS=1 to run these` |
+| 1 | `tests/multi/test_relationship_assistant.py` | No multiplying candidate in this data |
+| 1 | `tests/orchestration/test_query_validation.py` | The result is limited, so absence proves nothing |
+
+Nine of the 35 are the live-model gates — one behind `RUN_LIVE_LLM_EVALS=1` and
+eight behind a provider key — both consistent with the constraint this work ran
+under: **no call was made to any model provider.** The database gates did not
+fire; PostgreSQL was reachable for both runs.
+
+No assertion was loosened, no tolerance widened, no test skipped or xfailed to
+make new code pass. The four times my own changes broke a protected invariant
+(§R) were fixed in the code.
 
 ### Everything else, on the same HEAD
 
 | Suite or gate | Result |
 | --- | --- |
-| Full backend suite | **12,022 passed, 35 skipped, 0 failed** |
 | `tests/metrics` | 115 passed |
 | `tests/api/test_lens_layout_api.py` | 11 passed |
 | Frontend `npm test` | 474 passed |
 | Browser journeys A–H | 76 / 76 |
 | Performance, six paths | all inside budget |
 | `ruff`, decimals, `tsc`, `eslint`, build | clean |
+
+---
+
+## Z. One test goes red on a date, and it is right to
+
+`tests/planner/test_demo_portfolio.py::test_the_overlay_scenario_is_set_up_to_fire`
+
+    AssertionError: T-503 is due in 2 days, which is not a reminder threshold,
+    so the demonstration's reminder would not fire on its own
+    assert 2 in (7, 3, 1, 0)
+
+It passed in run 1 and failed in run 2, forty minutes later, because the two
+runs fell either side of UTC midnight. Nothing in the tree changed between
+them.
+
+**Root cause, confirmed against the database rather than inferred:**
+
+| | |
+| --- | --- |
+| Demo portfolio seeded | 2026-09-03 20:26 UTC |
+| `T-503` seeded offset | `+3` days — `scripts/seed_retail_portfolio.py` |
+| `T-503` due date | 2026-09-06 |
+| `RET-IFRS9` reminder days | `[7, 3, 1, 0]` |
+| Today | 2026-09-04 → gap **2** |
+
+The seed's own docstring says *"Relative dates, always — every date is an
+offset from the day it is seeded."* That is true **at seed time** and decays
+afterwards. A fixed due date walks down through 3, 2, 1, 0, so the
+demonstration's centrepiece — the overlay sign-off whose reminder is supposed
+to fire by itself — can only fire on the days where the remaining gap happens
+to land on a threshold. Seeded on the 3rd, it could fire that day, cannot
+today, can again on the 5th and 6th, and never after.
+
+**This is a real defect in the Project Planner demonstration, not a test
+artefact.** The test is correct and is doing its job: it detects that the
+seeded demo has drifted out of the state that makes it demonstrable. It is
+also, as written, a test that turns red on the calendar rather than on a
+change, which is its own problem.
+
+**Why it is reported and not fixed here.** The remedy is to re-anchor the
+demo's relative dates, which means re-seeding. The plain seed run only *builds
+what is missing* and would not correct rows that already exist; only `--reset`
+would, and `--reset` deletes and rebuilds the four programmes. Those rows are
+in the user's database and may carry their own edits. **Destroying a user's
+planner data to turn one red test green is not a trade I will make on my own
+initiative**, and making the test tolerate any gap would be exactly the
+weakening this run is forbidden to do.
+
+**The fix I would make**, for whoever picks this up: give
+`scripts/seed_retail_portfolio.py` a non-destructive `--refresh` that rolls the
+existing programmes' dates forward to today through
+`backend.planner.service` — the same path a person's edit takes, so it keeps
+the validation, permissions, history and audit the seed already insists on —
+and have the demo readiness gate report drift rather than waiting for a suite
+to go red. That makes the demonstration demonstrable on any day without
+deleting anything.
+
+**Not fixed, not hidden, and it does not touch the Metric Catalogue or the
+Lenses.** No metric, tile, journey or gate in §Y depends on it.
