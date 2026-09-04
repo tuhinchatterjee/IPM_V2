@@ -61,7 +61,7 @@ function NewPackForm() {
   // shape they are about to get.
   const available = templates.data?.templates ?? [];
   const suggested =
-    available.find((t) => t.status === "APPROVED") ?? available[0];
+    available.find((t) => t.status === "PUBLISHED") ?? available[0];
   const templateId = chosenTemplate ?? (suggested ? String(suggested.id) : "");
   const setTemplateId = setChosenTemplate;
 

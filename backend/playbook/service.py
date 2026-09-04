@@ -52,6 +52,7 @@ from backend.models.playbook import (
     PACK_STATUSES,
     REVIEW_DECISIONS,
     SECTION_STATUSES,
+    SOURCE_SYSTEM,
     SOURCE_UI,
     STATEMENT_KINDS,
     TEMPLATE_STATUSES,
@@ -146,12 +147,20 @@ def record(session: Any, *, entity_type: str, action: str,
            pack: Any = None, committee_id: int | None = None,
            entity_id: int | None = None, entity_ref: str = "",
            changes: dict[str, Any] | None = None, narrative: str = "",
-           grant: access.Grant | None = None) -> PlaybookEvent:
+           grant: access.Grant | None = None,
+           source: str = SOURCE_SYSTEM) -> PlaybookEvent:
     """One line of history. Append-only; nothing updates or deletes these.
 
     Takes the grant rather than a principal so the event records the SOURCE
     and whether the actor was acting administratively — both facts a reader of
     the history needs and neither derivable afterwards.
+
+    `source` is read ONLY when there is no grant, which is the case for
+    something the platform did on nobody's behalf — a sweep, a seed, a
+    scheduled job. It defaults to SYSTEM rather than UI because "no grant"
+    means no person was involved, and a history line saying a change came
+    through the interface when nobody touched the interface is the one thing
+    an append-only log must not do.
     """
     event = PlaybookEvent(
         pack_id=int(pack.id) if pack is not None else None,
@@ -166,7 +175,7 @@ def record(session: Any, *, entity_type: str, action: str,
         narrative=narrative,
         at_version=int(pack.version) if pack is not None else None,
         author_id=grant.user_id if grant else None,
-        source=grant.source if grant else SOURCE_UI,
+        source=grant.source if grant else access.normalise_source(source),
     )
     if grant is not None and grant.administrative:
         # Said on the event rather than inferred later. An administrator
