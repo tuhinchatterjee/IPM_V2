@@ -45,6 +45,10 @@ dev/development/test/demo/local.
 
 ---
 
+> Running `pytest tests/playbook` after this removes the three committees —
+> see **5. If something is wrong on the day**. Re-run `--reset` and they come
+> back unchanged.
+
 ## 2. What is seeded
 
 | Committee | Meets | Reads | Previous pack | Current pack |
@@ -234,6 +238,14 @@ freshly seeded pack always resolves.
 
 **A committee is missing.** `--check` says what is there;
 `python scripts/seed_playbook_committees.py` builds what is missing.
+
+**Every committee is missing, and the test suite ran recently.** That is why.
+`tests/playbook/test_demo_seed.py` rebuilds the three committees with reset
+semantics and removes them again when it finishes — the right behaviour for a
+suite that shares a database with a demonstration, and it is documented in
+that module. Run `--reset` again and they come back exactly as they were: the
+seed is idempotent. Do not run the test suite on the machine you are about to
+present from without re-seeding afterwards.
 
 **Drafting says the AI is unavailable.** No provider is configured. Everything
 else works; skip section D or show an already-drafted block.
