@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field
 from backend.api.permissions import Principal, RequireAnalyst
 from backend.metrics import library, service
 from backend.metrics import search as search_mod
+from backend.metrics.formula import FormulaError
 
 logger = logging.getLogger(__name__)
 
@@ -225,6 +226,71 @@ def preview_metric(payload: MetricIn,
         "formula": formula.describe(),
         "calculation": calculation.to_dict(),
     }
+
+
+# --------------------------------------------------------------------- charts
+#
+# Declared before `/{metric_id}`, because FastAPI matches in order and
+# `/chart` would otherwise be read as the id of a metric called "chart".
+
+
+class ChartIn(BaseModel):
+    """A chart as the person configuring it is holding it.
+
+    Every field here is a choice the builder puts in front of somebody, and
+    every one of them is checked again in the service against the governed
+    catalogue. A picker is a convenience; it is never the control.
+    """
+
+    metric_id: str = Field(min_length=1, max_length=160)
+    dimension: str = Field(min_length=1, max_length=120)
+    period: str = Field(default="", max_length=32)
+    filters: dict = Field(default_factory=dict)
+    aggregate: str = Field(default="metric", max_length=24)
+    sort: str = Field(default="value", max_length=16)
+    direction: str = Field(default="desc", max_length=8)
+    limit: int = Field(default=20, ge=1, le=60)
+    compare: str = Field(default="", max_length=32)
+
+
+@router.get("/{metric_id}/chart-options",
+            summary="What a chart over this metric may be configured with")
+def chart_options(metric_id: str,
+                  dimension: str = Query(default="", max_length=120),
+                  principal: Principal = RequireAnalyst) -> dict:
+    """The dimensions, aggregations, sorts, comparisons and chart types.
+
+    Pass the chosen `dimension` to get the chart types that are honest for
+    THAT dimension — which is where most of the refusals live, because
+    whether a line means anything depends on whether the axis has an order.
+    """
+    try:
+        return service.chart_vocabulary(metric_id, dimension=dimension,
+                                        user_id=principal.user_id)
+    except service.MetricNotFound as e:
+        raise _not_found(e) from e
+
+
+@router.post("/chart", summary="Draw a metric across a dimension")
+def chart(payload: ChartIn, principal: Principal = RequireAnalyst) -> dict:
+    """The chart itself: the points, the definition, the SQL and the run id.
+
+    A preview and a saved tile take the same route, so what somebody approves
+    in the builder is what the lens draws.
+    """
+    try:
+        return service.series(
+            payload.metric_id, dimension=payload.dimension,
+            period=payload.period, filters=payload.filters,
+            aggregate=payload.aggregate, sort=payload.sort,
+            direction=payload.direction, limit=payload.limit,
+            compare=payload.compare, user_id=principal.user_id)
+    except service.MetricNotFound as e:
+        raise _not_found(e) from e
+    except service.MetricRefused as e:
+        raise _refused(e) from e
+    except FormulaError as e:
+        raise _refused(e) from e
 
 
 @router.get("/{metric_id}", summary="Everything one metric means")

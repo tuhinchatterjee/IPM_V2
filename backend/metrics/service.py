@@ -46,7 +46,15 @@ from backend.metrics.catalogue import (
     MetricDefinition,
     Unsupported,
 )
-from backend.metrics.formula import Formula, FormulaError, check, problems
+from backend.metrics.formula import (
+    Condition,
+    Formula,
+    FormulaError,
+    Side,
+    Term,
+    check,
+    problems,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +75,13 @@ DECISION_RECORDED = "RECORDED"
 DECISIONS = (DECISION_ACCEPTED, DECISION_REJECTED, DECISION_RECORDED)
 
 _SLUG = re.compile(r"[^a-z0-9]+")
+
+#: The three period shapes the platform stores. A chart comparison is
+#: arithmetic on these, and a shape not listed here returns no comparison
+#: rather than a guessed one.
+_MONTHLY = re.compile(r"\d{4}-\d{2}")
+_QUARTERLY = re.compile(r"\d{4}-Q[1-4]")
+_ANNUAL = re.compile(r"\d{4}")
 
 
 class MetricNotFound(LookupError):
@@ -820,3 +835,466 @@ __all__ = [
     "create", "update", "delete", "set_status", "calculate_check",
     "compare", "verify", "verifications", "formula_from_dict", "described",
 ]
+
+
+# ---------------------------------------------------------------------- charts
+
+#: Field names a chart will not offer to group by, whatever their type. An
+#: account id is a string with as many values as there are rows: grouping by
+#: it produces a "chart" with one bar per account, which is not a chart.
+_NOT_A_DIMENSION = ("_id", "id", "reference", "name", "iban", "national_id")
+
+#: Sensitivity classifications a chart may group by. A dimension becomes an
+#: axis label on a shared screen, so anything more sensitive than internal is
+#: not offered — the metric may still be scoped by it, which is a filter and
+#: shows nobody the value.
+_DIMENSION_SENSITIVITY = ("", "none", "internal", "public")
+
+#: How a chart may roll rows up inside each group.
+AGGREGATIONS = {
+    "metric": "The metric's own definition, recomputed for each group",
+    "average": "The average of the measure per row in the group",
+    "count": "How many rows fall in the group",
+}
+
+SORTS = {"value": "By value", "label": "By name"}
+DIRECTIONS = {"desc": "Largest first", "asc": "Smallest first"}
+
+#: What a chart may be compared against. Every one of these resolves to a real
+#: period that is read the same way the primary series is; there is no
+#: modelled or projected comparison here, and a comparison period with no data
+#: is reported as absent rather than drawn as zero.
+COMPARISONS = {
+    "": "No comparison",
+    "previous_period": "The period before this one",
+    "same_period_last_year": "The same period a year earlier",
+}
+
+#: Chart types this builder can produce. `kpi` is not among them: a chart has
+#: a dimension, and a single figure does not.
+CHART_TYPES = ("bar", "line", "matrix")
+
+
+def chart_types_for(metric: MetricDefinition,
+                    dimension: dict[str, Any] | None
+                    ) -> tuple[list[str], list[dict[str, str]]]:
+    """Which chart types are honest for this metric over this dimension.
+
+    Three refusals, and none of them is a matter of taste.
+
+    A `matrix` needs two dimensions and this builder configures one, so it is
+    never offered here. A `line` asserts that the points are in an order and
+    that the space between them means something; that is true of a period and
+    of a band, and false of a product. And a metric computed by a governed
+    function cannot be broken out at all, so it gets no chart rather than a
+    misleading one.
+
+    `MetricDefinition.visuals` is deliberately NOT consulted here. It says how
+    the metric itself should be drawn as a tile — as a figure, as a trend —
+    and forty of the sixty-one governed metrics leave it at the field's
+    default of `("kpi",)`, which is an un-authored default rather than a
+    decision that the metric must never be broken out. Reading it as a
+    governance refusal would refuse "utilisation by product" — an ordinary,
+    honest bar chart — on the strength of a default nobody wrote.
+    """
+    if metric.formula.kind == "function":
+        return [], [{"name": t, "because": (
+            f"{metric.name} is computed by a governed function over the "
+            "underlying rows, so it cannot be broken out across a dimension "
+            "at all.")} for t in CHART_TYPES]
+
+    ordered = bool(dimension and (
+        dimension.get("over_time")
+        or str(dimension.get("name", "")).lower().endswith(
+            ("_bin", "_band", "_bucket"))))
+
+    available: list[str] = []
+    refused: list[dict[str, str]] = []
+    for kind in CHART_TYPES:
+        because = ""
+        if kind == "matrix":
+            because = ("A matrix compares two dimensions. This chart has one, "
+                       "so there is nothing to put on the second axis.")
+        elif kind == "line" and dimension is not None and not ordered:
+            because = (
+                f"{dimension.get('business_name') or dimension.get('name')} "
+                "has no order, so a line between its points would suggest a "
+                "progression that is not there. A bar compares them without "
+                "claiming one.")
+        if because:
+            refused.append({"name": kind, "because": because})
+        else:
+            available.append(kind)
+    return available, refused
+
+
+def dimension_fields(metric: MetricDefinition) -> list[dict[str, Any]]:
+    catalog = _catalog()
+    if catalog is None or not metric.datasets:
+        return []
+    try:
+        entry = catalog.dataset(metric.datasets[0])
+    except Exception:  # noqa: BLE001 - a dataset that has gone
+        return []
+
+    keys = {str(k) for k in (entry.primary_keys or [])}
+    period_field = str(entry.period_field or "")
+    out: list[dict[str, Any]] = []
+    for field_def in entry.fields.values():
+        name = str(field_def.name)
+        lowered = name.lower()
+        if str(getattr(field_def, "sensitivity", "") or "").lower() \
+                not in _DIMENSION_SENSITIVITY:
+            continue
+        if name in keys and name != period_field:
+            continue
+        if any(lowered == bad or lowered.endswith(bad)
+               for bad in _NOT_A_DIMENSION):
+            continue
+        allowed = list(field_def.allowed_values or [])
+        categorical = (bool(allowed)
+                       or str(field_def.data_type) in ("string", "boolean")
+                       or lowered.endswith(("_bin", "_band", "_bucket")))
+        if not (categorical or name == period_field):
+            continue
+        out.append({
+            "name": name,
+            "business_name": field_def.business_name or name,
+            "definition": field_def.definition or "",
+            "data_type": field_def.data_type,
+            "allowed_values": allowed,
+            "over_time": name == period_field,
+        })
+    out.sort(key=lambda d: (not d["over_time"], d["business_name"].lower()))
+    return out
+
+
+def chart_vocabulary(metric_id: str, *, dimension: str = "",
+                     user_id: int | None = None,
+                     readable: Iterable[str] | None = None) -> dict[str, Any]:
+    """Everything a chart over this metric may be configured with.
+
+    The builder offers only what is here, and the server checks it again on
+    submission: a picker is a convenience, never a control. Which chart types
+    appear is the metric's own declaration — a metric that says it can
+    honestly be drawn as a line does not become a matrix because somebody
+    picked one from a global list.
+    """
+    metric = resolve(metric_id, user_id=user_id, readable=readable)
+    dimensions = dimension_fields(metric)
+
+    simple = _simple_sum(metric)
+    aggregations = [{"name": "metric", "label": AGGREGATIONS["metric"],
+                     "available": True, "unavailable_because": ""}]
+    for name in ("average", "count"):
+        aggregations.append({
+            "name": name, "label": AGGREGATIONS[name],
+            "available": bool(simple) or name == "count",
+            "unavailable_because": "" if simple or name == "count" else (
+                f"{metric.name} is not a single total, so an average of it "
+                "per row is not a number that means anything. The metric's "
+                "own definition is the honest roll-up here."),
+        })
+
+    chosen = next((d for d in dimensions if d["name"] == dimension), None)
+    types, refused = chart_types_for(metric, chosen)
+    return {
+        "metric": metric.panel(catalog=_catalog()),
+        "dimensions": [
+            {**d, "chart_types": chart_types_for(metric, d)[0]}
+            for d in dimensions],
+        "aggregations": aggregations,
+        "dimension": dimension,
+        "chart_types": types,
+        "chart_types_refused": refused,
+        "sorts": SORTS,
+        "directions": DIRECTIONS,
+        "comparisons": COMPARISONS,
+        "max_groups": execution.MAX_GROUPS,
+        "periods": periods_with_rows(metric.datasets, metric.scope),
+    }
+
+
+def may_average(metric: MetricDefinition) -> bool:
+    """Whether "the average per row" is a number this metric has.
+
+    Public because the lens validator asks the same question before it will
+    store a chart configured that way, and two implementations of "is this an
+    honest average" would eventually disagree.
+    """
+    return _simple_sum(metric) is not None
+
+
+def _simple_sum(metric: MetricDefinition) -> Term | None:
+    """The single summed term a chart may re-aggregate, or nothing.
+
+    A ratio has no such term. Neither has a metric built from several terms
+    combined — averaging "defaulted balance minus recoveries" per row is not
+    an average of anything a person named.
+    """
+    formula = metric.formula
+    if formula.kind == "function":
+        return None
+    if formula.denominator and formula.denominator.terms:
+        return None
+    terms = formula.numerator.terms
+    if len(terms) != 1:
+        return None
+    term = terms[0]
+    if term.aggregate != "sum" or not term.field:
+        return None
+    return term
+
+
+def _chart_formula(metric: MetricDefinition, aggregate: str) -> tuple[Formula, str]:
+    """The formula a chart actually computes, and what to call the series.
+
+    An overridden aggregation is a different calculation from the governed
+    metric, so it gets a different name on the chart. A bar labelled "Default
+    rate" that is really "average balance per account" is the kind of thing
+    somebody presents to a board.
+    """
+    if aggregate not in AGGREGATIONS:
+        raise MetricRefused(
+            f"'{aggregate}' is not a way a chart may roll rows up. "
+            f"Available: {', '.join(AGGREGATIONS)}.")
+    if aggregate == "metric":
+        return metric.formula, metric.name
+
+    dataset = metric.datasets[0] if metric.datasets else ""
+    if aggregate == "count":
+        term = Term(id="rows", label="Rows", dataset=dataset,
+                    aggregate="count")
+        return (Formula(kind="sum", numerator=Side(terms=(term,))),
+                "Number of rows")
+
+    simple = _simple_sum(metric)
+    if simple is None:
+        raise MetricRefused(
+            f"{metric.name} is not a single total, so an average of it per "
+            "row is not a number that means anything. Use the metric's own "
+            "definition, or count the rows.")
+    averaged = Term(id=simple.id, label=f"Average {simple.label.lower()}",
+                    dataset=simple.dataset, aggregate="avg",
+                    field=simple.field, where=simple.where)
+    return (Formula(kind="sum", numerator=Side(terms=(averaged,))),
+            f"Average {simple.label.lower()} per row")
+
+
+def _chart_filters(metric: MetricDefinition,
+                   filters: dict[str, Any] | None) -> tuple[Condition, ...]:
+    """The chart's own filters, checked against the dataset's real fields.
+
+    Checked here rather than trusted from the client for the obvious reason:
+    a filter is a `WHERE` clause, and a name that reached the compiler without
+    passing through the catalogue would be a column named by a caller.
+    """
+    if not filters:
+        return ()
+    catalog = _catalog()
+    known: set[str] = set()
+    if catalog is not None and metric.datasets:
+        try:
+            known = {str(f.name)
+                     for f in catalog.dataset(metric.datasets[0]).fields.values()}
+        except Exception:  # noqa: BLE001 - a dataset that has gone
+            known = set()
+
+    out: list[Condition] = []
+    for name, value in filters.items():
+        field_name = str(name)
+        if known and field_name not in known:
+            raise MetricRefused(
+                f"'{field_name}' is not a field on "
+                f"{metric.datasets[0] if metric.datasets else 'this dataset'}, "
+                "so a chart cannot filter on it.")
+        if isinstance(value, dict):
+            op = str(value.get("op") or "=")
+            out.append(Condition(field=field_name, op=op,
+                                 value=value.get("value")))
+        elif isinstance(value, (list, tuple)):
+            out.append(Condition(field=field_name, op="in", value=list(value)))
+        else:
+            out.append(Condition(field=field_name, op="=", value=value))
+    return tuple(out)
+
+
+def _shift_period(period: str, *, months: int) -> str:
+    """The period `months` before this one, in the same shape it came in.
+
+    Only the shapes the platform actually stores: `YYYY-MM` and `YYYY-Qn` and
+    `YYYY`. An unrecognised shape returns empty, and the caller reports that
+    the comparison could not be resolved rather than guessing at one.
+    """
+    text = (period or "").strip()
+    if _MONTHLY.fullmatch(text):
+        year, month = int(text[:4]), int(text[5:7])
+        total = year * 12 + (month - 1) - months
+        return f"{total // 12:04d}-{total % 12 + 1:02d}"
+    if _QUARTERLY.fullmatch(text):
+        if months % 3:
+            return ""
+        year, quarter = int(text[:4]), int(text[6])
+        total = year * 4 + (quarter - 1) - months // 3
+        return f"{total // 4:04d}-Q{total % 4 + 1}"
+    if _ANNUAL.fullmatch(text):
+        if months % 12:
+            return ""
+        return f"{int(text) - months // 12:04d}"
+    return ""
+
+
+def series(metric_id: str, *, dimension: str, period: str = "",
+           filters: dict[str, Any] | None = None,
+           aggregate: str = "metric", sort: str = "value",
+           direction: str = "desc", limit: int = execution.MAX_GROUPS,
+           compare: str = "", user_id: int | None = None,
+           readable: Iterable[str] | None = None) -> dict[str, Any]:
+    """One chart: a metric across a dimension, and how it is defined.
+
+    Everything a reader needs to challenge the picture travels with it — the
+    definition, the SQL, the run id, how many rows each group holds and how
+    many groups were left out. A chart that cannot be challenged is decoration.
+    """
+    metric = resolve(metric_id, user_id=user_id, readable=readable)
+
+    offerable = {d["name"]: d for d in dimension_fields(metric)}
+    if dimension not in offerable:
+        raise MetricRefused(
+            f"'{dimension}' is not a dimension {metric.name} can be broken "
+            "out by. Available: "
+            f"{', '.join(sorted(offerable)) or 'none on this dataset'}.")
+    if sort not in SORTS:
+        raise MetricRefused(
+            f"'{sort}' is not a way a chart may be sorted. "
+            f"Available: {', '.join(SORTS)}.")
+    if direction not in DIRECTIONS:
+        raise MetricRefused(
+            f"'{direction}' is not a sort direction. "
+            f"Available: {', '.join(DIRECTIONS)}.")
+    if compare not in COMPARISONS:
+        raise MetricRefused(
+            f"'{compare}' is not a comparison a chart may draw. "
+            f"Available: {', '.join(k or 'none' for k in COMPARISONS)}.")
+
+    formula, series_label = _chart_formula(metric, aggregate)
+    where = _chart_filters(metric, filters)
+    over_time = bool(offerable[dimension]["over_time"])
+
+    notes: list[str] = []
+    if aggregate != "metric":
+        notes.append(
+            f"This chart shows {series_label.lower()}, not {metric.name}. "
+            "The aggregation was changed on the chart, so the series is "
+            "named for what it actually computes.")
+
+    try:
+        # A chart over the period field is the trend: every period the dataset
+        # holds, not one of them. Filtering the scan to a single period and
+        # then grouping by it would draw one point and call it a line.
+        wanted = "" if over_time else (period or default_period(metric))
+        drawn = execution.breakdown(
+            formula, dimension=dimension, period=wanted, scope=metric.scope,
+            where=where, sort=("label" if over_time else sort),
+            direction=("asc" if over_time else direction), limit=limit,
+            question=f"{series_label} by {dimension}")
+    except DataAccessError as e:
+        return {
+            "metric": metric.panel(catalog=_catalog()),
+            "series_label": series_label, "dimension": dimension,
+            "dimension_label": offerable[dimension]["business_name"],
+            "over_time": over_time, "aggregate": aggregate,
+            "sort": sort, "direction": direction, "compare": compare,
+            "filters": {c.field: c.value for c in where},
+            "unit": metric.unit, "decimals": metric.decimals,
+            "higher_is_better": (metric.higher_is_better
+                                 if aggregate == "metric" else None),
+            "period": period, "points": [], "comparison": None,
+            "notes": notes, "unavailable": str(e),
+        }
+
+    if over_time:
+        notes.append(
+            "Every period the dataset holds, in order. The period selection "
+            "does not apply to a chart whose dimension IS the period.")
+
+    comparison: dict[str, Any] | None = None
+    if compare and not over_time:
+        months = 12 if compare == "same_period_last_year" else 1
+        against = _shift_period(drawn["period"], months=months)
+        if not against:
+            notes.append(
+                f"'{COMPARISONS[compare]}' could not be worked out from a "
+                f"period written as '{drawn['period']}', so no comparison is "
+                "drawn.")
+        else:
+            available = periods_with_rows(metric.datasets, metric.scope)
+            if against not in available:
+                notes.append(
+                    f"There is no data for {against}, so the comparison is "
+                    "not drawn. That is a gap in the book, not a zero.")
+            else:
+                try:
+                    other = execution.breakdown(
+                        formula, dimension=dimension, period=against,
+                        scope=metric.scope, where=where, sort="label",
+                        direction="asc", limit=execution.MAX_GROUPS,
+                        question=f"{series_label} by {dimension}, {against}")
+                except DataAccessError as e:
+                    notes.append(
+                        f"The comparison against {against} could not be "
+                        f"read: {e}")
+                else:
+                    by_label = {p["label"]: p["value"] for p in other["points"]}
+                    comparison = {
+                        "period": against,
+                        "label": COMPARISONS[compare],
+                        "points": [
+                            {"label": p["label"],
+                             "value": by_label.get(p["label"]),
+                             "change": (
+                                 None if p["value"] is None
+                                 or by_label.get(p["label"]) is None
+                                 else p["value"] - by_label[p["label"]])}
+                            for p in drawn["points"]],
+                        "run_id": other["run_id"],
+                        "sql": other["sql"],
+                    }
+
+    if drawn["truncated"]:
+        notes.append(
+            f"{drawn['groups_found']} groups were found and "
+            f"{len(drawn['points'])} are drawn. The rest are not in the "
+            "picture, so it is not the whole population.")
+    if drawn.get("scan_capped"):
+        notes.append(
+            f"More than {execution.GROUP_CEILING} groups exist. Only the "
+            "first that many were read, so this is a sample of the "
+            "dimension rather than all of it.")
+
+    return {
+        "metric": metric.panel(catalog=_catalog()),
+        "series_label": series_label,
+        "dimension": dimension,
+        "dimension_label": offerable[dimension]["business_name"],
+        "over_time": over_time,
+        "aggregate": aggregate,
+        "sort": sort,
+        "direction": direction,
+        "compare": compare,
+        "filters": {c.field: c.value for c in where},
+        "unit": metric.unit,
+        "decimals": metric.decimals,
+        "higher_is_better": (metric.higher_is_better
+                             if aggregate == "metric" else None),
+        "period": drawn["period"],
+        "points": drawn["points"],
+        "comparison": comparison,
+        "groups_found": drawn["groups_found"],
+        "truncated": drawn["truncated"],
+        "dataset": drawn["dataset"],
+        "sql": drawn["sql"],
+        "run_id": drawn["run_id"],
+        "notes": notes,
+        "unavailable": drawn["unavailable"],
+    }

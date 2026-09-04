@@ -101,7 +101,18 @@ def slugify(name: str) -> str:
 #: definition they name, not how the number is produced.
 KIND_ANALYSIS = "analysis"
 KIND_METRIC = "metric"
-KINDS = (KIND_ANALYSIS, KIND_METRIC)
+#: A metric broken out across one dimension. The same metric, the same
+#: formula, the same executor as the tile — grouped. It is a third kind
+#: rather than a metric tile with a `visual` set, because a chart carries a
+#: configuration a single figure has no use for (a dimension, a sort, a
+#: comparison) and because the two are validated against different rules.
+KIND_CHART = "chart"
+KINDS = (KIND_ANALYSIS, KIND_METRIC, KIND_CHART)
+
+#: How many charts one lens may hold. A chart costs a grouped scan of the
+#: lake, so this is lower than the tile limit, and low enough that a lens
+#: stays a view rather than a report.
+MAX_CHARTS = 12
 
 
 @dataclass
@@ -167,6 +178,26 @@ class Panel:
         return cls(kind=KIND_METRIC, metric_id=metric_id, title=title,
                    visual=visual, period=period, note=note)
 
+    @classmethod
+    def chart(cls, metric_id: str, *, dimension: str, title: str = "",
+              visual: str = "bar", period: str = "", note: str = "",
+              aggregate: str = "metric", sort: str = "value",
+              direction: str = "desc", limit: int = 20, compare: str = "",
+              filters: dict[str, Any] | None = None) -> Panel:
+        """A chart tile. Its configuration lives in `params`.
+
+        In `params` rather than in named fields on `Panel`, because every
+        stored lens in the database was written against the fields that are
+        already there, and a chart's settings are the one part of a tile that
+        varies by what is being drawn.
+        """
+        return cls(kind=KIND_CHART, metric_id=metric_id, title=title,
+                   visual=visual, period=period, note=note,
+                   filters=dict(filters or {}),
+                   params={"dimension": dimension, "aggregate": aggregate,
+                           "sort": sort, "direction": direction,
+                           "limit": int(limit), "compare": compare})
+
 
 def validate(panels: list[Panel]) -> None:
     """Refuse a definition the platform cannot honestly render."""
@@ -175,8 +206,10 @@ def validate(panels: list[Panel]) -> None:
     if not panels:
         raise InvalidLens("A lens needs at least one panel.")
 
-    analyses = [p for p in panels if p.kind != KIND_METRIC]
+    analyses = [p for p in panels
+                if p.kind not in (KIND_METRIC, KIND_CHART)]
     tiles = [p for p in panels if p.kind == KIND_METRIC]
+    charts = [p for p in panels if p.kind == KIND_CHART]
     if len(analyses) > MAX_PANELS:
         raise InvalidLens(
             f"A lens may hold at most {MAX_PANELS} analysis panels. "
@@ -186,6 +219,12 @@ def validate(panels: list[Panel]) -> None:
         raise InvalidLens(
             f"A lens may hold at most {MAX_TILES} metric tiles. "
             "Beyond that it stops being a view and becomes a list."
+        )
+    if len(charts) > MAX_CHARTS:
+        raise InvalidLens(
+            f"A lens may hold at most {MAX_CHARTS} charts. Each one is a "
+            "grouped scan of the lake, and past this the page takes longer "
+            "to draw than anybody waits."
         )
 
     registry = get_registry()
@@ -197,6 +236,9 @@ def validate(panels: list[Panel]) -> None:
                 f"Available: {', '.join(KINDS)}.")
         if panel.kind == KIND_METRIC:
             _validate_metric_panel(panel)
+            continue
+        if panel.kind == KIND_CHART:
+            _validate_chart_panel(panel)
             continue
         contract = known.get(panel.analysis_id)
         if contract is None:
@@ -255,6 +297,79 @@ def _validate_metric_panel(panel: Panel) -> None:
         raise InvalidLens(
             f"{metric.name} should not be drawn as a {panel.visual}. It can "
             f"honestly be shown as: {', '.join(metric.visuals)}.")
+
+
+def _validate_chart_panel(panel: Panel) -> None:
+    """Refuse a chart the platform cannot honestly draw.
+
+    Every check here has an equivalent in the builder's own pickers, and it is
+    repeated because a lens can be submitted by anything that can reach the
+    API. The interesting one is the chart type: whether a line is honest
+    depends on whether the dimension has an order, so a chart that was valid
+    over `observation_month` is not automatically valid over `product`.
+    """
+    from backend.metrics import service as metrics
+
+    if not panel.metric_id:
+        raise InvalidLens("A chart has to name a metric.")
+
+    dimension = str(panel.params.get("dimension") or "")
+    if not dimension:
+        raise InvalidLens(
+            f"The chart of {panel.metric_id} does not say which dimension to "
+            "break it out by. A chart without one is a single figure.")
+
+    absent = metrics.unavailable(panel.metric_id)
+    if absent is not None:
+        raise InvalidLens(
+            f"{absent.name} cannot be calculated in this deployment. "
+            f"{absent.because}")
+    try:
+        metric = metrics.resolve(panel.metric_id)
+    except metrics.MetricNotFound as e:
+        raise InvalidLens(
+            f"'{panel.metric_id}' is not a metric in the catalogue. A chart "
+            "can only draw metrics CreditProbe governs or somebody has built."
+        ) from e
+
+    offerable = {d["name"]: d for d in metrics.dimension_fields(metric)}
+    chosen = offerable.get(dimension)
+    if chosen is None:
+        raise InvalidLens(
+            f"'{dimension}' is not a dimension {metric.name} can be broken "
+            f"out by. Available: "
+            f"{', '.join(sorted(offerable)) or 'none on this dataset'}.")
+
+    available, refused = metrics.chart_types_for(metric, chosen)
+    if panel.visual not in available:
+        because = next((r["because"] for r in refused
+                        if r["name"] == panel.visual), "")
+        raise InvalidLens(
+            because or (
+                f"'{panel.visual}' is not a chart type. Available for "
+                f"{metric.name} by {chosen['business_name']}: "
+                f"{', '.join(available) or 'none'}."))
+
+    for name, allowed in (("aggregate", metrics.AGGREGATIONS),
+                          ("sort", metrics.SORTS),
+                          ("direction", metrics.DIRECTIONS),
+                          ("compare", metrics.COMPARISONS)):
+        value = str(panel.params.get(name) or ("" if name == "compare" else ""))
+        if not value and name != "compare":
+            continue
+        if value not in allowed:
+            raise InvalidLens(
+                f"'{value}' is not a {name} a chart may use. "
+                f"Available: {', '.join(k or 'none' for k in allowed)}.")
+
+    if str(panel.params.get("aggregate") or "metric") == "average":
+        # Refused here as well as in the service, so a lens cannot be stored
+        # holding a chart that will only fail when somebody opens it.
+        if not metrics.may_average(metric):
+            raise InvalidLens(
+                f"{metric.name} is not a single total, so an average of it "
+                "per row is not a number that means anything. Use the "
+                "metric's own definition, or count the rows.")
 
 
 # ------------------------------------------------------------------- shape
@@ -627,6 +742,10 @@ def render(lens_id: int, *, period: str | None = None,
             panels.append(_render_metric(panel, period=period,
                                          user_id=user_id, periods=periods))
             continue
+        if panel.kind == KIND_CHART:
+            panels.append(_render_chart(panel, period=period,
+                                        user_id=user_id))
+            continue
         try:
             outcome = run_analysis(
                 panel.analysis_id, params=panel.params, period=period,
@@ -740,6 +859,72 @@ def _render_metric(panel: Panel, *, period: str | None,
     }
 
 
+def _render_chart(panel: Panel, *, period: str | None,
+                  user_id: int | None) -> dict[str, Any]:
+    """One chart tile: the points, and everything needed to challenge them.
+
+    The same three states as a metric tile — succeeded, unavailable, failed —
+    because a reader should not have to learn a second vocabulary for a chart.
+    A period with no rows is `unavailable`; a chart the platform cannot draw
+    is `failed`; and both say which.
+    """
+    from backend.metrics import service as metrics
+
+    params = dict(panel.params or {})
+    try:
+        drawn = metrics.series(
+            panel.metric_id,
+            dimension=str(params.get("dimension") or ""),
+            period=panel.period or (period or ""),
+            filters=dict(panel.filters or {}),
+            aggregate=str(params.get("aggregate") or "metric"),
+            sort=str(params.get("sort") or "value"),
+            direction=str(params.get("direction") or "desc"),
+            limit=int(params.get("limit") or 20),
+            compare=str(params.get("compare") or ""),
+            user_id=user_id)
+    except (metrics.MetricNotFound, metrics.MetricRefused) as e:
+        return {**panel.to_dict(), "status": "failed", "error": str(e),
+                "result": None, "metric": None, "points": []}
+    except Exception as e:  # pragma: no cover - a genuinely broken chart
+        logger.warning("chart panel %s could not be produced",
+                       panel.metric_id, exc_info=True)
+        return {**panel.to_dict(), "status": "failed", "error": str(e),
+                "result": None, "metric": None, "points": []}
+
+    has_points = any(p["value"] is not None for p in drawn["points"])
+    return {
+        **panel.to_dict(),
+        "title": panel.title or f"{drawn['series_label']} by "
+                                f"{drawn['dimension_label']}",
+        "status": "succeeded" if has_points else "unavailable",
+        "error": "",
+        "unavailable": drawn["unavailable"] or (
+            "" if has_points else
+            "No group in this period has a value for this metric."),
+        "period_used": drawn["period"],
+        "points": drawn["points"],
+        "comparison": drawn["comparison"],
+        "series_label": drawn["series_label"],
+        "dimension": drawn["dimension"],
+        "dimension_label": drawn["dimension_label"],
+        "unit": drawn["unit"],
+        "decimals": drawn["decimals"],
+        "higher_is_better": drawn["higher_is_better"],
+        "groups_found": drawn.get("groups_found", 0),
+        "truncated": drawn.get("truncated", False),
+        "chart_notes": drawn["notes"],
+        # The info control, travelling with the tile as §6 asks: what the
+        # metric means, and the exact query that produced these bars.
+        "metric": drawn["metric"],
+        "lineage": {"dataset": drawn.get("dataset", ""),
+                    "sql": drawn.get("sql", ""),
+                    "run_id": drawn.get("run_id", ""),
+                    "filters": drawn.get("filters", {})},
+        "result": None,
+    }
+
+
 # ------------------------------------------------------ building by asking
 
 
@@ -844,7 +1029,8 @@ def propose(request: str, *, existing: list[Panel] | None = None,
               note=getattr(c, "when_to_use", "") or c.description)
         for c in added
     ]
-    if len([p for p in panels if p.kind != KIND_METRIC]) > MAX_PANELS:
+    if len([p for p in panels
+            if p.kind not in (KIND_METRIC, KIND_CHART)]) > MAX_PANELS:
         raise InvalidLens(
             f"That would take the lens to {len(panels)} panels, and the limit "
             f"is {MAX_PANELS}. Remove something first."
@@ -914,8 +1100,11 @@ def _propose_metrics(request: str, text: str, current: list[Panel],
 
     if removing:
         wanted = {hit.metric.metric_id for hit in hits}
+        # Charts as well as tiles: "take default rate off this lens" means
+        # the chart of it too, and leaving one behind is not what was asked.
         remaining = [p for p in current
-                     if p.kind != KIND_METRIC or p.metric_id not in wanted]
+                     if p.kind not in (KIND_METRIC, KIND_CHART)
+                     or p.metric_id not in wanted]
         removed = len(current) - len(remaining)
         if removed == 0:
             return Proposal(

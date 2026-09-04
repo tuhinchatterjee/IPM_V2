@@ -628,3 +628,170 @@ def _run_function(formula: Formula, *, period: str,
     if row.get("evidence"):
         calculation.warnings.append(f"Evidence: {row['evidence']}.")
     return calculation
+
+
+# ---------------------------------------------------------------------------
+# Breaking one metric out across a dimension
+# ---------------------------------------------------------------------------
+
+#: How many groups a chart may draw. Past this a bar chart is a smear and a
+#: line chart is noise, and the reader is worse off than with the table.
+MAX_GROUPS = 60
+
+#: How many groups may be READ before the chart decides which to draw. The
+#: metric's value is arithmetic over the aggregates (a ratio is not the sum of
+#: ratios), so "the ten largest by value" cannot be a SQL LIMIT — the values do
+#: not exist until every group has been evaluated. This is the ceiling on that
+#: read, and hitting it is reported rather than silently truncating the answer.
+GROUP_CEILING = 500
+
+
+def compile_breakdown(formula: Formula, *, dimension: str, period: str = "",
+                      scope: tuple[Any, ...] = (),
+                      where: tuple[Any, ...] = (),
+                      ceiling: int = GROUP_CEILING) -> ir.AnalyticalPlan:
+    """The same plan as `compile_metric`, grouped.
+
+    Deliberately the same measures: a chart that computed its bars a different
+    way from the tile above it would eventually disagree with it, and the
+    reader would have no way to tell which was right.
+    """
+    datasets = formula.datasets
+    if not datasets:
+        raise FormulaError("This metric names no dataset to read.")
+    if not dimension:
+        raise FormulaError("A chart has to say which dimension to group by.")
+    dataset = datasets[0]
+
+    steps: list[ir.Operation] = []
+    scan_params: dict[str, Any] = {"dataset": dataset}
+    if period:
+        scan_params["period"] = period
+    steps.append(ir.Operation(id="scan", op=ir.OpType.SCAN, params=scan_params,
+                              label=f"Read {dataset}"))
+    source = "scan"
+
+    if scope:
+        steps.append(ir.Operation(
+            id="scope", op=ir.OpType.FILTER, inputs=(source,),
+            params={"where": [{"column": c.field, "op": c.op, "value": c.value}
+                              for c in scope]},
+            label="Apply the metric's scope"))
+        source = "scope"
+
+    if where:
+        # The chart's own filters, kept as a separate step from the metric's
+        # scope so the Trace shows which rows the METRIC excludes and which
+        # rows this particular chart excludes. Collapsing them into one filter
+        # would make a chart look like a different metric.
+        steps.append(ir.Operation(
+            id="chart", op=ir.OpType.FILTER, inputs=(source,),
+            params={"where": [{"column": c.field, "op": c.op, "value": c.value}
+                              for c in where]},
+            label="Apply the chart's own filters"))
+        source = "chart"
+
+    measures = [_measure(t) for t in formula.terms]
+    measures.append({"function": "count", "as": "_rows"})
+    steps.append(ir.Operation(
+        id="grouped", op=ir.OpType.GROUP, inputs=(source,),
+        params={"by": [dimension], "measures": measures},
+        label=f"Measure every term within each {dimension}"))
+    steps.append(ir.Operation(
+        id="capped", op=ir.OpType.LIMIT, inputs=("grouped",),
+        params={"limit": int(ceiling)},
+        label="Cap how many groups are read"))
+
+    return ir.AnalyticalPlan(
+        objective=f"{formula.describe()}, by {dimension}",
+        operations=steps, output="capped",
+        meta={"metric_formula": formula.to_dict(), "period": period,
+              "dimension": dimension})
+
+
+@dataclass
+class Point:
+    """One group on a chart, and whether it has a value at all."""
+
+    label: str
+    value: float | None
+    rows: int = 0
+    unavailable: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"label": self.label, "value": self.value, "rows": self.rows,
+                "unavailable": self.unavailable}
+
+
+def breakdown(formula: Formula, *, dimension: str, period: str = "",
+              scope: tuple[Any, ...] = (), where: tuple[Any, ...] = (),
+              sort: str = "value", direction: str = "desc",
+              limit: int = MAX_GROUPS, question: str = "") -> dict[str, Any]:
+    """One metric across one dimension, computed group by group.
+
+    Every point comes out of `evaluate` — the same arithmetic the single
+    figure uses, over that group's aggregates. That is what makes a bar
+    comparable to the KPI beside it: not a similar calculation, the same one.
+
+    A function metric has no breakdown. Gini over a segment is not Gini over
+    the book restricted to a segment's summary row, and there is no honest way
+    to fake one from aggregates, so it is refused with the reason.
+    """
+    from backend.runtime.executor import execute
+
+    if formula.kind == "function":
+        return {
+            "dimension": dimension, "points": [], "period": period,
+            "dataset": formula.datasets[0] if formula.datasets else "",
+            "sql": "", "run_id": "", "groups_found": 0, "truncated": False,
+            "unavailable": (
+                f"{formula.function or 'This metric'} is computed by a "
+                "governed function over the underlying rows. It cannot be "
+                "broken out across a dimension from summary rows, so no "
+                "chart is drawn rather than a misleading one."),
+        }
+
+    plan = compile_breakdown(formula, dimension=dimension, period=period,
+                             scope=scope, where=where)
+    result = execute(plan, question=question or plan.objective,
+                     intent="metric_breakdown")
+
+    points: list[Point] = []
+    for raw in result.rows:
+        row = dict(raw)
+        calculation = evaluate(formula, row,
+                               rows_considered=int(row.get("_rows") or 0))
+        label = row.get(dimension)
+        points.append(Point(
+            label="(not set)" if label is None or label == "" else str(label),
+            value=calculation.value,
+            rows=int(row.get("_rows") or 0),
+            unavailable=calculation.unavailable))
+
+    found = len(points)
+    if sort == "label":
+        points.sort(key=lambda p: p.label, reverse=(direction == "desc"))
+    else:
+        # Points with no value have no place in an ordering by value. They are
+        # kept, at the end, with their reason — dropping them would quietly
+        # shrink the population the chart claims to cover.
+        with_value = [p for p in points if p.value is not None]
+        without = [p for p in points if p.value is None]
+        with_value.sort(key=lambda p: p.value, reverse=(direction == "desc"))
+        points = [*with_value, *without]
+
+    shown = points[:max(1, min(int(limit), MAX_GROUPS))]
+    return {
+        "dimension": dimension,
+        "points": [p.to_dict() for p in shown],
+        "period": period,
+        "dataset": formula.datasets[0] if formula.datasets else "",
+        "sql": result.query.sql if result.query else "",
+        "run_id": result.run_id,
+        "groups_found": found,
+        "truncated": found > len(shown),
+        "scan_capped": found >= GROUP_CEILING,
+        "warnings": list(result.warnings),
+        "unavailable": "" if points else (
+            "No rows for this period, so there is nothing to group."),
+    }
