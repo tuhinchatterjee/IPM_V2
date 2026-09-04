@@ -130,8 +130,14 @@ class ValidationReport:
 
 def validate(plan: AnalyticalPlan, *, catalog: Any = None,
              limits: Limits = DEFAULT_LIMITS,
-             archived_domains: frozenset[str] | None = None) -> ValidationReport:
-    """Check a plan against the governed catalogue and the cost limits."""
+             archived_domains: frozenset[str] | None = None,
+             scope: str = "GENERAL") -> ValidationReport:
+    """Check a plan against the governed catalogue and the cost limits.
+
+    `scope` decides whether the scorecard validation domains may be read. It
+    defaults to GENERAL — the restrictive value — so a caller that has not
+    thought about it gets the safe answer rather than the convenient one.
+    """
     from backend.data_access.catalog import get_catalog
 
     catalog = catalog or get_catalog()
@@ -156,6 +162,27 @@ def validate(plan: AnalyticalPlan, *, catalog: Any = None,
 
     scans = [o for o in plan.operations if o.op is OpType.SCAN]
     joins = [o for o in plan.operations if o.op is OpType.JOIN]
+
+    # §4. The scorecard validation domains, refused whatever produced the
+    # plan. Checked here rather than inside `_scan` for two reasons: every
+    # SCAN is visible at this point without threading a permissions argument
+    # through sixteen operation handlers that have no use for it, and a
+    # refusal that happens before any catalogue lookup cannot be turned into
+    # an oracle — the answer is the same whether the dataset exists or not.
+    #
+    # The general Cockpit never sees these datasets in discovery, but a name
+    # can still arrive by being typed, replayed from a saved query, guessed by
+    # a model that has read it in a document, or written into a plan by an
+    # injected instruction. All four arrive as a SCAN, and all four stop here.
+    from backend.scorecard import domains as scorecard_domains
+
+    for scan in scans:
+        wanted = str(scan.params.get("dataset") or "")
+        if not scorecard_domains.permitted(wanted, scope=scope):
+            reasons.append(
+                f"{scan.id}: {scorecard_domains.refusal(wanted, scope)}")
+    if reasons:
+        return ValidationReport(False, reasons)
     if len(scans) > limits.max_scans:
         reasons.append(
             f"The plan reads {len(scans)} datasets; the runtime allows "

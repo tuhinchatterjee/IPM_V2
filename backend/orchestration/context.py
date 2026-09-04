@@ -264,9 +264,20 @@ def _all_datasets() -> list[DatasetSummary]:
     except Exception:
         archived = frozenset()
 
+    # §4. The scorecard validation domains are not part of the general
+    # Cockpit's universe. Dropped here rather than filtered at the point of
+    # use, because "the universe" is what search, autocomplete, subject
+    # matching and every planner scanning for a plausible table all read: one
+    # omission at the source is worth five checks downstream. This is the
+    # courtesy gate — `runtime/validation.py::_scan` is the one that holds if
+    # a dataset ID arrives by any other route.
+    from backend.scorecard.domains import restricted_datasets
+
+    restricted = restricted_datasets()
+
     out: list[DatasetSummary] = []
     for name in sorted(catalog.names()):
-        if name in archived:
+        if name in archived or name in restricted:
             continue
         try:
             spec = catalog.dataset(name)

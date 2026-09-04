@@ -274,6 +274,7 @@ def periods_with_rows(datasets: Iterable[str],
     """
     from backend.runtime import ir
     from backend.runtime.executor import execute
+    from backend.scorecard.domains import GOVERNED_METRIC
 
     names = [d for d in datasets if d]
     if not names:
@@ -305,7 +306,7 @@ def periods_with_rows(datasets: Iterable[str],
         operations=steps, output="periods")
     try:
         result = execute(plan, question="which periods carry rows",
-                         intent="metric_period")
+                         intent="metric_period", scope=GOVERNED_METRIC)
     except Exception as e:  # noqa: BLE001 - re-raised as a data problem below
         # Not swallowed. An empty list here means "this source has no period
         # concept", and returning it for a query that merely failed would put

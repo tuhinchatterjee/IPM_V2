@@ -345,12 +345,14 @@ def run(formula: Formula, *, period: str = "",
     would be a second path with its own bugs and its own permissions.
     """
     from backend.runtime.executor import execute
+    from backend.scorecard.domains import GOVERNED_METRIC
 
     if formula.kind == "function":
         return _run_function(formula, period=period, scope=scope)
 
     plan = compile_metric(formula, period=period, scope=scope)
-    result = execute(plan, question=question or formula.describe(),
+    result = execute(plan, scope=GOVERNED_METRIC,
+                     question=question or formula.describe(),
                      intent="metric")
     if not result.rows:
         calculation = Calculation(
@@ -381,6 +383,7 @@ def sample(formula: Formula, *, period: str = "",
     counted. That is how somebody checks the filter means what they meant.
     """
     from backend.runtime.executor import execute
+    from backend.scorecard.domains import GOVERNED_METRIC
 
     datasets = formula.datasets
     if not datasets:
@@ -418,7 +421,8 @@ def sample(formula: Formula, *, period: str = "",
 
     plan = ir.AnalyticalPlan(objective="A sample of the rows behind the metric",
                              operations=steps, output="few")
-    result = execute(plan, question="metric sample", intent="metric_sample")
+    result = execute(plan, question="metric sample", intent="metric_sample",
+                     scope=GOVERNED_METRIC)
 
     rows: list[dict[str, Any]] = []
     for raw in result.rows:
@@ -549,6 +553,7 @@ def _run_function(formula: Formula, *, period: str,
     will put it in a validation report.
     """
     from backend.runtime.executor import execute
+    from backend.scorecard.domains import GOVERNED_METRIC
 
     args = dict(formula.function_args or {})
     calculation = Calculation(
@@ -614,7 +619,8 @@ def _run_function(formula: Formula, *, period: str,
     plan = _function_plan(formula, period=period, scope=scope,
                           columns=columns, params=params)
     try:
-        result = execute(plan, question=f"{statistic} for {period or 'latest'}",
+        result = execute(plan, scope=GOVERNED_METRIC,
+                         question=f"{statistic} for {period or 'latest'}",
                          intent="metric_function")
     except (PlanError, DataAccessError) as e:
         # An immature cohort, a sample with no defaults, or a period the data
@@ -748,6 +754,7 @@ def breakdown(formula: Formula, *, dimension: str, period: str = "",
     to fake one from aggregates, so it is refused with the reason.
     """
     from backend.runtime.executor import execute
+    from backend.scorecard.domains import GOVERNED_METRIC
 
     if formula.kind == "function":
         return {
@@ -763,7 +770,8 @@ def breakdown(formula: Formula, *, dimension: str, period: str = "",
 
     plan = compile_breakdown(formula, dimension=dimension, period=period,
                              scope=scope, where=where)
-    result = execute(plan, question=question or plan.objective,
+    result = execute(plan, scope=GOVERNED_METRIC,
+                     question=question or plan.objective,
                      intent="metric_breakdown")
 
     points: list[Point] = []

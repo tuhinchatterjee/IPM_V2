@@ -155,12 +155,18 @@ def execute(plan: AnalyticalPlan | dict[str, Any], *,
             question: str = "",
             intent: str = "",
             source: Any = None,
-            population_steps: list[str] | None = None) -> RuntimeResult:
+            population_steps: list[str] | None = None,
+            scope: str = "GENERAL") -> RuntimeResult:
     """Validate, compile and run one plan.
 
     The single entry point. Every caller — Ask CreditProbe, a saved method, a
     Trace modification, a test — comes through here, so the checks cannot be
     bypassed by adding a caller.
+
+    `scope` says which governed boundary the caller is inside, and reaches
+    `validate` unchanged. It defaults to GENERAL, so the scorecard validation
+    domains are refused unless a caller has said, in its own code, that it is
+    one of the two things allowed to read them.
     """
     started = time.perf_counter()
     run_id = uuid.uuid4().hex[:16]
@@ -168,7 +174,7 @@ def execute(plan: AnalyticalPlan | dict[str, Any], *,
     if isinstance(plan, dict):
         plan = AnalyticalPlan.from_dict(plan)
 
-    report = validate(plan, limits=limits).raise_if_bad()
+    report = validate(plan, limits=limits, scope=scope).raise_if_bad()
     query = compile_plan(plan, report, limits=limits, source=source)
 
     graph = TraceGraph()
