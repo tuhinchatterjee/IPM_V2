@@ -303,12 +303,21 @@ def insufficient(test_id: str, *, observations: int, events: int,
         observations=observations, events=events, **kw)
 
 
-def unavailable(test_id: str, *, what: str, **kw: Any) -> Result:
+def unavailable(test_id: str, *, what: str, remedy: str = "",
+                **kw: Any) -> Result:
+    """The input is not there. A finding about the deployment, not the model.
+
+    `remedy` is overridable because some absences have a specific answer —
+    "stamp the version on every scored row" is more use than the general
+    one — and a caller that has that answer should not have to restate the
+    default alongside it.
+    """
     return Result(
         test_id=test_id, state=UNAVAILABLE,
         detail=f"{what} is not populated in this deployment.",
-        remedy="A data finding rather than a model finding: the field exists "
-               "in the design and is not being supplied.",
+        remedy=remedy or (
+            "A data finding rather than a model finding: the field exists "
+            "in the design and is not being supplied."),
         **kw)
 
 

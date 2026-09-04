@@ -1189,10 +1189,10 @@ def _version(test: test_registry.Test, model: model_registry.Model,
                if "model_version" in c or c == "scorecard_version"]
     if not columns:
         return states.unavailable(
-            test.test_id,
-            what=("a model version stamped on the scored rows. Without one, "
-                  "there is no evidence about which version produced these "
-                  "scores — which is itself the finding"),
+            test.test_id, what="a model version stamped on the scored rows",
+            remedy=("Stamp the approved version on every scored row. Until "
+                    "then there is no evidence about which version produced "
+                    "these scores, which is itself the finding."),
             **_common(test, model, pool, **kw))
 
     column = columns[0]

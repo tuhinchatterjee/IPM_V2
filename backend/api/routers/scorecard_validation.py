@@ -38,6 +38,9 @@ from backend.api.permissions import (
 )
 from backend.scorecard import domains
 from backend.scorecard.validation import (
+    findings as finding_engine,
+)
+from backend.scorecard.validation import (
     models as model_registry,
 )
 from backend.scorecard.validation import (
@@ -268,15 +271,24 @@ def run_all(model_id: str,
 
 def _package(made: model_registry.Model, category: str,
              results: list[states.Result]) -> dict[str, Any]:
-    """Results, ranked, tallied, and honest about its own coverage.
+    """Results, ranked, tallied, assessed, and honest about its own coverage.
 
     The coverage block is not decoration. A reader looking at eleven passes
     needs to know whether that is eleven of eleven or eleven of forty-eight,
     and a summary that reports only what ran reads as the former.
+
+    The findings are computed here rather than on a separate route, because
+    a finding is a statement about a set of results and returning the two
+    separately invites a client to pair a fresh set with a stale set.
     """
     ranked = states.rank(results)
     ran = {r.test_id for r in results if r.measured}
+    assessed = finding_engine.assess(results, made)
     return {
+        "findings": [f.to_dict() for f in assessed],
+        "burning_weaknesses": [
+            f.to_dict() for f in finding_engine.burning(assessed)],
+        "findings_summary": finding_engine.summary(assessed),
         "model": {"model_id": made.model_id, "name": made.name,
                   "version": made.version, "domain": made.domain,
                   "scorecard_type": made.scorecard_type},
@@ -327,6 +339,35 @@ def periods(model_id: str,
             "The performance window for these cohorts has not closed. They "
             "carry no realised outcome — which is not the same as carrying "
             "no defaults, and every outcome test refuses them by name."),
+    }
+
+
+@router.get("/patterns")
+def patterns(principal: Principal = RequireScorecardView) -> dict[str, Any]:
+    """The cross-test rules, and which results each one reads.
+
+    Published because a finding a reader cannot trace back to a rule is a
+    finding they have to take on trust. Each entry names the tests its rule
+    inspects, so the whole input to a pattern is visible without reading the
+    code.
+    """
+    return {
+        "findings_version": finding_engine.FINDINGS_VERSION,
+        "patterns": [
+            {"key": p.key, "title": p.title, "reads": list(p.reads),
+             "what_it_adds": (p.build.__doc__ or "").strip().split("\n")[0]}
+            for p in finding_engine.PATTERNS
+        ],
+        "severities": [
+            {"severity": s, "meaning": finding_engine.SEVERITY_MEANING[s]}
+            for s in finding_engine.SEVERITIES
+        ],
+        "how_severity_is_decided": (
+            "Arithmetic, from four inputs in order: the result's state, how "
+            "far outside its limit it fell as a share of the limit, how much "
+            "evidence stood behind it, and the model's recorded materiality. "
+            "A thin sample cannot produce a CRITICAL, and materiality raises "
+            "a breach by at most one step and never raises a non-breach."),
     }
 
 
