@@ -58,6 +58,19 @@ def people(session):
         session.flush()
         made[key] = user
     yield made
+
+    # The Planner writes a collaboration_audit row when a project is created,
+    # and that table references `users` without a cascade. Cleared by id here
+    # rather than by truncating the table, which is shared with a
+    # demonstration somebody may be about to present.
+    from sqlalchemy import delete
+
+    from backend.models.collaboration import CollaborationAudit
+
+    ids = [int(u.id) for u in made.values()]
+    session.execute(delete(CollaborationAudit).where(
+        CollaborationAudit.actor_id.in_(ids)))
+    session.flush()
     for user in made.values():
         session.delete(user)
     session.flush()

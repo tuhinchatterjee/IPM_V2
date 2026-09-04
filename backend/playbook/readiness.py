@@ -151,6 +151,18 @@ class Readiness:
     def blocking(self) -> list[Reason]:
         return [r for r in self.reasons if r.blocking]
 
+    def checks_named(self, key: str) -> list[Reason]:
+        """The reasons from one check, for a caller that chases one thing.
+
+        The sweep chases inputs at ten days and reviews at three, so it needs
+        the content reasons without the review ones. Filtering `reasons` at
+        every call site would put the check keys in six places.
+        """
+        return [r for r in self.reasons if r.check == key]
+
+    def check(self, key: str) -> Check | None:
+        return next((c for c in self.checks if c.key == key), None)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "percent": self.percent,

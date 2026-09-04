@@ -135,6 +135,18 @@ def _install_defaults() -> None:
     except Exception:  # noqa: BLE001 - reported per job, not at boot
         logger.exception("the project planner sweep could not be loaded")
 
+    try:
+        # The Playbook committee sweep, for the same reason: it chases people
+        # about packs on their committee's own timing, and it needs exactly
+        # the idempotency and retry behaviour this queue already has.
+        from backend.playbook import monitor as playbook_monitor
+
+        register(playbook_monitor.PLAYBOOK_SWEEP,
+                 playbook_monitor.run_sweep_job)
+        _check_handler_shape(playbook_monitor.run_sweep_job)
+    except Exception:  # noqa: BLE001 - reported per job, not at boot
+        logger.exception("the playbook committee sweep could not be loaded")
+
 
 # ---------------------------------------------------------------------------
 # The worker
