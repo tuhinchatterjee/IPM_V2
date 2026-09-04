@@ -447,12 +447,17 @@ the rules. These prove the product runs.
 A–J the pack lifecycle over HTTP · K–O decisions, planner follow-up, hostile
 uploads and formula injection · P–T the product in Chromium.
 
-All twenty pass on this commit.
+All twenty pass on this commit, and they pass twice: once against the stack
+run as separate processes, and once against the four containers `docker
+compose up` produces. The second run is not ceremony — see section U — and
+the harnesses take an environment variable for each address so the same code
+does both.
 
-They found three of the five defects fixed this phase, which is the argument
-for having them: a test that calls a service function proves the function
-works, and a journey that opens the file the committee reads proves the
-product does.
+They found three of the seven defects fixed this phase, and the container
+found two more, which together are the argument for having them: a test that
+calls a service function proves the function works; a journey that opens the
+file the committee reads proves the product does; and running that journey
+inside the image proves the product a client installs does.
 
 ## U. What the browser actually shows
 
@@ -468,17 +473,25 @@ figure's working opens to the metric, the period and the formula hash. There
 is no page error, no console error, and nothing on the screen that is
 unfinished scaffolding.
 
+The same five journeys were then run again against the containerised stack,
+where the browser talks to the frontend container and Next.js proxies the API
+server-side. Identical result: all five pass.
+
 One environment note, because it cost time and would cost a reviewer the same:
-the backend's CORS list names `localhost:3000` and `127.0.0.1:3000`. On any
-other port the browser cannot reach the API at all, and the application
-renders its shell with no data and no sign-in screen — because the auth gate
-reads `login_required` from the backend, and a backend it cannot reach cannot
-tell it. That is the gate being careful rather than a defect, but it means the
-frontend must run on 3000.
+run as separate processes, the backend's CORS list names `localhost:3000` and
+`127.0.0.1:3000`. On any other port the browser cannot reach the API at all,
+and the application renders its shell with no data and no sign-in screen —
+because the auth gate reads `login_required` from the backend, and a backend
+it cannot reach cannot tell it. That is the gate being careful rather than a
+defect, but it means the frontend must run on 3000. The container path does
+not have this problem at all, because the browser only ever talks to one
+origin.
 
 ## V. What was fixed this phase
 
-Five things, all found by looking at the product rather than at the code.
+Seven things, all found by looking at the product rather than at the code.
+
+Five by driving the running stack:
 
 1. An imported table was silently dropped from every export.
 2. A blank cell in a table took the PowerPoint export down with a 500 —
@@ -489,6 +502,43 @@ Five things, all found by looking at the product rather than at the code.
    arrow between two identical numbers.
 5. An uploaded table blocked the readiness gate permanently, on a reason that
    was not true.
+
+And two that only the container could show, because both were differences
+between the developer's machine and the image the product ships as:
+
+6. **The slides export answered 500 in the container.** `python-pptx` is
+   imported by `backend/playbook/export.py` and `backend/playbook/import_.py`
+   and was declared in no requirements file. The developer machine had it
+   installed as somebody else's transitive dependency, so every test passed;
+   the image did not, so the deck a chair presents from could not be produced
+   in the only place the product actually ships. Declared — and the class
+   pinned rather than the instance: a test now walks the Playbook's own
+   imports with `ast`, maps the few distributions whose import name differs
+   from their PyPI name, and fails on anything not in `requirements.txt`. The
+   next library added to the Playbook has to be declared before the suite goes
+   green, rather than after a container build finds it.
+
+7. **`docker compose up` produced a stack with no user interface at all.**
+   This one is worth reading in full, because the visible symptom is three
+   removes from the cause. The demo bootstrap seeds an example internal
+   message with a saved analysis attached. It chose that analysis by title,
+   falling back to the newest one in the deployment, and never asked whether
+   the sender could read it. On a fresh database every saved analysis belongs
+   to the account that generated the portfolio, so the answer was always no,
+   and `send_message` refused it through exactly the rule it should: you
+   cannot share what you were never shown. That step is `required`, so the
+   bootstrap stopped there — and the Q2 2026 portfolio review, which runs
+   after it, never ran either. The readiness marker recorded `ok: false` with
+   two failures. The container health check reads that marker, deliberately,
+   so that a product which answers 200 on every route while being empty
+   cannot pass for a working one. It never went healthy. The web container
+   waits on that health. So a clean `docker compose up` came up with no user
+   interface, on a root cause in the messaging seed.
+
+   The sibling function that picks an *investigation* to attach has carried
+   this access check, and a docstring explaining why, since it was written.
+   The analysis one never got it. The fix gives it the same check and the
+   same fallback: an unattached note rather than a failed bootstrap.
 
 Each carries a regression test that fails without its fix. No test was
 weakened, no tolerance enlarged, and no failing test skipped to get here.
@@ -523,8 +573,9 @@ metric layer.
 | `npm test` | 520 passed, 46 suites |
 | `pytest tests/playbook` | 253 passed |
 | `pytest tests/docs/test_feature_matrix.py` | 8 passed |
-| Journeys A–T | 20 passed |
-| Alembic | Head `0039`, single linear head |
+| Journeys A–T | 20 passed, on the host and again in the containers |
+| `docker compose up` | postgres, backend, agent-worker, frontend all healthy |
+| Alembic | Head `0039`, single linear head; applies from an empty volume |
 
 ## Z. The full regression
 
@@ -583,11 +634,17 @@ quietly does not.
 
 The live AI drafting path is unverified in this environment (section J).
 
-The Docker path was not run this phase — the stack was verified as separate
-processes. The compose file is unchanged by this work.
+The Docker images were built in this sandbox with the proxy's CA certificate
+injected, because the environment terminates TLS and `pip` and `npm` cannot
+otherwise verify the chain their base images ship. No application code,
+dependency version or entrypoint was changed to achieve it, and neither
+change is committed — but the specific claim "the committed Dockerfiles build
+unmodified on a normal network" was not executed here, because this
+environment cannot present a normal network.
 
-The frontend must run on port 3000 for the browser to reach the API
-(section U).
+Run as separate processes, the frontend must be on port 3000 for the browser
+to reach the API (section U). The container path does not have this
+constraint.
 
 The test suite removes the seeded demonstration committees (section S).
 
@@ -609,15 +666,24 @@ than asserted about a function.
 
 The full platform regression on this commit is recorded in section Z.
 
-Two items are NOT VERIFIED and neither is material to acceptance testing of
-this system: the live AI drafting call needs a provider key, and the Docker
-path needs a compose run. Both are stated as NOT VERIFIED rather than assumed,
-and both should be executed in the environment that has what they need before
-this reaches production. Neither blocks a committee from using the Playbook,
-because the Playbook does not depend on either: commentary can be written by
-the people who own the sections, which is what a governed pack wants anyway.
+The Docker path is no longer among the unverified: `docker compose up` brings
+all four containers to healthy from an empty volume, migration `0039` applies
+from scratch, and all twenty journeys pass inside the containers. That run
+paid for itself twice over — two of the seven defects fixed this phase exist
+only as differences between a developer's machine and the image, and one of
+them meant the stack came up with no user interface at all.
 
-The five defects found this phase were all found by driving the product rather
-than the code, which is a reason to keep the journeys and run them on every
-change — and a reason to read the two NOT VERIFIED rows as work still to do
-rather than as boxes to tick.
+One item remains NOT VERIFIED, and it is not material to acceptance testing of
+this system: the live AI drafting call needs a provider key. It is stated as
+NOT VERIFIED rather than assumed, and it should be executed in an environment
+that has one before this reaches production. It does not block a committee
+from using the Playbook, because the Playbook does not depend on it:
+commentary can be written by the people who own the sections, which is what a
+governed pack wants anyway.
+
+Every defect found this phase was found by driving the product rather than
+reading the code, and the last two by driving it in the container rather than
+on the machine that built it. That is the argument for keeping the journeys,
+running them on every change, and running them where the product actually
+ships — and for reading the one NOT VERIFIED row as work still to do rather
+than as a box to tick.

@@ -82,9 +82,47 @@ class TestTheExampleConversations:
             assert session.get(Investigation, int(investigation)) is not None
             assert collab.can_read_object(session, "investigation",
                                           investigation, sarah.id)
-        analysis = demo_workflow._an_analysis(session)
+        analysis = demo_workflow._an_analysis(session, sarah.id)
         if analysis:
             assert session.get(SavedAnalysis, int(analysis)) is not None
+            assert collab.can_read_object(session, "analysis", analysis,
+                                          sarah.id)
+
+    def test_the_seed_does_not_fail_when_nothing_is_readable(
+            self, session, monkeypatch):
+        """The bug this replaces took `docker compose up` down.
+
+        `_an_analysis` used to pick the newest analysis whose title matched,
+        and failing that the newest analysis anywhere, without asking whether
+        the sender could read it. On a fresh database every saved analysis
+        belongs to the account that generated the portfolio, so the answer was
+        always no: `send_message` refused with "You cannot share an analysis
+        you do not have access to", the bootstrap step recorded FAILED, the
+        readiness marker recorded `ok: false`, and the container never went
+        healthy. The web container waits on that health, so the stack came up
+        with no user interface.
+
+        Pinned by making every analysis unreadable to the sender and asserting
+        the seed still produces its conversations — with no attachment rather
+        than with no thread.
+        """
+        from backend.services import collaboration as collab
+        from backend.services import demo_workflow
+
+        sarah = demo_workflow._user(session, "sarah.khan")
+        if sarah is None:
+            pytest.skip("The demonstration accounts are not seeded here.")
+
+        monkeypatch.setattr(collab, "can_read_object",
+                            lambda *a, **k: False)
+
+        assert demo_workflow._an_analysis(session, sarah.id) == ""
+        made = demo_workflow.seed(session)
+        session.flush()
+
+        assert made.skipped == [], (
+            "the seed refused to run rather than sending an unattached note")
+        assert made.created or made.kept, "no conversation was produced"
 
 
 class TestTheDataReleaseNotification:

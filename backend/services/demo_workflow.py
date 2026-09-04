@@ -118,19 +118,46 @@ def _an_investigation(session: Any, sender_id: int) -> str:
     return ""
 
 
-def _an_analysis(session: Any, like: str = "") -> str:
-    """A real saved analysis to attach, or ""."""
-    from backend.models.platform import SavedAnalysis
+def _an_analysis(session: Any, sender_id: int, like: str = "") -> str:
+    """A real saved analysis THIS SENDER may share, or "".
 
-    stmt = select(SavedAnalysis)
+    The same two conditions as `_an_investigation` above, and for the same
+    reason. This function used to check only the first one: it took the newest
+    analysis whose title matched, and if none matched, the newest analysis in
+    the deployment. Nothing asked whether the sender could read it.
+
+    On a fresh database every saved analysis belongs to the account that
+    generated the portfolio, so the answer was always no, and `send_message`
+    refused the seed with "You cannot share an analysis you do not have access
+    to." The bootstrap step recorded FAILED, the readiness marker recorded
+    `ok: false`, and the container health check — which reads that marker
+    precisely so an empty product cannot pass for a working one — never went
+    healthy. The web container waits on that health, so `docker compose up`
+    came up with no user interface at all, on a failure two removes from
+    anything a reader would connect to messaging.
+
+    Preferring a title that matches `like` keeps the covering note and the
+    attached card talking about the same thing, but a readable analysis on a
+    different subject beats an unreadable one on the right subject: the note
+    reads a little loose, rather than the seed not existing.
+    """
+    from backend.models.platform import SavedAnalysis
+    from backend.services import collaboration as collab
+
+    statements = []
     if like:
-        stmt = stmt.where(SavedAnalysis.title.ilike(f"%{like}%"))
-    row = session.execute(
-        stmt.order_by(SavedAnalysis.id.desc()).limit(1)
-    ).scalars().first()
-    if row is None and like:
-        return _an_analysis(session)
-    return str(row.id) if row is not None else ""
+        statements.append(
+            select(SavedAnalysis).where(SavedAnalysis.title.ilike(f"%{like}%"))
+            .order_by(SavedAnalysis.id.desc()).limit(20))
+    statements.append(
+        select(SavedAnalysis).order_by(SavedAnalysis.id.desc()).limit(20))
+
+    for stmt in statements:
+        for row in session.execute(stmt).scalars().all():
+            if collab.can_read_object(session, "analysis", str(row.id),
+                                      sender_id):
+                return str(row.id)
+    return ""
 
 
 def seed(session: Any) -> SeededWorkflow:
@@ -164,7 +191,7 @@ def seed(session: Any) -> SeededWorkflow:
         if investigation:
             attachments.append({"type": "investigation",
                                 "object_id": investigation})
-        analysis = _an_analysis(session, like="deteriorat")
+        analysis = _an_analysis(session, sarah.id, like="deteriorat")
         if analysis:
             attachments.append({"type": "analysis", "object_id": analysis})
         collab.send_message(
@@ -184,7 +211,7 @@ def seed(session: Any) -> SeededWorkflow:
         result.kept.append(subject)
     else:
         attachments = []
-        analysis = _an_analysis(session, like="ecl")
+        analysis = _an_analysis(session, ahmed.id, like="ecl")
         if analysis:
             attachments.append({"type": "analysis", "object_id": analysis})
         collab.send_message(

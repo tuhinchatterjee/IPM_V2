@@ -229,9 +229,9 @@ of the final report carries the full dependency inventory and the reasoning.
 | PB-QUALITY-04 | `npm test` — the frontend suite | PASS | 520 tests, 46 suites, 0 failures |
 | PB-QUALITY-05 | `pytest tests/playbook` | PASS | 253 passed |
 | PB-QUALITY-06 | The full platform regression against the recorded baseline | PASS | 12,319 passed, 35 skipped, 0 failed, exit 0, in 21m 25s. Baseline: 12,075 passed, 35 skipped, 0 failed |
-| PB-QUALITY-07 | Twenty journeys against the running stack | PASS | A-J, K-O, P-T, all passing on this commit |
-| PB-QUALITY-08 | No test was weakened, no tolerance enlarged, no failing test skipped | PASS | Three defects were found by the journeys and fixed in the product; each carries a test that fails without the fix |
-| PB-QUALITY-09 | The Docker path | **NOT VERIFIED** | Not run this phase. The stack was verified as separate processes rather than through `docker compose` |
+| PB-QUALITY-07 | Twenty journeys against the running stack | PASS | A-J, K-O, P-T, all passing on this commit — twice: against the stack run as separate processes, and against the four containers |
+| PB-QUALITY-08 | No test was weakened, no tolerance enlarged, no failing test skipped | PASS | Seven defects were found by the journeys and by the container, and fixed in the product rather than reclassified; each carries a test that fails without the fix |
+| PB-QUALITY-09 | The Docker path | PASS | Both images build; `docker compose up` brings postgres, backend, agent-worker and frontend to healthy; migration `0039` applies from an empty volume to head `0039` with 15 playbook tables and 0 legacy tables; all twenty journeys A-T pass against the containerised stack. Two product defects were found here and only here — see below |
 | PB-QUALITY-10 | Migration head is a single linear head | PASS | Alembic head `0039`, no branch |
 | PB-QUALITY-11 | Every page carries a curated expected behaviour in the feature matrix | PASS | `tests/docs/test_feature_matrix.py`, 8 passed |
 
@@ -239,7 +239,7 @@ of the final report carries the full dependency inventory and the reasoning.
 
 ## What is NOT VERIFIED, and why
 
-Two rows, both stated plainly rather than rounded up.
+One row, stated plainly rather than rounded up.
 
 **PB-AI-01 — the live AI drafting path.** `get_provider()` reports
 `configured = False` and names itself `'none'`. There is no API key in this
@@ -248,10 +248,22 @@ and writes no fallback — but a live model call was never made, so the row is
 NOT VERIFIED. Everything else in the Playbook works with no provider
 configured.
 
-**PB-QUALITY-09 — the Docker path.** The stack was run and verified as
-separate processes (uvicorn on 8000, `next start` on 3000, PostgreSQL 16), not
-through `docker compose`. The compose file is unchanged by this work, but it
-was not executed this phase, so the row is NOT VERIFIED rather than PASS.
+**PB-QUALITY-09** was NOT VERIFIED and is now PASS. It was worth the time:
+the container found two defects that no amount of running the stack as
+separate processes could have found, because both were differences between
+the developer machine and the image. They are recorded under "What FAILED"
+below.
+
+One caveat on how it was run, stated so nobody reads more into the row than
+it says. This sandbox terminates TLS at a proxy, so `pip` and `npm` inside a
+build cannot verify the certificate chain the base images ship. Both images
+were therefore built with the proxy's CA injected — the backend through a
+temporary Dockerfile that adds the bundle, the frontend through the
+`ARG NODE_IMAGE` escape hatch its own Dockerfile already documents for this
+situation. Neither change touches application code, dependency versions or
+the entrypoint, and neither is committed. On a normal network the committed
+Dockerfiles build unmodified; that specific claim was not executed here,
+because this environment cannot present a normal network.
 
 ## What FAILED
 
@@ -269,5 +281,28 @@ And two readings a committee would have called wrong, also fixed:
    as an arrow between two identical numbers.
 5. An uploaded supporting table blocked the readiness gate permanently, on a
    reason that was not true.
+
+Then two more that only the container could show, because both were
+differences between the developer machine and the image:
+
+6. `python-pptx` was imported by the Playbook's export and import paths and
+   declared in no requirements file. The developer machine had it as
+   somebody else's transitive dependency; the image did not, so the slides
+   export — offered in `/playbook/formats` as the deck a chair presents from
+   — answered 500 in the only place the product ships. Declared, and the
+   whole class pinned: a test now walks the Playbook's real imports and fails
+   on any library that is not in `requirements.txt`.
+
+7. `docker compose up` produced a stack with no user interface. The demo
+   bootstrap seeds an example message with a saved analysis attached, and it
+   picked that analysis without asking whether the sender could read it. On a
+   fresh database every saved analysis belongs to the account that generated
+   the portfolio, so the answer was always no; `send_message` refused, the
+   step is required so the run stopped there, and the portfolio review that
+   comes after it never ran either. The readiness marker recorded `ok: false`,
+   the health check that reads that marker never went healthy, and the web
+   container — which waits on that health — never started at all. The sibling
+   function that picks an investigation had carried the access check, and the
+   reasoning for it, since it was written; the analysis one had not.
 
 Each carries a regression test that fails without its fix.

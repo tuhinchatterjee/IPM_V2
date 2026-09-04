@@ -43,6 +43,21 @@ python scripts/seed_playbook_committees.py --reset
 Guarded: refuses unless Synthetic Data Mode is on or `ENV` is
 dev/development/test/demo/local.
 
+**In containers.** `docker compose up` brings up PostgreSQL, the API, the
+agent worker and the web application, and the entrypoint runs the same
+bootstrap before the API is reported healthy. Wait for health rather than for
+the port to open: the health check reads the bootstrap's own verdict, so a
+container that is `healthy` has a demonstrable product behind it and one that
+is still `starting` does not yet. The web container waits on that health, so
+if it never starts, read the backend's health output — it names the step that
+failed.
+
+Then seed the committees inside the running container:
+
+```bash
+docker exec ipm-backend python scripts/seed_playbook_committees.py
+```
+
 ---
 
 > Running `pytest tests/playbook` after this removes the three committees —
