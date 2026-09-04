@@ -1,6 +1,6 @@
 # Full-system feature verification matrix
 
-Generated from the build at `b19d2e9` by `scripts/feature_matrix.py`.
+Generated from the build at `614d8d1` by `scripts/feature_matrix.py`.
 
 This inventory is enumerated, not remembered. Every row comes from a page that exists on disk or an endpoint in the live OpenAPI spec, so a route added and forgotten appears here anyway. Three columns cannot be generated and are curated by hand - expected behaviour, defect and remaining limitation - because each is a claim somebody is accountable for, and deriving them from the code would produce a document that agrees with the code by construction and therefore establishes nothing.
 
@@ -8,12 +8,12 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | | |
 |---|---|
-| Pages | 53 |
-| Reviewed | 53 |
+| Pages | 57 |
+| Reviewed | 57 |
 | Not yet reviewed | 0 |
 | Carrying a known defect | 2 |
-| Not fully OK | 6 |
-| API endpoints | 519 across 40 areas |
+| Not fully OK | 5 |
+| API endpoints | 563 across 40 areas |
 | Browser-crawled routes | 98 |
 
 ## Pages
@@ -55,7 +55,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/` | any signed-in role | The Cockpit: ask a question, see recent investigations, and see what requires attention. Counts reflect what actually moved this period. | `ask` (8) | 11 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Requires Attention shows Portfolio and Data as empty at Q2 2026 because nothing moved at those levels. Nothing is invented to fill a filter. |
+| `/` | any signed-in role | The Cockpit: ask a question, see recent investigations, and see what requires attention. Counts reflect what actually moved this period. | `ask` (8) | 14 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Requires Attention shows Portfolio and Data as empty at Q2 2026 because nothing moved at those levels. Nothing is invented to fill a filter. |
 
 ### data-builder
 
@@ -128,13 +128,17 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/metrics` | any signed-in role | The Metric Catalogue: what CreditProbe means by each number. Search by whatever you call it — “NPL rate”, “bad rate” and “default rate” are one metric — then read the definition, the formula, the fields it reads, what it excludes and what it is not. Calculate it for a period, look at the rows behind it, and check it against a number you already trusted. | `metrics` (14) | 1 file(s) | - | OK | - | Sixty-one governed metrics over five published datasets. What this deployment cannot calculate is listed with the reason rather than omitted: retail IFRS 9 staging and ECL, roll and cure rates, the approval rate, PSI, and the ECL movement bridge. Building a metric is available through the API and the preview endpoint; there is no form on this screen yet. |
+| `/metrics` | any signed-in role | The Metric Catalogue: what CreditProbe means by each number. Search by whatever you call it — “NPL rate”, “bad rate” and “default rate” are one metric — then read the definition, the formula, the fields it reads, what it excludes and what it is not. Calculate it for a period, look at the rows behind it, and check it against a number you already trusted. | `metrics` (16) | 1 file(s) | - | OK | - | Sixty-one governed metrics over five published datasets. What this deployment cannot calculate is listed with the reason rather than omitted: retail IFRS 9 staging and ECL, roll and cure rates, the approval rate, PSI, and the ECL movement bridge. Building a metric is available through the API and the preview endpoint; there is no form on this screen yet. |
 
-### playbooks
+### playbook
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/playbooks` | any signed-in role | Saved sequences of governed analyses. | `playbooks` (8) | - | ADMIN pass, ANALYST pass, VIEWER pass | PARTIAL | - | Manual and on-publication triggers run; scheduled triggers are not wired to a scheduler. |
+| `/playbook/committees/[committeeId]` | Members of that committee, plus a platform administrator. | One committee: its terms of reference, who is on it in what role, its standard agenda, the workflow offsets that drive the schedule, and every pack it has produced with the status of each. | `playbook` (50) | 2 file(s) | - | OK | - | - |
+| `/playbook/committees` | Committee members; a platform administrator sees all. | Every committee with its cadence, purpose, business area, participants and the packs it has produced. New committees are defined here. | `playbook` (50) | 2 file(s) | - | OK | - | - |
+| `/playbook/packs/[packId]` | any signed-in role | One committee pack, read the way the committee reads it: section by section, each governed figure with the period, the movement against the previous cycle and the working behind it — metric version, formula hash, dataset, dataset version, numerator, denominator and run id. Findings are answered or reopened, decisions recorded, actions raised and sent to the Project Planner, commentary written and reviewed, the pack moved through its states and downloaded as PDF, Word, slides or the evidence workbook. | `playbook` (50) | 3 file(s) | - | OK | - | AI-drafted commentary needs a configured AI provider. With none configured the drafting control reports that plainly rather than writing a fallback nobody signed; every other part of the pack works without one. |
+| `/playbook/packs/new` | Contributors and above on the committee. | Start the next pack for a committee: the template, the reporting period, the comparison period, the meeting date and the data freeze. The sections come from the published template. | `playbook` (50) | - | - | OK | - | - |
+| `/playbook` | Committee members. A committee nobody has added you to does not appear, and a platform administrator reaches every one. | The Playbook: every committee the signed-in user sits on, the pack each one is preparing, how ready it is, and what is waiting on them. The entry point to the committee cycle rather than a list of documents. | `playbook` (50) | 5 file(s) | - | OK | - | - |
 
 ### projects
 
@@ -240,9 +244,9 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `lenses` | 10 |
 | `messages` | 18 |
 | `metadata` | 6 |
-| `metrics` | 14 |
+| `metrics` | 16 |
 | `planner` | 37 |
-| `playbooks` | 8 |
+| `playbook` | 50 |
 | `preferences` | 3 |
 | `projects` | 7 |
 | `readiness` | 1 |

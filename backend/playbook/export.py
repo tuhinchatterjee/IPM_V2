@@ -270,6 +270,15 @@ def _section(section: Any, blocks: list[Any], figures: dict[int, snap.Figure],
                                        figure.decimals)]
                          for p in list(figure.series)[:40]],
             }
+        elif kind == "TABLE":
+            # A table lifted out of somebody's file. It has no snapshot and no
+            # metric, because CreditProbe did not calculate it — and that is
+            # exactly why it must still reach the document. Dropping it would
+            # mean a person put a table in the pack, saw it on screen, and
+            # then found it missing from the file the committee reads.
+            built_table = _imported_table(block)
+            if built_table is not None:
+                table = built_table
 
     built: dict[str, Any] = {"title": safe_text(section.title)}
     if str(section.purpose or "").strip():
@@ -294,6 +303,44 @@ def _section(section: Any, blocks: list[Any], figures: dict[int, snap.Figure],
     if findings:
         built["findings"] = [_finding(f) for f in findings]
     return built
+
+
+#: An imported table is bounded here rather than at render time, so the same
+#: limit applies to every format instead of whichever one happened to check.
+MAX_IMPORTED_ROWS = 60
+MAX_IMPORTED_COLUMNS = 12
+
+
+def _imported_table(block: Any) -> dict[str, Any] | None:
+    """The rows a document brought in, ready for a document to carry out.
+
+    Labelled as coming from the file, because a reader must never mistake a
+    number somebody typed in a spreadsheet for one CreditProbe calculated.
+    """
+    config = block.config or {}
+    if not config.get("imported"):
+        return None
+    rows = [r for r in (config.get("rows") or []) if isinstance(r, list)]
+    columns = [c for c in (config.get("columns") or []) if c is not None]
+    if not rows and not columns:
+        return None
+
+    width = min(max((len(r) for r in rows), default=0),
+                len(columns) or MAX_IMPORTED_COLUMNS, MAX_IMPORTED_COLUMNS)
+    if width <= 0:
+        return None
+
+    def line(values: list[Any]) -> list[str]:
+        padded = list(values[:width]) + [""] * (width - len(values[:width]))
+        return [safe_text(v) for v in padded]
+
+    heading = str(block.title or "").strip() or "Imported table"
+    return {
+        "title": safe_text(f"{heading} — from an uploaded document, "
+                           "not a CreditProbe calculation"),
+        "columns": line(columns) if columns else [""] * width,
+        "rows": [line(r) for r in rows[:MAX_IMPORTED_ROWS]],
+    }
 
 
 def _movement_cell(figure: snap.Figure) -> str:
@@ -505,13 +552,34 @@ def render(session: Any, pack: Any, fmt: str) -> tuple[bytes, str]:
 
     built = document(session, pack)
     if wanted == "pptx":
-        return _slides(session, pack, built), MEDIA_TYPES["pptx"]
+        return _slides(session, pack, _unescaped(built)), MEDIA_TYPES["pptx"]
 
     from backend.reporting import writers
 
     if wanted == "pdf":
+        # The PDF writer is the ONE consumer that parses its input as markup,
+        # which is why `document()` escapes. Every other format wants the
+        # characters a person actually typed.
         return writers.write_pdf(built), MEDIA_TYPES["pdf"]
-    return writers.write_docx(built), MEDIA_TYPES["docx"]
+    return writers.write_docx(_unescaped(built)), MEDIA_TYPES["docx"]
+
+
+def _unescaped(value: Any) -> Any:
+    """The same document with the PDF escaping undone, all the way down.
+
+    Word and PowerPoint write text literally, so a section legitimately
+    called "<Finance> Review" must reach them as that and not as
+    "&lt;Finance&gt; Review". Done once here rather than at each writer,
+    because the writer that forgets is the one nobody notices until a client
+    opens the file.
+    """
+    if isinstance(value, str):
+        return _plain(value)
+    if isinstance(value, dict):
+        return {k: _unescaped(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_unescaped(v) for v in value]
+    return value
 
 
 def _slides(session: Any, pack: Any, built: dict[str, Any]) -> bytes:
@@ -524,7 +592,7 @@ def _slides(session: Any, pack: Any, built: dict[str, Any]) -> bytes:
     """
     from pptx import Presentation
     from pptx.dml.color import RGBColor
-    from pptx.util import Inches, Pt
+    from pptx.util import Inches
 
     deck = Presentation()
     deck.slide_width = Inches(13.333)
@@ -558,15 +626,10 @@ def _slides(session: Any, pack: Any, built: dict[str, Any]) -> bytes:
                 len(rows) + 1, len(table["columns"]), Inches(0.6), top,
                 Inches(12.1), Inches(0.4 * (len(rows) + 1))).table
             for column, name in enumerate(table["columns"]):
-                cell = shape.cell(0, column)
-                cell.text = str(name)
-                cell.text_frame.paragraphs[0].runs[0].font.size = Pt(12)
-                cell.text_frame.paragraphs[0].runs[0].font.bold = True
+                _cell(shape.cell(0, column), str(name), size=12, bold=True)
             for index, row in enumerate(rows, 1):
-                for column, value in enumerate(row):
-                    cell = shape.cell(index, column)
-                    cell.text = _plain(value)
-                    cell.text_frame.paragraphs[0].runs[0].font.size = Pt(11)
+                for column, value in enumerate(row[:len(table["columns"])]):
+                    _cell(shape.cell(index, column), _plain(value), size=11)
             top = Inches(1.4 + 0.42 * (len(rows) + 1))
 
         said = str(section.get("narrative") or "")
@@ -585,6 +648,24 @@ def _slides(session: Any, pack: Any, built: dict[str, Any]) -> bytes:
     buffer = io.BytesIO()
     deck.save(buffer)
     return buffer.getvalue()
+
+
+def _cell(cell: Any, text: str, *, size: int, bold: bool = False) -> None:
+    """Write one table cell, including an empty one.
+
+    Setting `cell.text` to "" leaves the paragraph with no runs at all, so
+    reaching for `runs[0]` to set the font raises IndexError and the whole
+    deck fails to build. A blank cell in a table somebody uploaded is
+    ordinary, so it must not be able to take the export down.
+    """
+    from pptx.util import Pt
+
+    written = str(text or "")
+    cell.text = written
+    paragraph = cell.text_frame.paragraphs[0]
+    run = paragraph.runs[0] if paragraph.runs else paragraph.add_run()
+    run.font.size = Pt(size)
+    run.font.bold = bold
 
 
 def _text(slide: Any, text: str, left: Any, top: Any, width: Any, height: Any,
@@ -724,6 +805,28 @@ def _workbook(session: Any, pack: Any) -> bytes:
         a.due_date.isoformat() if a.due_date else "", a.priority, a.status,
         a.latest_update, a.planner_task_id,
     ] for a in action_rows])
+
+    imported: list[list[Any]] = []
+    for block in blocks:
+        if str(block.block_type) != "TABLE":
+            continue
+        config = block.config or {}
+        if not config.get("imported"):
+            continue
+        columns = [str(c) for c in (config.get("columns") or [])]
+        for line in (config.get("rows") or [])[:MAX_IMPORTED_ROWS]:
+            if not isinstance(line, list):
+                continue
+            imported.append([
+                block.title, str(block.import_class or ""),
+                " | ".join(columns)[:200],
+                *[c for c in line[:MAX_IMPORTED_COLUMNS]],
+            ])
+    if imported:
+        width = max(len(r) for r in imported) - 3
+        sheet("IMPORTED", ["Block", "Kind", "Columns",
+                           *[f"Value {i + 1}" for i in range(width)]],
+              [r + [""] * (width + 3 - len(r)) for r in imported])
 
     changed = compare.against(session, pack, compare._previous(session, pack))
     sheet("SINCE LAST", [

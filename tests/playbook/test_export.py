@@ -319,3 +319,126 @@ def test_all_four_formats_are_offered_with_what_each_is_for():
     offered = export.formats()
     assert {f["format"] for f in offered} == set(export.FORMATS)
     assert all(f["purpose"] for f in offered)
+
+
+# =========================================== what an uploaded table must do
+
+
+@pytest.fixture
+def with_imported_table(session, calculated, actors):
+    """The pack, plus one table lifted out of somebody's spreadsheet.
+
+    Built through the service the way `import_` builds one, so the block is
+    the same shape the importer produces: an UNMAPPED_TABLE carrying its own
+    rows, with no snapshot and no metric behind it.
+    """
+    whole = pb.pack(session, int(calculated.id), actors["owner"])
+    section = pb.create_section(session, int(calculated.id), actors["owner"],
+                                title="From the branch pack")
+    pb.create_block(
+        session, int(section["id"]), actors["owner"],
+        block_type="TABLE", title="Branch submission",
+        import_class="UNMAPPED_TABLE",
+        config={
+            "imported": True,
+            "columns": ["Measure", "Value", "Note"],
+            "rows": [
+                ["Jeddah SME approval rate", "41.2%", "From the branch pack"],
+                ["<Finance> Review", "", "A blank cell, which is ordinary"],
+            ],
+        })
+    assert whole is not None
+    return calculated
+
+
+def test_an_imported_table_reaches_the_document(session, with_imported_table):
+    """A table somebody uploaded is content, and content goes in the pack.
+
+    It has no snapshot and no metric — CreditProbe did not calculate it — and
+    that is exactly why it must still be carried. Dropping it silently means a
+    person puts a table in the pack, sees it on screen, and then cannot find
+    it in the file the committee reads.
+    """
+    built = export.document(session, with_imported_table)
+    tables = [s.get("table") for s in built["sections"] if s.get("table")]
+    rows = [cell for t in tables for row in t["rows"] for cell in row]
+    assert any("Jeddah SME approval rate" in c for c in rows), (
+        "the imported rows never reached the document")
+
+
+def test_an_imported_table_says_where_it_came_from(session,
+                                                   with_imported_table):
+    """A reader must never mistake it for a CreditProbe calculation."""
+    built = export.document(session, with_imported_table)
+    titles = [str(s["table"].get("title") or "") for s in built["sections"]
+              if s.get("table")]
+    assert any("uploaded document" in t for t in titles), titles
+
+
+def test_a_blank_cell_does_not_break_the_deck(session, with_imported_table):
+    """An empty cell in an uploaded table is ordinary, not an exception.
+
+    Setting a PowerPoint cell's text to "" leaves the paragraph with no runs,
+    so reaching for `runs[0]` to set the font raises and the whole deck fails.
+    A blank cell must not be able to take an export down.
+    """
+    data, media = export.render(session, with_imported_table, "pptx")
+    assert data[:2] == b"PK", "the deck did not build"
+    assert "presentation" in media
+
+
+def test_word_and_the_deck_get_the_characters_the_person_typed(
+        session, with_imported_table, actors):
+    """Only the PDF parses its input as markup. The others must not see it.
+
+    `document()` escapes because reportlab reads mini-HTML. Word and
+    PowerPoint write text literally, so "<Finance> Review" must arrive as
+    that and not as "&lt;Finance&gt; Review" — which is what a client would
+    otherwise read on the page. Read back with the libraries that consume
+    the files rather than out of the raw XML, where the writer's own
+    escaping makes the two indistinguishable.
+    """
+    import docx
+    import pptx
+
+    document = docx.Document(io.BytesIO(
+        export.render(session, with_imported_table, "docx")[0]))
+    words = [c.text for t in document.tables for row in t.rows
+             for c in row.cells]
+    words += [p.text for p in document.paragraphs]
+    assert any("<Finance> Review" in w for w in words), (
+        "the characters the person typed did not reach Word")
+    assert not any("&lt;" in w or "&amp;" in w for w in words), (
+        "Word carried HTML entities into what a person reads")
+
+    deck = pptx.Presentation(io.BytesIO(
+        export.render(session, with_imported_table, "pptx")[0]))
+    said = []
+    for slide in deck.slides:
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                said.append(shape.text_frame.text)
+            if getattr(shape, "has_table", False) and shape.has_table:
+                said += [c.text for row in shape.table.rows for c in row.cells]
+    assert not any("&lt;" in s or "&amp;" in s for s in said), (
+        "the deck carried HTML entities into what a person reads")
+
+
+def test_the_workbook_records_what_a_document_brought_in(session,
+                                                        with_imported_table):
+    """The evidence file lists the imported rows separately from the figures.
+
+    They are not figures and must never be listed as though they were, but a
+    reader checking the pack still has to be able to see what came from a
+    file rather than from a calculation.
+    """
+    import openpyxl
+
+    data, _ = export.render(session, with_imported_table, "xlsx")
+    book = openpyxl.load_workbook(io.BytesIO(data))
+    assert "IMPORTED" in book.sheetnames, book.sheetnames
+    values = [c.value for row in book["IMPORTED"].iter_rows() for c in row]
+    assert any(isinstance(v, str) and "Jeddah SME approval rate" in v
+               for v in values)
+    assert not any(isinstance(v, str) and v[:1] in "=+-@" for v in values), (
+        "an imported cell reached the workbook able to start a formula")

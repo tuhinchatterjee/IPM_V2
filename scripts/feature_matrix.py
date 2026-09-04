@@ -143,6 +143,41 @@ _JUDGEMENTS: dict[str, Judgement] = {
     "/investigations/saved/[id]": Judgement(
         "A saved Investigation at a chosen version, refreshable against a "
         "new period."),
+    "/playbook": Judgement(
+        "The Playbook: every committee the signed-in user sits on, the pack "
+        "each one is preparing, how ready it is, and what is waiting on "
+        "them. The entry point to the committee cycle rather than a list of "
+        "documents.",
+        role="Committee members. A committee nobody has added you to does "
+             "not appear, and a platform administrator reaches every one."),
+    "/playbook/committees": Judgement(
+        "Every committee with its cadence, purpose, business area, "
+        "participants and the packs it has produced. New committees are "
+        "defined here.",
+        role="Committee members; a platform administrator sees all."),
+    "/playbook/committees/[committeeId]": Judgement(
+        "One committee: its terms of reference, who is on it in what role, "
+        "its standard agenda, the workflow offsets that drive the schedule, "
+        "and every pack it has produced with the status of each.",
+        role="Members of that committee, plus a platform administrator."),
+    "/playbook/packs/[packId]": Judgement(
+        "One committee pack, read the way the committee reads it: section by "
+        "section, each governed figure with the period, the movement against "
+        "the previous cycle and the working behind it — metric version, "
+        "formula hash, dataset, dataset version, numerator, denominator and "
+        "run id. Findings are answered or reopened, decisions recorded, "
+        "actions raised and sent to the Project Planner, commentary written "
+        "and reviewed, the pack moved through its states and downloaded as "
+        "PDF, Word, slides or the evidence workbook.",
+        limitation="AI-drafted commentary needs a configured AI provider. "
+                   "With none configured the drafting control reports that "
+                   "plainly rather than writing a fallback nobody signed; "
+                   "every other part of the pack works without one."),
+    "/playbook/packs/new": Judgement(
+        "Start the next pack for a committee: the template, the reporting "
+        "period, the comparison period, the meeting date and the data "
+        "freeze. The sections come from the published template.",
+        role="Contributors and above on the committee."),
     "/projects": Judgement("Credit Projects the signed-in user can reach."),
     "/projects/[id]": Judgement(
         "One Project: its Investigations, its people, its workflow and its "
