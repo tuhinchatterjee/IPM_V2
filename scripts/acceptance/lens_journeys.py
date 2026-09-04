@@ -14,6 +14,8 @@ harder: that a person can trust a number they find here.
     H  Arrange a lens by hand, and have that be a version like any other.
     I  Build a chart of a metric across a dimension, see why the chart types
        you are NOT offered are refused, and put it on a lens.
+    J  Read every shipped lens as a client would: every tile a real figure,
+       every tile able to explain itself, no placeholder anywhere.
 
 Each journey asserts something a screenshot cannot: that the three stage
 exposures on screen sum to the total exposure on screen, that the info panel
@@ -134,7 +136,7 @@ def run(report: Report) -> Report:
                                   ("C", _journey_c), ("D", _journey_d),
                                   ("E", _journey_e), ("F", _journey_f),
                                   ("G", _journey_g), ("H", _journey_h),
-                                  ("I", _journey_i)):
+                                  ("I", _journey_i), ("J", _journey_j)):
                 _guard(report, name, journey, page, report)
         finally:
             context.close()
@@ -939,6 +941,134 @@ def _balance_by_product(period: str) -> dict[str, float] | None:
                        for f in files])
     totals = frame.groupby("product")["current_balance"].sum()
     return {str(product): float(total) for product, total in totals.items()}
+
+
+#: Text that must never reach a screen a client is looking at. "NaN" and
+#: "undefined" are a calculation that went wrong wearing a number's clothes;
+#: the rest are placeholders somebody meant to come back to.
+NOT_FOR_A_CLIENT = ("NaN", "undefined", "[object Object]", "Infinity",
+                    "TODO", "FIXME", "Lorem ipsum", "placeholder",
+                    "coming soon", "sample data", "dummy")
+
+
+def _journey_j(page: Any, report: Report) -> None:
+    """Every shipped lens, read the way somebody would read it in a meeting.
+
+    Journeys A and B prove the Corporate IFRS 9 lens hangs together. This one
+    holds the same bar to all of them: no tile that failed, no figure that is
+    a placeholder, every tile able to say how it was calculated, and every
+    tile stamped with the period it is for — because a number on a lens with
+    no period is a number nobody can check.
+    """
+    listing = page.request.get(f"{API}/api/v1/lenses")
+    if not listing.ok:
+        report.check("J", "the shipped lenses are installed", False,
+                     f"HTTP {listing.status_code}")
+        return
+    # Only the lenses CreditProbe ships. A development database accumulates
+    # lenses that acceptance runs and people made, and holding "no tile
+    # failed" against somebody's half-built draft is not a finding about the
+    # product.
+    shipped = {spec.slug for spec in _shipped_slugs()}
+    lenses = [row for row in listing.json()["lenses"]
+              if row["slug"] in shipped]
+    if not lenses:
+        report.check("J", "the shipped lenses are installed", False,
+                     "the catalogue is empty")
+        return
+
+    for row in lenses:
+        _read_a_lens(page, report, row)
+
+
+def _shipped_slugs() -> Any:
+    from backend.metrics import lenses as shipped
+    return shipped.ALL
+
+
+def _read_a_lens(page: Any, report: Report, row: dict) -> None:
+    name = row["name"]
+    rendered = page.request.get(
+        f"{API}/api/v1/lenses/{row['id']}/render").json()
+
+    report.check("J", f"{name}: no tile failed",
+                 rendered["failed"] == 0,
+                 f"{rendered['failed']} failed of {len(rendered['panels'])}")
+
+    tiles = [p for p in rendered["panels"] if p.get("kind") == "metric"]
+    empty = [p["title"] or p["metric_id"] for p in tiles
+             if p["status"] == "succeeded" and p.get("value") is None]
+    report.check("J", f"{name}: no tile claims success with no number",
+                 not empty, str(empty[:3]))
+
+    # A tile that cannot be produced says which of the two kinds of gap it is
+    # and why — never a blank.
+    silent = [p["title"] or p["metric_id"] for p in tiles
+              if p["status"] != "succeeded"
+              and not (p.get("unavailable") or p.get("error"))]
+    report.check("J", f"{name}: every gap gives a reason", not silent,
+                 str(silent[:3]))
+
+    undated = [p["title"] or p["metric_id"] for p in tiles
+               if p["status"] == "succeeded" and not p.get("period_used")]
+    report.check("J", f"{name}: every figure is stamped with its period",
+                 not undated, str(undated[:3]))
+
+    # Everything §6 asks an info control to carry, on the tile rather than a
+    # request away — checked for every tile, not a sample.
+    # Source fields OR the dataset grain: a metric that counts rows names no
+    # field because it reads none, and for those the grain — "one row per
+    # account per observation month" — is what says what was counted.
+    thin = [p["title"] or p["metric_id"] for p in tiles
+            if not ((p.get("metric") or {}).get("formula")
+                    and (p.get("metric") or {}).get("definition")
+                    and ((p.get("metric") or {}).get("source_fields")
+                         or (p.get("metric") or {}).get("grain")))]
+    report.check("J", f"{name}: every tile carries its own definition",
+                 not thin, str(thin[:3]))
+
+    page.goto(f"{WEB}/lenses/{row['id']}", wait_until="networkidle")
+    page.wait_for_timeout(3000)
+    body = page.inner_text("body")
+
+    found = [bad for bad in NOT_FOR_A_CLIENT if bad in body]
+    report.check("J", f"{name}: nothing on screen is a placeholder",
+                 not found, str(found))
+
+    titles = [p["title"] for p in tiles if p.get("title")]
+    missing = [t for t in titles if t not in body]
+    report.check("J", f"{name}: every tile is on screen, not only in the "
+                 "payload", not missing, str(missing[:3]))
+
+    triggers = page.locator("button[aria-label^='How ']")
+    report.check("J", f"{name}: every tile has an info control",
+                 triggers.count() >= len(tiles),
+                 f"{triggers.count()} controls for {len(tiles)} tiles")
+
+    # And one of them actually opens on this lens, showing the arithmetic
+    # rather than a restatement of the tile's name.
+    opened = ""
+    for index in range(min(triggers.count(), 4)):
+        try:
+            triggers.nth(index).click(timeout=2500)
+            page.wait_for_timeout(500)
+            # Lower-cased: the panel's section headings are uppercased in
+            # CSS, and Playwright reports the text as rendered.
+            shown = page.inner_text("body").lower()
+            if "how it is calculated" in shown:
+                opened = shown
+                break
+        except Exception:  # noqa: BLE001
+            continue
+    report.check("J", f"{name}: a tile explains itself on screen",
+                 bool(opened) and "where it comes from" in opened
+                 and "what it measures" in opened,
+                 "opened an info control and read its formula and sources")
+
+    for note in rendered.get("notes", []):
+        report.check("J", f"{name}: '{note['name']}' says why it is absent",
+                     len(note.get("because") or "") > 40,
+                     (note.get("because") or "")[:70])
 
 
 def _scratch_lens(page: Any) -> dict | None:

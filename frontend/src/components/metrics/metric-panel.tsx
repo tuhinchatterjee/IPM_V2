@@ -76,6 +76,9 @@ export function MetricInfo({
         {metric.datasets.map((dataset) => (
           <Row key={dataset} label="Dataset" value={dataset} />
         ))}
+        {/* What one row is. A metric that counts rows names no field, so
+            without this its info panel cannot say what it counted. */}
+        {metric.grain && <Row label="One row is" value={metric.grain} />}
         {metric.source_fields.length > 0 && (
           <ul className="mt-1 space-y-0.5">
             {metric.source_fields.map((field) => (

@@ -112,6 +112,20 @@ class Unsupported:
                 "because": self.because, "needs": list(self.needs)}
 
 
+def _grain(catalog: Any, datasets: tuple[str, ...]) -> str:
+    """What one row of a metric's first dataset represents.
+
+    Empty when the catalogue cannot say, rather than a guess: an info panel
+    that invents a grain is worse than one that omits it.
+    """
+    if catalog is None or not datasets:
+        return ""
+    try:
+        return str(catalog.dataset(datasets[0]).grain or "")
+    except Exception:  # noqa: BLE001 - a dataset that has gone
+        return ""
+
+
 @dataclass(frozen=True)
 class MetricDefinition:
     """One number, and everything a reader may ask about it."""
@@ -226,6 +240,11 @@ class MetricDefinition:
             "domain": self.domain,
             "portfolio": self.portfolio,
             "datasets": list(self.datasets),
+            # What one row of the source IS. Any metric is clearer for it, and
+            # a COUNT metric is unreadable without it: "Retail Accounts —
+            # COUNT(rows)" names no field, because it reads none, so the grain
+            # is the only thing that says what is being counted.
+            "grain": _grain(catalog, self.datasets),
             "source_fields": source_fields,
             "filters": list(self.filters),
             "period_rule": self.period_rule,

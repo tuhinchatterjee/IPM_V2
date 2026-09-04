@@ -4277,6 +4277,9 @@ export interface MetricPanel {
   domain: string;
   portfolio: string;
   datasets: string[];
+  /** What one row of the source dataset is. Empty when the catalogue
+   *  cannot say — never a guess. */
+  grain: string;
   source_fields: {
     name: string;
     business_name?: string;
