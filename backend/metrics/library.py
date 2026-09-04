@@ -195,10 +195,19 @@ RETAIL_DELINQUENCY: tuple[MetricDefinition, ...] = tuple(
        numerator_text="Accounts flagged as defaulted",
        denominator_text="All accounts observed",
        visuals=("kpi", "line", "bar"), higher_is_better=False,
-       period_rule=PERIOD_SELECTED,
+       # Scoped and dated the way every other outcome metric on this dataset
+       # already is (Gini, KS, predicted-versus-observed). Without it the
+       # newest month — where nobody's performance window has closed — read
+       # 0.0%, which is not a low default rate, it is no default rate. A zero
+       # on a retail lens is a claim about the book; this one was a claim
+       # about the calendar.
+       scope=(Condition("matured_flag", "=", True),),
+       period_rule=PERIOD_LATEST_MATURED,
        transformation="The default flag is the outcome over the performance "
                       "horizon recorded on the row, not a status at the "
-                      "observation month.",
+                      "observation month. Only accounts whose window has "
+                      "closed are counted, in the numerator and the "
+                      "denominator alike.",
        exclusions="Rows whose performance window has not matured carry no "
                   "outcome and are still counted in the denominator, which "
                   "understates the rate on the most recent months.",
@@ -417,10 +426,18 @@ RETAIL_ORIGINATION: tuple[MetricDefinition, ...] = (
        aliases=("application bad rate", "cohort bad rate", "vintage bad rate"),
        formula_text="COUNT(actual_default = 1) / COUNT(applications) × 100",
        higher_is_better=False,
+       # The `exclusions` line below was already true and already written,
+       # and the metric displayed 0.0% for the newest cohort anyway. A caveat
+       # in an info panel a reader may never open is not the same as not
+       # showing a fabricated zero, so the immature cohorts are now excluded
+       # rather than described.
+       scope=(Condition("matured_flag", "=", True),),
+       period_rule=PERIOD_LATEST_MATURED,
        transformation="Grouped by application month, which is what makes it "
                       "a vintage rather than a snapshot.",
-       exclusions="Immature cohorts understate the rate, because their "
-                  "performance window has not finished."),
+       exclusions="Cohorts whose performance window has not finished are "
+                  "excluded entirely rather than counted as good. Including "
+                  "them would understate the rate towards zero."),
 
     _m("retail.average_loan_to_income", "Average Loan To Income",
        "The mean ratio of the amount applied for to the applicant's income.",

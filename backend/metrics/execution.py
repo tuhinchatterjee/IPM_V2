@@ -296,6 +296,16 @@ def evaluate(formula: Formula, row: dict[str, Any], *,
 
     if top is None or top.value is None:
         calculation.unavailable = (
+            # Zero rows is a different fact from an uncomputable numerator,
+            # and the difference is the whole answer for a metric scoped to a
+            # population — a matured cohort, a portfolio, a segment. "No rows
+            # matched its terms" sends a reader looking for a broken filter;
+            # "nothing in this period is inside the metric's scope" tells them
+            # what actually happened.
+            "Nothing in this period is inside this metric's scope, so it has "
+            "no value here. That is a fact about the population, not a "
+            "failure."
+            if rows_considered == 0 else
             "The numerator could not be computed: no rows matched its terms.")
         return calculation
 

@@ -256,7 +256,20 @@ def discrimination(frame: pd.DataFrame, *, score: str, target: str,
     bad_cumulative = np.cumsum(y[order]) / events
     good_cumulative = np.cumsum(1 - y[order]) / negatives
     gaps = np.abs(bad_cumulative - good_cumulative)
-    peak = int(np.argmax(gaps))
+
+    # KS is the largest gap between the two cumulative distributions at a
+    # SCORE, and the cumulative counts above step once per row. Inside a block
+    # of rows sharing one score those intermediate positions are not points of
+    # the score domain — they are an artefact of the order the ties happened
+    # to be read in — and taking the maximum among them reports a separation
+    # the score cannot actually make. On the retail behavioural book that
+    # overstated KS by 0.0004; on a coarsely banded scorecard it would be
+    # much worse. The gap is measured only where the next row's score
+    # differs, which is where the distributions have finished stepping.
+    sorted_risk = risk[order]
+    at_a_distinct_score = np.ones(len(y), dtype=bool)
+    at_a_distinct_score[:-1] = sorted_risk[1:] != sorted_risk[:-1]
+    peak = int(np.argmax(np.where(at_a_distinct_score, gaps, -1.0)))
     ks = float(gaps[peak])
     ks_at = float(raw[order][peak])
 
