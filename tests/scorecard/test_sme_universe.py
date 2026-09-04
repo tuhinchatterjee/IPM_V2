@@ -245,6 +245,23 @@ class TestTheSeededWeaknessesAreReal:
             "nothing for the override analysis to find")
 
 
+def _slope(values: list[float]) -> float:
+    """Least-squares slope of a series against its own index.
+
+    Written out rather than reached for through numpy.polyfit so that what
+    the test asserts is readable in the test: the covariance of value and
+    position over the variance of position, which is the trend and nothing
+    else.
+    """
+    n = len(values)
+    mean_x = (n - 1) / 2.0
+    mean_y = sum(values) / n
+    covariance = sum((i - mean_x) * (v - mean_y)
+                     for i, v in enumerate(values))
+    variance = sum((i - mean_x) ** 2 for i in range(n))
+    return covariance / variance
+
+
 def _bad_rate_by_band(frame: pd.DataFrame) -> list[float]:
     bands = pd.cut(frame["champion_score"],
                    [0, 540, 570, 600, 630, 660, 10_000])
@@ -323,27 +340,47 @@ class TestTheDriftPhenomena:
     def test_the_bureau_proxy_loses_power_across_the_matured_window(self):
         """Falling univariate discrimination for one named variable.
 
-        Measured in thirds rather than per cohort: a single month carries
-        roughly 70 events, and a Gini on 70 events moves enough that a
-        monotonic sequence of sixteen of them would be a coincidence rather
-        than a trend.
+        Tested as a trend rather than as an ordering, and the first version
+        of this test got that wrong in a way worth keeping.
+
+        It pooled the sixteen matured cohorts into thirds and demanded the
+        three Ginis come out strictly descending. They did on one build and
+        not on the next — not because the phenomenon was weak but because a
+        Gini on roughly 450 events has enough sampling error that three of
+        them arriving in order is a coincidence rather than evidence. Per
+        cohort it is starker still: the sixteen run from 0.2649 down to
+        0.1827 with a 0.3359 and a 0.0330 in the middle of them.
+
+        The claim is that the variable loses power across the window, so that
+        is what is asserted: the mean of the first third against the mean of
+        the last, and a negative least-squares slope across all sixteen. Both
+        are statements about the trend, and neither can be satisfied by an
+        ordering that happened to fall out of one seed.
         """
         months = S.matured_months()
-        thirds = (months[:5], months[5:11], months[11:])
-        ginis = []
-        for part in thirds:
-            frame = pd.concat([S.cohort(m) for m in part], ignore_index=True)
-            binned = sme_build.spec().apply(
-                frame, variables=["commercial_bureau_score_proxy"])
-            made = M.variable_discrimination(
-                binned, variable="commercial_bureau_score_proxy",
-                target="actual_default_12m")
-            ginis.append(float(made["gini"]))
-        assert ginis == sorted(ginis, reverse=True), (
-            f"the bureau proxy's power does not fall monotonically: {ginis}")
-        assert ginis[0] - ginis[-1] > 0.05, (
-            f"the decay is only {ginis[0] - ginis[-1]:.4f} of Gini, which is "
-            "inside the noise for this sample size")
+        ginis = [self._gini_for(m) for m in months]
+
+        third = len(ginis) // 3
+        early = sum(ginis[:third]) / third
+        late = sum(ginis[-third:]) / third
+        assert early - late > 0.05, (
+            f"the bureau proxy's power falls by only {early - late:.4f} of "
+            f"Gini from {early:.4f} to {late:.4f}, which is inside the noise "
+            "for this sample size")
+
+        slope = _slope(ginis)
+        assert slope < 0, (
+            f"the trend across all {len(ginis)} matured cohorts is "
+            f"{slope:+.5f} per cohort, so the variable is not losing power")
+
+    @staticmethod
+    def _gini_for(month: str) -> float:
+        binned = sme_build.spec().apply(
+            S.cohort(month), variables=["commercial_bureau_score_proxy"])
+        made = M.variable_discrimination(
+            binned, variable="commercial_bureau_score_proxy",
+            target="actual_default_12m")
+        return float(made["gini"])
 
 
 # ================================================================== the build
