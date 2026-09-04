@@ -3,6 +3,7 @@
 import Link from "next/link";
 import * as React from "react";
 import {
+  ChartColumn,
   GitBranch,
   History,
   LayoutGrid,
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { ResultView } from "@/components/analytics/result-view";
+import { ChartTile } from "@/components/metrics/chart-tile";
 import { MetricTile } from "@/components/metrics/metric-tile";
 import { DownloadResults } from "@/components/exports/download";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +31,7 @@ import {
   type RenderedLens,
   type RenderedPanel,
 } from "@/lib/api";
+import { ChartBuilder } from "@/components/lenses/chart-builder";
 import { LayoutEditor } from "@/components/lenses/layout-editor";
 import { useAsync } from "@/lib/hooks";
 import { fromLens, linkBack, type ReturnContext } from "@/lib/return-to";
@@ -73,6 +76,7 @@ function LensView({ id }: { id: number }) {
   const [error, setError] = React.useState<string | null>(null);
   const [showHistory, setShowHistory] = React.useState(false);
   const [arranging, setArranging] = React.useState(false);
+  const [charting, setCharting] = React.useState(false);
 
   async function ask() {
     if (!request.trim() || busy) return;
@@ -135,6 +139,17 @@ function LensView({ id }: { id: number }) {
           }}
           onCancel={() => setArranging(false)}
         />
+      ) : charting ? (
+        <ChartBuilder
+          lensId={id}
+          rendered={rendered.data}
+          onSaved={() => {
+            setCharting(false);
+            setChanged("Added the chart as a version of its own.");
+            setNonce((n) => n + 1);
+          }}
+          onCancel={() => setCharting(false)}
+        />
       ) : (
         <LensBody rendered={rendered.data} lens={lens} />
       )}
@@ -169,10 +184,24 @@ function LensView({ id }: { id: number }) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setArranging((a) => !a)}
+            onClick={() => {
+              setCharting(false);
+              setArranging((a) => !a);
+            }}
           >
             <LayoutGrid aria-hidden />
             {arranging ? "Stop arranging" : "Arrange"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setArranging(false);
+              setCharting((c) => !c);
+            }}
+          >
+            <ChartColumn aria-hidden />
+            {charting ? "Stop building" : "Build a chart"}
           </Button>
           <Button
             variant="ghost"
@@ -263,7 +292,10 @@ function LensBody({
           .filter(Boolean);
         if (panels.length === 0) return null;
         const tiles = panels.filter((panel) => panel.kind === "metric");
-        const analyses = panels.filter((panel) => panel.kind !== "metric");
+        const charts = panels.filter((panel) => panel.kind === "chart");
+        const analyses = panels.filter(
+          (panel) => panel.kind !== "metric" && panel.kind !== "chart",
+        );
         return (
           <section key={`${section.title}-${index}`} className="space-y-3">
             {section.title && (
@@ -283,6 +315,16 @@ function LensBody({
                 {tiles.map((panel, position) => (
                   <MetricTile
                     key={`${panel.metric_id}-${position}`}
+                    panel={panel}
+                  />
+                ))}
+              </div>
+            )}
+            {charts.length > 0 && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {charts.map((panel, position) => (
+                  <ChartTile
+                    key={`chart-${panel.metric_id}-${position}`}
                     panel={panel}
                   />
                 ))}

@@ -4241,8 +4241,13 @@ export interface DatasetPage {
 
 /** One thing on a Lens: a certified analysis, drawn a particular way. */
 export interface LensPanel {
-  /** "analysis" runs a registered analysis; "metric" calculates one metric. */
-  kind: "analysis" | "metric";
+  /**
+   * "analysis" runs a registered analysis; "metric" calculates one metric;
+   * "chart" breaks one metric out across a dimension. A chart carries its
+   * configuration in `params` — dimension, aggregate, sort, direction, limit,
+   * compare — so no stored lens had to be rewritten to hold one.
+   */
+  kind: "analysis" | "metric" | "chart";
   analysis_id: string;
   metric_id: string;
   title: string;
@@ -4397,6 +4402,97 @@ export interface RenderedPanel extends LensPanel {
   higher_is_better?: boolean | null;
   period_used?: string;
   unavailable?: string;
+  /** Chart tiles only. */
+  points?: ChartPoint[];
+  comparison?: ChartComparison | null;
+  series_label?: string;
+  dimension?: string;
+  dimension_label?: string;
+  groups_found?: number;
+  truncated?: boolean;
+  chart_notes?: string[];
+  lineage?: {
+    dataset: string;
+    sql: string;
+    run_id: string;
+    filters: Record<string, unknown>;
+  };
+}
+
+/** One group on a chart, and whether it has a value at all. */
+export interface ChartPoint {
+  label: string;
+  value: number | null;
+  rows: number;
+  unavailable: string;
+}
+
+export interface ChartComparison {
+  period: string;
+  label: string;
+  points: { label: string; value: number | null; change: number | null }[];
+  run_id: string;
+  sql: string;
+}
+
+/** A dimension a metric may honestly be broken out by. */
+export interface ChartDimension {
+  name: string;
+  business_name: string;
+  definition: string;
+  data_type: string;
+  allowed_values: string[];
+  /** True for the dataset's period field: this dimension IS the trend. */
+  over_time: boolean;
+  chart_types: string[];
+}
+
+/** Everything a chart over one metric may be configured with. */
+export interface ChartVocabulary {
+  metric: MetricPanel;
+  dimensions: ChartDimension[];
+  aggregations: {
+    name: string;
+    label: string;
+    available: boolean;
+    unavailable_because: string;
+  }[];
+  dimension: string;
+  chart_types: string[];
+  chart_types_refused: { name: string; because: string }[];
+  sorts: Record<string, string>;
+  directions: Record<string, string>;
+  comparisons: Record<string, string>;
+  max_groups: number;
+  periods: string[];
+}
+
+/** How a chart is configured, and what it drew. */
+export interface ChartSeries {
+  metric: MetricPanel;
+  series_label: string;
+  dimension: string;
+  dimension_label: string;
+  over_time: boolean;
+  aggregate: string;
+  sort: string;
+  direction: string;
+  compare: string;
+  filters: Record<string, unknown>;
+  unit: string;
+  decimals: number;
+  higher_is_better: boolean | null;
+  period: string;
+  points: ChartPoint[];
+  comparison: ChartComparison | null;
+  groups_found: number;
+  truncated: boolean;
+  dataset: string;
+  sql: string;
+  run_id: string;
+  /** What the chart will not claim: truncation, a missing comparison period. */
+  notes: string[];
+  unavailable: string;
 }
 
 /** A named band of tiles, holding the indices of the panels it contains. */
@@ -5182,6 +5278,42 @@ export const api = {
       outcomes: string[];
       decisions: string[];
     }>(`/metrics/${encodeURIComponent(metricId)}/verifications`),
+
+  /**
+   * The dimensions, aggregations, sorts, comparisons and chart types a chart
+   * over this metric may use.
+   *
+   * Pass the chosen dimension: most of the refusals depend on it, because
+   * whether a line means anything depends on whether the axis has an order.
+   */
+  chartOptions: (metricId: string, dimension = "") =>
+    request<ChartVocabulary>(
+      `/metrics/${encodeURIComponent(metricId)}/chart-options` +
+        (dimension ? `?dimension=${encodeURIComponent(dimension)}` : ""),
+      { timeoutMs: 60_000 },
+    ),
+  /**
+   * Draw a metric across a dimension.
+   *
+   * The preview in the builder and the tile on the lens take this same route,
+   * so what somebody approves is what the lens draws.
+   */
+  drawChart: (payload: {
+    metric_id: string;
+    dimension: string;
+    period?: string;
+    filters?: Record<string, unknown>;
+    aggregate?: string;
+    sort?: string;
+    direction?: string;
+    limit?: number;
+    compare?: string;
+  }) =>
+    request<ChartSeries>("/metrics/chart", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      timeoutMs: 180_000,
+    }),
 
   restoreLens: (id: number, version: number) =>
     request<Lens>(`/lenses/${id}/restore/${version}`, { method: "POST" }),

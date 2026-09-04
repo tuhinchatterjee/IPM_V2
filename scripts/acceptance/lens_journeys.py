@@ -12,6 +12,8 @@ harder: that a person can trust a number they find here.
     F  Read what the lens deliberately does not show.
     G  Build a metric of your own, and get the right number for it.
     H  Arrange a lens by hand, and have that be a version like any other.
+    I  Build a chart of a metric across a dimension, see why the chart types
+       you are NOT offered are refused, and put it on a lens.
 
 Each journey asserts something a screenshot cannot: that the three stage
 exposures on screen sum to the total exposure on screen, that the info panel
@@ -131,7 +133,8 @@ def run(report: Report) -> Report:
             for name, journey in (("A", _journey_a), ("B", _journey_b),
                                   ("C", _journey_c), ("D", _journey_d),
                                   ("E", _journey_e), ("F", _journey_f),
-                                  ("G", _journey_g), ("H", _journey_h)):
+                                  ("G", _journey_g), ("H", _journey_h),
+                                  ("I", _journey_i)):
                 _guard(report, name, journey, page, report)
         finally:
             context.close()
@@ -753,6 +756,189 @@ def _arrange(page: Any, report: Report, lens: dict) -> None:
         f"{API}/api/v1/lenses/{lens['id']}/restore/{before['version']}").json()
     report.check("H", "the previous arrangement can be put back",
                  [p["metric_id"] for p in restored["panels"]] == first)
+
+
+def _journey_i(page: Any, report: Report) -> None:
+    """The Custom Chart Builder, end to end, in the browser.
+
+    The assertion that matters is the last one: the number in the bar the
+    person put on their lens is reproduced by reading the parquet directly.
+    Everything before it is the workflow that has to hold for that number to
+    be theirs — that the pickers came from the catalogue, that the chart types
+    they could NOT pick say why, and that adding it to a lens is a version.
+    """
+    lens = _scratch_lens(page)
+    if lens is None:
+        report.check("I", "a lens of this run's own could be made", False,
+                     "the chart journey needs a lens it may add to")
+        return
+    try:
+        _build_a_chart(page, report, lens)
+    finally:
+        page.request.delete(f"{API}/api/v1/lenses/{lens['id']}")
+
+
+#: The metric and dimension this journey builds. An additive retail metric
+#: over an unordered category, so the "no line between products" refusal is
+#: exercised on the way through rather than asserted in the abstract.
+CHART_METRIC = "retail.balance"
+CHART_SEARCH = "outstanding balance"
+CHART_DIMENSION = "Product"
+
+
+def _build_a_chart(page: Any, report: Report, lens: dict) -> None:
+    before = page.request.get(f"{API}/api/v1/lenses/{lens['id']}").json()
+
+    page.goto(f"{WEB}/lenses/{lens['id']}", wait_until="networkidle")
+    page.wait_for_timeout(2500)
+
+    page.get_by_role("button", name="Build a chart").click()
+    page.wait_for_selector("[data-testid='chart-builder']", timeout=10_000)
+    report.check("I", "the chart builder opens on the lens",
+                 page.locator("[data-testid='chart-builder']").is_visible())
+
+    # 1. the metric, found by typing what somebody calls it
+    page.get_by_label("Search the metric catalogue").fill(CHART_SEARCH)
+    page.get_by_role("button", name="Search").click()
+    page.wait_for_timeout(1500)
+    page.get_by_role("button", name="Retail Outstanding Balance").first.click()
+    page.wait_for_timeout(1500)
+
+    # 2. the dimension, offered from the governed catalogue
+    dimensions = page.get_by_label("Dimension")
+    offered = [o.strip() for o in dimensions.locator("option").all_inner_texts()]
+    report.check("I", "the dimensions are the dataset's own fields",
+                 CHART_DIMENSION in offered and "Account id" not in offered,
+                 f"{len(offered)} offered")
+    dimensions.select_option(label=CHART_DIMENSION)
+    page.wait_for_timeout(2000)
+
+    # The refusals, on screen, with their reasons. A person who cannot see
+    # why "line" is missing concludes the product is broken.
+    refused = page.locator("[data-testid='chart-types-refused']").inner_text()
+    report.check("I", "a line between products is refused, and says why",
+                 "Line" in refused and "progression that is not there" in refused,
+                 refused.replace("\n", " ")[:110])
+    report.check("I", "a matrix off one dimension is refused, and says why",
+                 "Matrix" in refused and "two dimensions" in refused)
+    types = page.locator("button[aria-pressed]")
+    labels = [t.strip().lower() for t in types.all_inner_texts()]
+    report.check("I", "a bar IS offered", "bar" in labels, str(labels))
+
+    # 3-6. period, filter, ordering, comparison, chart type, title
+    page.get_by_label("Sorted").select_option("value")
+    page.get_by_label("Direction").select_option("desc")
+    page.get_by_label("Compared with").select_option("previous_period")
+    page.get_by_label("How many groups").fill("4")
+    page.get_by_role("button", name="bar", exact=True).click()
+    page.get_by_label("Title", exact=True).fill("Balance by product")
+
+    # The preview, through the same route the lens tile uses.
+    page.get_by_role("button", name="Preview").click()
+    page.wait_for_selector("[data-testid='chart-preview']", timeout=120_000)
+    preview = page.locator("[data-testid='chart-preview']").inner_text()
+    report.check("I", "the preview draws bars with their numbers",
+                 "CREDIT_CARD" in preview and "PERSONAL_LOAN" in preview,
+                 preview.replace("\n", " ")[:110])
+    report.check("I", "the preview names the comparison period",
+                 " vs " in preview, preview.split("\n")[1] if "\n" in preview else "")
+    report.check("I", "the preview carries the query that produced it",
+                 "run " in preview and "query that produced" in preview)
+
+    # Adding it to the lens goes through the same validated layout route.
+    page.get_by_role("button", name="Add to this lens").click()
+    page.wait_for_timeout(4000)
+
+    after = page.request.get(f"{API}/api/v1/lenses/{lens['id']}").json()
+    charts = [p for p in after["panels"] if p.get("kind") == "chart"]
+    report.check("I", "the chart is on the lens",
+                 len(charts) == 1 and charts[0]["metric_id"] == CHART_METRIC,
+                 f"{len(after['panels'])} panels, {len(charts)} of them charts")
+    if not charts:
+        return
+    stored = charts[0]
+    report.check("I", "its configuration was kept",
+                 stored["visual"] == "bar"
+                 and stored["params"].get("dimension") == "product"
+                 and stored["params"].get("compare") == "previous_period"
+                 and int(stored["params"].get("limit") or 0) == 4,
+                 json.dumps(stored["params"]))
+    report.check("I", "adding it is a version, not an overwrite",
+                 after["version"] > before["version"],
+                 f"v{before['version']} -> v{after['version']}")
+    report.check("I", "and the version says what changed",
+                 "chart" in after["revisions"][0]["change_summary"].lower(),
+                 after["revisions"][0]["change_summary"])
+
+    # It renders on the lens, and its info control carries the lineage.
+    page.goto(f"{WEB}/lenses/{lens['id']}", wait_until="networkidle")
+    page.wait_for_timeout(4000)
+    tile = page.locator("[data-testid='chart-tile']").first
+    report.check("I", "the chart renders on the lens",
+                 tile.is_visible() and "Balance by product" in tile.inner_text(),
+                 tile.inner_text().replace("\n", " ")[:90] if tile.count() else "")
+
+    opened = False
+    info = tile.locator("button[aria-label^='How ']").first
+    if info.count():
+        info.click()
+        page.wait_for_timeout(1200)
+        shown = page.inner_text("body")
+        opened = ("Grouped by" in shown and "Read from" in shown
+                  and "SELECT" in shown.upper())
+    report.check("I", "its info control gives the formula and the lineage",
+                 opened, "opened and read the definition, dataset and query")
+
+    # The number, reproduced outside the chart path entirely.
+    rendered = page.request.get(
+        f"{API}/api/v1/lenses/{lens['id']}/render").json()
+    drawn = next((p for p in rendered["panels"] if p.get("kind") == "chart"),
+                 None)
+    if drawn is None:
+        report.check("I", "the rendered lens carries the chart", False)
+        return
+    on_screen = {p["label"]: p["value"] for p in drawn["points"]}
+    independent = _balance_by_product(drawn["period_used"])
+    # A relative tolerance, not an exact one: the balances are stored as
+    # 32-bit floats and the two paths add them in different orders, so the
+    # last bit or two differ. A part per million is far tighter than any
+    # difference that would matter and far looser than summation noise.
+    report.check("I", "every bar reproduces from the parquet independently",
+                 independent is not None
+                 and set(on_screen) == set(independent)
+                 and all(
+                     abs(on_screen[label] - independent[label])
+                     <= max(1.0, abs(independent[label]) * 1e-6)
+                     for label in on_screen),
+                 f"chart {on_screen} vs parquet "
+                 f"{ {k: independent[k] for k in on_screen} if independent else 'unavailable'}")
+
+
+def _balance_by_product(period: str) -> dict[str, float] | None:
+    """The same numbers, computed without going near the metric catalogue.
+
+    Straight over the parquet with pandas: read the one hive partition for
+    this period, group by product, sum the balance column. It does not touch
+    the formula, the IR, the compiler or the executor — if it agreed with the
+    chart because it called the same code, it would prove nothing.
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        return None
+
+    from backend.config import settings
+
+    partition = (Path(settings.analytics_dir)
+                 / "retail_behavioral_scorecard_monthly_validation"
+                 / f"observation_month={period}")
+    files = sorted(partition.glob("*.parquet"))
+    if not files:
+        return None
+    frame = pd.concat([pd.read_parquet(f, columns=["product", "current_balance"])
+                       for f in files])
+    totals = frame.groupby("product")["current_balance"].sum()
+    return {str(product): float(total) for product, total in totals.items()}
 
 
 def _scratch_lens(page: Any) -> dict | None:
