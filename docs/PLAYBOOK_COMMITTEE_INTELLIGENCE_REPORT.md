@@ -3,7 +3,7 @@
 Final report.
 
 Branch `claude/playbook-committee-intelligence`, built from the protected
-release candidate at `d55f625`. Head at the time of writing: `0530942`.
+release candidate at `d55f625`. Head at the time of writing: `9a70f9a`.
 
 ---
 
@@ -106,7 +106,7 @@ them would take them from a backup.
 
 ### Verification, and what pins it
 
-`tests/playbook/test_legacy_retirement.py` — seven tests, added rather than
+`tests/playbook/test_legacy_retirement.py` — eight tests, added rather than
 assumed:
 
   * the navigation entry is gone, and Playbook appears exactly once, in Govern
@@ -124,9 +124,18 @@ assumed:
   * the shared infrastructure still works: the registry still resolves its
     certified analyses, the runner is still callable, Lenses still imports
   * the Brain advertises `playbook` and not `playbooks`
+  * every library the Playbook imports is declared in `requirements.txt` —
+    added later in the phase, for a reason recorded in section V
 
 The navigation test was confirmed to fail when a `/playbooks` entry is put
 back, so it is a guard and not a decoration.
+
+And then again against the artifacts that ship, because a source tree can be
+clean while a stale build still serves the old route. In the running
+containers, `/playbooks` answers 404 from the built frontend, the API's own
+OpenAPI document carries no path containing `/playbooks` and 43 containing
+`/playbook`, and the compiled Next.js bundle contains only `/playbook`
+hrefs.
 
 ## D. The shape of it
 
@@ -155,6 +164,14 @@ with a capped grant. `monitor` — the sweep that says who is being waited on.
 `actions` — actions and the bridge into the Project Planner. `export` — four
 formats. `import_` — inbound documents, checked before they are opened.
 `demo` — the demonstration committees and their re-anchoring.
+
+`monitor`'s sweep runs on the platform's existing durable job queue rather
+than on anything of its own: `run_sweep_job` takes the same `(job,
+should_stop)` shape as every other handler, so the worker needed no special
+case. Verified in the containers as well as in the suite — a `playbook_sweep`
+enqueued in the API container was picked up by the separate `agent-worker`
+container, reached `complete` on its first attempt with no error, and left its
+own line in that worker's log: 2 packs across 3 committees, 0 reminders sent.
 
 ## E. The single door
 
@@ -571,7 +588,7 @@ metric layer.
 | `npx tsc --noEmit` | Clean |
 | `npx eslint` | Clean |
 | `npm test` | 520 passed, 46 suites |
-| `pytest tests/playbook` | 253 passed |
+| `pytest tests/playbook` | 261 passed |
 | `pytest tests/docs/test_feature_matrix.py` | 8 passed |
 | Journeys A–T | 20 passed, on the host and again in the containers |
 | `docker compose up` | postgres, backend, agent-worker, frontend all healthy |
@@ -583,15 +600,15 @@ Baseline, recorded in `docs/PLAYBOOK_BASELINE.md` before any Playbook code
 touched anything that already existed: **12,075 passed, 35 skipped, 0 failed**
 at `d55f625`, alembic head `0038`.
 
-On this commit, `0530942`, run as a real pytest process over the whole suite:
-**12,319 passed, 35 skipped, 0 failed, 0 errors, exit code 0**, in 21m 25s,
+On this commit, `9a70f9a`, run as a real pytest process over the whole suite:
+**12,328 passed, 35 skipped, 0 failed, 0 errors, exit code 0**, in 19m 22s,
 alembic head `0039` (single head).
 
     .venv/bin/python -m pytest tests/
-    12319 passed, 35 skipped, 25 warnings in 1285.90s (0:21:25)
+    12328 passed, 35 skipped, 25 warnings in 1162.21s (0:19:22)
 
-Against the baseline that is **+244 passed, skips unchanged, still zero
-failures**. The net is smaller than the 253 Playbook tests added because the
+Against the baseline that is **+253 passed, skips unchanged, still zero
+failures**. The net is smaller than the 261 Playbook tests added because the
 earlier Playbooks feature and its tests were removed in the same branch.
 
 The two `tests/docs/test_feature_matrix.py` failures that appeared mid-phase

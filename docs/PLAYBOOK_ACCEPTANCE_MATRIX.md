@@ -9,20 +9,20 @@ executed and it did not. NOT APPLICABLE means the gate does not apply to what
 was built, and says why. NOT VERIFIED means nobody ran it — which is not the
 same as failing, and is never rounded up to PASS.
 
-Commit: `0530942` on `claude/playbook-committee-intelligence`.
+Commit: `9a70f9a` on `claude/playbook-committee-intelligence`.
 
 ---
 
 ## How the evidence was produced
 
-Four independent things were run. Where a row cites one, it cites the exact
+Five independent things were run. Where a row cites one, it cites the exact
 command.
 
 **1. The pytest suite.**
 
     .venv/bin/python -m pytest tests/playbook
 
-253 tests across 11 files. These prove the rules — the service layer, access,
+261 tests across 14 files. These prove the rules — the service layer, access,
 the state machine, readiness, snapshots, materiality, import, export,
 findings, governance, the demo seed, and the security suite.
 
@@ -47,7 +47,20 @@ built Next.js application.
 
     .venv/bin/python -m pytest tests/
 
-Run on this commit: 12,319 passed, 35 skipped, 0 failed, exit code 0.
+Run on this commit: 12,328 passed, 35 skipped, 0 failed, exit code 0, in 19m 22s.
+
+**5. The containers.** Everything in 1, 2 and 4 was run against the stack as
+separate processes. The journeys were then run a second time against
+`docker compose up`, from an empty database volume, because the image is what
+a client installs and it is not the same environment.
+
+    docker compose up -d           # postgres, backend, agent-worker, frontend
+    docker exec ipm-backend python scripts/seed_playbook_committees.py
+    CREDITPROBE_API=... api_journeys.py && followup_journeys.py
+    CREDITPROBE_APP=... browser_journeys.py
+
+Two defects came out of that run and out of nothing else, both recorded in
+"What FAILED" below.
 
 The environment these were run in:
 
@@ -59,6 +72,7 @@ The environment these were run in:
 | Demo data | `scripts/seed_playbook_committees.py --reset` — three committees, six packs |
 | Browser | Chromium 1194 via Playwright |
 | AI provider | **none configured** — `get_provider().configured` is `False`, name `'none'` |
+| Containers | `docker compose up` from an empty `pgdata` volume: postgres, backend, agent-worker and frontend, all reaching healthy; bootstrap performed 9 steps and skipped 3, and all 15 readiness checks passed |
 
 That last line governs every AI row below. There is no API key in this
 environment, so no row that would require a live model call is marked PASS.
@@ -116,6 +130,7 @@ environment, so no row that would require a live model call is marked PASS.
 | PB-AGENT-02 | Thirteen named acts are refused to AI regardless of the grant it holds | PASS | `access.AI_FORBIDDEN` = approve_pack, approve_section, change_meeting_date, close_action, decide, delete_pack, delete_section, dismiss_finding, edit_approved_pack, edit_formula, import_document, publish_pack, record_review. `test_security.py` exercises them through the state the transition would otherwise allow |
 | PB-AGENT-03 | AI never silently approves, publishes, moves a committed meeting date, changes an approved formula, suppresses a finding, closes an action or alters an approved historical pack | PASS | The list above is exactly those acts; each raises `PackDenied` |
 | PB-AGENT-04 | Every write records who made it and through which channel | PASS | `service.record()` stores `author_id` and `source`; Journey F: 26 events, every one carrying a source |
+| PB-AGENT-05 | The sweep runs on the platform's own queue, in the worker process that ships | PASS | `enqueue_sweep` in the API container, executed by the separate `agent-worker` container: job `playbook_sweep` reached `complete` on its first attempt with no error, and the worker's own log records "2 packs across 3 committees, 0 reminders sent". No second queue, no in-process thread, and no special case in the worker — `run_sweep_job` takes the same `(job, should_stop)` shape as every other handler |
 
 ## PB-GOV — governance
 
@@ -199,6 +214,7 @@ environment, so no row that would require a live model call is marked PASS.
 | PB-SEC-12 | Output escaping rather than a destructive blocklist | PASS | PB-EXPORT-06 |
 | PB-SEC-13 | An AI channel cannot import a document | PASS | `access.refuse_ai(grant, "import_document")`; `test_import.py` |
 | PB-SEC-14 | No source content leaks into a pack a reader is not authorised for | PASS | Sources are pack-scoped and pass `readable_pack`; Journey I |
+| PB-SEC-15 | No authorised result can reach a second reader through a shared cache | PASS | Answered by not having one. `backend/playbook/` holds no `lru_cache`, no module-level dictionary and no cross-request store. The single cache is `readiness.refresh`, which writes the percentage onto the pack row itself; `assess(session, pack)` takes no principal, so what it computes is a property of the pack and not of the viewer, and every screen showing one pack calls `assess` directly rather than reading it. There is nothing keyed per user to mis-key |
 
 ## PB-LEGACY — retiring the earlier Playbooks feature
 
@@ -218,6 +234,7 @@ of the final report carries the full dependency inventory and the reasoning.
 | PB-LEGACY-08 | The Brain advertises the module that exists | PASS | `test_brain_compatibility_declares_the_new_module_not_the_old_name`: capability renamed `playbooks` → `playbook` rather than dropped |
 | PB-LEGACY-09 | The two good ideas were carried over, not lost | PASS | Thresholds against a governed number → `backend/playbook/materiality.py`; trigger-and-notify → `backend/playbook/monitor.py` and the chase list |
 | PB-LEGACY-10 | Operational documents do not describe a feature that is gone | PASS | `DEMO_SCOPE_FREEZE.md` and `CLIENT_DEMO_SCRIPT.md` corrected. Immutable phase-start snapshots and past verification records were left alone — they are history, and editing them would destroy the baselines they exist to be |
+| PB-LEGACY-11 | The retirement holds in the artifacts that ship, not only in the source | PASS | Checked against the running containers rather than the working tree: `/playbooks` answers 404 from the built frontend, the API's own OpenAPI document carries no path containing `/playbooks` and 43 containing `/playbook`, and the compiled Next.js bundle contains only `/playbook` hrefs. A source tree can be clean while a stale build still serves the old route |
 
 ## PB-QUALITY — the gates
 
@@ -227,8 +244,8 @@ of the final report carries the full dependency inventory and the reasoning.
 | PB-QUALITY-02 | `npx tsc --noEmit` clean | PASS | Run on this commit |
 | PB-QUALITY-03 | `npx eslint` clean on the changed files | PASS | Run on this commit |
 | PB-QUALITY-04 | `npm test` — the frontend suite | PASS | 520 tests, 46 suites, 0 failures |
-| PB-QUALITY-05 | `pytest tests/playbook` | PASS | 253 passed |
-| PB-QUALITY-06 | The full platform regression against the recorded baseline | PASS | 12,319 passed, 35 skipped, 0 failed, exit 0, in 21m 25s. Baseline: 12,075 passed, 35 skipped, 0 failed |
+| PB-QUALITY-05 | `pytest tests/playbook` | PASS | 261 passed |
+| PB-QUALITY-06 | The full platform regression against the recorded baseline | PASS | 12,328 passed, 35 skipped, 0 failed, exit 0, in 19m 22s. Baseline: 12,075 passed, 35 skipped, 0 failed |
 | PB-QUALITY-07 | Twenty journeys against the running stack | PASS | A-J, K-O, P-T, all passing on this commit — twice: against the stack run as separate processes, and against the four containers |
 | PB-QUALITY-08 | No test was weakened, no tolerance enlarged, no failing test skipped | PASS | Seven defects were found by the journeys and by the container, and fixed in the product rather than reclassified; each carries a test that fails without the fix |
 | PB-QUALITY-09 | The Docker path | PASS | Both images build; `docker compose up` brings postgres, backend, agent-worker and frontend to healthy; migration `0039` applies from an empty volume to head `0039` with 15 playbook tables and 0 legacy tables; all twenty journeys A-T pass against the containerised stack. Two product defects were found here and only here — see below |

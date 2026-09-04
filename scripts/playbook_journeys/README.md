@@ -38,6 +38,43 @@ Each exits non-zero on the first failing expectation and prints every check it
 made. `CREDITPROBE_API`, `CREDITPROBE_APP`, `CREDITPROBE_SHOTS` and
 `CHROMIUM_PATH` override the defaults.
 
+## Against the containers
+
+Those overrides exist so the same twenty journeys can be run against
+`docker compose up` without changing a line, and they should be — the image is
+what a client installs, and it is not the same environment as a developer's
+machine. Two defects in this phase existed only there: a library the Playbook
+imported and no requirements file named, and a bootstrap step that failed in a
+way which stopped the web container from ever starting.
+
+    docker compose up -d
+    docker exec ipm-backend python scripts/seed_playbook_committees.py
+
+    CREDITPROBE_API=http://127.0.0.1:8000 \
+      .venv/bin/python scripts/playbook_journeys/api_journeys.py
+    CREDITPROBE_API=http://127.0.0.1:8000 \
+      .venv/bin/python scripts/playbook_journeys/followup_journeys.py
+    CREDITPROBE_APP=http://127.0.0.1:3000 CHROMIUM_PATH=/path/to/chrome \
+      .venv/bin/python scripts/playbook_journeys/browser_journeys.py
+
+Wait for the backend container to report `healthy` rather than for its port to
+open: the health check reads the bootstrap's own verdict, so `healthy` means
+there is a demonstrable product behind it. The web container waits on that
+health, so if it never starts, the backend's health output names the step that
+failed.
+
+Journey L needs a Planner project to hand an action to. A fresh container
+database has none, so create one first:
+
+    curl -s -c jar -X POST $API/api/v1/auth/login -H 'Content-Type: application/json' \
+      -d '{"username":"alex.rahman","password":"creditprobe-demo"}'
+    curl -s -b jar -X POST $API/api/v1/planner/projects -H 'Content-Type: application/json' \
+      -d '{"code":"CJ-FOLLOWUP","name":"Committee follow-up","start_date":"2026-01-01"}'
+
+The port note above applies to the separate-process path only. Through the
+containers the browser only ever talks to the frontend origin, which proxies
+the API server-side, so there is no CORS constraint to satisfy.
+
 ## The journeys
 
 | | What it proves |
