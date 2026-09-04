@@ -208,3 +208,66 @@ def test_brain_compatibility_declares_the_new_module_not_the_old_name():
     assert '"playbook"' in source
     assert '"playbooks"' not in source, (
         "the Brain still advertises a module this deployment does not have")
+
+
+# ============================================ what the container actually has
+
+
+def test_every_library_the_playbook_imports_is_declared():
+    """A dependency the developer's virtual environment happens to have.
+
+    `python-pptx` was used by `export.py` and `import_.py` and named in no
+    requirements file. Every test passed, because the machine running them had
+    it installed as somebody else's transitive dependency. The container did
+    not, so the slides export — offered in `/playbook/formats` as "the deck a
+    chair presents from" — answered 500 in the only place the product ships.
+
+    This walks the Playbook's own imports rather than trusting a list, so the
+    next library added to it has to be declared before this passes.
+    """
+    import ast
+    import sys
+
+    declared = set()
+    for line in (ROOT / "requirements.txt").read_text(
+            encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            name = line.split("==")[0].split(">=")[0].split("[")[0].strip()
+            declared.add(name.lower().replace("-", "_"))
+
+    #: What a distribution installs is not always what it is called on PyPI.
+    IMPORTED_AS = {
+        "pptx": "python_pptx",
+        "docx": "python_docx",
+        "dotenv": "python_dotenv",
+        "dateutil": "python_dateutil",
+        "yaml": "pyyaml",
+        "PIL": "pillow",
+        "sklearn": "scikit_learn",
+        "fitz": "pymupdf",
+    }
+
+    missing: list[str] = []
+    for path in (ROOT / "backend" / "playbook").rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                roots = [a.name.split(".")[0] for a in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.level == 0:
+                roots = [(node.module or "").split(".")[0]]
+            else:
+                continue
+            for root in roots:
+                if not root or root in sys.stdlib_module_names:
+                    continue
+                if root == "backend":
+                    continue
+                package = IMPORTED_AS.get(root, root).lower()
+                if package not in declared:
+                    missing.append(f"{path.relative_to(ROOT)} imports {root}")
+
+    assert missing == [], (
+        "imported by the Playbook and not in requirements.txt, so it works on "
+        "a developer machine and 500s in the container:\n  "
+        + "\n  ".join(sorted(set(missing))))
