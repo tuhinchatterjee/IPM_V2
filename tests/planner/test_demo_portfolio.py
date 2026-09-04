@@ -7,6 +7,22 @@ than in front of somebody.
 
 Skipped, not failed, when the portfolio has not been seeded: a developer who
 has never run the seed should not see red.
+
+They DO re-anchor the dates first, and that is not the same thing as re-seeding
+--------------------------------------------------------------------------
+Every date in the portfolio is an offset from the day the seed ran, so a
+sign-off due in three days is due in two the next morning and the reminder
+threshold assertion below goes red on the calendar rather than on a change.
+This file went green at 23:09 UTC and red at 00:0x with nothing in the tree
+touched between the two runs.
+
+The fixture calls `planner.demo.apply`, which moves only the scheduling fields
+and only on projects CreditProbe seeded. It creates nothing, deletes nothing,
+and preserves progress, status, owners, narrative, RAID and history — so what
+these tests then check is the demonstration as it is supposed to stand today,
+rather than as it stood on whatever day somebody last ran the seed. Not one
+assertion below was weakened to make that work; the dates were made honest
+instead.
 """
 
 from __future__ import annotations
@@ -34,6 +50,7 @@ def _needs_database():
 @pytest.fixture(scope="module")
 def portfolio():
     from backend.db.engine import get_session
+    from backend.planner import demo
 
     with get_session() as session:
         found = {c: int(i) for c, i in session.execute(
@@ -41,6 +58,16 @@ def portfolio():
             .where(PlannerProject.code.in_(CODES))).all()}
     if len(found) < len(CODES):
         pytest.skip("run scripts/seed_retail_portfolio.py to check the demo")
+
+    # Roll the dates to today before reading anything. Idempotent — on a
+    # portfolio seeded this morning the shift is zero and nothing is written —
+    # and it moves dates only, so every other property these tests assert is
+    # the one the seed produced. A date a person moved by hand is held back,
+    # which is also the right answer here: if somebody has taken the sign-off
+    # out of its reminder window deliberately, this file should say so.
+    with get_session() as session:
+        demo.apply(session, origin=demo.RETAIL_DEMO)
+        session.commit()
     return found
 
 

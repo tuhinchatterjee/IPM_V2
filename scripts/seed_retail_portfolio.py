@@ -1,10 +1,28 @@
 #!/usr/bin/env python
 """Four Retail Credit Risk programmes, as a bank actually runs them.
 
-    python scripts/seed_retail_portfolio.py             build what is missing
-    python scripts/seed_retail_portfolio.py --check     report only
-    python scripts/seed_retail_portfolio.py --reset     rebuild from scratch
-    python scripts/seed_retail_portfolio.py --json      machine-readable
+    python scripts/seed_retail_portfolio.py                    build what is missing
+    python scripts/seed_retail_portfolio.py --check           report only
+    python scripts/seed_retail_portfolio.py --refresh-dates   roll dates to today
+    python scripts/seed_retail_portfolio.py --refresh-dates --dry-run
+    python scripts/seed_retail_portfolio.py --reset           rebuild from scratch
+    python scripts/seed_retail_portfolio.py --json            machine-readable
+
+This is the `planner-demo` command surface: everything that creates, inspects,
+re-anchors or rebuilds the demonstration programmes is here, because a second
+entry point is a second set of guards to keep in step with these.
+
+Dates go stale, and rebuilding is the wrong repair
+--------------------------------------------------
+Every date below is an offset from the day the seed ran, which is true that day
+and decays afterwards: a sign-off due in three days is due in two tomorrow, two
+is not a reminder threshold, and the demonstration stops being able to fire on
+its own. `--refresh-dates` rolls every scheduling field forward by the days
+since it was anchored and leaves everything else — progress, status, owners,
+narrative, RAID, history — exactly as it is. `--dry-run` prints what would move
+and changes nothing. A date a person moved themselves is held back and
+reported, because that is a commitment somebody made; `--force-demo-dates`
+overwrites it, and says so. See `backend/planner/demo.py`.
 
 Why four, and why this much detail
 ----------------------------------
@@ -53,6 +71,8 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from backend.planner import demo  # noqa: E402 - after the path is set up
 
 EXIT_OK = 0
 EXIT_INCOMPLETE = 1
@@ -891,6 +911,13 @@ def _build_one(session: Any, who: Any, people: dict[str, int],
     session.flush()
     pid = int(project.id)
 
+    # What makes this programme safe to re-anchor later, and a project a
+    # person created unsafe to touch. `demo_origin` is the marker; the anchor
+    # is the day every offset above was measured from, so `--refresh-dates`
+    # can roll them forward by arithmetic instead of rebuilding them.
+    project.demo_origin = demo.RETAIL_DEMO
+    project.demo_anchor_date = today
+
     for username, role, access in spec["participants"]:
         if people[username] == getattr(who, "user_id", None) and (
                 access != "OWNER"):
@@ -1166,15 +1193,97 @@ def _counts(session: Any, code: str) -> dict[str, int]:
     return out
 
 
+def refresh_dates(*, dry_run: bool = False, force: bool = False,
+                  today: date | None = None) -> demo.Refresh:
+    """Roll the demonstration's dates forward to today.
+
+    Non-destructive by construction: it moves only the scheduling fields named
+    in `demo.FIELDS`, only on projects whose `demo_origin` says CreditProbe
+    seeded them, and it deletes nothing. A dry run opens the same transaction
+    and rolls it back, so what it prints is what the real run would do rather
+    than a separate calculation that could drift from it.
+    """
+    from backend.db.engine import get_session
+
+    with get_session() as session:
+        if dry_run:
+            out = demo.plan(session, today=today, force=force)
+            session.rollback()
+            return out
+        out = demo.apply(session, today=today, force=force)
+        session.commit()
+        return out
+
+
+def _print_refresh(out: demo.Refresh, *, dry_run: bool) -> None:
+    lead = "would move" if dry_run else "moved"
+    print(f"  demo dates, as at {out.today}"
+          + ("  (dry run — nothing was written)" if dry_run else ""))
+    for entry in out.projects:
+        if entry.shift_days == 0:
+            print(f"  {entry.code}: already anchored to {out.today}. "
+                  "Nothing to do.")
+            continue
+        print(f"  {entry.code}: anchored {entry.anchor}, "
+              f"{entry.shift_days:+d} days — {lead} {len(entry.moving)} "
+              f"date{'' if len(entry.moving) == 1 else 's'}"
+              + (f", held {len(entry.held)}" if entry.held else ""))
+        for move in entry.moving[:6]:
+            print(f"      {move.entity_type:<9} {move.entity_code:<8} "
+                  f"{move.field:<16} {move.before} -> {move.after}")
+        if len(entry.moving) > 6:
+            print(f"      ... and {len(entry.moving) - 6} more")
+        for move in entry.held:
+            print(f"      HELD      {move.entity_code:<8} "
+                  f"{move.field:<16} {move.before}  ({move.why})")
+    for note in out.notes:
+        print(f"  note     {note}")
+    if out.held and not out.forced:
+        print("\n  Dates a person set are preserved. Pass "
+              "--force-demo-dates to overwrite them.")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true",
                         help="report what exists; change nothing")
     parser.add_argument("--reset", action="store_true",
-                        help="remove these four programmes and rebuild them")
+                        help="DESTRUCTIVE, demo/dev only: remove these four "
+                             "programmes and rebuild them from scratch")
+    parser.add_argument("--refresh-dates", action="store_true",
+                        help="roll the demonstration's dates forward to "
+                             "today, keeping everything else")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="with --refresh-dates: print what would move "
+                             "and write nothing")
+    parser.add_argument("--force-demo-dates", action="store_true",
+                        help="with --refresh-dates: also move dates a person "
+                             "changed after seeding")
     parser.add_argument("--json", action="store_true",
                         help="machine-readable result")
     args = parser.parse_args()
+
+    if args.refresh_dates:
+        try:
+            out = refresh_dates(dry_run=args.dry_run,
+                                force=args.force_demo_dates)
+        except Exception as exc:  # noqa: BLE001 - reported, not swallowed
+            message = f"{type(exc).__name__}: {exc}"
+            if args.json:
+                print(json.dumps({"error": message}, indent=2))
+            else:
+                print(f"Could not refresh: {message}")
+            return EXIT_CANNOT_RUN
+        if args.json:
+            print(json.dumps(out.to_dict(), indent=2))
+        else:
+            _print_refresh(out, dry_run=args.dry_run)
+        return EXIT_OK
+
+    if args.dry_run or args.force_demo_dates:
+        print("--dry-run and --force-demo-dates only mean something with "
+              "--refresh-dates.")
+        return EXIT_CANNOT_RUN
 
     try:
         report = build(reset=args.reset, check=args.check)

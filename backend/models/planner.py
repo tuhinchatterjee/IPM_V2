@@ -265,6 +265,21 @@ class PlannerProject(Base):
 
     archived: Mapped[bool] = mapped_column(Boolean, nullable=False,
                                            default=False)
+
+    # ---- demonstration programmes, and only those ------------------------
+    #
+    # Empty on every project a person created. Non-empty only on programmes
+    # CreditProbe seeded, so the date refresh can tell what it may move from a
+    # stored fact rather than guessing from a project code.
+    demo_origin: Mapped[str] = mapped_column(String(40), nullable=False,
+                                             default="",
+                                             server_default=text("''"))
+    #: The day this programme's relative dates were anchored to. The seed
+    #: writes every date as an offset from the day it ran, which is true that
+    #: day and decays afterwards; this is what makes rolling it forward
+    #: arithmetic rather than a rebuild.
+    demo_anchor_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
     #: Bumped on every mutation. A stale editor sends the version it read and
     #: is refused rather than silently overwriting somebody else's edit.
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

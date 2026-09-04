@@ -303,3 +303,53 @@ dfc1550 The engine, on its own, and two things it was not doing
 No pull request has been opened. Nothing was merged to `main`, no history was
 rewritten, and no existing test, tolerance or protection was weakened to make
 any of this pass.
+
+## The demonstration's dates
+
+    python scripts/seed_retail_portfolio.py --refresh-dates --dry-run
+    python scripts/seed_retail_portfolio.py --refresh-dates
+    python scripts/seed_retail_portfolio.py --refresh-dates --force-demo-dates
+    python scripts/seed_retail_portfolio.py --reset            # DESTRUCTIVE
+
+Every date in the four Retail programmes is an offset from the day the seed
+ran. That is true on the day and decays afterwards: a sign-off due in three
+days is due in two the next morning, two is not one of the project's reminder
+thresholds, and the demonstration's centrepiece stops being able to fire on its
+own. A full regression run went green at 23:09 UTC and red at 00:0x with
+nothing in the tree changed between them.
+
+`--refresh-dates` re-anchors instead of rebuilding. Each demo project stores
+`demo_origin` — the marker that says CreditProbe seeded it — and
+`demo_anchor_date`, the day its offsets were measured from. The shift is
+`today - anchor`; every canonical scheduling field moves by that many days and
+the anchor becomes today. Run twice on one day the shift is zero and nothing is
+written, not even a history row.
+
+**What it moves** — and nothing else: project start/target/actual end, task
+start/due/completed, milestone target/actual, RAID raised/target/resolved.
+
+**What it keeps**: progress, status, owner, reviewer, contributors,
+participants and their roles, narrative updates, RAID text and state, blockers,
+next steps, notes, tags, history and audit.
+
+**A date a person moved is held back.** The planner's history is append-only
+and records `{field: [before, after]}` with the source, so a human date edit is
+findable — a `PlannerUpdate` on that entity, touching that field, from a source
+that is not SYSTEM. Those are reported and preserved, because a date somebody
+chose is a commitment rather than scaffolding. `--force-demo-dates` overwrites
+them and says so in the history row it writes.
+
+**It refuses to go backwards.** An anchor later than today means the anchor is
+wrong, not that the demonstration belongs in the past; a "refresh" that quietly
+rolled a day of work backwards would look exactly like a working command.
+
+**It does not call `service.update_task`,** deliberately. Every task update
+closes outstanding chases, and a date re-anchor is not an answer to "you owe us
+an update on this". The moves are applied and then written through the service
+layer's own `record`, `audit` and `signal` — the same history table, the same
+audit trail, the same re-evaluation — with the source set to SYSTEM so nobody
+appears to have made a change they did not make.
+
+`--reset` remains, guarded to development and demonstration deployments, for an
+intentionally destructive full rehearsal rebuild. It is the only command here
+that deletes anything.
