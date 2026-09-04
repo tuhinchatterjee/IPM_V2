@@ -265,6 +265,10 @@ def evidence_for(session: Any, pack: Any, section: Any) -> list[dict[str, Any]]:
                 entry["previous_period"] = figure.comparison_period
                 entry["change"] = moved["display"]
                 entry["direction"] = moved["direction"]
+                # So the model never writes "rose to 0.3% from 0.3%": the
+                # evidence itself says the move is below reported precision.
+                if not moved.get("visible") and moved["direction"] != "flat":
+                    entry["direction"] = "below reported precision"
                 if moved.get("better") is not None:
                     entry["better"] = bool(moved["better"])
         else:

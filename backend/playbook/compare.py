@@ -261,6 +261,13 @@ def _between(here: snap.Figure, there: snap.Figure) -> Difference:
     made.change = change
     made.change_display = snap.display(change, here.unit, here.decimals)
     made.direction = "up" if change > 0 else "down"
+    if made.now_display == made.then_display:
+        # It moved, but not by enough to see at the precision this metric is
+        # reported to. Saying "up, from 0.3% to 0.3%" without saying why the
+        # two look the same is how a reader decides the pack is broken.
+        made.caveat = (
+            f"{made.name} moved, but by less than the precision it is "
+            f"reported to, so both cycles read {made.now_display}.")
     if here.higher_is_better is not None:
         made.better = (made.direction == "up") == bool(here.higher_is_better)
     if here.period and there.period and here.period == there.period:

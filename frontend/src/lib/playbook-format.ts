@@ -125,6 +125,18 @@ export function movementReading(
   if (Math.abs(change) < 1e-9) {
     return { kind: "flat", text: `Unchanged on ${period}` };
   }
+  // A metric's `decimals` is a governance statement about how precisely the
+  // number is meaningful. When the move does not survive that precision, an
+  // arrow between two identical figures — "▲ from 0.3% on 2024-12" against a
+  // reading of 0.3% — reads to a committee as a defect, and quoting the extra
+  // digits to justify it would be false precision. Say what is true instead.
+  if (figure.display_value === figure.comparison_display) {
+    return {
+      kind: "flat",
+      text: `${figure.comparison_display} on ${period} — no change at the `
+            + `precision this metric is reported to`,
+    };
+  }
   const up = change > 0;
   // `higher_is_better` may be null for a metric with no agreed direction —
   // a count, say. Treated as "not good, not bad" rather than guessed.

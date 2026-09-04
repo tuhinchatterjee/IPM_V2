@@ -655,3 +655,58 @@ def _approve(session, committee, template, actors, period: str = "2025-01"):
     ready = _ready_pack(session, committee, template, actors, period)
     return service.set_pack_status(session, ready["id"], actors["approver"],
                                    status="APPROVED")
+
+
+def test_an_uploaded_table_does_not_block_the_pack(session, pack, actors):
+    """A table from somebody's file is not an uncalculated figure.
+
+    It has no metric and never will: CreditProbe did not calculate it and is
+    not asserting it. Counting it among the figures the pack still owes leaves
+    the readiness gate stuck forever on a reason that is not true — "has not
+    been calculated yet, so the pack has a placeholder where a figure should
+    be" — about a block that is doing exactly what it is meant to.
+    """
+    from backend.models.playbook import PlaybookPack
+
+    generation.generate(session, pack["id"], actors["owner"])
+    row = session.get(PlaybookPack, int(pack["id"]))
+    before = readiness.assess(session, row)
+    data_before = next(c for c in before.checks if c.key == "data")
+    blocking_before = [r for r in data_before.reasons if r.blocking]
+
+    section = service.create_section(session, pack["id"], actors["owner"],
+                                     title="From the branch")
+    service.create_block(
+        session, int(section["id"]), actors["owner"],
+        block_type="TABLE", title="Branch submission",
+        import_class="UNMAPPED_TABLE",
+        config={"imported": True, "columns": ["Measure", "Value"],
+                "rows": [["Jeddah SME approval rate", "41.2%"]]})
+
+    after = readiness.assess(session, row)
+    data_after = next(c for c in after.checks if c.key == "data")
+    blocking_after = [r for r in data_after.reasons if r.blocking]
+    assert len(blocking_after) == len(blocking_before), (
+        "uploading a supporting table must not add a blocking reason: "
+        + "; ".join(r.text for r in blocking_after))
+    assert not any("placeholder" in r.text and "Branch" in r.text
+                   for r in blocking_after)
+
+
+def test_a_governed_figure_with_no_snapshot_still_blocks(session, pack,
+                                                         actors):
+    """The exemption is for imported tables and nothing else."""
+    from backend.models.playbook import PlaybookPack
+
+    row = session.get(PlaybookPack, int(pack["id"]))
+    section = service.create_section(session, pack["id"], actors["owner"],
+                                     title="Uncalculated")
+    service.create_block(session, int(section["id"]), actors["owner"],
+                         block_type="KPI", title="Retail default rate",
+                         config={"metric_id": "retail.default_rate"})
+
+    state = readiness.assess(session, row)
+    data = next(c for c in state.checks if c.key == "data")
+    assert any(r.blocking and "Retail default rate" in r.text
+               for r in data.reasons), (
+        "a governed KPI with no snapshot is a real gap and must still block")

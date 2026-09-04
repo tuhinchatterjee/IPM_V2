@@ -565,3 +565,80 @@ def test_a_formula_change_is_reported_as_a_redefinition_not_a_movement(
     assert outcome["material"][0]["kind"] == compare.REDEFINED, (
         "a redefinition sorts first, because it changes what every other "
         "line means")
+
+
+# ============================================ a move nobody can see on screen
+
+
+def _figure(**over):
+    from backend.playbook import snapshots as snap
+
+    base = {
+        "metric_id": "retail.average_debt_burden",
+        "metric_name": "Average debt burden ratio",
+        "metric_version": "1.0.0",
+        "formula_hash": "a" * 64,
+        "period": "2025-01",
+        "comparison_period": "2024-12",
+        "value": 0.31349361339628923,
+        "comparison_value": 0.305581953071401,
+        "unit": "percent",
+        "decimals": 1,
+        "higher_is_better": False,
+        "availability": snap.OK,
+    }
+    base.update(over)
+    return snap.Figure(**base)
+
+
+def test_a_move_below_the_reported_precision_is_marked_not_visible():
+    """0.3134% against 0.3056% both read "0.3%" at one decimal.
+
+    `decimals` is a governance statement about how precisely the metric is
+    meaningful. A movement that does not survive it becomes, on screen, an
+    arrow between two identical numbers — which a committee reads as an
+    error — and quoting the extra digits to justify the arrow would be a
+    precision the metric definition does not claim.
+    """
+    from backend.playbook import snapshots as snap
+
+    moved = snap.movement(_figure())
+    assert moved["available"] is True
+    assert moved["direction"] == "up", (
+        "the arithmetic must still say which way it went")
+    assert moved["visible"] is False
+
+
+def test_a_move_that_survives_the_precision_is_visible():
+    from backend.playbook import snapshots as snap
+
+    moved = snap.movement(_figure(value=0.42, comparison_value=0.31))
+    assert moved["direction"] == "up"
+    assert moved["visible"] is True
+
+
+def test_the_document_says_so_rather_than_drawing_an_arrow():
+    from backend.playbook import export
+
+    said = export._movement_cell(_figure())
+    assert "▲" not in said and "▼" not in said, said
+    assert "precision" in said, said
+
+
+def test_materiality_still_reads_the_real_numbers():
+    """Presentation was told the truth. The arithmetic was not touched.
+
+    A rule with a threshold below the reported precision must still fire:
+    materiality is about the book, not about how many decimals a pack prints.
+    """
+    from backend.playbook import materiality
+
+    figure = _figure()
+    rule = materiality.Rule(
+        key="debt_burden_move", metric_id=figure.metric_id,
+        comparison="absolute_change", threshold=0.005,
+        severity="MEDIUM", title="Debt burden moved")
+    found = materiality._movement(rule, figure)
+    assert found is not None, (
+        "a real move must still be observable even when it is too small to "
+        "print at the metric's own precision")

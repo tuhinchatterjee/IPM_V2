@@ -195,6 +195,39 @@ test("a metric with no agreed direction is not guessed at", () => {
   assert.equal(reading.kind === "moved" && reading.good, false);
 });
 
+test("a move too small to see is not drawn as an arrow", () => {
+  // 0.3134% against 0.3056% is a real move, and at one decimal both read
+  // "0.3%". An arrow between two identical numbers is what a committee calls
+  // an error, and quoting the extra digits to justify it would be a
+  // precision the metric definition does not claim.
+  const reading = movementReading(
+    figure({
+      value: 0.31349,
+      comparison_value: 0.30558,
+      display_value: "0.3%",
+      comparison_display: "0.3%",
+      decimals: 1,
+    }),
+  );
+  assert.equal(reading.kind, "flat");
+  assert.match(reading.text, /precision/);
+  assert.match(reading.text, /0\.3%/);
+});
+
+test("a move that IS visible is still drawn as a movement", () => {
+  const reading = movementReading(
+    figure({
+      value: 0.35,
+      comparison_value: 0.31,
+      display_value: "0.4%",
+      comparison_display: "0.3%",
+      decimals: 1,
+    }),
+  );
+  assert.equal(reading.kind, "moved");
+  assert.equal(reading.kind === "moved" && reading.up, true);
+});
+
 // =============================================================== the lifecycle
 
 test("an approved pack is locked, and a draft is not", () => {

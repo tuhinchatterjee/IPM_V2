@@ -583,6 +583,17 @@ def movement(figure: Figure) -> dict[str, Any]:
     direction = "flat"
     if abs(change) > 1e-12:
         direction = "up" if change > 0 else "down"
+
+    # A metric's `decimals` says how precisely it is meaningful. A change that
+    # does not survive that precision is a change the committee cannot see:
+    # reported as a direction it becomes an arrow between two identical
+    # numbers, and reported at extra digits it becomes false precision. The
+    # arithmetic is kept — materiality reads the real values — and only the
+    # PRESENTATION is told the truth about what is visible.
+    visible = (direction != "flat"
+               and display(figure.value, figure.unit, figure.decimals)
+               != figure.comparison_display)
+
     better: bool | None = None
     if figure.higher_is_better is not None and direction != "flat":
         better = (direction == "up") == bool(figure.higher_is_better)
@@ -591,6 +602,7 @@ def movement(figure: Figure) -> dict[str, Any]:
         "change": change,
         "relative": relative,
         "direction": direction,
+        "visible": visible,
         "better": better,
         "display": display(change, figure.unit, figure.decimals),
         "from": figure.comparison_value,

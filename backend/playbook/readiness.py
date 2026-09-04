@@ -35,7 +35,6 @@ from typing import Any
 from sqlalchemy import select
 
 from backend.models.playbook import (
-    CALCULATED_BLOCK_TYPES,
     SEVERITY_RANK,
     PlaybookAction,
     PlaybookBlock,
@@ -44,6 +43,7 @@ from backend.models.playbook import (
     PlaybookReview,
     PlaybookSection,
     PlaybookSnapshot,
+    carries_a_figure,
 )
 from backend.playbook import snapshots as snap
 
@@ -266,7 +266,7 @@ def _data(session: Any, pack: Any, blocks: list[Any]) -> Check:
     whose calculation broke is a platform problem and blocks everything.
     """
     check = Check("data", "Data readiness", WEIGHTS["data"])
-    wanted = [b for b in blocks if b.block_type in CALCULATED_BLOCK_TYPES]
+    wanted = [b for b in blocks if carries_a_figure(b)]
     if not wanted:
         check.not_assessed = (
             "This pack has no calculated figures in it yet.")

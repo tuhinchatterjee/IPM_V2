@@ -347,6 +347,11 @@ def _movement_cell(figure: snap.Figure) -> str:
     moved = snap.movement(figure)
     if not moved.get("available"):
         return "—"
+    if not moved.get("visible") and moved["direction"] != "flat":
+        # Moved, but not by enough to see at the precision this metric is
+        # reported to. An arrow beside two identical numbers is what a
+        # reader would call an error.
+        return "= no change at this precision"
     arrow = {"up": "▲", "down": "▼", "flat": "="}.get(moved["direction"], "")
     tail = ""
     if moved.get("better") is False:

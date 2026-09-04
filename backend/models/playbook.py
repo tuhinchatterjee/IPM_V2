@@ -155,6 +155,22 @@ BLOCK_TYPES: tuple[str, ...] = (
 #: the ones that must carry a snapshot before a pack can be approved.
 CALCULATED_BLOCK_TYPES: frozenset[str] = frozenset({"KPI", "CHART", "TABLE"})
 
+#: The one import class that names no metric: a table lifted out of somebody's
+#: file, which CreditProbe did not calculate and is not asserting.
+IMPORTED_TABLE: str = "UNMAPPED_TABLE"
+
+
+def carries_a_figure(block: object) -> bool:
+    """Whether this block is one the pack must calculate before approval.
+
+    Block TYPE alone is not enough. A TABLE that came out of an uploaded
+    document is a table of somebody else's numbers: it will never carry a
+    snapshot, by design, and treating it as an uncalculated figure blocks the
+    pack's readiness forever on a reason that is not true.
+    """
+    return (str(getattr(block, "block_type", "")) in CALCULATED_BLOCK_TYPES
+            and str(getattr(block, "import_class", "")) != IMPORTED_TABLE)
+
 #: How a sentence in a pack relates to the data underneath it. §7.1: an
 #: inference presented as a fact is the single most damaging thing an
 #: automated commentary writer can do, so the distinction is stored, not
@@ -1187,6 +1203,8 @@ __all__ = [
     "BUSINESS_ROLES",
     "CADENCES",
     "CALCULATED_BLOCK_TYPES",
+    "IMPORTED_TABLE",
+    "carries_a_figure",
     "CONFIDENTIALITY",
     "DECISION_STATUSES",
     "EDITABLE_PACK_STATUSES",
