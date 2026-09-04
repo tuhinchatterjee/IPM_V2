@@ -294,9 +294,19 @@ def _validate_metric_panel(panel: Panel) -> None:
             f"'{panel.visual}' is not a way a panel may be drawn. "
             f"Available: {', '.join(VISUALS)}.")
     if panel.visual != "auto" and panel.visual not in metric.visuals:
+        # Only what this renderer can actually draw. A metric may declare a
+        # visual from the catalogue's wider vocabulary — the three IFRS 9
+        # stage shares declare `stacked_bar`, which is an honest thing to say
+        # about them — and offering it back as an alternative would send
+        # somebody to try a tile the lens has no renderer for.
+        here = [v for v in metric.visuals if v in VISUALS]
+        elsewhere = [v for v in metric.visuals if v not in VISUALS]
+        also = (f" It also declares {', '.join(elsewhere)}, which no lens "
+                "renderer draws yet." if elsewhere else "")
         raise InvalidLens(
-            f"{metric.name} should not be drawn as a {panel.visual}. It can "
-            f"honestly be shown as: {', '.join(metric.visuals)}.")
+            f"{metric.name} should not be drawn as a {panel.visual}. On a "
+            f"lens it can honestly be shown as: "
+            f"{', '.join(here) or 'nothing this lens can draw'}.{also}")
 
 
 def _validate_chart_panel(panel: Panel) -> None:
