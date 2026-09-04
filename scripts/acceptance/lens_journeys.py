@@ -697,7 +697,7 @@ def _journey_h(page: Any, report: Report) -> None:
     try:
         _arrange(page, report, lens)
     finally:
-        page.request.delete(f"{API}/api/v1/lenses/{lens['id']}")
+        _discard(report, "H", lens)
 
 
 def _arrange(page: Any, report: Report, lens: dict) -> None:
@@ -777,7 +777,7 @@ def _journey_i(page: Any, report: Report) -> None:
     try:
         _build_a_chart(page, report, lens)
     finally:
-        page.request.delete(f"{API}/api/v1/lenses/{lens['id']}")
+        _discard(report, "I", lens)
 
 
 #: The metric and dimension this journey builds. An additive retail metric
@@ -1091,6 +1091,30 @@ def _scratch_lens(page: Any) -> dict | None:
     if not made.ok:
         return None
     return made.json()
+
+
+def _discard(report: Report, journey: str, lens: dict) -> None:
+    """Remove the lens this journey made, and fail loudly if it cannot.
+
+    Through the service rather than the API, because deleting a lens is a
+    data steward's action and these journeys deliberately run as an analyst —
+    which is the point of them. The teardown used to go through the API as
+    that analyst and take the 403 in silence, so every run since these
+    journeys were written left a lens behind. There were thirteen.
+    """
+    from backend.services import lenses as service
+
+    try:
+        service.delete(int(lens["id"]))
+        gone = service.get(int(lens["id"])) is None
+    except service.LensNotFound:
+        gone = True
+    except Exception as e:  # noqa: BLE001 - reported, not swallowed
+        report.check(journey, "the lens this run made was removed", False,
+                     f"{type(e).__name__}: {e}")
+        return
+    report.check(journey, "the lens this run made was removed", gone,
+                 f"lens {lens['id']} is still in the database")
 
 
 def main(argv: list[str] | None = None) -> int:
