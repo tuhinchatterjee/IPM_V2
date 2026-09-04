@@ -484,3 +484,140 @@ def test_a_freshly_scored_month_replicates_against_its_own_equation(
     found = metrics.replicate(application_month,
                               build.load_equation("APPLICATION", "INCUMBENT"))
     assert found.validated, found.to_dict()
+
+
+# ------------------------------------------- §40 the bootstrap and its paths
+
+
+def _sample(rows: int = 4000, distinct: int = 40, seed: int = 7):
+    """A book with heavy tying, which is what a scorecard actually produces."""
+    rng = np.random.default_rng(seed)
+    score = rng.integers(300, 300 + distinct, rows).astype(float)
+    risk = 1.0 / (1.0 + np.exp((score - 320) / 6.0))
+    return pd.DataFrame({
+        "score": score,
+        "actual_default": (rng.random(rows) < risk).astype(float),
+    })
+
+
+def test_the_counted_auc_is_the_ranked_auc_to_the_last_bit():
+    """The two bootstrap paths must not drift apart.
+
+    `bootstrap_auc` compresses a heavily tied score to a count table and
+    computes the Mann-Whitney statistic across it, which is why an interval
+    on a third of a million rows takes seconds rather than a minute and a
+    half. That is only legitimate if the compressed statistic is the same
+    statistic — so this asserts it on the degenerate draw, where the counts
+    are the observed ones.
+    """
+    frame = _sample()
+    y, raw = metrics._clean(frame["actual_default"], frame["score"])
+    risk = metrics._risk_ordered(raw, HIGHER_BETTER)
+    values, index = np.unique(risk, return_inverse=True)
+    bad = np.bincount(index, weights=y, minlength=len(values))
+    good = np.bincount(index, minlength=len(values)) - bad
+
+    counted = metrics.auc_from_counts(good, bad)
+    ranked = metrics.discrimination(
+        frame, score="score", target="actual_default",
+        score_direction=HIGHER_BETTER).auc
+    assert counted == ranked
+
+
+def test_the_counted_auc_handles_ties_the_way_midranks_do():
+    """A tie is worth half a comparison, on both paths."""
+    frame = pd.DataFrame({
+        "score": [500.0, 500.0, 500.0, 600.0],
+        "actual_default": [1.0, 0.0, 1.0, 0.0],
+    })
+    y, raw = metrics._clean(frame["actual_default"], frame["score"])
+    risk = metrics._risk_ordered(raw, HIGHER_BETTER)
+    values, index = np.unique(risk, return_inverse=True)
+    bad = np.bincount(index, weights=y, minlength=len(values))
+    good = np.bincount(index, minlength=len(values)) - bad
+    assert metrics.auc_from_counts(good, bad) == metrics.discrimination(
+        frame, score="score", target="actual_default",
+        score_direction=HIGHER_BETTER).auc
+
+
+def test_a_bootstrap_interval_brackets_its_point_estimate():
+    frame = _sample()
+    interval = metrics.bootstrap_auc(
+        frame, score="score", target="actual_default",
+        score_direction=HIGHER_BETTER, resamples=300, seed=11)
+    assert interval.lower < interval.point < interval.upper
+    assert interval.resamples == 300
+    assert interval.observations == len(frame)
+
+
+def test_the_same_seed_gives_the_same_interval():
+    """An interval that moves between runs cannot be filed as evidence."""
+    frame = _sample()
+    first = metrics.bootstrap_auc(
+        frame, score="score", target="actual_default",
+        score_direction=HIGHER_BETTER, resamples=200, seed=11)
+    second = metrics.bootstrap_auc(
+        frame, score="score", target="actual_default",
+        score_direction=HIGHER_BETTER, resamples=200, seed=11)
+    assert (first.lower, first.upper) == (second.lower, second.upper)
+
+
+def test_a_different_seed_gives_a_different_interval():
+    """If it did not, the seed would not be doing anything."""
+    frame = _sample()
+    made = [metrics.bootstrap_auc(
+        frame, score="score", target="actual_default",
+        score_direction=HIGHER_BETTER, resamples=200, seed=seed)
+        for seed in (11, 12)]
+    assert (made[0].lower, made[0].upper) != (made[1].lower, made[1].upper)
+
+
+def test_more_data_gives_a_narrower_interval():
+    """The property that makes a confidence interval worth reporting."""
+    narrow = metrics.bootstrap_auc(
+        _sample(rows=40_000), score="score", target="actual_default",
+        score_direction=HIGHER_BETTER, resamples=300, seed=11)
+    wide = metrics.bootstrap_auc(
+        _sample(rows=2_000), score="score", target="actual_default",
+        score_direction=HIGHER_BETTER, resamples=300, seed=11)
+    assert (narrow.upper - narrow.lower) < (wide.upper - wide.lower)
+
+
+def test_both_bootstrap_paths_agree_on_the_same_book():
+    """The compression is a speed decision, not a statistical one.
+
+    The counted path and the plain resample draw different random numbers,
+    so their intervals differ by sampling noise — but not by more than that,
+    and this pins how much. If the compression were subtly wrong, the two
+    would separate by far more than a percentile's Monte Carlo error.
+    """
+    frame = _sample(rows=20_000)
+    y, raw = metrics._clean(frame["actual_default"], frame["score"])
+    risk = metrics._risk_ordered(raw, HIGHER_BETTER)
+    values, index = np.unique(risk, return_inverse=True)
+
+    counted = metrics._bootstrap_counted(
+        y, index, len(values), 400, np.random.default_rng(3))
+    resampled = metrics._bootstrap_resampled(
+        y, risk, 400, np.random.default_rng(3))
+    for tail in (2.5, 50.0, 97.5):
+        assert abs(float(np.percentile(counted, tail))
+                   - float(np.percentile(resampled, tail))) < 0.005
+
+
+def test_a_bootstrap_refuses_an_immature_cohort():
+    frame = _sample()
+    frame["matured_flag"] = False
+    with pytest.raises(metrics.ImmatureCohortError):
+        metrics.bootstrap_auc(
+            frame, score="score", target="actual_default",
+            score_direction=HIGHER_BETTER, resamples=50, seed=1)
+
+
+def test_a_bootstrap_refuses_a_sample_with_one_outcome_class():
+    frame = _sample()
+    frame["actual_default"] = 0.0
+    with pytest.raises(metrics.MetricError):
+        metrics.bootstrap_auc(
+            frame, score="score", target="actual_default",
+            score_direction=HIGHER_BETTER, resamples=50, seed=1)

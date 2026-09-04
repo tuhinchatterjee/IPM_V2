@@ -844,3 +844,174 @@ def replicate(frame: pd.DataFrame, equation: equation_mod.Equation, *,
         mismatch_count=int((logit_gap > tolerance).sum()),
         bin_mismatch_count=0,
         tolerance=tolerance, label=label)
+
+
+# ------------------------------------------------- §40 bootstrap confidence
+
+
+@dataclass
+class Interval:
+    """A percentile confidence interval, and everything needed to redraw it.
+
+    The resample count and seed are fields rather than arguments the caller
+    remembers, because a confidence interval that cannot be reproduced is not
+    evidence — it is a number that was true once.
+    """
+
+    statistic: str
+    point: float
+    lower: float
+    upper: float
+    confidence: float
+    resamples: int
+    seed: int
+    observations: int
+    events: int
+    draws: list[float] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "metrics_version": METRICS_VERSION,
+            "statistic": self.statistic, "point": self.point,
+            "lower": round(self.lower, 6), "upper": round(self.upper, 6),
+            "confidence": self.confidence, "resamples": self.resamples,
+            "seed": self.seed, "observations": self.observations,
+            "events": self.events,
+            "method": "percentile bootstrap, resampling rows with replacement",
+        }
+
+
+#: Above this many distinct score values the count-based path stops being
+#: the faster one, and the plain resample is used instead. Both compute the
+#: same statistic; see `bootstrap_auc`.
+DISTINCT_SCORE_LIMIT = 50_000
+
+
+def bootstrap_auc(frame: pd.DataFrame, *, score: str, target: str,
+                  score_direction: str, resamples: int = 500,
+                  seed: int = 0, confidence: float = 0.95) -> Interval:
+    """A percentile confidence interval for the AUC.
+
+    Why this is a kernel and not a loop in a caller
+    -----------------------------------------------
+    A bootstrap is a statistical method, so it lives with the other
+    statistical methods. A caller that resampled a DataFrame five hundred
+    times and called `discrimination` on each would get the right answer at
+    roughly two hundred milliseconds a draw — a minute and a half on a book
+    of a third of a million rows, which is long enough that somebody would
+    eventually make the interval optional, and an optional confidence
+    interval is one nobody has.
+
+    How it stays exact while being fast
+    -----------------------------------
+    The AUC is a Mann-Whitney statistic: it depends on the score's *ordering*
+    and on how many goods and bads sit at each distinct score, not on the
+    scores themselves. A scorecard has a few hundred distinct scores across
+    hundreds of thousands of accounts, so the whole sample compresses to a
+    table of (distinct score, goods, bads) with a few hundred rows.
+
+    Resampling rows with replacement is then exactly a multinomial draw over
+    the cells of that table, and the statistic is a cumulative sum across it.
+    That makes a draw O(cells) rather than O(n log n), and the result is not
+    an approximation of the row-resampling bootstrap — it is the same thing,
+    counted rather than enumerated. A test asserts that the degenerate draw
+    (the observed counts) reproduces `discrimination(...).auc` exactly.
+
+    Where the compression stops helping — a continuous PD with a distinct
+    value per row — the plain resample is used instead. Same statistic,
+    slower, and it says so in neither case because the caller does not need
+    to know which path ran to trust the number.
+    """
+    require_matured(frame, what="A bootstrap confidence interval")
+    y, raw = _clean(frame[target], frame[score])
+    if len(y) == 0:
+        raise MetricError("nothing to measure: every row was missing")
+    events = int(y.sum())
+    negatives = len(y) - events
+    if events == 0 or negatives == 0:
+        raise MetricError(
+            f"the sample has {events} default(s) out of {len(y):,}. An "
+            "interval around a statistic that cannot be computed is not a "
+            "wider version of it.")
+    if resamples < 2:
+        raise MetricError("a bootstrap needs at least two resamples")
+
+    risk = _risk_ordered(raw, score_direction)
+    point = discrimination(frame, score=score, target=target,
+                           score_direction=score_direction).auc
+
+    values, index = np.unique(risk, return_inverse=True)
+    rng = np.random.default_rng(seed)
+    if len(values) <= DISTINCT_SCORE_LIMIT:
+        draws = _bootstrap_counted(y, index, len(values), resamples, rng)
+    else:
+        draws = _bootstrap_resampled(y, risk, resamples, rng)
+
+    if not draws:
+        raise MetricError(
+            "no resample produced a measurable statistic, which means almost "
+            "every draw came back with one outcome class")
+    tail = (1.0 - confidence) / 2.0 * 100.0
+    return Interval(
+        statistic="AUC", point=point,
+        lower=float(np.percentile(draws, tail)),
+        upper=float(np.percentile(draws, 100.0 - tail)),
+        confidence=confidence, resamples=len(draws), seed=seed,
+        observations=len(y), events=events,
+        draws=[round(float(d), 6) for d in draws])
+
+
+def _bootstrap_counted(y: np.ndarray, index: np.ndarray, distinct: int,
+                       resamples: int,
+                       rng: np.random.Generator) -> list[float]:
+    """Draws taken over the (score, outcome) count table. See `bootstrap_auc`."""
+    bad = np.bincount(index, weights=y, minlength=distinct)
+    good = np.bincount(index, minlength=distinct) - bad
+    cells = np.concatenate([good, bad])
+    share = cells / cells.sum()
+    rows = len(y)
+
+    out: list[float] = []
+    for counts in rng.multinomial(rows, share, size=resamples):
+        drawn = auc_from_counts(counts[:distinct].astype(float),
+                                counts[distinct:].astype(float))
+        if drawn is not None:
+            out.append(drawn)
+    return out
+
+
+def auc_from_counts(good: np.ndarray, bad: np.ndarray) -> float | None:
+    """The AUC of a (risk-ordered) count table. None where it is undefined.
+
+    The Mann-Whitney statistic with midranks, read off counts rather than
+    rows: every bad at a given risk beats every good below it and ties with
+    the goods beside it, and a tie is worth half a comparison. That is the
+    same tie treatment `_midranks` applies, which is what lets the two paths
+    in `bootstrap_auc` produce the same number — a test asserts it.
+
+    Public because the assertion is worth making from outside: it is the one
+    place where a faster path could silently drift from the slow one.
+    """
+    goods, bads = float(good.sum()), float(bad.sum())
+    if goods == 0 or bads == 0:
+        return None
+    below = np.concatenate([[0.0], np.cumsum(good)[:-1]])
+    return float((bad * (below + good / 2.0)).sum() / (goods * bads))
+
+
+def _bootstrap_resampled(y: np.ndarray, risk: np.ndarray, resamples: int,
+                         rng: np.random.Generator) -> list[float]:
+    """The plain resample, for a score with no useful repetition in it."""
+    rows = len(y)
+    out: list[float] = []
+    for _ in range(resamples):
+        at = rng.integers(0, rows, rows)
+        drawn_y, drawn_risk = y[at], risk[at]
+        events = drawn_y.sum()
+        negatives = rows - events
+        if events == 0 or negatives == 0:
+            continue
+        ranks = _midranks(drawn_risk)
+        out.append(float((ranks[drawn_y == 1].sum()
+                          - events * (events + 1) / 2) / (events * negatives)))
+    return out

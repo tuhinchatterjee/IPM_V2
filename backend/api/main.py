@@ -58,6 +58,9 @@ from backend.api.routers import (
 from backend.api.routers import (
     scorecard as scorecard_router,
 )
+from backend.api.routers import (
+    scorecard_validation as scorecard_validation_router,
+)
 from backend.api.routers import studio as studio_router
 from backend.api.routers import users as users_router
 from backend.api.routers import validation as validation_router
@@ -329,6 +332,8 @@ def create_app() -> FastAPI:
     app.include_router(continuous_learning_router.router, prefix=API_PREFIX)
     app.include_router(corporate_router.router, prefix=API_PREFIX)
     app.include_router(scorecard_router.router, prefix=API_PREFIX)
+    app.include_router(scorecard_validation_router.router,
+                       prefix=API_PREFIX)
     app.include_router(regulatory_router.corpus_router,
                        prefix=API_PREFIX)
     app.include_router(hierarchy_router.projects_router, prefix=API_PREFIX)

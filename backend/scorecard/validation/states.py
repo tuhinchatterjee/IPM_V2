@@ -48,6 +48,7 @@ STATES_VERSION = "1.0.0"
 PASS = "PASS"
 WARNING = "WARNING"
 FAIL = "FAIL"
+NO_LIMIT = "NO_LIMIT"
 UNAVAILABLE = "UNAVAILABLE"
 NOT_MATURED = "NOT_MATURED"
 INSUFFICIENT_SAMPLE = "INSUFFICIENT_SAMPLE"
@@ -56,24 +57,35 @@ CALCULATION_ERROR = "CALCULATION_ERROR"
 NOT_AUTHORISED = "NOT_AUTHORISED"
 
 STATES: tuple[str, ...] = (
-    PASS, WARNING, FAIL, UNAVAILABLE, NOT_MATURED, INSUFFICIENT_SAMPLE,
-    NOT_APPLICABLE, CALCULATION_ERROR, NOT_AUTHORISED,
+    PASS, WARNING, FAIL, NO_LIMIT, UNAVAILABLE, NOT_MATURED,
+    INSUFFICIENT_SAMPLE, NOT_APPLICABLE, CALCULATION_ERROR, NOT_AUTHORISED,
 )
 
-#: The three that mean a number was produced and compared to something.
-MEASURED: frozenset[str] = frozenset({PASS, WARNING, FAIL})
+#: The four that mean a number was produced. Three of them were also
+#: compared against something; `NO_LIMIT` is the one that was not, and it
+#: exists because the alternative is worse. A measured value with no
+#: configured threshold has to be reported as *something*, and the obvious
+#: choices are both false: PASS says it was checked and cleared, FAIL says
+#: it was checked and breached. Neither happened. A count of monotonicity
+#: breaks or wrong-signed coefficients reported as PASS because nobody set a
+#: limit is exactly the kind of green tick this whole state model exists to
+#: prevent.
+MEASURED: frozenset[str] = frozenset({PASS, WARNING, FAIL, NO_LIMIT})
 
 #: The six that mean there is no number. Never rendered as zero, never
 #: aggregated into an average, never counted as a pass.
 UNMEASURED: frozenset[str] = frozenset(STATES) - MEASURED
 
-#: The two that a model owner has to act on.
+#: The two that a model owner has to act on. `NO_LIMIT` is deliberately not
+#: among them: the number may be perfectly fine, and nobody knows, which is a
+#: governance gap rather than a model finding.
 ADVERSE: frozenset[str] = frozenset({FAIL, WARNING})
 
 STATE_LABELS: dict[str, str] = {
     PASS: "Pass",
     WARNING: "Warning",
     FAIL: "Fail",
+    NO_LIMIT: "No approved limit",
     UNAVAILABLE: "Not available",
     NOT_MATURED: "Not yet matured",
     INSUFFICIENT_SAMPLE: "Insufficient sample",
@@ -87,6 +99,9 @@ STATE_MEANING: dict[str, str] = {
     WARNING: "Measured and inside its limit, but close enough to it that the "
              "next period is worth watching.",
     FAIL: "Measured, and outside its configured limit.",
+    NO_LIMIT: "Measured, and compared against nothing, because no limit is "
+              "configured for this test on this model. The number is real; "
+              "whether it is acceptable is undecided.",
     UNAVAILABLE: "The input this test needs is not populated in this "
                  "deployment. A finding about data, not about the model.",
     NOT_MATURED: "The performance window for this cohort has not closed, so "
@@ -109,13 +124,14 @@ STATE_MEANING: dict[str, str] = {
 SEVERITY_ORDER: dict[str, int] = {
     FAIL: 0,
     WARNING: 1,
-    CALCULATION_ERROR: 2,
-    UNAVAILABLE: 3,
-    INSUFFICIENT_SAMPLE: 4,
-    NOT_MATURED: 5,
-    NOT_AUTHORISED: 6,
-    NOT_APPLICABLE: 7,
-    PASS: 8,
+    NO_LIMIT: 2,
+    CALCULATION_ERROR: 3,
+    UNAVAILABLE: 4,
+    INSUFFICIENT_SAMPLE: 5,
+    NOT_MATURED: 6,
+    NOT_AUTHORISED: 7,
+    NOT_APPLICABLE: 8,
+    PASS: 9,
 }
 
 
@@ -348,7 +364,7 @@ def tally(results: list[Result]) -> dict[str, int]:
 
 __all__ = [
     "ADVERSE", "CALCULATION_ERROR", "FAIL", "INSUFFICIENT_SAMPLE", "MEASURED",
-    "NOT_APPLICABLE", "NOT_AUTHORISED", "NOT_MATURED", "PASS",
+    "NOT_APPLICABLE", "NOT_AUTHORISED", "NOT_MATURED", "NO_LIMIT", "PASS",
     "SEVERITY_ORDER", "STATES", "STATES_VERSION", "STATE_LABELS",
     "STATE_MEANING", "UNAVAILABLE", "UNMEASURED", "WARNING", "Result",
     "ResultError", "failed", "insufficient", "measured", "not_applicable",

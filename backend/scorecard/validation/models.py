@@ -40,6 +40,10 @@ from backend.scorecard.validation import registry as test_registry
 
 MODELS_VERSION = "1.0.0"
 
+
+class ModelError(LookupError):
+    """A governed artefact this model points at is missing or malformed."""
+
 #: The engine's score-direction vocabulary. `metrics.py` refuses anything
 #: else rather than guessing, and this is the whole reason a Gini cannot come
 #: back with its sign inverted.
@@ -143,6 +147,11 @@ class Model:
     known_limitations: tuple[str, ...] = ()
     #: The governance record this points at, rather than restates.
     registry_key: str = ""
+    #: Which fitted equation in that record is the approved one. Empty means
+    #: no coefficient equation is published for this model in this
+    #: deployment, and the tests that need one say so rather than skipping
+    #: quietly.
+    equation_key: str = ""
 
     limits: tuple[Limit, ...] = field(default_factory=tuple)
 
@@ -170,6 +179,8 @@ class Model:
             made.add(test_registry.NEEDS_CHALLENGER)
         if self.decisions_dataset:
             made.add(test_registry.NEEDS_DECISIONS)
+        if self.equation_key:
+            made.add(test_registry.NEEDS_EQUATION)
         return made
 
     def approved_spec(self) -> Any:
@@ -190,6 +201,35 @@ class Model:
         if self.scorecard_type == "SME":
             return sme_build.spec()
         return retail_build.load_spec(self.scorecard_type)
+
+    def approved_equation(self) -> Any:
+        """The fitted coefficient equation this model was approved on.
+
+        Resolved from the scorecard build's own record for the same reason
+        as `approved_spec`: a copy kept here would be a second version of a
+        governed artefact.
+        """
+        import json
+
+        from backend.scorecard import build as retail_build
+        from backend.scorecard import equation as equation_mod
+
+        if not self.equation_key:
+            raise ModelError(
+                f"{self.name} has no published coefficient equation in this "
+                "deployment, so its score cannot be independently "
+                "reconstructed.")
+        path = (retail_build.spec_root()
+                / f"{self.scorecard_type.lower()}_models.json")
+        if not path.exists():
+            raise ModelError(f"{path.name} is not present")
+        record = json.loads(path.read_text("utf-8"))["models"]
+        if self.equation_key not in record:
+            raise ModelError(
+                f"{self.equation_key} is not one of the fitted equations in "
+                f"{path.name}: {', '.join(sorted(record))}.")
+        return equation_mod.Equation.from_dict(
+            record[self.equation_key]["equation"])
 
     def limit_for(self, test_id: str) -> Limit | None:
         for limit in self.limits:
@@ -243,6 +283,52 @@ class Model:
 
 # ------------------------------------------------------------- the three
 
+#: The tests where the acceptable answer is not a matter of judgement.
+#:
+#: Most validation thresholds are conventions — an AUC floor of 0.70 is a
+#: choice somebody made, and a model below it may still be fit for its use.
+#: These are different. A duplicated primary key, a production score that
+#: does not reproduce from its own specification, a coefficient scored
+#: against its credit sense, an approved ordering the data has reversed, a
+#: governance record with a hole in it: none of those has a defensible
+#: non-zero tolerance, and leaving them unlimited would report each of them
+#: as NO APPROVED LIMIT — a grey cell where a red one belongs.
+#:
+#: Everything not in this list stays unlimited until a model owner sets a
+#: threshold, and reads as NO APPROVED LIMIT rather than as a pass. That is
+#: the honest position: the number is real and nobody has said what is
+#: acceptable.
+def _structural_limits() -> tuple[Limit, ...]:
+    zero = "There is no defensible non-zero tolerance for this."
+    # No warning band. A structural requirement is met or it is not, and a
+    # margin around zero would mean "nearly no duplicate keys".
+    return (
+        Limit("DATA-DUPLICATES", 0.0, breach_above=True, source="STRUCTURAL",
+              warn_within=0.0,
+              note=("A duplicated key means every rate in this report is a "
+                    "count over a denominator that is wrong. " + zero)),
+        Limit("IMPL-REPLICATE", 0.0, breach_above=True, source="STRUCTURAL",
+              warn_within=0.0,
+              note=("A row that does not reproduce from the approved "
+                    "specification was scored by something else. " + zero)),
+        Limit("VAR-SIGN", 0.0, breach_above=True, source="STRUCTURAL",
+              warn_within=0.0,
+              note=("A term scored against its own credit sense rewards what "
+                    "predicts default. " + zero)),
+        Limit("VAR-WOE", 0.0, breach_above=True, source="STRUCTURAL",
+              warn_within=0.0,
+              note=("A bin whose risk has reversed is still being scored "
+                    "with the approved sign. " + zero)),
+        *(Limit(test_id, 1.0, breach_above=False, source="STRUCTURAL",
+                warn_within=0.0,
+                note=("Evidence completeness. Anything not recorded cannot "
+                      "be assessed, and a validation opinion resting on it "
+                      "is resting on an assumption."))
+          for test_id in ("CONC-PURPOSE", "CONC-DEFAULT", "CONC-WINDOWS",
+                          "CONC-DIRECTION", "CONC-DOCUMENTATION")),
+    )
+
+
 #: Conventional scorecard-practice cut-offs, seeded as DEMO POLICY. Every one
 #: says so. §25 is explicit that model-specific limits must be governed and
 #: versioned rather than inherited from an industry rule of thumb, and the
@@ -250,7 +336,7 @@ class Model:
 #: they are.
 def _standard_limits(*, auc: float, gini: float, ks: float,
                      oe_high: float, psi: float) -> tuple[Limit, ...]:
-    return (
+    return _structural_limits() + (
         Limit("DISC-AUC", auc, breach_above=False,
               note="Below this the model no longer ranks risk well enough "
                    "for the use it is approved for."),
@@ -295,8 +381,22 @@ RETAIL_APPLICATION = Model(
     default_definition="90 days past due or worse within twelve months of "
                        "the application date.",
     observation_window="Application month",
-    segmentation_fields=("product", "channel", "segment"),
+    development_population="2021-01..2022-12 applications, matured to a "
+                           "twelve-month outcome.",
+    known_limitations=(
+        "No booked-account decision file is published for this scorecard in "
+        "this deployment, so override and cut-off usage cannot be tested.",
+        "No model version is stamped on the scored rows, so which version "
+        "produced them cannot be evidenced.",
+    ),
+    segmentation_fields=("product_type", "application_channel",
+                         "customer_segment"),
+    binned_variables=(
+        "bureau_score", "debt_burden_ratio", "employment_tenure_months",
+        "bureau_max_dpd_12m", "bureau_enquiries_6m",
+        "credit_card_utilisation"),
     registry_key="APPLICATION",
+    equation_key="INCUMBENT",
     limits=_standard_limits(auc=0.70, gini=0.40, ks=0.30, oe_high=1.20,
                             psi=0.25),
 )
@@ -329,8 +429,20 @@ RETAIL_BEHAVIOUR = Model(
     default_definition="90 days past due or worse within twelve months of "
                        "the observation date.",
     observation_window="Monthly account snapshot",
+    development_population="2021-01..2022-12 monthly snapshots, matured to a "
+                           "twelve-month outcome.",
+    known_limitations=(
+        "No decision file is published for this scorecard in this "
+        "deployment, so override and cut-off usage cannot be tested.",
+        "No model version is stamped on the scored rows, so which version "
+        "produced them cannot be evidenced.",
+    ),
     segmentation_fields=("product", "vintage"),
+    binned_variables=(
+        "max_dpd_6m", "utilisation_pct", "average_payment_ratio_3m",
+        "bureau_score_latest", "missed_payment_count_6m", "months_on_book"),
     registry_key="BEHAVIORAL",
+    equation_key="INCUMBENT",
     limits=_standard_limits(auc=0.72, gini=0.44, ks=0.32, oe_high=1.20,
                             psi=0.25),
 )

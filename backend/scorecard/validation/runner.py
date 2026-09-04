@@ -311,14 +311,17 @@ def _refuse(test: test_registry.Test, model: model_registry.Model,
 
 def _verdict(model: model_registry.Model, test_id: str,
              value: float) -> tuple[str, float | None, str]:
-    """PASS, WARNING or FAIL, plus the limit and where it came from.
+    """PASS, WARNING, FAIL or NO_LIMIT, plus the limit and where it came from.
 
-    A test with no configured limit is measured and uncompared — a third
-    thing, and the UI says NO APPROVED LIMIT rather than colouring it green.
+    A test with no configured limit is measured and uncompared, and that is
+    its own state. Returning PASS here would mean a count of monotonicity
+    breaks, wrong-signed coefficients or duplicate keys came back green
+    because nobody had set a threshold for it — the number would be right
+    and the colour would be a lie.
     """
     limit = model.limit_for(test_id)
     if limit is None:
-        return states.PASS, None, ""
+        return states.NO_LIMIT, None, ""
     return limit.verdict(value), limit.value, limit.source
 
 
@@ -1076,3 +1079,12 @@ __all__ = [
     "available_periods", "latest_matured", "matured_periods", "population",
     "run", "run_category",
 ]
+
+
+# The rest of the calculations live in `extra`, which registers into the
+# HANDLERS dictionary above through the same decorator. Imported here, at the
+# bottom, so that every name it reads from this module is already defined —
+# and so that importing the runner is enough to have the whole registry,
+# rather than leaving a caller to remember a second import and get honest
+# UNAVAILABLE results for forgetting.
+from backend.scorecard.validation import extra as _extra  # noqa: E402,F401
