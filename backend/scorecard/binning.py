@@ -423,3 +423,60 @@ def fit(frame: pd.DataFrame, *, scorecard_type: str, spec_version: str,
         spec.variables[variable] = fit_variable(
             frame, variable, target, kind=kind)
     return spec
+
+
+def observed_information_value(frame: pd.DataFrame, *, variable: str,
+                               target: str) -> dict[str, Any]:
+    """Recompute one variable's IV on a later population, over approved bins.
+
+    The IV recorded on a `VariableBinning` is a development-time fact: it says
+    how much the variable carried when the model was built. A validator needs
+    the other number — how much it carries now — and the difference between
+    the two is the finding. Both are the same arithmetic, so this reuses
+    `_woe_and_iv` rather than restating it; the only thing that changes is
+    which population the counts come from.
+
+    The bins are the approved ones, read from the `<variable>_bin` column.
+    Re-binning on the validation sample would measure a different, better,
+    unapproved model and report it as this one's.
+    """
+    column = f"{variable}_bin"
+    if column not in frame.columns:
+        raise BinningError(
+            f"{column!r} is not in this frame. Observed information value is "
+            "measured over the approved bins, so the spec has to have been "
+            "applied first.")
+    if target not in frame.columns:
+        raise BinningError(f"{target!r} is not in this frame")
+
+    outcome = pd.to_numeric(frame[target], errors="coerce")
+    usable = outcome.notna()
+    outcome = outcome[usable]
+    bins = frame.loc[usable, column]
+    bad_total = int(outcome.sum())
+    good_total = int(len(outcome) - bad_total)
+    if bad_total == 0 or good_total == 0:
+        raise BinningError(
+            f"{variable} cannot be measured on a sample with {bad_total} "
+            f"bad(s) and {good_total} good(s): weight of evidence needs both.")
+
+    rows: list[dict[str, Any]] = []
+    total = 0.0
+    for bin_id, part in outcome.groupby(bins, observed=True):
+        bad = int(part.sum())
+        good = int(len(part) - bad)
+        woe, iv = _woe_and_iv(good, bad, good_total, bad_total)
+        total += iv
+        rows.append({
+            "bin_id": str(bin_id), "count": len(part),
+            "good_count": good, "bad_count": bad,
+            "bad_rate": round(bad / len(part), 6) if len(part) else 0.0,
+            "woe": round(woe, 6), "iv_contribution": round(iv, 6),
+            "special": str(bin_id) in SPECIAL_BINS,
+        })
+    rows.sort(key=lambda r: r["bin_id"])
+    return {
+        "variable": variable, "information_value": round(total, 6),
+        "observations": int(len(outcome)), "events": bad_total,
+        "bins": rows,
+    }

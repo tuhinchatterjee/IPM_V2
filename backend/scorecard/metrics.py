@@ -78,24 +78,54 @@ def evidence_for(events: int, observations: int) -> str:
     return HIGH_EVIDENCE
 
 
-def require_matured(frame: pd.DataFrame, *, what: str) -> None:
-    """§7's gate. Refuse rather than compute on an unrealised outcome."""
-    if "matured_flag" in frame.columns and not bool(
-            frame["matured_flag"].fillna(False).all()):
-        ends = (frame.get("performance_window_end", pd.Series(["?"])).iloc[0]
-                if len(frame) else "?")
-        raise ImmatureCohortError(
-            f"{what} compares predicted against actual, and this cohort's "
-            f"performance window has not closed (it closes {ends}). There is "
-            "no realised outcome to compare against — not a zero, not an "
-            "optimistic estimate, none. Stability metrics do not need "
-            "outcomes and remain available.")
-    if "actual_default" in frame.columns and \
-            frame["actual_default"].isna().any():
-        raise ImmatureCohortError(
-            f"{what} needs a realised outcome and "
-            f"{int(frame['actual_default'].isna().sum()):,} row(s) have "
-            "none.")
+#: The column names that carry "has this cohort's window closed?" and "what
+#: happened?". Two vocabularies rather than one because the retail universe
+#: and the Saudi SME universe were built by different builders, and renaming
+#: a written column is a lake migration.
+#:
+#: Recognising both is not cosmetic. This gate is the only thing standing
+#: between an immature cohort and a metric computed on it, and a gate that
+#: knows one naming convention silently passes everything written in the
+#: other. The SME datasets carry `is_matured` and `actual_default_12m`; on
+#: the first draft of this module they went straight through, and an
+#: unrealised outcome would have been reported as a real one.
+MATURITY_COLUMNS: tuple[str, ...] = ("matured_flag", "is_matured")
+OUTCOME_COLUMNS: tuple[str, ...] = ("actual_default", "actual_default_12m")
+
+
+def require_matured(frame: pd.DataFrame, *, what: str,
+                    maturity_column: str = "",
+                    outcome_column: str = "") -> None:
+    """§7's gate. Refuse rather than compute on an unrealised outcome.
+
+    The two column arguments let a caller name the fields explicitly. Left
+    empty, every known naming convention present on the frame is checked,
+    which is the safe default: an unrecognised convention should mean "check
+    everything I know" rather than "check nothing".
+    """
+    maturity = ([maturity_column] if maturity_column
+                else [c for c in MATURITY_COLUMNS if c in frame.columns])
+    outcomes = ([outcome_column] if outcome_column
+                else [c for c in OUTCOME_COLUMNS if c in frame.columns])
+
+    for column in maturity:
+        if column in frame.columns and not bool(
+                frame[column].fillna(False).all()):
+            ends = (frame.get("performance_window_end",
+                              pd.Series(["?"])).iloc[0]
+                    if len(frame) else "?")
+            raise ImmatureCohortError(
+                f"{what} compares predicted against actual, and this "
+                f"cohort's performance window has not closed (it closes "
+                f"{ends}). There is no realised outcome to compare against — "
+                "not a zero, not an optimistic estimate, none. Stability "
+                "metrics do not need outcomes and remain available.")
+
+    for column in outcomes:
+        if column in frame.columns and frame[column].isna().any():
+            raise ImmatureCohortError(
+                f"{what} needs a realised outcome and "
+                f"{int(frame[column].isna().sum()):,} row(s) have none.")
 
 
 def _clean(y: pd.Series, x: pd.Series) -> tuple[np.ndarray, np.ndarray]:

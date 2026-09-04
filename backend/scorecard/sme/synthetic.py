@@ -65,6 +65,7 @@ model. Both are needed for §17 to have anything to test.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -181,9 +182,19 @@ def _rng(*parts: Any) -> np.random.Generator:
     Deterministic per cohort rather than per run: regenerating 2024-03 gives
     the same 2024-03 whether or not 2024-02 was generated first, so a partial
     rebuild cannot silently produce a different universe from a full one.
+
+    The key is digested rather than passed to `hash()`. Python randomises
+    string hashing per interpreter, so a seed derived from it is stable
+    within one process and different in the next — which is not a subtle
+    flaw here. The binning specification is fitted on this data, so every
+    approved bin, weight of evidence and information value would move
+    between runs, and a validation result reproduced tomorrow would not
+    match the one filed today. A digest is stable across processes,
+    machines and Python versions.
     """
-    key = "|".join(str(p) for p in parts)
-    seed = (MASTER_SEED + abs(hash(key)) % 2**31) % 2**32
+    key = "|".join(str(p) for p in parts).encode("utf-8")
+    digest = hashlib.blake2b(key, digest_size=8).digest()
+    seed = (MASTER_SEED + int.from_bytes(digest, "big")) % 2**32
     return np.random.default_rng(seed)
 
 
