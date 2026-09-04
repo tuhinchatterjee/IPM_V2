@@ -216,7 +216,7 @@ ROLE_SUMMARY = {
         "which is authoritative. May run analyses."
     ),
     Role.ANALYST: (
-        "Ask questions, run analyses, build Lenses and Playbooks, own Projects "
+        "Ask questions, run analyses, build Lenses, own Projects "
         "and Investigations."
     ),
     Role.VIEWER: "Read what others have produced. May not run or change anything.",

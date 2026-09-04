@@ -274,19 +274,6 @@ export const NAV_ITEMS: NavItem[] = [
       "The transparency argument in one screen. Open a borrower and read a condition out: the value, the previous value, the threshold and who owns it.",
   },
   {
-    href: "/playbooks",
-    label: "Playbooks",
-    description:
-      "A standing instruction: run these certified analyses over this scope, test these thresholds, and act when one is crossed. A run that finds nothing says so.",
-    icon: ClipboardCheck,
-    status: "partial",
-    phase: "Manual and on-publication triggers run; scheduled ones are not yet wired to a scheduler",
-    group: "Intelligence",
-    demo: "optional",
-    demoNote:
-      "Manual and on-publication triggers run. Scheduled ones are not wired to a scheduler, so do not promise scheduling.",
-  },
-  {
     href: "/stress",
     label: "Stress Testing",
     description:

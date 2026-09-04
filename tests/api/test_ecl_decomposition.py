@@ -37,7 +37,7 @@ def client():
 _OPENED: list[int] = []
 
 CHILDREN = ("investigation_messages", "investigation_versions",
-            "saved_analyses", "playbook_runs", "risk_cases", "agent_runs",
+            "saved_analyses", "risk_cases", "agent_runs",
             "analysis_runs")
 
 

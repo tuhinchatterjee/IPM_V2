@@ -353,11 +353,6 @@ _JUDGEMENTS: dict[str, Judgement] = {
         role="Administrator"),
     "/stress": Judgement("Scenario definitions and their impact.",
                          role="Administrator, Analyst"),
-    "/playbooks": Judgement(
-        "Saved sequences of governed analyses.",
-        status=PARTIAL,
-        limitation="Manual and on-publication triggers run; scheduled "
-                   "triggers are not wired to a scheduler."),
     "/documents": Judgement(
         "Document authoring.",
         status=HIDDEN,

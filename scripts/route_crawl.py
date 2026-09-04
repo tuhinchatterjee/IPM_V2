@@ -60,7 +60,7 @@ ROLES: tuple[tuple[str, str], ...] = (
 #: Routes that exist without needing an id. Crawled for every role.
 STATIC_ROUTES: tuple[str, ...] = (
     "/", "/projects", "/investigations", "/analyses", "/documents",
-    "/lenses", "/lenses/cro", "/early-warning", "/playbooks", "/stress",
+    "/lenses", "/lenses/cro", "/early-warning", "/stress",
     "/studio", "/data-builder", "/data-builder/browse",
     "/data-builder/relationships", "/data-builder/inbox",
     "/trace", "/workflow", "/settings", "/users",

@@ -34,8 +34,8 @@ HEADERS = {"X-IPM-Role": "ANALYST"}
 
 #: Everything that points at an Investigation, in the order it has to go.
 CHILDREN = ("investigation_messages", "investigation_versions",
-            "saved_analyses", "playbook_runs", "risk_cases",
-            "agent_runs", "analysis_runs")
+            "saved_analyses", "risk_cases", "agent_runs",
+            "analysis_runs")
 
 _OPENED: list[int] = []
 

@@ -2,9 +2,8 @@
 
 CreditProbe AI has thirty-four screens and almost all of them are reachable
 from more than one place. A Trace opens from the Cockpit, from a message inside
-an Investigation, from a Lens tile, from a saved Analysis and from a Playbook
-run. A dataset opens from Data Builder, from a relationship map and from a
-Trace node.
+an Investigation, from a Lens tile and from a saved Analysis. A dataset opens
+from Data Builder, from a relationship map and from a Trace node.
 
 A fixed "Back to Trace & Lineage" is therefore wrong five times out of six, and
 the browser's own Back is the only honest control on the screen — which is a
@@ -58,7 +57,6 @@ import { linkBack, fromInvestigation } from "@/lib/return-to";
 | `fromBorrower(accountId, name)` | Early Warning, that row reopened |
 | `fromDataset(name, period?)` | the dataset at that period |
 | `fromTraceNode(runId, mode?, node?)` | that node, in that mode |
-| `fromPlaybook()` | Playbooks |
 
 ## Reading it back
 

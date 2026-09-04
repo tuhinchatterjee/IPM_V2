@@ -6,7 +6,7 @@
  * CreditProbe has thirty-four screens and almost all of them are reachable
  * from more than one place. A Trace can be opened from the Cockpit, from a
  * message inside an Investigation, from a Lens tile, from a saved Analysis and
- * from a Playbook run. A dataset can be opened from Data Builder, from a
+ * from a Lens panel. A dataset can be opened from Data Builder, from a
  * relationship map and from a Trace node. A "Back to Trace & Lineage" button on
  * the Trace page is therefore wrong five times out of six, and the browser's
  * own Back is the only honest control on the screen — which is a way of saying
@@ -60,7 +60,6 @@ export type SourceType =
   | "borrower"
   | "dataset"
   | "trace"
-  | "playbook"
   | "workflow"
   | "studio"
   | "unknown";
@@ -80,7 +79,6 @@ export const INDEX_OF: Record<SourceType, ReturnTo> = {
   borrower: { href: "/early-warning", label: "Early Warning" },
   dataset: { href: "/data-builder/browse", label: "Data Builder" },
   trace: { href: "/trace", label: "Trace & Lineage" },
-  playbook: { href: "/playbooks", label: "Playbooks" },
   workflow: { href: "/reviews", label: "My reviews" },
   studio: { href: "/studio", label: "Analysis Studio" },
   unknown: { href: "/", label: "Back" },
@@ -248,11 +246,6 @@ export function fromTraceNode(
 /** The Cockpit, where a global investigation starts. */
 export function fromCockpit(): ReturnContext {
   return { href: "/", label: "Cockpit", type: "cockpit" };
-}
-
-/** A playbook run. */
-export function fromPlaybook(): ReturnContext {
-  return { href: "/playbooks", label: "Playbooks", type: "playbook" };
 }
 
 /**

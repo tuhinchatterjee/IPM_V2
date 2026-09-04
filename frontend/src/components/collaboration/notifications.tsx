@@ -229,8 +229,6 @@ export function deepLink(note: NotificationRow): string | null {
       const suffix = entityId ? `?${kind}=${encodeURIComponent(entityId)}` : "";
       return linkBack(`/delivery/${projectId}${suffix}`, from);
     }
-    case "playbook":
-      return "/playbooks";
     case "scenario":
       return "/stress";
     case "document":

@@ -252,7 +252,7 @@ class PlaybookCommittee(Base):
     __tablename__ = "playbook_committees"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    code: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
+    code: Mapped[str] = mapped_column(String(40), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     purpose: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -312,6 +312,7 @@ class PlaybookCommittee(Base):
         back_populates="committee", cascade="all, delete-orphan")
 
     __table_args__ = (
+        UniqueConstraint("code", name="uq_playbook_committee_code"),
         Index("ix_playbook_committees_active", "active", "business_area"),
         Index("ix_playbook_committees_demo", "demo_origin",
               postgresql_where=text("demo_origin <> ''")),
@@ -437,7 +438,7 @@ class PlaybookPack(Base):
     __tablename__ = "playbook_packs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    code: Mapped[str] = mapped_column(String(48), unique=True, nullable=False)
+    code: Mapped[str] = mapped_column(String(48), nullable=False)
     committee_id: Mapped[int] = mapped_column(
         ForeignKey("playbook_committees.id", ondelete="CASCADE"),
         nullable=False)
@@ -525,6 +526,7 @@ class PlaybookPack(Base):
         back_populates="pack", cascade="all, delete-orphan")
 
     __table_args__ = (
+        UniqueConstraint("code", name="uq_playbook_pack_code"),
         Index("ix_playbook_packs_committee", "committee_id", "meeting_at"),
         Index("ix_playbook_packs_status", "status", "meeting_at"),
         Index("ix_playbook_packs_owner", "owner_id", "status"),

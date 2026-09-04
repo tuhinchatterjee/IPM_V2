@@ -49,7 +49,6 @@ from backend.api.routers import messages as messages_router
 from backend.api.routers import metadata as metadata_router
 from backend.api.routers import metrics as metrics_router
 from backend.api.routers import planner as planner_router
-from backend.api.routers import playbooks as playbooks_router
 from backend.api.routers import preferences as preferences_router
 from backend.api.routers import regulatory as regulatory_router
 from backend.api.routers import (
@@ -336,7 +335,6 @@ def create_app() -> FastAPI:
     app.include_router(hierarchy_router.analyses_router, prefix=API_PREFIX)
     app.include_router(lenses_router.router, prefix=API_PREFIX)
     app.include_router(metrics_router.router, prefix=API_PREFIX)
-    app.include_router(playbooks_router.router, prefix=API_PREFIX)
     app.include_router(whatif_router.router, prefix=API_PREFIX)
     app.include_router(studio_router.router, prefix=API_PREFIX)
     # The AI Intelligence Studio, on /intelligence. Distinct from the four

@@ -10,7 +10,6 @@ import {
   fromDataset,
   fromInvestigation,
   fromLens,
-  fromPlaybook,
   fromProject,
   fromSavedAnalysis,
   fromTraceNode,
@@ -189,7 +188,7 @@ test("anchors are stable and unique per object", () => {
   assert.notEqual(turnAnchor(4), analysisAnchor(4));
 });
 
-test("a playbook run returns to the playbooks screen", () => {
-  assert.equal(fromPlaybook().type, "playbook");
+test("the Cockpit is the return context a global investigation starts from", () => {
+  assert.equal(fromCockpit().type, "cockpit");
   assert.equal(fromCockpit().href, "/");
 });

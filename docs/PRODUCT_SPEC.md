@@ -144,22 +144,36 @@ left when the reviewer decides. A status badge anyone can apply to themselves
 means nothing to the person reading it, and "In review" is the badge most likely
 to be trusted without checking.
 
-### 9. Playbooks
+### 9. Playbook
 
-A **Playbook** is a standing instruction the platform carries out. Five parts:
-a **trigger** (on demand, on publication, on a schedule), a **scope** over
-governed dimensions, the **analyses** to run, the **conditions** worth somebody's
-attention, and the **actions** to take.
+A **Playbook** is the committee pack: the governed record of what a forum was
+told, which numbers it was told, where those numbers came from, what it decided
+and what somebody then had to do. It covers the whole cycle — committee
+definition, pack schedule, data readiness, generation, analysis, commentary,
+review, approval, presentation, decisions, actions, Project Planner follow-up,
+and the next pack.
 
-Playbooks replaced Blueprints. A Blueprint was a template of a document —
-something you filled in. A Playbook RUNS. The work a credit team repeats every
-quarter is not writing the same document; it is asking the same questions of new
-data and noticing when an answer has changed.
+It is not a document repository and not a slide editor with a chat box beside
+it. The distinction that makes it a governance system rather than either of
+those is that every figure in a pack is FROZEN into it with the formula version,
+period, filters, dataset fingerprint and calculation trace that produced it. Six
+months after the meeting, somebody can ask what the number was and get the
+number the committee was given, not the number the metric returns today.
 
-A playbook cannot invent an analysis, write a query, or compute a metric of its
-own. A condition whose metric no analysis produced reports as **untestable**,
-which is a different fact from being false — and a run that finds nothing says
-so rather than reaching for something to report.
+Three rules the software enforces rather than recommends:
+
+- **An approved pack is immutable.** Correcting one is an amendment at a new
+  version; nothing rewrites what the committee actually saw.
+- **Materiality is a declared threshold, not a judgement a model makes.** Every
+  finding names the rule that fired and the numbers that fired it, so a member
+  who disagrees argues with the threshold.
+- **The assistant never approves, publishes, decides, closes an action or
+  dismisses a finding.** It drafts, it refreshes, it raises. There is no tool
+  for the rest and there is not going to be one.
+
+An earlier feature called Playbooks — a standing instruction that ran certified
+analyses and tested thresholds — carried this name until the committee pack
+system replaced it.
 
 ### 10. Lenses
 

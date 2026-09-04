@@ -1,17 +1,19 @@
 """
-Lenses and Playbooks — the two ways CreditProbe does something standing.
+Lenses — a standing selector over the Engine Registry.
 
-Both are governed selectors over the Engine Registry, and both are only safe
-because of what they REFUSE. These tests are mostly about the refusals:
+A lens is only safe because of what it REFUSES, and these tests are mostly
+about the refusals:
 
   * a lens cannot contain an analysis the registry does not have
+  * a lens cannot pass a parameter the analysis does not declare
+  * a lens cannot be drawn a way that does not exist
   * a request the library has nothing for changes nothing, and says so, rather
     than being approximated with the nearest panel
-  * a playbook cannot run an unregistered analysis or scope itself to an
-    ungoverned dimension
-  * a condition whose metric no analysis produced reports as untestable, which
-    is a different thing from being false
-  * a run that finds nothing says so
+  * every panel carries the lineage of the run behind it
+
+This file used to cover Playbooks as well. That feature has been removed, and
+the name Playbook now belongs to the committee pack intelligence system, whose
+tests live under tests/playbook/.
 """
 
 from __future__ import annotations
@@ -19,7 +21,6 @@ from __future__ import annotations
 import pytest
 
 from backend.services import lenses as ln
-from backend.services import playbooks as pb
 from tests.conftest import database_available
 
 pytestmark = pytest.mark.skipif(not database_available(), reason="PostgreSQL not reachable")
@@ -157,101 +158,3 @@ def test_a_lens_is_rendered_live_with_a_trace_per_panel(lens):
     # A panel on a dashboard is as much of a claim as an answer, so it carries
     # the same lineage.
     assert panel["analysis_run_id"] is not None
-
-
-# =============================================================== playbooks
-
-
-def test_a_playbook_cannot_run_an_analysis_that_does_not_exist():
-    with pytest.raises(pb.InvalidPlaybook) as e:
-        pb.validate(analyses=[{"analysis_id": "invented"}], conditions=[],
-                    scope={}, trigger="manual")
-    assert "not a registered analysis" in str(e.value)
-
-
-def test_a_playbook_cannot_scope_itself_to_an_ungoverned_dimension():
-    with pytest.raises(pb.InvalidPlaybook) as e:
-        pb.validate(analyses=[{"analysis_id": "portfolio_summary"}], conditions=[],
-                    scope={"borrower_name": "Anything"}, trigger="manual")
-    assert "governed dimension" in str(e.value)
-
-
-def test_a_condition_can_only_make_a_comparison_from_the_closed_list():
-    with pytest.raises(pb.InvalidPlaybook) as e:
-        pb.validate(
-            analyses=[{"analysis_id": "portfolio_summary"}],
-            conditions=[{"metric": "stage2_pct", "operator": "LIKE", "threshold": 1}],
-            scope={}, trigger="manual",
-        )
-    assert "LIKE" in str(e.value)
-
-
-def test_a_playbook_must_run_something():
-    with pytest.raises(pb.InvalidPlaybook):
-        pb.validate(analyses=[], conditions=[], scope={}, trigger="manual")
-
-
-@pytest.fixture
-def playbook():
-    """A playbook for one test, removed when the test ends. See `lens` above."""
-    view = pb.create(
-        name="Test appetite check",
-        analyses=[{"analysis_id": "portfolio_summary"}],
-        conditions=[
-            {"metric": "stage2_pct", "label": "Stage 2 share", "operator": ">",
-             "threshold": 0.0, "unit": "%", "severity": "warning"},
-            {"metric": "stage2_pct", "label": "Stage 2 share", "operator": ">",
-             "threshold": 99.0, "unit": "%", "severity": "critical"},
-            {"metric": "no_such_metric", "label": "Nonexistent", "operator": ">",
-             "threshold": 1.0, "severity": "info"},
-        ],
-    )
-    try:
-        yield view
-    finally:
-        try:
-            pb.delete(view.id)
-        except Exception:  # pragma: no cover - already gone is a clean end
-            pass
-
-
-def test_a_run_tests_every_condition_against_an_engine_figure(playbook):
-    result = pb.run(playbook.id)
-    assert result.status == "succeeded"
-    assert len(result.evaluations) == 3
-    met = [e for e in result.evaluations if e["met"]]
-    assert len(met) == 1, "Only the reachable threshold should be met."
-
-
-def test_a_metric_no_analysis_produced_is_untestable_not_false(playbook):
-    """These are different facts, and reporting the first as the second is how a
-    condition that never fires looks like a condition that is being satisfied."""
-    result = pb.run(playbook.id)
-    missing = next(e for e in result.evaluations if e["metric"] == "no_such_metric")
-    assert missing["testable"] is False
-    assert missing["met"] is False
-    assert "could not be tested" in missing["sentence"]
-
-
-def test_every_figure_a_playbook_reports_carries_a_trace(playbook):
-    result = pb.run(playbook.id)
-    assert result.results
-    assert all(r["analysis_run_id"] is not None for r in result.results)
-
-
-def test_a_run_that_finds_nothing_says_so():
-    quiet = pb.create(
-        name="Nothing to find",
-        analyses=[{"analysis_id": "portfolio_summary"}],
-        conditions=[{"metric": "stage2_pct", "operator": ">", "threshold": 99.0}],
-    )
-    result = pb.run(quiet.id)
-    assert result.alerted is False
-    assert "Nothing here needs attention" in result.summary
-
-
-def test_the_run_is_recorded(playbook):
-    pb.run(playbook.id)
-    history = pb.runs(playbook.id)
-    assert len(history) >= 1
-    assert history[0]["summary"]

@@ -135,8 +135,8 @@ class TestTheLeakIsClosed:
         assert "before_projects" in source and "before_threads" in source
 
     def test_no_project_or_lens_residue_is_left(self, session) -> None:
-        # Projects, Investigations, Lenses and Playbooks are what the sweeper
-        # owns, and none of them may accumulate. Test ACCOUNTS are excluded
+        # Projects, Investigations and Lenses are what the sweeper owns, and
+        # none of them may accumulate. Test ACCOUNTS are excluded
         # here on purpose: `users` is referenced by half a dozen tables the
         # sweeper does not own, so removing them from a test teardown raises a
         # foreign-key violation that takes the Projects down with it.
