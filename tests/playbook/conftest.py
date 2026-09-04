@@ -57,23 +57,41 @@ def people(session):
         session.add(user)
         session.flush()
         made[key] = user
+    ids = [int(u.id) for u in made.values()]
     yield made
 
-    # The Planner writes a collaboration_audit row when a project is created,
-    # and that table references `users` without a cascade. Cleared by id here
-    # rather than by truncating the table, which is shared with a
-    # demonstration somebody may be about to present.
+    # Cleaned in a SEPARATE, COMMITTED session, after this test's own work is
+    # rolled back. Most tests here never commit, so a delete on `session`
+    # would be discarded along with everything else — harmless. But the tests
+    # that go through the API commit deliberately, because the API opens its
+    # own connection and cannot see an uncommitted row, and those users then
+    # survive the rollback and outlive the test.
+    #
+    # They are not inert once they do. A later test that looks a person up by
+    # what they ARE rather than by which fixture made them finds the oldest
+    # leftover instead of its own, and fails for a reason that has nothing to
+    # do with the change under test. That has happened here once already.
     from sqlalchemy import delete
 
+    from backend.db.engine import get_session
+    from backend.db.models import User
     from backend.models.collaboration import CollaborationAudit
+    from backend.models.platform import ExportRecord
 
-    ids = [int(u.id) for u in made.values()]
-    session.execute(delete(CollaborationAudit).where(
-        CollaborationAudit.actor_id.in_(ids)))
-    session.flush()
-    for user in made.values():
-        session.delete(user)
-    session.flush()
+    session.rollback()
+    with get_session() as cleanup:
+        # The Planner writes a collaboration_audit row when a project is
+        # created, and that table references `users` without a cascade.
+        cleanup.execute(delete(CollaborationAudit).where(
+            CollaborationAudit.actor_id.in_(ids)))
+        # `export_records` is append-only and outlives the object it
+        # describes, so it references `users` without a cascade — correctly,
+        # since the point of the table is that a download history survives
+        # what was downloaded.
+        cleanup.execute(delete(ExportRecord).where(
+            ExportRecord.user_id.in_(ids)))
+        cleanup.execute(delete(User).where(User.id.in_(ids)))
+        cleanup.commit()
 
 
 @pytest.fixture

@@ -37,13 +37,18 @@ def test_a_pack_is_laid_out_from_its_template(session, pack, actors):
 
 
 def test_a_pack_keeps_the_template_version_it_came_from(session, pack,
-                                                        template, actors):
+                                                        template, actors,
+                                                        steward):
     """A template moving on does not reshape a pack already built from it."""
     whole = service.pack(session, pack["id"], actors["owner"])
     assert whole["template_id"] == template["id"]
 
+    # `steward` rather than a lookup by username: the steward who matters is
+    # the one who created THIS committee and is its OWNER. A query for "a
+    # data steward" finds whichever row sorts first, which on a database
+    # carrying leftovers from an interrupted run is somebody else entirely.
     later = service.create_template(
-        session, _steward(actors, session), name="Monthly Credit Pack",
+        session, steward, name="Monthly Credit Pack",
         code=template["code"], committee_id=template["committee_id"],
         sections=[{"key": "only", "title": "A different shape"}])
     assert later["version"] == template["version"] + 1
@@ -493,19 +498,101 @@ def test_every_change_leaves_a_line_saying_who_and_through_which_door(
     assert updated.at_version is not None
 
 
-# ---------------------------------------------------------------- helpers
+# ========================================================= taking a page out
 
 
-def _steward(actors, session):
+def test_a_section_somebody_added_by_mistake_can_be_removed(session, pack,
+                                                            actors):
+    added = service.create_section(session, pack["id"], actors["owner"],
+                                   title="Added by mistake")
+    service.create_block(session, added["id"], actors["owner"],
+                         block_type="NARRATIVE", body="Some words.")
+
+    service.delete_section(session, added["id"], actors["owner"])
+
+    whole = service.pack(session, pack["id"], actors["owner"])
+    assert "Added by mistake" not in [s["title"] for s in whole["sections"]]
+
+
+def test_removing_a_section_takes_its_blocks_and_leaves_a_line(session, pack,
+                                                               actors):
     from sqlalchemy import select
 
-    from backend.api.permissions import Principal, Role
-    from backend.db.models import User
+    from backend.models.playbook import PlaybookBlock, PlaybookEvent
 
-    row = session.execute(select(User).where(
-        User.role == "DATA_STEWARD",
-        User.username.like("pb.steward.%"))).scalars().first()
-    return Principal(user_id=int(row.id), role=Role.DATA_STEWARD)
+    added = service.create_section(session, pack["id"], actors["owner"],
+                                   title="Temporary page")
+    block = service.create_block(session, added["id"], actors["owner"],
+                                 block_type="NARRATIVE", body="Some words.")
+
+    service.delete_section(session, added["id"], actors["owner"])
+    session.expire_all()
+
+    assert session.get(PlaybookBlock, int(block["id"])) is None, (
+        "a page's blocks go with the page")
+    event = session.execute(
+        select(PlaybookEvent).where(
+            PlaybookEvent.pack_id == int(pack["id"]),
+            PlaybookEvent.entity_type == "section",
+            PlaybookEvent.action == "deleted")
+        .order_by(PlaybookEvent.id.desc())).scalars().first()
+    assert event is not None
+    assert "Temporary page" in event.narrative
+    assert "1 block" in event.narrative, event.narrative
+
+
+def test_a_section_the_template_requires_cannot_be_dropped_from_one_pack(
+        session, pack, actors):
+    """Otherwise one pack in a series quietly becomes a different document."""
+    whole = service.pack(session, pack["id"], actors["owner"])
+    from_template = next(s for s in whole["sections"] if s["template_key"])
+    with pytest.raises(service.InvalidPlaybook) as e:
+        service.delete_section(session, from_template["id"], actors["owner"])
+    assert "standard pack" in str(e.value)
+    assert "template" in str(e.value), "the refusal says where the change goes"
+
+
+def test_a_reviewed_section_cannot_be_deleted(session, pack, actors):
+    """Deleting it would delete the record of who read it."""
+    added = service.create_section(session, pack["id"], actors["owner"],
+                                   title="Reviewed page")
+    service.create_block(session, added["id"], actors["owner"],
+                         block_type="NARRATIVE", body="Some words to read.")
+    service.submit_section(session, added["id"], actors["owner"])
+    service.review_section(session, added["id"], actors["reviewer"],
+                           decision="APPROVED", note="Read it.")
+
+    with pytest.raises(service.InvalidPlaybook) as e:
+        service.delete_section(session, added["id"], actors["owner"])
+    assert "who read it" in str(e.value)
+    assert "Empty it instead" in str(e.value)
+
+
+def test_an_assistant_cannot_delete_a_section(session, pack, actors):
+    from backend.models.playbook import SOURCE_AI
+
+    added = service.create_section(session, pack["id"], actors["owner"],
+                                   title="A page an agent might tidy away")
+    with pytest.raises(access.PackDenied) as e:
+        service.delete_section(session, added["id"], actors["owner"],
+                               source=SOURCE_AI)
+    assert "a person's decision" in str(e.value)
+
+
+def test_a_section_of_an_approved_pack_cannot_be_deleted(session, pack,
+                                                         actors):
+    from backend.models.playbook import PlaybookPack
+
+    added = service.create_section(session, pack["id"], actors["owner"],
+                                   title="Late addition")
+    row = session.get(PlaybookPack, int(pack["id"]))
+    row.status = "APPROVED"
+    session.flush()
+    with pytest.raises(access.PackLocked):
+        service.delete_section(session, added["id"], actors["owner"])
+
+
+# ---------------------------------------------------------------- helpers
 
 
 def _ready_pack(session, committee, template, actors, period: str = "2025-01"):

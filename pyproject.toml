@@ -27,6 +27,11 @@ dependencies = [
     # the same picture. Pillow is reportlab's image backend.
     "reportlab==5.0.0",
     "python-docx==1.2.0",
+    # A committee reads slides in the room and the pack afterwards. Declared
+    # rather than optional: a Playbook export that silently omitted the format
+    # a chair actually presents from would be a missing feature dressed as a
+    # configuration difference.
+    "python-pptx==1.0.2",
     "matplotlib==3.11.0",
     "pillow==12.2.0",
     "requests==2.34.2",

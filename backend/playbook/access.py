@@ -127,6 +127,11 @@ AI_FORBIDDEN: dict[str, str] = {
         "amendment, raised by a person.",
     "delete_pack":
         "Packs are not deleted by software.",
+    "import_document":
+        "Importing somebody's existing pack brings ungoverned content into "
+        "CreditProbe. A person does that, and says what the content is.",
+    "delete_section":
+        "Removing a page from a pack under review is a person's decision.",
 }
 
 
@@ -604,9 +609,17 @@ def grants_for(session: Any, principal: Any,
         for r in rows}
 
 
-def readable_pack_ids(session: Any, principal: Any) -> list[int]:
-    """Every pack the caller may read. One query after the committee list."""
+def readable_pack_ids(session: Any, principal: Any, *,
+                      committee_id: int | None = None) -> list[int]:
+    """Every pack the caller may read. One query after the committee list.
+
+    `committee_id` narrows to one committee, and narrows by INTERSECTION
+    rather than by replacing the readable set: asking about a committee the
+    caller cannot read returns nothing rather than that committee's packs.
+    """
     committees = readable_committee_ids(session, principal)
+    if committee_id is not None:
+        committees = [i for i in committees if int(i) == int(committee_id)]
     if not committees:
         return []
     return [int(i) for i in session.execute(

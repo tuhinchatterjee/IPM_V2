@@ -188,6 +188,13 @@ def _calculate(session: Any, pack: Any, grant: access.Grant,
     seen: dict[tuple, PlaybookSnapshot] = {}
 
     for block in blocks:
+        # A table lifted out of an uploaded document names no metric BECAUSE
+        # CreditProbe did not calculate it. That is not a failure to report
+        # every time the pack is generated — it is the state a person resolves
+        # by mapping it, and until then the block stays labelled as theirs.
+        if str(block.import_class) == "UNMAPPED_TABLE":
+            continue
+
         config = dict(block.config or {})
         metric_id = str(config.get("metric_id") or "").strip()
         if not metric_id:
@@ -448,6 +455,11 @@ def refresh_block(session: Any, block_id: int, principal: Any, *,
 
     metric_id = str((block.config or {}).get("metric_id") or "").strip()
     if not metric_id:
+        if str(block.import_class) == "UNMAPPED_TABLE":
+            raise service.InvalidPlaybook(
+                "This table came out of an uploaded document, so CreditProbe "
+                "has nothing to recalculate. Map it to a governed metric and "
+                "the pack will show its own figure beside these values.")
         raise service.InvalidPlaybook(
             "This block names no metric, so there is nothing to calculate.")
 

@@ -49,6 +49,7 @@ from backend.api.routers import messages as messages_router
 from backend.api.routers import metadata as metadata_router
 from backend.api.routers import metrics as metrics_router
 from backend.api.routers import planner as planner_router
+from backend.api.routers import playbook as playbook_router
 from backend.api.routers import preferences as preferences_router
 from backend.api.routers import regulatory as regulatory_router
 from backend.api.routers import (
@@ -349,6 +350,7 @@ def create_app() -> FastAPI:
     # Distinct from hierarchy_router's /projects, which is the analytical
     # workspace a piece of credit work lives in.
     app.include_router(planner_router.router, prefix=API_PREFIX)
+    app.include_router(playbook_router.router, prefix=API_PREFIX)
     app.include_router(workspace_router.router, prefix=API_PREFIX)
     app.include_router(validation_router.router, prefix=API_PREFIX)
     app.include_router(exports_router.runs_router, prefix=API_PREFIX)

@@ -47,6 +47,7 @@ from backend.models.playbook import (
     CALCULATED_BLOCK_TYPES,
     CONFIDENTIALITY,
     EDITABLE_PACK_STATUSES,
+    IMPORT_CLASSES,
     LOCKED_PACK_STATUSES,
     PACK_STATUSES,
     REVIEW_DECISIONS,
@@ -1009,6 +1010,60 @@ def update_section(session: Any, section_id: int, principal: Any, *,
     return _section_dict(section)
 
 
+def delete_section(session: Any, section_id: int, principal: Any, *,
+                   source: str = SOURCE_UI) -> None:
+    """Take a page out of a draft, with its blocks.
+
+    Two refusals, and neither is bureaucracy:
+
+    A section carrying a TEMPLATE KEY came from the committee's template — it
+    is the shape the committee agreed its pack has. Dropping it from one pack
+    quietly makes that pack a different document from every other one in the
+    series, so the change belongs in the template, where it applies to the
+    series. (The test is `template_key`, not `required`: `required` says
+    readiness will block while the section is empty, which is equally true of
+    a page somebody added here, and that page IS deletable.)
+
+    A section anybody has REVIEWED carries a named person's statement that
+    they read it. Deleting it would delete that statement, and a review log
+    with holes in it is worse than no review log. Emptying the section is the
+    honest move; the review then correctly reads as stale.
+    """
+    section, row, grant = access.visible_section(session, section_id,
+                                                 principal, source)
+    access.assert_editable(row)
+    access.may_edit_section(session, section, grant, "remove this section")
+    access.refuse_ai(grant, "delete_section")
+
+    if str(section.template_key or "").strip():
+        raise InvalidPlaybook(
+            f"“{section.title}” is part of this committee's standard pack, so "
+            "it cannot be dropped from one pack on its own. Change the "
+            "template if the committee no longer wants this section.")
+    reviewed = session.execute(
+        select(func.count()).select_from(PlaybookReview)
+        .where(PlaybookReview.section_id == section.id)).scalar_one()
+    if int(reviewed or 0):
+        raise InvalidPlaybook(
+            f"“{section.title}” has been reviewed, and deleting it would "
+            "delete the record of who read it. Empty it instead — the review "
+            "will then show as out of date, which is the truth.")
+
+    title, ref = str(section.title), int(section.id)
+    blocks = int(session.execute(
+        select(func.count()).select_from(PlaybookBlock)
+        .where(PlaybookBlock.section_id == section.id)).scalar_one() or 0)
+    session.delete(section)
+    row.version = int(row.version) + 1
+    session.flush()
+    record(session, entity_type="section", action="deleted", pack=row,
+           entity_id=ref, entity_ref=title[:64],
+           narrative=(f"“{title}” was removed from the pack, with "
+                      f"{blocks} block{'' if blocks == 1 else 's'} on it."),
+           grant=grant)
+    readiness.refresh(session, row)
+
+
 def submit_section(session: Any, section_id: int, principal: Any, *,
                    note: str = "", source: str = SOURCE_UI) -> dict[str, Any]:
     """The owner says their section is ready to be read.
@@ -1130,7 +1185,7 @@ def create_block(session: Any, section_id: int, principal: Any, *,
                  block_type: str, title: str = "", body: str = "",
                  statement_kind: str = "", config: dict | None = None,
                  filters: dict | None = None, period: str = "",
-                 position: int | None = None,
+                 position: int | None = None, import_class: str = "",
                  expected_version: int | None = None,
                  source: str = SOURCE_UI) -> dict[str, Any]:
     """Put something on a page.
@@ -1151,7 +1206,18 @@ def create_block(session: Any, section_id: int, principal: Any, *,
     if statement_kind:
         _one_of(statement_kind, STATEMENT_KINDS, "statement kind")
         statement_kind = statement_kind.upper()
-    if kind in CALCULATED_BLOCK_TYPES:
+    if import_class:
+        _one_of(import_class, IMPORT_CLASSES, "import class")
+        import_class = import_class.upper()
+
+    # An UNMAPPED_TABLE is the one table that names no metric, and it is not
+    # an exception grudgingly allowed — it is the honest record of a table
+    # lifted out of somebody's file, which CreditProbe did not calculate and
+    # is not asserting. Everything downstream reads `import_class` to keep
+    # the two apart: generation does not try to calculate it, `refresh_block`
+    # refuses it by name, and a reader sees it labelled as theirs until a
+    # person maps it to a metric.
+    if kind in CALCULATED_BLOCK_TYPES and import_class != "UNMAPPED_TABLE":
         metric_id = str((config or {}).get("metric_id") or "").strip()
         if not metric_id:
             raise InvalidPlaybook(
@@ -1169,8 +1235,8 @@ def create_block(session: Any, section_id: int, principal: Any, *,
         position=int(position), title=(title or "")[:240], body=body or "",
         statement_kind=statement_kind, config=dict(config or {}),
         filters=dict(filters or {}), period=str(period or ""),
-        author_id=grant.user_id, source=grant.source,
-        ai_accepted=not grant.by_ai)
+        import_class=import_class, author_id=grant.user_id,
+        source=grant.source, ai_accepted=not grant.by_ai)
     session.add(block)
     if str(section.status) == "NOT_STARTED":
         section.status = "DRAFTING"
@@ -1199,8 +1265,16 @@ def update_block(session: Any, block_id: int, principal: Any, *,
     access.may_edit_section(session, section, grant, "change this block")
     _check_version(session, row, expected_version)
 
+    # `import_class` is deliberately NOT here. It is the label that says
+    # whether a number is CreditProbe's or somebody's file, and it is set in
+    # exactly two places: by the importer when a block is created, and by
+    # `import_.map_to_metric`, which first resolves the metric the table is
+    # being mapped to. A generic field update that could write it would let a
+    # caller relabel an imported table as a governed figure without any
+    # metric existing behind it, which is the one lie this product cannot
+    # tell.
     allowed = {"title", "body", "statement_kind", "config", "filters",
-               "period", "position", "ai_accepted", "import_class"}
+               "period", "position", "ai_accepted"}
     unknown = set(changes) - allowed
     if unknown:
         raise InvalidPlaybook(

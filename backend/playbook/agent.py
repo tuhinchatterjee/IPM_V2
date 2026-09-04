@@ -75,6 +75,8 @@ FORBIDDEN: tuple[str, ...] = (
     "edit_formula",
     "edit_approved_pack",
     "delete_pack",
+    "import_document",
+    "delete_section",
 )
 
 

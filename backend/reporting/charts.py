@@ -203,7 +203,50 @@ def limit_utilisation(data, title):
     return _finish(fig)
 
 
+def pack_bar(data, title):
+    """One committee-pack figure broken down by a dimension.
+
+    Generic on purpose. Every other renderer here draws one named report
+    shape; a Playbook chart block is configured by a person choosing a metric
+    and a dimension, so its shape is not knowable in advance. Takes
+    `[{"label": ..., "value": ...}]`, which is what
+    `backend.metrics.execution.breakdown` returns.
+    """
+    rows = [d for d in data if d.get("value") is not None][:20]
+    if not rows:
+        return None
+    return _hbar([str(d.get("label") or "") for d in rows],
+                 [float(d["value"]) for d in rows], TEAL, "{:,.2f}", title)
+
+
+def pack_line(data, title):
+    """One committee-pack figure over time."""
+    rows = [d for d in data if d.get("value") is not None]
+    if len(rows) < 2:
+        return None
+    fig, ax = plt.subplots(figsize=(6.6, 2.4))
+    labels = [str(d.get("label") or "") for d in rows]
+    values = [float(d["value"]) for d in rows]
+    ax.plot(labels, values, color=TEAL, linewidth=2.2, marker="o",
+            markersize=4.5, zorder=3)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    ax.grid(axis="y", color=GRID, linewidth=0.7)
+    ax.set_axisbelow(True)
+    if len(labels) > 8:
+        # A quarterly series over five years is forty labels on a 6.6 inch
+        # axis. Thinning them is the difference between a chart and a smear.
+        step = max(1, len(labels) // 8)
+        ax.set_xticks(range(0, len(labels), step))
+        ax.set_xticklabels(labels[::step], rotation=0)
+    ax.set_title(title, loc="left", fontsize=10, fontweight="bold", color=INK,
+                 pad=10)
+    return _finish(fig)
+
+
 _RENDERERS = {
+    "pack_bar": pack_bar,
+    "pack_line": pack_line,
     "health_trend": health_trend,
     "stage_mix": stage_mix,
     "ecl_trend": ecl_trend,
