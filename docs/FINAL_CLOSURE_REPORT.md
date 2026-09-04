@@ -370,8 +370,78 @@ disagreement is reported above rather than reconciled by hand.
 
 ## S. The full backend regression on final HEAD
 
-*(filled in from the run's own output — see below.)*
+Run on `aac73ab`, the branch's final commit:
+
+    $ .venv/bin/python -m pytest tests -rs
+    12075 passed, 35 skipped, 25 warnings in 1186.47s (0:19:46)
+
+**Zero failures.** The 35 skips, enumerated in full this time rather than
+counted — every one is a condition about this environment or a deliberate
+limit, and not one is a test that would otherwise fail:
+
+| Count | Where | Reason given by the test |
+| --- | --- | --- |
+| 12 | `tests/scripts/test_powershell_script.py` | No PowerShell runtime in this environment. |
+| 5 | `tests/llm/test_live_smoke.py:64` | no AI provider key is configured |
+| 3 | `tests/llm/test_live_smoke.py:77,82,87` | no AI provider key is configured |
+| 3 | `tests/orchestration/test_multi_condition.py:345` | this question is answered from one dataset |
+| 3 | `tests/orchestration/test_multi_condition.py:309` | this shape does not compile through the multi builder |
+| 4 | `tests/orchestration/test_multi_condition.py:292,306,342,476` | the planner stopped to ask: covenant_tests does not carry days_past_due |
+| 2 | `tests/api/test_user_administration.py:247,258` | This database has more than one administrator. |
+| 1 | `tests/orchestration/test_query_validation.py:249` | the result is limited, so absence proves nothing |
+| 1 | `tests/multi/test_relationship_assistant.py:93` | no multiplying candidate in this data |
+| 1 | `tests/evals/test_ask_evaluation.py:210` | set RUN_LIVE_LLM_EVALS=1 to run these |
+
+Nine of the 35 — the live smoke tests and the live-eval suite — are the same
+fact as §F: there is no AI provider configured here. Twelve are PowerShell.
+The remaining fourteen are statements about this data and this database.
+
+**On the date.** The suite does not change behaviour with the calendar, and
+that was the whole of §1 and §2 rather than something to be demonstrated by
+waiting for midnight. The two files that were date-dependent are now
+deterministic: `test_demo_refresh.py` injects `DAY_ONE = date(2026, 3, 10)`
+and calls `date.today()` nowhere, and its Day-1-to-Day-2 rollover test proves
+the exact transition that used to break the demonstration. `test_demo_portfolio.py`
+re-anchors before it reads. I have not claimed a date changed mid-run, because
+it did not; what has been proved is that a date change cannot make these tests
+fail.
+
+**Acceptance runs on the same final HEAD:**
+
+    $ scripts/acceptance/planner_demo_journey.py     18 passed, 0 failed
+    $ scripts/acceptance/lens_journeys.py           128 passed, 0 failed
 
 ## T. Recommendation
 
-*(stated below, once §S is in.)*
+**READY TO MERGE.**
+
+On this HEAD: 12,075 backend tests pass and none fails; 146 journey and demo
+checkpoints pass through the running application in a real browser and over
+real authenticated HTTP; lint, typecheck and build are clean; migrations are at
+one head; no acceptance gate is FAIL.
+
+Four defects the product was shipping were found and fixed during this run —
+including a 0.0% default rate on a client-facing lens, which is the kind of
+number that ends a meeting badly — and each fix carries a regression test. Not
+one existing assertion was weakened, skipped or loosened to get here.
+
+Three things are **NOT VERIFIED**, and a reviewer should read them as
+conditions on the merge rather than as defects:
+
+1. **Live AI has not been exercised.** No provider is configured in this
+   environment. Everything proven about AI behaviour is deterministic — which
+   for the governance boundary is the stronger proof, because the prohibition
+   is the absence of the capability rather than a check that could be written
+   wrongly. But a live chat and agent suite against a real model has not been
+   run, and should be before anyone demonstrates the AI to a client.
+2. **External email has not been exercised.** No transport is configured.
+   Nothing in the product claims otherwise, and in-app delivery is verified.
+3. **Docker has not been exercised.** It cannot run in this sandbox.
+
+None of the three blocks the merge, because none is a change this branch made
+or a claim this branch asserts. All three are stated in the product's own UI
+and in the matrix rather than being papered over.
+
+**Not merged.** Nothing has been merged to `main` and no pull request has been
+opened, as instructed. The branch is `claude/vigilant-darwin-eohyi1` at
+`aac73ab`.

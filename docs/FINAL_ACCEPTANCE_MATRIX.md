@@ -239,7 +239,7 @@ have nothing to draw with it. Implemented end to end this run.
 
 | Gate | Requirement | Status | Evidence | Test / route / file | Notes |
 | --- | --- | --- | --- | --- | --- |
-| RG-01 | The full backend suite is green on final HEAD | See the report | `python -m pytest tests` | — | Result recorded in §S of the final report. |
+| RG-01 | The full backend suite is green on final HEAD | PASS | 12,075 passed, 35 skipped, 0 failed on `aac73ab` in 19:46; all 35 skips enumerated | `python -m pytest tests -rs` | §S of the final report lists every skip and its reason. |
 | RG-02 | No demo scenario depends on "the seed happened today" | PASS | The two date-dependent test files were made deterministic without weakening a single assertion | `tests/planner/test_demo_refresh.py`, `test_demo_portfolio.py` | |
 | RG-03 | Lint is clean | PASS | `ruff check` over `backend scripts tests` | — | |
 | RG-04 | The frontend typechecks and lints | PASS | `npx tsc --noEmit`; `npm run lint` | — | |
@@ -258,11 +258,10 @@ Counted from the rows above rather than typed alongside them:
 
 | Status | Count |
 | --- | --- |
-| PASS | 131 |
+| PASS | 132 |
 | FAIL | 0 |
 | NOT APPLICABLE | 0 |
 | NOT VERIFIED | 3 |
-| Recorded in the final report | 1 |
 | **Total gates** | **135** |
 
     python - <<'EOF'
@@ -277,9 +276,9 @@ The three NOT VERIFIED rows are AI-02 (no AI provider is configured in this
 environment), EM-02 (no outbound mail provider is configured) and RG-09
 (Docker cannot run in this sandbox). None of the three is a defect in the
 product; all three are facts about where it was run, and none was papered
-over. RG-01 — the full backend suite on final HEAD — is recorded in the final
-report instead of here, so that it carries the run's actual output rather than
-a status typed ahead of it.
+over. RG-01 — the full backend suite on final HEAD — was deliberately left
+blank until the run finished, so that it would carry the run's actual output
+rather than a status typed ahead of it: 12,075 passed, 35 skipped, 0 failed.
 
 There are 135 gates rather than 95 because the areas are enumerated from the
 capability surface, which is finer-grained than a hand-kept list would be. See
