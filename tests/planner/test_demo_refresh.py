@@ -150,7 +150,29 @@ def _world(*, anchor: date = DAY_ONE, origin: str = TEST_ORIGIN) -> dict:
 
 @pytest.fixture()
 def world():
-    return _world()
+    """Built for one test, and removed after it.
+
+    The teardown is not tidiness. These fixtures carry `demo_origin` and an
+    open task at a reminder threshold, so one left behind is a project the
+    estate-wide sweep goes on reminding somebody about for ever, and a
+    candidate the demo refresh would pick up. A test must not add a standing
+    obligation to a development database.
+    """
+    made = _world()
+    try:
+        yield made
+    finally:
+        _forget(made["project_id"])
+
+
+def _forget(project_id: int) -> None:
+    from backend.db.engine import get_session
+
+    with get_session() as session:
+        project = session.get(PlannerProject, int(project_id))
+        if project is not None:
+            session.delete(project)  # cascades to its tasks and milestones
+            session.commit()
 
 
 def _task(task_id: int) -> PlannerTask:
@@ -423,16 +445,20 @@ def test_a_project_nobody_marked_as_a_demonstration_is_never_touched():
     from backend.db.engine import get_session
 
     ordinary = _world(origin="")
-    before = _task(ordinary["signoff"]).due_date
+    try:
+        before = _task(ordinary["signoff"]).due_date
 
-    out = _refresh(ordinary, today=DAY_TWO)
+        out = _refresh(ordinary, today=DAY_TWO)
 
-    assert ordinary["code"] not in [p.code for p in out.projects]
-    assert _task(ordinary["signoff"]).due_date == before
+        assert ordinary["code"] not in [p.code for p in out.projects]
+        assert _task(ordinary["signoff"]).due_date == before
 
-    with get_session() as session:
-        assert session.get(
-            PlannerProject, ordinary["project_id"]).demo_anchor_date is None
+        with get_session() as session:
+            assert session.get(
+                PlannerProject,
+                ordinary["project_id"]).demo_anchor_date is None
+    finally:
+        _forget(ordinary["project_id"])
 
 
 def test_only_the_named_scheduling_fields_are_eligible():
@@ -450,13 +476,17 @@ def test_a_demo_project_with_no_anchor_is_left_alone_and_said_so():
     from backend.db.engine import get_session
 
     orphan = _world()
-    with get_session() as session:
-        session.get(PlannerProject, orphan["project_id"]).demo_anchor_date = None
-        session.commit()
+    try:
+        with get_session() as session:
+            session.get(
+                PlannerProject, orphan["project_id"]).demo_anchor_date = None
+            session.commit()
 
-    out = _refresh(orphan, today=DAY_TWO)
-    assert any(orphan["code"] in note for note in out.notes)
-    assert orphan["code"] not in [p.code for p in out.projects]
+        out = _refresh(orphan, today=DAY_TWO)
+        assert any(orphan["code"] in note for note in out.notes)
+        assert orphan["code"] not in [p.code for p in out.projects]
+    finally:
+        _forget(orphan["project_id"])
 
 
 # ------------------------------------------- the reminder journey, end to end
