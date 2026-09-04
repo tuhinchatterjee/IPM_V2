@@ -200,6 +200,25 @@ environment, so no row that would require a live model call is marked PASS.
 | PB-SEC-13 | An AI channel cannot import a document | PASS | `access.refuse_ai(grant, "import_document")`; `test_import.py` |
 | PB-SEC-14 | No source content leaks into a pack a reader is not authorised for | PASS | Sources are pack-scoped and pass `readable_pack`; Journey I |
 
+## PB-LEGACY — retiring the earlier Playbooks feature
+
+The name had an occupant. Every row here is pinned by
+`tests/playbook/test_legacy_retirement.py` unless it says otherwise. Section C
+of the final report carries the full dependency inventory and the reasoning.
+
+| ID | Gate | Status | Evidence |
+|---|---|---|---|
+| PB-LEGACY-01 | The old navigation entry is gone, and Playbook appears exactly once, under Govern | PASS | `test_the_old_navigation_entry_is_gone`; confirmed to FAIL when a `/playbooks` entry is put back, so it is a guard and not a decoration |
+| PB-LEGACY-02 | `/playbooks` is retired: no page directory and no API path | PASS | `test_the_old_public_route_is_retired`. Retired rather than redirected, deliberately — a redirect would assert the two features are one object under two names |
+| PB-LEGACY-03 | Nothing imports the removed implementation | PASS | `test_no_protected_feature_depends_on_the_removed_implementation`: import checks for both removed modules and both removed models, plus a source sweep of 596 files under `backend/` and `scripts/` |
+| PB-LEGACY-04 | The legacy tables are gone and the fifteen new ones are present | PASS | `test_the_legacy_tables_are_gone_from_the_schema`, read from `pg_tables` — a migration that was written is not a migration that ran |
+| PB-LEGACY-05 | Dropping the legacy tables was safe | PASS | Demonstration data only: the sole non-API writer was `backend/demo/workspace.py`, which also listed both tables among the ones its reset clears. No honest schema mapping to the new system exists. Recorded in `0039`'s docstring and in report section C, including the two caveats |
+| PB-LEGACY-06 | The removal is reversible in schema | PASS | `test_the_removal_is_reversible_in_the_migration`. Schema only: `downgrade()` recreates both tables empty and does not bring rows back |
+| PB-LEGACY-07 | Shared analytical infrastructure was not taken with it | PASS | `test_the_shared_infrastructure_the_feature_stood_on_still_works`: the engine registry still resolves 30 certified analyses, the runner is callable, Lenses imports. Playbooks borrowed these; it did not own them |
+| PB-LEGACY-08 | The Brain advertises the module that exists | PASS | `test_brain_compatibility_declares_the_new_module_not_the_old_name`: capability renamed `playbooks` → `playbook` rather than dropped |
+| PB-LEGACY-09 | The two good ideas were carried over, not lost | PASS | Thresholds against a governed number → `backend/playbook/materiality.py`; trigger-and-notify → `backend/playbook/monitor.py` and the chase list |
+| PB-LEGACY-10 | Operational documents do not describe a feature that is gone | PASS | `DEMO_SCOPE_FREEZE.md` and `CLIENT_DEMO_SCRIPT.md` corrected. Immutable phase-start snapshots and past verification records were left alone — they are history, and editing them would destroy the baselines they exist to be |
+
 ## PB-QUALITY — the gates
 
 | ID | Gate | Status | Evidence |

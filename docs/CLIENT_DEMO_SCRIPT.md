@@ -294,8 +294,13 @@ costs, the approval queue.
   statistically unproven. See `docs/DEMO_KNOWN_LIMITATIONS.md`.
 * Do not say **"it learns from your feedback"** without the rest of the
   sentence. Feedback is evidence; a governed release is what changes anything.
-* Do not promise **scheduled Playbooks**, **Arabic**, **document authoring**
-  or a **Regulatory screen**. None of those is built.
+* Do not promise **Arabic**, **document authoring** or a **Regulatory screen**.
+  None of those is built. The earlier Playbooks feature — a standing
+  instruction that ran certified analyses — no longer exists at all; the
+  name now belongs to the committee pack system at `/playbook`.
+* Do not promise that the Playbook **chases people automatically**. The
+  committee sweep shows what it would send; opening the screen sends
+  nothing.
 * Do not say the model **calculated** anything. It planned and explained.
 * Do not present past a **NO-GO**.
 

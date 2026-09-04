@@ -35,7 +35,100 @@ and a route into the Project Planner.
 Seventeen tables in one migration (`0039`), seventeen backend modules, 43 API
 paths carrying 50 operations, five pages, and 253 tests of its own.
 
-## C. The shape of it
+## C. Retiring the earlier Playbooks feature
+
+The name had an occupant. An earlier feature called Playbooks — a standing
+instruction that ran certified analyses on a trigger and tested their results
+against thresholds — was removed at the product owner's direction so that
+Playbook could mean the committee pack. This section records what went, what
+stayed, and how each was decided, because a removal nobody wrote down is a
+removal somebody re-litigates.
+
+### What it consisted of
+
+| Dependency | Class | Outcome |
+|---|---|---|
+| `/playbooks` page | A — legacy only | Removed |
+| Playbooks navigation entry | A | Removed |
+| `backend/api/routers/playbooks.py` | A | Removed |
+| `backend/services/playbooks.py` | A | Removed |
+| `Playbook`, `PlaybookRun` models | A | Removed |
+| `playbooks`, `playbook_runs` tables | A | Dropped in `0039` |
+| Playbooks tests and fixtures | A | Removed; `tests/services/test_lenses.py` records why |
+| Playbooks demo rows in `backend/demo/workspace.py` | A | Removed; the file now seeds committee packs |
+| Engine registry (30 certified analyses) | B — shared | **Kept** |
+| Engine runner (`run_analysis`, `persist_run`) | B | **Kept** |
+| Lenses service | B | **Kept** |
+| Investigations | B | **Kept** — a `playbook_runs` row pointed at one, and dropping the table took the reference, not the Investigation |
+| Brain compatibility module set | B | **Kept**, capability renamed `playbooks` → `playbook` |
+| Role description in `users.py` | B | Kept; the prose naming Playbooks was corrected |
+| Threshold-against-a-result idea | C — reusable | **Incorporated**, as `backend/playbook/materiality.py` |
+| Trigger-and-notify idea | C | **Incorporated**, as `backend/playbook/monitor.py` and the chase list |
+
+The three classes are the ones that matter. Class B is the reason this was not
+a simple delete: Playbooks *borrowed* CreditProbe's analytical infrastructure
+rather than owning it, and the registry, the runner and the Lenses service all
+have other callers. Removing them because one caller went away would have been
+the expensive kind of mistake — the kind found weeks later by a different
+feature.
+
+Class C is the reason the removal is not a loss. Playbooks' two good ideas —
+that a threshold crossed on a governed number is worth raising, and that
+somebody should be told — are both in the new system, tied to a committee and
+a cycle rather than to a standing instruction.
+
+### The data
+
+`playbooks` and `playbook_runs` were dropped rather than migrated, and the
+justification is worth stating rather than assuming.
+
+There is no honest mapping between the two schemas. A standing analytical
+instruction and a governance pack are not the same object under two names: a
+threshold condition is not a committee section, and a run is not a meeting.
+Migrating one into the other would have put invented committee packs, with
+invented meeting dates and invented attendees, in front of a client.
+
+The rows themselves were demonstration data. In this deployment the only
+writer of `playbooks` rows other than the API was `backend/demo/workspace.py`,
+which created them as part of the seeded workspace and listed both tables
+among the ones its reset clears — so the rows were already understood as
+resettable demonstration state, not as records anybody was keeping. The
+migration's `upgrade()` therefore drops both tables outright, and says so in
+its docstring.
+
+Two honest caveats. A deployment where somebody had created Playbooks through
+the API *would* lose those rows, and the migration does not stop to ask; that
+risk was accepted at the product owner's direction, on a feature whose
+scheduled triggers were never wired to a scheduler. And the drop is reversible
+only in schema: `downgrade()` recreates both tables empty, which is enough to
+step a deployment back but does not bring rows back. A deployment that wanted
+them would take them from a backup.
+
+### Verification, and what pins it
+
+`tests/playbook/test_legacy_retirement.py` — seven tests, added rather than
+assumed:
+
+  * the navigation entry is gone, and Playbook appears exactly once, in Govern
+  * `/playbooks` is retired: no page directory, no API path, and no redirect
+    — deliberately not a redirect, because sending somebody from a standing
+    instruction to a committee pack would tell them the two are the same thing
+  * nothing imports what was deleted — an import check for the two removed
+    modules and the two removed models, plus a source sweep of 596 files in
+    `backend/` and `scripts/`, because a reference inside a function body
+    never runs during collection
+  * the legacy tables are absent from the live schema and the fifteen new ones
+    are present, checked against `pg_tables` rather than against the migration
+    file, since a migration that was written is not a migration that ran
+  * `0039` can be stepped back
+  * the shared infrastructure still works: the registry still resolves its
+    certified analyses, the runner is still callable, Lenses still imports
+  * the Brain advertises `playbook` and not `playbooks`
+
+The navigation test was confirmed to fail when a `/playbooks` entry is put
+back, so it is a guard and not a decoration.
+
+## D. The shape of it
 
 | | |
 |---|---|
@@ -63,7 +156,7 @@ with a capped grant. `monitor` — the sweep that says who is being waited on.
 formats. `import_` — inbound documents, checked before they are opened.
 `demo` — the demonstration committees and their re-anchoring.
 
-## D. The single door
+## E. The single door
 
 `access.readable_pack` is the only way a pack row reaches a caller.
 `committee_grant_for` decides what a caller may do: membership first, then the
@@ -80,7 +173,7 @@ A member whose access role is VIEWER is a different case, and it is tested as
 one: they read the pack (200) and cannot publish it or add a section to it
 (403).
 
-## E. What a figure is
+## F. What a figure is
 
 Not a number. A figure is a calculation with its working attached: the metric
 id, the metric version, the formula hash, the period, the comparison period,
@@ -98,7 +191,7 @@ numerator, the denominator, the rows considered, and a run id.
 That is the real payload from the seeded retail pack, read over HTTP in
 journey C. Every figure on the screen opens to it.
 
-## F. The five ways of having no number
+## G. The five ways of having no number
 
 A committee that cannot tell them apart cannot act on any of them.
 
@@ -113,7 +206,7 @@ None of them renders as `0.0%`. A missing or immature denominator is never a
 client-facing zero. That is asserted on the wire (journey C) and on the screen
 (journey R).
 
-## G. Readiness is a gate
+## H. Readiness is a gate
 
 Eight weighted checks, each producing named blocking reasons that point at the
 entity and the person responsible:
@@ -129,7 +222,7 @@ Approval is blocked on the gate, not on a person remembering. The seeded
 retail pack sits at 81% with one blocking item — a HIGH finding that has not
 been answered — and the screen names it.
 
-## H. What the AI may not do
+## I. What the AI may not do
 
 Thirteen acts are refused to an AI channel regardless of the grant it holds:
 
@@ -151,7 +244,7 @@ The model is never asked to calculate a metric, to decide whether data exists,
 or to invent materiality. It is given calculated figures as evidence and asked
 to write about them.
 
-## I. The live AI path — NOT VERIFIED
+## J. The live AI path — NOT VERIFIED
 
 `get_provider()` in this environment reports `configured = False` and names
 itself `'none'`. There is no API key here.
@@ -166,7 +259,7 @@ is NOT VERIFIED, and it is not rounded up.
 
 Everything else in the Playbook works with no provider configured.
 
-## J. Documents
+## K. Documents
 
 Four formats, all downloaded and opened again with the library that consumes
 them, in journey H:
@@ -178,7 +271,7 @@ them, in journey H:
 | Slides | 37,064 bytes | The deck a chair presents from |
 | Workbook | 11,822 bytes | Every figure with its formula, period, numerator, denominator |
 
-## K. Excel formula injection
+## L. Excel formula injection
 
 Every string in the exported workbook is scanned in journeys N and O. Zero
 cells begin `=`, `+`, `-`, `@`, tab or carriage return.
@@ -189,7 +282,7 @@ uploads a workbook containing `=cmd|'/c calc'!A1`, `@SUM(1+1)*cmd|'/c calc'!A1`,
 downloads the pack and reads every cell back with openpyxl. The payload is
 present — 307 strings scanned — and inert.
 
-## L. `<Finance> Review`
+## M. `<Finance> Review`
 
 A section can legitimately be called that, and a destructive blocklist would
 mangle it. The escaping is done once, at the layer that knows which writer
@@ -203,7 +296,7 @@ handed the PDF's escaping, so a client opening the Word file would have read
 python-docx and python-pptx rather than grepping the XML — where the writer's
 own escaping makes the two cases indistinguishable.
 
-## M. Inbound files
+## N. Inbound files
 
 An uploaded document is checked before anything parses it: size, extension,
 magic bytes, and for a zip-based format the contents it *declares*.
@@ -222,7 +315,7 @@ Journey M runs the hostile cases against the live route:
 The upload is read a megabyte at a time and stops one byte past the limit, so
 the refusal costs what the limit costs rather than what the attacker sends.
 
-## N. The imported table
+## O. The imported table
 
 An imported table is the one block that names no metric. It is a table lifted
 out of somebody's file, which CreditProbe did not calculate and is not
@@ -245,7 +338,7 @@ doing exactly what it was meant to. `carries_a_figure` now makes the
 distinction once, next to the block types it qualifies. A governed KPI with no
 snapshot still blocks; a test pins that.
 
-## O. A movement nobody could see
+## P. A movement nobody could see
 
 Average debt burden ratio moved from 0.3056% to 0.3134%. At the one decimal
 the metric is governed to, both read `0.3%`, and the screen said
@@ -266,7 +359,7 @@ The arithmetic was not touched. Materiality still reads the real values, and a
 test pins that a threshold below the reported precision still fires —
 materiality is about the book, not about how many decimals a pack prints.
 
-## P. Comparison against the previous cycle
+## Q. Comparison against the previous cycle
 
 Five kinds of difference, kept apart, because collapsing them is how a
 comparison lies:
@@ -282,7 +375,7 @@ Journey G compares the seeded retail packs: 8 figures, 8 moved,
 `2024-12 → 2025-01`, and a rise in the application bad rate reads as `better:
 false` because the metric says lower is better.
 
-## Q. Decisions and actions
+## R. Decisions and actions
 
 Journey K raises a decision — "Tighten the Jeddah SME origination cut-off" —
 with the question, the recommendation, two alternatives and the impact. It
@@ -301,7 +394,7 @@ and the second one is always the one that is wrong.
 The task was created (id 30048, project 164) and read back from the Planner
 side. Sending the same action twice is refused.
 
-## R. The demonstration
+## S. The demonstration
 
 Three committees on three cadences, seeded by
 `scripts/seed_playbook_committees.py`:
@@ -340,7 +433,7 @@ own docstring and it is the right behaviour for a suite that shares a database
 with a demonstration — but it means the seed must be run again after the test
 suite. The runbook and the journeys README both say so.
 
-## S. The twenty journeys
+## T. The twenty journeys
 
 `scripts/playbook_journeys/` holds three harnesses that drive the running
 stack. Nothing in them uses a fixture, a mock or the ORM: every step is an
@@ -361,7 +454,7 @@ for having them: a test that calls a service function proves the function
 works, and a journey that opens the file the committee reads proves the
 product does.
 
-## T. What the browser actually shows
+## U. What the browser actually shows
 
 Journey P–T runs Chromium against `next build` + `next start` on port 3000,
 with the backend on 8000.
@@ -383,7 +476,7 @@ reads `login_required` from the backend, and a backend it cannot reach cannot
 tell it. That is the gate being careful rather than a defect, but it means the
 frontend must run on 3000.
 
-## U. What was fixed this phase
+## V. What was fixed this phase
 
 Five things, all found by looking at the product rather than at the code.
 
@@ -400,17 +493,17 @@ Five things, all found by looking at the product rather than at the code.
 Each carries a regression test that fails without its fix. No test was
 weakened, no tolerance enlarged, and no failing test skipped to get here.
 
-## V. What was not built
+## W. What was not built
 
 Nothing in the mandate was left as a TODO, a placeholder, a disabled button, a
 fake notification, a mocked AI response, a static screenshot, a hard-coded
 metric value, a frontend-only permission, a non-functional export, or an API
 with no product UI. Each of those was checked for specifically.
 
-The one functional gap is the one named in section I: the live AI drafting
+The one functional gap is the one named in section J: the live AI drafting
 call, which cannot be executed in an environment with no provider configured.
 
-## W. Infrastructure reused, not rebuilt
+## X. Infrastructure reused, not rebuilt
 
 No second user table, notification centre, audit system, metric-formula
 engine, chart engine, project-task system or parallel AI tool registry was
@@ -420,7 +513,7 @@ provider abstraction. No committee metric is hard-coded in a frontend
 component: every figure comes from `config.metric_id` resolved through the
 metric layer.
 
-## X. Quality gates
+## Y. Quality gates
 
 | Gate | Result |
 |---|---|
@@ -433,7 +526,7 @@ metric layer.
 | Journeys A–T | 20 passed |
 | Alembic | Head `0039`, single linear head |
 
-## Y. The full regression
+## Z. The full regression
 
 Baseline, recorded in `docs/PLAYBOOK_BASELINE.md` before any Playbook code
 touched anything that already existed: **12,075 passed, 35 skipped, 0 failed**
@@ -455,7 +548,7 @@ were the docs gate correctly reporting that the five new Playbook pages
 carried no curated expected behaviour. They were curated and the gate now
 passes (8 passed).
 
-## Z. Constraints observed
+## AA. Constraints observed
 
 The protected source branch `claude/vigilant-darwin-eohyi1` was not modified,
 rebased, force-pushed or rewritten. Nothing was merged into `main`. No pull
@@ -463,7 +556,7 @@ request was opened. Nothing was force-pushed and no history was rewritten. All
 work is on `claude/playbook-committee-intelligence`, pushed in coherent
 increments.
 
-## AA. Documents
+## AB. Documents
 
 | | |
 |---|---|
@@ -474,7 +567,7 @@ increments.
 | `docs/PLAYBOOK_DEMO_RUNBOOK.md` | Running the demonstration |
 | `scripts/playbook_journeys/README.md` | The twenty journeys and how to run them |
 
-## AB. What a reviewer should look at first
+## AC. What a reviewer should look at first
 
 The single door (`backend/playbook/access.py`) and journey I, together. If the
 access model is wrong, nothing else matters.
@@ -486,19 +579,19 @@ Then the readiness gate and the five ways of having no number, because that is
 where a committee pack either tells the truth about what it does not know or
 quietly does not.
 
-## AC. Known limitations
+## AD. Known limitations
 
-The live AI drafting path is unverified in this environment (section I).
+The live AI drafting path is unverified in this environment (section J).
 
 The Docker path was not run this phase — the stack was verified as separate
 processes. The compose file is unchanged by this work.
 
 The frontend must run on port 3000 for the browser to reach the API
-(section T).
+(section U).
 
-The test suite removes the seeded demonstration committees (section R).
+The test suite removes the seeded demonstration committees (section S).
 
-## AD. Recommendation
+## AE. Recommendation
 
 **READY FOR USER ACCEPTANCE TESTING.**
 
@@ -514,7 +607,7 @@ injection, malicious files, zip bombs, oversized uploads, Excel formula
 injection and output escaping, each exercised through the live route rather
 than asserted about a function.
 
-The full platform regression on this commit is recorded in section Y.
+The full platform regression on this commit is recorded in section Z.
 
 Two items are NOT VERIFIED and neither is material to acceptance testing of
 this system: the live AI drafting call needs a provider key, and the Docker
