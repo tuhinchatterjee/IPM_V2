@@ -17,7 +17,7 @@ import type {
   ScvRunHeader,
   ScvStoredRun,
 } from "@/lib/api";
-import { count } from "@/lib/format";
+import { count, technical } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
@@ -204,14 +204,19 @@ const MOVEMENT_TONE: Record<string, string> = {
 };
 
 /**
- * Four decimals, because that is the question being asked.
+ * Four decimals, through the display contract rather than around it.
  *
  * AUC 0.7179 against 0.7104 is the finding; at two decimals both read 0.72
  * and the comparison this screen exists to show would be erased by its own
- * formatting.
+ * formatting. `technical` is the governed escape for exactly that case — it
+ * caps at four decimals and requires the surface to carry a visible technical
+ * label, which the column headers here do. Formatting the number directly
+ * would print the same characters while bypassing the check that keeps the
+ * rest of the product honest, which is why `scripts/check_decimals.py`
+ * caught this line the first time round.
  */
 function figure(value: number | null): string {
-  return value === null || value === undefined ? "—" : value.toFixed(4);
+  return technical(value, 4);
 }
 
 function ComparisonRow({ row }: { row: ScvComparedTest }) {
