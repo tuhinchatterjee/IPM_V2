@@ -148,8 +148,13 @@ class TestASentenceThatStatesItsOwnScopeIsLeftAlone:
         assert thread.state.filter_pairs() == [("sector", SECTOR)]
         # Read from the service rather than pinned, so adding a domain does
         # not make this test fail for a reason that has nothing to do with
-        # the population it exists to protect.
-        assert f"{md.counts()['datasets']:,} governed dataset" in str(
+        # the population it exists to protect. Less the scorecard validation
+        # datasets: the general Cockpit may not discover those, so the number
+        # it quotes is the catalogue's less exactly that set.
+        from backend.scorecard.domains import restricted_datasets
+
+        visible = md.counts()["datasets"] - len(restricted_datasets())
+        assert f"{visible:,} governed dataset" in str(
             investigation.narrative.direct_answer or "")
 
 

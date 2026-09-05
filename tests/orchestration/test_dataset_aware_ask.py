@@ -227,8 +227,17 @@ class TestTheListingIsTheLiveCatalogue:
         return cat.catalogue_rows()
 
     def test_it_lists_what_the_catalogue_holds(self, rows) -> None:
-        readable = [d for d in ms.datasets() if getattr(d, "readable", True)]
+        # Everything readable EXCEPT the scorecard validation datasets, which
+        # the general Cockpit may not discover. Listing them here would mean
+        # the boundary had failed; leaving the subtraction out would mean this
+        # test could no longer tell the difference.
+        from backend.scorecard.domains import restricted_datasets
+
+        blocked = restricted_datasets()
+        readable = [d for d in ms.datasets()
+                    if getattr(d, "readable", True) and d.name not in blocked]
         assert len(rows) == len(readable)
+        assert not [r for r in rows if r["dataset"] in blocked]
 
     def test_it_is_ordered_by_domain(self, rows) -> None:
         domains = [r["domain"] for r in rows]
