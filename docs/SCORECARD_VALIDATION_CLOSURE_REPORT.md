@@ -1,7 +1,9 @@
 # Scorecard Validation Intelligence — closure phase report
 
 **Branch:** `claude/scorecard-validation-intelligence`
-**HEAD at the time of writing:** `b905d8d` (`b905d8dbca2b3a8db3ea248541f21774295030e8`)
+**Final executable HEAD:** `2f26993` (`2f26993f4a55cb6beb7eea68ab026304e2ecf65b`)
+**Every figure below was measured on that HEAD.** This document is the only
+change after it, and it changes no executable code.
 **Migration head:** `0041`, single head, verified in and out of Docker
 **Nothing merged to `main`.** No force-push. No history rewritten.
 
@@ -253,7 +255,86 @@ looked at it in Word. These are different claims and are not conflated.
 
 ## H. Final regression
 
-REGRESSION_PLACEHOLDER
+Run on the **final executable HEAD** — `2f26993` — from the repository root,
+after the display-contract repair, with the random-order plugin disabled so the
+figures are reproducible:
+
+```
+.venv/bin/python -m pytest tests/ -rs --tb=line -p no:randomly
+```
+
+| | |
+|---|---|
+| **Collected** | **12,834** |
+| **Passed** | **12,798** |
+| **Skipped** | **36** |
+| **Failed** | **0** |
+| **Errors** | **0** |
+| **Warnings** | **25** |
+| **Duration** | **1,615.79s (26m 55s)** |
+| **Exit code** | **0** |
+
+The 25 warnings are one deprecation, raised 25 times by `dash` inside
+`tests/legacy/test_esg_inputs.py` — the preserved Dash application, untouched by
+this phase.
+
+### The 36 skips, enumerated exactly
+
+| Count | Location | Reason given |
+|---|---|---|
+| 8 | `tests/llm/test_live_smoke.py:64, 77, 82, 87` | no AI provider key is configured |
+| 1 | `tests/evals/test_ask_evaluation.py:210` | set `RUN_LIVE_LLM_EVALS=1` to run these |
+| 12 | `tests/scripts/test_powershell_script.py:78` | No PowerShell runtime in this environment |
+| 2 | `tests/api/test_user_administration.py:247, 258` | This database has more than one administrator |
+| 4 | `tests/orchestration/test_multi_condition.py:292, 306, 342, 476` | the planner stopped to ask: `covenant_tests` does not carry `days_past_due` |
+| 3 | `tests/orchestration/test_multi_condition.py:309` | this shape does not compile through the multi builder |
+| 3 | `tests/orchestration/test_multi_condition.py:345` | this question is answered from one dataset |
+| 1 | `tests/orchestration/test_query_validation.py:249` | the result is limited, so absence proves nothing |
+| 1 | `tests/multi/test_relationship_assistant.py:93` | no multiplying candidate in this data |
+| 1 | `tests/scorecard/test_validation_runner.py:141` | every registered test has a handler |
+
+Read honestly, they fall into three groups.
+
+**Nine are the live-AI gate in another form** (the eight live smoke tests and
+the live evaluation suite). They skip for exactly the reason section F records,
+and they are the evidence that F is not an excuse: the suite does not quietly
+pass in the absence of a provider, it declines to claim anything.
+
+**Fourteen are environment, not product** — twelve PowerShell tests with no
+PowerShell runtime, and two user-administration tests whose precondition is a
+database with a single administrator, which the seeded demo database is not.
+
+**Thirteen are the product refusing rather than guessing**, and are the shape
+of skip worth reading. `test_validation_runner.py:141` is the clearest: it
+skips *because every one of the 48 registered tests has a handler*, so there is
+no missing-handler case left to assert on. The four `multi_condition` planner
+skips are the planner stopping to ask a question instead of dropping a
+condition — the defect the MC phase existed to fix, still fixed.
+
+**No skip is in the closure-phase work.** `tests/reconciliation/` (46 tests)
+and `tests/scorecard/test_validation_adversarial.py` (69 tests) and
+`tests/scorecard/test_validation_runs.py` (30 tests) run 145 tests between them
+with **zero skips**.
+
+### The two earlier runs, and why they are not this one
+
+Two full runs preceded this and are recorded rather than discarded.
+
+* **Run 1, on `b905d8d`: 2 failed.** Both were real, both were mine, and both
+  were the same defect — I formatted a number by hand on the new History screen
+  instead of routing it through the display contract. `scripts/check_decimals.py`
+  caught it, twice, from two different suites. The first repair still failed
+  because the comment I wrote explaining the fix quoted the offending call
+  verbatim and the checker greps source text. That is the contract working
+  exactly as designed.
+* **Run 2, on `2f26993`: 7 failed.** None were product defects. The background
+  shell's working directory was `frontend/`, so every repository-relative path
+  in the suite resolved wrongly — `can't open file
+  '/home/user/IPM_V2/frontend/scripts/check_decimals.py'`. The code was already
+  correct; the invocation was not.
+
+The run reported above is the same HEAD as run 2, invoked correctly from the
+repository root. It is the one that counts, and it is the one that is green.
 
 ## I. Acceptance matrix
 
@@ -292,4 +373,56 @@ unverified with the reason.
 
 ## K. Recommendation
 
-RECOMMENDATION_PLACEHOLDER
+### READY FOR USER ACCEPTANCE TESTING
+
+Conditional on the two limitations named below, which are environmental rather
+than structural, and which are stated rather than absorbed.
+
+The condition this phase was told not to violate — *"do not call it ready if
+validation-run persistence is incomplete"* — is met. Persistence is not
+partial. A validation run is a first-class object: it is written once, read
+back from rows, provably unable to reach the calculation engine, bound to its
+report by a foreign key the database enforces, comparable against another run,
+and re-runnable only by creating a new run that leaves its predecessor exactly
+as it was. Ten acceptance gates (SCV-RUN-001 … 010) cover it and all ten pass.
+
+What supports the recommendation:
+
+* **12,798 passed, 0 failed, 0 errors**, exit code 0, on the final executable
+  HEAD, from the repository root.
+* **Every number checked twice.** AUC, Gini and KS reconcile to *exactly*
+  0.00e+00 against an implementation that shares no code with the product, and
+  the one non-noise difference is a declared smoothing policy reproduced rather
+  than tolerated.
+* **69 adversarial cases across seven attack families**, no material product
+  defect.
+* **The full stack built and run in Docker from an empty volume**, migrated up
+  and back down, seeded, signed into, driven through 39 browser checks and a
+  DOCX generated in-container from a persisted run.
+* **Real defects found by the verification itself and fixed**, not merely
+  catalogued — among them three things a generated Word file did not say, a
+  sign-in the browser journeys never performed against the shipping
+  configuration, a destructive table-name collision with migration 0028, and a
+  report version counter that numbered per run instead of per document.
+
+What the recommendation is *not*:
+
+* **It is not a claim that live AI works here.** It has not been exercised
+  against a provider, because there is no provider in this environment. Section
+  F and gate SCV-AI-13 both say NOT VERIFIED, and the nine chat acceptance
+  prompts remain outstanding. **UAT should be run in an environment with a
+  provider key, and the nine prompts run first.**
+* **It is not a claim that the Word document looks right.** It is structurally
+  verified — a valid OOXML package, 103 paragraphs, 20 headings, 18 tables, 19
+  parts, seventeen content checks — and nobody has opened it in Word. **A
+  reviewer should open one report in Word before the first committee sees one.**
+* **It is not a regulatory claim of any kind.** The product issues no validation
+  opinion; every report is a DRAFT for a named human validator to review and
+  sign, no status anywhere reads "compliant", and every figure in this branch is
+  computed over data marked SYNTHETIC_DEMO that describes no real customer.
+
+Two gates therefore enter user acceptance testing **open, by name**: live AI,
+and visual Word review. Nothing has been rounded up to close them.
+
+**Nothing was merged to `main`. No history was rewritten. No branch other than
+`claude/scorecard-validation-intelligence` was touched.**
