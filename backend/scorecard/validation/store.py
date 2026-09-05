@@ -134,6 +134,20 @@ def _run_key(model_id: str) -> str:
     return f"SCVR-{model_id}-{uuid.uuid4().hex[:12]}"
 
 
+def _benchmark_period(results: list[states.Result]) -> str:
+    """The period the stability tests compared against, or nothing.
+
+    Read from the results rather than from the registry, because it is a fact
+    about what this run did — and returned empty when no test used one, rather
+    than substituting the development window, which is a different thing and
+    would read as a benchmark that was never applied.
+    """
+    seen = [r.reference_period for r in results if r.reference_period]
+    if not seen:
+        return ""
+    return max(set(seen), key=seen.count)[:32]
+
+
 def save(session: Session, *, model: model_registry.Model,
          results: list[states.Result], caller: Caller,
          scope: str = "FULL", categories: tuple[str, ...] = (),
@@ -176,7 +190,8 @@ def save(session: Session, *, model: model_registry.Model,
         requested_periods=list(periods),
         matured_window=(f"{matured[0]}..{matured[-1]}" if matured else ""),
         latest_period=(available[-1] if available else ""),
-        reference_period=model.development_population or "",
+        development_population=model.development_population or "",
+        reference_period=_benchmark_period(results),
         segment=segment,
         segment_field=segment_field,
         periods_available=len(available),
@@ -411,6 +426,11 @@ def run_header(run: ScvRun) -> dict[str, Any]:
         "dataset_version": run.dataset_version,
         "matured_window": run.matured_window,
         "latest_period": run.latest_period,
+        # Two different things, deliberately both on the header. The first is
+        # what the MODEL was built on; the second is what THIS RUN's stability
+        # tests compared against, and it is empty when none of them did.
+        "development_population": run.development_population,
+        "reference_period": run.reference_period,
         "requested_periods": list(run.requested_periods or []),
         "segment": run.segment,
         "segment_field": run.segment_field,
@@ -591,6 +611,27 @@ def run_body(run: ScvRun) -> dict[str, Any]:
 # ==================================================================== reports
 
 
+def _next_version(session: Session, model_id: str, stem: str) -> int:
+    """The next version of THIS DOCUMENT, not of this run.
+
+    A version number belongs to the report's identity — the model and the
+    window it covers — which is what makes "version 2 supersedes version 1"
+    mean something to a reader. Numbering per run instead produced two v1s of
+    the same document from two different runs of the same model, which the
+    unique key on `report_key` refused, correctly and late.
+
+    Existing keys are read rather than a LIKE pattern built: model ids contain
+    underscores, `_` is a LIKE wildcard, and a filter that silently matches
+    more than it says is worse here than a small query.
+    """
+    prefix = f"{stem}-v"
+    keys = session.execute(
+        select(ScvReport.report_key)
+        .where(ScvReport.model_id == model_id)).scalars().all()
+    seen = [key[len(prefix):] for key in keys if key.startswith(prefix)]
+    return 1 + max((int(n) for n in seen if n.isdigit()), default=0)
+
+
 def save_report(session: Session, *, run: ScvRun,
                 document: dict[str, Any], caller: Caller,
                 source_run_keys: tuple[str, ...] = ()
@@ -620,14 +661,11 @@ def save_report(session: Session, *, run: ScvRun,
             "A report without a content hash cannot be stored. The hash is "
             "how a regenerated document proves it matches the one that was "
             "reviewed.")
-    version = 1 + int(session.execute(
-        select(ScvReport.version)
-        .where(ScvReport.run_id == run.id)
-        .order_by(ScvReport.version.desc()).limit(1)
-    ).scalar() or 0)
+    stem = str(body.get("report_id") or run.run_key)
+    version = _next_version(session, run.model_id, stem)
 
     report = ScvReport(
-        report_key=f"{body.get('report_id') or run.run_key}-v{version}",
+        report_key=f"{stem}-v{version}",
         run_id=run.id,
         source_run_keys=list(source_run_keys),
         model_id=run.model_id,

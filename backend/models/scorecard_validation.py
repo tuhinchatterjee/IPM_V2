@@ -165,6 +165,15 @@ class ScvRun(Base):
     #: The newest period in the data, which the stability tests used.
     latest_period: Mapped[str] = mapped_column(String(32), nullable=False,
                                                default="")
+    #: The population the MODEL was built on, as the registry describes it —
+    #: prose, not a period. It lives here because a run has to be able to say
+    #: what it was validating against without a reader going back to a
+    #: registry that may since have moved.
+    development_population: Mapped[str] = mapped_column(
+        String(300), nullable=False, default="")
+    #: The benchmark period the stability tests compared against. A PERIOD,
+    #: taken from the results rather than from the registry: the column is
+    #: named for what a reader will filter on.
     reference_period: Mapped[str] = mapped_column(String(32), nullable=False,
                                                   default="")
     segment: Mapped[str] = mapped_column(String(128), nullable=False,

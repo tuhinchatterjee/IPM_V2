@@ -164,9 +164,20 @@ _FILENAME_SAFE = set(
 
 
 def _filename(stem: str) -> str:
-    """A download name that cannot escape its header or its directory."""
+    """A download name that cannot escape its header or its directory.
+
+    `..` is spelled out rather than kept. A report id carries its window as
+    `2023-01..2024-04`, and a doubled dot in a name a browser writes to disk
+    is a shape somebody's download helper will eventually try to resolve as a
+    path. There is no separator here for it to traverse with, so this is
+    belt and braces — but the readable form costs nothing and removes the
+    question.
+    """
+    spelled = (stem or "").replace("..", "-to-")
     cleaned = "".join(c if c in _FILENAME_SAFE else "-"
-                      for c in (stem or "")).strip("-.")
+                      for c in spelled).strip("-.")
+    while ".." in cleaned:
+        cleaned = cleaned.replace("..", ".")
     return (cleaned or "validation-report")[:120]
 
 
@@ -440,6 +451,13 @@ def _record(session: Session, made: model_registry.Model,
                 "reads these values back rather than recalculating them."),
         }
     except Exception as e:  # noqa: BLE001 - the answer survives the record
+        # ROLL BACK FIRST. A failed flush leaves the session unusable, and the
+        # request-scoped dependency commits on the way out — so swallowing the
+        # error without rolling back turned "the run was not recorded" into a
+        # 500 on a request whose numbers were already computed correctly.
+        # That is exactly the outcome this handler exists to prevent, and it
+        # took a column being one character too narrow to expose it.
+        session.rollback()
         logger.exception("scorecard validation: the run could not be recorded")
         return {
             "run_key": "",

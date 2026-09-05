@@ -291,8 +291,33 @@ _JUDGEMENTS: dict[str, Judgement] = {
                    "reads NO APPROVED LIMIT, which is not a pass. There is "
                    "no overall score for the model, on purpose. The report "
                    "is a DRAFT for a validator to sign; CreditProbe issues "
-                   "no validation opinion and claims no compliance. Runs "
-                   "are computed on request and not persisted."),
+                   "no validation opinion and claims no compliance. A run "
+                   "started here is recorded and can be reopened from "
+                   "Validation History; if the database is unreachable the "
+                   "tests still run and the response says the run was NOT "
+                   "recorded rather than returning a key nobody kept."),
+    "/scorecard-validation/history": Judgement(
+        "Validation History: every recorded validation run, as it was "
+        "recorded. Filter by scorecard, open a run to see the values it "
+        "measured against the limits in force at the time, compare two "
+        "runs to answer what changed since the last validation, re-run the "
+        "same configuration against current data as a NEW run, and draft "
+        "or finalise a report bound to one specific run.",
+        role="Analyst or above to read a run; drafting and finalising a "
+             "report need the analyse permission and are attributed to the "
+             "person who did them",
+        limitation="Nothing on this screen recalculates. Every figure was "
+                   "computed when its run was made and is read back "
+                   "unchanged, so a run whose data has since moved still "
+                   "shows what it showed then — which is the point, not a "
+                   "staleness defect. No control on the page edits a stored "
+                   "result: a correction is a new run. A finalised report "
+                   "cannot be reopened or edited. A comparison between two "
+                   "runs produced by different calculation versions is "
+                   "shown with that drift named rather than silently "
+                   "differenced. Runs are institutional evidence and are "
+                   "readable by anyone who may see the module, not only by "
+                   "the person who started them."),
     "/scorecard-validation/monitoring": Judgement(
         "Retail scorecard ongoing monitoring: the application and "
         "behavioural scorecards, twelve tabs covering discrimination, "

@@ -7510,6 +7510,80 @@ export const api = {
       request<ScvRegulatory>("/scorecard-validation/regulatory"),
 
     patterns: () => request<ScvPatterns>("/scorecard-validation/patterns"),
+
+    // ---------------------------------------------------------------
+    // Validation History.
+    //
+    // Every call below is a GET that reads stored rows. None of them
+    // recalculates, which is the whole point: a run opened six months later
+    // shows what it showed then. Creating a run is still a POST elsewhere,
+    // because creating one is the expensive, deliberate act.
+
+    runs: (options: { modelId?: string; limit?: number;
+                      offset?: number } = {}) => {
+      const query = new URLSearchParams();
+      if (options.modelId) query.set("model_id", options.modelId);
+      if (options.limit) query.set("limit", String(options.limit));
+      if (options.offset) query.set("offset", String(options.offset));
+      const suffix = query.toString() ? `?${query}` : "";
+      return request<ScvRunHistory>(`/scorecard-validation/runs${suffix}`);
+    },
+
+    run: (runKey: string) =>
+      request<ScvStoredRun>(
+        `/scorecard-validation/runs/${encodeURIComponent(runKey)}`),
+
+    /** The configuration of a run, to submit again. Not its results. */
+    runConfiguration: (runKey: string) =>
+      request<ScvRunConfiguration>(
+        `/scorecard-validation/runs/${encodeURIComponent(runKey)}/duplicate`),
+
+    /**
+     * Re-run using current data.
+     *
+     * A NEW run. The one named here keeps every value it recorded, and the
+     * two can then be compared — which is the only honest way to answer
+     * "what changed since the last validation?".
+     */
+    rerun: (modelId: string, duplicateOf: string, period = "") => {
+      const query = new URLSearchParams({ duplicate_of: duplicateOf });
+      if (period) query.set("period", period);
+      return request<ScvRun>(
+        `/scorecard-validation/models/${encodeURIComponent(modelId)}` +
+        `/run?${query}`,
+        { method: "POST", timeoutMs: 300_000 });
+    },
+
+    compareRuns: (olderKey: string, newerKey: string) =>
+      request<ScvComparison>(
+        `/scorecard-validation/runs/${encodeURIComponent(olderKey)}` +
+        `/compare/${encodeURIComponent(newerKey)}`),
+
+    runReports: (runKey: string) =>
+      request<{ run_key: string; reports: ScvReportHeader[] }>(
+        `/scorecard-validation/runs/${encodeURIComponent(runKey)}/reports`),
+
+    /** Draft a report FROM a stored run, bound to it by foreign key. */
+    draftReport: (runKey: string) =>
+      request<{ report: ScvReportHeader;
+                document: Record<string, unknown>; bound_to: string }>(
+        `/scorecard-validation/runs/${encodeURIComponent(runKey)}/report`,
+        { method: "POST", timeoutMs: 300_000 }),
+
+    storedReport: (reportKey: string) =>
+      request<ScvReportHeader & { document: Record<string, unknown> }>(
+        `/scorecard-validation/reports/${encodeURIComponent(reportKey)}`),
+
+    /** Sign a draft. After this it is evidence and cannot be edited. */
+    finaliseReport: (reportKey: string) =>
+      request<{ report: ScvReportHeader; signed: string }>(
+        `/scorecard-validation/reports/${encodeURIComponent(reportKey)}` +
+        `/finalise`, { method: "POST" }),
+
+    /** A download link, not a fetch: the browser has to do the saving. */
+    storedReportDocxUrl: (reportKey: string) =>
+      `${API_BASE_URL}${API_PREFIX}/scorecard-validation/reports/` +
+      `${encodeURIComponent(reportKey)}.docx`,
   },
 };
 
@@ -11060,6 +11134,17 @@ export type ScvRun = {
   coverage_means: string;
   calculation_version: string;
   cost?: string;
+  /**
+   * The run this was recorded as, or "" when recording failed.
+   *
+   * `recorded` is not decoration. A failure to write the run down must not
+   * become a failure to answer — the tests ran and the numbers are correct
+   * for right now — but a caller that quoted a run key which does not exist
+   * would send somebody looking for a record nobody kept.
+   */
+  run_key?: string;
+  recorded?: boolean;
+  recorded_note?: string;
 };
 
 export type ScvPeriods = {
@@ -11093,6 +11178,160 @@ export type ScvPatterns = {
 };
 
 export type ScvReport = Record<string, unknown>;
+
+/**
+ * One row of Validation History.
+ *
+ * A header, deliberately without results. A list screen showing forty-eight
+ * results per row would be a page of megabytes, and none of it is what the
+ * reader is scanning for.
+ */
+export type ScvRunHeader = {
+  run_key: string;
+  model_id: string;
+  model_name: string;
+  model_version: string;
+  model_kind: string;
+  scorecard_type: string;
+  dataset: string;
+  dataset_as_of: string;
+  dataset_version: string;
+  matured_window: string;
+  latest_period: string;
+  development_population: string;
+  reference_period: string;
+  segment: string;
+  scope: string;
+  requested_categories: string[];
+  requested_tests: string[];
+  requested_periods: string[];
+  registry_version: string;
+  threshold_profile_version: string;
+  calculation_version: string;
+  states_version: string;
+  findings_version: string;
+  returned: number;
+  measured: number;
+  tally: Record<string, number>;
+  findings_summary: Record<string, unknown>;
+  initiated_by: string;
+  initiated_by_role: string;
+  source: string;
+  status: string;
+  failure: string;
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
+  duplicated_from: string;
+  [key: string]: unknown;
+};
+
+export type ScvRunHistory = {
+  runs: ScvRunHeader[];
+  total: number;
+  limit: number;
+  offset: number;
+  model_id: string;
+  visibility: string;
+  store_version: string;
+};
+
+/**
+ * A run read back out of storage.
+ *
+ * Same shape as a fresh run plus `historical`, which is the sentence a reader
+ * needs: these values were computed when the run was made and have not been
+ * recalculated.
+ */
+export type ScvStoredRun = ScvRunHeader & {
+  results: ScvResult[];
+  findings: ScvFinding[];
+  burning_weaknesses: ScvFinding[];
+  coverage: Record<string, ScvCoverage>;
+  regulatory_coverage: Record<string, unknown>;
+  adverse: string[];
+  coverage_means: string;
+  historical: string;
+  reports: ScvReportHeader[];
+};
+
+export type ScvRunConfiguration = {
+  configuration: {
+    model_id: string;
+    model_kind: string;
+    scope: string;
+    categories: string[];
+    tests: string[];
+    periods: string[];
+    segment: string;
+    segment_field: string;
+    duplicated_from_key: string;
+  };
+  run_with: string;
+  means: string;
+};
+
+/** One test, before and after. `movement` says which of the two exist. */
+export type ScvComparedTest = {
+  test_id: string;
+  title: string;
+  category: string;
+  movement: string;
+  movement_means: string;
+  before: number | null;
+  after: number | null;
+  change: number | null;
+  before_state: string;
+  after_state: string;
+  verdict_changed: boolean;
+  adverse: boolean;
+  [key: string]: unknown;
+};
+
+export type ScvComparison = {
+  compare_version: string;
+  model_id: string;
+  model_name: string;
+  before: ScvRunHeader;
+  after: ScvRunHeader;
+  /** False when the two runs were produced by different arithmetic. */
+  comparable: boolean;
+  version_drift: string[];
+  data_moved: boolean;
+  tests: ScvComparedTest[];
+  by_category: Record<string, ScvComparedTest[]>;
+  headline: ScvComparedTest[];
+  adverse: ScvComparedTest[];
+  moved: ScvComparedTest[];
+  verdict_changes: ScvComparedTest[];
+  limit_changes: ScvComparedTest[];
+  findings_raised: ScvFinding[];
+  findings_cleared: ScvFinding[];
+  findings_persisting: ScvFinding[];
+  coverage: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+export type ScvReportHeader = {
+  report_key: string;
+  run_key: string;
+  source_run_keys: string[];
+  model_id: string;
+  model_version: string;
+  title: string;
+  opinion: string;
+  /** DRAFT, FINAL or SUPERSEDED. A FINAL report cannot be edited. */
+  status: string;
+  version: number;
+  structure_version: string;
+  registry_version: string;
+  calculation_version: string;
+  dataset_as_of: string;
+  content_hash: string;
+  generated_by: string;
+  generated_at: string;
+  [key: string]: unknown;
+};
 
 /**
  * What the conversational surface returns, whatever happened.

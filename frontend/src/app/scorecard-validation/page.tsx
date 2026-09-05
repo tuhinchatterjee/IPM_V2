@@ -359,12 +359,20 @@ export default function ScorecardValidationPage() {
           + "governed limit that says where it came from."
         }
         actions={
-          <Link
-            href="/scorecard-validation/monitoring"
-            className="rounded border border-border px-3 py-1.5 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text"
-          >
-            Ongoing monitoring
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/scorecard-validation/history"
+              className="rounded border border-border px-3 py-1.5 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text"
+            >
+              Validation History
+            </Link>
+            <Link
+              href="/scorecard-validation/monitoring"
+              className="rounded border border-border px-3 py-1.5 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text"
+            >
+              Ongoing monitoring
+            </Link>
+          </div>
         }
       />
 
