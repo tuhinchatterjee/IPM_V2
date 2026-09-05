@@ -78,7 +78,7 @@ so nothing was overwritten.
 | Pre-merge HEAD | `3855f9b` |
 | Merge-base | `b53c79c` |
 | Merge commit | `e81f913` (parents `3855f9b` `e136b82`) |
-| **Final executable HEAD** | **`99fcf1b`** |
+| **Final executable HEAD** | **`feacfc3`** |
 
 `--no-ff`, history preserved. No squash, no rebase, no force-push, no rewrite
 of any feature commit.
@@ -276,11 +276,67 @@ period:**
 
 ## O. Full regression
 
-> **PENDING.** The full backend suite is running on the final executable HEAD
-> `99fcf1b` as this is committed. Its exact counts — collected, passed,
-> skipped, failed, errors, warnings, duration, exit code — and every skip
-> reason go here, in the commit that follows. Nothing in this section is
-> asserted until they are read.
+Run on the **final executable HEAD** — `feacfc3` — from the repository root:
+
+```
+.venv/bin/python -m pytest tests/ -rs --tb=line -p no:randomly
+```
+
+| | |
+|---|---|
+| **Collected** | **12,834** |
+| **Passed** | **12,798** |
+| **Skipped** | **36** |
+| **Failed** | **0** |
+| **Errors** | **0** |
+| **Warnings** | **25** |
+| **Duration** | **1,597.84s (26m 38s)** |
+| **Exit code** | **0** |
+
+The 25 warnings are one `dash` deprecation raised 25 times inside
+`tests/legacy/test_esg_inputs.py` — the preserved Dash application, untouched
+by this rehearsal.
+
+### The 36 skips, enumerated exactly
+
+| Count | Location | Reason given |
+|---|---|---|
+| 8 | `tests/llm/test_live_smoke.py:64, 77, 82, 87` | no AI provider key is configured |
+| 1 | `tests/evals/test_ask_evaluation.py:210` | set `RUN_LIVE_LLM_EVALS=1` to run these |
+| 12 | `tests/scripts/test_powershell_script.py:78` | No PowerShell runtime in this environment |
+| 2 | `tests/api/test_user_administration.py:247, 258` | This database has more than one administrator |
+| 4 | `tests/orchestration/test_multi_condition.py:292, 306, 342, 476` | the planner stopped to ask: `covenant_tests` does not carry `days_past_due` |
+| 3 | `tests/orchestration/test_multi_condition.py:309` | this shape does not compile through the multi builder |
+| 3 | `tests/orchestration/test_multi_condition.py:345` | this question is answered from one dataset |
+| 1 | `tests/orchestration/test_query_validation.py:249` | the result is limited, so absence proves nothing |
+| 1 | `tests/multi/test_relationship_assistant.py:93` | no multiplying candidate in this data |
+| 1 | `tests/scorecard/test_validation_runner.py:141` | every registered test has a handler |
+
+Nine are the live-AI gate in another form and are the evidence that §S is not
+an excuse: the suite declines rather than quietly passing. Fourteen are this
+environment, not the product. Thirteen are the product refusing rather than
+guessing — `test_validation_runner.py:141` skips *because* all 48 registered
+tests have handlers, so there is no missing-handler case left to assert on.
+
+**The skip set is unchanged from the Scorecard Validation branch's own final
+run** — same 36, same reasons. The merge added no skips and silenced nothing.
+
+### The run before this one, and why it is recorded rather than dropped
+
+The first regression on the merged branch, at `99fcf1b`, was **3 failed,
+12,795 passed, 36 skipped, exit code 1**. All three were caused by the
+domain-boundary fix in §R-3, and all three were real:
+`tests/metadata/test_reconciliation.py:122`,
+`tests/orchestration/test_dataset_aware_ask.py:231` and
+`tests/orchestration/test_population_context.py:152` each asserted that the
+Cockpit quotes the metadata service's raw totals — 80 datasets, 9 domains.
+
+They were not stale numbers. They were the other half of a genuine
+contradiction between two branches' contracts, and resolving it is the
+judgement call recorded in §R-3 and §U. The three tests were re-pointed, not
+relaxed: each now asserts the Cockpit's figure equals the service's **minus
+exactly the restricted set**, recomputed independently. That is a stronger
+assertion than the one it replaced, and it is what turned this run green.
 
 ## P. Frontend and build
 
@@ -439,7 +495,66 @@ No force-push. No history rewritten. No pull request opened.
 
 ## U. Recommendation
 
-> **PENDING the regression in §O.** The recommendation is deliberately not
-> written before the run it depends on has finished. A rehearsal that
-> recommended a release and then read its own test results in that order would
-> not be a rehearsal.
+### SAFE TO BEGIN USER ACCEPTANCE TESTING
+
+Conditional on the two environmental limitations in §S and on the one
+judgement call below being confirmed.
+
+**Why the integration itself is sound.** Ancestry was proved before anything
+was merged, so one branch was merged rather than three. The merge produced a
+tree byte-identical to the feature branch, because `main` — 88 commits behind
+the branch it claims to have merged — carries no content the branch lacks; no
+conflict arose and none could have discarded a fix. The migration chain
+reconciles three ways: a main-era database and an empty database reach the
+same 143 tables and the same 2,336 column definitions, and the whole thing
+reverses to exactly the main-era schema and forward again with no drift, on a
+single head. The stack starts from an empty volume with all four services
+healthy and 15 of 15 readiness checks passing. **12,798 tests pass, 0 fail, 0
+error, exit code 0**, plus 269 browser checks across five suites with none
+failing. Every figure spot-checked against the feature branches agrees,
+including six Playbook snapshots that reconcile against the governed metric
+service at exactly 0.000e+00, and no expected value was changed to make
+anything agree.
+
+**Three real integration defects were found and fixed**, each of the same
+shape — a feature correct alone and wrong once four shared a deployment, and
+none of them catchable by its own suite. Two features that came up empty in a
+container; three shipped Lenses whose installer documented a caller that did
+not exist; and a governance boundary that gated the two paths its author could
+see while a third listed and described all seven restricted datasets. All
+three now have one committed regression that fails on a laptop rather than only
+in a container somebody remembered to start from an empty volume.
+
+**One judgement call needs the user's confirmation, and it is the reason this
+recommendation is conditional.** Fixing the third defect changed what a user
+sees: the Cockpit now answers "73 governed datasets across 6 data domains"
+where it previously said 80 across 9. That is the boundary working, and three
+tests written before the boundary existed had to be re-pointed to the governed
+contract. It is defensible — `orchestration/context.py` already enforced the
+same exclusion on the planning universe, and the acceptance matrix already
+recorded SCV-DOMAIN-01 as PASS — but it resolves a contradiction between two
+branches on the product's behalf, and only the product's owner can settle
+that. **If the intended behaviour is the opposite**, revert
+`backend/metadata/answers.py` and `backend/orchestration/catalogue_answers.py`
+to their state at `99fcf1b`'s parent, together with the three tests in
+`feacfc3`; the Data Builder, readiness and the Scorecard Validation module are
+unaffected either way.
+
+**What this recommendation is not.**
+
+* **Not a claim that live AI works.** No provider key exists here; the nine
+  chat acceptance prompts are outstanding. **UAT should begin in an
+  environment that has one, and run those first.**
+* **Not a claim that the Word document looks right.** It is structurally
+  verified — a valid 19-part OOXML package naming its model, version, dataset,
+  run key and content hash. Nobody has opened it in Word. **A reviewer should,
+  before the first committee sees one.**
+* **Not a recommendation to merge.** This branch is a rehearsal. It proves the
+  combined feature history integrates with the latest `main` without breaking
+  CreditProbe; it is not itself the change that should land. When a real merge
+  is made, it should carry the three fixes in `99fcf1b` and the three
+  re-pointed tests in `feacfc3`, because the merge alone reproduces all three
+  defects.
+
+**Nothing was merged to `main`. No protected feature branch was modified. No
+force-push, no history rewritten, no pull request opened.**
