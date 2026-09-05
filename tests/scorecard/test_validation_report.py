@@ -257,3 +257,27 @@ def test_the_regulatory_section_carries_its_disclaimer(built) -> None:
     from backend.scorecard.validation import regulatory
 
     assert built.section("7").narrative == regulatory.DISCLAIMER
+
+
+def test_the_document_says_draft_where_a_reader_will_see_it(built) -> None:
+    """Not only on the button that produced it.
+
+    A generated DOCX was inspected during this build and the word "draft"
+    appeared nowhere in it — the screen said draft, the file did not. A
+    document that does not announce itself as a draft is the exact artefact
+    that ends up in a committee pack with somebody's name under it, and by
+    then the screen it came from is long gone.
+    """
+    import docx
+
+    assert "DRAFT" in built.title
+
+    document = docx.Document(io.BytesIO(scv_report.docx(built)))
+    everywhere = "\n".join(p.text for p in document.paragraphs) + "\n".join(
+        cell.text for table in document.tables
+        for row in table.rows for cell in row.cells)
+    assert everywhere.count("DRAFT") >= 2, (
+        "the cover and the document-control table both say it")
+    assert "does not issue validation opinions" in everywhere
+    # The one word this document must never contain.
+    assert "compliant" not in everywhere.lower()

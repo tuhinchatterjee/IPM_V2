@@ -343,6 +343,8 @@ export default function ScorecardValidationPage() {
   }
 
   const categories = overview.registry.categories;
+  const labels: Record<string, string> = {};
+  for (const entry of overview.result_states) labels[entry.state] = entry.label;
   const burning = run?.burning_weaknesses ?? [];
   const results = run?.results ?? [];
 
@@ -506,9 +508,13 @@ export default function ScorecardValidationPage() {
                 .filter(([, n]) => n > 0)
                 .map(([state, n]) => (
                   <span key={state} className="flex items-center gap-1">
+                    {/* The engine's own label, not the enum with its
+                        underscores swapped for spaces. "NO LIMIT" and "No
+                        approved limit" read as different states, and only one
+                        of them is a state. */}
                     <StateChip
                       result={{ state: state as ScvResult["state"],
-                                state_label: state.replace(/_/g, " ") }}
+                                state_label: labels[state] ?? state }}
                     />
                     <span className="text-[11px] tabular-nums text-text-muted">
                       {n}

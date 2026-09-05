@@ -149,10 +149,14 @@ def overview(principal: Principal = RequireScorecardView) -> dict[str, Any]:
             entry["data"] = {"available": False, "why": str(e)}
         entry["applicable_tests"] = [t.test_id
                                      for t in made.applicable_tests()]
+        # `inapplicable` returns (test, what it is missing) pairs, because the
+        # reason is the point: a validation report has to state its own scope,
+        # and "no score-to-PD mapping" is part of it. Recomputing the reason
+        # here from the test alone would be a second source for the same
+        # answer.
         entry["inapplicable_tests"] = [
-            {"test_id": t.test_id,
-             "why": ", ".join(t.missing_for(made.capabilities()))}
-            for t in made.inapplicable_tests()]
+            {"test_id": test.test_id, "why": ", ".join(missing)}
+            for test, missing in made.inapplicable_tests()]
         scorecards.append(entry)
 
     return {

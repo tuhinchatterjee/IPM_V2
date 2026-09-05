@@ -72,6 +72,23 @@ function plot(source: Row[], keys: string[]): Record<string,
   });
 }
 
+/**
+ * At most `keep` points, evenly spaced, always including the last.
+ *
+ * A curve integrated from 200 points and a curve drawn from 51 are the same
+ * curve to a reader. What differs is the axis: 200 categories produce a label
+ * every pixel, which is how a chart ends up showing 0.000044 as a tick.
+ */
+function every<T>(source: T[], keep: number): T[] {
+  if (source.length <= keep) return source;
+  const step = (source.length - 1) / (keep - 1);
+  const out: T[] = [];
+  for (let i = 0; i < keep; i += 1) {
+    out.push(source[Math.round(i * step)]);
+  }
+  return out;
+}
+
 function series(...defs: [string, string][]): SeriesDef[] {
   return defs.map(([key, label], slot) => ({ key, label, slot }));
 }
@@ -250,7 +267,8 @@ function Curves({ chart, kind }: { chart: ScvChart; kind: string }) {
     return (
       <>
         <TrendChart
-          data={plot(ks, ["score", "cumulative_bad", "cumulative_good", "gap"])}
+          data={plot(every(ks, 51),
+                     ["score", "cumulative_bad", "cumulative_good", "gap"])}
           xKey="score"
           series={series(
             ["cumulative_bad", "Cumulative defaults"],
@@ -271,11 +289,20 @@ function Curves({ chart, kind }: { chart: ScvChart; kind: string }) {
   }
 
   if (!roc.length) return null;
+  // The curve arrives with ~200 points and a false-positive rate carrying six
+  // decimals. Plotted raw, the axis reads 0.000044, 0.062321, 0.118833 — a
+  // wall of spurious precision on a chart nobody reads a value off. The
+  // statistic is computed from every point; the DRAWING is downsampled and
+  // the axis rounded, which changes what the eye sees by nothing at all.
+  const shape = every(roc, 51).map((point) => ({
+    at: technical(num(point.false_positive_rate) ?? 0, 2),
+    true_positive_rate: num(point.true_positive_rate),
+  }));
   return (
     <>
       <TrendChart
-        data={plot(roc, ["false_positive_rate", "true_positive_rate"])}
-        xKey="false_positive_rate"
+        data={shape}
+        xKey="at"
         series={series(["true_positive_rate", "Defaults captured"])}
         height={260}
       />

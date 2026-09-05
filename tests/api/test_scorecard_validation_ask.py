@@ -203,3 +203,52 @@ class TestPermission:
     def test_an_analyst_can(self, client):
         assert ask(client, "What does DISC-AUC measure?",
                    headers=ANALYST).status_code == 200
+
+
+class TestEveryRouteActuallyServes:
+    """Each route, hit once. This is not a formality.
+
+    `/overview` returned a 500 on the running server while every unit test
+    below it passed, because the router unpacked `inapplicable_tests()` as if
+    it returned bare tests when it returns (test, missing) pairs. Nothing in
+    the engine was wrong; the door was. A screen wired to a route nobody has
+    called is a screen that fails the first time somebody opens it.
+    """
+
+    @pytest.mark.parametrize("path", [
+        "/overview",
+        "/tests",
+        "/tests?category=discrimination",
+        "/regulatory",
+        "/patterns",
+        "/models/sme_champion",
+        "/models/sme_champion/periods",
+        "/models/retail_application_champion",
+        "/models/retail_behaviour_champion",
+    ])
+    def test_a_read_route_serves(self, client, path):
+        response = client.get(f"{API}{path}", headers=ADMIN)
+        assert response.status_code == 200, response.text
+        assert response.json()
+
+    def test_the_overview_reports_what_each_model_cannot_run(self, client):
+        """The field that broke, asserted for its shape rather than its size.
+
+        A model that cannot support a test is a fact the validation report has
+        to state, so it is returned with the reason rather than dropped.
+        """
+        body = client.get(f"{API}/overview", headers=ADMIN).json()
+        assert len(body["scorecards"]) == 3
+        for scorecard in body["scorecards"]:
+            assert scorecard["applicable_tests"]
+            for entry in scorecard["inapplicable_tests"]:
+                assert set(entry) == {"test_id", "why"}
+                assert entry["why"], "a refusal without a reason is a gap"
+
+    @pytest.mark.parametrize("path", [
+        "/models/sme_champion/tests/DISC-AUC",
+        "/models/sme_champion/categories/discrimination",
+    ])
+    def test_a_run_route_serves(self, client, path):
+        response = client.post(f"{API}{path}", headers=ADMIN)
+        assert response.status_code == 200, response.text
