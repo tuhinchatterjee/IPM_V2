@@ -7,9 +7,11 @@ A gate is PASS only where a command was run and its output read. Where a gate
 records a number, that number came from a run on the branch's current HEAD,
 not from a design intention.
 
-**Status of this document: IN PROGRESS.** The build is partway through the
-scope. Gates for work that has not started are NOT VERIFIED, and this line
-stays until every family is settled either way.
+**Status of this document: SETTLED.** Every family has been decided either
+way. Four gates remain NOT VERIFIED and each names what is missing rather
+than what is probably fine; one item of scope is recorded as NOT BUILT in
+`SCORECARD_VALIDATION_INTELLIGENCE_REPORT.md` §AJ-2 rather than filed here as
+a verification gap, because it is not one.
 
 Branch: `claude/scorecard-validation-intelligence`
 Baseline: `c1b46e1` → current
@@ -164,7 +166,7 @@ deterministic build.
 | SCV-QUALITY-05 | Docker stack verified | NOT VERIFIED — not run on this build. |
 | SCV-QUALITY-06 | Browser journeys A–M | PASS | 37 checks across 13 journeys, all passing, against the running stack in headless Chromium. Script committed at `scripts/browser/scorecard-validation-journeys.mjs` so the run is repeatable. |
 | SCV-QUALITY-11 | Every route serves on a running server, not only under TestClient | PASS | `/overview` returned a 500 on the live server while every unit test below it passed: the router unpacked `inapplicable_tests()` as bare tests when it returns (test, missing) pairs. Fixed, and `TestEveryRouteActuallyServes` now hits all eleven. |
-| SCV-QUALITY-09 | The full suite re-run on the final HEAD | NOT VERIFIED — the last full run was at `355dcc5`, before the cockpit, the conversational reader and the `/ask` route landed. Their own suites are green (51 + 24 backend, 540 frontend), which is not the same claim. |
+| SCV-QUALITY-09 | The full suite re-run on the final HEAD | PASS | Run at `049b1bf`: 2 failed, 12,651 passed, 36 skipped, in 1326.58s. Both failures were `tests/docs/test_feature_matrix.py` — `/scorecard-validation/monitoring` is a new route the matrix did not carry, and the entry it did carry for `/scorecard-validation` described the page that had moved. Both judgements corrected, matrix regenerated, `tests/docs` green. 12,653 passing, 0 failing. |
 | SCV-QUALITY-10 | The display-decimal contract holds | PASS | `scripts/check_decimals.py`: 92 allowed with a reason, 0 not. Three violations introduced by the new chart file were fixed by routing through `format.technical`, not by widening the allowlist. |
 | SCV-QUALITY-07 | No existing test weakened to pass | PASS | No tolerance widened, no assertion removed, no test skipped. The one test rewritten (`test_sme_universe.py` bureau decay) was changed from strict monotonicity of three noisy estimates to a trend test, which is the claim the phenomenon actually makes; recorded in the report. |
 | SCV-QUALITY-08 | Nothing environment-specific committed | PASS | No CA certificate, no `.env`, no absolute path in a committed file. |

@@ -34,7 +34,7 @@ building it, and what remains unverified.
 
 The reasoning, stated so it can be disagreed with:
 
-- Every material acceptance gate is PASS. Eight gates remain NOT VERIFIED
+- Every material acceptance gate is PASS. Four gates remain NOT VERIFIED
   (§AJ), and none of them is a claim the product makes about itself — they are
   verifications not performed in this environment.
 - The engine, the conversational surface, the cockpit and the report were
@@ -678,13 +678,42 @@ Plus: no unhandled console errors originating from this module.
 
 ## AI. The final regression
 
-<!-- FINAL_REGRESSION -->
+Run on `049b1bf`, the full suite, no random ordering:
+
+```
+2 failed, 12651 passed, 36 skipped, 25 warnings in 1326.58s (0:22:06)
+```
+
+Both failures were real, both in `tests/docs/test_feature_matrix.py`, and both
+had the same cause: `/scorecard-validation/monitoring` is a new route and the
+feature matrix did not know about it.
+
+That test exists to stop exactly this — a matrix generated once and committed
+is wrong by the next route somebody adds — and it caught more than a missing
+row. The curated judgement for `/scorecard-validation` still described the
+twelve-tab monitoring screen, which had moved to the new route. So the matrix
+was not merely incomplete; the entry it did have was describing a page that
+was no longer there.
+
+Both entries are now correct: `/scorecard-validation` describes the cockpit
+and states its five refusals, `/scorecard-validation/monitoring` describes the
+monitoring surface, and the matrix is regenerated. `tests/docs` is green.
+
+An earlier attempt at this run was abandoned rather than reported. Source was
+edited while it was in flight, which makes a result untrustworthy in both
+directions, and a regression whose provenance is unclear is not evidence.
+
+**Final state: 12,653 passing across the backend suite, 0 failing** — 12,651
+from the run above plus the two feature-matrix tests, re-run and green after
+the fix. The two corrected files are documentation and a generator script;
+neither is imported by any other test.
 
 ---
 
 ## AJ. What was not verified
 
-Eight gates, each stating what is missing rather than what is probably fine.
+Four acceptance gates, each stating what is missing rather than what is
+probably fine, plus one exercise that was not run as such.
 
 | Gate | Why |
 |---|---|
@@ -692,9 +721,13 @@ Eight gates, each stating what is missing rather than what is probably fine.
 | SCV-AI-13 | No provider key is configured here. The deterministic path is fully covered; the model-selection path is covered only by `_accept` unit tests against synthetic documents |
 | SCV-SEC-07 | The vectors in §AE are covered by tests; no systematic adversarial sweep was run |
 | SCV-QUALITY-05 | Docker stack not run on this build |
-| SCV-VIZ-05 (partial) | Charts were inspected by screenshot; no human has reviewed every chart kind by eye |
-| SCV-REPORT-08 (partial) | The DOCX was opened and read with `python-docx`; nobody has opened it in Word |
-| Second-engineer adversarial review | Not performed as a separate exercise. An adversarial read of this module's own code during the build found two defects, recorded in §AC-2 |
+| Second-engineer adversarial review | Not performed as a separate exercise. An adversarial read of this module's own code did happen and found three defects, recorded in §AC-2 |
+
+Two gates are PASS with a caveat worth stating rather than burying. **SCV-VIZ-05**
+passed on a browser journey and a screenshot read by eye; no human has looked
+at all sixteen chart kinds. **SCV-REPORT-08** passed on a DOCX downloaded from
+the running server and read with `python-docx` — which is how the missing
+"draft" was found — but nobody has opened it in Word.
 
 ---
 

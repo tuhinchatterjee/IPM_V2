@@ -1,6 +1,6 @@
 # Full-system feature verification matrix
 
-Generated from the build at `614d8d1` by `scripts/feature_matrix.py`.
+Generated from the build at `049b1bf` by `scripts/feature_matrix.py`.
 
 This inventory is enumerated, not remembered. Every row comes from a page that exists on disk or an endpoint in the live OpenAPI spec, so a route added and forgotten appears here anyway. Three columns cannot be generated and are curated by hand - expected behaviour, defect and remaining limitation - because each is a claim somebody is accountable for, and deriving them from the code would produce a document that agrees with the code by construction and therefore establishes nothing.
 
@@ -8,12 +8,12 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | | |
 |---|---|
-| Pages | 57 |
-| Reviewed | 57 |
+| Pages | 58 |
+| Reviewed | 58 |
 | Not yet reviewed | 0 |
 | Carrying a known defect | 2 |
 | Not fully OK | 5 |
-| API endpoints | 563 across 40 areas |
+| API endpoints | 575 across 41 areas |
 | Browser-crawled routes | 98 |
 
 ## Pages
@@ -128,7 +128,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/metrics` | any signed-in role | The Metric Catalogue: what CreditProbe means by each number. Search by whatever you call it — “NPL rate”, “bad rate” and “default rate” are one metric — then read the definition, the formula, the fields it reads, what it excludes and what it is not. Calculate it for a period, look at the rows behind it, and check it against a number you already trusted. | `metrics` (16) | 1 file(s) | - | OK | - | Sixty-one governed metrics over five published datasets. What this deployment cannot calculate is listed with the reason rather than omitted: retail IFRS 9 staging and ECL, roll and cure rates, the approval rate, PSI, and the ECL movement bridge. Building a metric is available through the API and the preview endpoint; there is no form on this screen yet. |
+| `/metrics` | any signed-in role | The Metric Catalogue: what CreditProbe means by each number. Search by whatever you call it — “NPL rate”, “bad rate” and “default rate” are one metric — then read the definition, the formula, the fields it reads, what it excludes and what it is not. Calculate it for a period, look at the rows behind it, and check it against a number you already trusted. | `metrics` (16) | 2 file(s) | - | OK | - | Sixty-one governed metrics over five published datasets. What this deployment cannot calculate is listed with the reason rather than omitted: retail IFRS 9 staging and ECL, roll and cure rates, the approval rate, PSI, and the ECL movement bridge. Building a metric is available through the API and the preview endpoint; there is no form on this screen yet. |
 
 ### playbook
 
@@ -138,7 +138,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 | `/playbook/committees` | Committee members; a platform administrator sees all. | Every committee with its cadence, purpose, business area, participants and the packs it has produced. New committees are defined here. | `playbook` (50) | 2 file(s) | - | OK | - | - |
 | `/playbook/packs/[packId]` | any signed-in role | One committee pack, read the way the committee reads it: section by section, each governed figure with the period, the movement against the previous cycle and the working behind it — metric version, formula hash, dataset, dataset version, numerator, denominator and run id. Findings are answered or reopened, decisions recorded, actions raised and sent to the Project Planner, commentary written and reviewed, the pack moved through its states and downloaded as PDF, Word, slides or the evidence workbook. | `playbook` (50) | 3 file(s) | - | OK | - | AI-drafted commentary needs a configured AI provider. With none configured the drafting control reports that plainly rather than writing a fallback nobody signed; every other part of the pack works without one. |
 | `/playbook/packs/new` | Contributors and above on the committee. | Start the next pack for a committee: the template, the reporting period, the comparison period, the meeting date and the data freeze. The sections come from the published template. | `playbook` (50) | - | - | OK | - | - |
-| `/playbook` | Committee members. A committee nobody has added you to does not appear, and a platform administrator reaches every one. | The Playbook: every committee the signed-in user sits on, the pack each one is preparing, how ready it is, and what is waiting on them. The entry point to the committee cycle rather than a list of documents. | `playbook` (50) | 5 file(s) | - | OK | - | - |
+| `/playbook` | Committee members. A committee nobody has added you to does not appear, and a platform administrator reaches every one. | The Playbook: every committee the signed-in user sits on, the pack each one is preparing, how ready it is, and what is waiting on them. The entry point to the committee cycle rather than a list of documents. | `playbook` (50) | 6 file(s) | - | OK | - | - |
 
 ### projects
 
@@ -157,7 +157,8 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/scorecard-validation` | Administrator, Data Steward or Analyst | Retail Scorecard Validation: the application and behavioural scorecards, twelve tabs covering discrimination, calibration, stability, variable diagnostics, implementation replication, the model registry with its exact equations, the two agentic diagnostics, trends, findings and the validation policy. | `scorecard` (28) | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Every figure is computed over synthetic demonstration data marked SYNTHETIC_DEMO, which describes no real customer. A month whose twelve-month performance window has not closed shows stability only, and says when the window closes rather than showing a zero. Metrics with no approved limit read NO APPROVED LIMIT, which is not a pass and is not the same as NOT MEASURED. The validation opinion is derived by governed policy and is not regulatory certification. |
+| `/scorecard-validation/monitoring` | Administrator, Data Steward or Analyst | Retail scorecard ongoing monitoring: the application and behavioural scorecards, twelve tabs covering discrimination, calibration, stability, variable diagnostics, implementation replication, the model registry with its exact equations, the two agentic diagnostics, trends, findings and the validation policy. Same data as the validation cockpit, a different question — monitoring asks what changed this month, validation asks whether the model works. | `scorecard` (28) | 1 file(s) | - | OK | - | Every figure is computed over synthetic demonstration data marked SYNTHETIC_DEMO, which describes no real customer. A month whose twelve-month performance window has not closed shows stability only, and says when the window closes rather than showing a zero. Metrics with no approved limit read NO APPROVED LIMIT, which is not a pass and is not the same as NOT MEASURED. The validation opinion is derived by governed policy and is not regulatory certification. |
+| `/scorecard-validation` | Analyst or above; running a test needs the analyse permission, because a conversational wrapper around a computation is still the computation | Scorecard Validation Intelligence: three scorecards — retail application, retail behaviour and Saudi SME — against forty-eight tests in eleven categories. A question box that answers by running the governed tests, a model-health strip stating how many periods carry a realised outcome, the findings that would change a decision with the route to check each one, and a results workspace carrying every result's chart, table, method and limitations. | `scorecard` (28) | 4 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Every figure is computed over synthetic demonstration data marked SYNTHETIC_DEMO, which describes no real customer, and twenty-six of the ninety SME variables are proxies for external authorities this product is not connected to. A cohort whose performance window has not closed reads NOT YET MATURED, never as zero defaults. A measurement with no governed threshold reads NO APPROVED LIMIT, which is not a pass. There is no overall score for the model, on purpose. The report is a DRAFT for a validator to sign; CreditProbe issues no validation opinion and claims no compliance. Runs are computed on request and not persisted. |
 
 ### settings
 
@@ -254,6 +255,7 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `regulatory-intelligence` | 17 |
 | `risk-cases` | 11 |
 | `scorecard` | 28 |
+| `scorecard-validation` | 12 |
 | `studio` | 14 |
 | `teaching-corpus` | 3 |
 | `trace` | 6 |

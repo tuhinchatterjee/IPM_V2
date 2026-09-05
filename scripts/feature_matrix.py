@@ -271,11 +271,37 @@ _JUDGEMENTS: dict[str, Judgement] = {
                    "derivation has not been run for reads NOT COMPUTED "
                    "rather than showing a blank."),
     "/scorecard-validation": Judgement(
-        "Retail Scorecard Validation: the application and behavioural "
-        "scorecards, twelve tabs covering discrimination, calibration, "
-        "stability, variable diagnostics, implementation replication, the "
-        "model registry with its exact equations, the two agentic "
-        "diagnostics, trends, findings and the validation policy.",
+        "Scorecard Validation Intelligence: three scorecards — retail "
+        "application, retail behaviour and Saudi SME — against forty-eight "
+        "tests in eleven categories. A question box that answers by running "
+        "the governed tests, a model-health strip stating how many periods "
+        "carry a realised outcome, the findings that would change a "
+        "decision with the route to check each one, and a results workspace "
+        "carrying every result's chart, table, method and limitations.",
+        role="Analyst or above; running a test needs the analyse "
+             "permission, because a conversational wrapper around a "
+             "computation is still the computation",
+        limitation="Every figure is computed over synthetic demonstration "
+                   "data marked SYNTHETIC_DEMO, which describes no real "
+                   "customer, and twenty-six of the ninety SME variables "
+                   "are proxies for external authorities this product is "
+                   "not connected to. A cohort whose performance window has "
+                   "not closed reads NOT YET MATURED, never as zero "
+                   "defaults. A measurement with no governed threshold "
+                   "reads NO APPROVED LIMIT, which is not a pass. There is "
+                   "no overall score for the model, on purpose. The report "
+                   "is a DRAFT for a validator to sign; CreditProbe issues "
+                   "no validation opinion and claims no compliance. Runs "
+                   "are computed on request and not persisted."),
+    "/scorecard-validation/monitoring": Judgement(
+        "Retail scorecard ongoing monitoring: the application and "
+        "behavioural scorecards, twelve tabs covering discrimination, "
+        "calibration, stability, variable diagnostics, implementation "
+        "replication, the model registry with its exact equations, the two "
+        "agentic diagnostics, trends, findings and the validation policy. "
+        "Same data as the validation cockpit, a different question — "
+        "monitoring asks what changed this month, validation asks whether "
+        "the model works.",
         role="Administrator, Data Steward or Analyst",
         limitation="Every figure is computed over synthetic demonstration "
                    "data marked SYNTHETIC_DEMO, which describes no real "
