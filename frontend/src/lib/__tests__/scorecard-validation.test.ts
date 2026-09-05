@@ -18,7 +18,11 @@ import { test } from "node:test";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const read = (path: string) => readFileSync(root + path, "utf8");
-const page = () => read("app/scorecard-validation/page.tsx");
+// The retail monitoring surface moved to its own route when
+// /scorecard-validation became the Intelligence Cockpit. Same file, same
+// refusals — the tests below are about what it will not draw, and that is
+// unchanged by where it is mounted.
+const page = () => read("app/scorecard-validation/monitoring/page.tsx");
 
 test("the module has the twelve tabs the brief names", () => {
   const source = page();

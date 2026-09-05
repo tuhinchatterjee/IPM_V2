@@ -7394,6 +7394,105 @@ export const api = {
       `${API_BASE_URL}${API_PREFIX}/playbook/packs/${packId}` +
       `/export?format=${encodeURIComponent(format)}`,
   },
+
+  /**
+   * Scorecard Validation Intelligence — three scorecards, forty-eight tests.
+   *
+   * Reads and runs are separated on purpose. `overview`, `tests`, `model`,
+   * `periods`, `regulatory` and `patterns` are GETs a page load may call;
+   * everything that computes is a POST, because a full run is a minute of
+   * bootstrap resampling and a route that a dashboard poll could trigger by
+   * accident would be triggered by accident.
+   */
+  scorecardValidation: {
+    overview: () => request<ScvOverview>("/scorecard-validation/overview"),
+
+    tests: (category = "") =>
+      request<{ registry_version: string; category: string;
+                tests: ScvTest[] }>(
+        `/scorecard-validation/tests${
+          category ? `?category=${encodeURIComponent(category)}` : ""}`),
+
+    model: (modelId: string) =>
+      request<ScvModel>(
+        `/scorecard-validation/models/${encodeURIComponent(modelId)}`),
+
+    /**
+     * Which months exist, and which of them have a realised outcome.
+     *
+     * Worth calling before any run: almost every wrong number in model
+     * validation comes from an outcome metric measured over a window that has
+     * not closed yet.
+     */
+    periods: (modelId: string) =>
+      request<ScvPeriods>(
+        `/scorecard-validation/models/${encodeURIComponent(modelId)}/periods`),
+
+    runTest: (modelId: string, testId: string, options: {
+      period?: string; segment?: string; segmentField?: string;
+    } = {}) => {
+      const query = new URLSearchParams();
+      if (options.period) query.set("period", options.period);
+      if (options.segment) query.set("segment", options.segment);
+      if (options.segmentField) {
+        query.set("segment_field", options.segmentField);
+      }
+      const suffix = query.toString() ? `?${query}` : "";
+      return request<{ test: ScvTest; result: ScvResult }>(
+        `/scorecard-validation/models/${encodeURIComponent(modelId)}` +
+        `/tests/${encodeURIComponent(testId)}${suffix}`,
+        { method: "POST" });
+    },
+
+    runCategory: (modelId: string, category: string, options: {
+      period?: string; segmentField?: string;
+    } = {}) => {
+      const query = new URLSearchParams();
+      if (options.period) query.set("period", options.period);
+      if (options.segmentField) {
+        query.set("segment_field", options.segmentField);
+      }
+      const suffix = query.toString() ? `?${query}` : "";
+      return request<ScvRun>(
+        `/scorecard-validation/models/${encodeURIComponent(modelId)}` +
+        `/categories/${encodeURIComponent(category)}${suffix}`,
+        { method: "POST" });
+    },
+
+    /**
+     * Every applicable test in every category.
+     *
+     * Slow by nature rather than by defect — see `full_run_cost` on the
+     * overview. The longer timeout is here rather than in the caller so no
+     * screen has to remember it.
+     */
+    runAll: (modelId: string, period = "") => {
+      const suffix = period ? `?period=${encodeURIComponent(period)}` : "";
+      return request<ScvRun>(
+        `/scorecard-validation/models/${encodeURIComponent(modelId)}` +
+        `/run${suffix}`,
+        { method: "POST", timeoutMs: 300_000 });
+    },
+
+    report: (modelId: string, period = "") => {
+      const suffix = period ? `?period=${encodeURIComponent(period)}` : "";
+      return request<ScvReport>(
+        `/scorecard-validation/models/${encodeURIComponent(modelId)}` +
+        `/report${suffix}`,
+        { method: "POST", timeoutMs: 300_000 });
+    },
+
+    /** The Word report. A download, so the browser does the saving. */
+    reportDocxUrl: (modelId: string, period = "") =>
+      `${API_BASE_URL}${API_PREFIX}/scorecard-validation/models/` +
+      `${encodeURIComponent(modelId)}/report.docx` +
+      (period ? `?period=${encodeURIComponent(period)}` : ""),
+
+    regulatory: () =>
+      request<ScvRegulatory>("/scorecard-validation/regulatory"),
+
+    patterns: () => request<ScvPatterns>("/scorecard-validation/patterns"),
+  },
 };
 
 
@@ -10692,3 +10791,287 @@ export type PlaybookMapping = {
   import_class: string;
   note: string;
 };
+
+// ---------------------------------------------------------------------------
+// Scorecard Validation Intelligence
+// ---------------------------------------------------------------------------
+
+/**
+ * Ten result states, and the client must not collapse them.
+ *
+ * PASS / WARNING / FAIL are verdicts. NO_LIMIT is a measurement with nothing
+ * governed to compare it against. The remaining six are refusals with
+ * distinct causes, and one grey "n/a" chip for all six would tell a validator
+ * nothing about whether to widen the window, fix the data, or accept that the
+ * test does not apply to this model.
+ */
+export type ScvState =
+  | "PASS"
+  | "WARNING"
+  | "FAIL"
+  | "NO_LIMIT"
+  | "CALCULATION_ERROR"
+  | "UNAVAILABLE"
+  | "INSUFFICIENT_SAMPLE"
+  | "NOT_MATURED"
+  | "NOT_AUTHORISED"
+  | "NOT_APPLICABLE";
+
+/** The chart payload the runner attached, discriminated by its own `kind`. */
+export type ScvChart = {
+  kind: string;
+  [key: string]: unknown;
+};
+
+/**
+ * One validation result, exactly as the runner produced it.
+ *
+ * `value` is `number | null` and the null is load-bearing. Six of the ten
+ * states mean "there is no number here", and the backend refuses to construct
+ * a result that claims one of those states while carrying a value. Typing it
+ * as `number` with a zero default would undo that on the client: a NOT_MATURED
+ * cohort would render as a zero default rate, which is the single most
+ * damaging thing a model validation screen can draw.
+ */
+export type ScvResult = {
+  test_id: string;
+  state: ScvState;
+  state_label: string;
+  state_meaning: string;
+  severity: number;
+  measured: boolean;
+  value: number | null;
+  limit: number | null;
+  limit_source: string;
+  comparison_value: number | null;
+  detail: string;
+  remedy: string;
+  model_id: string;
+  model_version: string;
+  dataset: string;
+  period: string;
+  reference_period: string;
+  segment: string;
+  observations: number;
+  matured_observations: number;
+  events: number;
+  calculation_version: string;
+  states_version: string;
+  score_direction: string;
+  method: string;
+  limitations: string[];
+  chart: ScvChart | Record<string, never>;
+  table: Record<string, unknown>[];
+  lineage: Record<string, unknown>;
+};
+
+export type ScvTest = {
+  test_id: string;
+  name: string;
+  category: string;
+  purpose: string;
+  method: string;
+  requires: string[];
+  minimum_observations: number;
+  minimum_events: number;
+  comparative: boolean;
+  segmentable: boolean;
+  charts: string[];
+  limitations: string[];
+  cbuae: string[];
+  version: string;
+};
+
+export type ScvCategory = {
+  key: string;
+  title: string;
+  purpose: string;
+  question: string;
+  quantitative: boolean;
+};
+
+/**
+ * A finding: what was seen, why it matters, and how to check it independently.
+ *
+ * `verify_by` is not optional decoration. The backend refuses to construct a
+ * finding without it, because an assertion a reader cannot check is an
+ * assertion they have to take on trust, and a validation report is the last
+ * place that belongs.
+ */
+export type ScvFinding = {
+  finding_id: string;
+  title: string;
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "OBSERVATION";
+  severity_meaning: string;
+  category: string;
+  what: string;
+  why_it_matters: string;
+  remediation: string;
+  evidence: string[];
+  verify_by: string;
+  cbuae: string[];
+  values: Record<string, unknown>;
+  pattern: string;
+  period: string;
+  segment: string;
+  model_id: string;
+  model_version: string;
+  supersedes: string[];
+  confidence: string;
+  findings_version: string;
+};
+
+export type ScvModelData = {
+  available: boolean;
+  periods?: number;
+  latest_period?: string;
+  matured_periods?: number;
+  latest_matured_period?: string;
+  immature_periods?: number;
+  performance_window_months?: number;
+  why_immature?: string;
+  why?: string;
+};
+
+export type ScvModel = {
+  model_id: string;
+  name: string;
+  version: string;
+  challenger_version: string;
+  domain: string;
+  domain_label: string;
+  scorecard_type: string;
+  reference_number: string;
+  portfolio: string;
+  jurisdiction: string;
+  intended_use: string;
+  owner: string;
+  validation_owner: string;
+  materiality: string;
+  tier: string;
+  status: string;
+  dataset: string;
+  reference_dataset: string;
+  decisions_dataset: string;
+  score_direction: string;
+  score_range: [number, number];
+  base_score: number;
+  base_odds: number;
+  points_to_double_odds: number;
+  cut_off: number;
+  default_definition: string;
+  performance_window_months: number;
+  observation_window: string;
+  development_population: string;
+  known_limitations: string[];
+  segmentation_fields: string[];
+  binned_variables: string[];
+  capabilities: string[];
+  has_challenger: boolean;
+  has_pd: boolean;
+  limits: Record<string, unknown>[];
+  models_version: string;
+  data?: ScvModelData;
+  applicable_tests?: string[];
+  inapplicable_tests?: { test_id: string; why: string }[];
+  approved_specification?: Record<string, unknown>;
+  approved_equation?: Record<string, unknown>;
+};
+
+export type ScvOverview = {
+  module: string;
+  domains: Record<string, unknown>;
+  scorecards: ScvModel[];
+  registry: {
+    registry_version: string;
+    categories: ScvCategory[];
+    [key: string]: unknown;
+  };
+  result_states: {
+    state: ScvState;
+    label: string;
+    meaning: string;
+    carries_a_number: boolean;
+  }[];
+  full_run_cost: string;
+};
+
+/** One category's coverage: how many tests it defines, and how many ran. */
+export type ScvCoverage = {
+  title: string;
+  defined: number;
+  run: number;
+  complete: boolean;
+  test_ids: string[];
+  run_ids: string[];
+};
+
+/**
+ * A run, with its own coverage stated beside it.
+ *
+ * `measured` against `returned` is the number a reader needs before reading
+ * any of the rest: eleven passes out of eleven and eleven passes out of
+ * forty-eight are different claims, and a panel that shows only the passes
+ * reads as the first one.
+ */
+export type ScvRun = {
+  findings: ScvFinding[];
+  burning_weaknesses: ScvFinding[];
+  findings_summary: {
+    total: number;
+    by_severity: Record<string, number>;
+    patterns_matched: string[];
+    burning: string[];
+    [key: string]: unknown;
+  };
+  model: {
+    model_id: string;
+    name: string;
+    version: string;
+    domain: string;
+    scorecard_type: string;
+  };
+  category: string;
+  results: ScvResult[];
+  tally: Record<ScvState, number>;
+  adverse: string[];
+  measured: number;
+  returned: number;
+  coverage: Record<string, ScvCoverage>;
+  regulatory_coverage: Record<string, unknown>;
+  coverage_means: string;
+  calculation_version: string;
+  cost?: string;
+};
+
+export type ScvPeriods = {
+  model_id: string;
+  [key: string]: unknown;
+};
+
+export type ScvRequirement = {
+  reference: string;
+  title: string;
+  asks_for: string;
+  kind: string;
+  framework: string;
+  evidenced_by: string[];
+  [key: string]: unknown;
+};
+
+export type ScvRegulatory = {
+  regulatory_version: string;
+  framework: string;
+  disclaimer: string;
+  this_is_not_a_compliance_assessment: string;
+  summary_is_a_reading_aid: string;
+  requirements: ScvRequirement[];
+  unmapped_tests: string[];
+};
+
+export type ScvPatterns = {
+  patterns: { key: string; title: string; reads: string[] }[];
+  [key: string]: unknown;
+};
+
+export type ScvReport = Record<string, unknown>;
