@@ -49,6 +49,40 @@ async function shot(name) {
   await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: false });
 }
 
+// ------------------------------------------------------------------- sign in
+//
+// The shipping configuration REQUIRES a session (REQUIRE_LOGIN defaults to
+// true), and until this existed the script only ran against a development
+// server with it turned off — which is to say, against a configuration nobody
+// deploys. It asks the server whether a session is needed rather than assuming
+// either way, so the same script covers both.
+const USER = process.env.SCV_USER ?? "alex.rahman";
+const PASSWORD = process.env.SCV_PASSWORD ?? "creditprobe-demo";
+
+await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+const needsSession = await page.evaluate(async () => {
+  const response = await fetch("/api/v1/scorecard-validation/overview");
+  return response.status === 401;
+});
+if (needsSession) {
+  const signedIn = await page.evaluate(async ([username, password]) => {
+    const response = await fetch("/api/v1/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    return response.status;
+  }, [USER, PASSWORD]);
+  check("0", "signing in is accepted", signedIn >= 200 && signedIn < 300);
+  const nowOk = await page.evaluate(async () => {
+    const response = await fetch("/api/v1/scorecard-validation/overview");
+    return response.status;
+  });
+  check("0", "the module answers once signed in", nowOk === 200);
+} else {
+  check("0", "this deployment does not require a session", true);
+}
+
 // ---------------------------------------------------------------- A: it loads
 await page.goto(`${BASE}/scorecard-validation`, { waitUntil: "networkidle" });
 await page.waitForTimeout(1500);

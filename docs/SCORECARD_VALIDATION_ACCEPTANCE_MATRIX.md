@@ -7,11 +7,12 @@ A gate is PASS only where a command was run and its output read. Where a gate
 records a number, that number came from a run on the branch's current HEAD,
 not from a design intention.
 
-**Status of this document: SETTLED.** Every family has been decided either
-way. Four gates remain NOT VERIFIED and each names what is missing rather
-than what is probably fine; one item of scope is recorded as NOT BUILT in
-`SCORECARD_VALIDATION_INTELLIGENCE_REPORT.md` §AJ-2 rather than filed here as
-a verification gap, because it is not one.
+**Status of this document: SETTLED, and reopened once.** The closure phase
+added the SCV-RUN family below and turned three of the four NOT VERIFIED
+gates. ONE remains NOT VERIFIED — live AI — and it names what is missing
+rather than what is probably fine. One item of scope is recorded as NOT BUILT
+in `SCORECARD_VALIDATION_INTELLIGENCE_REPORT.md` §AJ-2 rather than filed here
+as a verification gap, because it is not one.
 
 Branch: `claude/scorecard-validation-intelligence`
 Baseline: `c1b46e1` → current
@@ -79,7 +80,7 @@ Baseline: `c1b46e1` → current
 | SCV-CALC-08 | Stability is measured on the current book | PASS | `test_stability_is_measured_on_the_current_book_not_the_matured_one`. Fixed a real defect: confining CSI to the matured window read 0.01 where the current window reads 1.08. |
 | SCV-CALC-09 | The bootstrap is reproducible | PASS | `test_the_bootstrap_interval_is_reproducible`; seed and resample count on the result. |
 | SCV-CALC-10 | The fast bootstrap path is the same statistic as the slow one | PASS | `test_the_counted_auc_is_the_ranked_auc_to_the_last_bit` — exact equality, not tolerance. |
-| SCV-CALC-11 | Independent numerical reconciliation against a second implementation | NOT VERIFIED | No second implementation exists to reconcile against. `bootstrap_auc` is reconciled against the row-level path by exact equality, which is a re-expression check rather than an independent one. |
+| SCV-CALC-11 | Independent numerical reconciliation against a second implementation | PASS | `tests/reconciliation/` recomputes every statistic through pandas/numpy with no `backend.scorecard` import — asserted by a test that reads the module's own source. AUC, Gini and KS reconcile at **exactly 0.00e+00** on all three scorecards; observations and events reconcile against the rows on disk. Every tolerance and the one policy difference (Laplace smoothing) are documented in `SCORECARD_VALIDATION_RECONCILIATION.md`. 46 tests, 0 skipped. |
 
 ## SCV-FIND — the findings the engine must reach
 
@@ -153,7 +154,32 @@ deterministic build.
 | SCV-SEC-04 | A question is never interpolated into a query, a path or a prompt reaching the data layer | PASS | It resolves to a tool id and parameters from closed sets. `test_scorecard_validation_ask.py::test_an_instruction_in_the_question_is_not_an_instruction`. |
 | SCV-SEC-05 | A `model_id` from a client is validated, not trusted | PASS | The route resolves it through `models.get` and drops it if it is outside the three, so an unknown id cannot produce a clarification about a scorecard that does not exist. |
 | SCV-SEC-06 | A pasted document is refused as a question | PASS | 2,000-character limit; 422 with a sentence saying why. A document in a chat box is an attempt to put instructions where they will be read as intent. |
-| SCV-SEC-07 | Broad adversarial and injection testing beyond the above | NOT VERIFIED — the specific vectors above are covered by tests; no systematic adversarial sweep has been run against this build. |
+| SCV-SEC-07 | Broad adversarial and injection testing beyond the above | PASS | `tests/scorecard/test_validation_adversarial.py`: 69 cases in seven families — domain escape, ownership and attribution, AI governance, prompt injection, degenerate calculation inputs, report integrity, cache identity. All pass, none skipped. No material product defect; five defects in the tests themselves, recorded in the final report. |
+
+## SCV-RUN — a validation run as a record
+
+Added by the closure phase. The gates below are about ONE sentence: opening
+last quarter's validation shows last quarter's numbers.
+
+The immutability gates are worth reading carefully, because there is a weak
+way to test them and a strong way. Comparing two reads and finding them equal
+would pass just as well against an implementation that recomputed and happened
+to agree — which is precisely the implementation this family exists to rule
+out. So the tests replace the calculation engine with something that raises
+and then read a stored run successfully.
+
+| Gate | What it asserts | Status | Evidence |
+|---|---|---|---|
+| SCV-RUN-001 | A validation run is persisted | PASS | Migration 0040 creates `scv_runs`, `scv_results`, `scv_findings`, `scv_reports`; every run through a category or full-run route is recorded and returns its `run_key`. `test_running_tests_returns_a_run_key`. |
+| SCV-RUN-002 | A historical run is immutable | PASS | `test_reading_a_run_cannot_reach_the_runner` monkeypatches `runner.run`, `run_category` and `population` to raise, then reads the stored run: results and findings come back identical. `test_two_reads_of_one_run_are_identical`. |
+| SCV-RUN-003 | A historical run does not recalculate against new data | PASS | Same test. Nothing on the read path touches the runner or the lake, so no change in the data can move a stored figure. The run says so in its own words (`historical`), verified by `test_the_run_says_out_loud_that_it_is_historical`. |
+| SCV-RUN-004 | Re-running creates a NEW run and leaves the prior one alone | PASS | `test_a_second_run_leaves_the_first_alone` and `test_a_re_run_records_what_it_repeats`: `?duplicate_of=` records the lineage and the earlier run reads back byte-identical. Naming a predecessor that does not exist is a 404, not a silent empty chain. |
+| SCV-RUN-005 | A run stores model, dataset and test versions | PASS | `test_the_run_records_what_it_tested_and_against_what`: model id/name/version/kind, dataset + as-of + content-digest version, and FIVE separate code versions — test registry, threshold profile, calculation kernel, state vocabulary, findings engine — so a comparison can say WHICH one moved. |
+| SCV-RUN-006 | A run stores the complete result context | PASS | `test_a_result_carries_its_whole_context`: value, limit, limit source, observations, matured observations, events, EXCLUDED rows, score direction, period, reference period, segment, method, chart specification, result table, lineage. `test_a_refused_test_stores_its_reason_and_no_number` proves the nullable `value` column holds: a refused test stores its reason and NO number. |
+| SCV-RUN-007 | The Validation History UI works | PASS | `/scorecard-validation/history`: filter by scorecard, open a run, compare two, re-run, draft and finalise. Route present in the production build; `GET /runs` returns model, version, date, dataset, period, scope, initiated by, status, findings and measured counts, and deliberately NOT the results. No control on the page writes to a stored value. |
+| SCV-RUN-008 | Two runs can be compared | PASS | `GET /runs/{a}/compare/{b}`, with the calculation engine sabotaged in the test to prove neither side is recomputed. Refuses self-comparison (422) and cross-model comparison (422, "different scorecards"). Version drift is named rather than silently differenced. |
+| SCV-RUN-009 | A report references the exact run it was built from | PASS | `scv_reports.run_id` is a foreign key ON DELETE RESTRICT — the database refuses to delete a run beneath a report, asserted by `test_a_signed_report_keeps_its_run_alive`. `test_a_report_does_not_follow_its_run_when_the_tests_are_re_run`. Since the closure phase the run key is also printed in the DOCUMENT, not only in the row. |
+| SCV-RUN-010 | A historical report remains reproducible | PASS | `test_a_stored_report_regenerates_to_the_same_document` renders the .docx from stored content with the runner sabotaged, and the header hash matches the stored hash. `Report.from_dict` round-trips to an identical content hash. Finalising is one-way (409 on a second attempt); a correction is a new report against a new run. |
 
 ## SCV-QUALITY — the gates
 
@@ -163,7 +189,7 @@ deterministic build.
 | SCV-QUALITY-02 | `tests/scorecard` green | PASS | 613 passed, 1 skipped, 0 failed, in 336.38s. Plus `tests/api/test_scorecard_validation_ask.py`: 24 passed. |
 | SCV-QUALITY-03 | Full backend suite green | PASS | 12,556 passed, 36 skipped, 0 failed, in 1350.77s at `355dcc5`. Not re-run on the two commits after it; SCV-QUALITY-09 records that. |
 | SCV-QUALITY-04 | Frontend tests green | PASS | 540 passed, 0 failed. `npx tsc --noEmit` and `npx eslint` both clean. |
-| SCV-QUALITY-05 | Docker stack verified | NOT VERIFIED — not run on this build. |
+| SCV-QUALITY-05 | Docker stack verified | PASS | Both images rebuilt at `24853f4`; stack started from an EMPTY volume (`docker compose down -v`); `alembic upgrade head` reached `0041` on an empty database; API, worker and frontend all report healthy; demo data seeded in-container (12 steps, 80 datasets, 6 accounts); the four `scv_*` tables verified present by `psql`. Browser journeys run against the container with a real sign-in: 39 checks, 0 failed. A DOCX was generated inside the container from a persisted run. The images were built with `PYTHON_IMAGE`/`NODE_IMAGE` pointing at locally-built bases that trust this sandbox's TLS-inspecting proxy — a build argument both Dockerfiles already carry for that purpose, and **no trust material is committed**. |
 | SCV-QUALITY-06 | Browser journeys A–M | PASS | 37 checks across 13 journeys, all passing, against the running stack in headless Chromium. Script committed at `scripts/browser/scorecard-validation-journeys.mjs` so the run is repeatable. |
 | SCV-QUALITY-11 | Every route serves on a running server, not only under TestClient | PASS | `/overview` returned a 500 on the live server while every unit test below it passed: the router unpacked `inapplicable_tests()` as bare tests when it returns (test, missing) pairs. Fixed, and `TestEveryRouteActuallyServes` now hits all eleven. |
 | SCV-QUALITY-09 | The full suite re-run on the final HEAD | PASS | Run at `049b1bf`: 2 failed, 12,651 passed, 36 skipped, in 1326.58s. Both failures were `tests/docs/test_feature_matrix.py` — `/scorecard-validation/monitoring` is a new route the matrix did not carry, and the entry it did carry for `/scorecard-validation` described the page that had moved. Both judgements corrected, matrix regenerated, `tests/docs` green. 12,653 passing, 0 failing. |

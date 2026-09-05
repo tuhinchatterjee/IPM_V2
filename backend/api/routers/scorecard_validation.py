@@ -807,7 +807,8 @@ def _from_run(session: Session, run_key: str, principal: Principal):
         made, run_store.results_of(stored),
         generated_by=(getattr(principal, "username", "")
                       or "CreditProbe Scorecard Validation"),
-        windows=(stored.matured_window, stored.latest_period))
+        windows=(stored.matured_window, stored.latest_period),
+        run_key=stored.run_key)
     return stored, document
 
 
