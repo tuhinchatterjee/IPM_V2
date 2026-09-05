@@ -263,7 +263,7 @@ function BandSummary({
           </p>
           <p className="mt-0.5 text-[11px] text-text-muted">
             {total > 0 ? ((100 * band.facilities) / total).toFixed(1) : "0.0"}% ·{" "}
-            {band.ead.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD mn
+            {band.ead.toLocaleString(undefined, { maximumFractionDigits: 0 })} SAR mn
           </p>
         </Card>
       ))}

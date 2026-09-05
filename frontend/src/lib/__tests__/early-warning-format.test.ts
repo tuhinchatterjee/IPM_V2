@@ -113,3 +113,36 @@ test("no movement is not a movement of zero", () => {
   assert.equal(showMovement(null, "percent"), NOTHING);
   assert.equal(showMovement(undefined, "money"), NOTHING);
 });
+
+/**
+ * The layer-4 units. Five of the six new signals fell through to a bare
+ * number when they were configured, and `debtrank_impact` came out as MONEY
+ * because "debt" is a substring of "debtrank" — which would have put SAR in
+ * front of a modelled transmission share of 0.0003.
+ */
+
+test("a share is not a percentage and does not round to nothing", () => {
+  // The live book's contagion figures sit around 0.00002. Two decimal places
+  // renders that as "0", which reads as nothing there at all.
+  assert.equal(showValue(0.00002, "share"), "0.00002");
+  assert.equal(showValue(0.000345, "share"), "0.000345");
+  assert.equal(showValue(0, "share"), "0");
+});
+
+test("a score is a score, with no currency and no percent sign", () => {
+  const said = showValue(21.4, "score");
+  assert.equal(said, "21.4");
+  assert.ok(!said.includes("SAR"));
+  assert.ok(!said.includes("%"));
+});
+
+test("a number of counterparties is counted, not measured", () => {
+  assert.equal(showValue(13, "entities"), "13 entities");
+  assert.equal(showValue(1, "entities"), "1 entity");
+});
+
+test("a rating label is a label, never a number", () => {
+  assert.equal(showValue("Negative", "category"), "Negative");
+  assert.equal(showValue("AA-", "category"), "AA-");
+  assert.equal(showValue("", "category"), NOTHING);
+});

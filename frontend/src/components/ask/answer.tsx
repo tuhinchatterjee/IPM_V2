@@ -35,6 +35,8 @@ import { KpiTile } from "@/components/analytics/primitives";
 import { ResultView } from "@/components/analytics/result-view";
 import { AccuracyFeedback } from "@/components/feedback/accuracy-prompt";
 import { answerKindOf } from "@/components/feedback/answer-kind";
+import { RichText } from "@/components/ask/rich-answer";
+import { isStructured } from "@/components/ask/rich-text";
 import { Thumbs } from "@/components/feedback/thumbs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -328,6 +330,16 @@ export function DirectAnswer({
 }) {
   if (!answer) return null;
 
+  /* An analytical answer is one sentence and renders as one sentence. A
+     product answer arrives as structured text - headings, bold, bullets,
+     process flows - and rendering THAT inside a single paragraph is what
+     turned "What is CreditProbe AI?" into a wall of prose: every newline the
+     composer emitted collapsed into a space.
+
+     The test is on the CONTENT rather than on the route, so any answer that
+     gains structure later renders correctly without another change here. */
+  const structured = isStructured(answer);
+
   return (
     <section className="max-w-[68ch]">
       {scope && (
@@ -335,9 +347,15 @@ export function DirectAnswer({
           {scope}
         </p>
       )}
-      <p className="prose-ai text-[17px] leading-[1.5] text-text-primary">
-        {answer}
-      </p>
+      {structured ? (
+        <div className="prose-ai text-text-primary">
+          <RichText markdown={answer} />
+        </div>
+      ) : (
+        <p className="prose-ai text-[17px] leading-[1.5] text-text-primary">
+          {answer}
+        </p>
+      )}
     </section>
   );
 }
@@ -1002,6 +1020,22 @@ export function AnswerBlock({
     run.steps.find((s) => s.role === "primary") ?? run.steps[0] ?? null;
   const supporting = run.steps.filter((s) => s !== primary);
 
+  // ONE QUESTION DOES NOT IMPLY ONE ANALYSIS.
+  //
+  // A review that ran four governed analyses used to arrive as one table and
+  // a `<details>` labelled "Supporting analysis (3)" — three findings a reader
+  // had to know to go looking for. When the response package says several
+  // analyses are FINDINGS rather than working, they are rendered as siblings,
+  // each with its own title, its reason for being there, and the shape the
+  // visual selector chose for it.
+  //
+  // The threshold is the package's own: more than one analysis block means the
+  // answer is composed, and a composed answer's parts are the answer.
+  const blocks = run.package?.blocks ?? [];
+  const composed = (run.package?.counts.analyses ?? 0) > 1;
+  const blockFor = (index: number) =>
+    blocks.find((b) => b.step_index === index) ?? null;
+
   // Selected from what the backend already established. Neither of these
   // computes or composes anything — see `insight.ts` for why that boundary is
   // absolute.
@@ -1118,26 +1152,51 @@ export function AnswerBlock({
             />
           ))}
 
-        {/* ----------------------------------------------- 6. SUPPORTING EVIDENCE */}
-        {supporting.length > 0 && (
-          <Disclosure
-            summary={`Supporting analysis (${supporting.length})`}
-            hint="run to help explain the answer, not to answer the question"
-          >
-            <div className="space-y-4">
-              {supporting.map((step) => (
-                <StepResult
-                  key={step.index}
-                  step={step}
-                  runId={runId}
-                  compact
-                  returnTo={returnTo}
-                  onAsk={onAsk}
-                />
-              ))}
+        {/* -------------------------------------------- 6. THE OTHER ANALYSES
+          Visible when the answer is composed of several, collapsed when they
+          are working rather than findings. A reader who asked one question and
+          was answered with five governed analyses needs to see five. */}
+        {supporting.length > 0 &&
+          (composed ? (
+            <div className="space-y-5">
+              {supporting.map((step) => {
+                const block = blockFor(step.index);
+                return (
+                  <section key={step.index} className="space-y-2">
+                    {block?.because && (
+                      <p className="meta text-text-muted">{block.because}</p>
+                    )}
+                    <StepResult
+                      step={step}
+                      runId={runId}
+                      compact={compact}
+                      returnTo={returnTo}
+                      question={block?.question || run.question}
+                      onAsk={onAsk}
+                    />
+                  </section>
+                );
+              })}
             </div>
-          </Disclosure>
-        )}
+          ) : (
+            <Disclosure
+              summary={`Supporting analysis (${supporting.length})`}
+              hint="run to help explain the answer, not to answer the question"
+            >
+              <div className="space-y-4">
+                {supporting.map((step) => (
+                  <StepResult
+                    key={step.index}
+                    step={step}
+                    runId={runId}
+                    compact
+                    returnTo={returnTo}
+                    onAsk={onAsk}
+                  />
+                ))}
+              </div>
+            </Disclosure>
+          ))}
 
         {/* ------------------------------------------------- 7. WHAT DESERVES ATTENTION */}
         <Implications points={attention} />

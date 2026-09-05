@@ -3,17 +3,22 @@ import {
   BarChart3,
   Bot,
   Boxes,
+  CalendarClock,
   Brain,
+  BookMarked,
   ClipboardCheck,
   Database,
   FileText,
   FlaskConical,
   Gauge,
   GitBranch,
+  Inbox,
   LayoutGrid,
   ListChecks,
+  Mail,
   Network,
   Radar,
+  Ruler,
   Search,
   Settings,
   Sparkles,
@@ -134,6 +139,29 @@ export const NAV_ITEMS: NavItem[] = [
     demo: "core",
   },
 
+  {
+    href: "/workspace",
+    label: "My workspace",
+    description:
+      "What is waiting on you: unread messages, reviews you have been asked for, and the investigations and analyses colleagues have shared with you.",
+    icon: Inbox,
+    status: "live",
+    phase: "",
+    group: "Home",
+    demo: "core",
+  },
+  {
+    href: "/messages",
+    label: "Messages",
+    description:
+      "Send a colleague an investigation, an analysis or a workbook, ask for a review, and read what CreditProbe has told you.",
+    icon: Mail,
+    status: "live",
+    phase: "",
+    group: "Home",
+    demo: "core",
+  },
+
   // ---- WORK: the product hierarchy, largest container first ----
   {
     href: "/projects",
@@ -141,6 +169,17 @@ export const NAV_ITEMS: NavItem[] = [
     description:
       "The master workspace. A Project holds investigations, saved analyses, documents, people and context.",
     icon: Boxes,
+    status: "live",
+    phase: "",
+    group: "Work",
+    demo: "core",
+  },
+  {
+    href: "/delivery",
+    label: "Project Planner",
+    description:
+      "Delivery plans: workstreams, tasks, milestones, dependencies and RAID. What is late, what is blocked, who owes an update, and what is due next. Distinct from Projects, which is the analytical workspace a piece of credit work lives in.",
+    icon: CalendarClock,
     status: "live",
     phase: "",
     group: "Work",
@@ -197,6 +236,19 @@ export const NAV_ITEMS: NavItem[] = [
       "Real and seeded with one published Lens. Shown if time allows; not on the twenty-minute path.",
   },
   {
+    href: "/metrics",
+    label: "Metric Catalogue",
+    description:
+      "What CreditProbe means by each number: the formula, the fields it reads, what it excludes, and what it is not. Search by whatever you call it — \u201cNPL rate\u201d, \u201cbad rate\u201d and \u201cdefault rate\u201d are one metric.",
+    icon: Ruler,
+    status: "live",
+    phase: "",
+    group: "Intelligence",
+    demo: "optional",
+    demoNote:
+      "Real. Sixty-one governed metrics over the published data, and the ones this deployment cannot calculate are listed with the reason.",
+  },
+  {
     href: "/early-warning",
     label: "Early Warning",
     description:
@@ -221,19 +273,6 @@ export const NAV_ITEMS: NavItem[] = [
     demo: "core",
     demoNote:
       "The transparency argument in one screen. Open a borrower and read a condition out: the value, the previous value, the threshold and who owns it.",
-  },
-  {
-    href: "/playbooks",
-    label: "Playbooks",
-    description:
-      "A standing instruction: run these certified analyses over this scope, test these thresholds, and act when one is crossed. A run that finds nothing says so.",
-    icon: ClipboardCheck,
-    status: "partial",
-    phase: "Manual and on-publication triggers run; scheduled ones are not yet wired to a scheduler",
-    group: "Intelligence",
-    demo: "optional",
-    demoNote:
-      "Manual and on-publication triggers run. Scheduled ones are not wired to a scheduler, so do not promise scheduling.",
   },
   {
     href: "/stress",
@@ -306,15 +345,49 @@ export const NAV_ITEMS: NavItem[] = [
     demo: "core",
   },
   {
-    href: "/workflow",
-    label: "Workflow",
+    // The committee pack lifecycle. In GOVERN rather than WORK because a
+    // pack is not somebody's analytical workspace — it is the record a forum
+    // reads, approves and is held to.
+    href: "/playbook",
+    label: "Playbook",
     description:
-      "Share, review and approve the things that carry institutional weight, with an append-only decision history.",
+      "Committee packs, end to end: what the committee is, when it meets, what goes in the pack, what the governed figures are, who reviewed it, what was decided, and what follows. Every figure on a pack is a frozen snapshot with the formula and dataset version behind it, so the pack tabled in the morning and the screen opened in the afternoon show the same numbers.",
+    icon: BookMarked,
+    status: "live",
+    phase: "",
+    group: "Govern",
+    demo: "core",
+    demoNote:
+      "The governance argument in one area. Open a pack, show a figure's working, then show a finding with the rule that raised it and the numbers it fired on.",
+  },
+  {
+    href: "/reviews",
+    label: "My reviews",
+    description:
+      "What has been sent to you for review or approval, and what you are waiting on, with an append-only decision history.",
     icon: ClipboardCheck,
     status: "live",
     phase: "",
     group: "Govern",
     demo: "core",
+  },
+  {
+    // Workflow is operational OVERSIGHT, not a mailbox and not a personal
+    // queue. It answers "how is the workflow running across the institution"
+    // — who has unread work, whose requests are overdue, who has not signed
+    // in — and only an administrator has a reason to ask that. The backend
+    // refuses the aggregate routes to everybody else; this keeps the entry
+    // out of the sidebar so nobody finds that out by being refused.
+    href: "/workflow",
+    label: "Workflow",
+    description:
+      "Administrative oversight of message and review activity across every user. Counts and status only — never the contents of anybody's mail.",
+    icon: Users,
+    status: "live",
+    phase: "",
+    group: "Admin",
+    demo: "core",
+    roles: ["ADMIN"],
   },
 
   // ---- ADMIN ----

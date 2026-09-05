@@ -643,7 +643,7 @@ export default function AddDatasetPage() {
                   <Field label="Unit">
                     <Input
                       value={f.unit ?? ""}
-                      placeholder="USD mn, %, days"
+                      placeholder="SAR mn, %, days"
                       onChange={(e) => {
                         const next = [...fields];
                         next[index] = { ...f, unit: e.target.value || null };

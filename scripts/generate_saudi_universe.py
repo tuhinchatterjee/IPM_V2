@@ -300,7 +300,7 @@ def build_customers(rng: np.random.Generator) -> pd.DataFrame:
         names.append(candidate)
 
     segments = choose(rng, SEGMENTS, N_CUSTOMERS)
-    # Size in USD mn of total exposure, log-normal and segment-dependent.
+    # Size in SAR mn of total exposure, log-normal and segment-dependent.
     scale = np.where(segments == "Corporate", 4.1,
                      np.where(segments == "Commercial", 2.9,
                               np.where(segments == "SME", 1.7, 4.6)))
@@ -1179,7 +1179,7 @@ DELINQUENCY_FIELDS = {
                         "Current, 1-29, 30-59, 60-89, 90-179 or 180+ days.", "string"),
     "arrears_amount": field("arrears_amount", "Amount overdue",
                             "Contractual amount past due at period end.", "number",
-                            "USD mn"),
+                            "SAR mn"),
     "instalments_missed": field("instalments_missed", "Instalments missed",
                                 "Scheduled payments not made.", "integer"),
     "last_payment_date": field("last_payment_date", "Last payment",
@@ -1205,7 +1205,7 @@ DELINQUENCY_FIELDS = {
                               "at this one.", "boolean"),
     "exposure_at_risk": field("exposure_at_risk", "Exposure at risk",
                               "Exposure at default on facilities 90 or more days "
-                              "past due; zero otherwise.", "number", "USD mn"),
+                              "past due; zero otherwise.", "number", "SAR mn"),
 }
 
 
@@ -1346,7 +1346,7 @@ RATINGS_FIELDS = {
                              "Agency-style external rating held at the cycle date.",
                              "string"),
     "revenue_usd_mn": field("revenue_usd_mn", "Revenue",
-                            "Annual revenue at the rating date.", "number", "USD mn"),
+                            "Annual revenue at the rating date.", "number", "SAR mn"),
     "net_leverage": field("net_leverage", "Net leverage",
                           "Net debt divided by EBITDA at the rating date.", "number", "x"),
     "interest_coverage": field("interest_coverage", "Interest coverage",

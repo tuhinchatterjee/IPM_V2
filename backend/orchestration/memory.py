@@ -607,7 +607,14 @@ def _from_handler(intent: str, result: Any) -> ResultReference:
         origin = members[0].id
 
     period = ""
-    if rows and isinstance(rows[0], dict):
+    # An answer that settled on a period says so in its own detail. A dataset
+    # overview at Q1 2025 must leave Q1 2025 behind it, or the next follow-up
+    # — "show me fifty rows" — silently jumps back to the latest period and
+    # shows a reader different rows under the same heading.
+    detail = dict(getattr(result, "detail", None) or {})
+    if detail.get("period"):
+        period = str(detail["period"])
+    if not period and rows and isinstance(rows[0], dict):
         period = str(rows[0].get("to") or rows[0].get("period") or "")
 
     return ResultReference(

@@ -23,7 +23,10 @@ from typing import Any
 from backend.orchestration import analysis_planner as ap
 from backend.orchestration import capability as cap
 from backend.orchestration import dynamic as dyn
+from backend.orchestration import figures as fg
 from backend.orchestration import gate
+from backend.orchestration import grain as gr
+from backend.orchestration import scope as sc
 from backend.orchestration.executor import ExecutedStep, Investigation
 from backend.orchestration.interpreter import Finding, Metric, Narrative
 from backend.orchestration.schema import (
@@ -201,6 +204,16 @@ def grounded_values(runtime: Any, extra: dict[str, Any] | None = None,
     for number in _numbers(asked or ""):
         out.add(number)
 
+    # The population the plan itself counted. A population question is
+    # answered with its population — "1,167 customers in IFRS 9 stage 2" — and
+    # that figure comes from the reconciliation the runtime computed over the
+    # same compiled query. It is more traceable than a figure from the rows,
+    # not less: the rows are the ten shown, and this is what they were cut
+    # from.
+    for entry in (getattr(runtime, "reconciliation", None) or []):
+        if isinstance(entry, dict):
+            add(entry.get("rows"))
+
     # The thresholds the analysis itself declared.
     composite = ((plan or {}).get("meta") or {}).get("composite") or {}
     for signal in (composite.get("signals") or []):
@@ -260,9 +273,16 @@ def from_handler(question: str, reading: cap.Reading,
         findings=[], interpretation="", interpretation_points=[],
         caveats=list(result.warnings),
     )
+    # A composed review's first block is the SUMMARY of what was checked, and
+    # calling it "Analysis" told a reader nothing — least of all that four
+    # more analyses follow it, each with its own figures.
+    composed_of = list(getattr(result, "analyses", None) or [])
     step = ExecutedStep(
         index=0, analysis_id=f"capability_{reading.intent.lower()}",
-        title=reading.label, rationale=reading.reasoning,
+        title=(str(getattr(result, "title", "") or "")
+               or ("What was checked, and what it found" if composed_of
+                   else reading.label)),
+        rationale=reading.reasoning,
         params={"intent": reading.intent}, filters={}, period="",
         status="succeeded", certification="metadata", analysis_version="",
         duration_ms=duration_ms,
@@ -282,6 +302,68 @@ def from_handler(question: str, reading: cap.Reading,
         trace=result.graph.to_dict() if result.graph else None,
         node_hashes={}, role="primary",
     )
+    # ------------------------------------------------ the composed analyses
+    # A composed answer is not one result. "Investigate Shipping" runs four
+    # governed analyses, and until these were carried through, three of them
+    # reached the reader only as a sentence in a summary table. Each one is
+    # built here exactly the way a single answer's analysis is built, so the
+    # rows, the columns, the chosen visual, the query and the Trace all
+    # survive.
+    steps: list[ExecutedStep] = [step]
+    for sub in composed_of:
+        answered = sub.get("answered")
+        build = getattr(answered, "build", None)
+        runtime = getattr(answered, "runtime", None)
+        if build is None or runtime is None:
+            continue
+        try:
+            steps.append(analysis_step(
+                str(sub.get("asked") or question),
+                getattr(answered, "reading", reading), build, runtime,
+                index=len(steps), role="supporting",
+                title=str(sub.get("title") or ""),
+                rationale=str(sub.get("because") or ""),
+                asked=str(sub.get("asked") or ""),
+                finding=str(sub.get("finding") or "")))
+        except Exception as e:  # noqa: BLE001 - one block must not lose the rest
+            logger.warning("Could not assemble a composed analysis %r: %s",
+                           sub.get("title"), e)
+    # Extra tables the answer carries in its own right. A dataset overview is
+    # a semantic profile AND the first twenty actual rows, and a reader needs
+    # both — the profile is a description, and a description is something they
+    # have to take on trust.
+    for extra in list(getattr(result, "tables", None) or []):
+        rows = list(extra.get("rows") or [])
+        if not rows:
+            continue
+        steps.append(ExecutedStep(
+            index=len(steps),
+            analysis_id=f"capability_{reading.intent.lower()}",
+            title=str(extra.get("title") or "Detail"),
+            rationale=str(extra.get("because") or ""),
+            params={"intent": reading.intent}, filters={}, period="",
+            status="succeeded", certification="metadata", analysis_version="",
+            duration_ms=0,
+            result={
+                "values": {}, "units": {}, "input_row_count": len(rows),
+                "meta": {"execution": "metadata", "intent": reading.intent},
+                "rows": rows, "columns": list(extra.get("columns") or []),
+                "warnings": [], "chart": {}, "truncated": False,
+                "certification": "metadata",
+                "certification_label": "Governed metadata",
+                "capability": reading.to_dict(),
+                "asked": str(extra.get("title") or ""),
+                "finding": str(extra.get("because") or ""),
+            },
+            error=None, trace=None, node_hashes={}, role="supporting"))
+
+    if len(steps) > 1:
+        plan.steps.extend(
+            PlanStep(analysis_id="dynamic_analysis", title=sub.title,
+                     rationale=sub.rationale, params=dict(sub.params),
+                     filters=dict(sub.filters), role=StepRole.SUPPORTING)
+            for sub in steps[1:])
+
     graph = result.graph or TraceGraph()
     # Every other assembly path opens the Trace with the question and how it
     # was read. This one did not, so a broad investigation — the most
@@ -306,7 +388,7 @@ def from_handler(question: str, reading: cap.Reading,
         node.mark_ok()
         graph.connect("question", "intent")
     return Investigation(
-        question=question, plan=plan, steps=[step], narrative=narrative,
+        question=question, plan=plan, steps=steps, narrative=narrative,
         graph=graph, node_hashes=graph.compute_hashes(),
         duration_ms=duration_ms, status="succeeded",
         mode={**mode, "execution": result.execution,
@@ -487,6 +569,109 @@ def _reuse_scope_line(cached: Any) -> str:
 # ------------------------------------------------------------ analytical answers
 
 
+def _name_the_row(narrative: Narrative, build: ap.AnalysisBuild) -> None:
+    """Say WHO, when the question pointed at one row of the previous answer.
+
+    "Why the second one?" resolves to a borrower and the analysis then reports
+    that borrower's figure — correctly, and as "7.06 SAR mn of exposure at
+    default in Stage 2", which never says whose. A reader cannot check an
+    answer about a company that does not name the company, so the identity the
+    reference bound to is put in front of the figure.
+
+    Skipped where the answer already names it, which is the ranking and
+    composite case: those sentences lead with the borrower.
+    """
+    ordinal = dict(getattr(build.continuation, "ordinal", {}) or {})
+    if not ordinal.get("resolved"):
+        return
+    label = str(ordinal.get("label") or "")
+    direct = str(narrative.direct_answer or "")
+    if not label or not direct or label.lower() in direct.lower():
+        return
+    narrative.direct_answer = (
+        f"{label} — {ordinal.get('phrase') or 'the row'} of the "
+        f"{ordinal.get('of') or 0} the previous answer returned. {direct}")
+
+
+def analysis_step(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
+                  runtime: Any, *, index: int = 0, role: str = "primary",
+                  values: dict[str, Any] | None = None,
+                  title: str = "", rationale: str = "",
+                  asked: str = "", finding: str = "") -> ExecutedStep:
+    """One computed analysis, as a step the answer surface can render.
+
+    Extracted so a COMPOSED answer builds its sub-analyses exactly the way a
+    single answer builds its one. Before this, a broad investigation ran four
+    governed analyses and then had nowhere to put three of them: the response
+    contract said an answer was one result, so the composition flattened four
+    tables of real rows into four sentences about them and threw the rows
+    away. Four analyses paid for, one paragraph delivered.
+
+    `title`, `rationale`, `asked` and `finding` are the composition's own words
+    for a sub-analysis — "Expected credit loss", "a rise is deterioration",
+    the governed question it was asked as. A single answer supplies none of
+    them and gets the shape-derived defaults.
+    """
+    values = _values(build, runtime) if values is None else values
+    return ExecutedStep(
+        index=index, analysis_id="dynamic_analysis",
+        title=title or _title(build),
+        rationale=rationale or _rationale(build),
+        params={"shape": build.shape, "grain": build.grain,
+                "period": build.period, "opening_period": build.opening,
+                "closing_period": build.closing, "datasets": build.datasets,
+                "dimension": build.dimension, "top_n": build.top_n},
+        filters={f: v for f, v in build.filters},
+        period=build.closing or build.period, status="succeeded",
+        certification=runtime.certification, analysis_version="",
+        duration_ms=runtime.duration_ms,
+        result={
+            "values": values,
+            "units": _units(build),
+            "input_row_count": runtime.row_count,
+            "meta": {"execution": runtime.certification, "shape": build.shape,
+                     "grain": build.grain},
+            "rows": runtime.rows,
+            # Columns carry what they ARE, not only what they are called. A
+            # float printed at full precision looks like a defect, and a bare
+            # measure column in a two-period plan is the OPENING value —
+            # labelling it with the measure alone put a zero beside a claim
+            # that the figure had risen.
+            "columns": _presented(runtime, build),
+            "warnings": [*runtime.warnings, *build.warnings],
+            "chart": runtime.chart, "truncated": runtime.truncated,
+            # What to DRAW, decided from the shape of the result and from what
+            # the user asked for — never from the values. Carries its own
+            # reason and always a table toggle: a chart a credit officer
+            # cannot check against its figures is one they may not act on.
+            "visual": _visual(runtime, build, asked or question).to_dict(),
+            "certification": runtime.certification,
+            "certification_label": runtime.certification_label,
+            "capability": reading.to_dict(),
+            "reading": build.to_dict(),
+            "plan": build.plan,
+            "query": runtime.query.to_dict() if runtime.query else None,
+            "joins": runtime.joins,
+            "reconciliation": runtime.reconciliation,
+            "fingerprint": runtime.fingerprint,
+            "datasets": build.datasets,
+            "explanation": build.summary,
+            "formulas": formulas(build),
+            "plain_english": plain_english(build),
+            "join_plan": (build.request.resolution.to_dict()
+                          if build.request is not None
+                          and build.request.resolution else None),
+            # The composition's own labelling, where there is one. Read by the
+            # response package so a block can say what it asked and what it
+            # found without re-deriving either.
+            "asked": asked or question,
+            "finding": finding,
+        },
+        error=None,
+        trace=None, node_hashes={}, role=role,
+    )
+
+
 def from_analysis(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
                   runtime: Any, *, duration_ms: int,
                   mode: dict[str, Any]) -> Investigation:
@@ -528,57 +713,9 @@ def from_analysis(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
     # computation that can disagree with the answer it is describing.
     values = _values(build, runtime)
     narrative = _narrative(question, build, runtime, values)
-    step = ExecutedStep(
-        index=0, analysis_id="dynamic_analysis", title=_title(build),
-        rationale=_rationale(build),
-        params={"shape": build.shape, "grain": build.grain,
-                "period": build.period, "opening_period": build.opening,
-                "closing_period": build.closing, "datasets": build.datasets,
-                "dimension": build.dimension, "top_n": build.top_n},
-        filters={f: v for f, v in build.filters},
-        period=build.closing or build.period, status="succeeded",
-        certification=runtime.certification, analysis_version="",
-        duration_ms=runtime.duration_ms,
-        result={
-            "values": values,
-            "units": _units(build),
-            "input_row_count": runtime.row_count,
-            "meta": {"execution": runtime.certification, "shape": build.shape,
-                     "grain": build.grain},
-            "rows": runtime.rows,
-            # Columns carry what they ARE, not only what they are called. A
-            # float printed at full precision looks like a defect, and a bare
-            # measure column in a two-period plan is the OPENING value —
-            # labelling it with the measure alone put a zero beside a claim
-            # that the figure had risen.
-            "columns": _presented(runtime, build),
-            "warnings": [*runtime.warnings, *build.warnings],
-            "chart": runtime.chart, "truncated": runtime.truncated,
-            # What to DRAW, decided from the shape of the result and from what
-            # the user asked for — never from the values. Carries its own
-            # reason and always a table toggle: a chart a credit officer
-            # cannot check against its figures is one they may not act on.
-            "visual": _visual(runtime, build, question).to_dict(),
-            "certification": runtime.certification,
-            "certification_label": runtime.certification_label,
-            "capability": reading.to_dict(),
-            "reading": build.to_dict(),
-            "plan": build.plan,
-            "query": runtime.query.to_dict() if runtime.query else None,
-            "joins": runtime.joins,
-            "reconciliation": runtime.reconciliation,
-            "fingerprint": runtime.fingerprint,
-            "datasets": build.datasets,
-            "explanation": build.summary,
-            "formulas": formulas(build),
-            "plain_english": plain_english(build),
-            "join_plan": (build.request.resolution.to_dict()
-                          if build.request is not None
-                          and build.request.resolution else None),
-        },
-        error=None,
-        trace=None, node_hashes={}, role="primary",
-    )
+    _name_the_row(narrative, build)
+    step = analysis_step(question, reading, build, runtime, index=0,
+                         role="primary", values=values)
 
     graph = analysis_graph(question, reading, build, runtime, narrative)
     step.trace = graph.to_dict()
@@ -810,7 +947,7 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
     rows = runtime.rows
     count = runtime.row_count
     measure = build.matches[0] if build.matches else None
-    label = measure.concept.label if measure else "the measure"
+    label = measure.label if measure else "the measure"
     unit = (measure.concept.unit or "") if measure else ""
 
     metrics: list[Metric] = []
@@ -834,7 +971,7 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
         spec = {c["name"]: c for c in _presented(runtime, build)}
         shown = (presentation.render(mean, spec[column]) if column in spec
                  else figures.text(mean))
-        where = (" in " + _scope_phrase(build.filters)) if build.filters else ""
+        where = (" in " + _scope_phrase(build.filters, build.widened)) if build.filters else ""
         direct = (f"{_opening(label)} averages {shown} across the {count} "
                   f"{_dimension_word(build)}"
                   f"{'s' if count != 1 else ''}{where} at {build.period}.")
@@ -843,13 +980,13 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
     elif build.shape == ap.AGGREGATE:
         column = measure.field if measure else ""
         total = float(values.get("total") or 0.0)
-        # "125,259 USD mn of exposure at default" reads correctly; a count has
+        # "125,259 SAR mn of exposure at default" reads correctly; a count has
         # no unit and "2,159  of customers" does not.
         subject = f"{unit} of {label}" if unit else label
         # "across 5 groups" is what a program says when it has forgotten what it
         # grouped by. Name the dimension, or the grain when a carried population
         # is what is on screen.
-        where = (" in " + _scope_phrase(build.filters)) if build.filters else ""
+        where = (" in " + _scope_phrase(build.filters, build.widened)) if build.filters else ""
         if build.dimension:
             direct = (f"{_fmt(total)} {subject}{where} across {count} "
                       f"{_dimension_word(build)}{'s' if count != 1 else ''} at "
@@ -874,9 +1011,50 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                                     round(float(top[column]), 2), unit,
                                     period=build.period or "")]))
     elif build.shape == ap.RANKING:
-        direct = (f"The {count} largest {_subject(build, count)} by {label} "
-                  f"at {build.period}."
-                  if count else _nothing_matched(build))
+        # A POPULATION question is answered with its population, not with the
+        # size of the table. "Show Stage 2 borrowers" came back "the 10 largest
+        # customers in IFRS 9 stage 2" — true, and it left the reader unable to
+        # tell whether the book holds eleven of them or eleven hundred. The
+        # count comes from the reconciliation the plan already computes, so
+        # nothing here is derived twice.
+        whole = _population_count(build, runtime)
+        # A population defined by a THRESHOLD is a population, not a ranking.
+        # "Which customers have covenant headroom below 15%?" answered "the 10
+        # largest customers by covenant headroom" — true of the ten rows on
+        # screen, and a description of a question nobody asked, when 1,209
+        # customers were under the line. The test is what selected them, so the
+        # test is what the sentence has to say.
+        tests = [c for c in (getattr(build, "conditions", None) or [])
+                 if str(getattr(c, "kind", "")) == "level"]
+        defined_by_test = bool(tests)
+        if defined_by_test and count:
+            # `count` is the size of the qualifying population; `rows` is what
+            # the table shows. The reconciliation count is preferred where the
+            # plan computed one, but it is not always available and a headline
+            # of "0 customers" above two hundred rows is worse than no headline.
+            population = whole or count
+            said = " and ".join(c.describe() for c in tests)
+            # Only the population is asserted. The number of rows on screen is
+            # a property of the display, not a governed figure, and stating it
+            # here put an ungrounded number in a sentence whose whole purpose
+            # is that every number in it can be checked.
+            direct = (f"{population:,} {_subject(build, population)} with "
+                      f"{said} at {build.period}.")
+        elif getattr(build, "entity_list", False) and count and whole > count:
+            # The test as well as the subject. "1,647 customers in IFRS 9
+            # stage 2 or worse" is the right count for "…and on the
+            # watchlist", and a heading that quotes the count without the
+            # test invites the reader to compare it with a different question.
+            tested = getattr(build.enforcement, "headline", "") \
+                if build.enforcement is not None else ""
+            where = f" where {tested}" if tested else ""
+            direct = (f"{whole:,} {_subject(build, whole)}{where} at "
+                      f"{build.period}. The {count} largest by {label} are "
+                      f"shown.")
+        else:
+            direct = (f"The {count} largest {_subject(build, count)} by {label} "
+                      f"at {build.period}."
+                      if count else _nothing_matched(build))
         column = measure.field if measure else ""
         share_column = f"{column}_share_pct"
         if rows:
@@ -888,14 +1066,18 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                 hint=str(top.get("borrower_name") or top.get("customer_id") or "")))
             if share_column in top:
                 covered = float(values.get("share_covered_pct") or 0.0)
-                scope = (", ".join(v for _, v in build.filters)
+                scope = (_scope_phrase(build.filters, build.widened)
                          or "the whole book")
                 findings.append(Finding(
                     text=(f"Together these {count} hold "
                           f"{figures.percent(covered)} of {scope} {label}."),
                     tone="neutral",
+                    # Two decimals, the same as the sentence. Rounding the
+                    # evidence to one and letting the card format it back to
+                    # two put 8.65% in the prose and 8.60% in the figure
+                    # beside it — one number, two values, on one screen.
                     evidence=[_evidence("share of " + scope,
-                                        round(covered, 1), "%",
+                                        round(covered, 2), "%",
                                         period=build.period or "")]))
     elif build.shape == ap.SHARE_MOVEMENT:
         numerator = dict((build.plan.get("meta") or {}).get("numerator") or {})
@@ -969,10 +1151,17 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
         # said, so "Stage 2 borrowers NOT on watchlist" was headed "where on
         # the watchlist" above rows that were not on it.
         stated = _stated(build)
-        direct = (f"{count} {_subject(build, count)} where {stated}, between "
-                  f"{build.opening} and {build.closing}.")
+        # The POPULATION, not the size of the table. A cohort is cut to 500
+        # rows, so a cohort of 740 announced itself as "500 customers" — the
+        # cap reported as the finding, and a reader comparing two questions
+        # would see the same 500 whichever they asked.
+        whole = _population_count(build, runtime) or count
+        direct = (f"{whole:,} {_subject(build, whole)} where {stated}, between "
+                  f"{build.opening} and {build.closing}."
+                  + (f" The {count} shown are ordered worst first."
+                     if whole > count else ""))
         metrics.append(Metric(label=f"{build.grain.title()}s matching",
-                              value=count, unit="count",
+                              value=whole, unit="count",
                               direction="up-is-bad"))
         if rows:
             named = rows[0].get("borrower_name") or rows[0].get("customer_id")
@@ -1011,6 +1200,107 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
     )
 
 
+def _composite_by_dimension_narrative(build: ap.AnalysisBuild,
+                                      rows: list[dict[str, Any]], count: int,
+                                      composite: dict[str, Any],
+                                      grouping: str) -> Narrative:
+    """The answer to "which SECTORS concern you most".
+
+    Every figure is read off the row the runtime returned. Nothing is
+    recomputed here: a narrative that derives its own share can disagree with
+    the table under it, and the table is the answer.
+    """
+    label = str(composite.get("label") or "the composite")
+    signals = list(composite.get("signals") or [])
+    readable = grouping.replace("_", " ")
+    top = rows[0]
+    named = str(top.get(grouping) or "")
+    # "7 carries the most governed credit concern evidence" reads as a count.
+    # A code needs its scale named; "Shipping" does not.
+    if named and not any(c.isalpha() for c in named):
+        named = f"{readable.capitalize()} {named}"
+
+    share = top.get(ap.CONCERN_SHARE)
+    affected = int(top.get(ap.CONCERN_AT_RISK) or 0)
+    borrowers = int(top.get("borrowers") or 0)
+    exposure = top.get("ead")
+
+    lead = (f"{named} carries the most governed {label} evidence of the "
+            f"{count} {readable}s in the book.")
+    if share is not None and exposure is not None:
+        lead += (f" {fg.percent(share, decimals=1)} of its "
+                 f"{fg.money(exposure, scale='SAR mn')} sits with the "
+                 f"{affected} of {borrowers} borrowers showing at least one "
+                 f"of {len(signals)} signals.")
+    elif borrowers:
+        lead += (f" {affected} of its {borrowers} borrowers show at least one "
+                 f"of {len(signals)} signals.")
+
+    metrics = [
+        Metric(label=f"Most {label} evidence", value=share, unit="%",
+               direction="negative", hint=named)
+        if share is not None else
+        Metric(label=f"Borrowers showing {label} evidence", value=affected,
+               unit="", direction="negative", hint=named),
+        Metric(label=f"{readable.capitalize()}s reported", value=count,
+               unit="", direction="neutral"),
+    ]
+
+    findings: list[Finding] = []
+    # Which signal the leading group actually carries most of. A share with no
+    # constituents is a score, and a score nobody can decompose is the thing
+    # this whole layer refuses to produce.
+    driver = _primary_driver(top, signals)
+    if driver:
+        findings.append(Finding(
+            text=(f"{named}'s most widespread signal is {driver[0]}, on "
+                  f"{driver[1]} borrowers."),
+            tone="negative",
+            evidence=[_evidence(named, driver[1], "borrowers",
+                                period=build.period or "")]))
+
+    concentrated = [str(r.get(grouping) or "") for r in rows[:5]
+                    if (r.get(ap.CONCERN_SHARE) or 0) >= 50]
+    if len(concentrated) > 1:
+        findings.append(Finding(
+            text=(f"{len(concentrated)} {readable}s carry the evidence on "
+                  f"more than half their exposure: "
+                  f"{_and_list(concentrated)}."),
+            tone="neutral", evidence=[]))
+
+    return Narrative(
+        direct_answer=lead,
+        summary=build.summary,
+        findings=findings,
+        interpretation=(
+            f"Each signal is read per facility, reduced to one answer per "
+            f"borrower, and only then aggregated to the {readable} — a "
+            f"{readable} has no arrears of its own. {readable.capitalize()}s "
+            f"are ordered by the share of exposure carried by borrowers "
+            f"showing evidence, not by how many borrowers show it: a "
+            f"{readable} of many small names with one signal each is not the "
+            f"one a committee looks at first."),
+        interpretation_points=[], metrics=metrics,
+        caveats=list(build.warnings))
+
+
+def _primary_driver(row: dict[str, Any],
+                    signals: list[dict[str, Any]]) -> tuple[str, int] | None:
+    """The signal the most borrowers in this row carry."""
+    best: tuple[str, int] | None = None
+    for signal in signals:
+        column = f"signal_{signal.get('key')}"
+        if column not in row:
+            continue
+        try:
+            borrowers = int(row.get(column) or 0)
+        except (TypeError, ValueError):
+            continue
+        if borrowers and (best is None or borrowers > best[1]):
+            best = (str(signal.get("label") or signal.get("key")), borrowers)
+    return best
+
+
 def _composite_narrative(build: ap.AnalysisBuild, runtime: Any,
                          rows: list[dict[str, Any]], count: int,
                          composite: dict[str, Any]) -> Narrative:
@@ -1034,14 +1324,45 @@ def _composite_narrative(build: ap.AnalysisBuild, runtime: Any,
             summary="", findings=[], interpretation="",
             interpretation_points=[], metrics=[], caveats=[])
 
+    # The same evidence asked about at a different grain. "Which sectors
+    # concern you most?" is answered per sector, and the borrower sentence —
+    # "17 borrowers … shows the most, at 0 of 8" — describes a table that is
+    # not the one on the screen.
+    grouping = str(((build.plan or {}).get("meta") or {}).get("dimension") or "")
+    if grouping:
+        return _composite_by_dimension_narrative(
+            build, rows, count, composite, grouping)
+
     top = rows[0]
     best = int(top.get(score) or 0)
     named = str(top.get("borrower_name") or top.get("customer_id") or "")
-    direct = (
-        f"{count} borrower{'s' if count != 1 else ''}, ranked by how many of "
-        f"{len(signals)} governed {label} signals each one shows at "
-        f"{build.period}. {named} shows the most, at {best} of "
-        f"{len(signals)}.")
+    # The population the ranking was built over, said in the first sentence.
+    # A ranking narrowed to Shipping that opens exactly like the portfolio-wide
+    # one gives the reader no way to tell that "Why Shipping?" was heard, and
+    # the whole value of carrying scope forward is that the answer shows it.
+    scope_said = _scope_phrase(build.filters or [], build.widened)
+    where = f" in {scope_said}" if scope_said else ""
+    carried = getattr(build.continuation, "referent", "") or ""
+    ordinal = dict(getattr(build.continuation, "ordinal", {}) or {})
+    if count == 1 and ordinal.get("resolved"):
+        # One borrower, named by pointing at a row of the previous answer.
+        # "1 borrower in Shipping, of the second one, ranked by ..." is what
+        # the plural sentence becomes here, and it reads as though the product
+        # is describing a table rather than answering about a company.
+        direct = (
+            f"{named} — {ordinal.get('phrase') or 'the row'} of the "
+            f"{ordinal.get('of') or count} the previous answer returned — "
+            f"shows {best} of {len(signals)} governed {label} signals at "
+            f"{build.period}.")
+    else:
+        if carried:
+            where = (f" of {carried}" if not scope_said
+                     else f"{where}, of {carried}")
+        direct = (
+            f"{count} borrower{'s' if count != 1 else ''}{where}, ranked by "
+            f"how many of {len(signals)} governed {label} signals each one "
+            f"shows at {build.period}. {named} shows the most, at {best} of "
+            f"{len(signals)}.")
 
     metrics = [
         Metric(label=f"Most {label} signals", value=best, unit="signals",
@@ -1130,19 +1451,29 @@ def _plural(word: str, count: int) -> str:
 
 #: Governed dimensions whose values are meaningless without their name.
 #: "in 2" is not a sentence; "in Stage 2" is.
-_NEEDS_ITS_NAME = {"ifrs9_stage": "Stage", "internal_grade": "grade",
-                   "dpd_bucket": "DPD bucket", "charge_rank": "charge rank"}
+_NEEDS_ITS_NAME = sc.NEEDS_ITS_NAME
 
 
-def _scope_phrase(filters: list[tuple[str, str]]) -> str:
-    """The filters as a credit officer would say them."""
-    parts: list[str] = []
-    for field_name, value in filters:
-        prefix = _NEEDS_ITS_NAME.get(field_name)
-        if prefix is None and str(value).replace(".", "").isdigit():
-            prefix = field_name.replace("_", " ")
-        parts.append(f"{prefix} {value}" if prefix else str(value))
-    return ", ".join(parts)
+#: How a widened restriction reads in a sentence. "stage 2" and "stage 2 or
+#: worse" are different populations, and an answer that says the first while
+#: showing the second has misdescribed its own rows.
+_WIDENED_SAYS = sc.WIDENED_SAYS
+
+
+def _scope_phrase(filters: list[tuple[str, str]],
+                  widened: list[Any] | None = None) -> str:
+    """The filters as a credit officer would say them.
+
+    A restriction the question widened is said as widened. The qualifier comes
+    from the plan's own record of what it compiled, not from a second reading
+    of the sentence: the phrase on the screen and the predicate that ran have
+    to be the same fact.
+
+    The rule itself lives on the scope frame, because the line ABOVE the table
+    reads the same restriction as the sentence below it. Two copies of it is
+    how one surface came to say "Stage 2" while three others said "2".
+    """
+    return sc.phrase(filters, widened)
 
 
 #: Small counts read as words. "None of the 5 customers" is a sentence written
@@ -1150,6 +1481,30 @@ def _scope_phrase(filters: list[tuple[str, str]]) -> str:
 #: the difference is the whole distance between a report and a readout.
 _WORDS = {0: "none", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five",
           6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
+
+
+def _population_count(build: ap.AnalysisBuild, runtime: Any) -> int:
+    """How many members the population actually has, before any cut.
+
+    Read from the reconciliation the runtime already produced — the step that
+    counts what each operation left — rather than counted again here. Two
+    counts of one population is how the headline and the table come to
+    disagree.
+    """
+    steps = [s for s in (getattr(runtime, "reconciliation", None) or [])
+             if isinstance(s, dict)]
+    # The LAST step before the cut, not the largest. The scan counts FACILITIES
+    # — 16,346 of them — and reporting that as the number of borrowers in
+    # Stage 2 is exactly the grain confusion the answer contract exists to
+    # stop. The population is what survived every restriction and the roll-up
+    # to the answer's grain, which is the step the LIMIT reads.
+    cut = next((i for i, s in enumerate(steps)
+                if str(s.get("step") or "") == "result"), len(steps))
+    for step in reversed(steps[:cut]):
+        rows = step.get("rows")
+        if isinstance(rows, (int, float)):
+            return int(rows)
+    return 0
 
 
 def _spelled(count: int) -> str:
@@ -1166,7 +1521,7 @@ def _nothing_matched(build: ap.AnalysisBuild) -> str:
     reader still not knowing the answer is half a finding.
     """
     population = (build.plan.get("meta") or {}).get("population") or {}
-    where = _scope_phrase(build.filters)
+    where = _scope_phrase(build.filters, build.widened)
     carried = int(population.get("count") or 0)
     if carried:
         subject = (f"the {_spelled(carried)} "
@@ -1188,7 +1543,14 @@ def _nothing_matched(build: ap.AnalysisBuild) -> str:
                 f"{_or_list(found.wanted)}")
     else:
         conditions = _stated(build)
-        lead = f"None of {subject} match {conditions or where or 'the conditions asked for'}"
+        if conditions:
+            # Set off, because a negated test reads as part of the verb
+            # otherwise: "None of Stage 3 customers match not on the
+            # watchlist" is a sentence nobody would write down.
+            lead = f"None of {subject} meet the test asked for ({conditions})"
+        else:
+            lead = (f"None of {subject} match "
+                    f"{where or 'the conditions asked for'}")
 
     instead = _where_they_sit(build) if usable else ""
     if not instead:
@@ -1279,6 +1641,11 @@ def _subject(build: ap.AnalysisBuild, count: int) -> str:
     explicitly where it is a code, because "3 3 facilities" is not a sentence.
     """
     grain = _plural(build.grain, count)
+    # A segment answer says WHICH segment. "17 segments where 12-month PD
+    # rose" names the shape of the table and not the thing it is about, and
+    # the reader asked for sectors.
+    if build.grain == gr.SEGMENT and build.dimension:
+        grain = _plural(build.dimension.replace("_", " "), count)
     enforcement = getattr(build, "enforcement", None)
     tree = getattr(enforcement, "tree", None) if enforcement is not None else None
     if tree is not None and not tree.empty and not tree.is_conjunction():
@@ -1288,9 +1655,22 @@ def _subject(build: ap.AnalysisBuild, count: int) -> str:
         # for most of them it did not. The full logic is in the sentence
         # already; the subject stays the bare population.
         return grain
-    adjectives = [v for f, v in build.filters
+    # A restriction the question WIDENED is said as widened. "customers in
+    # IFRS 9 stage 2" over a population that includes stage 3 has described
+    # rows that are not the rows on the screen, and the reader who checks the
+    # stage column is right to stop trusting the heading.
+    qualifiers = {(getattr(q, "field", ""), str(getattr(q, "value", ""))):
+                  _WIDENED_SAYS.get(getattr(q, "op", ""), "")
+                  for q in (getattr(build, "widened", None) or [])}
+
+    def _said(field_name: str, value: str, text: str) -> str:
+        tail = qualifiers.get((field_name, str(value)), "")
+        return f"{text} {tail}" if tail else text
+
+    adjectives = [_said(f, v, str(v)) for f, v in build.filters
                   if not str(v).isdigit() and len(str(v)) > 2]
-    coded = [f"{dyn.FIELD_LABELS.get(f, f.replace('_', ' '))} {v}"
+    coded = [_said(f, v,
+                   f"{dyn.FIELD_LABELS.get(f, f.replace('_', ' '))} {v}")
              for f, v in build.filters
              if str(v).isdigit() or len(str(v)) <= 2]
     subject = " ".join([*adjectives, grain])
@@ -1339,7 +1719,7 @@ def _interpretation(build: ap.AnalysisBuild, runtime: Any, count: int) -> str:
         return (f"These are the {build.grain}s where {stated} held together "
                 f"between {build.opening} and {build.closing}.")
     if build.shape == ap.RANKING and build.filters:
-        scope = ", ".join(v for _, v in build.filters)
+        scope = _scope_phrase(build.filters, build.widened)
         return (f"Shares are of {scope} exposure, not of the whole book — the "
                 "question asked about that population.")
     if build.shape == ap.AGGREGATE and build.dimension:
@@ -1408,7 +1788,7 @@ def formulas(build: ap.AnalysisBuild) -> list[dict[str, str]]:
     for condition in build.conditions:
         match = next((m for m in build.matches if m.field == condition.field),
                      None)
-        label = match.concept.label if match else condition.field
+        label = match.label if match else condition.field
         if condition.kind == "change_pct":
             out.append({
                 "name": f"{label} change %",
@@ -1439,13 +1819,14 @@ def formulas(build: ap.AnalysisBuild) -> list[dict[str, str]]:
     if build.matches:
         measure = build.matches[0]
         if f"{measure.field}_share_pct" in str(build.plan):
-            scope = ", ".join(v for _, v in build.filters) or "the population"
+            scope = (_scope_phrase(build.filters, build.widened)
+                     or "the population")
             of = build.dimension or build.grain
             out.append({
-                "name": f"{measure.concept.label} share %",
+                "name": f"{measure.label} share %",
                 "column": f"{measure.field}_share_pct",
-                "formula": (f"{of} {measure.concept.label} ÷ total "
-                            f"{measure.concept.label} across {scope} × 100"),
+                "formula": (f"{of} {measure.label} ÷ total "
+                            f"{measure.label} across {scope} × 100"),
                 "means": f"Each row's share of {scope}, not of the whole book.",
             })
     return out
@@ -1461,10 +1842,10 @@ def plain_english(build: ap.AnalysisBuild) -> str:
             f"This query reads {sources} at {build.period}"
             + (f", keeps only rows where {where}" if where else "")
             + f", groups them by {build.dimension or 'the whole population'}, "
-            f"sums {build.matches[0].concept.label if build.matches else 'the measure'} "
+            f"sums {build.matches[0].label if build.matches else 'the measure'} "
             "within each group, and orders the groups largest first.")
     if build.shape == ap.RANKING:
-        measure = (build.matches[0].concept.label if build.matches
+        measure = (build.matches[0].label if build.matches
                    else "the measure")
         return (
             f"This query reads {sources} at {build.period}"
@@ -1513,9 +1894,15 @@ def _prior_context(graph: TraceGraph, build: ap.AnalysisBuild) -> str:
             "population_sample": carried.get("entity_names"),
             "inherited": carried.get("inherited"),
             "because": carried.get("because"),
+            # How an ordinal reference — "the second one" — bound, or why it
+            # did not. Shown whether it resolved or not: a reference the
+            # product could not follow is a fact the Trace has to carry.
+            "ordinal": carried.get("ordinal") or {},
             "rule": ("A reference such as \u201cthese\u201d resolves to the "
                      "identities the previous run RETURNED, not to a "
-                     "re-derivation of the question that produced them."),
+                     "re-derivation of the question that produced them. An "
+                     "ordinal such as \u201cthe second one\u201d reads that "
+                     "stored order by position and re-ranks nothing."),
         }))
     node.mark_ok(rows_out=carried.get("entity_count") or None)
     graph.connect("intent", "prior")
@@ -1559,7 +1946,7 @@ def analysis_graph(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
         config={
             "intent": reading.intent, "intent_label": reading.label,
             "objective": build.summary,
-            "concepts": [m.concept.label for m in build.matches],
+            "concepts": [m.label for m in build.matches],
             "metrics": [f"{m.dataset}.{m.field}" for m in build.matches],
             "entities": [dict(e) for e in reading.entities],
             "dimensions": [build.dimension] if build.dimension else [],

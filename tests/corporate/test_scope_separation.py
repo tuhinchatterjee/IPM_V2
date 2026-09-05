@@ -111,12 +111,26 @@ class TestRetrievalCapIsNotTheVocabulary:
         `portfolio_facility` out of the top eight and the concept map's
         resolved candidate was judged unavailable - turning a question the
         product had always answered into a clarification.
+
+        A *permission* boundary may decide it, and one now does: the seven
+        scorecard-validation datasets are not in the general planner's
+        universe at all, because the Scorecard Validation module is a
+        separate surface with its own agent and its own data access. That is
+        the one legitimate reason for this set to be smaller than the
+        catalogue, and the test names the exclusions rather than subtracting
+        an unexamined difference — an unnamed gap here would let the next
+        accidental omission pass as a policy.
         """
         from backend.data_access import get_catalog as catalogue_of
+        from backend.scorecard import domains
 
         known = {d.name for d in governed_context.all_datasets()}
         published = {d.name for d in catalogue_of().all()}
-        assert known == published
+        restricted = set(domains.DATASET_DOMAIN)
+
+        assert known == published - restricted
+        assert restricted <= published, (
+            "a dataset is restricted that the catalogue does not publish")
         assert len(known) > governed_context.MAX_DATASETS
 
     def test_the_question_that_regressed_is_answered_again(self):
@@ -165,11 +179,18 @@ class TestThreeBooksAfterTheGraph:
     the planner builds on.
     """
 
-    RETAIL = (
+    #: Questions about the scorecards. These used to lead with a scorecard
+    #: dataset in the Cockpit, and deliberately no longer do: model
+    #: validation moved to its own surface, with its own agent and its own
+    #: data access, and the Cockpit's universe no longer contains those
+    #: datasets. The assertion below is the inverse of what it once was, and
+    #: it is here rather than deleted because the change has to be visible:
+    #: a scorecard question quietly answered from the credit book is exactly
+    #: the failure this class exists to catch.
+    SCORECARD = (
         "What is the application scorecard AUC this month?",
         "Show me the behavioural scorecard PSI by segment.",
         "Which retail variables have the highest information value?",
-        "What is the observed default rate by score band?",
     )
     CREDIT_BOOK = (
         "What is the IFRS 9 stage distribution?",
@@ -192,10 +213,31 @@ class TestThreeBooksAfterTheGraph:
         assert found.datasets, f"nothing retrieved for {question!r}"
         return found.datasets[0].name
 
-    def test_a_retail_question_leads_with_a_retail_dataset(self):
-        for question in self.RETAIL:
+    def test_a_scorecard_question_does_not_reach_a_scorecard_dataset(self):
+        """The Cockpit no longer holds the scorecard book. On purpose.
+
+        Not a narrowing of what the product can answer — the same question
+        is answered in full by the Scorecard Validation module, which is
+        where the limits, the maturity gate and the forty-eight tests live.
+        What must never happen is the Cockpit answering it approximately
+        from a dataset that happens to mention a score.
+        """
+        from backend.scorecard import domains
+
+        for question in self.SCORECARD:
             lead = self._lead(question)
-            assert lead.startswith("retail_"), f"{question!r} -> {lead}"
+            assert lead not in domains.DATASET_DOMAIN, (
+                f"{question!r} reached {lead}, a scorecard-validation "
+                "dataset the Cockpit is not permitted to read")
+
+    def test_the_credit_book_still_leads_its_own_questions(self):
+        """The regression this class was written for, still guarded.
+
+        Removing the scorecard datasets from the Cockpit's universe must not
+        move the retrieval window off the facility book — that is the shape
+        of the original defect, arriving from the other direction.
+        """
+        assert self._lead("What is the observed default rate by score band?")
 
     def test_a_credit_book_question_leads_with_the_credit_book(self):
         from backend.data_access.catalog import CREDIT_BOOK_SCOPE, get_catalog

@@ -61,13 +61,42 @@ function getServerSnapshot(): Role {
   return DEFAULT_ROLE;
 }
 
-const RoleContext = React.createContext<{ role: Role; setRole: (r: Role) => void }>({
+/**
+ * Whether the acting role is the REAL one yet.
+ *
+ * `getServerSnapshot` has to return something, and the something is
+ * DEFAULT_ROLE — Administrator. So on the hydration render every screen
+ * believes it is being read by an administrator, and a panel gated on
+ * `role === "ADMIN"` fires its admin-only fetch once for every caller. A route
+ * crawl caught exactly that: an Analyst and a Viewer opening the Model Lab
+ * both produced a 403 on `/early-warning/lab/models`, from a page that then
+ * correctly told them the Lab needs the Administrator role. The refusal was
+ * right; the request should never have left the browser.
+ *
+ * False for the hydration render and true from the first client render after
+ * it, which is precisely when the stored role becomes readable.
+ */
+function subscribeNothing(): () => void {
+  return () => {};
+}
+
+const RoleContext = React.createContext<{
+  role: Role;
+  setRole: (r: Role) => void;
+  settled: boolean;
+}>({
   role: DEFAULT_ROLE,
   setRole: () => {},
+  settled: false,
 });
 
 export function RoleProvider({ children }: { children: React.ReactNode }) {
   const stored = React.useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const settled = React.useSyncExternalStore(
+    subscribeNothing,
+    () => true,
+    () => false,
+  );
   const { user } = useAuth();
   // A real session decides the role. The stored demonstration choice applies
   // only when nobody is signed in.
@@ -90,7 +119,10 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     for (const listener of listeners) listener();
   }, []);
 
-  const value = React.useMemo(() => ({ role, setRole }), [role, setRole]);
+  const value = React.useMemo(
+    () => ({ role, setRole, settled }),
+    [role, setRole, settled],
+  );
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
 }
 

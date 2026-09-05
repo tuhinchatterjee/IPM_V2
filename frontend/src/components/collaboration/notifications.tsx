@@ -126,7 +126,7 @@ export function NotificationCentre() {
 
           <footer className="border-t border-border px-3.5 py-2">
             <Link
-              href="/workflow"
+              href="/reviews"
               onClick={() => setOpen(false)}
               className="text-[11px] text-accent hover:underline"
             >
@@ -200,7 +200,7 @@ function NotificationLine({
  * notification is conceptually standing even if they clicked from the header.
  */
 export function deepLink(note: NotificationRow): string | null {
-  const from = { href: "/workflow", label: "Workflow", type: "workflow" as const };
+  const from = { href: "/reviews", label: "My reviews", type: "workflow" as const };
   const id = note.object_id;
   if (!id) return null;
 
@@ -215,8 +215,20 @@ export function deepLink(note: NotificationRow): string | null {
       return linkBack(`/data-builder/dataset/${encodeURIComponent(id)}`, from);
     case "run":
       return linkBack(`/trace/${id}`, from);
-    case "playbook":
-      return "/playbooks";
+    case "planner_project":
+      return linkBack(`/delivery/${id}`, from);
+    // A planner task or milestone is reached through its project, so the id is
+    // stamped as "<project>:<entity>". Splitting here rather than storing two
+    // columns keeps the platform's notification table unchanged for a feature
+    // that is one of its callers.
+    case "planner_task":
+    case "planner_milestone": {
+      const [projectId, entityId] = id.split(":");
+      if (!projectId) return null;
+      const kind = note.object_type === "planner_task" ? "task" : "milestone";
+      const suffix = entityId ? `?${kind}=${encodeURIComponent(entityId)}` : "";
+      return linkBack(`/delivery/${projectId}${suffix}`, from);
+    }
     case "scenario":
       return "/stress";
     case "document":

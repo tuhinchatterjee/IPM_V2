@@ -113,13 +113,20 @@ def run_schedule_tick(job: queue.Job, should_stop: Callable[[], bool]) -> None:
     # still runs one. What cannot happen is a run nobody started.
     from backend.demo import mode
 
-    if not mode.schedules_may_fire():
-        logger.info("Synthetic Data Mode is on: schedules do not fire on their own. "
-                    "A run started from the screen still runs.")
-        return
+    # Demo Mode suppresses portfolio analysis, not the Project Planner. A
+    # review competes for the same database as the question on screen; the
+    # planner sweep reads ten small tables and is the thing the demonstration
+    # is showing — a reminder that only arrives because somebody pressed a
+    # button is not a reminder.
+    scopes = (None if mode.schedules_may_fire()
+              else (schedules.PLANNER_SCOPE,))
+    if scopes is not None:
+        logger.info("Synthetic Data Mode is on: only the Project Planner "
+                    "sweep fires on its own. A review started from the "
+                    "screen still runs.")
 
     with get_session() as session:
-        started = schedules.tick(session)
+        started = schedules.tick(session, scopes=scopes)
         if started:
             logger.info("schedule tick enqueued %s job(s)", len(started))
 

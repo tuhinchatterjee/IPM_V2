@@ -44,20 +44,59 @@ def _refused(exc: Exception) -> HTTPException:
     )
 
 
-class PanelIn(BaseModel):
-    analysis_id: str = Field(min_length=1, max_length=120)
+class TileIn(BaseModel):
+    """One tile as the person arranging the lens is holding it.
+
+    One shape for both kinds, because a lens holds an ordered list of things
+    to draw and a caller should not have to send two shapes to fill it. A tile
+    naming neither an analysis nor a metric is refused by `validate`, which
+    says which of the two is missing.
+
+    A layout is submitted whole rather than as a list of moves: an ordering is
+    not a set of independent edits, and applying five of six reorderings
+    leaves a lens nobody asked for.
+    """
+
+    kind: str = Field(default="", max_length=16)
+    analysis_id: str = Field(default="", max_length=120)
+    metric_id: str = Field(default="", max_length=160)
     title: str = Field(default="", max_length=200)
     visual: str = Field(default="auto", max_length=16)
     params: dict = Field(default_factory=dict)
     filters: dict = Field(default_factory=dict)
+    period: str = Field(default="", max_length=32)
     note: str = Field(default="", max_length=MAX_TEXT)
+
+
+class SectionIn(BaseModel):
+    """A band, and the tiles in it by position in the submitted order.
+
+    `subtitle`, not `note`: that is the key every stored lens and the renderer
+    already use, and a second name for one field is how a band's line of prose
+    goes missing between the editor and the screen.
+    """
+
+    title: str = Field(default="", max_length=200)
+    subtitle: str = Field(default="", max_length=MAX_TEXT)
+    panels: list[int] = Field(default_factory=list)
+
+
+class LayoutIn(BaseModel):
+    tiles: list[TileIn] = Field(default_factory=list)
+    sections: list[SectionIn] | None = None
+    change_summary: str = Field(default="", max_length=500)
 
 
 class LensIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=MAX_TEXT)
     audience: str = Field(default="", max_length=120)
-    panels: list[PanelIn] = Field(default_factory=list)
+    # `TileIn`, not a panel shape requiring an analysis id: a lens made
+    # through this route could otherwise hold no metric tiles at all,
+    # which is most of what a lens is for now. A tile naming neither an
+    # analysis nor a metric is still refused — by `validate`, which says
+    # which of the two is missing rather than "field required".
+    panels: list[TileIn] = Field(default_factory=list)
     project_id: int | None = None
 
 
@@ -106,7 +145,7 @@ def build_lens(payload: AskIn, principal: Principal = RequireAnalyst) -> dict:
     registry has nothing for comes back as a refusal with the reason.
     """
     try:
-        proposal = ln.propose(payload.request)
+        proposal = ln.propose(payload.request, user_id=principal.user_id)
     except ln.InvalidLens as e:
         raise _refused(e) from e
     if not proposal.panels:
@@ -156,8 +195,10 @@ def ask_lens(lens_id: int, payload: AskIn,
     and the previous one is kept so it can be put back.
     """
     try:
-        current = [ln.Panel.from_dict(p) for p in ln.get(lens_id).panels]
-        proposal = ln.propose(payload.request, existing=current)
+        before = ln.get(lens_id)
+        current = [ln.Panel.from_dict(p) for p in before.panels]
+        proposal = ln.propose(payload.request, existing=current,
+                              user_id=principal.user_id)
     except ln.LensNotFound as e:
         raise _not_found(e) from e
     except ln.InvalidLens as e:
@@ -172,6 +213,11 @@ def ask_lens(lens_id: int, payload: AskIn,
         lens = ln.revise(
             lens_id, proposal.panels, request=payload.request,
             change_summary=proposal.change_summary, user_id=principal.user_id,
+            # A revision must not scramble a lens's bands. Sections hold
+            # indices, so they are remapped by panel identity rather than
+            # carried across verbatim, and the notes travel with them.
+            sections=ln.resection(current, before.sections, proposal.panels),
+            notes=before.notes,
         )
     except ln.InvalidLens as e:
         raise _refused(e) from e
@@ -215,3 +261,85 @@ def delete_lens(lens_id: int, principal: Principal = RequireDataSteward) -> None
 
 
 __all__ = ["router"]
+
+
+@router.put("/{lens_id}/layout", summary="Rearrange a lens by hand")
+def set_layout(lens_id: int, payload: LayoutIn,
+               principal: Principal = RequireAnalyst) -> dict:
+    """Reorder tiles, band them, retitle them, change how one is drawn.
+
+    The same validation and the same versioning as the conversational path,
+    deliberately: a tile moved by hand is refused for the same reasons a tile
+    added by asking is, and a rearrangement that turns out to have been wrong
+    can be put back. There is no route into a lens that skips `validate`.
+
+    Sections address tiles by position in the list submitted with them, so an
+    ordering and its bands arrive together and cannot disagree.
+    """
+    try:
+        before = ln.get(lens_id)
+    except ln.LensNotFound as e:
+        raise _not_found(e) from e
+    except ln.StorageUnavailable as e:
+        raise _unavailable(e) from e
+
+    panels = [ln.Panel.from_dict(tile.model_dump()) for tile in payload.tiles]
+    sections = _sections_for(payload.sections, len(panels))
+
+    try:
+        lens = ln.revise(
+            lens_id, panels,
+            request="rearranged by hand",
+            change_summary=payload.change_summary or _describe(before, panels),
+            user_id=principal.user_id,
+            sections=sections, notes=before.notes)
+    except ln.InvalidLens as e:
+        raise _refused(e) from e
+    except ln.StorageUnavailable as e:
+        raise _unavailable(e) from e
+    return lens.to_dict()
+
+
+def _sections_for(sections: list[SectionIn] | None,
+                  tiles: int) -> list[dict] | None:
+    """Bands as stored, refusing any that points at a tile that is not there.
+
+    A section holding an index past the end of the list renders as a band with
+    a missing tile — or, worse, quietly picks up whichever tile later occupies
+    that position. Both are silent, so the index is checked here.
+    """
+    if sections is None:
+        return None
+    out: list[dict] = []
+    for section in sections:
+        for index in section.panels:
+            if not 0 <= index < tiles:
+                raise _refused(ln.InvalidLens(
+                    f"Section '{section.title or 'untitled'}' points at tile "
+                    f"{index}, and the layout has {tiles}."))
+        out.append({"title": section.title, "subtitle": section.subtitle,
+                    "panels": list(section.panels)})
+    return out
+
+
+def _describe(before: ln.LensView, panels: list[ln.Panel]) -> str:
+    """What changed, in a sentence, when the caller did not say.
+
+    Every revision carries one. A history of "rearranged by hand" nine times
+    tells somebody nothing about which of the nine to restore.
+    """
+    was = [(p.get("kind"), p.get("metric_id") or p.get("analysis_id"))
+           for p in before.panels]
+    now = [(p.kind, p.metric_id or p.analysis_id) for p in panels]
+    if was == now:
+        return "Retitled or redrawn without changing which tiles are shown."
+    added = [n[1] for n in now if n not in was]
+    removed = [w[1] for w in was if w not in now]
+    parts = []
+    if added:
+        parts.append(f"added {', '.join(added)}")
+    if removed:
+        parts.append(f"removed {', '.join(removed)}")
+    if not parts:
+        return "Reordered the tiles."
+    return f"Rearranged the lens: {'; '.join(parts)}."

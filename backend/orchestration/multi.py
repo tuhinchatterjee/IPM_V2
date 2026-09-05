@@ -50,6 +50,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.orchestration import concepts as cx
+from backend.orchestration import ordinal
 from backend.orchestration import predicates as pr
 from backend.orchestration.dynamic import (
     FIELD_LABELS,
@@ -231,6 +232,15 @@ class MultiRequest:
     clarifications: list[cx.ConceptMatch] = field(default_factory=list)
     #: How sure the reading is, per stage. Low anywhere means ask.
     confidence: dict[str, float] = field(default_factory=dict)
+    #: How many rows the question ASKED for, when it said. Zero means it did
+    #: not say, and the cohort is the population.
+    #:
+    #: "Show me the top ten customers with an increase in ECL" used to come
+    #: back with a hundred and six of them: the cohort builder capped at
+    #: MAX_ROWS, which is a display limit, and nothing carried the ten. A
+    #: stated count is a predicate like any other, and dropping it answers a
+    #: question nobody asked under a heading quoting the one they did.
+    top_n: int = 0
 
     @property
     def datasets(self) -> list[str]:
@@ -334,6 +344,20 @@ def _bind_ordering(request: Any, reading: Any, *, resolver: Any,
     # turning it into one would drop the conditions that define the cohort.
 
 
+def _stated_top_n(text: str) -> int:
+    """How many rows the question asked for, or 0 when it did not say.
+
+    Delegated to the analysis planner's reader rather than written twice: two
+    readers of "the top ten" are two chances for one of them to say eleven.
+    """
+    from backend.orchestration import analysis_planner as ap
+
+    try:
+        return int(ap._explicit_top_n(text) or 0)
+    except Exception:  # noqa: BLE001 - an unread count is not a failure
+        return 0
+
+
 def read_question(question: str, *, catalogue: Any, periods: list[str],
                   dimensions: dict[str, list[str]] | None = None,
                   relationships: list[dict[str, Any]] | None = None,
@@ -361,6 +385,9 @@ def read_question(question: str, *, catalogue: Any, periods: list[str],
     request.clarifications = list(request.reading.needs_clarification)
     request.confidence["fields"] = (
         min((m.confidence for m in request.reading.matches), default=0.0))
+
+    # A stated row count is part of the request, not a rendering preference.
+    request.top_n = _stated_top_n(request.question)
 
     # ---- 2. grain and periods
     request.grain = _grain_of(request.question)
@@ -427,6 +454,55 @@ def read_question(question: str, *, catalogue: Any, periods: list[str],
         conditions.append(Condition(
             field=match.field, kind="level", op=comparison, value=value,
             phrase=match.phrase, higher_is_worse=match.concept.higher_is_worse))
+
+    # Numeric thresholds — "headroom below 15%", "DSCR below 1.2x", "utilisation
+    # above 90%" — and the crossings that share their vocabulary. Read from the
+    # WHOLE question rather than from the defining clauses, for the same reason
+    # `_read_levels` above is: a threshold states where the population IS, and
+    # the defining-clause extraction is tuned for how a measure MOVED.
+    #
+    # Without this the bound was dropped in silence and the question became a
+    # ranking: "customers with headroom below 15%" returned the ten largest
+    # headrooms in the book, described as such, when 1,209 customers qualified.
+    from backend.orchestration import thresholds as th
+
+    bounded, bound_unread = th.read(request.question, resolver=resolver,
+                                    whole=request.question)
+    import os as _os
+    if _os.environ.get("CP_DEBUG_THRESHOLDS"):
+        print("[TH] q=", request.question[:60],
+              "| bounded=", [(c.field, c.kind, c.op, c.value) for c in bounded],
+              "| unread=", bound_unread, flush=True)
+    already = {(c.field, c.kind) for c in conditions}
+    crossed = {c.field for c in bounded
+               if c.kind in ("level_open", "level_close")}
+    if crossed:
+        # A crossing and a magnitude on the same measure are two readings of
+        # one phrase. The crossing is the one the sentence actually made.
+        conditions = [c for c in conditions
+                      if not (c.field in crossed
+                              and c.kind in ("change_pct", "change_abs"))]
+        already = {(c.field, c.kind) for c in conditions}
+    for condition in bounded:
+        if (condition.field, condition.kind) in already:
+            continue
+        local = cx.read_concepts(condition.phrase, known=known,
+                                 catalogue=catalogue)
+        match = next((m for m in local.matches if m.field == condition.field),
+                     None) or by_phrase.get(condition.field)
+        if match is None:
+            # Traced to no governed concept: reported rather than applied, so
+            # the answer says what it could not read instead of quietly
+            # answering a wider question.
+            request.reasons.append(
+                f"CreditProbe could not trace '{condition.phrase}' to a "
+                "governed measure.")
+            continue
+        by_phrase[condition.field] = match
+        conditions.append(condition)
+    for phrase in bound_unread:
+        request.reasons.append(
+            f"CreditProbe could not read: '{phrase}'")
 
     lowered = request.question.lower()
     if re.search(_ASSOCIATION_WORDS, lowered):
@@ -608,13 +684,34 @@ def explain(request: MultiRequest) -> str:
 
 #: How a measure rolls up when a side has to be aggregated to the analysis
 #: grain. An ordinal takes its worst value; money sums; a rate takes its worst.
+def _carry(column: str) -> str:
+    """How a FILTER or dimension column survives the roll-up to the grain.
+
+    A dimension is a property of the borrower — one sector, one region — so any
+    facility's value is the borrower's and `any_value` is exact.
+
+    An ORDINAL is not. A borrower with a stage 1 facility and a stage 3 facility
+    is a stage 3 borrower; `any_value` picks whichever row the engine reached
+    first, so "which Stage 2 or worse borrowers had rising PD?" selected its
+    population from an arbitrary facility per name and agreed with neither
+    reading of the question. The single-period path already rolls the stage up
+    with the governed direction, and this is the same rule in the same words —
+    `ordinal.DIRECTION` says which end is worse.
+    """
+    from backend.orchestration import ordinal
+
+    if column in ordinal.DIRECTION:
+        return "max" if ordinal.DIRECTION[column] else "min"
+    return "any_value"
+
+
 def _rollup(match: cx.ConceptMatch) -> str:
     if match.concept.is_categorical:
         return "any_value"
     if match.concept.is_ordinal:
         return "max" if match.concept.higher_is_worse else "min"
-    if match.concept.unit in ("USD mn", ""):
-        return "sum" if match.concept.unit == "USD mn" else "max"
+    if match.concept.unit in ("SAR mn", ""):
+        return "sum" if match.concept.unit == "SAR mn" else "max"
     return "max" if match.concept.higher_is_worse else "min"
 
 
@@ -730,7 +827,7 @@ def build_plan(request: MultiRequest, *, catalogue: Any) -> PlanBuild:
                     "aggregates": [
                         *[{"function": _rollup(m), "column": column, "as": column}
                           for column, m in gathered],
-                        *[{"function": "any_value", "column": c, "as": c}
+                        *[{"function": _carry(c), "column": c, "as": c}
                           for c in dict.fromkeys([*dimensions, *filter_fields,
                                                   "period"])
                           if c != key and c in base_fields],
@@ -822,11 +919,22 @@ def build_plan(request: MultiRequest, *, catalogue: Any) -> PlanBuild:
     grouped: dict[str, list[str]] = {}
     for dimension, value in request.filters:
         grouped.setdefault(dimension, []).append(value)
-    standing = [
-        ({"column": dimension, "op": "=", "value": values[0]} if len(values) == 1
-         else {"column": dimension, "op": "in", "values": values})
-        for dimension, values in grouped.items()
-    ]
+    # "…at stage 2 or worse" resolves ONE value and means a range. Emitting it
+    # as `= 2` excluded the stage 3 borrowers the question was reaching for
+    # from a population that claimed to include them. Part 12. Read here as
+    # well as on the single-dataset path, because a condition can be lost on
+    # either and a fix that only guards one guards nothing.
+    standing = []
+    for dimension, values in grouped.items():
+        if len(values) != 1:
+            standing.append({"column": dimension, "op": "in",
+                             "values": values})
+            continue
+        widened = ordinal.read(request.question, dimension, values[0])
+        standing.append(
+            {"column": dimension, "op": ">=" if widened.op == "gte" else "<=",
+             "value": values[0]} if widened is not None
+            else {"column": dimension, "op": "=", "value": values[0]})
     if request.population and request.population.get("ids"):
         standing.append({"column": str(request.population["key"]), "op": "in",
                          "values": [str(v) for v in request.population["ids"]]})
@@ -1029,10 +1137,12 @@ def _cohort(operations: list[dict[str, Any]], request: MultiRequest,
         "params": {"by": [{"column": sort_column, "direction": direction}]},
         "label": sort_label,
     })
+    cut = min(request.top_n, MAX_ROWS) if request.top_n else MAX_ROWS
     operations.append({
         "id": "result", "op": "LIMIT", "inputs": ["ranked"],
-        "params": {"n": MAX_ROWS},
-        "label": f"The first {MAX_ROWS} rows",
+        "params": {"n": cut},
+        "label": (f"The {cut} the question asked for" if request.top_n
+                  else f"The first {cut} rows"),
     })
 
 
@@ -1127,6 +1237,14 @@ def _condition_column(binding: Binding,
     return {"change_pct": f"{measure}_change_pct",
             "change_abs": f"{measure}_change",
             "level": at_close,
+            # The two halves of a CROSSING. "fell below 15%" tests where the
+            # measure WAS at the opening date and where it IS at the closing
+            # one, and the closing half is the value that qualifies the row —
+            # the one the answer must show, and the one the threshold applies
+            # to. Naming both explicitly is what stops the opening figure being
+            # cited as though it were the qualifying figure.
+            "level_open": measure,
+            "level_close": at_close,
             # An ordering binding filters on nothing; it names the column the
             # answer is sorted by — and "closest to breach" means closest now.
             "order": at_close}[binding.condition.kind]

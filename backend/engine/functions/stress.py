@@ -11,6 +11,8 @@ otherwise would be the kind of overclaim that discredits everything around it.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pandas as pd
 
 from backend.data_access.catalog import FACILITY_POSITION
@@ -132,9 +134,9 @@ def _ratio(stressed: pd.Series, base: pd.Series) -> pd.Series:
     ],
     outputs=[
         OutputField("metric", "Metric name.", "string"),
-        OutputField("base", "Reported value before the shock.", "number", unit="USD mn", precision=2),
-        OutputField("stressed", "Value after the shock.", "number", unit="USD mn", precision=2),
-        OutputField("change", "Absolute change.", "number", unit="USD mn", precision=2),
+        OutputField("base", "Reported value before the shock.", "number", unit="SAR mn", precision=2),
+        OutputField("stressed", "Value after the shock.", "number", unit="SAR mn", precision=2),
+        OutputField("change", "Absolute change.", "number", unit="SAR mn", precision=2),
         OutputField("change_pct", "Percentage change.", "number", unit="%", precision=2),
     ],
     validation_rules=[
@@ -253,7 +255,7 @@ def stress_scenario_basic(ctx: ExecutionContext) -> AnalysisResult:
     stressed_ead = float(work["stressed_ead"].sum())
     stressed_ecl = float(work["stressed_ecl"].sum()) + migrated_extra_ecl
 
-    def line(metric: str, base: float, stressed: float, unit: str = "USD mn") -> dict:
+    def line(metric: str, base: float, stressed: float, unit: str = "SAR mn") -> dict:
         return {
             "metric": metric, "base": rounded(base, 3), "stressed": rounded(stressed, 3),
             "change": rounded(stressed - base, 3),
@@ -312,7 +314,7 @@ def stress_scenario_basic(ctx: ExecutionContext) -> AnalysisResult:
                 "stressed_coverage_pct": rounded(stressed_coverage, 3),
                 "by_sector": sector_rows,
                 "basis": "Management scenario. Not a regulatory or IFRS 9 lifetime calculation."},
-        units={"base": "USD mn", "stressed": "USD mn", "change": "USD mn", "change_pct": "%"},
+        units={"base": "SAR mn", "stressed": "SAR mn", "change": "SAR mn", "change_pct": "%"},
         input_row_count=int(len(df)),
         warnings=ctx.warnings,
         meta={"grain": "One row per metric; sector detail in values.by_sector.",
@@ -321,6 +323,20 @@ def stress_scenario_basic(ctx: ExecutionContext) -> AnalysisResult:
 
 
 # ============================================================ user-defined example
+
+
+def _number(value: Any, fallback: float) -> float:
+    """A supplied number, honouring nought.
+
+    `value or fallback` throws away 0 and 0.0 because both are falsy, which is
+    how a threshold of "everything" became a threshold of 90%.
+    """
+    if value is None:
+        return float(fallback)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(fallback)
 
 
 @register(AnalysisContract(
@@ -369,7 +385,7 @@ def stress_scenario_basic(ctx: ExecutionContext) -> AnalysisResult:
         OutputField("borrower_name", "Borrower name.", "string"),
         OutputField("utilisation_pct", "Current utilisation.", "number", unit="%", precision=1),
         OutputField("utilisation_change_pp", "Change since the prior period.", "number", unit="pp", precision=1),
-        OutputField("ead", "Exposure at default.", "number", unit="USD mn", precision=1),
+        OutputField("ead", "Exposure at default.", "number", unit="SAR mn", precision=1),
     ],
     validation_rules=[
         ValidationRule("above_threshold", "Every returned facility must exceed the threshold."),
@@ -385,8 +401,14 @@ def stress_scenario_basic(ctx: ExecutionContext) -> AnalysisResult:
 ))
 def high_utilisation_watchlist(ctx: ExecutionContext) -> AnalysisResult:
     period, _, _ = resolve_periods(ctx.source, FACILITY, ctx.params.get("period"), None)
-    threshold = float(ctx.params.get("threshold_pct") or 90.0)
-    top_n = int(ctx.params.get("top_n") or 20)
+    # NOT `ctx.params.get(...) or 90.0`. Nought is falsy, so asking for a 0%
+    # threshold — "show me everything" — was silently rewritten to 90%, and
+    # `top_n=0` to 20. A governed parameter the caller set, replaced without
+    # saying so, is the silent substitution the contract forbids; the contract
+    # has already applied its own defaults by the time this runs, so the `or`
+    # bought nothing and cost that.
+    threshold = _number(ctx.params.get("threshold_pct"), 90.0)
+    top_n = int(_number(ctx.params.get("top_n"), 20))
 
     fields = ["account_id", "customer_id", "borrower_name", "sector", "ead",
               "limit_amount", "utilisation_pct", "prev_utilisation_pct",
@@ -426,12 +448,30 @@ def high_utilisation_watchlist(ctx: ExecutionContext) -> AnalysisResult:
         for _, r in selected.iterrows()
     ]
 
+    # Nothing matched: say what the book actually holds, rather than leaving a
+    # reader to wonder whether the panel is broken. On the current book the
+    # highest utilisation is around 72%, so the governed 90% threshold is
+    # legitimately never met — and an empty answer that cannot explain itself
+    # is indistinguishable from one that failed. The figure below is measured,
+    # not asserted.
+    observed = work.loc[~work["watchlist"].fillna(False).astype(bool),
+                        "utilisation_pct"]
+    highest = rounded(float(observed.max()), 2) if len(observed) else None
+    said = ""
+    if not len(selected):
+        said = (f"No facility is utilised above {threshold:g}%. The highest "
+                f"outside the watchlist is {highest:g}%."
+                if highest is not None else
+                f"No facility is utilised above {threshold:g}%.")
+
     return AnalysisResult(
         rows=rows,
         values={"period": period, "threshold_pct": threshold,
                 "matched": int(len(selected)),
+                "highest_utilisation_pct": highest,
+                "statement": said,
                 "total_ead": rounded(float(selected["ead"].sum()), 2)},
-        units={"ead": "USD mn", "utilisation_pct": "%", "utilisation_change_pp": "pp"},
+        units={"ead": "SAR mn", "utilisation_pct": "%", "utilisation_change_pp": "pp"},
         input_row_count=int(len(df)),
         warnings=ctx.warnings,
         meta={"grain": "One row per facility.",

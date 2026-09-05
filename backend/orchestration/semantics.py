@@ -24,6 +24,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from backend.orchestration import temporal
 from backend.orchestration.dynamic import Condition
 
 # ---------------------------------------------------------------- direction
@@ -177,8 +178,15 @@ def _mask(clause: str, phrase: str) -> str:
 
 
 def find_movement(text: str) -> Movement | None:
-    """The movement word in a fragment, and any number attached to it."""
-    lowered = text.lower()
+    """The movement word in a fragment, and any number attached to it.
+
+    Time is removed before the number is read. "ECL rose in Q1 2026" compiled
+    to `total_ecl_change > 2026` and returned an empty population under a
+    heading saying "ECL rose more than 2026" — a valid plan, a running query,
+    passing invariants, and a finding a credit officer might believe. A period
+    is a type, not a quantity, and the two must not share a parser.
+    """
+    lowered = temporal.without_time(text).lower()
     best: tuple[int, Direction] | None = None
     for direction in DIRECTIONS:
         match = re.search(direction.pattern, lowered)
@@ -193,6 +201,8 @@ def find_movement(text: str) -> Movement | None:
     # does not, and reading its 2 as a threshold turns "Stage 2 rose" into
     # "stage rose by more than two", which is a different and empty question.
     at = re.search(direction.pattern, lowered)
+    # The tail is taken from the time-free text for the same reason: a period
+    # standing after the direction word is not the size of the movement.
     tail = lowered[at.end():] if at else ""
     magnitude = _MAGNITUDE.search(tail)
     if magnitude and _is_a_period(tail, magnitude):
@@ -200,6 +210,17 @@ def find_movement(text: str) -> Movement | None:
         # Reading the 6 as a threshold turned a question about a year into
         # "ECL rose by more than six", which is a different and much smaller
         # cohort — and nothing on screen said so.
+        magnitude = None
+    if magnitude and _is_a_label(tail, magnitude):
+        # "What drove the increase in STAGE 2 exposure?" says WHICH, not HOW
+        # MUCH. The 2 is the name of a stage, and reading it as a threshold
+        # produced "IFRS 9 stage is 2 and IFRS 9 stage rose and EAD rose more
+        # than 2" — three conditions from a sentence that states one, and two
+        # facilities where the question was about a portfolio.
+        #
+        # Same shape as the period guard above and for the same reason: a
+        # category label is a TYPE, not a quantity, and the two must not share
+        # a parser.
         magnitude = None
     if not magnitude:
         return Movement(direction=direction, phrase=text.strip())
@@ -232,6 +253,19 @@ _TIME_UNIT = re.compile(
     r"^\s*(?:(?:reporting|calendar|fiscal|financial|trading|business|"
     r"consecutive|full)\s+)?"
     r"(?:months?|quarters?|years?|weeks?|days?|periods?)\b", re.I)
+
+
+#: Nouns whose following number NAMES a category rather than sizing a change.
+#: "stage 2", "grade 7", "bucket 3", "band 4" are all the identity of a class.
+#: Notches are deliberately absent: "deteriorated two notches" IS a magnitude.
+_LABEL_NOUN = re.compile(
+    r"(?:stages?|grades?|buckets?|bands?|tiers?|categor(?:y|ies)|classes|"
+    r"class|levels?|rating grades?)\s*$", re.I)
+
+
+def _is_a_label(tail: str, magnitude: Any) -> bool:
+    """Whether the number after a movement word names a category."""
+    return bool(_LABEL_NOUN.search(tail[:magnitude.start()]))
 
 
 def _is_a_period(tail: str, magnitude: Any) -> bool:
@@ -490,10 +524,15 @@ _PLUS_BOUND = re.compile(
 
 
 def find_threshold(text: str) -> Threshold | None:
-    """The level test in a fragment, if it states one."""
-    match = _THRESHOLD.search(text or "")
+    """The level test in a fragment, if it states one.
+
+    Time removed first, as in `find_movement`: "covenant headroom below 15% in
+    Q1 2026" states one threshold, not two, and "ECL above 2026" states none.
+    """
+    said = temporal.without_time(text or "")
+    match = _THRESHOLD.search(said)
     if match is None:
-        plus = _PLUS_BOUND.search(text or "")
+        plus = _PLUS_BOUND.search(said)
         if plus is not None:
             return Threshold(op="gte", value=float(plus.group("value")),
                              unit=(plus.group("unit") or "").lower().strip(),

@@ -17,11 +17,19 @@ flask==3.1.3
 numpy==2.5.0
 # Retry/backoff around the AI backends (backend/services/ai_common.py).
 tenacity==9.1.4
-# Committee report packs: reportlab writes the PDF, python-docx the Word file,
-# and matplotlib renders the charts once as PNG so both formats show the same
-# picture. Pillow is reportlab's image backend.
+# Committee report packs, one library per format the pack is offered in:
+# reportlab writes the PDF, python-docx the Word file, python-pptx the deck,
+# and openpyxl (above) the evidence workbook. matplotlib renders the charts
+# once as PNG so every format shows the same picture; Pillow is reportlab's
+# image backend.
+#
+# python-pptx is also what READS an uploaded deck in backend/playbook/import_.py.
+# It was missing from this file until a Docker run found it: the developer
+# virtual environment had it, the container did not, and the slides export
+# answered 500 in the only place the product actually ships.
 reportlab==5.0.0
 python-docx==1.2.0
+python-pptx==1.0.2
 matplotlib==3.11.0
 pillow==12.2.0
 requests==2.34.2

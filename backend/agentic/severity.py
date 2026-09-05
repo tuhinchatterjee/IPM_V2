@@ -115,7 +115,7 @@ def _and_list(items: list[str]) -> str:
     return f"{', '.join(items[:-1])} and {items[-1]}"
 
 
-#: What "material" means in the demonstration universe, in USD millions. A
+#: What "material" means in the demonstration universe, in SAR millions. A
 #: constant rather than a magic number in a formula, and one an administrator's
 #: policy can override — a bank whose smallest exposure is a billion has a
 #: different idea of material.

@@ -52,6 +52,7 @@ sentence that says "this".
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -222,7 +223,18 @@ class ConversationState:
     result: ResultShape = field(default_factory=ResultShape)
     visualization: str = ""
     certified_methods: list[str] = field(default_factory=list)
+    #: The certified analysis the last analytical turn ran, and the parameters
+    #: it ran with. Carried so a follow-up can drill into what is on screen —
+    #: "which borrowers drove that step?" — instead of composing a fresh
+    #: ranking that shares a subject with the answer above it and nothing else.
+    certified_analysis: str = ""
+    certified_params: dict[str, Any] = field(default_factory=dict)
     turns: list[Turn] = field(default_factory=list)
+    #: The question CreditProbe could not plan and asked about, held so the
+    #: reply can be merged with it instead of read as a fresh request. §9: a
+    #: clarification must not destroy the context the thread had settled.
+    #: Cleared by the next turn that settles anything.
+    pending: str = ""
 
     # ---- reading -----------------------------------------------------------
 
@@ -280,7 +292,10 @@ class ConversationState:
             "result": self.result.to_dict(),
             "visualization": self.visualization,
             "certified_methods": list(self.certified_methods),
+            "certified_analysis": self.certified_analysis,
+            "certified_params": dict(self.certified_params),
             "turns": [t.to_dict() for t in self.turns],
+            "pending": self.pending,
         }
 
     @classmethod
@@ -310,7 +325,10 @@ class ConversationState:
             result=ResultShape.from_dict(raw.get("result") or {}),
             visualization=str(raw.get("visualization") or ""),
             certified_methods=[str(v) for v in raw.get("certified_methods") or []],
+            certified_analysis=str(raw.get("certified_analysis") or ""),
+            certified_params=dict(raw.get("certified_params") or {}),
             turns=[Turn.from_dict(t) for t in raw.get("turns") or []],
+            pending=str(raw.get("pending") or ""),
         )
 
     # ---- what the model is told -------------------------------------------
@@ -424,6 +442,19 @@ CORRECT_INCOMPLETE_RESPONSE = "CORRECT_INCOMPLETE_RESPONSE"
 #: Deliberate changes of analytical scope.
 RESET_SCOPE = "RESET_SCOPE"
 WIDEN_SCOPE = "WIDEN_SCOPE"
+#: The reader named a governed dimension value and nothing else — "Why
+#: Shipping?", "And Contracting?", "What about Stage 2?".
+#:
+#: It is not a new request: the sentence names no measure, so read as one it
+#: produced "which figure should CreditProbe measure?" — the product asking the
+#: reader to repeat what it had just computed. It is not a CONTINUE either:
+#: the named value REPLACES the active scope rather than intersecting with the
+#: rows already on screen, and carrying those rows would answer "why Shipping?"
+#: about whichever twenty-five names the previous ranking happened to return.
+#:
+#: So: keep the measure, the period and the shape of the analysis that just
+#: ran; take the population from the value the sentence names.
+NARROW_SCOPE = "NARROW_SCOPE"
 
 ACTIONS: tuple[str, ...] = (
     NEW_REQUEST, CONTINUE,
@@ -431,7 +462,8 @@ ACTIONS: tuple[str, ...] = (
     MODIFY_PERIOD, MODIFY_PRESENTATION,
     ENRICH_PREVIOUS, ASK_ABOUT_RESULT, ASSESS_PREVIOUS_RESULT,
     METADATA_FOLLOWUP, NAVIGATE,
-    CORRECT_INCOMPLETE_RESPONSE, RESET_SCOPE, WIDEN_SCOPE, CLARIFY,
+    CORRECT_INCOMPLETE_RESPONSE, RESET_SCOPE, WIDEN_SCOPE, NARROW_SCOPE,
+    CLARIFY,
 )
 
 #: Every kind of modification, for code that only cares that it is one.
@@ -460,7 +492,7 @@ REUSES_RESULT = frozenset({MODIFY_PRESENTATION, ASSESS_PREVIOUS_RESULT})
 CONTINUING = frozenset(
     {CONTINUE, ENRICH_PREVIOUS, CLARIFY, ASK_ABOUT_RESULT,
      ASSESS_PREVIOUS_RESULT, METADATA_FOLLOWUP, NAVIGATE,
-     CORRECT_INCOMPLETE_RESPONSE, WIDEN_SCOPE}
+     CORRECT_INCOMPLETE_RESPONSE, WIDEN_SCOPE, NARROW_SCOPE}
     | MODIFICATIONS)
 
 #: RESET_SCOPE is deliberately NOT continuing. It is the one follow-up whose
@@ -514,6 +546,10 @@ class Continuation:
     changes: list[str] = field(default_factory=list)
     #: Why this was read as a continuation rather than a new request.
     because: str = ""
+    #: How an ordinal reference — "the second one" — bound to the stored order.
+    #: Carried whether or not it bound: a reference that could not be resolved
+    #: is a fact the Trace has to show, not one to leave out.
+    ordinal: dict[str, Any] = field(default_factory=dict)
 
     @property
     def carries_context(self) -> bool:
@@ -535,7 +571,37 @@ class Continuation:
             "inherited": dict(self.inherited),
             "changes": list(self.changes),
             "because": self.because,
+            "ordinal": dict(self.ordinal),
         }
+
+
+#: A reply to a clarification rather than a new question. Short, and it does
+#: not ask anything of its own — "Expected credit loss.", "The 12-month PD",
+#: "Yes, since last quarter". A full sentence that asks something is a new
+#: question however closely it follows a clarification.
+_ASKS = re.compile(
+    r"^\s*(?:what|which|who|whom|whose|when|where|why|how|show|list|rank|give|"
+    r"tell|compare|find|break|bridge|explain|is|are|was|were|do|does|did|can|"
+    r"could|would|should|has|have|had)\b", re.IGNORECASE)
+
+#: How long a reply may be and still be read as an answer rather than a
+#: question. Long enough for "the movement in expected credit loss since Q4",
+#: short enough that a fresh sentence does not slip through.
+MAX_REPLY_WORDS = 10
+
+
+def answers_a_clarification(reply: str) -> bool:
+    """Whether this sentence answers the question CreditProbe just asked.
+
+    Deliberately conservative, and in one direction. Reading a reply as a new
+    question loses the pending intent, which is the defect §9 names; reading a
+    new question as a reply would answer something nobody asked, which is
+    worse. So only a short, non-interrogative fragment counts.
+    """
+    text = " ".join(str(reply or "").split())
+    if not text or len(text.split()) > MAX_REPLY_WORDS:
+        return False
+    return not _ASKS.match(text)
 
 
 def load(context: dict[str, Any] | None) -> ConversationState:
@@ -560,7 +626,8 @@ __all__ = [
     "ACTIONS", "ASSESS_PREVIOUS_RESULT", "CLARIFY", "CONTINUE", "CONTINUING",
     "ENRICH_PREVIOUS",
     "MAX_ENTITY_IDS", "MAX_REUSE_ROWS", "MAX_SNAPSHOT_ROWS", "MAX_TURNS",
-    "MODIFY_PREVIOUS", "NEW_REQUEST", "REUSES_RESULT", "STATE_KEY",
+    "MAX_REPLY_WORDS", "MODIFY_PREVIOUS", "NARROW_SCOPE", "NEW_REQUEST",
+    "REUSES_RESULT", "STATE_KEY", "answers_a_clarification",
     "ConversationState", "Continuation", "ResultShape", "Turn",
     "load", "save",
 ]

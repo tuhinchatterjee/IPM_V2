@@ -76,6 +76,19 @@ ALLOWLIST: tuple[Allowed, ...] = (
         "validator reads. Same reasoning as metrics.py: the deterioration "
         "being diagnosed is usually smaller than 0.01."),
     Allowed(
+        "backend/scorecard/validation/",
+        "The Scorecard Validation Intelligence engine: the same statistics "
+        "as metrics.py, rendered into the sentence a validator reads on the "
+        "screen and in the .docx. Extending the exemption rather than "
+        "loosening it — an AUC of 0.6547 against a 0.65 limit is a WARNING "
+        "and at two decimals reads 0.65, which is the limit exactly, so the "
+        "sentence stops saying whether the model cleared it. A retention "
+        "ratio of 0.71 and an information value of 0.0193 are the same "
+        "point: the finding lives below the second decimal. Money, counts "
+        "and percentages in this package go through the contract as "
+        "everywhere else — `report.percent` renders every rate, and "
+        "`report.stat` every statistic that reaches the report."),
+    Allowed(
         "backend/corporate/graphmath.py",
         "The spectral radius of an ownership component, in the refusal "
         "message that explains why effective ownership was not computed. "

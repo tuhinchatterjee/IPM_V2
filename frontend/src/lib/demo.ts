@@ -217,7 +217,7 @@ export interface Project {
   team: string;
   status: "active" | "in_review" | "closed";
   updated: string;
-  counts: { chats: number; investigations: number; playbooks: number; documents: number };
+  counts: { chats: number; investigations: number; documents: number };
   investigationIds: string[];
 }
 
@@ -231,7 +231,7 @@ export const PROJECTS: Project[] = [
     team: "Wholesale Credit",
     status: "active",
     updated: "2026-03-31",
-    counts: { chats: 6, investigations: 2, playbooks: 2, documents: 1 },
+    counts: { chats: 6, investigations: 2, documents: 1 },
     investigationIds: ["stage-2-deterioration", "rating-migration-review"],
   },
   {
@@ -243,7 +243,7 @@ export const PROJECTS: Project[] = [
     team: "Wholesale Credit",
     status: "active",
     updated: "2026-03-28",
-    counts: { chats: 4, investigations: 1, playbooks: 1, documents: 1 },
+    counts: { chats: 4, investigations: 1, documents: 1 },
     investigationIds: ["real-estate-deterioration"],
   },
   {
@@ -255,7 +255,7 @@ export const PROJECTS: Project[] = [
     team: "Group Finance",
     status: "in_review",
     updated: "2026-03-30",
-    counts: { chats: 3, investigations: 1, playbooks: 1, documents: 1 },
+    counts: { chats: 3, investigations: 1, documents: 1 },
     investigationIds: ["ecl-movement-investigation"],
   },
 ];

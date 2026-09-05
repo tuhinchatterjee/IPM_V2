@@ -636,8 +636,8 @@ def compare_versions(model_id_a: int, model_id_b: int, *,
         "summary": (
             f"Against {len(shared):,} facilities in {period}, moving from "
             f"{a['name']} to {b['name']} would put {len(moved_up)} facilities "
-            f"carrying {ead_up:,.0f} USD mn into a worse band and take "
-            f"{len(moved_down)} carrying {ead_down:,.0f} USD mn into a better "
+            f"carrying {ead_up:,.0f} SAR mn into a worse band and take "
+            f"{len(moved_down)} carrying {ead_down:,.0f} SAR mn into a better "
             f"one. {unchanged:,} would not move."
         ),
     }

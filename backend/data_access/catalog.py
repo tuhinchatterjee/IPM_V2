@@ -41,7 +41,7 @@ class FieldDef:
     business_name: str  # what a risk officer calls it, e.g. "Exposure at Default"
     definition: str  # what it means, in reviewable English
     data_type: str  # string | integer | number | boolean | date
-    unit: str | None = None  # e.g. "USD mn", "%", "days", "x"
+    unit: str | None = None  # e.g. "SAR mn", "%", "days", "x"
     allowed_values: list[str] | None = None
     sensitivity: str = "internal"  # public | internal | confidential | restricted
     nullable: bool = True

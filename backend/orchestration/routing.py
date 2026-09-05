@@ -231,6 +231,14 @@ class Decision:
     input_tokens: int = 0
     output_tokens: int = 0
     cost_estimate: float = 0.0
+    #: Whether anything was actually measured into the two figures above. A
+    #: deterministic turn makes no model call and genuinely costs nothing;
+    #: a turn nobody instrumented also reports nothing, and the two must not
+    #: be indistinguishable.
+    measured: bool = False
+    #: Calls whose model carries no configured tariff, so their tokens are
+    #: counted and their cost is not.
+    unpriced_calls: int = 0
     #: The teaching cases retrieved for this route (§17, §45). Ids only.
     teaching_cases: list[str] = field(default_factory=list)
     #: Set when the configured complex role could not be served and §28's
@@ -277,7 +285,15 @@ class Decision:
             "latency_ms": self.latency_ms,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
-            "cost_estimate": round(self.cost_estimate, 6),
+            # None, not zero, where nothing was measured. This field used to
+            # publish 0.0 on every turn because nothing ever set it, and a
+            # figure that is always zero is worse than no figure: it looks
+            # like an answer, reconciles with nothing, and the first person to
+            # add it up gets a total that is wrong in a flattering direction.
+            # Part 14.
+            "cost_estimate": (round(self.cost_estimate, 6)
+                              if self.measured else None),
+            "cost_measured": self.measured,
         }
 
     @property
@@ -520,6 +536,31 @@ def decide(question: str, *, reading: Any = None, continuation: Any = None,
         configured_model=chosen.model,
         degraded="budget" if held else "",
         reason=reason)
+
+
+def record_call(decision: Decision, call: Any) -> Decision:
+    """Fold one recorded model call into this turn's cost. Part 14.
+
+    Called where the orchestrator has both the decision and the telemetry
+    record, so the per-turn figure is the sum of calls that actually happened
+    rather than an estimate nobody can reconcile.
+    """
+    from backend.llm import cost as ct
+
+    decision.input_tokens += int(getattr(call, "input_tokens", 0) or 0)
+    decision.output_tokens += int(getattr(call, "output_tokens", 0) or 0)
+    spent = ct.of_call(call)
+    if spent is None:
+        decision.unpriced_calls += 1
+    else:
+        decision.cost_estimate += spent
+    # Measured either way: a call whose model is unpriced still happened, and
+    # the tokens are real. What is unknown is the money, and `unpriced_calls`
+    # is what says so.
+    decision.measured = True
+    if not decision.served_model:
+        decision.served_model = str(getattr(call, "model", "") or "")
+    return decision
 
 
 def escalate(previous: Decision, why: str, *, to: str = COMPLEX) -> Decision:

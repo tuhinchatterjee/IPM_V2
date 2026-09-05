@@ -42,7 +42,6 @@ export {
   fromDataset,
   fromTraceNode,
   fromCockpit,
-  fromPlaybook,
   INDEX_OF,
 } from "./return-context";
 

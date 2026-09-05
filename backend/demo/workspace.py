@@ -7,8 +7,7 @@ The problem this solves
 A development database accumulates. By the time this phase opened, the local
 platform database held 2,312 Projects — 2,079 of them identically named
 "Contracting concentration review" — 4,772 Investigations, 231 Lenses
-including "Test lens", 385 Playbooks including "Test appetite check", and ten
-user accounts called things like `wf_author`. Every one of those was created
+including "Test lens" and ten user accounts called things like `wf_author`. Every one of those was created
 by a passing test and every one of them would have been on screen in front of
 a client.
 
@@ -25,9 +24,9 @@ the second.
 
 Removed: Projects, Investigations and their messages and versions, saved
 Analyses, workflow items and their events, messages and recipients,
-notifications, comments, Risk Cases, agent runs and tasks, playbook runs,
-Lenses, Playbooks, analysis runs, assurance records, feedback events, learning
-observations, grid preferences.
+notifications, comments, Risk Cases, agent runs and tasks, Lenses, analysis
+runs, assurance records, feedback events, learning observations, grid
+preferences, and the Playbook committee record.
 
 Never touched: the governed datasets, domains, field definitions and
 relationships; the teaching library; Regulatory, Teaching and Learning
@@ -86,9 +85,25 @@ RESET_ORDER: tuple[str, ...] = (
     "agent_events",
     "agent_tasks",
     "agent_runs",
-    # dashboards and standing instructions
-    "playbook_runs",
-    "playbooks",
+    # the committee record: sources and reminders point at packs, packs at
+    # committees, and the whole graph goes before the Planner tasks a
+    # committee action links to
+    "playbook_sources",
+    "playbook_reminders",
+    "playbook_events",
+    "playbook_versions",
+    "playbook_reviews",
+    "playbook_actions",
+    "playbook_decisions",
+    "playbook_findings",
+    "playbook_blocks",
+    "playbook_snapshots",
+    "playbook_sections",
+    "playbook_packs",
+    "playbook_members",
+    "playbook_templates",
+    "playbook_committees",
+    # dashboards
     "lens_revisions",
     "lenses",
     # the analytical record
@@ -293,7 +308,7 @@ def residue(session: Any) -> list[str]:
     from sqlalchemy import func, select
 
     from backend.db.models import User
-    from backend.models.platform import Lens, Playbook, Project
+    from backend.models.platform import Lens, Project
 
     found: list[str] = []
 
@@ -306,11 +321,10 @@ def residue(session: Any) -> list[str]:
         found.append(f"{how_many} Projects share the name {name!r} — a test "
                      "suite created them, and a client would see every one")
 
-    for model, label in ((Lens, "Lens"), (Playbook, "Playbook")):
-        rows = session.execute(
-            select(model.name).where(model.name.ilike("test%"))).scalars().all()
-        for name in sorted(set(rows)):
-            found.append(f"{label} named {name!r} is test residue")
+    rows = session.execute(
+        select(Lens.name).where(Lens.name.ilike("test%"))).scalars().all()
+    for name in sorted(set(rows)):
+        found.append(f"Lens named {name!r} is test residue")
 
     accounts = session.execute(
         select(User.username)

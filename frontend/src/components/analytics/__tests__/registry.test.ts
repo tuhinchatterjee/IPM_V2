@@ -192,6 +192,45 @@ test("an ECL movement offers a waterfall", () => {
   assert.equal(supports(choice, "waterfall"), true);
 });
 
+test("an ECL bridge draws the money impact, not its percentage", () => {
+  // The step of a bridge is named `step_impact` and is signed, so it belongs
+  // on a zero line — and it is the money the reader came for. Drawing
+  // `change_pct` instead plots a restatement of the figure and leaves the
+  // provision off the chart entirely.
+  const choice = chooseVisualization(
+    [
+      col("step", { semantic: "count" }),
+      col("description"),
+      col("ecl", { semantic: "money" }),
+      col("step_impact", { semantic: "money" }),
+      col("change_pct", { semantic: "percent" }),
+    ],
+    rows(6, (i) => ({
+      step: i + 1,
+      description: `Step ${i + 1}`,
+      ecl: 1000 + i * 100,
+      step_impact: i === 0 ? 0 : (i % 2 === 0 ? 100 : -100),
+      change_pct: i === 0 ? null : 5,
+    })),
+  );
+  assert.equal(choice.kind, "diverging-bar");
+  assert.equal(choice.x, "description");
+  assert.deepEqual(choice.series, ["step_impact"]);
+  assert.equal(supports(choice, "waterfall"), true);
+});
+
+test("an impact that never goes negative is a level, not a change", () => {
+  // `debtrank_impact` is a network risk score. It is called an impact and it
+  // is not a movement, and a diverging bar of it would draw a zero line that
+  // means nothing.
+  const shape = shapeOf(
+    [col("borrower_id", { is_identity: true }),
+     col("debtrank_impact", { semantic: "ratio" })],
+    rows(6, (i) => ({ borrower_id: `B${i}`, debtrank_impact: i * 0.1 })),
+  );
+  assert.equal(shape.change.length, 0);
+});
+
 test("a stage migration is a matrix and offers a Sankey", () => {
   const choice = chooseVisualization(
     [col("from_stage"), col("to_stage"), col("ead", { semantic: "money" })],

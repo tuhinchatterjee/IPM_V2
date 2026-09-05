@@ -26,11 +26,10 @@ from pydantic import BaseModel, Field
 from backend.analyst import classify
 from backend.analyst import cost as ai_cost
 from backend.api.permissions import Principal, RequireAdmin, RequireAnalyst
-from backend.engine.registry import get_registry
 from backend.engine.runner import run_analysis
 from backend.orchestration import modification as modification_service
 from backend.orchestration import store
-from backend.orchestration.executor import STAGES, run_investigation
+from backend.orchestration.executor import STAGES, answer_investigation
 from backend.orchestration.planner import planner_mode
 from backend.orchestration.schema import PlanRejected
 from backend.orchestration.vocabulary import get_vocabulary
@@ -115,37 +114,29 @@ STARTER_QUESTIONS = [
 
 @router.get("/suggestions", summary="Questions CreditProbe can answer today")
 def suggestions() -> dict:
-    """What to ask when nothing has been asked yet.
+    """The three questions the Cockpit offers, from the approved set.
 
-    Built from the catalogue that is actually loaded, so an installation with
-    different data gets different suggestions and a demonstration never opens
-    with a question about a dataset nobody has. The registered starters stand
-    behind that: they are gated on the analyses this build carries, so a
-    suggestion never names a method that is not there.
+    Three, and only from `suggestions.COCKPIT`. The endpoint used to merge the
+    catalogue's openers with every registered starter and hand back six, and
+    the Cockpit sliced the first three off the front — so which three a reader
+    saw depended on the order two lists happened to concatenate in, and half
+    of them had never been run through the Ask path at all.
+
+    A suggestion is a promise. These five are the ones the product stands
+    behind; the registered starters below remain available to callers that
+    ask for a method by name, but they are not offered on the opening screen.
     """
     from backend.orchestration import suggestions as sg
     from backend.orchestration.context import retrieve
 
-    registry = get_registry()
-    available = set(registry.ids())
-    starters = [{"question": q["question"], "note": q["note"]}
-                for q in STARTER_QUESTIONS if q["needs"] in available]
-
     try:
-        from_catalogue = [{"question": q, "note": "From the governed catalogue"}
-                          for q in sg.opening(retrieve(""))]
+        approved = sg.opening(retrieve(""))
     except Exception:  # noqa: BLE001 - an empty composer is not a failure
         logger.exception("Opening suggestions could not be built")
-        from_catalogue = []
+        approved = []
 
-    seen: set[str] = set()
-    questions: list[dict[str, str]] = []
-    for entry in [*from_catalogue, *starters]:
-        text = entry["question"].strip().lower()
-        if text and text not in seen:
-            seen.add(text)
-            questions.append(entry)
-    return {"questions": questions[:6]}
+    return {"questions": [{"question": q, "note": "From the governed catalogue"}
+                          for q in approved[:sg.COCKPIT_AT_ONCE]]}
 
 
 @router.get("/recent", summary="Recently asked questions")
@@ -288,15 +279,39 @@ def _ask(payload: AskIn, principal: Principal) -> dict[str, Any]:
             (payload.from_period, payload.to_period)
             if payload.from_period and payload.to_period else None
         )
-        investigation = run_investigation(
-            payload.question,
+        # An `investigation_id` means this question continues that
+        # investigation, and it has to carry what the investigation settled.
+        # It did not: this route passed the id along so the answer would be
+        # FILED against the thread and then planned the sentence as though
+        # nothing had been asked before it — so a caller that named the thread
+        # got no population, no measure and no period from it, and "which of
+        # those" reached the planner with no "those" to resolve.
+        #
+        # The same three functions the Investigation route uses, so there is
+        # one mechanism rather than two that disagree.
+        asked, state, memory = payload.question, None, None
+        if payload.investigation_id:
+            from backend.orchestration import conversation as cv
+            from backend.orchestration import memory as wm
+            from backend.services import threads as th
+
+            context = th.context_of(payload.investigation_id)
+            asked, _resumed = th.resume(context, payload.question)
+            state, memory = cv.load(context), wm.load(context)
+
+        investigation, answered = answer_investigation(
+            asked,
             user_id=principal.user_id,
             project_id=payload.project_id,
             investigation_id=payload.investigation_id,
             persist=payload.persist,
             period=period,
+            state=state,
+            memory=memory,
         )
-    except PlanRejected as e:  # pragma: no cover - run_investigation returns instead
+        if payload.investigation_id and payload.persist:
+            th.remember(payload.investigation_id, investigation, answered)
+    except PlanRejected as e:  # pragma: no cover - the executor returns instead
         raise HTTPException(status_code=422,
                             detail={"error": "plan_rejected", "message": str(e),
                                     "reasons": e.reasons}) from e

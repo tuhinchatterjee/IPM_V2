@@ -67,6 +67,63 @@ _JUDGEMENTS: dict[str, Judgement] = {
         limitation="Requires Attention shows Portfolio and Data as empty at "
                    "Q2 2026 because nothing moved at those levels. Nothing "
                    "is invented to fill a filter."),
+    "/delivery": Judgement(
+        "The delivery portfolio: every project you are a participant on, with "
+        "its health and the sentence behind it, weighted progress, overdue "
+        "and blocked counts, next milestone and manager. An Attention panel "
+        "above the table names the projects that need somebody, with the "
+        "reason for each, and a portfolio read labels every claim as a fact "
+        "or a reading of the facts.",
+        limitation="A project nobody has put you on is not listed and cannot "
+                   "be opened by its URL. That is the access boundary, not a "
+                   "gap: CreditProbe is single-tenant, so participation IS "
+                   "the boundary."),
+    "/delivery/my-work": Judgement(
+        "Every task with your name on it, across every delivery project, in "
+        "six buckets ordered by what needs you first. Clicking one opens the "
+        "quick update: status, progress, a sentence, and blocked with a "
+        "reason.",
+        limitation="Owner and due date are deliberately absent from the quick "
+                   "update. Reporting progress and moving a commitment are "
+                   "different acts, the second needs editor access, and a "
+                   "field that can only ever produce a 403 is worse than no "
+                   "field. The drawer says so rather than leaving it to be "
+                   "discovered."),
+    "/delivery/[id]": Judgement(
+        "One delivery project across its tabs — Overview, Plan, Timeline, "
+        "Workstreams, Milestones, People, Updates, Brief — with the export "
+        "and workbook import, the chase drafts, and an AI brief whose every "
+        "line is labelled Fact, Reading, Suggested or Not recorded. The "
+        "Timeline draws the plan against dates and marks the calculated "
+        "critical path.",
+        status=PARTIAL,
+        limitation="Risks and milestones can be raised and added here but not "
+                   "edited here: closing a risk or marking a milestone "
+                   "achieved is still API-and-workbook only. The critical "
+                   "path is now computed by the scheduling engine rather than "
+                   "read off a marker, and where the plan does not support "
+                   "one the Timeline says why instead of drawing a guess."),
+    "/delivery/new": Judgement(
+        "Create a delivery project: name, code, dates, the manager, and the "
+        "participants, or import a plan from a workbook. Every field the "
+        "planner needs, and nothing it does not.",
+        limitation="A project can be created here but its plan is built "
+                   "afterwards, on the project page or by importing a "
+                   "workbook. There is no task grid on this screen."),
+    "/metrics": Judgement(
+        "The Metric Catalogue: what CreditProbe means by each number. Search "
+        "by whatever you call it — \u201cNPL rate\u201d, \u201cbad rate\u201d "
+        "and \u201cdefault rate\u201d are one metric — then read the "
+        "definition, the formula, the fields it reads, what it excludes and "
+        "what it is not. Calculate it for a period, look at the rows behind "
+        "it, and check it against a number you already trusted.",
+        limitation="Sixty-one governed metrics over five published datasets. "
+                   "What this deployment cannot calculate is listed with the "
+                   "reason rather than omitted: retail IFRS 9 staging and "
+                   "ECL, roll and cure rates, the approval rate, PSI, and the "
+                   "ECL movement bridge. Building a metric is available "
+                   "through the API and the preview endpoint; there is no "
+                   "form on this screen yet."),
     "/analyses": Judgement(
         "Every saved Analysis, filterable, each opening its definition."),
     "/analysis/[analysisId]": Judgement(
@@ -86,6 +143,41 @@ _JUDGEMENTS: dict[str, Judgement] = {
     "/investigations/saved/[id]": Judgement(
         "A saved Investigation at a chosen version, refreshable against a "
         "new period."),
+    "/playbook": Judgement(
+        "The Playbook: every committee the signed-in user sits on, the pack "
+        "each one is preparing, how ready it is, and what is waiting on "
+        "them. The entry point to the committee cycle rather than a list of "
+        "documents.",
+        role="Committee members. A committee nobody has added you to does "
+             "not appear, and a platform administrator reaches every one."),
+    "/playbook/committees": Judgement(
+        "Every committee with its cadence, purpose, business area, "
+        "participants and the packs it has produced. New committees are "
+        "defined here.",
+        role="Committee members; a platform administrator sees all."),
+    "/playbook/committees/[committeeId]": Judgement(
+        "One committee: its terms of reference, who is on it in what role, "
+        "its standard agenda, the workflow offsets that drive the schedule, "
+        "and every pack it has produced with the status of each.",
+        role="Members of that committee, plus a platform administrator."),
+    "/playbook/packs/[packId]": Judgement(
+        "One committee pack, read the way the committee reads it: section by "
+        "section, each governed figure with the period, the movement against "
+        "the previous cycle and the working behind it — metric version, "
+        "formula hash, dataset, dataset version, numerator, denominator and "
+        "run id. Findings are answered or reopened, decisions recorded, "
+        "actions raised and sent to the Project Planner, commentary written "
+        "and reviewed, the pack moved through its states and downloaded as "
+        "PDF, Word, slides or the evidence workbook.",
+        limitation="AI-drafted commentary needs a configured AI provider. "
+                   "With none configured the drafting control reports that "
+                   "plainly rather than writing a fallback nobody signed; "
+                   "every other part of the pack works without one."),
+    "/playbook/packs/new": Judgement(
+        "Start the next pack for a committee: the template, the reporting "
+        "period, the comparison period, the meeting date and the data "
+        "freeze. The sections come from the published template.",
+        role="Contributors and above on the committee."),
     "/projects": Judgement("Credit Projects the signed-in user can reach."),
     "/projects/[id]": Judgement(
         "One Project: its Investigations, its people, its workflow and its "
@@ -179,11 +271,62 @@ _JUDGEMENTS: dict[str, Judgement] = {
                    "derivation has not been run for reads NOT COMPUTED "
                    "rather than showing a blank."),
     "/scorecard-validation": Judgement(
-        "Retail Scorecard Validation: the application and behavioural "
-        "scorecards, twelve tabs covering discrimination, calibration, "
-        "stability, variable diagnostics, implementation replication, the "
-        "model registry with its exact equations, the two agentic "
-        "diagnostics, trends, findings and the validation policy.",
+        "Scorecard Validation Intelligence: three scorecards — retail "
+        "application, retail behaviour and Saudi SME — against forty-eight "
+        "tests in eleven categories. A question box that answers by running "
+        "the governed tests, a model-health strip stating how many periods "
+        "carry a realised outcome, the findings that would change a "
+        "decision with the route to check each one, and a results workspace "
+        "carrying every result's chart, table, method and limitations.",
+        role="Analyst or above; running a test needs the analyse "
+             "permission, because a conversational wrapper around a "
+             "computation is still the computation",
+        limitation="Every figure is computed over synthetic demonstration "
+                   "data marked SYNTHETIC_DEMO, which describes no real "
+                   "customer, and twenty-six of the ninety SME variables "
+                   "are proxies for external authorities this product is "
+                   "not connected to. A cohort whose performance window has "
+                   "not closed reads NOT YET MATURED, never as zero "
+                   "defaults. A measurement with no governed threshold "
+                   "reads NO APPROVED LIMIT, which is not a pass. There is "
+                   "no overall score for the model, on purpose. The report "
+                   "is a DRAFT for a validator to sign; CreditProbe issues "
+                   "no validation opinion and claims no compliance. A run "
+                   "started here is recorded and can be reopened from "
+                   "Validation History; if the database is unreachable the "
+                   "tests still run and the response says the run was NOT "
+                   "recorded rather than returning a key nobody kept."),
+    "/scorecard-validation/history": Judgement(
+        "Validation History: every recorded validation run, as it was "
+        "recorded. Filter by scorecard, open a run to see the values it "
+        "measured against the limits in force at the time, compare two "
+        "runs to answer what changed since the last validation, re-run the "
+        "same configuration against current data as a NEW run, and draft "
+        "or finalise a report bound to one specific run.",
+        role="Analyst or above to read a run; drafting and finalising a "
+             "report need the analyse permission and are attributed to the "
+             "person who did them",
+        limitation="Nothing on this screen recalculates. Every figure was "
+                   "computed when its run was made and is read back "
+                   "unchanged, so a run whose data has since moved still "
+                   "shows what it showed then — which is the point, not a "
+                   "staleness defect. No control on the page edits a stored "
+                   "result: a correction is a new run. A finalised report "
+                   "cannot be reopened or edited. A comparison between two "
+                   "runs produced by different calculation versions is "
+                   "shown with that drift named rather than silently "
+                   "differenced. Runs are institutional evidence and are "
+                   "readable by anyone who may see the module, not only by "
+                   "the person who started them."),
+    "/scorecard-validation/monitoring": Judgement(
+        "Retail scorecard ongoing monitoring: the application and "
+        "behavioural scorecards, twelve tabs covering discrimination, "
+        "calibration, stability, variable diagnostics, implementation "
+        "replication, the model registry with its exact equations, the two "
+        "agentic diagnostics, trends, findings and the validation policy. "
+        "Same data as the validation cockpit, a different question — "
+        "monitoring asks what changed this month, validation asks whether "
+        "the model works.",
         role="Administrator, Data Steward or Analyst",
         limitation="Every figure is computed over synthetic demonstration "
                    "data marked SYNTHETIC_DEMO, which describes no real "
@@ -221,7 +364,48 @@ _JUDGEMENTS: dict[str, Judgement] = {
     "/agent-operations": Judgement(
         "Agent Operations: runs, workers, schedules, budgets and approvals.",
         role="Administrator"),
-    "/workflow": Judgement("Assigned work, comments and notifications."),
+    "/workflow": Judgement(
+        "Administrative oversight of message and review activity across every "
+        "account: who is active, who has unread work, whose requests are "
+        "overdue, who has stopped signing in, with a link to Users. Counts "
+        "and status only.",
+        role="Administrator",
+        limitation="Deliberately carries no subject line and no message body. "
+                   "Reading a conversation requires being in it, and "
+                   "administering an account is not being in it; governance "
+                   "reads the audit log, which records acts rather than "
+                   "contents."),
+    "/reviews": Judgement(
+        "One person's own review queue: what has been sent to them for "
+        "review, approval, sign-off or comment, what they are waiting on, "
+        "where they were named, what is due, and what is closed. Every "
+        "decision writes to an append-only history.",
+        limitation="A Viewer may read a decision history and reply, but not "
+                   "decide; the decision buttons are hidden rather than "
+                   "shown and refused."),
+    "/messages": Judgement(
+        "The message centre: Inbox, Action required, Sent, Drafts and "
+        "Archived over one set of messages, with search and an unread "
+        "filter. Composing offers the governed directory on focus and shares "
+        "analyses, investigations and files as access-checked cards.",
+        limitation="Unread counts conversations rather than individual "
+                   "messages: one Inbox row is one conversation, and opening "
+                   "it reads everything currently in it."),
+    "/messages/[threadId]": Judgement(
+        "One conversation: every message in order, the attachments as cards "
+        "that open the object, the review actions the state machine permits, "
+        "and the append-only status history. Opening it marks it read and "
+        "the unread count falls immediately.",
+        limitation="Forwarding is not implemented; reply and reply-to-thread "
+                   "are. Whether an attachment's share grant should travel "
+                   "with a forward is a permission decision nobody has "
+                   "made."),
+    "/workspace": Judgement(
+        "My workspace: what is waiting on this person, what colleagues have "
+        "shared with them, and what they have recently worked on. Every tile "
+        "is a count of real rows that can be clicked through to.",
+        limitation="Reads the same attention summary as the header badge and "
+                   "the mailbox tabs, so the four cannot disagree."),
     "/users": Judgement("Users, roles and teams.", role="Administrator"),
     "/settings": Judgement("Theme, display preferences and session."),
     "/lenses": Judgement(
@@ -232,8 +416,12 @@ _JUDGEMENTS: dict[str, Judgement] = {
                "requires an Analyst.",
         limitation="The permission is deliberate; the invitation is the "
                    "rough edge. Sign in as Analyst or Administrator."),
-    "/lenses/[lensId]": Judgement("One Lens and its panels.",
-                                  role="Administrator, Analyst"),
+    "/lenses/[lensId]": Judgement(
+        "One Lens: its tiles, banded as the lens says to band them, each able "
+        "to explain how its number is calculated. Changed either by asking or "
+        "by arranging it directly — both write a version that can be put "
+        "back, and both are refused by the same rules.",
+        role="Administrator, Analyst"),
     "/lenses/cro": Judgement("The CRO Lens: the executive story.",
                              role="Administrator, Analyst"),
     "/early-warning": Judgement(
@@ -251,11 +439,6 @@ _JUDGEMENTS: dict[str, Judgement] = {
         role="Administrator"),
     "/stress": Judgement("Scenario definitions and their impact.",
                          role="Administrator, Analyst"),
-    "/playbooks": Judgement(
-        "Saved sequences of governed analyses.",
-        status=PARTIAL,
-        limitation="Manual and on-publication triggers run; scheduled "
-                   "triggers are not wired to a scheduler."),
     "/documents": Judgement(
         "Document authoring.",
         status=HIDDEN,

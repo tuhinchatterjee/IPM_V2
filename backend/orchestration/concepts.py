@@ -74,10 +74,17 @@ class Candidate:
     qualifiers: tuple[str, ...] = ()
     #: The candidate used when nothing in the question chooses.
     is_default: bool = False
+    #: What to CALL this figure in a sentence, when the concept's own label
+    #: would be wrong for it. The `exposure` concept is labelled "drawn
+    #: exposure" because that is its default, and an answer computed from
+    #: `ifrs9_staging.ead` was headed "16,686 SAR mn of drawn exposure" — the
+    #: right number under the name of a different measure. Empty means the
+    #: concept's label is right for this candidate, which is the usual case.
+    label: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {"dataset": self.dataset, "field": self.field,
-                "definition": self.definition,
+                "definition": self.definition, "label": self.label,
                 "qualifiers": list(self.qualifiers), "is_default": self.is_default}
 
 
@@ -123,9 +130,10 @@ class Concept:
 
 
 def _c(dataset: str, field_: str, definition: str, *qualifiers: str,
-       default: bool = False) -> Candidate:
+       default: bool = False, label: str = "") -> Candidate:
     return Candidate(dataset=dataset, field=field_, definition=definition,
-                     qualifiers=tuple(qualifiers), is_default=default)
+                     qualifiers=tuple(qualifiers), is_default=default,
+                     label=label)
 
 
 #: The concepts CreditProbe understands, and where each one lives.
@@ -138,7 +146,7 @@ CONCEPTS: tuple[Concept, ...] = (
     Concept(
         id="ecl", label="expected credit loss",
         pattern=r"expected credit loss|\becl\b|impairment|provision(?:ing)?",
-        unit="USD mn",
+        unit="SAR mn",
         candidates=(
             _c(IFRS9, "total_ecl",
                "The impairment charge as the IFRS 9 calculation booked it. The "
@@ -163,7 +171,7 @@ CONCEPTS: tuple[Concept, ...] = (
     Concept(
         id="ead", label="exposure at default",
         pattern=r"exposure at default|\bead\b",
-        unit="USD mn",
+        unit="SAR mn",
         candidates=(
             _c(FACILITY, "ead",
                "CCF-adjusted exposure at default on the facility position — "
@@ -178,17 +186,49 @@ CONCEPTS: tuple[Concept, ...] = (
     Concept(
         id="exposure", label="drawn exposure",
         pattern=r"drawn exposure|outstanding balance|\bexposure\b(?! at default)",
-        unit="USD mn",
+        unit="SAR mn",
         candidates=(
             _c(FACILITY, "exposure",
                "Drawn, outstanding exposure on the facility position.",
-               "outstanding", "drawn", "operational", default=True),
+               "outstanding", "drawn", "operational", default=True,
+               label="drawn exposure"),
             _c(FACILITY, "ead",
                "CCF-adjusted exposure at default, which includes an allowance "
-               "for undrawn commitments.", "at default", "ccf", "committed"),
+               "for undrawn commitments.", "at default", "ccf", "committed",
+               label="exposure at default"),
             _c(IFRS9, "ead",
                "Exposure as the impairment calculation used it.",
-               "regulatory", "ifrs9", "ifrs 9"),
+               # The IFRS 9 vocabulary IS the qualifier. "Stage 2 exposure",
+               # "the exposure behind the ECL", "exposure-weighted PD" all
+               # name the impairment exposure, and asking which of three
+               # measures was meant is asking a question the sentence already
+               # answered. Written as the words a person uses rather than as
+               # the word "ifrs9", which nobody types.
+               "regulatory", "ifrs9", "ifrs 9",
+               "stage 1", "stage 2", "stage 3", "ifrs 9 stage",
+               "expected credit loss", "ecl", "impairment", "provision",
+               "12-month pd", "lifetime pd", "loss given default",
+               label="exposure at default"),
+        )),
+    Concept(
+        id="notches_since_origination", label="notches since origination",
+        # A DISTANCE from where the facility was written, not a grade. The
+        # generic `rating` concept below matches the bare word "notches", so
+        # "how far have grades slipped since origination" resolved to
+        # `customer_ratings.internal_grade` and came back as a distribution of
+        # rating GRADES — a real answer to a question nobody asked. The longer
+        # phrase wins because `_widest` keeps the longer match.
+        pattern=r"notch(?:es)? (?:since|below|from) origination"
+                r"|grade slippage|slipp\w* since origination"
+                r"|notches_since_origination",
+        is_ordinal=True, unit="notches",
+        candidates=(
+            _c(IFRS9, "notches_since_origination",
+               "How many grades below its origination rating the facility is "
+               "carried at now. Zero means it is where it was written; three "
+               "or more is the SICR threshold most banks watch.",
+               "facility", "account", "staging", "ifrs9", "ifrs 9",
+               default=True),
         )),
     Concept(
         id="rating", label="internal rating",
@@ -702,7 +742,7 @@ CONCEPTS_V2: tuple[Concept, ...] = (
     Concept(
         id="overlay", label="management and macro overlay",
         pattern=r"overlay|management adjustment|post[- ]?model adjustment|\bpma\b",
-        unit="USD mn",
+        unit="SAR mn",
         candidates=(
             _c(IFRS9, "macro_overlay",
                "The overlay added on top of modelled ECL. A judgement, not a "
@@ -713,7 +753,7 @@ CONCEPTS_V2: tuple[Concept, ...] = (
     Concept(
         id="model_ecl", label="modelled ECL",
         pattern=r"model(?:led|ed)? ecl|modelled impairment|pre[- ]?overlay ecl",
-        unit="USD mn",
+        unit="SAR mn",
         candidates=(_c(IFRS9, "model_ecl",
                        "ECL as the impairment model computed it, before any "
                        "overlay.", default=True),)),
@@ -750,7 +790,7 @@ CONCEPTS_V2: tuple[Concept, ...] = (
         # is to say arbitrarily.
         pattern=r"arrears (?:amount|balance)|amount (?:in arrears|overdue)|"
                 r"past[- ]?due amount|overdue amount|missed instalments?",
-        unit="USD mn",
+        unit="SAR mn",
         candidates=(
             _c(DELINQUENCY, "arrears_amount",
                "The amount currently overdue.", default=True),
@@ -800,7 +840,7 @@ CONCEPTS_V2: tuple[Concept, ...] = (
         # is reported as unavailable. Excluded, the coverage gate says so.
         pattern=r"collateral(?!\s+cover)|security(?! interest)|\bltv\b|"
                 r"net realisable value",
-        higher_is_worse=False, unit="USD mn",
+        higher_is_worse=False, unit="SAR mn",
         candidates=(
             _c(FACILITY, "collateral_value",
                "The collateral value carried on the facility position.",
@@ -816,7 +856,7 @@ CONCEPTS_V2: tuple[Concept, ...] = (
         id="limit", label="approved limit",
         pattern=r"\blimits?\b|approved (?:limit|facility)|facility size|"
                 r"committed amount",
-        unit="USD mn",
+        unit="SAR mn",
         candidates=(
             _c(FACILITY, "limit_amount",
                "The approved limit on the facility position.", default=True),
@@ -827,7 +867,7 @@ CONCEPTS_V2: tuple[Concept, ...] = (
     Concept(
         id="undrawn", label="undrawn commitment",
         pattern=r"undrawn|unutilised|unused (?:limit|commitment)|headroom on the limit",
-        unit="USD mn",
+        unit="SAR mn",
         candidates=(_c(FACILITY, "undrawn",
                        "The committed amount not yet drawn.", default=True),)),
     Concept(
@@ -923,10 +963,21 @@ class ConceptMatch:
     def field(self) -> str:
         return self.candidate.field
 
+    @property
+    def label(self) -> str:
+        """What to call the figure that was actually computed.
+
+        The candidate's own name where it has one, and the concept's
+        otherwise. A concept spanning three measures that differ by material
+        amounts cannot have one label that is true of all three, and the
+        sentence has to name the one that ran.
+        """
+        return self.candidate.label or self.concept.label
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "concept": self.concept.id,
-            "label": self.concept.label,
+            "label": self.label,
             "phrase": self.phrase,
             "dataset": self.dataset,
             "field": self.field,
@@ -995,10 +1046,34 @@ def _client_authority_over(chosen: Candidate, usable: list[Candidate],
     return client[0]
 
 
+def _carried_candidate(usable: list[Any],
+                       preferred: list[str] | None) -> Any | None:
+    """The first preferred dataset that actually carries this concept.
+
+    Order is the caller's: the dataset an analysis used comes before one the
+    conversation merely looked at.
+    """
+    for name in preferred or []:
+        for candidate in usable:
+            if candidate.dataset == name:
+                return candidate
+    return None
+
+
 def resolve_concept(concept: Concept, question: str, *,
                     known: dict[str, set[str]], catalogue: Any = None,
-                    phrase: str = "") -> ConceptMatch | None:
-    """Choose the field this concept means in THIS question."""
+                    phrase: str = "",
+                    preferred_datasets: list[str] | None = None
+                    ) -> ConceptMatch | None:
+    """Choose the field this concept means in THIS question.
+
+    `preferred_datasets` is the book the conversation is already reading. It
+    settles a choice BETWEEN fields that all carry this concept, and nothing
+    else: it cannot introduce a field the concept does not have, and it is
+    ranked below both an explicit qualifier in the sentence and a steward's
+    declaration of authority. Every use of it is written into the match's
+    reason, so the answer says which source it read and why.
+    """
     lowered = question.lower()
     usable = [c for c in concept.candidates if _available(c, known)]
     if not usable:
@@ -1042,6 +1117,25 @@ def resolve_concept(concept: Concept, question: str, *,
                         "a steward has declared it authoritative; the "
                         f"synthetic source {chosen.dataset}.{chosen.field} "
                         "was not used."))
+        # The dataset this thread is already reading, where it carries the
+        # concept too.
+        #
+        # A reader who asked about Corporate IFRS 9 and then asked a question
+        # about stage and exposure was answered from the facility book, because
+        # the default candidate is chosen without reference to the
+        # conversation. Both figures are governed and both are defensible; the
+        # one the reader is looking at is the one they meant.
+        carried = _carried_candidate(usable, preferred_datasets)
+        if carried is not None and carried is not chosen:
+            return ConceptMatch(
+                concept=concept, candidate=carried, phrase=phrase,
+                confidence=0.85,
+                alternatives=tuple(c for c in usable if c is not carried),
+                reason=(f"'{concept.label}' exists in {len(usable)} governed "
+                        f"datasets. CreditProbe used {carried.dataset}."
+                        f"{carried.field} because this conversation is already "
+                        f"reading {carried.dataset}; the usual default is "
+                        f"{chosen.dataset}.{chosen.field}."))
         others = tuple(c for c in usable if c is not chosen)
         catalogue_note = ""
         if catalogue is not None:
@@ -1057,7 +1151,24 @@ def resolve_concept(concept: Concept, question: str, *,
                     f"{chosen.dataset}.{chosen.field}: {chosen.definition}"
                     + catalogue_note))
 
-    # 3. Genuinely ambiguous. Ask.
+    # 3. Ambiguous — unless the conversation has already settled it.
+    #
+    # Asking which of four datasets a reader meant, one turn after they said
+    # which dataset they were interested in, is the product forgetting what it
+    # was just told. Where the thread names one of the candidates the answer is
+    # given and says which source it used.
+    carried = _carried_candidate(usable, preferred_datasets)
+    if carried is not None:
+        return ConceptMatch(
+            concept=concept, candidate=carried, phrase=phrase, confidence=0.7,
+            alternatives=tuple(c for c in usable if c is not carried),
+            reason=(f"'{concept.label}' could mean any of "
+                    + ", ".join(f"{c.dataset}.{c.field}" for c in usable)
+                    + f". CreditProbe used {carried.dataset}.{carried.field}, "
+                      "because that is the dataset this conversation is "
+                      "reading."))
+
+    # 4. Genuinely ambiguous. Ask.
     return ConceptMatch(
         concept=concept, candidate=usable[0], phrase=phrase, confidence=0.4,
         alternatives=tuple(usable[1:]), needs_clarification=True,
@@ -1095,7 +1206,8 @@ class Reading:
 
 
 def read_concepts(question: str, *, known: dict[str, set[str]],
-                  catalogue: Any = None) -> Reading:
+                  catalogue: Any = None,
+                  preferred_datasets: list[str] | None = None) -> Reading:
     """Every concept the question names, resolved to a governed field.
 
     Deterministic. The reading decides which datasets are joined and therefore
@@ -1113,7 +1225,8 @@ def read_concepts(question: str, *, known: dict[str, set[str]],
         if not match or concept.id in seen:
             continue
         resolved = resolve_concept(concept, text, known=known,
-                                   catalogue=catalogue, phrase=match.group(0))
+                                   catalogue=catalogue, phrase=match.group(0),
+                                   preferred_datasets=preferred_datasets)
         if resolved is None:
             reading.unresolved.append(
                 f"'{match.group(0)}' means {concept.label}, which no governed "

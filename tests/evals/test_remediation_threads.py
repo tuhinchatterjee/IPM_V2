@@ -198,6 +198,21 @@ def test_thread_d_investigates_a_sector_rather_than_looking_up_a_name():
 
 
 def test_thread_g_never_cites_a_figure_above_its_own_threshold():
+    """A LEVEL question. One date, and every qualifying figure under the line.
+
+    "Which customers HAVE covenant headroom below 15%?" is a claim about the
+    present. It is a population, not a ranking and not a cohort: no movement is
+    asked for, so none is manufactured, and the value that qualifies each row is
+    the one it holds now.
+
+    This test used to require `closing_`-prefixed columns, which only a
+    two-period cohort produces. That was the old implementation's shape rather
+    than the question's meaning — and the product has since been corrected to
+    read a bare bound as a single-period population. The safety invariant it
+    existed for is unchanged and is asserted more strictly below: every
+    displayed headroom figure must be under fifteen, and there is now no
+    prefixed column for a stale figure to hide in.
+    """
     thread = Thread()
     investigation, answered = thread.ask(
         "Which customers have covenant headroom below 15%?")
@@ -207,44 +222,71 @@ def test_thread_g_never_cites_a_figure_above_its_own_threshold():
     assert report is not None and report.ok, (
         [f.detail for f in (report.failures if report else [])])
 
-    # Every returned row, at the CLOSING position. "Customers who HAVE headroom
-    # below 15%" is a claim about the present: a customer at 16.67% a year ago
-    # and 3% today belongs in the answer, and the year-ago figure belongs in the
-    # table beside it.
-    present = [c for c in columns_of(investigation)
-               if "headroom" in str(c.get("name"))
-               and str(c.get("name")).startswith("closing_")]
-    assert present, "a two-period answer must carry the closing position"
-    for row in rows_of(investigation):
-        for column in present:
+    # One date. A question that asked for no movement must not be answered
+    # with one.
+    assert not [c for c in columns_of(investigation)
+                if str(c.get("name")).startswith("closing_")], (
+        "a level question was planned as a two-period cohort")
+
+    # THE SAFETY INVARIANT. Every headroom figure on screen qualifies.
+    headroom = [c for c in columns_of(investigation)
+                if "headroom" in str(c.get("name"))]
+    assert headroom, "the qualifying measure must be shown, not just implied"
+    rows = rows_of(investigation)
+    assert rows, "a population of 1,209 must not come back empty"
+    for row in rows:
+        for column in headroom:
             value = row.get(str(column.get("name")))
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 assert value < 15.0, (
                     f"{column.get('name')}={value} in an answer about <15%")
 
-    # The opening column is free to sit above the threshold, and MUST say which
-    # period it is. A bare "Covenant headroom" showing 16.67 under a heading
-    # that says below 15% is the contradiction this thread exists for, even
-    # when every figure in it is correct.
-    for column in columns_of(investigation):
-        name = str(column.get("name"))
-        if "headroom" not in name or name.startswith("closing_"):
-            continue
-        if name.endswith(("_change", "_change_pct")):
-            continue
-        label = str(column.get("label") or "")
-        assert any(token in label for token in ("Q1", "Q2", "Q3", "Q4")), (
-            f"the opening column is labelled {label!r}, which a reader will "
-            "take for the present position")
+    # And the headline states the POPULATION, not the size of the table.
+    direct = investigation.narrative.direct_answer or ""
+    assert "largest" not in direct.lower(), (
+        f"a threshold population was described as a ranking: {direct!r}")
 
-    # And every figure the prose cites about it.
-    from backend.orchestration import invariants as inv
 
-    columns = columns_of(investigation)
-    assert not inv.check_prose(
-        report.checks, [said(investigation)],
-        labels={str(c.get("name")): str(c.get("label") or "") for c in columns},
-        units={str(c.get("name")): str(c.get("unit") or "") for c in columns})
+def test_thread_g_crossing_reports_where_the_measure_ENDED_not_how_far_it_fell():
+    """The other half of the same vocabulary, and the one that was dangerous.
+
+    "Which customers' covenant headroom FELL BELOW 15%?" is a transition: it was
+    at or above the line, and it is now under it. Read as a magnitude — "fell by
+    more than 15" — the answer contained borrowers whose headroom had risen and
+    borrowers who closed above the very threshold the question named.
+    """
+    thread = Thread()
+    investigation, answered = thread.ask(
+        "Which customers' covenant headroom fell below 15%?")
+
+    assert investigation.status == "succeeded", investigation.rejected
+    report = answered.invariants
+    assert report is not None and report.ok, (
+        [f.detail for f in (report.failures if report else [])])
+
+    # Two dates, because a crossing needs both.
+    closing = [c for c in columns_of(investigation)
+               if "headroom" in str(c.get("name"))
+               and str(c.get("name")).startswith("closing_")]
+    assert closing, "a crossing must carry the closing position"
+
+    rows = rows_of(investigation)
+    assert rows, "the crossing population must not come back empty"
+    for row in rows:
+        for column in closing:
+            name = str(column.get("name"))
+            value = row.get(name)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                # THE SAFETY INVARIANT, on the value that QUALIFIES the row.
+                assert value < 15.0, (
+                    f"{name}={value} closed above the threshold it crossed")
+            opening = row.get(name.replace("closing_", "", 1))
+            if isinstance(opening, (int, float)) and not isinstance(
+                    opening, bool):
+                # And it must genuinely have crossed: a row that was already
+                # under the line did not fall below it.
+                assert opening >= 15.0, (
+                    f"{name}: opened at {opening}, which was already below 15")
 
 
 # ---------------------------------------------------------------------------

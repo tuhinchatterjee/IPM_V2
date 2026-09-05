@@ -930,30 +930,20 @@ def _notify(session: Any, **fields: Any) -> None:
     session.add(Notification(**fields))
 
 
-def notify_playbook_finding(*, user_id: int, playbook: str, title: str,
-                            body: str, actor_id: int | None = None) -> None:
-    """Tell somebody what a playbook found.
-
-    The one public way to raise a notification, and it is narrow on purpose. A
-    playbook run IS "something else happening" — it executed analyses and a
-    threshold was crossed — so this is not a notification about nothing. It
-    still cannot be raised without naming the playbook that produced it.
-    """
-    _require_db()
-    from backend.db.engine import get_session
-
-    with get_session() as session:
-        _notify(
-            session,
-            user_id=user_id,
-            kind="playbook",
-            title=title[:300],
-            body=body,
-            object_type="playbook",
-            object_id=playbook[:120],
-            actor_id=actor_id,
-        )
-        session.commit()
+#: Notifications the MESSAGES badge already accounts for.
+#:
+#: Delivering a message writes a `notifications` row, which is right — it is the
+#: record that the person was told. But the header carries two badges, and both
+#: were counting that row: the envelope, which is unread messages, and the bell,
+#: which was everything. A reader with one unread message saw a 1 and a 20 and
+#: could not tell whether they were about the same thing.
+#:
+#: So the two are now disjoint. The envelope is messages, read from the one
+#: attention summary. The bell is everything else that happened — an agent run,
+#: a data release, a review raised against an object, somebody naming you on a
+#: workflow item. The row is still written, and the audit and the message
+#: itself are unaffected; it simply is not counted twice on one toolbar.
+MESSAGE_NOTIFICATION = "message_thread"
 
 
 def notifications(user_id: int | None, *, unread_only: bool = False,
@@ -968,7 +958,8 @@ def notifications(user_id: int | None, *, unread_only: bool = False,
     with get_session() as session:
         query = (
             select(Notification)
-            .where(Notification.user_id == user_id)
+            .where(Notification.user_id == user_id,
+                   Notification.object_type != MESSAGE_NOTIFICATION)
             .order_by(Notification.created_at.desc())
             .limit(limit)
         )
@@ -1023,7 +1014,9 @@ def unread_count(user_id: int | None) -> int:
         return int(session.execute(
             select(func.count())
             .select_from(Notification)
-            .where(Notification.user_id == user_id, Notification.read_at.is_(None))
+            .where(Notification.user_id == user_id,
+                   Notification.read_at.is_(None),
+                   Notification.object_type != MESSAGE_NOTIFICATION)
         ).scalar() or 0)
 
 

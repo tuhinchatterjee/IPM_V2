@@ -45,8 +45,12 @@ from backend.api.routers import hierarchy as hierarchy_router
 from backend.api.routers import intelligence as intelligence_router
 from backend.api.routers import learning as learning_router
 from backend.api.routers import lenses as lenses_router
+from backend.api.routers import messages as messages_router
 from backend.api.routers import metadata as metadata_router
-from backend.api.routers import playbooks as playbooks_router
+from backend.api.routers import metrics as metrics_router
+from backend.api.routers import planner as planner_router
+from backend.api.routers import playbook as playbook_router
+from backend.api.routers import preferences as preferences_router
 from backend.api.routers import regulatory as regulatory_router
 from backend.api.routers import (
     regulatory_intelligence as regulatory_intelligence_router,
@@ -54,9 +58,13 @@ from backend.api.routers import (
 from backend.api.routers import (
     scorecard as scorecard_router,
 )
+from backend.api.routers import (
+    scorecard_validation as scorecard_validation_router,
+)
 from backend.api.routers import studio as studio_router
 from backend.api.routers import users as users_router
 from backend.api.routers import validation as validation_router
+from backend.api.routers import whatif as whatif_router
 from backend.api.routers import workspace as workspace_router
 from backend.api.schemas import ErrorResponse
 from backend.config import settings
@@ -285,6 +293,8 @@ def create_app() -> FastAPI:
     app.include_router(auth_router.router, prefix=API_PREFIX)
     app.include_router(health_router.router, prefix=API_PREFIX)
     app.include_router(users_router.router, prefix=API_PREFIX)
+    app.include_router(preferences_router.router, prefix=API_PREFIX)
+    app.include_router(messages_router.router, prefix=API_PREFIX)
     app.include_router(data_builder_router.router, prefix=API_PREFIX)
     app.include_router(metadata_router.router, prefix=API_PREFIX)
     app.include_router(engine_router.engine_router, prefix=API_PREFIX)
@@ -322,13 +332,16 @@ def create_app() -> FastAPI:
     app.include_router(continuous_learning_router.router, prefix=API_PREFIX)
     app.include_router(corporate_router.router, prefix=API_PREFIX)
     app.include_router(scorecard_router.router, prefix=API_PREFIX)
+    app.include_router(scorecard_validation_router.router,
+                       prefix=API_PREFIX)
     app.include_router(regulatory_router.corpus_router,
                        prefix=API_PREFIX)
     app.include_router(hierarchy_router.projects_router, prefix=API_PREFIX)
     app.include_router(hierarchy_router.threads_router, prefix=API_PREFIX)
     app.include_router(hierarchy_router.analyses_router, prefix=API_PREFIX)
     app.include_router(lenses_router.router, prefix=API_PREFIX)
-    app.include_router(playbooks_router.router, prefix=API_PREFIX)
+    app.include_router(metrics_router.router, prefix=API_PREFIX)
+    app.include_router(whatif_router.router, prefix=API_PREFIX)
     app.include_router(studio_router.router, prefix=API_PREFIX)
     # The AI Intelligence Studio, on /intelligence. Distinct from the four
     # borrower-level domain readings on /domain-intelligence above: this one
@@ -338,6 +351,11 @@ def create_app() -> FastAPI:
     # Lab, installations and the trusted signer registry. Reading is open to
     # the Studio's audience; activating a Brain is an administrator's alone.
     app.include_router(brain_router.router, prefix=API_PREFIX)
+    # Delivery projects: the plan, who owes what, and when it is late.
+    # Distinct from hierarchy_router's /projects, which is the analytical
+    # workspace a piece of credit work lives in.
+    app.include_router(planner_router.router, prefix=API_PREFIX)
+    app.include_router(playbook_router.router, prefix=API_PREFIX)
     app.include_router(workspace_router.router, prefix=API_PREFIX)
     app.include_router(validation_router.router, prefix=API_PREFIX)
     app.include_router(exports_router.runs_router, prefix=API_PREFIX)

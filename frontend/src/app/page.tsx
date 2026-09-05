@@ -8,7 +8,7 @@ import { PendingOfficer } from "@/components/agentic/pending";
 import { RequiresAttention } from "@/components/attention/requires-attention";
 import { EarlyWarningStrip } from "@/components/early-warning/cockpit-strip";
 import { BackLink } from "@/components/layout/back-link";
-import { useGreetingName } from "@/components/system/auth";
+import { useGreetingName } from "@/components/system/personalisation";
 import { useCanRunAnalysis } from "@/components/system/role-switcher";
 import { Card } from "@/components/ui/card";
 import { InfoPopover } from "@/components/ui/info-popover";
@@ -70,8 +70,9 @@ function Cockpit() {
   const openFrom = cameFromElsewhere ? arrivedFrom : fromCockpit();
 
   const greeting = useGreeting();
-  // The real first name of whoever is signed in. Empty when nobody is, and the
-  // greeting reads correctly without it rather than falling back to "there".
+  // What this reader has chosen to be greeted by. A PREFERENCE, not the
+  // account: changing it changes the heading and nothing else — not the
+  // identity, the role, the permissions or the audit trail.
   const name = useGreetingName();
   // A Viewer may read what others have produced but may not execute an analysis.
   // The backend refuses it either way; disabling the composer says so before the
@@ -150,15 +151,19 @@ function Cockpit() {
                 ? undefined
                 : "You are acting as a Viewer. Running an analysis needs the Analyst role or above."
             }
-            // Three, from the governed catalogue that is actually loaded.
+            // Exactly three, from the approved set, rotated by the day.
             //
             // These were deliberately absent, on the grounds that a row of
             // suggested questions teaches people CreditProbe answers a fixed
-            // list. That objection was right about a fixed list and these are
-            // not one: an installation with different data gets different
-            // suggestions, and a question about a dataset nobody has is never
-            // offered. An empty composer is its own lesson, and it is the
-            // wrong one.
+            // list. That objection was right about a fixed list, and these
+            // are a governed one: five questions the product stands behind,
+            // each gated on the datasets this installation actually carries,
+            // each run through the real Ask path before it may be offered.
+            // An empty composer is its own lesson, and it is the wrong one.
+            //
+            // The server already sends three. The slice stays as a floor: a
+            // Cockpit that quietly grew a fourth suggestion because an
+            // endpoint changed shape is exactly the drift this replaced.
             suggestions={(suggestions.data?.questions ?? []).slice(0, 3)}
             autoFocus={focusAsk}
             // Subtle, but not absent. A user must not believe full

@@ -50,7 +50,15 @@ STATUSES = (STATUS_DRAFT, STATUS_PUBLISHED, STATUS_ARCHIVED)
 #: and quietly relabelled.
 VISUALS = ("auto", "kpi", "table", "bar", "line", "matrix")
 
+#: How many ANALYSIS panels a lens may hold. Each one runs a full analysis, and
+#: beyond a dozen nobody reads the lens, they scroll past it.
 MAX_PANELS = 12
+
+#: How many METRIC tiles a lens may hold. Higher, because a tile is one number
+#: with a label — a real IFRS 9 committee pack carries about eighteen — and
+#: because tiles are grouped into named sections rather than presented as one
+#: undifferentiated run. The analysis limit above is unchanged.
+MAX_TILES = 24
 
 SLUG_RE = re.compile(r"[^a-z0-9]+")
 
@@ -86,38 +94,109 @@ def slugify(name: str) -> str:
 # ------------------------------------------------------------- the definition
 
 
+#: The two things a panel can be. An ANALYSIS panel runs a registered analysis
+#: through the Engine Registry; a METRIC panel calculates one governed or
+#: user-built metric from the Metric Catalogue. Both go through the same
+#: validated analytical plan and the same executor — the difference is which
+#: definition they name, not how the number is produced.
+KIND_ANALYSIS = "analysis"
+KIND_METRIC = "metric"
+#: A metric broken out across one dimension. The same metric, the same
+#: formula, the same executor as the tile — grouped. It is a third kind
+#: rather than a metric tile with a `visual` set, because a chart carries a
+#: configuration a single figure has no use for (a dimension, a sort, a
+#: comparison) and because the two are validated against different rules.
+KIND_CHART = "chart"
+KINDS = (KIND_ANALYSIS, KIND_METRIC, KIND_CHART)
+
+#: How many charts one lens may hold. A chart costs a grouped scan of the
+#: lake, so this is lower than the tile limit, and low enough that a lens
+#: stays a view rather than a report.
+MAX_CHARTS = 12
+
+
 @dataclass
 class Panel:
-    """One thing on a Lens."""
+    """One thing on a Lens.
 
-    analysis_id: str
+    Two kinds share this shape rather than becoming two classes, because a lens
+    holds an ordered list of things to draw and everything that walks that list
+    — validation, revision, rendering, layout — should not have to branch on
+    which sort of tile it is holding until the moment it actually runs one.
+    """
+
+    analysis_id: str = ""
     title: str = ""
     visual: str = "auto"
     params: dict[str, Any] = field(default_factory=dict)
     #: Governed filters, applied to this panel only.
     filters: dict[str, Any] = field(default_factory=dict)
     note: str = ""
+    kind: str = KIND_ANALYSIS
+    #: Set on a metric panel; the id of a governed or user-built metric.
+    metric_id: str = ""
+    #: A period this tile pins itself to, overriding the lens period. Empty
+    #: means it follows whatever the lens is showing.
+    period: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "kind": self.kind,
             "analysis_id": self.analysis_id,
+            "metric_id": self.metric_id,
             "title": self.title,
             "visual": self.visual,
             "params": dict(self.params),
             "filters": dict(self.filters),
+            "period": self.period,
             "note": self.note,
         }
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> Panel:
+        metric_id = str(payload.get("metric_id") or "")
+        # A definition written before metric panels existed has no `kind`, and
+        # naming a metric is unambiguous, so the kind is inferred rather than
+        # requiring every stored lens to be rewritten.
+        kind = str(payload.get("kind")
+                   or (KIND_METRIC if metric_id else KIND_ANALYSIS))
         return cls(
             analysis_id=str(payload.get("analysis_id") or ""),
+            metric_id=metric_id,
+            kind=kind,
             title=str(payload.get("title") or ""),
             visual=str(payload.get("visual") or "auto"),
             params=dict(payload.get("params") or {}),
             filters=dict(payload.get("filters") or {}),
+            period=str(payload.get("period") or ""),
             note=str(payload.get("note") or ""),
         )
+
+    @classmethod
+    def metric(cls, metric_id: str, *, title: str = "", visual: str = "kpi",
+               period: str = "", note: str = "") -> Panel:
+        return cls(kind=KIND_METRIC, metric_id=metric_id, title=title,
+                   visual=visual, period=period, note=note)
+
+    @classmethod
+    def chart(cls, metric_id: str, *, dimension: str, title: str = "",
+              visual: str = "bar", period: str = "", note: str = "",
+              aggregate: str = "metric", sort: str = "value",
+              direction: str = "desc", limit: int = 20, compare: str = "",
+              filters: dict[str, Any] | None = None) -> Panel:
+        """A chart tile. Its configuration lives in `params`.
+
+        In `params` rather than in named fields on `Panel`, because every
+        stored lens in the database was written against the fields that are
+        already there, and a chart's settings are the one part of a tile that
+        varies by what is being drawn.
+        """
+        return cls(kind=KIND_CHART, metric_id=metric_id, title=title,
+                   visual=visual, period=period, note=note,
+                   filters=dict(filters or {}),
+                   params={"dimension": dimension, "aggregate": aggregate,
+                           "sort": sort, "direction": direction,
+                           "limit": int(limit), "compare": compare})
 
 
 def validate(panels: list[Panel]) -> None:
@@ -126,15 +205,41 @@ def validate(panels: list[Panel]) -> None:
 
     if not panels:
         raise InvalidLens("A lens needs at least one panel.")
-    if len(panels) > MAX_PANELS:
+
+    analyses = [p for p in panels
+                if p.kind not in (KIND_METRIC, KIND_CHART)]
+    tiles = [p for p in panels if p.kind == KIND_METRIC]
+    charts = [p for p in panels if p.kind == KIND_CHART]
+    if len(analyses) > MAX_PANELS:
         raise InvalidLens(
-            f"A lens may hold at most {MAX_PANELS} panels. "
+            f"A lens may hold at most {MAX_PANELS} analysis panels. "
             "Beyond that nobody reads it, they scroll past it."
+        )
+    if len(tiles) > MAX_TILES:
+        raise InvalidLens(
+            f"A lens may hold at most {MAX_TILES} metric tiles. "
+            "Beyond that it stops being a view and becomes a list."
+        )
+    if len(charts) > MAX_CHARTS:
+        raise InvalidLens(
+            f"A lens may hold at most {MAX_CHARTS} charts. Each one is a "
+            "grouped scan of the lake, and past this the page takes longer "
+            "to draw than anybody waits."
         )
 
     registry = get_registry()
     known = {c.id: c for c in registry.contracts()}
     for panel in panels:
+        if panel.kind not in KINDS:
+            raise InvalidLens(
+                f"'{panel.kind}' is not a kind of panel. "
+                f"Available: {', '.join(KINDS)}.")
+        if panel.kind == KIND_METRIC:
+            _validate_metric_panel(panel)
+            continue
+        if panel.kind == KIND_CHART:
+            _validate_chart_panel(panel)
+            continue
         contract = known.get(panel.analysis_id)
         if contract is None:
             raise InvalidLens(
@@ -156,6 +261,127 @@ def validate(panels: list[Panel]) -> None:
             )
 
 
+def _validate_metric_panel(panel: Panel) -> None:
+    """Refuse a metric tile that cannot honestly be drawn as asked.
+
+    Two separate checks, and the second is the interesting one. A metric that
+    does not exist is an obvious refusal. A metric drawn as something it has
+    not declared itself drawable as is the quiet failure: a single ratio
+    rendered as a bar chart of one bar, or a distribution flattened to a KPI,
+    both of which look like a working tile and mislead.
+    """
+    from backend.metrics import service as metrics
+
+    if not panel.metric_id:
+        raise InvalidLens("A metric panel has to name a metric.")
+
+    absent = metrics.unavailable(panel.metric_id)
+    if absent is not None:
+        raise InvalidLens(
+            f"{absent.name} cannot be calculated in this deployment. "
+            f"{absent.because}")
+
+    try:
+        metric = metrics.resolve(panel.metric_id)
+    except metrics.MetricNotFound as e:
+        raise InvalidLens(
+            f"'{panel.metric_id}' is not a metric in the catalogue. A lens can "
+            "only show metrics CreditProbe governs or somebody has built."
+        ) from e
+
+    if panel.visual not in VISUALS:
+        raise InvalidLens(
+            f"'{panel.visual}' is not a way a panel may be drawn. "
+            f"Available: {', '.join(VISUALS)}.")
+    if panel.visual != "auto" and panel.visual not in metric.visuals:
+        # Only what this renderer can actually draw. A metric may declare a
+        # visual from the catalogue's wider vocabulary — the three IFRS 9
+        # stage shares declare `stacked_bar`, which is an honest thing to say
+        # about them — and offering it back as an alternative would send
+        # somebody to try a tile the lens has no renderer for.
+        here = [v for v in metric.visuals if v in VISUALS]
+        elsewhere = [v for v in metric.visuals if v not in VISUALS]
+        also = (f" It also declares {', '.join(elsewhere)}, which no lens "
+                "renderer draws yet." if elsewhere else "")
+        raise InvalidLens(
+            f"{metric.name} should not be drawn as a {panel.visual}. On a "
+            f"lens it can honestly be shown as: "
+            f"{', '.join(here) or 'nothing this lens can draw'}.{also}")
+
+
+def _validate_chart_panel(panel: Panel) -> None:
+    """Refuse a chart the platform cannot honestly draw.
+
+    Every check here has an equivalent in the builder's own pickers, and it is
+    repeated because a lens can be submitted by anything that can reach the
+    API. The interesting one is the chart type: whether a line is honest
+    depends on whether the dimension has an order, so a chart that was valid
+    over `observation_month` is not automatically valid over `product`.
+    """
+    from backend.metrics import service as metrics
+
+    if not panel.metric_id:
+        raise InvalidLens("A chart has to name a metric.")
+
+    dimension = str(panel.params.get("dimension") or "")
+    if not dimension:
+        raise InvalidLens(
+            f"The chart of {panel.metric_id} does not say which dimension to "
+            "break it out by. A chart without one is a single figure.")
+
+    absent = metrics.unavailable(panel.metric_id)
+    if absent is not None:
+        raise InvalidLens(
+            f"{absent.name} cannot be calculated in this deployment. "
+            f"{absent.because}")
+    try:
+        metric = metrics.resolve(panel.metric_id)
+    except metrics.MetricNotFound as e:
+        raise InvalidLens(
+            f"'{panel.metric_id}' is not a metric in the catalogue. A chart "
+            "can only draw metrics CreditProbe governs or somebody has built."
+        ) from e
+
+    offerable = {d["name"]: d for d in metrics.dimension_fields(metric)}
+    chosen = offerable.get(dimension)
+    if chosen is None:
+        raise InvalidLens(
+            f"'{dimension}' is not a dimension {metric.name} can be broken "
+            f"out by. Available: "
+            f"{', '.join(sorted(offerable)) or 'none on this dataset'}.")
+
+    available, refused = metrics.chart_types_for(metric, chosen)
+    if panel.visual not in available:
+        because = next((r["because"] for r in refused
+                        if r["name"] == panel.visual), "")
+        raise InvalidLens(
+            because or (
+                f"'{panel.visual}' is not a chart type. Available for "
+                f"{metric.name} by {chosen['business_name']}: "
+                f"{', '.join(available) or 'none'}."))
+
+    for name, allowed in (("aggregate", metrics.AGGREGATIONS),
+                          ("sort", metrics.SORTS),
+                          ("direction", metrics.DIRECTIONS),
+                          ("compare", metrics.COMPARISONS)):
+        value = str(panel.params.get(name) or ("" if name == "compare" else ""))
+        if not value and name != "compare":
+            continue
+        if value not in allowed:
+            raise InvalidLens(
+                f"'{value}' is not a {name} a chart may use. "
+                f"Available: {', '.join(k or 'none' for k in allowed)}.")
+
+    if str(panel.params.get("aggregate") or "metric") == "average":
+        # Refused here as well as in the service, so a lens cannot be stored
+        # holding a chart that will only fail when somebody opens it.
+        if not metrics.may_average(metric):
+            raise InvalidLens(
+                f"{metric.name} is not a single total, so an average of it "
+                "per row is not a number that means anything. Use the "
+                "metric's own definition, or count the rows.")
+
+
 # ------------------------------------------------------------------- shape
 
 
@@ -167,6 +393,15 @@ class LensView:
     description: str
     audience: str
     panels: list[dict[str, Any]]
+    #: Optional grouping of panels into named sections, each holding the
+    #: indices of the panels it contains. A lens with no sections is one
+    #: unbroken run of tiles, which is what every lens was before this.
+    sections: list[dict[str, Any]]
+    #: What this lens deliberately does NOT show, and why. A view that quietly
+    #: omits the metric a reader came for teaches them not to trust it; one
+    #: that says "retail IFRS 9 staging is not available in this deployment,
+    #: because there is no retail impairment dataset" does the opposite.
+    notes: list[dict[str, Any]]
     status: str
     version: int
     origin: str
@@ -183,6 +418,8 @@ class LensView:
             "description": self.description,
             "audience": self.audience,
             "panels": self.panels,
+            "sections": self.sections,
+            "notes": self.notes,
             "status": self.status,
             "version": self.version,
             "origin": self.origin,
@@ -221,6 +458,8 @@ def _view(session: Any, row: Any, *, with_revisions: bool = False) -> LensView:
         description=row.description,
         audience=row.audience,
         panels=list(definition.get("panels") or []),
+        sections=list(definition.get("sections") or []),
+        notes=list(definition.get("notes") or []),
         status=row.status,
         version=row.version,
         origin=row.origin,
@@ -231,22 +470,42 @@ def _view(session: Any, row: Any, *, with_revisions: bool = False) -> LensView:
     )
 
 
+def _definition(panels: list[Panel],
+                sections: list[dict[str, Any]] | None,
+                notes: list[dict[str, Any]] | None) -> dict[str, Any]:
+    definition: dict[str, Any] = {"panels": [p.to_dict() for p in panels]}
+    if sections:
+        definition["sections"] = [dict(s) for s in sections]
+    if notes:
+        definition["notes"] = [dict(n) for n in notes]
+    return definition
+
+
 # ------------------------------------------------------------------ writing
 
 
 def create(*, name: str, panels: list[Panel], description: str = "",
            audience: str = "", origin: str = "manual",
            project_id: int | None = None, request: str = "",
-           user_id: int | None = None) -> LensView:
+           user_id: int | None = None, slug: str = "",
+           sections: list[dict[str, Any]] | None = None,
+           notes: list[dict[str, Any]] | None = None) -> LensView:
+    """Store a new lens.
+
+    `slug` is normally derived from the name. A caller installing a lens the
+    platform ships passes it explicitly, because that slug is the lens's
+    address — it is what a link, a seeder and a test all name it by — and a
+    slug derived from a name is not stable enough to be an address.
+    """
     _require_db()
     validate(panels)
 
     from backend.db.engine import get_session
     from backend.models.platform import Lens, LensRevision
 
-    definition = {"panels": [p.to_dict() for p in panels]}
+    definition = _definition(panels, sections, notes)
     with get_session() as session:
-        slug = slugify(name)
+        slug = slugify(slug) if slug else slugify(name)
         existing = {s for (s,) in session.query(Lens.slug).all()}
         if slug in existing:
             n = 2
@@ -273,7 +532,9 @@ def create(*, name: str, panels: list[Panel], description: str = "",
 
 
 def revise(lens_id: int, panels: list[Panel], *, request: str = "",
-           change_summary: str = "", user_id: int | None = None) -> LensView:
+           change_summary: str = "", user_id: int | None = None,
+           sections: list[dict[str, Any]] | None = None,
+           notes: list[dict[str, Any]] | None = None) -> LensView:
     """Store a new revision. The previous one is kept, so it can be put back."""
     _require_db()
     validate(panels)
@@ -281,7 +542,7 @@ def revise(lens_id: int, panels: list[Panel], *, request: str = "",
     from backend.db.engine import get_session
     from backend.models.platform import Lens, LensRevision
 
-    definition = {"panels": [p.to_dict() for p in panels]}
+    definition = _definition(panels, sections, notes)
     with get_session() as session:
         row = session.get(Lens, lens_id)
         if row is None:
@@ -319,14 +580,63 @@ def restore(lens_id: int, version: int, *, user_id: int | None = None) -> LensVi
         ).scalars().first()
         if wanted is None:
             raise LensNotFound(f"Lens {lens_id} has no version {version}.")
-        panels = [Panel.from_dict(p)
-                  for p in (wanted.definition or {}).get("panels") or []]
+        stored = dict(wanted.definition or {})
+        panels = [Panel.from_dict(p) for p in stored.get("panels") or []]
+        sections = list(stored.get("sections") or [])
+        notes = list(stored.get("notes") or [])
 
     return revise(
         lens_id, panels, request=f"Restore version {version}",
         change_summary=f"Restored the definition from version {version}.",
-        user_id=user_id,
+        user_id=user_id, sections=sections, notes=notes,
     )
+
+
+def _identity(panel: Panel) -> tuple[str, str]:
+    """What makes a panel the same panel across a revision."""
+    return (panel.kind, panel.metric_id or panel.analysis_id)
+
+
+def resection(old: list[Panel], sections: list[dict[str, Any]],
+              new: list[Panel], *,
+              added_title: str = "Added by request") -> list[dict[str, Any]]:
+    """Carry a lens's sections across a change to its panels.
+
+    Sections hold panel INDICES, so a revision that removes a tile silently
+    shifts every index after it and a lens that had four clean bands comes
+    back scrambled. This remaps by panel identity instead: a panel that
+    survives keeps its band, a panel that has gone leaves it, and anything new
+    lands in a final section of its own rather than being appended to a band it
+    has nothing to do with.
+
+    An unsectioned lens stays unsectioned.
+    """
+    if not sections:
+        return []
+
+    where: dict[tuple[str, str], int] = {}
+    for number, section in enumerate(sections):
+        for index in section.get("panels") or []:
+            if 0 <= int(index) < len(old):
+                where[_identity(old[int(index)])] = number
+
+    grouped: dict[int, list[int]] = {n: [] for n in range(len(sections))}
+    fresh: list[int] = []
+    for index, panel in enumerate(new):
+        number = where.get(_identity(panel))
+        if number is None:
+            fresh.append(index)
+        else:
+            grouped[number].append(index)
+
+    out: list[dict[str, Any]] = []
+    for number, section in enumerate(sections):
+        if not grouped[number]:
+            continue  # every panel in this band has gone
+        out.append({**section, "panels": grouped[number]})
+    if fresh:
+        out.append({"title": added_title, "subtitle": "", "panels": fresh})
+    return out
 
 
 def set_status(lens_id: int, status: str) -> LensView:
@@ -423,9 +733,29 @@ def render(lens_id: int, *, period: str | None = None,
     view = get(lens_id)
     from backend.engine.runner import persist_run, run_analysis
 
+    # Which period each metric means when the lens is not pinned to one.
+    # Resolved once per source rather than once per tile: twenty-one tiles
+    # reading the same dataset asked the same question twenty-one times, and —
+    # worse than the cost — two tiles that resolved separately could land on
+    # different periods, so an IFRS 9 lens whose stage exposures are meant to
+    # sum to its total would stop summing to it.
+    #
+    # The memo lives for this render alone. A cache that outlived it would
+    # keep serving yesterday's latest period after a load, which is the one
+    # kind of staleness a lens must not have.
+    periods: dict[tuple[Any, ...], str] = {}
+
     panels: list[dict[str, Any]] = []
     for entry in view.panels:
         panel = Panel.from_dict(entry)
+        if panel.kind == KIND_METRIC:
+            panels.append(_render_metric(panel, period=period,
+                                         user_id=user_id, periods=periods))
+            continue
+        if panel.kind == KIND_CHART:
+            panels.append(_render_chart(panel, period=period,
+                                        user_id=user_id))
+            continue
         try:
             outcome = run_analysis(
                 panel.analysis_id, params=panel.params, period=period,
@@ -447,16 +777,161 @@ def render(lens_id: int, *, period: str | None = None,
             "result": outcome.result.to_dict() if outcome.result else None,
         })
 
-    failed = [p for p in panels if p["status"] != "succeeded"]
+    # A gap in the book and a gap in the platform are different things, and a
+    # reader told the wrong one wastes their afternoon. `unavailable` is the
+    # first; `failed` is the second, and does not include it.
+    unavailable = [p for p in panels if p["status"] == "unavailable"]
+    failed = [p for p in panels
+              if p["status"] not in ("succeeded", "unavailable")]
+    note = ""
+    if failed:
+        note = (f"{len(failed)} of {len(panels)} panels could not be "
+                "produced.")
+    elif unavailable:
+        note = (f"{len(unavailable)} of {len(panels)} panels have no data for "
+                "this period. Each says why.")
     return {
         "lens": view.to_dict(),
         "period": period,
+        "sections": view.sections,
+        "notes": view.notes,
         "panels": panels,
         "failed": len(failed),
-        "note": (
-            f"{len(failed)} of {len(panels)} panels could not be produced."
-            if failed else ""
-        ),
+        "unavailable": len(unavailable),
+        "note": note,
+    }
+
+
+def _render_metric(panel: Panel, *, period: str | None,
+                   user_id: int | None,
+                   periods: dict[tuple[Any, ...], str] | None = None
+                   ) -> dict[str, Any]:
+    """One metric tile: the number, the working, and how it is defined.
+
+    The §6 info panel travels with the tile rather than being fetched when
+    somebody opens it. A tile that has to make a second request before it can
+    explain itself is a tile whose explanation people stop opening.
+
+    A metric with no data for the period is `unavailable`, not `failed`. The
+    distinction matters on screen: one is a gap in the book, the other is a
+    gap in the platform, and telling a reader the wrong one wastes their time.
+    """
+    from backend.metrics import service as metrics
+
+    wanted = panel.period or (period or "")
+    if not wanted and periods is not None:
+        try:
+            definition = metrics.resolve(panel.metric_id, user_id=user_id)
+        except metrics.MetricNotFound as e:
+            return {**panel.to_dict(), "status": "failed", "error": str(e),
+                    "result": None, "metric": None}
+        key = (definition.datasets, definition.scope, definition.period_rule)
+        if key not in periods:
+            try:
+                periods[key] = metrics.default_period(definition)
+            except Exception:  # noqa: BLE001 - handled where it is reported
+                # Left unresolved on purpose. `metrics.value` resolves it
+                # again inside its own guard and turns the failure into a
+                # tile that says why, so the reason reaches the reader
+                # through one path rather than two that could disagree.
+                periods[key] = ""
+        wanted = periods[key]
+
+    try:
+        outcome = metrics.value(panel.metric_id, period=wanted,
+                                user_id=user_id)
+    except metrics.MetricNotFound as e:
+        return {**panel.to_dict(), "status": "failed", "error": str(e),
+                "result": None, "metric": None}
+    except Exception as e:  # pragma: no cover - a genuinely broken metric
+        logger.warning("metric panel %s could not be produced",
+                       panel.metric_id, exc_info=True)
+        return {**panel.to_dict(), "status": "failed", "error": str(e),
+                "result": None, "metric": None}
+
+    definition = outcome["metric"]
+    return {
+        **panel.to_dict(),
+        "title": panel.title or definition["name"],
+        "status": "succeeded" if outcome["available"] else "unavailable",
+        "error": "",
+        "unavailable": outcome["unavailable"],
+        "value": outcome["value"],
+        "unit": outcome["unit"],
+        "decimals": outcome["decimals"],
+        "higher_is_better": definition["higher_is_better"],
+        "period_used": outcome["period"],
+        # Everything §6 asks an info control to show, so the tile can explain
+        # itself without another round trip.
+        "metric": definition,
+        "calculation": outcome["calculation"],
+        "result": None,
+    }
+
+
+def _render_chart(panel: Panel, *, period: str | None,
+                  user_id: int | None) -> dict[str, Any]:
+    """One chart tile: the points, and everything needed to challenge them.
+
+    The same three states as a metric tile — succeeded, unavailable, failed —
+    because a reader should not have to learn a second vocabulary for a chart.
+    A period with no rows is `unavailable`; a chart the platform cannot draw
+    is `failed`; and both say which.
+    """
+    from backend.metrics import service as metrics
+
+    params = dict(panel.params or {})
+    try:
+        drawn = metrics.series(
+            panel.metric_id,
+            dimension=str(params.get("dimension") or ""),
+            period=panel.period or (period or ""),
+            filters=dict(panel.filters or {}),
+            aggregate=str(params.get("aggregate") or "metric"),
+            sort=str(params.get("sort") or "value"),
+            direction=str(params.get("direction") or "desc"),
+            limit=int(params.get("limit") or 20),
+            compare=str(params.get("compare") or ""),
+            user_id=user_id)
+    except (metrics.MetricNotFound, metrics.MetricRefused) as e:
+        return {**panel.to_dict(), "status": "failed", "error": str(e),
+                "result": None, "metric": None, "points": []}
+    except Exception as e:  # pragma: no cover - a genuinely broken chart
+        logger.warning("chart panel %s could not be produced",
+                       panel.metric_id, exc_info=True)
+        return {**panel.to_dict(), "status": "failed", "error": str(e),
+                "result": None, "metric": None, "points": []}
+
+    has_points = any(p["value"] is not None for p in drawn["points"])
+    return {
+        **panel.to_dict(),
+        "title": panel.title or f"{drawn['series_label']} by "
+                                f"{drawn['dimension_label']}",
+        "status": "succeeded" if has_points else "unavailable",
+        "error": "",
+        "unavailable": drawn["unavailable"] or (
+            "" if has_points else
+            "No group in this period has a value for this metric."),
+        "period_used": drawn["period"],
+        "points": drawn["points"],
+        "comparison": drawn["comparison"],
+        "series_label": drawn["series_label"],
+        "dimension": drawn["dimension"],
+        "dimension_label": drawn["dimension_label"],
+        "unit": drawn["unit"],
+        "decimals": drawn["decimals"],
+        "higher_is_better": drawn["higher_is_better"],
+        "groups_found": drawn.get("groups_found", 0),
+        "truncated": drawn.get("truncated", False),
+        "chart_notes": drawn["notes"],
+        # The info control, travelling with the tile as §6 asks: what the
+        # metric means, and the exact query that produced these bars.
+        "metric": drawn["metric"],
+        "lineage": {"dataset": drawn.get("dataset", ""),
+                    "sql": drawn.get("sql", ""),
+                    "run_id": drawn.get("run_id", ""),
+                    "filters": drawn.get("filters", {})},
+        "result": None,
     }
 
 
@@ -482,7 +957,8 @@ class Proposal:
         }
 
 
-def propose(request: str, *, existing: list[Panel] | None = None) -> Proposal:
+def propose(request: str, *, existing: list[Panel] | None = None,
+            user_id: int | None = None) -> Proposal:
     """Turn a request into a change to a Lens definition.
 
     The matching is over the Engine Registry's own metadata — each analysis's
@@ -517,16 +993,11 @@ def propose(request: str, *, existing: list[Panel] | None = None) -> Proposal:
         chosen = [c for score, c in scored if score >= best - 0.5][:4]
 
     if not chosen:
-        return Proposal(
-            panels=current,
-            change_summary="",
-            refusals=[
-                "Nothing in the analysis library matches that request. A lens "
-                "can only show registered analyses, so it has not been changed. "
-                "Try naming what you want to see — staging, coverage, "
-                "concentration, migrations, ratings, the macro backdrop."
-            ],
-        )
+        # No analysis matched. Before refusing, ask the Metric Catalogue: a
+        # lens can hold metric tiles too, and "add ECL coverage" is a request
+        # the platform CAN honour even though no analysis is called that.
+        return _propose_metrics(request, text, current, removing,
+                                user_id=user_id)
 
     if removing:
         ids = {c.id for c in chosen}
@@ -568,7 +1039,8 @@ def propose(request: str, *, existing: list[Panel] | None = None) -> Proposal:
               note=getattr(c, "when_to_use", "") or c.description)
         for c in added
     ]
-    if len(panels) > MAX_PANELS:
+    if len([p for p in panels
+            if p.kind not in (KIND_METRIC, KIND_CHART)]) > MAX_PANELS:
         raise InvalidLens(
             f"That would take the lens to {len(panels)} panels, and the limit "
             f"is {MAX_PANELS}. Remove something first."
@@ -581,6 +1053,113 @@ def propose(request: str, *, existing: list[Panel] | None = None) -> Proposal:
             + ", ".join(c.name for c in added) + "."
         ),
         matched=[c.id for c in chosen],
+    )
+
+
+#: How many metric tiles one request may add. A request that resolves to
+#: eight metrics is a request nobody meant literally.
+MAX_SUGGESTED_TILES = 4
+
+
+def _propose_metrics(request: str, text: str, current: list[Panel],
+                     removing: bool, *,
+                     user_id: int | None = None) -> Proposal:
+    """Turn a request into metric tiles, using the catalogue's own search.
+
+    The same deliberate property the analysis matcher has: the only thing
+    being searched IS the list of metrics that exist, so a request can never
+    resolve to something the platform cannot calculate. Where it names
+    something CreditProbe knows about and cannot compute here, that comes back
+    as a refusal carrying the reason rather than as a tile that draws a dash.
+
+    The AI does not invent a metric, write a formula, or set a figure. It
+    selects from the catalogue, which is the whole of what it may do.
+    """
+    from backend.metrics import library as metric_library
+    from backend.metrics import search as metric_search
+    from backend.metrics import service as metrics
+
+    # The instruction words go first. "Add the roll rate" is a request about a
+    # roll rate; leaving "add" and "the" in makes every word have to match
+    # something, and nothing in the catalogue is called "add".
+    wanted = " ".join(word for word in re.findall(r"[a-z0-9+]+", text)
+                      if word not in STOP_WORDS) or text
+    pool = metrics.catalogue(user_id=user_id)
+    hits = metric_search.search(pool, wanted, limit=MAX_SUGGESTED_TILES)
+
+    if not hits:
+        absent = metric_search.unsupported_for(metric_library.UNSUPPORTED,
+                                               wanted)
+        if absent:
+            return Proposal(
+                panels=current, change_summary="",
+                refusals=[
+                    f"{entry.name} cannot be calculated in this deployment. "
+                    f"{entry.because}" for entry in absent],
+            )
+        return Proposal(
+            panels=current,
+            change_summary="",
+            refusals=[
+                "Nothing in the analysis library or the metric catalogue "
+                "matches that request, so the lens has not been changed. Try "
+                "naming what you want to see — staging, coverage, arrears, "
+                "concentration, migrations, ratings, the macro backdrop."
+            ],
+        )
+
+    if removing:
+        wanted = {hit.metric.metric_id for hit in hits}
+        # Charts as well as tiles: "take default rate off this lens" means
+        # the chart of it too, and leaving one behind is not what was asked.
+        remaining = [p for p in current
+                     if p.kind not in (KIND_METRIC, KIND_CHART)
+                     or p.metric_id not in wanted]
+        removed = len(current) - len(remaining)
+        if removed == 0:
+            return Proposal(
+                panels=current, change_summary="",
+                refusals=[f"{hits[0].metric.name} is not on this lens, so "
+                          "there was nothing to remove."],
+                matched=[hit.metric.metric_id for hit in hits],
+            )
+        return Proposal(
+            panels=remaining,
+            change_summary=(
+                f"Removed {removed} {'tile' if removed == 1 else 'tiles'}: "
+                + ", ".join(hit.metric.name for hit in hits
+                            if hit.metric.metric_id in wanted) + "."),
+            matched=[hit.metric.metric_id for hit in hits],
+        )
+
+    present = {p.metric_id for p in current if p.kind == KIND_METRIC}
+    added = [hit.metric for hit in hits
+             if hit.metric.metric_id not in present]
+    if not added:
+        return Proposal(
+            panels=current, change_summary="",
+            refusals=[
+                ", ".join(hit.metric.name for hit in hits)
+                + " is already on this lens, so nothing was added."],
+            matched=[hit.metric.metric_id for hit in hits],
+        )
+
+    panels = current + [
+        Panel.metric(metric.metric_id, title=metric.name,
+                     visual=metric.visuals[0] if metric.visuals else "kpi",
+                     note=metric.definition)
+        for metric in added]
+    try:
+        validate(panels)
+    except InvalidLens:
+        raise
+
+    return Proposal(
+        panels=panels,
+        change_summary=(
+            f"Added {len(added)} {'tile' if len(added) == 1 else 'tiles'}: "
+            + ", ".join(metric.name for metric in added) + "."),
+        matched=[metric.metric_id for metric in added],
     )
 
 

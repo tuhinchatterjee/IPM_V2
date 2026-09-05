@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 
 from backend.api.permissions import Principal, RequireAdmin, RequireAnalyst
@@ -151,6 +151,152 @@ def borrower_signals(borrower_id: str, period: str = "") -> dict:
         before.iloc[0].to_dict() if not before.empty else {},
         borrower_id=borrower_id, period=chosen, previous_period=prior)
     return standing.to_dict()
+
+
+def _standing_at(borrower_id: str, period: str):
+    """One borrower's standing, and the period list it was read from.
+
+    Shared by the scorecard and the timeline so the two cannot disagree about
+    which quarter "latest" is.
+    """
+    from backend.corporate import service as corporate
+    from backend.early_warning import signals as sg
+
+    try:
+        snapshot = corporate._load(corporate.SNAPSHOT)
+    except Exception as exc:  # noqa: BLE001 - said, never substituted
+        raise _unavailable(exc) from exc
+
+    periods = sorted((str(p) for p in snapshot["period"].unique()),
+                     key=sg._period_key)
+    chosen = period or (periods[-1] if periods else "")
+    index = periods.index(chosen) if chosen in periods else -1
+    prior = periods[index - 1] if index > 0 else ""
+
+    rows = snapshot[(snapshot["period"] == chosen)
+                    & (snapshot["borrower_id"] == borrower_id)]
+    if rows.empty:
+        raise _not_found(LookupError(
+            f"{borrower_id} is not on book at {chosen}."))
+    before = snapshot[(snapshot["period"] == prior)
+                      & (snapshot["borrower_id"] == borrower_id)]
+    standing = sg.stand(
+        rows.iloc[0].to_dict(),
+        before.iloc[0].to_dict() if not before.empty else {},
+        borrower_id=borrower_id, period=chosen, previous_period=prior)
+    return standing, snapshot, periods
+
+
+@router.get("/scorecard/{borrower_id}",
+            summary="One borrower's four-layer Early Warning scorecard")
+def borrower_scorecard(borrower_id: str, period: str = "") -> dict:
+    """Sections 11C, 11D and 11G. Every governed condition, over the line or
+    inside it, grouped by layer — with the risk level and the evidence behind
+    it first.
+
+    Every condition, not only the ones that fired: a layer showing three
+    amber rows and hiding the eleven green ones reads as an emergency whatever
+    the borrower is doing.
+    """
+    from backend.early_warning import scorecard as sc
+
+    standing, _snapshot, _periods = _standing_at(borrower_id, period)
+    try:
+        return sc.build(standing)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("The scorecard for %s could not be built: %s",
+                       borrower_id, exc)
+        raise _unavailable(exc) from exc
+
+
+@router.get("/timeline/{borrower_id}",
+            summary="One borrower's Early Warning position over time")
+def borrower_timeline(borrower_id: str, period: str = "",
+                      limit: int = Query(8, ge=2, le=16)) -> dict:
+    """Section 11I. Whether the bank has been watching this for two years or
+    it appeared last quarter.
+
+    Each period is a real evaluation against its own reporting row, never the
+    latest assessment repeated back at every date.
+    """
+    from backend.early_warning import scorecard as sc
+
+    standing, snapshot, periods = _standing_at(borrower_id, period)
+    upto = periods[:periods.index(standing.period) + 1]
+    try:
+        return sc.timeline(borrower_id, snapshot, upto, limit=limit)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("The timeline for %s could not be built: %s",
+                       borrower_id, exc)
+        raise _unavailable(exc) from exc
+
+
+@router.get("/scorecard/{borrower_id}/workbook",
+            summary="One borrower's scorecard as a workbook",
+            response_class=Response)
+def borrower_workbook(borrower_id: str, period: str = "") -> Response:
+    """Section 11L. The scorecard, as something to take into a review.
+
+    Nothing here is recomputed: every value is the one the screen read, so a
+    reader who opens the workbook after the screen cannot be shown two
+    different answers and have to pick one.
+    """
+    from backend.early_warning import workbook as wb
+
+    standing, _snapshot, _periods = _standing_at(borrower_id, period)
+    try:
+        body = wb.borrower(standing)
+    except Exception as exc:  # noqa: BLE001 - said, never substituted
+        logger.warning("The workbook for %s could not be built: %s",
+                       borrower_id, exc)
+        raise _unavailable(exc) from exc
+
+    safe = "".join(c for c in borrower_id if c.isalnum() or c in "-_")
+    stamp = standing.period.replace(" ", "-")
+    return Response(
+        content=body, media_type=wb.XLSX,
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="early-warning-{safe}-{stamp}.xlsx"',
+            "X-CreditProbe-Origin": wb.ORIGIN,
+            "X-CreditProbe-Workbook-Version": wb.WORKBOOK_VERSION,
+        })
+
+
+@router.get("/watchlist/workbook",
+            summary="The ranked book at one reporting date, as a workbook",
+            response_class=Response)
+def watchlist_workbook(period: str = "",
+                       limit: int = Query(500, ge=1, le=2000)) -> Response:
+    """Section 11L. What a committee reads before deciding whose name to
+    discuss — with the methodology on its own sheet, so the risk level is not
+    a column nobody can account for."""
+    from backend.early_warning import signals as sg
+    from backend.early_warning import workbook as wb
+
+    try:
+        book = sg._book(period)
+        ranked = book.get("_ranked") or []
+        body = wb.watchlist(ranked, period=str(book.get("period") or ""),
+                            limit=limit)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("The watchlist workbook could not be built: %s", exc)
+        raise _unavailable(exc) from exc
+
+    stamp = str(book.get("period") or "").replace(" ", "-")
+    return Response(
+        content=body, media_type=wb.XLSX,
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="early-warning-watchlist-'
+                f'{stamp}.xlsx"',
+            "X-CreditProbe-Origin": wb.ORIGIN,
+            "X-CreditProbe-Workbook-Version": wb.WORKBOOK_VERSION,
+        })
 
 
 @router.get("/story/{borrower_id}",

@@ -73,7 +73,7 @@ const VALUES = awkwardValues();
 const SEMANTICS = [
   "money", "percent", "ratio", "count", "days", "ordinal", "", undefined,
 ];
-const UNITS = ["%", "pp", "x", "days", "USD mn", "count", "", undefined];
+const UNITS = ["%", "pp", "x", "days", "SAR mn", "count", "", undefined];
 
 describe("the contract has one ceiling", () => {
   it("is two", () => {
@@ -162,7 +162,7 @@ describe("prose is scrubbed", () => {
   it("rewrites floating-point debris a backend formatter missed", () => {
     const said = scrubDebris(
       "Stage 2 share rose to 2.6246841182876173% on exposure of "
-        + "59.352000000000004 USD mn.",
+        + "59.352000000000004 SAR mn.",
     );
     assert.match(said, /2\.62%/);
     assert.match(said, /59\.35/);

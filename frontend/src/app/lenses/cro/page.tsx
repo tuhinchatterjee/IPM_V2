@@ -14,6 +14,7 @@ import {
 import { KpiTile, ResultTable } from "@/components/analytics/primitives";
 import { StageCompositionChart } from "@/components/analytics/result-view";
 import { Badge } from "@/components/ui/badge";
+import { Unavailable } from "@/components/ui/unavailable";
 import { BackLink } from "@/components/layout/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -110,6 +111,20 @@ export default function CroLensPage() {
         </div>
       </header>
 
+      {/*
+        Seven analyses, one permission. A Viewer may not execute a governed
+        analysis, so a Viewer opening this lens got seven empty panels and a
+        masthead promising figures that were never going to arrive. Stated
+        once at the top, because seven copies of the same refusal is noise —
+        and stated where the reader is, rather than left to the console.
+      */}
+      <Unavailable
+        state={summary}
+        what="the CRO Portfolio Lens"
+        className="print:hidden"
+      />
+
+
       {/* ------------------------------------------------- 1 · portfolio health */}
       <Chapter
         number="01"
@@ -129,9 +144,9 @@ export default function CroLensPage() {
           <KpiTile
             label="Total EAD"
             value={num(values, "total_ead")}
-            unit="USD mn"
+            unit="SAR mn"
             change={movement.total_ead ?? null}
-            changeUnit="USD mn"
+            changeUnit="SAR mn"
             direction="neutral"
             hint={`vs ${compare}`}
             loading={summary.loading}
@@ -150,9 +165,9 @@ export default function CroLensPage() {
           <KpiTile
             label="Total ECL"
             value={num(values, "total_ecl")}
-            unit="USD mn"
+            unit="SAR mn"
             change={movement.total_ecl ?? null}
-            changeUnit="USD mn"
+            changeUnit="SAR mn"
             hint={`vs ${compare}`}
             loading={summary.loading}
             emphasis
@@ -192,9 +207,9 @@ export default function CroLensPage() {
                   ["weighted_utilisation_pct", "Utilisation", "%"],
                   ["stage2_pct", "Stage 2 share", "%"],
                   ["stage3_pct", "Stage 3 share", "%"],
-                  ["watchlist_ead", "Watchlist EAD", "USD mn"],
-                  ["total_collateral", "Collateral", "USD mn"],
-                  ["macro_overlay", "Macro overlay", "USD mn"],
+                  ["watchlist_ead", "Watchlist EAD", "SAR mn"],
+                  ["total_collateral", "Collateral", "SAR mn"],
+                  ["macro_overlay", "Macro overlay", "SAR mn"],
                 ] as const
               ).map(([key, label, unit]) => (
                 <div key={key} className="flex items-baseline justify-between gap-2 border-b border-border pb-1.5">
@@ -293,7 +308,7 @@ export default function CroLensPage() {
                 data={concentration.data.result.rows as Rows}
                 xKey="sector"
                 series={[{ key: "ead", label: "EAD", slot: 0 }]}
-                units={{ ead: "USD mn" }}
+                units={{ ead: "SAR mn" }}
                 horizontal
                 height={300}
               />
@@ -354,7 +369,7 @@ export default function CroLensPage() {
                 }
                 xKey="sector"
                 valueKey="ecl_change"
-                unit="USD mn"
+                unit="SAR mn"
                 height={300}
               />
             )}
@@ -368,7 +383,7 @@ export default function CroLensPage() {
             {eclMovement.data?.result && (
               <ResultTable
                 rows={eclMovement.data.result.rows as Row[]}
-                units={{ value: "USD mn" }}
+                units={{ value: "SAR mn" }}
                 columns={["component", "value"]}
               />
             )}

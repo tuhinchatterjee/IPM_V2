@@ -159,8 +159,17 @@ class Node:
         if self.kind == TEST:
             return self.test.describe() if self.test is not None else ""
         if self.kind == NOT:
-            inner = self.children[0].describe() if self.children else ""
-            return f"not ({inner})" if inner else ""
+            child = self.children[0] if self.children else None
+            inner = child.describe() if child is not None else ""
+            if not inner:
+                return ""
+            # Brackets only where they carry meaning. A negated single test is
+            # "not on the watchlist", which is how it was written; "not (on the
+            # watchlist)" is the same claim wearing the parser's clothes, and
+            # it reaches the reader in the answer's own first sentence.
+            if child is not None and child.kind == TEST:
+                return f"not {inner}"
+            return f"not ({inner})"
         joiner = " and " if self.kind == AND else " or "
         parts = []
         for child in self.children:
@@ -423,11 +432,19 @@ def read(text: str, tests: list[Test]) -> Node:
     — is conjoined at the top. Losing it would be the very defect this module
     exists to stop.
     """
+    from backend.orchestration import ordinal
+
     kept = [t for t in tests if t is not None]
     if not kept:
         return Node(AND)
     used: set[int] = set()
-    built = _attach(_parse(str(text or "")), kept, used)
+    # "Stage 2 or worse" is a RANGE. Its "or" is part of the value, and
+    # splitting the sentence on it produced "stage is 2 or PD rose" — a
+    # population several times the size of the one asked for, printed in the
+    # answer's own heading. Blanked with equal-length spaces, so every offset
+    # and every phrase this reader matches on still lines up.
+    said = ordinal.without_qualifiers(str(text or ""))
+    built = _attach(_parse(said), kept, used)
     unplaced = [Node.leaf(t) for index, t in enumerate(kept)
                 if index not in used]
     if built is None or built.empty:

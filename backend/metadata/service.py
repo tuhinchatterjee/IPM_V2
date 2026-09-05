@@ -106,6 +106,37 @@ class Dataset:
         return self.periods[-1] if self.periods else ""
 
     @property
+    def first_period(self) -> str:
+        return self.periods[0] if self.periods else ""
+
+    @property
+    def frequency(self) -> str:
+        """How often this dataset publishes, from the periods it published.
+
+        Derived rather than declared: a dataset that calls itself monthly and
+        has published four quarters is quarterly, and the catalogue that
+        believes the declaration offers a month-on-month comparison nobody can
+        compute.
+        """
+        from backend.metadata import frequency as fq
+
+        return fq.of(self.periods)
+
+    @property
+    def period_word(self) -> str:
+        """What one of this dataset's periods is CALLED — quarter, month, year."""
+        from backend.metadata import frequency as fq
+
+        return fq.unit(self.frequency)
+
+    @property
+    def coverage(self) -> str:
+        """How far it reaches, said the way its own frequency says it."""
+        from backend.metadata import frequency as fq
+
+        return fq.coverage(self.periods)
+
+    @property
     def measures(self) -> tuple[Field, ...]:
         return tuple(f for f in self.fields if f.kind == "measure")
 
@@ -130,6 +161,9 @@ class Dataset:
             "grain": self.grain, "primary_keys": list(self.primary_keys),
             "period_field": self.period_field, "periods": list(self.periods),
             "period_count": self.period_count, "row_count": self.row_count,
+            "frequency": self.frequency, "period_word": self.period_word,
+            "first_period": self.first_period,
+            "latest_period": self.latest_period, "coverage": self.coverage,
             "field_count": self.field_count,
             "authoritative_for": list(self.authoritative_for),
             "origin": self.origin, "is_synthetic": self.is_synthetic,

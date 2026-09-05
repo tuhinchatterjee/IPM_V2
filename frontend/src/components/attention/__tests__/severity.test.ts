@@ -31,7 +31,7 @@ function riskCase(overrides: Partial<RiskCase> = {}): RiskCase {
     priority: 60,
     evidence_coverage: 1,
     exposure: 812,
-    exposure_unit: "USD mn",
+    exposure_unit: "SAR mn",
     metrics: [],
     signals: [],
     conclusion: "Stage 2 share rose from 4.1% to 6.4%.",
@@ -197,7 +197,7 @@ describe("the row subtitle", () => {
       exposure: 41.2,
       signals: ["Stage 2 → Stage 3", "DPD 61"],
     });
-    assert.match(severity.subtitle(found), /41\.2 USD mn/);
+    assert.match(severity.subtitle(found), /41\.2 SAR mn/);
     assert.match(severity.subtitle(found), /Stage 2 → Stage 3/);
   });
 
@@ -209,7 +209,7 @@ describe("the row subtitle", () => {
     });
     const line = severity.subtitle(found);
     assert.match(line, /customer_ratings/);
-    assert.doesNotMatch(line, /USD mn/);
+    assert.doesNotMatch(line, /SAR mn/);
   });
 
   it("degrades to the period alone rather than to an empty row", () => {

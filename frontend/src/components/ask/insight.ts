@@ -151,6 +151,12 @@ export function foundNothing(run: InvestigationResponse): boolean {
   const primary =
     run.steps.find((step) => step.role === "primary") ?? run.steps[0] ?? null;
   if (!primary?.result) return false;
+  // A question answered from the governed catalogue or from CreditProbe's own
+  // product knowledge ran no analysis, so it cannot have failed to match
+  // anything. Without this, every product answer was ALSO rendered as a
+  // "nothing matched" card - the whole composed answer a second time, in one
+  // unbroken paragraph, directly under the structured one.
+  if (primary.certification === "metadata") return false;
   return (
     primary.status === "succeeded" &&
     primary.result.rows.length === 0 &&

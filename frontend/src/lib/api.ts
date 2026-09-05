@@ -579,10 +579,69 @@ export interface RelationshipRow {
 }
 
 export interface DatasetDetail extends DatasetSummary {
+  coverage: DatasetCoverage;
   latest_upload: UploadRecord | null;
   mappings: FieldMappingRow[];
   fields: DictionaryField[];
   relationships: RelationshipRow[];
+}
+
+/**
+ * What the dataset actually holds, read from the governed catalogue.
+ *
+ * The definition says there is a period field. This says which periods are in
+ * the lake, how many, and how often they arrive — the three things somebody
+ * checks before deciding the next one is late.
+ */
+export interface DatasetCoverage {
+  periods: string[];
+  period_count: number;
+  frequency: string;
+  coverage: string;
+  earliest: string;
+  latest: string;
+  rows: number;
+  field_count: number;
+  /** What version is in service, said in a way that is true of this dataset. */
+  version: string;
+  released_period: string;
+  released_at: string | null;
+}
+
+/** The lifecycle one uploaded reporting period walks through. */
+export type ReleaseState =
+  | "UPLOADED"
+  | "VALIDATING"
+  | "FAILED"
+  | "VALIDATED"
+  | "REVIEW"
+  | "LOCKED"
+  | "PUBLISHED"
+  | "SUPERSEDED"
+  | "DISCARDED";
+
+/** One release of one period. Never destroyed — superseded. */
+export interface PeriodRelease {
+  id: number;
+  period: string;
+  version: number;
+  mode: string;
+  state: ReleaseState;
+  rows: number;
+  fields: number;
+  source_filename: string;
+  source_sha256: string;
+  validation: {
+    passed?: boolean;
+    error_count?: number;
+    warning_count?: number;
+    findings?: { rule: string; severity: string; detail: string; count?: number }[];
+  };
+  note: string;
+  uploaded_at: string | null;
+  reviewed_at: string | null;
+  published_at: string | null;
+  superseded_by: number | null;
 }
 
 export interface QualityFinding {
@@ -1355,11 +1414,58 @@ export interface InvestigationResponse {
   stages: Stage[];
   compound?: CompoundAnswer;
   /**
+   * The Investigation Response Package: which blocks this answer carries and
+   * what each one is. One question does not imply one analysis, so a review
+   * that ran four governed analyses arrives with four analysis blocks plus a
+   * summary, and an ordinary question arrives with one.
+   */
+  package?: ResponsePackage;
+  /**
    * The analyst's own investigation of the same question, when one ran.
    * R2 §9 and §23: the reading it formed is carried apart from the answer so
    * the screen can mark it as a reading rather than as a measurement.
    */
   analyst?: AnalystInvestigation;
+}
+
+/**
+ * One block of a response: a governed analysis, presented in the shape its own
+ * result earns. A block carries no figures — `step_index` points at the
+ * executed step that computed them, so there is exactly one copy of every
+ * number in a response.
+ */
+export interface ResponseBlock {
+  block_id: string;
+  /** What to render, in order: narrative | kpi | table | chart | matrix | decomposition | synthesis. */
+  kinds: string[];
+  title: string;
+  question: string;
+  because: string;
+  finding: string;
+  /** Which executed step holds the rows. -1 for a block with no step. */
+  step_index: number;
+  role: string;
+  /** The chart shape chosen for these rows, or "" where none leads. */
+  visual: string;
+  visual_reason: string;
+  row_count: number;
+  /** Why this result earns these kinds. */
+  why: string;
+  drawn: boolean;
+}
+
+/** The response contract: an ordered list of blocks, and how it was chosen. */
+export interface ResponsePackage {
+  version: string;
+  blocks: ResponseBlock[];
+  /** Analyses that ran and are not blocks, with the reason. */
+  withheld: { title?: string; why?: string }[];
+  counts: {
+    blocks: number;
+    analyses: number;
+    tables: number;
+    drawn: number;
+  };
 }
 
 /** What the governed investigation loop produced. R2 §9, §23. */
@@ -2367,6 +2473,259 @@ interface RequestOptions extends Omit<RequestInit, "signal"> {
   rawBody?: boolean;
 }
 
+
+/* ------------------------------------------------------------------ messages
+ *
+ * The internal workflow surface. Every shape here mirrors what
+ * `backend/api/routers/messages.py` returns; keeping the names identical is
+ * what makes a drift between the two obvious in review rather than at runtime.
+ *
+ * Note what a MessageSummary does NOT carry: bodies beyond a short preview,
+ * attachment payloads, or participant lists. A fifty-row inbox that loads fifty
+ * workbooks to draw itself is a page nobody waits for, so the list endpoint
+ * returns counts and kinds and the thread endpoint returns the rest.
+ */
+
+export type SenderType = "USER" | "SYSTEM";
+export type RequestType = "fyi" | "review" | "action";
+export type RequestStatus = "open" | "in_review" | "responded" | "closed";
+export type AttachmentType = "investigation" | "analysis" | "report" | "file";
+export type Mailbox = "inbox" | "sent" | "drafts" | "archived" | "action";
+
+export interface Person {
+  id: number;
+  username: string;
+  name: string;
+  email: string;
+  job_title: string;
+  department: string;
+  team: string;
+  role: string;
+  is_active: boolean;
+}
+
+export interface MessageSender {
+  /** SYSTEM messages have no user behind them — `user` is null, by design. */
+  type: SenderType;
+  name: string;
+  user: Person | null;
+}
+
+export interface MessageAttachment {
+  id: number;
+  type: AttachmentType;
+  object_id: string;
+  /** What the object was when it was sent, not what it is now. */
+  object_version: string;
+  label: string;
+  meta: Record<string, unknown>;
+  file?: {
+    artifact_id: number;
+    filename: string;
+    content_type: string;
+    size_bytes: number;
+    sha256: string;
+  };
+}
+
+export interface MessageAction {
+  action: string;
+  label: string;
+  href: string;
+  context?: Record<string, unknown>;
+}
+
+export interface Message {
+  id: number;
+  thread_id: number;
+  parent_id: number | null;
+  sender: MessageSender;
+  body: string;
+  status: "draft" | "sent";
+  request_type: RequestType;
+  request_status: RequestStatus | null;
+  priority: string;
+  due_at: string | null;
+  actions: MessageAction[];
+  context: Record<string, unknown>;
+  created_at: string | null;
+  sent_at: string | null;
+  recipients: Person[];
+  attachments: MessageAttachment[];
+}
+
+export interface MessageThread {
+  id: number;
+  subject: string;
+  origin: SenderType;
+  created_at: string | null;
+  last_message_at: string | null;
+  participants: Person[];
+  messages: Message[];
+  read_at: string | null;
+  archived: boolean;
+}
+
+export interface MessageSummary {
+  thread_id: number;
+  subject: string;
+  origin: SenderType;
+  sender: MessageSender;
+  preview: string;
+  message_count: number;
+  attachment_count: number;
+  attachment_types: AttachmentType[];
+  request_type: RequestType;
+  request_status: RequestStatus | null;
+  priority: string;
+  due_at: string | null;
+  last_message_at: string | null;
+  unread: boolean;
+  archived: boolean;
+}
+
+export interface SentSummary {
+  message_id: number;
+  thread_id: number;
+  subject: string;
+  preview: string;
+  recipients: Person[];
+  attachment_count: number;
+  attachment_types: AttachmentType[];
+  request_type: RequestType;
+  request_status: RequestStatus | null;
+  sent_at: string | null;
+}
+
+export interface DraftSummary {
+  message_id: number;
+  thread_id: number;
+  subject: string;
+  preview: string;
+  attachment_count: number;
+  created_at: string | null;
+}
+
+export interface MailboxPage<T> {
+  box: Mailbox;
+  total: number;
+  limit: number;
+  offset: number;
+  items: T[];
+}
+
+/**
+ * The one personal-attention summary. Every badge, tab and tile reads it.
+ *
+ * Each field is a backend predicate, not a client-side filter — see
+ * `attention_summary` in the collaboration service for the table of them.
+ */
+export interface MessageCounts {
+  inbox: number;
+  unread: number;
+  archived: number;
+  sent: number;
+  drafts: number;
+  action_required: number;
+  shared_with_me: number;
+}
+
+/** One user's operational counts, as the admin Workflow overview shows them. */
+export interface UserActivity {
+  received: number;
+  unread: number;
+  read: number;
+  sent: number;
+  drafts: number;
+  action_required: number;
+  overdue: number;
+  awaiting_others: number;
+  shared_with_them: number;
+  shared_by_them: number;
+}
+
+export interface WorkflowUserRow extends Person {
+  status: string;
+  last_active: string | null;
+  deactivated_at: string | null;
+  activity: UserActivity;
+}
+
+export interface WorkflowOverview {
+  total: number;
+  limit: number;
+  offset: number;
+  users: WorkflowUserRow[];
+  totals: {
+    users: number;
+    active: number;
+    suspended: number;
+    messages_sent: number;
+    unread: number;
+    action_required: number;
+    overdue: number;
+    shares: number;
+  };
+}
+
+export interface WorkflowUserProfile extends WorkflowUserRow {
+  recent_activity: { action: string; object_type: string; at: string | null }[];
+}
+
+/** A governed object the signed-in user may attach, offered as a card. */
+export interface ShareableObject {
+  object_type: string;
+  object_id: string;
+  object_version: string;
+  label: string;
+  meta: Record<string, unknown>;
+}
+
+export interface SharedObject {
+  object_type: string;
+  object_id: string;
+  object_version: string;
+  label: string;
+  meta: Record<string, unknown>;
+  shared_by: string;
+  shared_at: string | null;
+}
+
+export interface RequestEvent {
+  from_status: RequestStatus | null;
+  to_status: RequestStatus;
+  actor: string;
+  note: string;
+  at: string | null;
+}
+
+export interface AttachmentSpec {
+  type: AttachmentType;
+  object_id?: string;
+  artifact_id?: number;
+  label?: string;
+}
+
+export interface SendMessageInput {
+  to: number[];
+  cc?: number[];
+  subject?: string;
+  body?: string;
+  attachments?: AttachmentSpec[];
+  request_type?: RequestType;
+  priority?: string;
+  due_at?: string | null;
+  thread_id?: number | null;
+  draft_id?: number | null;
+  /**
+   * Generated once per press of Send. Sending it twice — a double-click, or a
+   * request the browser retried after a timeout it never saw the answer to —
+   * returns the first message instead of putting a second copy in somebody's
+   * inbox.
+   */
+  client_token?: string;
+}
+
 async function request<T>(
   path: string,
   options: RequestOptions = {},
@@ -2966,6 +3325,40 @@ export interface SignalObservation {
   unavailable: string;
   means: string;
   available: boolean;
+  /** §11H. What the BORROWER is doing on this condition, in credit language. */
+  state: string;
+}
+
+/** §11G. How serious the borrower's position is, and why. */
+export interface RiskAssessment {
+  level: string;
+  means: string;
+  reasons: { rule: string; says: string; pushes: string }[];
+  mitigating: { rule: string; says: string; pushes: string }[];
+  families: string[];
+  family_labels: string[];
+  /** Families carrying evidence OTHER than the ones the gravity sits in. */
+  corroborating: string[];
+  patterns: {
+    key: string;
+    label: string;
+    means: string;
+    fired: boolean;
+    matched: string[];
+    corroborated: string[];
+    untested: string[];
+    why: string;
+  }[];
+  new: string[];
+  persistent: string[];
+  worsening: string[];
+  resolved: string[];
+  improving: string[];
+  tac: Record<string, number>;
+  primary_concern: string;
+  why_now: string;
+  owner: string;
+  version: string;
 }
 
 export interface SignalStanding {
@@ -2998,6 +3391,100 @@ export interface SignalStanding {
   cured: SignalObservation[];
   untested: SignalObservation[];
   families: Record<string, string[]>;
+  /** §11G. Distinct from severity (about the rule) and priority (about what to do). */
+  assessment: RiskAssessment;
+  risk_level: string;
+}
+
+/** §11C/§11D. One borrower, four layers, every governed condition. */
+export interface ScorecardComponent {
+  signal: string;
+  label: string;
+  family: string;
+  family_label: string;
+  layer: string;
+  layer_name: string;
+  current: number | string | null;
+  previous: number | string | null;
+  movement: number | null;
+  threshold: number | string | null;
+  /** The threshold as a phrase: "at or below 5%", not a signed number. */
+  threshold_reads: string;
+  unit: string;
+  currency: string;
+  status: string;
+  status_means: string;
+  severity: string;
+  persistence: string;
+  detection: string;
+  detection_letter: string;
+  detection_means: string;
+  state: string;
+  state_means: string;
+  means: string;
+  available: boolean;
+  unavailable: string;
+}
+
+export interface ScorecardLayer {
+  layer: string;
+  number: number;
+  name: string;
+  watches: string;
+  matters: string;
+  gap: string;
+  over: number;
+  tested: number;
+  untested: number;
+  severity: string;
+  sentence: string;
+  components: ScorecardComponent[];
+}
+
+export interface BorrowerScorecard {
+  version: string;
+  taxonomy_version: string;
+  owner: string;
+  borrower_id: string;
+  period: string;
+  currency: string;
+  assessment: RiskAssessment;
+  risk_level: string;
+  /** §11J. Borrower 360, at the borrower AND the reporting date. */
+  borrower_360: {
+    customer_id: string;
+    reporting_period: string;
+    href: string;
+    label: string;
+  };
+  columns: string[];
+  layers: ScorecardLayer[];
+  statement: string;
+}
+
+/** §11I. What this borrower has been doing, quarter by quarter. */
+export interface BorrowerTimeline {
+  version: string;
+  borrower_id: string;
+  periods: string[];
+  entries: {
+    period: string;
+    on_book: boolean;
+    risk_level: string;
+    risk_means?: string;
+    fired: number;
+    families: number;
+    new?: number;
+    resolved?: number;
+    worsening?: number;
+    primary_concern: string;
+    why_now: string;
+    priority?: string;
+    sentence: string;
+    first?: boolean;
+  }[];
+  level_changes: number;
+  statement: string;
 }
 
 /** The Early Warning landing page. R2 §10. */
@@ -3036,6 +3523,21 @@ export interface EarlyWarningDashboard {
     version: string;
     levels: { priority: string; label: string; means: string }[];
     material_exposure: number;
+  };
+  /** §11B/§11G. The book split by overall risk, and the rule that split it. */
+  risk_levels: {
+    owner: string;
+    version: string;
+    rule: Record<string, string>;
+    levels: {
+      level: string;
+      means: string;
+      borrowers: number;
+      share: number;
+      exposure: number;
+      names: string[];
+    }[];
+    statement: string;
   };
 }
 
@@ -3378,89 +3880,143 @@ export interface BandMove {
   to_pct: number;
 }
 
-// ============================================================== playbooks
+// =================================================== What-If / scenarios
 
-/** A standing instruction the platform carries out. */
-export interface Playbook {
-  id: number;
-  slug: string;
-  name: string;
+export interface WhatIfShock {
+  kind: string;
+  magnitude: number;
+  unit: string;
+  target: string;
   description: string;
-  trigger: string;
-  trigger_label: string;
-  schedule: string;
-  scope: Record<string, unknown>;
-  analyses: { analysis_id: string; params?: Record<string, unknown> }[];
-  conditions: PlaybookCondition[];
-  actions: { create_investigation?: boolean; notify?: number[] };
-  status: string;
-  origin: string;
-  owner: string;
-  last_run_at: string | null;
-  next_run_hint: string;
-  run_count: number;
-  last_run: PlaybookRun | null;
-  created_at: string | null;
-  updated_at: string | null;
 }
 
-export interface PlaybookCondition {
-  metric: string;
-  label: string;
-  operator: string;
-  threshold: number;
-  unit: string;
+export interface WhatIfScenario {
+  key: string;
+  name: string;
   severity: string;
+  rationale: string;
+  period: string;
+  description: string;
+  shocks: WhatIfShock[];
+  population: {
+    sectors: string[];
+    rating_bands: string[];
+    stages: number[];
+    borrower_ids: string[];
+    watchlist_only: boolean;
+    description: string;
+  };
+  assumptions: {
+    reevaluate_sicr: boolean;
+    rating_deterioration_sicr: boolean;
+    rating_sicr_notches: number;
+    collateral_to_lgd: boolean;
+  };
 }
 
-/** One condition, tested against a figure the engine returned. */
-export interface PlaybookEvaluation {
-  metric: string;
-  label: string;
-  operator: string;
-  operator_label: string;
-  threshold: number;
-  severity: string;
-  value: number | null;
-  unit: string;
-  met: boolean;
-  /** False when no analysis produced the metric — different from "not met". */
-  testable: boolean;
-  analysis_id: string;
-  sentence: string;
+export interface WhatIfSummary {
+  scenario: string;
+  population: string;
+  borrowers: number;
+  period: string;
+  currency: string;
+  baseline_ead: number;
+  stressed_ead: number;
+  baseline_ecl: number;
+  stressed_ecl: number;
+  incremental_ecl: number;
+  incremental_ecl_pct: number;
+  baseline_coverage_pct: number;
+  stressed_coverage_pct: number;
+  stage_2_migrations: number;
+  stage_3_migrations: number;
+  stage_2_baseline: number;
+  stage_2_stressed: number;
+  borrowers_with_higher_ecl: number;
+  downgraded: number;
+  collateral_shortfalls: number;
+  covenant_breaches: number;
 }
 
-export interface PlaybookRun {
-  id: number | null;
-  playbook_id: number;
-  status: string;
-  period: Record<string, unknown>;
-  results: {
-    analysis_id: string;
-    analysis_run_id: number | null;
-    values: Record<string, unknown>;
-    units: Record<string, string>;
-    row_count: number;
-  }[];
-  evaluations: PlaybookEvaluation[];
-  actions_taken: {
-    action: string;
-    investigation_id?: number;
-    detail?: string;
-  }[];
-  alerted: boolean;
-  summary: string;
-  error: string;
-  investigation_id: number | null;
+export interface WhatIfStep {
+  step: string;
+  detail: string;
+  affected: number;
 }
 
-export interface PlaybookLibrary {
-  playbooks: Playbook[];
-  triggers: Record<string, string>;
-  operators: Record<string, string>;
-  severities: string[];
-  scope_dimensions: string[];
-  statuses: string[];
+export interface WhatIfSensitivityRow {
+  variable: string;
+  shock: string;
+  scope: string;
+  sector_sensitivity: number;
+  pd_effect_pct: number;
+  lgd_effect_pp: number;
+  borrowers: number;
+}
+
+export interface WhatIfRun {
+  scenario: WhatIfScenario;
+  period: string;
+  currency: string;
+  summary: WhatIfSummary;
+  population: number;
+  steps: WhatIfStep[];
+  sensitivity: WhatIfSensitivityRow[];
+  warnings: string[];
+  borrowers: { columns: string[]; rows: (string | number)[][] };
+  detail: {
+    by_sector: Record<string, unknown>[];
+    by_rating: Record<string, unknown>[];
+    top_contributors: Record<string, unknown>[];
+    masterscale: Record<string, unknown>[];
+    ifrs9_policy: Record<string, unknown>;
+  };
+  trace: { nodes: unknown[]; edges: unknown[] };
+}
+
+export interface WhatIfConfiguration {
+  masterscale: {
+    owner: string;
+    version: string;
+    grades: {
+      grade: string;
+      pd_floor_pct: number;
+      pd_ceiling_pct: number;
+      masterscale_pd_pct: number;
+    }[];
+    bands: Record<string, string[]>;
+  };
+  sensitivity: {
+    owner: string;
+    version: string;
+    effective_date: string;
+    statement: string;
+    sectors: string[];
+    variables: {
+      key: string;
+      variable: string;
+      unit: string;
+      shock_unit: string;
+      pd_effect_pct_per_step: number;
+      lgd_effect_pp_per_step: number;
+      financial_effects: Record<string, number>;
+      sector_sensitivity: Record<string, number>;
+      basis: string;
+      note: string;
+    }[];
+  };
+  ifrs9_policy: {
+    owner: string;
+    version: string;
+    sicr_triggers: { trigger: string; rule: string }[];
+    default_presumption: string;
+    measurement: Record<string, string>;
+    lifetime_horizon_years: number;
+    scenario_weights: { scenario: string; weight: number; ecl_multiplier: number }[];
+    weighted_factor: number;
+  };
+  scenarios: WhatIfScenario[];
+  currency: string;
 }
 
 // =================================================== the dataset viewer
@@ -3600,12 +4156,123 @@ export interface DatasetPage {
 
 /** One thing on a Lens: a certified analysis, drawn a particular way. */
 export interface LensPanel {
+  /**
+   * "analysis" runs a registered analysis; "metric" calculates one metric;
+   * "chart" breaks one metric out across a dimension. A chart carries its
+   * configuration in `params` — dimension, aggregate, sort, direction, limit,
+   * compare — so no stored lens had to be rewritten to hold one.
+   */
+  kind: "analysis" | "metric" | "chart";
   analysis_id: string;
+  metric_id: string;
   title: string;
   visual: string;
   params: Record<string, unknown>;
   filters: Record<string, unknown>;
+  /** A period this tile pins itself to; empty means it follows the lens. */
+  period: string;
   note: string;
+}
+
+/**
+ * Everything §6 requires an info control to be able to show about a number.
+ *
+ * Assembled by the backend rather than here, so that the panel on a lens, the
+ * panel in a chart and the answer to "how is this calculated?" are one thing.
+ */
+export interface MetricPanel {
+  metric_id: string;
+  name: string;
+  definition: string;
+  formula: string;
+  unit: string;
+  decimals: number;
+  numerator: string;
+  denominator: string;
+  domain: string;
+  portfolio: string;
+  datasets: string[];
+  /** What one row of the source dataset is. Empty when the catalogue
+   *  cannot say — never a guess. */
+  grain: string;
+  source_fields: {
+    name: string;
+    business_name?: string;
+    definition?: string;
+    data_type?: string;
+    unit?: string;
+  }[];
+  filters: string[];
+  period_rule: string;
+  transformation: string;
+  exclusions: string;
+  /** What this metric is NOT. Often the most-read line on the panel. */
+  not_this: string;
+  visuals: string[];
+  higher_is_better: boolean | null;
+  owner: string;
+  origin: string;
+  origin_label: string;
+  status: string;
+  status_label: string;
+  governed: boolean;
+  /** Whether a lens may show it without a caveat beside it. */
+  trustworthy: boolean;
+  version: string;
+  verified_by: number | null;
+  verified_at: string;
+  last_verified_note: string;
+  aliases: string[];
+}
+
+export interface MetricCalculation {
+  value: number | null;
+  final: string;
+  numerator: { label: string; value: number | null } | null;
+  denominator: { label: string; value: number | null } | null;
+  rows_considered: number;
+  period: string;
+  dataset: string;
+  sql: string;
+  run_id: string;
+  warnings: string[];
+  unavailable: string;
+}
+
+export interface MetricValue {
+  metric: MetricPanel;
+  calculation: MetricCalculation;
+  value: number | null;
+  unit: string;
+  decimals: number;
+  period: string;
+  available: boolean;
+  unavailable: string;
+}
+
+/** One suggestion from the metric typeahead, and why it was suggested. */
+export interface MetricHit {
+  metric_id: string;
+  name: string;
+  domain: string;
+  unit: string;
+  definition: string;
+  origin: string;
+  status: string;
+  governed: boolean;
+  datasets: string[];
+  matched: string;
+  why: string;
+}
+
+/** A metric CreditProbe knows about and cannot calculate in this deployment. */
+export interface MetricUnavailable {
+  metric_id: string;
+  name: string;
+  domain: string;
+  available: false;
+  because: string;
+  needs: string[];
 }
 
 export interface Lens {
@@ -3615,6 +4282,8 @@ export interface Lens {
   description: string;
   audience: string;
   panels: LensPanel[];
+  sections: LensSection[];
+  notes: LensNote[];
   status: string;
   version: number;
   origin: string;
@@ -3631,6 +4300,10 @@ export interface Lens {
 }
 
 export interface RenderedPanel extends LensPanel {
+  /**
+   * "succeeded", "unavailable" or "failed". The middle one is a gap in the
+   * book — no data for this period — and is not a failure of the platform.
+   */
   status: string;
   error: string | null;
   certification?: string;
@@ -3638,13 +4311,132 @@ export interface RenderedPanel extends LensPanel {
   analysis_run_id?: number | null;
   duration_ms?: number;
   result: EngineResult | null;
+  /** Metric tiles only, and all present on the tile so it needs no second fetch. */
+  metric?: MetricPanel | null;
+  calculation?: MetricCalculation;
+  value?: number | null;
+  unit?: string;
+  decimals?: number;
+  higher_is_better?: boolean | null;
+  period_used?: string;
+  unavailable?: string;
+  /** Chart tiles only. */
+  points?: ChartPoint[];
+  comparison?: ChartComparison | null;
+  series_label?: string;
+  dimension?: string;
+  dimension_label?: string;
+  groups_found?: number;
+  truncated?: boolean;
+  chart_notes?: string[];
+  lineage?: {
+    dataset: string;
+    sql: string;
+    run_id: string;
+    filters: Record<string, unknown>;
+  };
+}
+
+/** One group on a chart, and whether it has a value at all. */
+export interface ChartPoint {
+  label: string;
+  value: number | null;
+  rows: number;
+  unavailable: string;
+}
+
+export interface ChartComparison {
+  period: string;
+  label: string;
+  points: { label: string; value: number | null; change: number | null }[];
+  run_id: string;
+  sql: string;
+}
+
+/** A dimension a metric may honestly be broken out by. */
+export interface ChartDimension {
+  name: string;
+  business_name: string;
+  definition: string;
+  data_type: string;
+  allowed_values: string[];
+  /** True for the dataset's period field: this dimension IS the trend. */
+  over_time: boolean;
+  chart_types: string[];
+}
+
+/** Everything a chart over one metric may be configured with. */
+export interface ChartVocabulary {
+  metric: MetricPanel;
+  dimensions: ChartDimension[];
+  aggregations: {
+    name: string;
+    label: string;
+    available: boolean;
+    unavailable_because: string;
+  }[];
+  dimension: string;
+  chart_types: string[];
+  chart_types_refused: { name: string; because: string }[];
+  sorts: Record<string, string>;
+  directions: Record<string, string>;
+  comparisons: Record<string, string>;
+  max_groups: number;
+  periods: string[];
+}
+
+/** How a chart is configured, and what it drew. */
+export interface ChartSeries {
+  metric: MetricPanel;
+  series_label: string;
+  dimension: string;
+  dimension_label: string;
+  over_time: boolean;
+  aggregate: string;
+  sort: string;
+  direction: string;
+  compare: string;
+  filters: Record<string, unknown>;
+  unit: string;
+  decimals: number;
+  higher_is_better: boolean | null;
+  period: string;
+  points: ChartPoint[];
+  comparison: ChartComparison | null;
+  groups_found: number;
+  truncated: boolean;
+  dataset: string;
+  sql: string;
+  run_id: string;
+  /** What the chart will not claim: truncation, a missing comparison period. */
+  notes: string[];
+  unavailable: string;
+}
+
+/** A named band of tiles, holding the indices of the panels it contains. */
+export interface LensSection {
+  title: string;
+  subtitle: string;
+  panels: number[];
+}
+
+/** What a lens deliberately does not show, and why. */
+export interface LensNote {
+  kind: string;
+  metric_id: string;
+  name: string;
+  because: string;
+  needs: string[];
 }
 
 export interface RenderedLens {
   lens: Lens;
   period: string | null;
   panels: RenderedPanel[];
+  sections: LensSection[];
+  notes: LensNote[];
   failed: number;
+  unavailable: number;
   note: string;
 }
 
@@ -3673,8 +4465,20 @@ export interface SignedInUser {
 }
 
 export interface UserRecord extends SignedInUser {
+  /**
+   * What this person DOES, beside `role`, which is what they MAY do.
+   *
+   * A directory in which four people are all "ANALYST" cannot tell a sender
+   * which of them owns the shipping book, and sending a review request to the
+   * wrong one of them is a real cost of showing only the permission.
+   */
+  job_title: string;
+  department: string;
   last_login_at: string | null;
   created_at: string | null;
+  updated_at: string | null;
+  /** When the account was suspended. Null while it is active. */
+  deactivated_at: string | null;
 }
 
 /** One person work can be sent to. §47. */
@@ -3705,6 +4509,19 @@ export interface RoleDescription {
   label: string;
   /** One sentence on what this role may do, shown when assigning it. */
   can: string;
+}
+
+/**
+ * What a reader has chosen about how the product looks to them.
+ *
+ * Presentation only: the greeting name is what the Cockpit prints, and the
+ * account, role, permissions and audit identity are untouched by it.
+ */
+export interface Preferences {
+  greeting_name: string;
+  greeting_name_is_default: boolean;
+  default_greeting_name: string;
+  max_length: number;
 }
 
 export const api = {
@@ -3750,6 +4567,8 @@ export const api = {
     email?: string;
     role?: Role;
     team?: string;
+    jobTitle?: string;
+    department?: string;
   }) =>
     request<UserRecord>("/users", {
       method: "POST",
@@ -3761,6 +4580,8 @@ export const api = {
         email: payload.email ?? "",
         role: payload.role ?? "ANALYST",
         team: payload.team ?? "",
+        job_title: payload.jobTitle ?? "",
+        department: payload.department ?? "",
       }),
     }),
   updateUser: (
@@ -3771,6 +4592,8 @@ export const api = {
       email?: string;
       role?: Role;
       team?: string;
+      jobTitle?: string;
+      department?: string;
       isActive?: boolean;
     },
   ) =>
@@ -3782,6 +4605,8 @@ export const api = {
         email: payload.email ?? null,
         role: payload.role ?? null,
         team: payload.team ?? null,
+        job_title: payload.jobTitle ?? null,
+        department: payload.department ?? null,
         is_active: payload.isActive ?? null,
       }),
     }),
@@ -3873,12 +4698,142 @@ export const api = {
       `/early-warning/story/${encodeURIComponent(borrowerId)}` +
         (period ? `?period=${encodeURIComponent(period)}` : ""),
     ),
+  /** How this reader wants the product to look. Presentation only. */
+  preferences: () => request<Preferences>("/preferences"),
+  setGreetingName: (greeting_name: string) =>
+    request<Preferences>("/preferences/greeting-name", {
+      method: "PUT",
+      body: JSON.stringify({ greeting_name }),
+    }),
+  resetGreetingName: () =>
+    request<Preferences>("/preferences/greeting-name", { method: "DELETE" }),
   askMode: () => request<PlannerMode>("/ask/mode"),
   askCost: (limit = 50) => request<CostTrace>(`/ask/cost?limit=${limit}`),
   askSuggestions: () =>
     request<{ questions: { question: string; note: string }[] }>(
       "/ask/suggestions",
     ),
+
+  // ---------------------------------------------------------------- messages
+  messageCounts: () => request<MessageCounts>("/messages/counts"),
+  messageDirectory: (q = "", limit = 50) =>
+    request<{ users: Person[] }>(
+      `/messages/directory?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+  mailbox: (
+    box: Mailbox = "inbox",
+    opts: {
+      limit?: number;
+      offset?: number;
+      q?: string;
+      unread?: boolean;
+      attachmentType?: string;
+    } = {},
+  ) => {
+    const p = new URLSearchParams({ box });
+    if (opts.limit) p.set("limit", String(opts.limit));
+    if (opts.offset) p.set("offset", String(opts.offset));
+    if (opts.q) p.set("q", opts.q);
+    if (opts.unread) p.set("unread", "true");
+    if (opts.attachmentType) p.set("attachment_type", opts.attachmentType);
+    return request<MailboxPage<MessageSummary | SentSummary | DraftSummary>>(
+      `/messages?${p.toString()}`,
+    );
+  },
+  messageThread: (threadId: number) =>
+    request<MessageThread>(`/messages/threads/${threadId}`),
+  shareableObjects: (objectType: string, q = "", limit = 20) =>
+    request<{ items: ShareableObject[] }>(
+      `/messages/shareable?object_type=${encodeURIComponent(objectType)}` +
+        `&q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+  workflowOverview: (opts: { q?: string; limit?: number } = {}) =>
+    request<WorkflowOverview>(
+      `/messages/admin/overview?q=${encodeURIComponent(opts.q ?? "")}` +
+        `&limit=${opts.limit ?? 100}`,
+    ),
+  workflowUserProfile: (userId: number) =>
+    request<WorkflowUserProfile>(`/messages/admin/users/${userId}`),
+  sharedWithMe: (limit = 25) =>
+    request<{ items: SharedObject[] }>(
+      `/messages/shared-with-me?limit=${limit}`,
+    ),
+  requestHistory: (messageId: number) =>
+    request<{ events: RequestEvent[] }>(
+      `/messages/requests/${messageId}/history`,
+    ),
+  createDraft: (body: { subject?: string; body?: string; thread_id?: number }) =>
+    request<{ message_id: number; thread_id: number; subject: string }>(
+      "/messages/drafts",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  updateDraft: (
+    messageId: number,
+    body: { subject?: string; body?: string; attachments?: AttachmentSpec[] },
+  ) =>
+    request<{ message_id: number; thread_id: number }>(
+      `/messages/drafts/${messageId}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    ),
+  sendMessage: (body: SendMessageInput) =>
+    request<{
+      message_id: number;
+      thread_id: number;
+      subject: string;
+      recipients: number[];
+      /** True when this was a replay of a send that had already happened. */
+      duplicate?: boolean;
+    }>("/messages/send", { method: "POST", body: JSON.stringify(body) }),
+  replyToThread: (
+    threadId: number,
+    body: {
+      body: string;
+      attachments?: AttachmentSpec[];
+      request_type?: RequestType;
+    },
+  ) =>
+    request<{ message_id: number; thread_id: number }>(
+      `/messages/threads/${threadId}/reply`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  markThreadRead: (threadId: number, read = true) =>
+    request<{ thread_id: number; read: boolean }>(
+      `/messages/threads/${threadId}/read`,
+      { method: "POST", body: JSON.stringify({ read }) },
+    ),
+  // `archiveThread` already means "archive an investigation" below. Two
+  // different objects called a thread is a naming collision the product
+  // inherited; the messaging side takes the longer name rather than shadowing
+  // the older one.
+  archiveMessageThread: (threadId: number, archived = true) =>
+    request<{ thread_id: number; archived: boolean }>(
+      `/messages/threads/${threadId}/archive`,
+      { method: "POST", body: JSON.stringify({ archived }) },
+    ),
+  changeRequestStatus: (messageId: number, status: RequestStatus, note = "") =>
+    request<{ message_id: number; request_status: RequestStatus }>(
+      `/messages/requests/${messageId}/status`,
+      { method: "POST", body: JSON.stringify({ status, note }) },
+    ),
+  uploadAttachment: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<{
+      artifact_id: number;
+      filename: string;
+      size_bytes: number;
+      sha256: string;
+    }>("/messages/artifacts", { method: "POST", body: form, rawBody: true });
+  },
+  /**
+   * Where the browser fetches an attached file from.
+   *
+   * A URL rather than a fetch: the download is authorized per request by the
+   * backend against thread participation, so letting the browser navigate to
+   * it keeps the file name, the content type and the save dialog native.
+   */
+  attachmentUrl: (artifactId: number) =>
+    `${API_BASE_URL}${API_PREFIX}/messages/artifacts/${artifactId}`,
   briefing: () => request<Briefing>("/ask/briefing", { timeoutMs: 60_000 }),
   recentInvestigations: (limit = 8) =>
     request<{ investigations: RecentInvestigation[] }>(
@@ -4068,8 +5023,235 @@ export const api = {
       body: JSON.stringify({ request: requestText, apply }),
       timeoutMs: 60_000,
     }),
+  // ------------------------------------------------------ metric catalogue
+  //
+  // The picker never opens with the whole catalogue: `searchMetrics("")`
+  // returns nothing on purpose, and `metricCatalogue()` is the deliberate way
+  // to see everything.
+  searchMetrics: (q: string, limit = 8, domain = "") =>
+    request<{
+      query: string;
+      results: MetricHit[];
+      count: number;
+      unavailable: MetricUnavailable[];
+    }>(
+      `/metrics?q=${encodeURIComponent(q)}&limit=${limit}` +
+        (domain ? `&domain=${encodeURIComponent(domain)}` : ""),
+    ),
+  metricCatalogue: () =>
+    request<{
+      domains: { domain: string; metrics: MetricPanel[] }[];
+      unavailable: MetricUnavailable[];
+      version: string;
+    }>("/metrics/all"),
+  metric: (metricId: string) =>
+    request<MetricPanel>(`/metrics/${encodeURIComponent(metricId)}`),
+  metricValue: (metricId: string, period = "") =>
+    request<MetricValue>(
+      `/metrics/${encodeURIComponent(metricId)}/value` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+      { timeoutMs: 120_000 },
+    ),
+  metricRows: (metricId: string, period = "", limit = 25) =>
+    request<{
+      columns: string[];
+      rows: Record<string, unknown>[];
+      period: string;
+      dataset: string;
+      limit: number;
+    }>(
+      `/metrics/${encodeURIComponent(metricId)}/rows?limit=${limit}` +
+        (period ? `&period=${encodeURIComponent(period)}` : ""),
+      { timeoutMs: 120_000 },
+    ),
+  /**
+   * The datasets, fields and operations a metric may be built from.
+   *
+   * The builder offers only these, so a definition naming a field that does
+   * not exist cannot be assembled — and the server refuses it again on
+   * submission, because a picker is a convenience and never a control.
+   */
+  metricVocabulary: () =>
+    request<{
+      datasets: {
+        name: string;
+        business_name: string;
+        purpose: string;
+        grain: string;
+        period_field: string;
+        fields: {
+          name: string;
+          business_name: string;
+          definition: string;
+          data_type: string;
+          unit: string | null;
+          allowed_values: string[];
+        }[];
+      }[];
+      kinds: string[];
+      aggregations: Record<string, string>;
+      comparisons: Record<string, string>;
+      combiners: string[];
+      units: string[];
+      needs_denominator: string[];
+      domains: string[];
+    }>("/metrics/vocabulary"),
+  previewMetric: (
+    payload: {
+      name: string;
+      formula: Record<string, unknown>;
+      unit?: string;
+    },
+    period = "",
+  ) =>
+    request<{
+      available: boolean;
+      value: number | null;
+      unit?: string;
+      unavailable: string;
+      period: string;
+      formula: string;
+      calculation?: MetricCalculation;
+    }>(
+      `/metrics/preview${period ? `?period=${encodeURIComponent(period)}` : ""}`,
+      { method: "POST", body: JSON.stringify(payload), timeoutMs: 120_000 },
+    ),
+  createMetric: (payload: {
+    name: string;
+    definition?: string;
+    formula: Record<string, unknown>;
+    unit?: string;
+    domain?: string;
+    portfolio?: string;
+    presentation?: Record<string, unknown>;
+    shared?: boolean;
+  }) =>
+    request<MetricPanel>("/metrics", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateMetric: (metricId: string, payload: Record<string, unknown>) =>
+    request<MetricPanel>(`/metrics/${encodeURIComponent(metricId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  deleteMetric: (metricId: string) =>
+    request<void>(`/metrics/${encodeURIComponent(metricId)}`, {
+      method: "DELETE",
+    }),
+  checkMetric: (metricId: string, period = "") =>
+    request<MetricValue & { metric: MetricPanel }>(
+      `/metrics/${encodeURIComponent(metricId)}/calculate` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+      { method: "POST", timeoutMs: 120_000 },
+    ),
+  verifyMetric: (
+    metricId: string,
+    payload: {
+      expected: number | null;
+      period?: string;
+      expected_source?: string;
+      note?: string;
+      tolerance?: number;
+      decision?: string;
+    },
+  ) =>
+    request<{
+      metric_id: string;
+      period: string;
+      computed: number | null;
+      expected: number | null;
+      difference: number | null;
+      relative: number | null;
+      outcome: string;
+      agrees: boolean;
+      tolerance: number;
+      run_id: string;
+      decision: string;
+      metric_status: string;
+      note_on_status?: string;
+    }>(`/metrics/${encodeURIComponent(metricId)}/verify`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      timeoutMs: 120_000,
+    }),
+  metricVerifications: (metricId: string) =>
+    request<{
+      metric_id: string;
+      verifications: {
+        id: number;
+        period: string;
+        computed: number | null;
+        expected: number | null;
+        difference: number | null;
+        outcome: string;
+        tolerance: number;
+        expected_source: string;
+        note: string;
+        decision: string;
+        run_id: string;
+        created_by: number | null;
+        created_at: string | null;
+      }[];
+      outcomes: string[];
+      decisions: string[];
+    }>(`/metrics/${encodeURIComponent(metricId)}/verifications`),
+
+  /**
+   * The dimensions, aggregations, sorts, comparisons and chart types a chart
+   * over this metric may use.
+   *
+   * Pass the chosen dimension: most of the refusals depend on it, because
+   * whether a line means anything depends on whether the axis has an order.
+   */
+  chartOptions: (metricId: string, dimension = "") =>
+    request<ChartVocabulary>(
+      `/metrics/${encodeURIComponent(metricId)}/chart-options` +
+        (dimension ? `?dimension=${encodeURIComponent(dimension)}` : ""),
+      { timeoutMs: 60_000 },
+    ),
+  /**
+   * Draw a metric across a dimension.
+   *
+   * The preview in the builder and the tile on the lens take this same route,
+   * so what somebody approves is what the lens draws.
+   */
+  drawChart: (payload: {
+    metric_id: string;
+    dimension: string;
+    period?: string;
+    filters?: Record<string, unknown>;
+    aggregate?: string;
+    sort?: string;
+    direction?: string;
+    limit?: number;
+    compare?: string;
+  }) =>
+    request<ChartSeries>("/metrics/chart", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      timeoutMs: 180_000,
+    }),
+
   restoreLens: (id: number, version: number) =>
     request<Lens>(`/lenses/${id}/restore/${version}`, { method: "POST" }),
+  // The layout arrives whole rather than as a list of moves: an ordering is
+  // not a set of independent edits, and applying five of six reorderings
+  // leaves a lens nobody asked for. Sections address tiles by position in
+  // `tiles`, so an arrangement and its bands cannot disagree.
+  setLensLayout: (
+    id: number,
+    layout: {
+      tiles: LensPanel[];
+      sections?: LensSection[];
+      change_summary?: string;
+    },
+  ) =>
+    request<Lens>(`/lenses/${id}/layout`, {
+      method: "PUT",
+      body: JSON.stringify(layout),
+      timeoutMs: 60_000,
+    }),
   setLensStatus: (id: number, status: string) =>
     request<Lens>(`/lenses/${id}/status`, {
       method: "POST",
@@ -4134,6 +5316,70 @@ export const api = {
    * A URL rather than a fetch: the browser downloads it directly, so a large
    * file never passes through JavaScript memory on its way to disk.
    */
+  /** The same rows as the CSV, in a workbook that says what they are. */
+  datasetWorkbookUrl: (name: string, opts: DatasetQuery = {}) => {
+    const query = datasetQuery(opts);
+    const suffix = query.toString() ? `?${query}` : "";
+    return (
+      `${API_BASE_URL}${API_PREFIX}/data-builder/datasets/` +
+      `${encodeURIComponent(name)}/workbook${suffix}`
+    );
+  },
+
+  // ---- one reporting period at a time ----
+  //
+  // A file that arrives is staged and checked. It is never published as a side
+  // effect of arriving: somebody reads it, locks it, and publishes it, and each
+  // of those is a separate call by somebody with the right to make it.
+
+  /** Every release of every period, newest first. */
+  periodHistory: (name: string, period = "") =>
+    request<{ dataset: string; period: string; count: number; releases: PeriodRelease[] }>(
+      `/data-builder/datasets/${encodeURIComponent(name)}/periods` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+    ),
+
+  /** Stage and validate one period. This does not publish it. */
+  uploadPeriod: (
+    name: string,
+    file: File,
+    period: string,
+    mode: "NEW_PERIOD" | "REPLACE_PERIOD",
+    sheet?: string,
+  ) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("period", period);
+    form.append("mode", mode);
+    if (sheet) form.append("sheet", sheet);
+    return request<{ dataset: string; release: PeriodRelease }>(
+      `/data-builder/datasets/${encodeURIComponent(name)}/periods/upload`,
+      { method: "POST", body: form, rawBody: true, timeoutMs: 180_000 },
+    );
+  },
+
+  /** Move a staged release along its lifecycle. */
+  periodAction: (
+    releaseId: number,
+    action: "review" | "lock" | "discard",
+    note = "",
+  ) =>
+    request<{ release: PeriodRelease }>(`/data-builder/periods/${releaseId}/${action}`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    }),
+
+  /** Write the partition, refresh the catalogue, tell the bank. */
+  publishPeriod: (releaseId: number) =>
+    request<{
+      release: PeriodRelease;
+      announcement: Record<string, unknown>;
+      message: string;
+    }>(`/data-builder/periods/${releaseId}/publish`, {
+      method: "POST",
+      timeoutMs: 180_000,
+    }),
+
   datasetExportUrl: (name: string, opts: DatasetQuery = {}) => {
     const query = datasetQuery(opts);
     const suffix = query.toString() ? `?${query}` : "";
@@ -4143,50 +5389,47 @@ export const api = {
     );
   },
 
-  // ---- playbooks ----
-  playbooks: (status?: string) =>
-    request<PlaybookLibrary>(
-      `/playbooks${status ? `?status=${encodeURIComponent(status)}` : ""}`,
-    ),
-  playbook: (id: number) => request<Playbook>(`/playbooks/${id}`),
-  createPlaybook: (payload: {
-    name: string;
-    description?: string;
-    trigger?: string;
-    schedule?: string;
-    scope?: Record<string, unknown>;
-    analyses: { analysis_id: string; params?: Record<string, unknown> }[];
-    conditions?: PlaybookCondition[];
-    actions?: { create_investigation?: boolean; notify?: number[] };
+  // ---- What-If / scenarios ----
+  whatIfConfiguration: () =>
+    request<WhatIfConfiguration>("/whatif/configuration"),
+  whatIfScenarios: () =>
+    request<{ scenarios: WhatIfScenario[]; count: number }>("/whatif/scenarios"),
+  runWhatIf: (payload: {
+    scenario?: string;
+    name?: string;
+    shocks?: { kind: string; magnitude: number; unit?: string; target?: string }[];
+    population?: {
+      sectors?: string[];
+      rating_bands?: string[];
+      stages?: number[];
+      borrower_ids?: string[];
+      watchlist_only?: boolean;
+    };
+    assumptions?: {
+      reevaluate_sicr?: boolean;
+      rating_deterioration_sicr?: boolean;
+      rating_sicr_notches?: number;
+      collateral_to_lgd?: boolean;
+    };
+    period?: string;
+    limit?: number;
   }) =>
-    request<Playbook>("/playbooks", {
+    request<WhatIfRun>("/whatif/run", {
       method: "POST",
-      body: JSON.stringify({
-        name: payload.name,
-        description: payload.description ?? "",
-        trigger: payload.trigger ?? "manual",
-        schedule: payload.schedule ?? "",
-        scope: payload.scope ?? {},
-        analyses: payload.analyses,
-        conditions: payload.conditions ?? [],
-        actions: payload.actions ?? { create_investigation: false, notify: [] },
-      }),
+      body: JSON.stringify(payload),
     }),
-  setPlaybookStatus: (id: number, status: string) =>
-    request<Playbook>(`/playbooks/${id}/status`, {
-      method: "POST",
-      body: JSON.stringify({ status }),
-    }),
-  runPlaybook: (id: number, period?: string) =>
-    request<PlaybookRun>(`/playbooks/${id}/run`, {
-      method: "POST",
-      body: JSON.stringify({ period: period ?? null }),
-      timeoutMs: 180_000,
-    }),
-  playbookRuns: (id: number) =>
-    request<{ runs: PlaybookRun[] }>(`/playbooks/${id}/runs`),
-  deletePlaybook: (id: number) =>
-    request<void>(`/playbooks/${id}`, { method: "DELETE" }),
+  askWhatIf: (question: string, limit = 100) =>
+    request<WhatIfRun & { is_scenario: boolean; message?: string; unread?: string[] }>(
+      "/whatif/ask",
+      { method: "POST", body: JSON.stringify({ question, limit }) },
+    ),
+  compareWhatIf: (keys: string[]) =>
+    request<{
+      columns: string[];
+      rows: (string | number)[][];
+      currency: string;
+      scenarios: WhatIfScenario[];
+    }>("/whatif/compare", { method: "POST", body: JSON.stringify(keys) }),
 
   // ---- early warning ----
   earlyWarningTaxonomy: () =>
@@ -4206,6 +5449,28 @@ export const api = {
       `/early-warning/dashboard${period ? `?period=${encodeURIComponent(period)}` : ""}`,
       { timeoutMs: 90_000 },
     ),
+  borrowerScorecard: (borrowerId: string, period?: string) =>
+    request<BorrowerScorecard>(
+      `/early-warning/scorecard/${encodeURIComponent(borrowerId)}` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+      { timeoutMs: 60_000 },
+    ),
+  borrowerTimeline: (borrowerId: string, period?: string, limit = 8) => {
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (period) query.set("period", period);
+    return request<BorrowerTimeline>(
+      `/early-warning/timeline/${encodeURIComponent(borrowerId)}?${query}`,
+      { timeoutMs: 90_000 },
+    );
+  },
+  /** §11L. The two workbook URLs, for a link the browser downloads. */
+  borrowerScorecardWorkbookUrl: (borrowerId: string, period?: string) =>
+    `${API_BASE_URL}${API_PREFIX}/early-warning/scorecard/` +
+    `${encodeURIComponent(borrowerId)}` +
+    `/workbook${period ? `?period=${encodeURIComponent(period)}` : ""}`,
+  watchlistWorkbookUrl: (period?: string) =>
+    `${API_BASE_URL}${API_PREFIX}/early-warning/watchlist/workbook` +
+    (period ? `?period=${encodeURIComponent(period)}` : ""),
   borrowerSignals: (borrowerId: string, period?: string) =>
     request<SignalStanding>(
       `/early-warning/signals/${encodeURIComponent(borrowerId)}` +
@@ -5187,7 +6452,7 @@ export const api = {
   studioReviewsTab: () =>
     request<StudioReviewsTab>("/intelligence/studio/investigation-reviews"),
   investigationAssurance: (investigationId: string) =>
-    request<AssuranceReview>(
+    request<AssuranceReview | AssuranceNotYet>(
       `/investigations/${encodeURIComponent(investigationId)}/assurance`,
     ),
   assuranceRecord: (investigationId: string, recordId: string) =>
@@ -5751,6 +7016,1023 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  // ---- Project Planner ----------------------------------------------------
+  // One namespace rather than twenty flat names, because the planner is a
+  // whole area of the product and `api.plannerProjectsListWithFilters` is not
+  // a name anybody wants to read twice.
+  planner: {
+    portfolio: (params: {
+      status?: string;
+      health?: string;
+      manager_id?: number;
+      search?: string;
+      include_archived?: boolean;
+      limit?: number;
+      offset?: number;
+    } = {}) => {
+      const query = new URLSearchParams();
+      if (params.status) query.set("status", params.status);
+      if (params.health) query.set("health", params.health);
+      if (params.manager_id) query.set("manager_id", String(params.manager_id));
+      if (params.search) query.set("search", params.search);
+      if (params.include_archived) query.set("include_archived", "true");
+      query.set("limit", String(params.limit ?? 100));
+      if (params.offset) query.set("offset", String(params.offset));
+      return request<PlannerPortfolio>(`/planner/projects?${query}`);
+    },
+    attention: (limit = 10) =>
+      request<{ items: PlannerAttentionItem[] }>(
+        `/planner/attention?limit=${limit}`),
+    myWork: () => request<PlannerMyWork>("/planner/my-work"),
+    project: (id: number) =>
+      request<PlannerProjectDetail>(`/planner/projects/${id}`),
+    createProject: (body: Record<string, unknown>) =>
+      request<PlannerProjectDetail>("/planner/projects", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    updateProject: (id: number, body: Record<string, unknown>) =>
+      request<PlannerProjectDetail>(`/planner/projects/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    overrideHealth: (id: number, health: string, reason: string) =>
+      request<PlannerProjectDetail>(`/planner/projects/${id}/health`, {
+        method: "POST",
+        body: JSON.stringify({ health, reason }),
+      }),
+    recalculate: (id: number) =>
+      request<PlannerProjectDetail>(`/planner/projects/${id}/recalculate`, {
+        method: "POST",
+      }),
+    addParticipant: (id: number, body: Record<string, unknown>) =>
+      request<PlannerProjectDetail>(`/planner/projects/${id}/participants`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    removeParticipant: (id: number, userId: number) =>
+      request<PlannerProjectDetail>(
+        `/planner/projects/${id}/participants/${userId}`,
+        { method: "DELETE" }),
+    createWorkstream: (id: number, body: Record<string, unknown>) =>
+      request<PlannerProjectDetail>(`/planner/projects/${id}/workstreams`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    createTask: (id: number, body: Record<string, unknown>) =>
+      request<{ id: number; code: string }>(
+        `/planner/projects/${id}/tasks`,
+        { method: "POST", body: JSON.stringify(body) }),
+    /**
+     * A quick update. `expected_version` is what the drawer read; sending it
+     * turns "two people edited this at once" from a silent overwrite into a
+     * 409 the person can see.
+     */
+    updateTask: (taskId: number, body: Record<string, unknown>) =>
+      request<{ task: PlannerTaskRow; project: Record<string, unknown> }>(
+        `/planner/tasks/${taskId}`,
+        { method: "PATCH", body: JSON.stringify(body) }),
+    deleteTask: (taskId: number) =>
+      request<{ deleted: number; project_id: number }>(
+        `/planner/tasks/${taskId}`, { method: "DELETE" }),
+    createMilestone: (id: number, body: Record<string, unknown>) =>
+      request<{ id: number; code: string }>(
+        `/planner/projects/${id}/milestones`,
+        { method: "POST", body: JSON.stringify(body) }),
+    updateMilestone: (milestoneId: number, body: Record<string, unknown>) =>
+      request<{ id: number; status: string }>(
+        `/planner/milestones/${milestoneId}`,
+        { method: "PATCH", body: JSON.stringify(body) }),
+    createDependency: (id: number, body: Record<string, unknown>) =>
+      request<{ id: number }>(`/planner/projects/${id}/dependencies`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    deleteDependency: (dependencyId: number) =>
+      request<{ deleted: number }>(`/planner/dependencies/${dependencyId}`, {
+        method: "DELETE",
+      }),
+    createRaid: (id: number, body: Record<string, unknown>) =>
+      request<{ id: number; code: string }>(`/planner/projects/${id}/raid`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    updateRaid: (raidId: number, body: Record<string, unknown>) =>
+      request<{ id: number; status: string }>(`/planner/raid/${raidId}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    postUpdate: (id: number, body: Record<string, unknown>) =>
+      request<{ id: number; posted_at: string | null }>(
+        `/planner/projects/${id}/updates`,
+        { method: "POST", body: JSON.stringify(body) }),
+    activity: (id: number, limit = 100) =>
+      request<PlannerActivity>(
+        `/planner/projects/${id}/activity?limit=${limit}`),
+    changes: (id: number, days = 7) =>
+      request<Record<string, unknown>>(
+        `/planner/projects/${id}/changes?days=${days}`),
+    brief: (id: number) =>
+      request<PlannerBrief>(`/planner/projects/${id}/brief`),
+    portfolioBrief: (limit = 6) =>
+      request<PlannerPortfolioBrief>(`/planner/brief?limit=${limit}`),
+    chases: (id: number, tone = "neutral") =>
+      request<PlannerChases>(
+        `/planner/projects/${id}/chases?tone=${tone}`),
+    /** Download links, not fetches: the browser has to do the saving. */
+    templateUrl: () => `${API_BASE_URL}${API_PREFIX}/planner/template`,
+    exportUrl: (id: number) =>
+      `${API_BASE_URL}${API_PREFIX}/planner/projects/${id}/export`,
+    upload: (id: number, file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return request<PlannerImportPreview>(
+        `/planner/projects/${id}/import`,
+        { method: "POST", body: form, rawBody: true });
+    },
+    commitImport: (importId: number) =>
+      request<{ import_id: number; project_id: number;
+                applied: Record<string, number>; total: number }>(
+        `/planner/imports/${importId}/commit`, { method: "POST" }),
+    /**
+     * A workbook that CREATES a project, rather than one that updates an
+     * existing one. A separate call for the same reason it is a separate
+     * route: "which project is this going into?" is the whole difference,
+     * and guessing it is how somebody ends up with two of them.
+     */
+    uploadNewProject: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return request<PlannerImportPreview>(
+        "/planner/imports", { method: "POST", body: form, rawBody: true });
+    },
+    schedule: (id: number) =>
+      request<PlannerSchedule>(`/planner/projects/${id}/schedule`),
+    slip: (id: number, code: string, days: number) =>
+      request<PlannerSlip>(
+        `/planner/projects/${id}/slip?code=${encodeURIComponent(code)}` +
+        `&days=${days}`),
+    requests: (state = "sent") =>
+      request<{ requests: PlannerUpdateRequest[]; count: number;
+                state: string }>(
+        `/planner/requests?state=${encodeURIComponent(state)}`),
+    projectRequests: (id: number, state = "sent") =>
+      request<{ requests: PlannerUpdateRequest[]; count: number;
+                state: string }>(
+        `/planner/projects/${id}/requests?state=${encodeURIComponent(state)}`),
+  },
+
+  /**
+   * Playbook — the committee pack lifecycle.
+   *
+   * Every write here goes through a route that decides the source itself. The
+   * client never sends one: a body carrying `source` would be a caller naming
+   * their own door, and the backend ignores it for exactly that reason.
+   */
+  playbook: {
+    committees: (includeInactive = false) =>
+      request<{ committees: PlaybookCommittee[] }>(
+        `/playbook/committees?include_inactive=${includeInactive}`),
+    committee: (id: number) =>
+      request<PlaybookCommitteeDetail>(`/playbook/committees/${id}`),
+    createCommittee: (body: Record<string, unknown>) =>
+      request<PlaybookCommittee>("/playbook/committees", {
+        method: "POST", body: JSON.stringify(body) }),
+    updateCommittee: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookCommittee>(`/playbook/committees/${id}`, {
+        method: "PATCH", body: JSON.stringify(body) }),
+    addMember: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookMember>(`/playbook/committees/${id}/members`, {
+        method: "POST", body: JSON.stringify(body) }),
+    updateMember: (memberId: number, body: Record<string, unknown>) =>
+      request<PlaybookMember>(`/playbook/members/${memberId}`, {
+        method: "PATCH", body: JSON.stringify(body) }),
+
+    templates: (committeeId?: number) => {
+      const query = new URLSearchParams();
+      if (committeeId) query.set("committee_id", String(committeeId));
+      return request<{ templates: PlaybookTemplate[] }>(
+        `/playbook/templates?${query}`);
+    },
+    createTemplate: (body: Record<string, unknown>) =>
+      request<PlaybookTemplate>("/playbook/templates", {
+        method: "POST", body: JSON.stringify(body) }),
+    setTemplateStatus: (id: number, status: string) =>
+      request<PlaybookTemplate>(`/playbook/templates/${id}/status`, {
+        method: "POST", body: JSON.stringify({ status }) }),
+
+    packs: (params: { committee_id?: number; status?: string;
+                      period?: string; mine?: boolean } = {}) => {
+      const query = new URLSearchParams();
+      if (params.committee_id) {
+        query.set("committee_id", String(params.committee_id));
+      }
+      if (params.status) query.set("status", params.status);
+      if (params.period) query.set("period", params.period);
+      if (params.mine) query.set("mine", "true");
+      return request<{ packs: PlaybookPackSummary[] }>(
+        `/playbook/packs?${query}`);
+    },
+    pack: (id: number) => request<PlaybookPack>(`/playbook/packs/${id}`),
+    createPack: (body: Record<string, unknown>) =>
+      request<PlaybookPackSummary>("/playbook/packs", {
+        method: "POST", body: JSON.stringify(body) }),
+    updatePack: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookPackSummary>(`/playbook/packs/${id}`, {
+        method: "PATCH", body: JSON.stringify(body) }),
+    setPackStatus: (id: number, status: string, note = "") =>
+      request<PlaybookPackSummary>(`/playbook/packs/${id}/status`, {
+        method: "POST", body: JSON.stringify({ status, note }) }),
+    generate: (id: number) =>
+      request<PlaybookGeneration>(`/playbook/packs/${id}/generate`, {
+        method: "POST" }),
+    readiness: (id: number) =>
+      request<PlaybookReadiness & { pack_id: number; code: string }>(
+        `/playbook/packs/${id}/readiness`),
+    history: (id: number, limit = 200) =>
+      request<{ pack_id: number; events: PlaybookEvent[] }>(
+        `/playbook/packs/${id}/history?limit=${limit}`),
+    compare: (id: number) =>
+      request<PlaybookComparison>(`/playbook/packs/${id}/compare`),
+    amend: (id: number, reason: string) =>
+      request<PlaybookPackSummary>(`/playbook/packs/${id}/amend`, {
+        method: "POST", body: JSON.stringify({ reason }) }),
+    reorder: (id: number, body: Record<string, unknown>) =>
+      request<{ reordered: number }>(`/playbook/packs/${id}/reorder`, {
+        method: "POST", body: JSON.stringify(body) }),
+
+    createSection: (packId: number, body: Record<string, unknown>) =>
+      request<PlaybookSection>(`/playbook/packs/${packId}/sections`, {
+        method: "POST", body: JSON.stringify(body) }),
+    updateSection: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookSection>(`/playbook/sections/${id}`, {
+        method: "PATCH", body: JSON.stringify(body) }),
+    deleteSection: (id: number) =>
+      request<void>(`/playbook/sections/${id}`, { method: "DELETE" }),
+    submitSection: (id: number) =>
+      request<PlaybookSection>(`/playbook/sections/${id}/submit`, {
+        method: "POST" }),
+    reviewSection: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookReview>(`/playbook/sections/${id}/review`, {
+        method: "POST", body: JSON.stringify(body) }),
+    requestReview: (id: number, reviewerId: number) =>
+      request<PlaybookReview>(`/playbook/sections/${id}/request-review`, {
+        method: "POST", body: JSON.stringify({ reviewer_id: reviewerId }) }),
+    draftCommentary: (id: number, instructions = "", blockId?: number) =>
+      request<PlaybookDrafted>(`/playbook/sections/${id}/commentary`, {
+        method: "POST",
+        body: JSON.stringify({ instructions, block_id: blockId ?? null }) }),
+
+    createBlock: (sectionId: number, body: Record<string, unknown>) =>
+      request<PlaybookBlock>(`/playbook/sections/${sectionId}/blocks`, {
+        method: "POST", body: JSON.stringify(body) }),
+    updateBlock: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookBlock>(`/playbook/blocks/${id}`, {
+        method: "PATCH", body: JSON.stringify(body) }),
+    deleteBlock: (id: number) =>
+      request<void>(`/playbook/blocks/${id}`, { method: "DELETE" }),
+    refreshBlock: (id: number) =>
+      request<PlaybookGeneration>(`/playbook/blocks/${id}/refresh`, {
+        method: "POST" }),
+    mapBlock: (id: number, metricId: string) =>
+      request<PlaybookMapping>(`/playbook/blocks/${id}/map`, {
+        method: "POST", body: JSON.stringify({ metric_id: metricId }) }),
+
+    findings: (params: { pack_id?: number; committee_id?: number;
+                         status?: string; severity?: string;
+                         open_only?: boolean } = {}) => {
+      const query = new URLSearchParams();
+      if (params.pack_id) query.set("pack_id", String(params.pack_id));
+      if (params.committee_id) {
+        query.set("committee_id", String(params.committee_id));
+      }
+      if (params.status) query.set("status", params.status);
+      if (params.severity) query.set("severity", params.severity);
+      if (params.open_only) query.set("open_only", "true");
+      return request<{ findings: PlaybookFinding[] }>(
+        `/playbook/findings?${query}`);
+    },
+    finding: (id: number) =>
+      request<PlaybookFinding>(`/playbook/findings/${id}`),
+    respondToFinding: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookFinding>(`/playbook/findings/${id}/respond`, {
+        method: "POST", body: JSON.stringify(body) }),
+    reopenFinding: (id: number, why: string) =>
+      request<PlaybookFinding>(`/playbook/findings/${id}/reopen`, {
+        method: "POST", body: JSON.stringify({ why }) }),
+
+    decisions: (params: { pack_id?: number; committee_id?: number;
+                          status?: string } = {}) => {
+      const query = new URLSearchParams();
+      if (params.pack_id) query.set("pack_id", String(params.pack_id));
+      if (params.committee_id) {
+        query.set("committee_id", String(params.committee_id));
+      }
+      if (params.status) query.set("status", params.status);
+      return request<{ decisions: PlaybookDecision[] }>(
+        `/playbook/decisions?${query}`);
+    },
+    createDecision: (packId: number, body: Record<string, unknown>) =>
+      request<PlaybookDecision>(`/playbook/packs/${packId}/decisions`, {
+        method: "POST", body: JSON.stringify(body) }),
+    updateDecision: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookDecision>(`/playbook/decisions/${id}`, {
+        method: "PATCH", body: JSON.stringify(body) }),
+    decide: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookDecision>(`/playbook/decisions/${id}/decide`, {
+        method: "POST", body: JSON.stringify(body) }),
+
+    actions: (params: { pack_id?: number; committee_id?: number;
+                        status?: string; mine?: boolean;
+                        overdue?: boolean } = {}) => {
+      const query = new URLSearchParams();
+      if (params.pack_id) query.set("pack_id", String(params.pack_id));
+      if (params.committee_id) {
+        query.set("committee_id", String(params.committee_id));
+      }
+      if (params.status) query.set("status", params.status);
+      if (params.mine) query.set("mine", "true");
+      if (params.overdue) query.set("overdue", "true");
+      return request<{ actions: PlaybookAction[] }>(
+        `/playbook/actions?${query}`);
+    },
+    createAction: (packId: number, body: Record<string, unknown>) =>
+      request<PlaybookAction>(`/playbook/packs/${packId}/actions`, {
+        method: "POST", body: JSON.stringify(body) }),
+    updateAction: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookAction>(`/playbook/actions/${id}`, {
+        method: "PATCH", body: JSON.stringify(body) }),
+    closeAction: (id: number, evidence: string) =>
+      request<PlaybookAction>(`/playbook/actions/${id}/close`, {
+        method: "POST", body: JSON.stringify({ evidence }) }),
+    linkActionToPlanner: (id: number, body: Record<string, unknown>) =>
+      request<PlaybookAction>(`/playbook/actions/${id}/planner`, {
+        method: "POST", body: JSON.stringify(body) }),
+
+    sources: (packId: number) =>
+      request<{ sources: PlaybookSource[] }>(
+        `/playbook/packs/${packId}/sources`),
+    import: (packId: number, file: File, asContent = true) => {
+      const form = new FormData();
+      form.append("file", file);
+      return request<PlaybookImported>(
+        `/playbook/packs/${packId}/import?as_content=${asContent}`,
+        { method: "POST", body: form, rawBody: true });
+    },
+
+    chase: (committeeId?: number) => {
+      const query = new URLSearchParams();
+      if (committeeId) query.set("committee_id", String(committeeId));
+      return request<PlaybookChase>(`/playbook/chase?${query}`);
+    },
+
+    formats: () =>
+      request<{ formats: PlaybookExportFormat[] }>("/playbook/formats"),
+    /** A download link, not a fetch: the browser has to do the saving. */
+    exportUrl: (packId: number, format: string) =>
+      `${API_BASE_URL}${API_PREFIX}/playbook/packs/${packId}` +
+      `/export?format=${encodeURIComponent(format)}`,
+  },
+
+  /**
+   * Scorecard Validation Intelligence — three scorecards, forty-eight tests.
+   *
+   * Reads and runs are separated on purpose. `overview`, `tests`, `model`,
+   * `periods`, `regulatory` and `patterns` are GETs a page load may call;
+   * everything that computes is a POST, because a full run is a minute of
+   * bootstrap resampling and a route that a dashboard poll could trigger by
+   * accident would be triggered by accident.
+   */
+  scorecardValidation: {
+    overview: () => request<ScvOverview>("/scorecard-validation/overview"),
+
+    tests: (category = "") =>
+      request<{ registry_version: string; category: string;
+                tests: ScvTest[] }>(
+        `/scorecard-validation/tests${
+          category ? `?category=${encodeURIComponent(category)}` : ""}`),
+
+    model: (modelId: string) =>
+      request<ScvModel>(
+        `/scorecard-validation/models/${encodeURIComponent(modelId)}`),
+
+    /**
+     * Which months exist, and which of them have a realised outcome.
+     *
+     * Worth calling before any run: almost every wrong number in model
+     * validation comes from an outcome metric measured over a window that has
+     * not closed yet.
+     */
+    periods: (modelId: string) =>
+      request<ScvPeriods>(
+        `/scorecard-validation/models/${encodeURIComponent(modelId)}/periods`),
+
+    runTest: (modelId: string, testId: string, options: {
+      period?: string; segment?: string; segmentField?: string;
+    } = {}) => {
+      const query = new URLSearchParams();
+      if (options.period) query.set("period", options.period);
+      if (options.segment) query.set("segment", options.segment);
+      if (options.segmentField) {
+        query.set("segment_field", options.segmentField);
+      }
+      const suffix = query.toString() ? `?${query}` : "";
+      return request<{ test: ScvTest; result: ScvResult }>(
+        `/scorecard-validation/models/${encodeURIComponent(modelId)}` +
+        `/tests/${encodeURIComponent(testId)}${suffix}`,
+        { method: "POST" });
+    },
+
+    runCategory: (modelId: string, category: string, options: {
+      period?: string; segmentField?: string;
+    } = {}) => {
+      const query = new URLSearchParams();
+      if (options.period) query.set("period", options.period);
+      if (options.segmentField) {
+        query.set("segment_field", options.segmentField);
+      }
+      const suffix = query.toString() ? `?${query}` : "";
+      return request<ScvRun>(
+        `/scorecard-validation/models/${encodeURIComponent(modelId)}` +
+        `/categories/${encodeURIComponent(category)}${suffix}`,
+        { method: "POST" });
+    },
+
+    /**
+     * Every applicable test in every category.
+     *
+     * Slow by nature rather than by defect — see `full_run_cost` on the
+     * overview. The longer timeout is here rather than in the caller so no
+     * screen has to remember it.
+     */
+    runAll: (modelId: string, period = "") => {
+      const suffix = period ? `?period=${encodeURIComponent(period)}` : "";
+      return request<ScvRun>(
+        `/scorecard-validation/models/${encodeURIComponent(modelId)}` +
+        `/run${suffix}`,
+        { method: "POST", timeoutMs: 300_000 });
+    },
+
+    report: (modelId: string, period = "") => {
+      const suffix = period ? `?period=${encodeURIComponent(period)}` : "";
+      return request<ScvReport>(
+        `/scorecard-validation/models/${encodeURIComponent(modelId)}` +
+        `/report${suffix}`,
+        { method: "POST", timeoutMs: 300_000 });
+    },
+
+    /** The Word report. A download, so the browser does the saving. */
+    reportDocxUrl: (modelId: string, period = "") =>
+      `${API_BASE_URL}${API_PREFIX}/scorecard-validation/models/` +
+      `${encodeURIComponent(modelId)}/report.docx` +
+      (period ? `?period=${encodeURIComponent(period)}` : ""),
+
+    /**
+     * One question, one governed tool result.
+     *
+     * A POST because it computes. `model_id` is the scorecard the screen is
+     * showing — the backend uses it only to fill a gap the question left, and
+     * validates it rather than trusting it.
+     *
+     * Answered, clarified and refused all come back 200. Branching on the
+     * status code to tell them apart is how a refusal ends up rendered as an
+     * answer, so there is nothing to branch on.
+     */
+    ask: (question: string, modelId = "") =>
+      request<ScvAnswer>("/scorecard-validation/ask", {
+        method: "POST",
+        body: JSON.stringify({ question, model_id: modelId }),
+        timeoutMs: 300_000,
+      }),
+
+    regulatory: () =>
+      request<ScvRegulatory>("/scorecard-validation/regulatory"),
+
+    patterns: () => request<ScvPatterns>("/scorecard-validation/patterns"),
+
+    // ---------------------------------------------------------------
+    // Validation History.
+    //
+    // Every call below is a GET that reads stored rows. None of them
+    // recalculates, which is the whole point: a run opened six months later
+    // shows what it showed then. Creating a run is still a POST elsewhere,
+    // because creating one is the expensive, deliberate act.
+
+    runs: (options: { modelId?: string; limit?: number;
+                      offset?: number } = {}) => {
+      const query = new URLSearchParams();
+      if (options.modelId) query.set("model_id", options.modelId);
+      if (options.limit) query.set("limit", String(options.limit));
+      if (options.offset) query.set("offset", String(options.offset));
+      const suffix = query.toString() ? `?${query}` : "";
+      return request<ScvRunHistory>(`/scorecard-validation/runs${suffix}`);
+    },
+
+    run: (runKey: string) =>
+      request<ScvStoredRun>(
+        `/scorecard-validation/runs/${encodeURIComponent(runKey)}`),
+
+    /** The configuration of a run, to submit again. Not its results. */
+    runConfiguration: (runKey: string) =>
+      request<ScvRunConfiguration>(
+        `/scorecard-validation/runs/${encodeURIComponent(runKey)}/duplicate`),
+
+    /**
+     * Re-run using current data.
+     *
+     * A NEW run. The one named here keeps every value it recorded, and the
+     * two can then be compared — which is the only honest way to answer
+     * "what changed since the last validation?".
+     */
+    rerun: (modelId: string, duplicateOf: string, period = "") => {
+      const query = new URLSearchParams({ duplicate_of: duplicateOf });
+      if (period) query.set("period", period);
+      return request<ScvRun>(
+        `/scorecard-validation/models/${encodeURIComponent(modelId)}` +
+        `/run?${query}`,
+        { method: "POST", timeoutMs: 300_000 });
+    },
+
+    compareRuns: (olderKey: string, newerKey: string) =>
+      request<ScvComparison>(
+        `/scorecard-validation/runs/${encodeURIComponent(olderKey)}` +
+        `/compare/${encodeURIComponent(newerKey)}`),
+
+    runReports: (runKey: string) =>
+      request<{ run_key: string; reports: ScvReportHeader[] }>(
+        `/scorecard-validation/runs/${encodeURIComponent(runKey)}/reports`),
+
+    /** Draft a report FROM a stored run, bound to it by foreign key. */
+    draftReport: (runKey: string) =>
+      request<{ report: ScvReportHeader;
+                document: Record<string, unknown>; bound_to: string }>(
+        `/scorecard-validation/runs/${encodeURIComponent(runKey)}/report`,
+        { method: "POST", timeoutMs: 300_000 }),
+
+    storedReport: (reportKey: string) =>
+      request<ScvReportHeader & { document: Record<string, unknown> }>(
+        `/scorecard-validation/reports/${encodeURIComponent(reportKey)}`),
+
+    /** Sign a draft. After this it is evidence and cannot be edited. */
+    finaliseReport: (reportKey: string) =>
+      request<{ report: ScvReportHeader; signed: string }>(
+        `/scorecard-validation/reports/${encodeURIComponent(reportKey)}` +
+        `/finalise`, { method: "POST" }),
+
+    /** A download link, not a fetch: the browser has to do the saving. */
+    storedReportDocxUrl: (reportKey: string) =>
+      `${API_BASE_URL}${API_PREFIX}/scorecard-validation/reports/` +
+      `${encodeURIComponent(reportKey)}.docx`,
+  },
+};
+
+
+
+// ---------------------------------------------------------------------------
+// Project Planner — delivery projects, tasks, RAID
+//
+// Distinct from `Project` above, which is the analytical workspace a piece of
+// credit work lives in. These are the projects a team DELIVERS: who owes what,
+// by when, and what is late. The backend keeps them in planner_* tables for
+// the same reason.
+// ---------------------------------------------------------------------------
+
+export type PlannerHealth = "GREEN" | "AMBER" | "RED" | "UNKNOWN";
+
+/**
+ * One node of the calculated schedule.
+ *
+ * `marked_critical` is what somebody ticked; `calculated_critical` is what the
+ * arithmetic says. They are separate fields on purpose — `disagrees` is the
+ * column a project manager reads first.
+ */
+export type PlannerScheduleNode = {
+  kind: string;
+  id: number;
+  code: string;
+  name: string;
+  duration_days: number;
+  duration_from: string;
+  planned_start: string | null;
+  planned_finish: string | null;
+  early_start: string;
+  early_finish: string;
+  late_start: string;
+  late_finish: string;
+  total_float_days: number;
+  calculated_critical: boolean;
+  marked_critical: boolean;
+  complete: boolean;
+  disagrees: boolean;
+};
+
+export type PlannerSchedule = {
+  computed: boolean;
+  basis: string;
+  version: string;
+  nodes: PlannerScheduleNode[];
+  critical_path: string[];
+  project_start: string | null;
+  project_finish: string | null;
+  /** Present exactly when `computed` is false. Never empty in that case. */
+  cannot_because: string[];
+  marked_not_calculated: string[];
+  calculated_not_marked: string[];
+  project_id?: number;
+  project_code?: string;
+};
+
+export type PlannerSlip = {
+  computed: boolean;
+  code: string;
+  days: number;
+  moved?: {
+    code: string; name: string; kind: string; days: number;
+    was: string; now: string; float_before: number;
+  }[];
+  finish_moves_by?: number;
+  absorbed?: boolean;
+  project_finish_before?: string | null;
+  project_finish_after?: string | null;
+  cannot_because?: string[];
+};
+
+/** A chase: a reminder somebody is expected to answer. */
+export type PlannerUpdateRequest = {
+  id: number;
+  project_id: number;
+  project_code: string;
+  project_name: string;
+  task_id: number;
+  task_code: string;
+  task_title: string;
+  task_status: string;
+  task_percent: number | null;
+  person: { id: number; name: string; username: string } | null;
+  requested_by: { id: number; name: string; username: string } | null;
+  reason: string;
+  trigger: string;
+  state: string;
+  sent_at: string | null;
+  responded_at: string | null;
+  response: {
+    narrative: string; blocker: string; next_step: string;
+    new_percent: number | null; new_status: string;
+  } | null;
+};
+
+export type PlannerPerson = {
+  id: number;
+  name: string;
+  username: string;
+  email: string;
+  job_title: string;
+  team: string;
+} | null;
+
+export type PlannerFinding = {
+  rule: string;
+  severity: "info" | "warn" | "critical";
+  detail: string;
+  entity_type: string;
+  entity_id: number | null;
+  entity_code: string;
+  value: number | null;
+};
+
+export type PlannerTaskRow = {
+  id: number;
+  code: string;
+  title: string;
+  project_id: number;
+  project_code: string;
+  project_name: string;
+  status: string;
+  priority: string;
+  percent_complete: number;
+  due_date: string | null;
+  start_date: string | null;
+  days_overdue: number | null;
+  days_until_due: number | null;
+  blocked: boolean;
+  blocker_reason: string;
+  next_step: string;
+  critical: boolean;
+  owner: PlannerPerson;
+  workstream_id: number | null;
+  last_update_at: string | null;
+  last_update_text: string;
+  version: number;
+  description?: string;
+  reviewer?: PlannerPerson;
+  contributors?: PlannerPerson[];
+  parent_id?: number | null;
+  weight?: number;
+  effort_days?: number | null;
+  tags?: string[];
+  completed_date?: string | null;
+  blocks?: number[];
+};
+
+export type PlannerProjectRow = {
+  id: number;
+  code: string;
+  name: string;
+  status: string;
+  priority: string;
+  health: PlannerHealth;
+  health_reason: string;
+  health_overridden: boolean;
+  percent_complete: number;
+  manager: PlannerPerson;
+  sponsor: PlannerPerson;
+  start_date: string | null;
+  target_end_date: string | null;
+  open_tasks: number;
+  overdue_tasks: number;
+  blocked_tasks: number;
+  due_soon_tasks: number;
+  open_raid: number;
+  next_milestone: string;
+  next_milestone_date: string | null;
+  calculated_at: string | null;
+  updated_at: string | null;
+  access: string;
+};
+
+/**
+ * Counts by health and by status as MAPS, not as named fields.
+ *
+ * The vocabulary lives in `backend/models/planner.py` and a screen that
+ * hard-codes red/amber/green here goes silently blank the day a fifth colour
+ * is added. `by_health.RED ?? 0` survives that; `totals.red` does not.
+ */
+export type PlannerPortfolio = {
+  projects: PlannerProjectRow[];
+  totals: {
+    projects: number;
+    by_health: Record<string, number>;
+    by_status: Record<string, number>;
+    overdue_tasks: number;
+    blocked_tasks: number;
+    due_soon_tasks: number;
+  };
+  count: number;
+};
+
+export type PlannerAttentionItem = {
+  id: number;
+  code: string;
+  name: string;
+  health: PlannerHealth;
+  reason: string;
+  health_overridden: boolean;
+  percent_complete: number;
+  findings: PlannerFinding[];
+};
+
+/**
+ * Six buckets, and every task is in exactly one.
+ *
+ * They are top-level lists rather than a `buckets` map because the set is
+ * closed and named: a screen that iterates an open map cannot put them in the
+ * order that makes the screen readable, which is the whole point of bucketing.
+ */
+export type PlannerMyWork = {
+  overdue: PlannerTaskRow[];
+  today: PlannerTaskRow[];
+  upcoming: PlannerTaskRow[];
+  blocked: PlannerTaskRow[];
+  reviews: PlannerTaskRow[];
+  later: PlannerTaskRow[];
+  counts: Record<string, number>;
+};
+
+export type PlannerWorkstream = {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  status: string;
+  lead: PlannerPerson;
+  start_date: string | null;
+  target_end_date: string | null;
+  sequence: number;
+  percent_complete: number;
+  task_count: number;
+};
+
+export type PlannerMilestone = {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  status: string;
+  target_date: string | null;
+  actual_date: string | null;
+  days_overdue: number | null;
+  critical: boolean;
+  owner: PlannerPerson;
+  workstream_id: number | null;
+  version: number;
+};
+
+export type PlannerRaidItem = {
+  id: number;
+  code: string;
+  /** RISK | ASSUMPTION | ISSUE | DECISION. Named `type` on the wire. */
+  type: string;
+  title: string;
+  description: string;
+  severity: string;
+  probability: string;
+  impact: string;
+  status: string;
+  owner: PlannerPerson;
+  workstream_id: number | null;
+  raised_date: string | null;
+  target_date: string | null;
+  resolved_date: string | null;
+  mitigation: string;
+  resolution: string;
+  version: number;
+};
+
+export type PlannerParticipantRow = {
+  id: number;
+  user: PlannerPerson;
+  project_role: string;
+  access: string;
+  workstream_id: number | null;
+  notifications_enabled: boolean;
+  notes: string;
+};
+
+export type PlannerDependencyRow = {
+  id: number;
+  predecessor_type: string;
+  predecessor_id: number;
+  predecessor_code: string;
+  successor_type: string;
+  successor_id: number;
+  successor_code: string;
+  dependency_type: string;
+  lag_days: number;
+  notes: string;
+};
+
+export type PlannerProjectDetail = {
+  project: {
+    id: number;
+    code: string;
+    name: string;
+    description: string;
+    objective: string;
+    business_context: string;
+    status: string;
+    priority: string;
+    health: PlannerHealth;
+    health_reason: string;
+    health_overridden: boolean;
+    calculated_health: string;
+    calculated_health_reason: string;
+    manual_health_by: PlannerPerson;
+    manual_health_at: string | null;
+    percent_complete: number;
+    manager: PlannerPerson;
+    sponsor: PlannerPerson;
+    start_date: string | null;
+    target_end_date: string | null;
+    actual_end_date: string | null;
+    reporting_cadence: string;
+    reminder_days: number[];
+    stale_after_days: number;
+    archived: boolean;
+    version: number;
+    created_at: string | null;
+    updated_at: string | null;
+  };
+  /**
+   * What this caller may do on this project, as `backend.planner.access.Grant`
+   * writes it. The field is `access`, not `level` — an earlier draft of this
+   * type invented `level`, which typechecked perfectly and crashed the page
+   * the first time a real response arrived.
+   */
+  access: {
+    project_id: number;
+    user_id: number | null;
+    access: string;
+    project_role: string;
+    administrative: boolean;
+  };
+  findings: PlannerFinding[];
+  workstreams: PlannerWorkstream[];
+  tasks: PlannerTaskRow[];
+  milestones: PlannerMilestone[];
+  raid: PlannerRaidItem[];
+  participants: PlannerParticipantRow[];
+  dependencies: PlannerDependencyRow[];
+};
+
+export type PlannerUpdateRow = {
+  id: number;
+  entity_type: string;
+  entity_id: number | null;
+  entity_code: string;
+  action: string;
+  author: PlannerPerson;
+  old_status: string;
+  new_status: string;
+  old_percent: number | null;
+  new_percent: number | null;
+  narrative: string;
+  blocker: string;
+  next_step: string;
+  changes: Record<string, unknown>;
+  source: string;
+  at: string | null;
+};
+
+export type PlannerActivity = { count: number; items: PlannerUpdateRow[] };
+
+export type PlannerStatement = {
+  kind: "FACT" | "INFERENCE" | "RECOMMENDATION" | "NOT RECORDED";
+  text: string;
+  evidence: string[];
+};
+
+export type PlannerBrief = {
+  project_id: number;
+  project_code: string;
+  project_name: string;
+  as_of: string;
+  headline: string;
+  statements: PlannerStatement[];
+  open_questions: string[];
+  grounding: string;
+};
+
+export type PlannerPortfolioBrief = {
+  as_of: string;
+  headline: string;
+  statements: PlannerStatement[];
+  attention: PlannerAttentionItem[];
+  grounding: string;
+};
+
+export type PlannerChase = {
+  to: PlannerPerson | { id: number };
+  task_id: number;
+  task_code: string;
+  trigger: string;
+  why: string;
+  subject: string;
+  body: string;
+};
+
+export type PlannerChases = {
+  project_id: number;
+  project_code: string;
+  as_of: string;
+  drafts: PlannerChase[];
+  sent: boolean;
+  note: string;
+};
+
+export type PlannerImportIssue = {
+  sheet: string;
+  row: number;
+  column: string;
+  message: string;
+};
+
+export type PlannerImportChange = {
+  sheet: string;
+  row: number;
+  entity: string;
+  action: "CREATE" | "UPDATE" | "UNCHANGED";
+  identity: string;
+  label: string;
+  values: Record<string, unknown>;
+  changed: string[];
+};
+
+export type PlannerImportPreview = {
+  import_id: number;
+  project_id: number;
+  project_code: string;
+  filename: string;
+  summary: {
+    by_entity: Record<string, Record<string, number>>;
+    creates: number;
+    updates: number;
+    unchanged: number;
+    issues: number;
+    ok: boolean;
+  };
+  changes: PlannerImportChange[];
+  issues: PlannerImportIssue[];
 };
 
 /** §52. One section of the CBUAE-aligned report, as the API returns it. */
@@ -6846,6 +9128,27 @@ export type AssuranceDimension = {
   }[];
   applicability?: { applicable: boolean; reason?: string };
 };
+
+/**
+ * An Investigation with nothing assured on it yet.
+ *
+ * Every thread is in this state until its first answer. The endpoint used to
+ * report it as a 404 alongside "no such record" and "not yours", so every
+ * Investigation page fetched a failure and told the reader the address was
+ * wrong. It is neither missing nor refused — it has simply not happened yet,
+ * and that is a different sentence.
+ */
+export type AssuranceNotYet = {
+  investigation_id: string;
+  assured: false;
+  statement: string;
+};
+
+export function isNotYetAssured(
+  body: AssuranceReview | AssuranceNotYet,
+): body is AssuranceNotYet {
+  return (body as AssuranceNotYet).assured === false;
+}
 
 export type AssuranceReview = {
   version: string;
@@ -8023,4 +10326,1050 @@ export type Borrower360Lineage = {
   lineage_version: string;
   authoritative_field_count: number;
   note: string;
+};
+
+
+// ---------------------------------------------------------------------------
+// Playbook — committee packs
+//
+// The governed lifecycle of a committee pack: what the committee is, when it
+// meets, what goes in the pack, what the numbers are, who reviewed it, what
+// was decided and what follows.
+//
+// Every figure on a pack is a SNAPSHOT rather than a live calculation, and
+// these types carry that into the UI. `PlaybookFigure` holds the display
+// string the backend already rounded, the availability reason when there is
+// no value, and the formula hash and dataset version behind it. A screen that
+// reformatted `value` itself would eventually disagree with the PDF, so the
+// rule on this side is: render `display_value`, and touch `value` only for
+// arithmetic the backend has not already done.
+// ---------------------------------------------------------------------------
+
+/**
+ * Why a figure has no value.
+ *
+ * Five different facts, and a reader told the wrong one wastes an afternoon on
+ * the wrong question. NOT_MATURED means come back next quarter; NO_DATA means
+ * the population is empty; CALCULATION_FAILED means something is broken;
+ * PERIOD_MISSING means that period was never loaded. None of them is 0.0%.
+ */
+export type PlaybookAvailability =
+  | "OK"
+  | "NO_DATA"
+  | "NOT_MATURED"
+  | "CALCULATION_FAILED"
+  | "NOT_AUTHORISED"
+  | "PERIOD_MISSING"
+  | "METRIC_UNAVAILABLE";
+
+export type PlaybookPackStatus =
+  | "DRAFT"
+  | "DATA_PENDING"
+  | "GENERATING"
+  | "CONTRIBUTOR_REVIEW"
+  | "REVIEW"
+  | "CHANGES_REQUESTED"
+  | "READY_FOR_APPROVAL"
+  | "APPROVED"
+  | "PUBLISHED"
+  | "SUPERSEDED"
+  | "ARCHIVED";
+
+export type PlaybookAccess =
+  | "VIEWER"
+  | "CONTRIBUTOR"
+  | "REVIEWER"
+  | "EDITOR"
+  | "APPROVER"
+  | "OWNER";
+
+export type PlaybookSeverity = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
+
+export type PlaybookState = "RED" | "AMBER" | "GREEN";
+
+export type PlaybookFigure = {
+  metric_id: string;
+  metric_name: string;
+  metric_version: string;
+  /** The arithmetic's fingerprint. Two figures with the same hash were
+   *  produced by the same calculation, whatever the version string says. */
+  formula_hash: string;
+  period: string;
+  comparison_period: string;
+  filters: Record<string, unknown>;
+  value: number | null;
+  comparison_value: number | null;
+  /** The rounded string the pack and the export both show. Render this. */
+  display_value: string;
+  /** The prior figure, formatted by the same rule. Also render, never derive. */
+  comparison_display: string;
+  unit: string;
+  decimals: number;
+  /** Null where the metric has no agreed direction — a count, say. Never
+   *  guessed at: a screen colouring such a movement green would be inventing
+   *  a view the metric definition does not hold. */
+  higher_is_better: boolean | null;
+  numerator: number | null;
+  denominator: number | null;
+  rows_considered: number | null;
+  series: { period: string; value: number | null }[];
+  availability: PlaybookAvailability;
+  /** Present when availability is not OK: what a reader should do about it. */
+  unavailable_reason: string;
+  dataset: string;
+  dataset_version: string;
+  source_fields: string[];
+  run_id: string;
+  /** What the calculation itself flagged — rows dropped, a period resolved
+   *  to something other than the one asked for. Shown, not swallowed. */
+  warnings: string[];
+  verification_state: string;
+  governed: boolean;
+  available: boolean;
+  snapshot_id?: number;
+  calculated_at?: string | null;
+};
+
+export type PlaybookBlock = {
+  id: number;
+  section_id: number;
+  pack_id: number;
+  block_type: string;
+  position: number;
+  title: string;
+  body: string;
+  statement_kind: string;
+  config: Record<string, unknown>;
+  filters: Record<string, unknown>;
+  period: string;
+  snapshot_id: number | null;
+  figure: PlaybookFigure | null;
+  /** True for the block types that show a governed figure. */
+  calculated: boolean;
+  /** Empty unless the block came out of an uploaded document. */
+  import_class: string;
+  source: string;
+  /** False while an AI draft is still nobody's words. */
+  ai_accepted: boolean;
+  stale: boolean;
+  author_id: number | null;
+  version: number;
+};
+
+export type PlaybookSection = {
+  id: number;
+  pack_id: number;
+  template_key: string;
+  title: string;
+  purpose: string;
+  position: number;
+  owner_id: number | null;
+  reviewer_id: number | null;
+  status: string;
+  status_label: string;
+  required: boolean;
+  due_date: string | null;
+  narrative_instructions: string;
+  version: number;
+  submitted_at: string | null;
+  approved_at: string | null;
+  approved_by: number | null;
+  updated_at: string | null;
+  /** Present on the whole-pack read; absent on a create or patch response. */
+  blocks?: PlaybookBlock[];
+};
+
+export type PlaybookReadinessReason = {
+  check: string;
+  blocking: boolean;
+  text: string;
+  entity_type: string;
+  entity_id: number | null;
+  owner_id: number | null;
+};
+
+export type PlaybookReadinessCheck = {
+  key: string;
+  label: string;
+  weight: number;
+  /** 0.0 to 1.0. */
+  progress: number;
+  state: PlaybookState;
+  /** Set where the check could not be RUN, which is not the same as failing. */
+  not_assessed: string;
+  reasons: PlaybookReadinessReason[];
+};
+
+export type PlaybookReadiness = {
+  percent: number;
+  state: PlaybookState;
+  data_state: string;
+  /** A percentage with no timestamp is a number nobody can defend. */
+  computed_at: string;
+  checks: PlaybookReadinessCheck[];
+  reasons: PlaybookReadinessReason[];
+  blocking_count: number;
+};
+
+export type PlaybookCommittee = {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  purpose: string;
+  business_area: string;
+  cadence: string;
+  meeting_weekday: number | null;
+  default_template_id: number | null;
+  standard_agenda: unknown[];
+  confidentiality: string;
+  chair_id: number | null;
+  secretary_id: number | null;
+  active: boolean;
+  demo: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type PlaybookMember = {
+  id: number;
+  committee_id: number;
+  user_id: number;
+  business_role: string;
+  access_role: PlaybookAccess;
+  title: string;
+  notify: boolean;
+  active: boolean;
+};
+
+export type PlaybookCommitteeDetail = PlaybookCommittee & {
+  /** What THIS reader may do on this committee. */
+  access: PlaybookAccess;
+  members: PlaybookMember[];
+  packs: PlaybookPackSummary[];
+  /** Days before the meeting each workflow step is due. */
+  offsets: Record<string, number>;
+};
+
+export type PlaybookTemplate = {
+  id: number;
+  committee_id: number | null;
+  code: string;
+  name: string;
+  description: string;
+  version: number;
+  status: string;
+  sections: Record<string, unknown>[];
+  /** The declared thresholds a finding is raised from. Never an LLM's idea. */
+  materiality: Record<string, unknown>[];
+  required_domains: string[];
+  required_datasets: string[];
+  export_settings: Record<string, unknown>;
+  confidentiality: string;
+  created_at: string | null;
+};
+
+export type PlaybookPackSummary = {
+  id: number;
+  code: string;
+  committee_id: number;
+  template_id: number | null;
+  name: string;
+  period: string;
+  comparison_period: string;
+  meeting_at: string | null;
+  as_of_date: string | null;
+  data_freeze_at: string | null;
+  owner_id: number | null;
+  status: PlaybookPackStatus;
+  status_label: string;
+  confidentiality: string;
+  version: number;
+  approved_version: number | null;
+  /** Set on an amendment: the approved pack this one supersedes. */
+  amends_pack_id: number | null;
+  amendment_reason: string;
+  previous_pack_id: number | null;
+  readiness_percent: number;
+  readiness_state: string;
+  readiness_at: string | null;
+  data_state: string;
+  approved_by: number | null;
+  approved_at: string | null;
+  published_at: string | null;
+  minutes: string;
+  demo: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type PlaybookPack = PlaybookPackSummary & {
+  /** What THIS reader may do. The screen renders from it; the API enforces it. */
+  access: PlaybookAccess;
+  editable: boolean;
+  locked: boolean;
+  committee: PlaybookCommittee;
+  readiness: PlaybookReadiness;
+  sections: (PlaybookSection & { blocks: PlaybookBlock[] })[];
+};
+
+export type PlaybookFinding = {
+  id: number;
+  pack_id: number;
+  section_id: number | null;
+  finding_type: string;
+  severity: PlaybookSeverity;
+  title: string;
+  description: string;
+  /** The numbers it rests on. Without this a finding is an assertion. */
+  factual_basis: string;
+  /** Which declared rule fired, and on what inputs. */
+  rule_key: string;
+  rule_detail: Record<string, unknown>;
+  metric_id: string;
+  period: string;
+  figure: {
+    metric_id: string;
+    period: string;
+    display_value: string;
+    availability: PlaybookAvailability;
+  } | null;
+  status: string;
+  answered: boolean;
+  owner_id: number | null;
+  response: string;
+  dismissed_reason: string;
+  dismissed_by: number | null;
+  dismissed_at: string | null;
+  source: string;
+  created_at: string | null;
+};
+
+export type PlaybookDecision = {
+  id: number;
+  committee_id: number;
+  pack_id: number | null;
+  section_id: number | null;
+  reference: string;
+  title: string;
+  question: string;
+  recommendation: string;
+  alternatives: string[];
+  impact: string;
+  status: string;
+  status_label: string;
+  decided: boolean;
+  requested_by: number | null;
+  owner_id: number | null;
+  decided_by: number | null;
+  decided_at: string | null;
+  decision_text: string;
+  conditions: string;
+  source: string;
+  created_at: string | null;
+};
+
+/** Live Planner state, read on every request rather than copied and kept. */
+export type PlaybookPlannerProgress = {
+  linked: boolean;
+  was_linked?: boolean;
+  linked_at?: string;
+  note?: string;
+  task_id?: number;
+  task_code?: string;
+  project_id?: number;
+  project_name?: string;
+  status?: string;
+  percent_complete?: number;
+  due_date?: string | null;
+  overdue?: boolean;
+};
+
+export type PlaybookAction = {
+  id: number;
+  committee_id: number;
+  pack_id: number | null;
+  decision_id: number | null;
+  reference: string;
+  description: string;
+  owner_id: number | null;
+  due_date: string | null;
+  priority: string;
+  status: string;
+  status_label: string;
+  latest_update: string;
+  closure_evidence: string;
+  closed: boolean;
+  overdue: boolean;
+  planner: PlaybookPlannerProgress;
+  planner_project_id: number | null;
+  planner_task_id: number | null;
+  linked_at: string | null;
+  source: string;
+  created_at: string | null;
+  closed_at: string | null;
+};
+
+export type PlaybookReview = {
+  id: number;
+  pack_id: number;
+  section_id: number | null;
+  scope: string;
+  reviewer_id: number;
+  decision: string;
+  note: string;
+  conditions: string;
+  /** The pack version read. A later edit makes this review stale, correctly. */
+  at_version: number;
+  requested_at: string | null;
+  requested_by: number | null;
+  responded_at: string | null;
+};
+
+export type PlaybookEvent = {
+  id: number;
+  at: string | null;
+  entity_type: string;
+  entity_id: number | null;
+  entity_ref: string;
+  action: string;
+  author_id: number | null;
+  /** Which door the change came through: UI, API, AI, IMPORT or SYSTEM. */
+  source: string;
+  at_version: number | null;
+  changes: Record<string, unknown>;
+  narrative: string;
+};
+
+export type PlaybookDifference = {
+  metric_id: string;
+  name: string;
+  kind: string;
+  now_value: number | null;
+  now_display: string;
+  then_value: number | null;
+  then_display: string;
+  change: number | null;
+  change_display: string;
+  direction: string;
+  better: boolean | null;
+  now_period: string;
+  then_period: string;
+  /** Why a comparison should not be read at face value, when it should not. */
+  caveat: string;
+};
+
+export type PlaybookComparison = {
+  pack_id: number;
+  pack_code: string;
+  previous_pack_id: number | null;
+  previous_pack_code: string;
+  previous_meeting: string;
+  differences: PlaybookDifference[];
+  material: PlaybookDifference[];
+  notes: string[];
+  summary: string;
+};
+
+export type PlaybookSource = {
+  id: number;
+  kind: string;
+  label: string;
+  filename: string;
+  content_type: string;
+  byte_size: number;
+  checksum: string;
+  import_class: string;
+  warnings: string[];
+  uploaded_by: number | null;
+  created_at: string | null;
+};
+
+export type PlaybookImported = {
+  source_id: number;
+  filename: string;
+  kind: string;
+  sections: number;
+  blocks: number;
+  tables: number;
+  paragraphs: number;
+  warnings: string[];
+  summary: string;
+};
+
+export type PlaybookChaseMessage = {
+  user_id: number | null;
+  committee_id: number | null;
+  pack_id: number | null;
+  trigger: string;
+  title: string;
+  body: string;
+  reason: string;
+  fingerprint: string;
+};
+
+export type PlaybookChase = {
+  outstanding: PlaybookChaseMessage[];
+  count: number;
+};
+
+export type PlaybookExportFormat = {
+  format: string;
+  label: string;
+  media_type: string;
+  purpose: string;
+};
+
+export type PlaybookGeneration = {
+  pack_id: number;
+  version: number;
+  calculated: number;
+  available: number;
+  unavailable: number;
+  failed: number;
+  moved: string[];
+  stale_blocks: number;
+  findings_raised: number;
+  findings_refreshed: number;
+  findings_cleared: number;
+  notes: string[];
+  summary: string;
+};
+
+/**
+ * A drafted commentary, with every sentence typed.
+ *
+ * `kind` is the point: a FACT is something the pack's own figures say, an
+ * INFERENCE is the model's reading of them, and a reader who cannot tell the
+ * two apart is being asked to trust the wrong thing. The screen renders the
+ * distinction rather than flattening it into a paragraph.
+ */
+export type PlaybookSentence = {
+  text: string;
+  kind: string;
+  /** The metric ids the sentence was grounded against. */
+  about: string[];
+};
+
+export type PlaybookDraft = {
+  body: string;
+  statement_kind: string;
+  sentences: PlaybookSentence[];
+  /** Exactly what the model was shown — not what is true now. */
+  evidence: Record<string, unknown>[];
+  model: string;
+  provider: string;
+  /** Sentences the grounding check refused, reported rather than hidden. */
+  refused: string[];
+};
+
+/**
+ * What the drafting route returns: the block it wrote, and the draft beside it.
+ *
+ * `accepted` is always false here. A person accepting the words is a separate
+ * act, and a screen that showed a fresh AI draft as accepted would be putting
+ * somebody's name to something they have not read.
+ */
+export type PlaybookDrafted = {
+  block: PlaybookBlock;
+  draft: PlaybookDraft;
+  accepted: boolean;
+  note: string;
+};
+
+export type PlaybookMapping = {
+  block_id: number;
+  metric_id: string;
+  import_class: string;
+  note: string;
+};
+
+// ---------------------------------------------------------------------------
+// Scorecard Validation Intelligence
+// ---------------------------------------------------------------------------
+
+/**
+ * Ten result states, and the client must not collapse them.
+ *
+ * PASS / WARNING / FAIL are verdicts. NO_LIMIT is a measurement with nothing
+ * governed to compare it against. The remaining six are refusals with
+ * distinct causes, and one grey "n/a" chip for all six would tell a validator
+ * nothing about whether to widen the window, fix the data, or accept that the
+ * test does not apply to this model.
+ */
+export type ScvState =
+  | "PASS"
+  | "WARNING"
+  | "FAIL"
+  | "NO_LIMIT"
+  | "CALCULATION_ERROR"
+  | "UNAVAILABLE"
+  | "INSUFFICIENT_SAMPLE"
+  | "NOT_MATURED"
+  | "NOT_AUTHORISED"
+  | "NOT_APPLICABLE";
+
+/** The chart payload the runner attached, discriminated by its own `kind`. */
+export type ScvChart = {
+  kind: string;
+  [key: string]: unknown;
+};
+
+/**
+ * One validation result, exactly as the runner produced it.
+ *
+ * `value` is `number | null` and the null is load-bearing. Six of the ten
+ * states mean "there is no number here", and the backend refuses to construct
+ * a result that claims one of those states while carrying a value. Typing it
+ * as `number` with a zero default would undo that on the client: a NOT_MATURED
+ * cohort would render as a zero default rate, which is the single most
+ * damaging thing a model validation screen can draw.
+ */
+export type ScvResult = {
+  test_id: string;
+  state: ScvState;
+  state_label: string;
+  state_meaning: string;
+  severity: number;
+  measured: boolean;
+  value: number | null;
+  limit: number | null;
+  limit_source: string;
+  comparison_value: number | null;
+  detail: string;
+  remedy: string;
+  model_id: string;
+  model_version: string;
+  dataset: string;
+  period: string;
+  reference_period: string;
+  segment: string;
+  observations: number;
+  matured_observations: number;
+  events: number;
+  calculation_version: string;
+  states_version: string;
+  score_direction: string;
+  method: string;
+  limitations: string[];
+  chart: ScvChart | Record<string, never>;
+  table: Record<string, unknown>[];
+  lineage: Record<string, unknown>;
+};
+
+export type ScvTest = {
+  test_id: string;
+  name: string;
+  category: string;
+  purpose: string;
+  method: string;
+  requires: string[];
+  minimum_observations: number;
+  minimum_events: number;
+  comparative: boolean;
+  segmentable: boolean;
+  charts: string[];
+  limitations: string[];
+  cbuae: string[];
+  version: string;
+};
+
+export type ScvCategory = {
+  key: string;
+  title: string;
+  purpose: string;
+  question: string;
+  quantitative: boolean;
+};
+
+/**
+ * A finding: what was seen, why it matters, and how to check it independently.
+ *
+ * `verify_by` is not optional decoration. The backend refuses to construct a
+ * finding without it, because an assertion a reader cannot check is an
+ * assertion they have to take on trust, and a validation report is the last
+ * place that belongs.
+ */
+export type ScvFinding = {
+  finding_id: string;
+  title: string;
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "OBSERVATION";
+  severity_meaning: string;
+  category: string;
+  what: string;
+  why_it_matters: string;
+  remediation: string;
+  evidence: string[];
+  verify_by: string;
+  cbuae: string[];
+  values: Record<string, unknown>;
+  pattern: string;
+  period: string;
+  segment: string;
+  model_id: string;
+  model_version: string;
+  supersedes: string[];
+  confidence: string;
+  findings_version: string;
+};
+
+export type ScvModelData = {
+  available: boolean;
+  periods?: number;
+  latest_period?: string;
+  matured_periods?: number;
+  latest_matured_period?: string;
+  immature_periods?: number;
+  performance_window_months?: number;
+  why_immature?: string;
+  why?: string;
+};
+
+export type ScvModel = {
+  model_id: string;
+  name: string;
+  version: string;
+  challenger_version: string;
+  domain: string;
+  domain_label: string;
+  scorecard_type: string;
+  reference_number: string;
+  portfolio: string;
+  jurisdiction: string;
+  intended_use: string;
+  owner: string;
+  validation_owner: string;
+  materiality: string;
+  tier: string;
+  status: string;
+  dataset: string;
+  reference_dataset: string;
+  decisions_dataset: string;
+  score_direction: string;
+  score_range: [number, number];
+  base_score: number;
+  base_odds: number;
+  points_to_double_odds: number;
+  cut_off: number;
+  default_definition: string;
+  performance_window_months: number;
+  observation_window: string;
+  development_population: string;
+  known_limitations: string[];
+  segmentation_fields: string[];
+  binned_variables: string[];
+  capabilities: string[];
+  has_challenger: boolean;
+  has_pd: boolean;
+  limits: Record<string, unknown>[];
+  models_version: string;
+  data?: ScvModelData;
+  applicable_tests?: string[];
+  inapplicable_tests?: { test_id: string; why: string }[];
+  approved_specification?: Record<string, unknown>;
+  approved_equation?: Record<string, unknown>;
+};
+
+export type ScvOverview = {
+  module: string;
+  domains: Record<string, unknown>;
+  scorecards: ScvModel[];
+  registry: {
+    registry_version: string;
+    categories: ScvCategory[];
+    [key: string]: unknown;
+  };
+  result_states: {
+    state: ScvState;
+    label: string;
+    meaning: string;
+    carries_a_number: boolean;
+  }[];
+  full_run_cost: string;
+};
+
+/** One category's coverage: how many tests it defines, and how many ran. */
+export type ScvCoverage = {
+  title: string;
+  defined: number;
+  run: number;
+  complete: boolean;
+  test_ids: string[];
+  run_ids: string[];
+};
+
+/**
+ * A run, with its own coverage stated beside it.
+ *
+ * `measured` against `returned` is the number a reader needs before reading
+ * any of the rest: eleven passes out of eleven and eleven passes out of
+ * forty-eight are different claims, and a panel that shows only the passes
+ * reads as the first one.
+ */
+export type ScvRun = {
+  findings: ScvFinding[];
+  burning_weaknesses: ScvFinding[];
+  findings_summary: {
+    total: number;
+    by_severity: Record<string, number>;
+    patterns_matched: string[];
+    burning: string[];
+    [key: string]: unknown;
+  };
+  model: {
+    model_id: string;
+    name: string;
+    version: string;
+    domain: string;
+    scorecard_type: string;
+  };
+  category: string;
+  results: ScvResult[];
+  tally: Record<ScvState, number>;
+  adverse: string[];
+  measured: number;
+  returned: number;
+  coverage: Record<string, ScvCoverage>;
+  regulatory_coverage: Record<string, unknown>;
+  coverage_means: string;
+  calculation_version: string;
+  cost?: string;
+  /**
+   * The run this was recorded as, or "" when recording failed.
+   *
+   * `recorded` is not decoration. A failure to write the run down must not
+   * become a failure to answer — the tests ran and the numbers are correct
+   * for right now — but a caller that quoted a run key which does not exist
+   * would send somebody looking for a record nobody kept.
+   */
+  run_key?: string;
+  recorded?: boolean;
+  recorded_note?: string;
+};
+
+export type ScvPeriods = {
+  model_id: string;
+  [key: string]: unknown;
+};
+
+export type ScvRequirement = {
+  reference: string;
+  title: string;
+  asks_for: string;
+  kind: string;
+  framework: string;
+  evidenced_by: string[];
+  [key: string]: unknown;
+};
+
+export type ScvRegulatory = {
+  regulatory_version: string;
+  framework: string;
+  disclaimer: string;
+  this_is_not_a_compliance_assessment: string;
+  summary_is_a_reading_aid: string;
+  requirements: ScvRequirement[];
+  unmapped_tests: string[];
+};
+
+export type ScvPatterns = {
+  patterns: { key: string; title: string; reads: string[] }[];
+  [key: string]: unknown;
+};
+
+export type ScvReport = Record<string, unknown>;
+
+/**
+ * One row of Validation History.
+ *
+ * A header, deliberately without results. A list screen showing forty-eight
+ * results per row would be a page of megabytes, and none of it is what the
+ * reader is scanning for.
+ */
+export type ScvRunHeader = {
+  run_key: string;
+  model_id: string;
+  model_name: string;
+  model_version: string;
+  model_kind: string;
+  scorecard_type: string;
+  dataset: string;
+  dataset_as_of: string;
+  dataset_version: string;
+  matured_window: string;
+  latest_period: string;
+  development_population: string;
+  reference_period: string;
+  segment: string;
+  scope: string;
+  requested_categories: string[];
+  requested_tests: string[];
+  requested_periods: string[];
+  registry_version: string;
+  threshold_profile_version: string;
+  calculation_version: string;
+  states_version: string;
+  findings_version: string;
+  returned: number;
+  measured: number;
+  tally: Record<string, number>;
+  findings_summary: Record<string, unknown>;
+  initiated_by: string;
+  initiated_by_role: string;
+  source: string;
+  status: string;
+  failure: string;
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
+  duplicated_from: string;
+  [key: string]: unknown;
+};
+
+export type ScvRunHistory = {
+  runs: ScvRunHeader[];
+  total: number;
+  limit: number;
+  offset: number;
+  model_id: string;
+  visibility: string;
+  store_version: string;
+};
+
+/**
+ * A run read back out of storage.
+ *
+ * Same shape as a fresh run plus `historical`, which is the sentence a reader
+ * needs: these values were computed when the run was made and have not been
+ * recalculated.
+ */
+export type ScvStoredRun = ScvRunHeader & {
+  results: ScvResult[];
+  findings: ScvFinding[];
+  burning_weaknesses: ScvFinding[];
+  coverage: Record<string, ScvCoverage>;
+  regulatory_coverage: Record<string, unknown>;
+  adverse: string[];
+  coverage_means: string;
+  historical: string;
+  reports: ScvReportHeader[];
+};
+
+export type ScvRunConfiguration = {
+  configuration: {
+    model_id: string;
+    model_kind: string;
+    scope: string;
+    categories: string[];
+    tests: string[];
+    periods: string[];
+    segment: string;
+    segment_field: string;
+    duplicated_from_key: string;
+  };
+  run_with: string;
+  means: string;
+};
+
+/** One test, before and after. `movement` says which of the two exist. */
+export type ScvComparedTest = {
+  test_id: string;
+  title: string;
+  category: string;
+  movement: string;
+  movement_means: string;
+  before: number | null;
+  after: number | null;
+  change: number | null;
+  before_state: string;
+  after_state: string;
+  verdict_changed: boolean;
+  adverse: boolean;
+  [key: string]: unknown;
+};
+
+export type ScvComparison = {
+  compare_version: string;
+  model_id: string;
+  model_name: string;
+  before: ScvRunHeader;
+  after: ScvRunHeader;
+  /** False when the two runs were produced by different arithmetic. */
+  comparable: boolean;
+  version_drift: string[];
+  data_moved: boolean;
+  tests: ScvComparedTest[];
+  by_category: Record<string, ScvComparedTest[]>;
+  headline: ScvComparedTest[];
+  adverse: ScvComparedTest[];
+  moved: ScvComparedTest[];
+  verdict_changes: ScvComparedTest[];
+  limit_changes: ScvComparedTest[];
+  findings_raised: ScvFinding[];
+  findings_cleared: ScvFinding[];
+  findings_persisting: ScvFinding[];
+  coverage: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+export type ScvReportHeader = {
+  report_key: string;
+  run_key: string;
+  source_run_keys: string[];
+  model_id: string;
+  model_version: string;
+  title: string;
+  opinion: string;
+  /** DRAFT, FINAL or SUPERSEDED. A FINAL report cannot be edited. */
+  status: string;
+  version: number;
+  structure_version: string;
+  registry_version: string;
+  calculation_version: string;
+  dataset_as_of: string;
+  content_hash: string;
+  generated_by: string;
+  generated_at: string;
+  [key: string]: unknown;
+};
+
+/**
+ * What the conversational surface returns, whatever happened.
+ *
+ * One shape for answered, clarified and refused. `answered` is the only flag
+ * a renderer needs, and the three payload fields are mutually exclusive by
+ * construction rather than by convention.
+ */
+export type ScvAnswer = {
+  conversation_version: string;
+  question: string;
+  answered: boolean;
+  /** Where the figures came from. Rendered, not assumed. */
+  figures: string;
+  scope: string;
+  reading?: {
+    tool_id: string;
+    parameters: Record<string, string>;
+    /** Deterministic reader, or a model's choice the registry accepted. */
+    source: string;
+    because: string;
+  };
+  result?: Record<string, unknown>;
+  clarification?: {
+    clarification_required: boolean;
+    question: string;
+    because: string;
+    options: Record<string, string>[];
+  };
+  refusal?: {
+    /** A FLAG, not a sentence. `what` carries the subject. */
+    refused?: boolean;
+    /** The thing this surface has no tool for, when one was named. */
+    what?: string;
+    why?: string;
+    scope?: string;
+    /** Where the answer does live, when it lives somewhere. */
+    where_instead?: string;
+    [key: string]: unknown;
+  };
 };
