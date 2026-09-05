@@ -261,7 +261,8 @@ def _evidence_register(results: list[states.Result],
 
 def build(model: model_registry.Model, results: list[states.Result], *,
           generated_by: str = "CreditProbe Scorecard Validation",
-          generated_at: str = "") -> report_mod.Report:
+          generated_at: str = "",
+          windows: tuple[str, str] | None = None) -> report_mod.Report:
     """Assemble the report. Computes nothing; reads what was computed.
 
     `generated_at` is an argument rather than a call to `now()` so that a
@@ -269,6 +270,14 @@ def build(model: model_registry.Model, results: list[states.Result], *,
     hash excludes the document-control section for exactly this reason, and
     a generator that stamped its own clock would defeat that from the other
     direction.
+
+    `windows` exists for the same reason, one level deeper. `_windows` reads
+    the lake to find the matured span, which is correct when the results were
+    computed a moment ago and WRONG when they were computed last quarter: a
+    report rebuilt from a stored run would print today's window over last
+    quarter's numbers, and its report id — which carries the window — would
+    change under it. A caller holding a persisted run passes the window that
+    run recorded, and the document stops moving.
     """
     assessed = finding_engine.assess(results, model)
     opinion, because = _opinion(assessed, results, model)
@@ -277,7 +286,7 @@ def build(model: model_registry.Model, results: list[states.Result], *,
 
     applicable = [r for r in results if r.state != states.NOT_APPLICABLE]
     measured = [r for r in applicable if r.measured]
-    window, current = _windows(model)
+    window, current = windows if windows is not None else _windows(model)
 
     sections: list[report_mod.Section] = [
         report_mod.Section(
