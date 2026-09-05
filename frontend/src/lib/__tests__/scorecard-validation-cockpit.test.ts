@@ -185,10 +185,21 @@ test("every answer carries the statement about where its figures came from", () 
 
 test("a refusal says where the answer does live", () => {
   const source = ask();
-  assert.ok(source.includes("where_it_lives"),
-    "a refusal that leaves somebody stuck is one they route around");
+  assert.ok(source.includes("where_instead"),
+    "the field the backend actually sends — an earlier version of this read " +
+    "`where_it_lives`, which is not a key any refusal carries, so the " +
+    "sentence never rendered and the test passed anyway");
   assert.ok(source.includes("answer.scope"),
     "and states what this surface is for");
+});
+
+test("a refusal never renders the flag as its message", () => {
+  const source = ask();
+  assert.ok(!source.includes("String(answer.refusal.refused"),
+    "`refused` is a boolean; rendering it puts the word true in front of a " +
+    "validator");
+  assert.ok(source.includes("has no tool for"),
+    "the sentence is composed from `what`, not from the flag");
 });
 
 test("a clarification offers buttons, not a rephrasing", () => {

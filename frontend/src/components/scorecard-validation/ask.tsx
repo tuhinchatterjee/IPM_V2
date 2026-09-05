@@ -174,21 +174,28 @@ function AnswerBody({ answer, tests, onFollowUp }: {
   onFollowUp: (question: string) => void;
 }) {
   if (answer.refusal) {
+    // `refused` is a FLAG, not a sentence — rendering it directly puts the
+    // word "true" in front of a validator. What was refused is `what`, and it
+    // is absent when the whole question was out of domain rather than one
+    // thing in it.
+    const what = answer.refusal.what;
     return (
       <div className="space-y-2 rounded-lg border border-border bg-surface-sunken p-4">
         <p className="text-sm leading-relaxed text-text">
-          {String(answer.refusal.refused
-            ?? answer.refusal.message
-            ?? "This is not a question this surface answers.")}
+          {typeof what === "string" && what
+            ? `This surface has no tool for ${what}.`
+            : "This is not a question this surface answers."}
         </p>
-        {answer.refusal.why != null && (
+        {typeof answer.refusal.why === "string" && (
           <p className="text-sm leading-relaxed text-text-muted">
-            {String(answer.refusal.why)}
+            {answer.refusal.why}
           </p>
         )}
-        {answer.refusal.where_it_lives != null && (
+        {/* Where the answer does live. A refusal that leaves somebody stuck
+            is a refusal they route around. */}
+        {typeof answer.refusal.where_instead === "string" && (
           <p className="text-sm leading-relaxed text-text-muted">
-            {String(answer.refusal.where_it_lives)}
+            {answer.refusal.where_instead}
           </p>
         )}
         <p className="border-t border-border pt-2 text-[11px] leading-relaxed text-text-muted">

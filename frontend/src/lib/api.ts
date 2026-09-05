@@ -11123,9 +11123,14 @@ export type ScvAnswer = {
     options: Record<string, string>[];
   };
   refusal?: {
-    refused?: string;
+    /** A FLAG, not a sentence. `what` carries the subject. */
+    refused?: boolean;
+    /** The thing this surface has no tool for, when one was named. */
+    what?: string;
     why?: string;
     scope?: string;
+    /** Where the answer does live, when it lives somewhere. */
+    where_instead?: string;
     [key: string]: unknown;
   };
 };

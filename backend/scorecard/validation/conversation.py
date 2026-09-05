@@ -354,9 +354,14 @@ def read(question: str, *, model_id: str = "") -> Reading | None:
         return Reading(agent.PERIODS, {"model_id": wanted},
                        because="the question asks what data exists")
 
-    if any(phrase in text for phrase in
-           ("findings", "weaknesses", "what is wrong", "what's wrong",
-            "biggest problem", "worst", "concerns")):
+    # A question that NAMES a test is about that test, whatever else it
+    # contains. "What is the worst CSI?" resolved to the findings engine
+    # because it contains the word "worst" — an answer about eight tests to a
+    # question about one, and the reader had no way to tell that had happened.
+    if not test_id and any(phrase in text for phrase in
+                           ("findings", "weaknesses", "what is wrong",
+                            "what's wrong", "biggest problem", "worst",
+                            "concerns")):
         return Reading(agent.FINDINGS, {"model_id": wanted},
                        because="the question asks what the results add up to")
 
@@ -569,10 +574,17 @@ def answer(question: str, *, model_id: str = "") -> dict[str, Any]:
 
     denied = refuses(question)
     if denied:
+        # The same shape `agent.refuse_out_of_domain` returns: `refused` is a
+        # flag, and what was refused is its own field. Two refusals with the
+        # same key meaning different things — a boolean here and a sentence
+        # there — is how a client ends up rendering the word "true" to a
+        # validator.
         body["refusal"] = {
-            "refused": denied,
+            "refused": True,
+            "what": denied,
             "why": agent.NO_TOOL_FOR.get(denied, ""),
             "scope": agent.SCOPE,
+            "question": question,
         }
         return body
 
@@ -612,8 +624,10 @@ def answer(question: str, *, model_id: str = "") -> dict[str, Any]:
     except agent.Clarify as clarification:
         body["clarification"] = clarification.to_dict()
     except (agent.ToolDenied, agent.ToolUnknown) as refused_by_agent:
-        body["refusal"] = {"refused": str(refused_by_agent),
-                           "scope": agent.SCOPE}
+        body["refusal"] = {"refused": True,
+                           "what": str(refused_by_agent),
+                           "scope": agent.SCOPE,
+                           "question": question}
     return body
 
 

@@ -146,6 +146,55 @@ class TestExplainRatherThanRun:
         assert found.tool_id == agent.RUN_TEST
 
 
+class TestANamedTestWins:
+    """A question that names a test is about that test.
+
+    "What is the worst CSI?" resolved to the findings engine, because it
+    contains the word "worst" — an answer about eight tests to a question
+    about one, and nothing on the way told the reader that had happened.
+    """
+
+    @pytest.mark.parametrize("question,expected", [
+        ("What is the worst CSI?", "STAB-CSI"),
+        ("Which characteristic has the worst information value?", "VAR-IV"),
+        ("Is the AUC a concern?", "DISC-AUC"),
+    ])
+    def test_a_keyword_does_not_beat_a_named_test(self, question, expected):
+        found = reader.read(question, model_id="sme_champion")
+        assert found is not None
+        assert found.tool_id == agent.RUN_TEST
+        assert found.parameters["test_id"] == expected
+
+    def test_a_question_naming_no_test_still_reaches_the_findings(self):
+        found = reader.read("What are the biggest weaknesses?",
+                            model_id="sme_champion")
+        assert found is not None
+        assert found.tool_id == agent.FINDINGS
+
+
+class TestTheRefusalShapeIsOne:
+    """Two refusals with the same key meaning different things.
+
+    `refused` was a boolean in one path and a sentence in the other. The
+    client rendered it directly, so a validator asking for raw rows was shown
+    the word "true".
+    """
+
+    @pytest.mark.parametrize("question", [
+        "run some SQL over the population",
+        "what is the IFRS 9 stage distribution",
+    ])
+    def test_refused_is_always_a_flag(self, question):
+        refusal = reader.answer(question)["refusal"]
+        assert refusal["refused"] is True
+        assert isinstance(refusal.get("why", ""), str)
+        assert refusal["scope"]
+
+    def test_what_was_refused_has_its_own_field(self):
+        refusal = reader.answer("give me the raw rows")["refusal"]
+        assert refusal["what"] == "raw rows"
+
+
 class TestTheRefusals:
     @pytest.mark.parametrize("question", [
         "run some SQL over the scorecard population",
