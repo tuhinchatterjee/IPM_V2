@@ -166,13 +166,24 @@ DOMAINS: tuple[BusinessDomain, ...] = (
     BusinessDomain(
         name="Retail / SME Scorecards",
         description=(
-            "Application and behavioural scorecard populations, their frozen "
-            "development reference, model outputs and monthly validation "
-            "outcomes."),
+            "Application, behavioural and Saudi SME scorecard populations, "
+            "their frozen development reference, model outputs, recorded "
+            "credit decisions and monthly validation outcomes."),
         owner="Retail Risk",
         catalogue_domains=(
             "Retail Application Scorecard",
             "Retail Behavioral Scorecard",
+            "Saudi SME Scorecard",
+        ),
+        # Named individually as well as by catalogue domain. Placement by
+        # catalogue domain reads a field that `install_business_domains`
+        # overwrites, so a dataset that was once filed as UNPLACED can never
+        # be re-homed by it — the information needed to place it is gone.
+        # Naming the dataset makes placement independent of what was stored.
+        datasets=(
+            "sme_scorecard_monthly_validation",
+            "sme_scorecard_development_reference",
+            "sme_scorecard_decisions",
         ),
     ),
     BusinessDomain(

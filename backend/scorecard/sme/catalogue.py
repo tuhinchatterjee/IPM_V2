@@ -73,11 +73,18 @@ def _control_fields() -> list[dict[str, Any]]:
     should be declared where a reader can find it.
     """
     return [
-        _field("sme_obligor_id", "Obligor", "Anonymised SME identifier.",
-               "string", nullable=False),
-        _field("application_id", "Application",
+        # The business names are qualified rather than bare, and that is not
+        # decoration. They join one vocabulary shared with the rest of the
+        # estate, where the metadata assistant matches a business name as a
+        # substring of what somebody asked. A field called "Facility" makes
+        # the question "Tell me about portfolio_facility" — unambiguously
+        # about a dataset — resolve to a field, and the answer describes an
+        # SME column to somebody who asked about the credit book.
+        _field("sme_obligor_id", "SME obligor",
+               "Anonymised SME identifier.", "string", nullable=False),
+        _field("application_id", "SME application",
                "Anonymised application identifier.", "string", nullable=False),
-        _field("facility_id", "Facility",
+        _field("facility_id", "SME facility",
                "Anonymised facility identifier.", "string"),
         _field("cohort_month", "Cohort month",
                "The month this application was scored in.", "string",
