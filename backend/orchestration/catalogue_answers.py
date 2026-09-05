@@ -119,6 +119,29 @@ def rows_wanted(question: str) -> int:
 # ------------------------------------------------------- naming a dataset
 
 
+def _open_datasets(catalogue: Any = None) -> list[Any]:
+    """The datasets a general-Cockpit catalogue answer may name.
+
+    `orchestration/context.py::_all_datasets` already drops the scorecard
+    validation domains from the catalogue it builds, so when one is passed in
+    this only re-states that. The fallback below does not go through that
+    gate — it reads the metadata service directly — and that fallback is how
+    "What datasets do you have?" listed all seven restricted datasets by name
+    with their row counts. Filtering in one helper keeps the three call sites
+    in this module from having to remember.
+    """
+    from backend.metadata import service as ms
+
+    try:
+        from backend.scorecard.domains import restricted_datasets
+
+        blocked = restricted_datasets()
+    except Exception:  # noqa: BLE001 - a missing module must not open the gate
+        blocked = frozenset()
+
+    everything = list(getattr(catalogue, "datasets", None) or ms.datasets())
+    return [d for d in everything if getattr(d, "name", "") not in blocked]
+
 def _normal(text: str) -> str:
     """A name with the punctuation and spacing that distinguish nothing removed.
 
@@ -163,9 +186,7 @@ def resolve(question: str, catalogue: Any = None) -> Any:
       3. a domain phrase alone, but only when that domain holds exactly one
          dataset, because otherwise it names the domain and not a dataset.
     """
-    from backend.metadata import service as ms
-
-    everything = list(getattr(catalogue, "datasets", None) or ms.datasets())
+    everything = _open_datasets(catalogue)
     if not everything:
         return None
     asked = _normal(question)
@@ -272,9 +293,7 @@ def catalogue_rows(catalogue: Any = None) -> list[dict[str, Any]]:
     a reader wants to know what the bank holds about impairment, not which
     dataset happens to sort first alphabetically across seventy-seven of them.
     """
-    from backend.metadata import service as ms
-
-    everything = list(getattr(catalogue, "datasets", None) or ms.datasets())
+    everything = _open_datasets(catalogue)
     rows = []
     for found in everything:
         if not getattr(found, "readable", True):
@@ -720,7 +739,9 @@ def unknown_dataset_result(question: str, reading: Any, name: str) -> Any:
     from backend.metadata import service as ms
     from backend.orchestration.handlers import HandlerResult, _graph
 
-    near = list(ms.search(name, limit=5))
+    open_names = {getattr(d, "name", "") for d in _open_datasets()}
+    near = [d for d in ms.search(name, limit=8)
+            if getattr(d, "name", "") in open_names][:5]
     rows = [{"dataset": d.business_name, "governed_name": d.name,
              "domain": d.catalogue_domain or d.domain, "grain": d.grain,
              "periods": d.period_count, "rows": d.row_count} for d in near]
