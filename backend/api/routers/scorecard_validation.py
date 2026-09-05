@@ -47,6 +47,9 @@ from backend.scorecard.validation import (
     registry as test_registry,
 )
 from backend.scorecard.validation import (
+    regulatory as regulatory_map,
+)
+from backend.scorecard.validation import (
     runner,
     states,
 )
@@ -299,6 +302,7 @@ def _package(made: model_registry.Model, category: str,
         "measured": len(ran),
         "returned": len(results),
         "coverage": test_registry.coverage(ran),
+        "regulatory_coverage": regulatory_map.coverage(results),
         "coverage_means": (
             "A test counted here is one that produced a number. A test that "
             "refused is returned with its reason and is not counted as "
@@ -340,6 +344,17 @@ def periods(model_id: str,
             "carry no realised outcome — which is not the same as carrying "
             "no defaults, and every outcome test refuses them by name."),
     }
+
+
+@router.get("/regulatory")
+def regulatory(principal: Principal = RequireScorecardView) -> dict[str, Any]:
+    """The supervisory evidence map, with nothing run.
+
+    Read the disclaimer this returns before doing anything with the table.
+    It maps expectations to the tests that would evidence them; it does not
+    say a model complies with anything, and this product has no standing to.
+    """
+    return regulatory_map.catalogue()
 
 
 @router.get("/patterns")

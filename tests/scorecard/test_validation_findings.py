@@ -323,3 +323,34 @@ def _by_id(made: list[findings.Finding],
         if one.finding_id == finding_id:
             return one
     return None
+
+
+# ------------------------------------------------- the references resolve
+
+
+def test_every_reference_a_finding_cites_exists(
+        assessed: list[findings.Finding]) -> None:
+    """A citation that leads nowhere is worse than no citation.
+
+    The references are derived from the test registry rather than written on
+    each finding, so a finding cannot quote an article number the catalogue
+    has never heard of. Before that, the patterns carried hand-written
+    references — MMS 10.5, 10.6, 10.8 among them — that appeared in no
+    registry entry and no requirement, so following one led nowhere.
+    """
+    from backend.scorecard.validation import regulatory
+
+    for made in assessed:
+        for reference in made.cbuae:
+            assert reference in regulatory.BY_REFERENCE, (
+                f"{made.finding_id} cites {reference}, which is not in the "
+                "requirement catalogue")
+
+
+def test_a_finding_cites_what_its_evidence_cites(
+        assessed: list[findings.Finding]) -> None:
+    for made in assessed:
+        expected: set[str] = set()
+        for test_id in made.evidence:
+            expected |= set(registry.BY_ID[test_id].cbuae)
+        assert set(made.cbuae) == expected

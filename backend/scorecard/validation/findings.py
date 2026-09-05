@@ -39,7 +39,7 @@ one exists, sits above this and cites it.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from backend.scorecard.validation import models as model_registry
@@ -99,6 +99,10 @@ class Finding:
     model_version: str = ""
     period: str = ""
     cbuae: tuple[str, ...] = ()
+    #: The supervisory references this rests on. Derived in `assess` from
+    #: the tests cited as evidence, never written here — a finding that
+    #: quoted an article number of its own would be a second opinion about
+    #: what a test evidences, and the two would eventually disagree.
     #: Where a pattern matched, the pattern's key. Empty for a single test.
     pattern: str = ""
     #: The single-test findings this one replaces, so nothing is reported
@@ -421,7 +425,6 @@ def _aggregate_conceals_segment(pattern: Pattern,
         segment=str(worst.get("segment", "")),
         model_id=model.model_id, model_version=model.version,
         period=segment.period,
-        cbuae=("MMS 10.6", "MMG 2.9"),
         pattern=pattern.key,
         supersedes=("F-SEG-CALIBRATION",),
         confidence=_confidence(segment))
@@ -492,7 +495,6 @@ def _drift_is_a_definition_change(pattern: Pattern,
                 "variable": name},
         model_id=model.model_id, model_version=model.version,
         period=stability.period,
-        cbuae=("MMS 10.5", "MMG 2.10"),
         pattern=pattern.key,
         supersedes=("F-STAB-CSI",),
         confidence=_confidence(stability))
@@ -548,7 +550,6 @@ def _the_cut_off_is_not_believed(pattern: Pattern,
                 "band_override_rate": hottest.get("rate")},
         model_id=model.model_id, model_version=model.version,
         period=outcome.period,
-        cbuae=("MMS 10.8", "MMG 2.13"),
         pattern=pattern.key,
         supersedes=("F-USE-OVERRIDE-OUTCOME",),
         confidence=_confidence(outcome))
@@ -615,7 +616,6 @@ def _holding_up_on_borrowed_power(pattern: Pattern,
                 "information_value_retained": weakest["retained"]},
         model_id=model.model_id, model_version=model.version,
         period=overall.period,
-        cbuae=("MMS 10.4", "MMG 2.11"),
         pattern=pattern.key,
         confidence=_confidence(overall))
 
@@ -658,7 +658,6 @@ def _the_window_is_too_short(pattern: Pattern,
         values={"matured_share": maturity.value},
         model_id=model.model_id, model_version=model.version,
         period=maturity.period,
-        cbuae=("MMS 10.3",),
         pattern=pattern.key,
         confidence=_confidence(maturity))
 
@@ -697,7 +696,6 @@ def _not_what_was_approved(pattern: Pattern,
         values={"mismatch_rate": replication.value},
         model_id=model.model_id, model_version=model.version,
         period=replication.period,
-        cbuae=("MMS 10.9", "MMG 2.14"),
         pattern=pattern.key,
         supersedes=("F-IMPL-REPLICATE",),
         confidence=_confidence(replication))
@@ -751,7 +749,6 @@ def _challenger_is_not_better(pattern: Pattern,
                 "champion_interval_half_width": round(half_width, 6)},
         model_id=model.model_id, model_version=model.version,
         period=comparison.period,
-        cbuae=("MMS 10.10",),
         pattern=pattern.key,
         confidence=_confidence(comparison))
 
@@ -826,7 +823,25 @@ def assess(results: list[states.Result],
 
     superseded = {test_id for f in patterns for test_id in f.supersedes}
     kept = [f for key, f in singles.items() if key not in superseded]
-    return rank([*patterns, *kept])
+    return rank([_cite(f) for f in (*patterns, *kept)])
+
+
+def _cite(made: Finding) -> Finding:
+    """Fill in the supervisory references from the evidence.
+
+    Derived rather than declared. The test registry records what each test
+    evidences; a finding restating that in its own words would be a second
+    opinion about the same thing, and the first time a reference changed
+    only one of them would be updated. A reader who wants to know why a
+    finding cites MMS 10.4 can follow it to the tests that say so.
+    """
+    references: list[str] = []
+    for test_id in made.evidence:
+        test = test_registry.BY_ID.get(test_id)
+        if test is None:
+            continue
+        references.extend(r for r in test.cbuae if r not in references)
+    return replace(made, cbuae=tuple(references))
 
 
 def rank(findings: list[Finding]) -> list[Finding]:
