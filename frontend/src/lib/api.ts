@@ -7488,6 +7488,24 @@ export const api = {
       `${encodeURIComponent(modelId)}/report.docx` +
       (period ? `?period=${encodeURIComponent(period)}` : ""),
 
+    /**
+     * One question, one governed tool result.
+     *
+     * A POST because it computes. `model_id` is the scorecard the screen is
+     * showing — the backend uses it only to fill a gap the question left, and
+     * validates it rather than trusting it.
+     *
+     * Answered, clarified and refused all come back 200. Branching on the
+     * status code to tell them apart is how a refusal ends up rendered as an
+     * answer, so there is nothing to branch on.
+     */
+    ask: (question: string, modelId = "") =>
+      request<ScvAnswer>("/scorecard-validation/ask", {
+        method: "POST",
+        body: JSON.stringify({ question, model_id: modelId }),
+        timeoutMs: 300_000,
+      }),
+
     regulatory: () =>
       request<ScvRegulatory>("/scorecard-validation/regulatory"),
 
@@ -11075,3 +11093,39 @@ export type ScvPatterns = {
 };
 
 export type ScvReport = Record<string, unknown>;
+
+/**
+ * What the conversational surface returns, whatever happened.
+ *
+ * One shape for answered, clarified and refused. `answered` is the only flag
+ * a renderer needs, and the three payload fields are mutually exclusive by
+ * construction rather than by convention.
+ */
+export type ScvAnswer = {
+  conversation_version: string;
+  question: string;
+  answered: boolean;
+  /** Where the figures came from. Rendered, not assumed. */
+  figures: string;
+  scope: string;
+  reading?: {
+    tool_id: string;
+    parameters: Record<string, string>;
+    /** Deterministic reader, or a model's choice the registry accepted. */
+    source: string;
+    because: string;
+  };
+  result?: Record<string, unknown>;
+  clarification?: {
+    clarification_required: boolean;
+    question: string;
+    because: string;
+    options: Record<string, string>[];
+  };
+  refusal?: {
+    refused?: string;
+    why?: string;
+    scope?: string;
+    [key: string]: unknown;
+  };
+};

@@ -4,6 +4,7 @@ import Link from "next/link";
 import * as React from "react";
 
 import { PageHeader } from "@/components/layout/page-header";
+import { Ask } from "@/components/scorecard-validation/ask";
 import { ResultCard, StateChip }
   from "@/components/scorecard-validation/result-card";
 import { Badge } from "@/components/ui/badge";
@@ -394,6 +395,18 @@ export default function ScorecardValidationPage() {
           Three, and only three. This module is restricted to the scorecard
           domains at the data layer — it cannot read the rest of the credit
           book, and the rest of the product cannot read these populations.
+        </p>
+      </section>
+
+      {/* ------------------------------------------------------------ ask */}
+      <section className="space-y-2">
+        <Ask modelId={modelId} tests={tests} />
+        <p className="max-w-3xl text-[11px] leading-relaxed text-text-muted">
+          Questions are answered by running the governed tests, not by
+          describing them. Every sentence beside a figure is the runner&apos;s
+          own — a chat surface that paraphrased a validation statistic would
+          produce the version that gets read aloud in a committee, with no way
+          for the reader to tell it had been rewritten.
         </p>
       </section>
 

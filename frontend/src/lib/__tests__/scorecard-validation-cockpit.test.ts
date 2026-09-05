@@ -148,3 +148,51 @@ test("the three scorecards are named as the whole scope", () => {
   assert.ok(source.includes("Three, and only three"),
     "the restriction is stated on the screen, not only in the backend");
 });
+
+// ------------------------------------------------------------------- asking
+
+const ask = () => read("components/scorecard-validation/ask.tsx");
+
+test("the chat renders the runner's sentence, never one of its own", () => {
+  const source = ask();
+  assert.ok(source.includes("does not\n * write sentences about numbers"),
+    "the constraint is stated where the next person editing this will read it");
+  // The three shapes it can render honestly go through the page's own
+  // components. Anything else falls through to the payload rather than to a
+  // summary — a shape the client cannot describe must not be described.
+  assert.ok(source.includes("<ResultCard"),
+    "a measured result uses the same card as the rest of the page");
+});
+
+test("an answer reached by asking uses the same component as one clicked", () => {
+  const source = ask();
+  assert.ok(
+    source.includes('from "@/components/scorecard-validation/result-card"'),
+    "because it IS the same result, and must not look like a different one");
+});
+
+test("the chat shows how the tool was chosen", () => {
+  const source = ask();
+  assert.ok(source.includes("answer.reading.source"),
+    "deterministic reader or model-selected: the reader is entitled to know");
+});
+
+test("every answer carries the statement about where its figures came from", () => {
+  const source = ask();
+  assert.ok(source.includes("answer.figures"),
+    "rendered, not assumed");
+});
+
+test("a refusal says where the answer does live", () => {
+  const source = ask();
+  assert.ok(source.includes("where_it_lives"),
+    "a refusal that leaves somebody stuck is one they route around");
+  assert.ok(source.includes("answer.scope"),
+    "and states what this surface is for");
+});
+
+test("a clarification offers buttons, not a rephrasing", () => {
+  const source = ask();
+  assert.ok(source.includes("onFollowUp"),
+    "the follow-up is one click");
+});
