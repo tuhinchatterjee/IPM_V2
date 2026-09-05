@@ -29,7 +29,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from backend.api.permissions import (
     Principal,
@@ -48,6 +48,9 @@ from backend.scorecard.validation import (
 )
 from backend.scorecard.validation import (
     regulatory as regulatory_map,
+)
+from backend.scorecard.validation import (
+    report as report_studio,
 )
 from backend.scorecard.validation import (
     runner,
@@ -344,6 +347,54 @@ def periods(model_id: str,
             "carry no realised outcome — which is not the same as carrying "
             "no defaults, and every outcome test refuses them by name."),
     }
+
+
+def _report(model: model_registry.Model, principal: Principal):
+    """Run everything, then assemble. The report never recomputes."""
+    results: list[states.Result] = []
+    for category in test_registry.CATEGORIES:
+        results.extend(runner.run_category(category, model))
+    return report_studio.build(
+        model, results,
+        generated_by=getattr(principal, "username", "") or "CreditProbe")
+
+
+@router.post("/models/{model_id}/report")
+def report(model_id: str,
+           principal: Principal = RequireScorecardAnalyse
+           ) -> dict[str, Any]:
+    """The validation report as content, for review before it is a document.
+
+    §29 asks for a report a validator reads in the browser and edits before
+    it becomes a Word file. This route returns the content; the .docx route
+    below renders the same content, so what was reviewed is what is sent.
+    """
+    made = _report(_model(model_id), principal)
+    return {**made.to_dict(), "cost": FULL_RUN_IS_SLOW}
+
+
+@router.post("/models/{model_id}/report.docx")
+def report_docx(model_id: str,
+                principal: Principal = RequireScorecardAnalyse) -> Response:
+    """The same report, as a Word document.
+
+    Built from the same `Report` object the review route returns, through
+    the writer the retail scorecard report already uses. One content model,
+    one writer: a second document builder would disagree with this one about
+    a heading within a quarter, and the reader who noticed would be a
+    regulator.
+    """
+    made = _report(_model(model_id), principal)
+    blob = report_studio.docx(made)
+    return Response(
+        content=blob,
+        media_type=("application/vnd.openxmlformats-officedocument"
+                    ".wordprocessingml.document"),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{made.report_id}.docx"'),
+            "X-Report-Content-Hash": made.content_hash,
+        })
 
 
 @router.get("/regulatory")
