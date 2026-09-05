@@ -291,9 +291,9 @@ class TestCalibration:
             outcome=model.outcome_column)
         assert mine["rows"] > 0
 
-        result = produced[model_id].get("CAL-AVP")
+        result = produced[model_id].get("CAL-OE")
         if result is None:
-            pytest.skip(f"{model_id} has no CAL-AVP in its applicable tests")
+            pytest.skip(f"{model_id} has no CAL-OE in its applicable tests")
         if result.value is None:
             assert not result.measured, (
                 "a result with no value must not report itself as measured")
@@ -403,9 +403,16 @@ class TestVariables:
         afresh: re-binning on the validation sample would measure a different,
         better, unapproved model. What is independent here is the counting and
         the logarithms, which is where an IV goes wrong.
-        """
-        import math
 
+        Reconciled against the SMOOTHED formula, at 5e-7 — the engine
+        publishes its IV rounded to six decimals and nothing else separates
+        the two. The production kernel applies Laplace smoothing of 0.5 per
+        bin, which is a stated policy (`binning.SMOOTHING`, documented as
+        keeping a zero-bad bin finite) rather than an unexplained epsilon, so
+        the independent path reproduces the policy instead of tolerating the
+        gap it creates. `test_the_smoothing_is_the_only_difference` measures
+        that gap separately.
+        """
         model, matured = cohorts[model_id]
         result = produced[model_id].get("VAR-IV")
         if result is None or not result.table:
@@ -417,28 +424,59 @@ class TestVariables:
             column = f"{variable}_bin"
             if column not in matured.columns:
                 continue
-            outcome = matured[model.outcome_column]
-            bad_total = int((outcome > 0.5).sum())
-            good_total = int(len(outcome) - bad_total)
-
-            total = 0.0
-            for _, part in outcome.groupby(matured[column], observed=True):
-                bad = int((part > 0.5).sum())
-                good = int(len(part) - bad)
-                if bad == 0 or good == 0:
-                    continue
-                woe = math.log((good / good_total) / (bad / bad_total))
-                total += (good / good_total - bad / bad_total) * woe
-
-            # The engine rounds its published IV to six decimals.
-            assert abs(total - float(row["information_value"])) < 5e-7, (
+            mine, _ = check.iv_over_bins(
+                matured[column], matured[model.outcome_column],
+                smoothing=0.5)
+            assert abs(mine - float(row["information_value"])) < 5e-7, (
                 f"{model_id} {variable}: production "
-                f"{row['information_value']!r}, hand-counted WOE table "
-                f"{total!r}")
+                f"{row['information_value']!r}, hand-counted smoothed WOE "
+                f"table {mine!r}")
             checked += 1
         assert checked >= 3, (
             f"{model_id}: only {checked} variables could be reconciled; a "
             "reconciliation of one variable is an anecdote")
+
+    @pytest.mark.parametrize("model_id", MODELS)
+    def test_the_smoothing_is_the_only_difference_and_it_is_small(
+            self, model_id, produced, cohorts):
+        """How far the production policy moves the textbook number.
+
+        Measured rather than assumed. Half an observation per bin on a cohort
+        of tens of thousands should move an IV in the fourth decimal; if it
+        ever moved it in the second, the smoothing would be doing the work
+        instead of the data, and a validator reading "IV 0.31" would be
+        reading an artefact of the correction.
+
+        The bound is 0.01 and it is a MATERIALITY bound on a documented
+        policy, not a tolerance on the arithmetic — the assertion above pins
+        that to 5e-7.
+        """
+        model, matured = cohorts[model_id]
+        result = produced[model_id].get("VAR-IV")
+        if result is None or not result.table:
+            pytest.skip(f"{model_id} produced no variable IV table")
+
+        for row in result.table:
+            variable = row.get("variable", "")
+            column = f"{variable}_bin"
+            if column not in matured.columns:
+                continue
+            smoothed, _ = check.iv_over_bins(
+                matured[column], matured[model.outcome_column], smoothing=0.5)
+            try:
+                textbook, _ = check.iv_over_bins(
+                    matured[column], matured[model.outcome_column],
+                    smoothing=0.0)
+            except ValueError:
+                # A bin with no bads: this is the case the smoothing exists
+                # for, and the textbook formula has no finite answer. Named
+                # rather than skipped silently.
+                continue
+            assert abs(smoothed - textbook) < 0.01, (
+                f"{model_id} {variable}: Laplace smoothing moves the IV from "
+                f"{textbook!r} to {smoothed!r}. On a cohort this size the "
+                "correction should be immaterial; that it is not means the "
+                "published figure is an artefact of the correction.")
 
     @pytest.mark.parametrize("model_id", MODELS)
     def test_variable_psi_matches_the_written_out_sum(self, model_id,
@@ -491,7 +529,7 @@ class TestTheSaudiSmeChallenger:
     def test_the_challenger_gap_is_the_difference_of_two_aucs(
             self, produced, cohorts):
         model, matured = cohorts["sme_champion"]
-        result = produced["sme_champion"].get("BENCH-CHALLENGER")
+        result = produced["sme_champion"].get("CC-DISCRIMINATION")
         if result is None or result.value is None:
             pytest.skip("no challenger comparison ran on this data")
 
@@ -519,45 +557,70 @@ class TestTheSaudiSmeChallenger:
 
 
 class TestImplementationReplication:
-    """§2 asks for one implementation score replicated by hand."""
+    """§2 asks for one implementation score replicated by hand.
 
-    def test_one_sme_score_recomputed_from_the_approved_equation(
-            self, registry, cohorts):
-        """Take one row, apply the published equation, compare to the column.
+    Done on the two retail scorecards, which publish a coefficient equation.
+    The Saudi SME champion does not, and its own IMPL-REPLICATE returns
+    NOT_APPLICABLE with that reason — which is asserted here rather than
+    skipped, because "we could not check" and "there was nothing to check"
+    are different statements and only one of them belongs in a report.
+    """
 
-        The equation is read from the registry as data and evaluated here with
-        arithmetic written in this file. If the stored score and the equation
-        disagree, the model in production is not the model that was approved,
-        and no discrimination statistic computed over the stored column means
-        what the report says it means.
+    @pytest.mark.parametrize("model_id", ("retail_application_champion",
+                                          "retail_behaviour_champion"))
+    def test_one_score_recomputed_from_the_approved_equation(
+            self, model_id, registry, cohorts):
+        """Take ten rows, apply the published equation, compare the column.
+
+        Arithmetic written out here rather than through `metrics.replicate`.
+        If the stored score and the equation disagree, the model in production
+        is not the model that was approved, and no discrimination statistic
+        computed over the stored column means what the report says it means.
         """
-        model, matured = cohorts["sme_champion"]
-        equation = model.approved_equation
-        if not equation:
-            pytest.skip("the SME champion publishes no approved equation")
+        import math
 
-        terms = getattr(equation, "terms", None)
-        if not terms:
-            pytest.skip("the approved equation exposes no terms to replicate")
+        model = registry.get(model_id)
+        equation = model.approved_equation()
+        _, matured = cohorts[model_id]
 
-        row = matured.iloc[0]
-        missing = [t.variable for t in terms
-                   if f"{t.variable}_bin" not in matured.columns
-                   and t.variable not in matured.columns]
-        if missing:
-            pytest.skip(f"the row does not carry {missing}")
+        rows = matured.head(10)
+        worst_logit = 0.0
+        worst_pd = 0.0
+        for _, row in rows.iterrows():
+            logit = float(equation.intercept)
+            for term in equation.terms:
+                logit += float(term.coefficient) * float(row[term.column()])
+            stored_logit = float(row[f"logit_{equation.output_prefix}"])
+            worst_logit = max(worst_logit, abs(logit - stored_logit))
 
-        total = float(getattr(equation, "intercept", 0.0))
-        for term in terms:
-            weights = getattr(term, "weights", None)
-            if weights:
-                key = str(row[f"{term.variable}_bin"])
-                total += float(weights.get(key, 0.0))
-            else:
-                total += float(term.coefficient) * float(row[term.variable])
+            probability = 1.0 / (1.0 + math.exp(-logit))
+            stored_pd = float(row[f"pd_{equation.output_prefix}"])
+            worst_pd = max(worst_pd, abs(probability - stored_pd))
 
-        stored = float(row[model.score_column])
-        assert abs(total - stored) < 0.5, (
-            f"the approved equation gives {total!r} for this row and the "
-            f"stored {model.score_column} is {stored!r}. The scorecard in the "
+        assert worst_logit < 1e-6, (
+            f"{model_id}: the approved equation and the stored logit differ "
+            f"by up to {worst_logit!r} across ten rows. The scorecard in the "
             "data is not the scorecard in the registry.")
+        assert worst_pd < 1e-6, (
+            f"{model_id}: recomputed PD differs from the stored PD by up to "
+            f"{worst_pd!r}")
+
+    def test_the_sme_scorecard_says_it_cannot_be_replicated(
+            self, registry, produced):
+        """A refusal with a reason, not a silent absence.
+
+        This deployment holds no published coefficient equation for the Saudi
+        SME scorecard. An engine that answered IMPL-REPLICATE anyway — with a
+        pass, or with a zero difference — would be certifying an
+        implementation nobody checked.
+        """
+        result = produced["sme_champion"]["IMPL-REPLICATE"]
+        assert result.value is None
+        assert result.state == "NOT_APPLICABLE"
+        assert result.detail, "a refusal with no reason is a blank cell"
+
+        from backend.scorecard.validation import models as model_registry
+
+        with pytest.raises(model_registry.ModelError) as refused:
+            registry.get("sme_champion").approved_equation()
+        assert "no published coefficient equation" in str(refused.value)

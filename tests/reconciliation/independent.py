@@ -69,7 +69,7 @@ import pandas as pd
 def analytics_root() -> Path:
     from backend.config import settings
 
-    return Path(settings.data_dir) / "analytics"
+    return Path(settings.analytics_dir)
 
 
 def read(dataset: str, periods: tuple[str, ...] = (),
@@ -330,6 +330,72 @@ def population_stability(expected: np.ndarray, actual: np.ndarray) -> float:
     return total
 
 
+def woe_and_iv(good: int, bad: int, good_total: int, bad_total: int,
+               smoothing: float = 0.0) -> tuple[float, float]:
+    """One bin's weight of evidence and its contribution to IV.
+
+        WOE_i = ln( (good_i / good) / (bad_i / bad) )
+        IV_i  = (good_i/good − bad_i/bad) · WOE_i
+
+    `smoothing` adds a Laplace correction to both numerator and denominator.
+    Zero is the textbook definition and is what a reader means by IV. The
+    production kernel uses 0.5, a stated policy rather than an unexplained
+    epsilon: a bin with no bads gives an infinite WOE, which then propagates
+    through every score in that bin.
+
+    Both are computed here so a reconciliation can pin the production figure
+    EXACTLY against the smoothed formula and separately show how far the
+    smoothing moves it. Widening a tolerance to absorb the difference would
+    hide precisely the quantity worth knowing.
+    """
+    good_share = (good + smoothing) / (good_total + smoothing * 2)
+    bad_share = (bad + smoothing) / (bad_total + smoothing * 2)
+    if good_share <= 0 or bad_share <= 0:
+        raise ValueError(
+            "an empty bin has an infinite weight of evidence; with no "
+            "smoothing there is no finite answer to return")
+    woe = math.log(good_share / bad_share)
+    return woe, (good_share - bad_share) * woe
+
+
+def iv_over_bins(bins: pd.Series, events: pd.Series,
+                 smoothing: float = 0.0) -> tuple[float, list[dict[str, Any]]]:
+    """IV over bins that already exist, and the WOE table underneath it.
+
+    Takes the bin ASSIGNMENT rather than raw values plus edges, because the
+    approved bins are data: re-cutting them on the validation sample would
+    measure a different, better, unapproved model and report it as this one's.
+    What is independent here is the counting and the logarithms, which is
+    where an IV goes wrong.
+    """
+    y = pd.to_numeric(events, errors="coerce")
+    keep = y.notna() & bins.notna()
+    y = (y[keep] > 0.5)
+    b = bins[keep]
+
+    bad_total = int(y.sum())
+    good_total = int((~y).sum())
+    if bad_total == 0 or good_total == 0:
+        raise ValueError("IV needs both classes present")
+
+    rows: list[dict[str, Any]] = []
+    total = 0.0
+    for level, part in y.groupby(b, observed=True):
+        bad = int(part.sum())
+        good = int(len(part) - bad)
+        try:
+            woe, contribution = woe_and_iv(good, bad, good_total, bad_total,
+                                           smoothing)
+        except ValueError:
+            rows.append({"bin": level, "good": good, "bad": bad,
+                         "woe": None, "contribution": None})
+            continue
+        total += contribution
+        rows.append({"bin": level, "good": good, "bad": bad, "woe": woe,
+                     "contribution": contribution})
+    return total, rows
+
+
 def information_value(values: pd.Series, events: pd.Series,
                       edges: list[float]) -> tuple[float, list[dict[str, Any]]]:
     """IV and the WOE table underneath it.
@@ -419,6 +485,7 @@ def calibration_by_band(frame: pd.DataFrame, *, score: str, pd_column: str,
 __all__ = [
     "Cohort", "analytics_root", "auc_pairwise", "auc_trapezoid",
     "bin_counts", "calibration_by_band", "cohort", "gini",
-    "information_value", "ks", "observed_versus_predicted", "partitions",
-    "population_stability", "rank_order", "read",
+    "information_value", "iv_over_bins", "ks", "observed_versus_predicted",
+    "partitions", "population_stability", "rank_order", "read",
+    "woe_and_iv",
 ]
