@@ -437,8 +437,30 @@ _JUDGEMENTS: dict[str, Judgement] = {
         "The signal's specification, weights and out-of-time backtest. "
         "Model internals are labelled technical.",
         role="Administrator"),
-    "/stress": Judgement("Scenario definitions and their impact.",
-                         role="Administrator, Analyst"),
+    "/stress": Judgement(
+        "Redirects to /what-if. The capability was renamed; the old address "
+        "still resolves so a bookmarked link does not 404.",
+        role="Administrator, Analyst"),
+    "/what-if": Judgement(
+        "The What-If landing: a composer, six guided starting points, saved "
+        "and recent What-Ifs, and the two ECL models.",
+        role="Administrator, Analyst"),
+    "/what-if/thread": Judgement(
+        "One What-If, built in layers. The ECL methodology is asked for "
+        "before any figure is calculated, and every result carries its "
+        "period, staging version, methodology and model version.",
+        role="Administrator, Analyst"),
+    "/what-if/models/delta": Judgement(
+        "The Delta Model: the PD, LGD and EAD factors, the formula, and how "
+        "it reconciles to the governed ECL measurement.",
+        role="Administrator, Analyst"),
+    "/what-if/models/ml": Judgement(
+        "The XGBoost model: its card, out-of-time metrics, feature "
+        "importance, SHAP, a scored example, retraining and versions.",
+        role="Administrator, Analyst",
+        limitation="The macro variables are collinear by construction in "
+                   "this universe, so they are deliberately not model "
+                   "features. The page says so above the metrics."),
     "/documents": Judgement(
         "Document authoring.",
         status=HIDDEN,

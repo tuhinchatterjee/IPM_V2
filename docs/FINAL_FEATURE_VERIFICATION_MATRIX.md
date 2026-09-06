@@ -1,6 +1,6 @@
 # Full-system feature verification matrix
 
-Generated from the build at `d83d59e` by `scripts/feature_matrix.py`.
+Generated from the build at `7d10ec7` by `scripts/feature_matrix.py`.
 
 This inventory is enumerated, not remembered. Every row comes from a page that exists on disk or an endpoint in the live OpenAPI spec, so a route added and forgotten appears here anyway. Three columns cannot be generated and are curated by hand - expected behaviour, defect and remaining limitation - because each is a claim somebody is accountable for, and deriving them from the code would produce a document that agrees with the code by construction and therefore establishes nothing.
 
@@ -8,12 +8,12 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | | |
 |---|---|
-| Pages | 59 |
-| Reviewed | 59 |
+| Pages | 63 |
+| Reviewed | 63 |
 | Not yet reviewed | 0 |
 | Carrying a known defect | 2 |
 | Not fully OK | 5 |
-| API endpoints | 584 across 41 areas |
+| API endpoints | 612 across 41 areas |
 | Browser-crawled routes | 98 |
 
 ## Pages
@@ -55,7 +55,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/` | any signed-in role | The Cockpit: ask a question, see recent investigations, and see what requires attention. Counts reflect what actually moved this period. | `ask` (8) | 15 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Requires Attention shows Portfolio and Data as empty at Q2 2026 because nothing moved at those levels. Nothing is invented to fill a filter. |
+| `/` | any signed-in role | The Cockpit: ask a question, see recent investigations, and see what requires attention. Counts reflect what actually moved this period. | `ask` (8) | 16 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Requires Attention shows Portfolio and Data as empty at Q2 2026 because nothing moved at those levels. Nothing is invented to fill a filter. |
 
 ### data-builder
 
@@ -159,7 +159,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 |---|---|---|---|---|---|---|---|---|
 | `/scorecard-validation/history` | Analyst or above to read a run; drafting and finalising a report need the analyse permission and are attributed to the person who did them | Validation History: every recorded validation run, as it was recorded. Filter by scorecard, open a run to see the values it measured against the limits in force at the time, compare two runs to answer what changed since the last validation, re-run the same configuration against current data as a NEW run, and draft or finalise a report bound to one specific run. | `scorecard` (28) | - | - | OK | - | Nothing on this screen recalculates. Every figure was computed when its run was made and is read back unchanged, so a run whose data has since moved still shows what it showed then — which is the point, not a staleness defect. No control on the page edits a stored result: a correction is a new run. A finalised report cannot be reopened or edited. A comparison between two runs produced by different calculation versions is shown with that drift named rather than silently differenced. Runs are institutional evidence and are readable by anyone who may see the module, not only by the person who started them. |
 | `/scorecard-validation/monitoring` | Administrator, Data Steward or Analyst | Retail scorecard ongoing monitoring: the application and behavioural scorecards, twelve tabs covering discrimination, calibration, stability, variable diagnostics, implementation replication, the model registry with its exact equations, the two agentic diagnostics, trends, findings and the validation policy. Same data as the validation cockpit, a different question — monitoring asks what changed this month, validation asks whether the model works. | `scorecard` (28) | 1 file(s) | - | OK | - | Every figure is computed over synthetic demonstration data marked SYNTHETIC_DEMO, which describes no real customer. A month whose twelve-month performance window has not closed shows stability only, and says when the window closes rather than showing a zero. Metrics with no approved limit read NO APPROVED LIMIT, which is not a pass and is not the same as NOT MEASURED. The validation opinion is derived by governed policy and is not regulatory certification. |
-| `/scorecard-validation` | Analyst or above; running a test needs the analyse permission, because a conversational wrapper around a computation is still the computation | Scorecard Validation Intelligence: three scorecards — retail application, retail behaviour and Saudi SME — against forty-eight tests in eleven categories. A question box that answers by running the governed tests, a model-health strip stating how many periods carry a realised outcome, the findings that would change a decision with the route to check each one, and a results workspace carrying every result's chart, table, method and limitations. | `scorecard` (28) | 5 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Every figure is computed over synthetic demonstration data marked SYNTHETIC_DEMO, which describes no real customer, and twenty-six of the ninety SME variables are proxies for external authorities this product is not connected to. A cohort whose performance window has not closed reads NOT YET MATURED, never as zero defaults. A measurement with no governed threshold reads NO APPROVED LIMIT, which is not a pass. There is no overall score for the model, on purpose. The report is a DRAFT for a validator to sign; CreditProbe issues no validation opinion and claims no compliance. A run started here is recorded and can be reopened from Validation History; if the database is unreachable the tests still run and the response says the run was NOT recorded rather than returning a key nobody kept. |
+| `/scorecard-validation` | Analyst or above; running a test needs the analyse permission, because a conversational wrapper around a computation is still the computation | Scorecard Validation Intelligence: three scorecards — retail application, retail behaviour and Saudi SME — against forty-eight tests in eleven categories. A question box that answers by running the governed tests, a model-health strip stating how many periods carry a realised outcome, the findings that would change a decision with the route to check each one, and a results workspace carrying every result's chart, table, method and limitations. | `scorecard` (28) | 6 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Every figure is computed over synthetic demonstration data marked SYNTHETIC_DEMO, which describes no real customer, and twenty-six of the ninety SME variables are proxies for external authorities this product is not connected to. A cohort whose performance window has not closed reads NOT YET MATURED, never as zero defaults. A measurement with no governed threshold reads NO APPROVED LIMIT, which is not a pass. There is no overall score for the model, on purpose. The report is a DRAFT for a validator to sign; CreditProbe issues no validation opinion and claims no compliance. A run started here is recorded and can be reopened from Validation History; if the database is unreachable the tests still run and the response says the run was NOT recorded rather than returning a key nobody kept. |
 
 ### settings
 
@@ -171,7 +171,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/stress` | Administrator, Analyst | Scenario definitions and their impact. | none | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/stress` | Administrator, Analyst | Redirects to /what-if. The capability was renamed; the old address still resolves so a bookmarked link does not 404. | none | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 
 ### studio
 
@@ -194,6 +194,15 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
 | `/users` | Administrator | Users, roles and teams. | `users` (5) | 4 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+
+### what-if
+
+| Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
+|---|---|---|---|---|---|---|---|---|
+| `/what-if/models/delta` | Administrator, Analyst | The Delta Model: the PD, LGD and EAD factors, the formula, and how it reconciles to the governed ECL measurement. | none | 1 file(s) | - | OK | - | - |
+| `/what-if/models/ml` | Administrator, Analyst | The XGBoost model: its card, out-of-time metrics, feature importance, SHAP, a scored example, retraining and versions. | none | 1 file(s) | - | OK | - | The macro variables are collinear by construction in this universe, so they are deliberately not model features. The page says so above the metrics. |
+| `/what-if` | Administrator, Analyst | The What-If landing: a composer, six guided starting points, saved and recent What-Ifs, and the two ECL models. | none | 1 file(s) | - | OK | - | - |
+| `/what-if/thread` | Administrator, Analyst | One What-If, built in layers. The ECL methodology is asked for before any figure is calculated, and every result carries its period, staging version, methodology and model version. | none | - | - | OK | - | - |
 
 ### workflow
 
@@ -261,7 +270,7 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `teaching-corpus` | 3 |
 | `trace` | 6 |
 | `users` | 5 |
-| `whatif` | 6 |
+| `whatif` | 34 |
 | `workspace` | 18 |
 
 ## What this document does not claim
