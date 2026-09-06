@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import pytest
 
+from backend.config import settings
 from backend.metrics import execution, library
 from backend.metrics import service as metrics
 from backend.services import lenses as ln
@@ -37,6 +38,11 @@ OVER_TIME = "observation_month"
 
 def _metric(metric_id: str):
     return next(m for m in library.ALL if m.metric_id == metric_id)
+
+
+needs_lake = pytest.mark.skipif(
+    not settings.has_database,
+    reason="needs the analytics lake")
 
 
 # ---------------------------------------------------------------- the numbers
@@ -325,3 +331,48 @@ def test_a_chart_survives_being_stored_and_read_back():
     assert again.params == panel.params
     assert again.filters == panel.filters
     ln.validate([again])
+
+
+# --------------------------------------------------- a time axis is a time
+#
+# A quarterly trend used to come back alphabetically ordered: Q1 2023,
+# Q1 2024, Q1 2025, Q1 2026, Q2 2023, with Q4 2022 near the end. It rendered
+# as a chart, it looked like a trend, and it was not one. Monthly labels sort
+# correctly as strings, which is why it survived until a shipped lens carried
+# a quarter-by-quarter chart.
+
+
+@needs_lake
+def test_a_quarterly_trend_is_in_time_order_not_alphabetical():
+    drawn = metrics.series("corporate.ifrs9.total_ecl", dimension="period")
+    labels = [point["label"] for point in drawn["points"]]
+    assert len(labels) > 4, "too few quarters for the ordering to mean anything"
+
+    def as_date(label: str) -> tuple[int, int]:
+        quarter, year = label.split()
+        return (int(year), int(quarter[1]))
+
+    assert labels == sorted(labels, key=as_date), labels
+    # And the failure this replaces: alphabetical order is a DIFFERENT order,
+    # so the test cannot pass by accident on data that happens to agree.
+    assert labels != sorted(labels), (
+        "alphabetical and chronological agree on this data, so this test "
+        "proves nothing")
+
+
+@needs_lake
+def test_a_monthly_trend_is_in_time_order_too():
+    drawn = metrics.series("retail.dpd_30_balance",
+                           dimension="observation_month")
+    labels = [point["label"] for point in drawn["points"]]
+    assert len(labels) > 4
+    assert labels == sorted(labels), labels
+
+
+@needs_lake
+def test_a_dimension_with_no_order_is_still_sorted_by_value():
+    """The time-axis rule must not have changed everything else."""
+    drawn = metrics.series("retail.applications", dimension="product_type",
+                           sort="value", direction="desc")
+    values = [p["value"] for p in drawn["points"] if p["value"] is not None]
+    assert values == sorted(values, reverse=True)

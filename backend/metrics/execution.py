@@ -936,6 +936,10 @@ def breakdown(formula: Formula, *, dimension: str, period: str = "",
               limit: int = MAX_GROUPS, question: str = "") -> dict[str, Any]:
     """One metric across one dimension, computed group by group.
 
+    `sort` is "value", "label" or "period". The last is for a time axis and
+    orders chronologically rather than alphabetically — see the note where it
+    is applied.
+
     Every point comes out of `evaluate` — the same arithmetic the single
     figure uses, over that group's aggregates. That is what makes a bar
     comparable to the KPI beside it: not a similar calculation, the same one.
@@ -978,7 +982,18 @@ def breakdown(formula: Formula, *, dimension: str, period: str = "",
             unavailable=calculation.unavailable))
 
     found = len(points)
-    if sort == "label":
+    if sort == "period":
+        # Chronological, not alphabetical. "Q4 2022" sorts before "Q1 2023"
+        # as a date and after it as a string, so a quarterly trend ordered by
+        # label reads Q1 2023, Q1 2024, Q1 2025, Q1 2026, Q2 2023 — which is
+        # not a trend, and looks exactly like one. Monthly labels happen to
+        # sort correctly as strings, which is why this survived until a
+        # shipped lens carried a quarter-by-quarter chart.
+        from backend.metrics.service import _period_order
+
+        points.sort(key=lambda p: _period_order(p.label),
+                    reverse=(direction == "desc"))
+    elif sort == "label":
         points.sort(key=lambda p: p.label, reverse=(direction == "desc"))
     else:
         # Points with no value have no place in an ordering by value. They are

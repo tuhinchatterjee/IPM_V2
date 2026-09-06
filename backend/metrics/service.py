@@ -1318,7 +1318,7 @@ def series(metric_id: str, *, dimension: str, period: str = "",
         wanted = "" if over_time else (period or default_period(metric))
         drawn = execution.breakdown(
             formula, dimension=dimension, period=wanted, scope=metric.scope,
-            where=where, sort=("label" if over_time else sort),
+            where=where, sort=("period" if over_time else sort),
             direction=("asc" if over_time else direction), limit=limit,
             question=f"{series_label} by {dimension}")
     except DataAccessError as e:

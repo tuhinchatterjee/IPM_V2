@@ -125,6 +125,18 @@ export default function NewLensPage() {
 
       <Card className="p-5">
         <Step number={1} title="What would you like to call this lens?" done={!!named} />
+        {/*
+          What is coming, in one line. Without it the page is a single text
+          box on an otherwise empty screen, and a person cannot tell whether
+          naming it is the whole of what they are being asked for.
+        */}
+        {!named && (
+          <p className="mt-1.5 text-[11px] leading-relaxed text-text-muted">
+            Three steps. The name first, because CreditProbe matches it
+            against the metric catalogue to suggest the rest — then a short
+            page about what the lens is for, then the metrics themselves.
+          </p>
+        )}
         <div className="mt-3 flex flex-wrap gap-2">
           <input
             value={name}

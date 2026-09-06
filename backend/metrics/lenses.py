@@ -706,7 +706,12 @@ def install(*, user_id: int | None = None,
                     f"Replaced with the shipped definition: "
                     f"{len(panels)} tiles in {len(spec.sections)} sections."),
                 sections=spec.layout(), notes=spec.notes(),
-                scope=spec.scope())
+                scope=spec.scope(),
+                # The prose too, not only the tiles. A shipped lens that
+                # grows a band and keeps the description it had before is a
+                # lens whose header describes a different screen.
+                name=spec.name, description=spec.description,
+                audience=spec.audience)
             installed.append({"slug": spec.slug, "action": "replaced",
                               "lens_id": view.id})
             continue

@@ -107,15 +107,23 @@ export default function LensesPage() {
                       </Badge>
                     ))}
                   </div>
-                  <p className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3 text-[11px] text-text-muted">
-                    <span className="min-w-0 truncate">
-                      {spec.audience} · {spec.tiles} figures, {spec.charts}{" "}
-                      charts
-                    </span>
-                    <span className="inline-flex shrink-0 items-center gap-1 font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100">
-                      Open <ArrowRight className="size-3" aria-hidden />
-                    </span>
-                  </p>
+                  {/*
+                    Two lines, not one. On one line the audience truncated and
+                    took the counts with it — "IFRS 9 Committee and Head of
+                    Impairment · 34 figur…" — and the counts are the half a
+                    reader compares between cards.
+                  */}
+                  <div className="mt-3 border-t border-border pt-3 text-[11px] text-text-muted">
+                    <p className="truncate">{spec.audience}</p>
+                    <p className="mt-0.5 flex items-center justify-between gap-2">
+                      <span>
+                        {spec.tiles} figures · {spec.charts} charts
+                      </span>
+                      <span className="inline-flex shrink-0 items-center gap-1 font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100">
+                        Open <ArrowRight className="size-3" aria-hidden />
+                      </span>
+                    </p>
+                  </div>
                 </Card>
               </Link>
             );

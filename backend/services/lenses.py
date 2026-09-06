@@ -626,13 +626,22 @@ def revise(lens_id: int, panels: list[Panel], *, request: str = "",
            change_summary: str = "", user_id: int | None = None,
            sections: list[dict[str, Any]] | None = None,
            notes: list[dict[str, Any]] | None = None,
-           scope: dict[str, Any] | None = None) -> LensView:
+           scope: dict[str, Any] | None = None,
+           name: str = "", description: str = "",
+           audience: str = "") -> LensView:
     """Store a new revision. The previous one is kept, so it can be put back.
 
     `scope` left as None keeps whatever the lens already declares. A caller
     that meant to clear it passes the fields explicitly — a revision that
     silently dropped a lens's purpose and default period because it was only
     moving a tile would lose them on the first edit.
+
+    `name`, `description` and `audience` live in columns rather than in the
+    definition, and an empty one here means "leave it". They are settable
+    because reinstalling a shipped lens has to be able to change them:
+    without this, `install(replace=True)` rewrote the tiles and left the old
+    description above them, so a lens that had grown a stage-migration band
+    still described itself as the lens it was before.
     """
     _require_db()
     validate(panels)
@@ -649,6 +658,12 @@ def revise(lens_id: int, panels: list[Panel], *, request: str = "",
         version = row.version + 1
         row.definition = definition
         row.version = version
+        if name:
+            row.name = name[:200]
+        if description:
+            row.description = description
+        if audience:
+            row.audience = audience[:120]
         session.add(LensRevision(
             lens_id=lens_id, version=version, definition=definition,
             request=request, change_summary=change_summary,
