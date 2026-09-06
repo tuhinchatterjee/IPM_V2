@@ -562,11 +562,19 @@ Nothing is saved until Save, and the save goes through `PUT /lenses/{id}/layout`
 
 On the evidence:
 
-- 141 tests across the lens surface pass, including 72 written for this
-  branch's changes.
+- **The full backend suite: 12,947 passed, 6 failed, 46 skipped.** All six
+  failures are the ones §K2 of the acceptance matrix documents — five proved
+  environmental by reproducing them against the base commit's own `backend/`
+  tree, and one caused by another test file leaving a row called "Test Domain"
+  in the shared database. None is in this branch's code, and the two feature-
+  matrix failures that branch *did* cause are fixed and no longer appear.
+- 271 test functions across the lens surface, in fourteen files, of which the
+  builder, batching, permissions, scope, chart-ask and reconciliation files
+  were written for this workstream.
 - Every new metric reconciles against an independent pandas recomputation to
   1e-9, with two of those tests asserting the *mistake* rather than the number.
-- 164 browser checks pass against a real stack with a real login.
+- **286 browser checks pass** against a real stack with a real login: 213
+  journeys A–L, 73 journeys M–P.
 - The scorecard domain boundary is provably unchanged, and the new execution
   path is provably scoped like the old one.
 - `ruff`, `tsc`, `eslint` and `next build` are clean; the migration head is

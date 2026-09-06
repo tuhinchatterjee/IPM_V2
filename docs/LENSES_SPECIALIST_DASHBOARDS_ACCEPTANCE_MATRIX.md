@@ -305,14 +305,20 @@ technical vocabulary. The governance detail is one click away on every figure.
 
 ## K2. Full backend regression, and what fails in this container
 
-The full suite was run on the final HEAD. Eight tests fail, and each was
-classified rather than dismissed. **Classification method matters more than
-the classification**, so it is written down:
+Run once, after the whole workflow was implemented, as the brief asks:
+
+```
+12,947 passed · 6 failed · 46 skipped
+```
+
+The two `test_feature_matrix` failures listed in the earlier run of this
+matrix are fixed and no longer appear. The six that remain:
+
+Each was classified rather than dismissed. **Classification method matters
+more than the classification**, so it is written down:
 
 | Failure | Classified as | How it was proved |
 |---|---|---|
-| `test_feature_matrix::test_every_page_that_exists_carries_an_expected_behaviour` | **This branch's** | `/lenses/new` exists on disk with no curated judgement. **Fixed** — the page now has one, and `/lenses/[lensId]`'s stale judgement was updated too |
-| `test_feature_matrix::test_the_committed_matrix_matches_the_current_build` | **This branch's** | Same cause. **Fixed** — matrix regenerated |
 | `test_fresh_clone_acceptance::test_the_only_live_domains_are_the_seven` | Suite pollution | The extra domain is literally named "Test Domain" and is created by `tests/api/test_data_builder.py` against the shared PostgreSQL. Deleting that row and re-running the test in isolation passes |
 | `test_workbooks::TestExcelReconstruction::test_it_writes_real_excel_formulas` | Pre-existing in this container | Reproduces with the **base** backend checked out (`git checkout 4f79566 -- backend/`) |
 | `test_workbooks::TestExcelReconstruction::test_the_formulas_reconcile_against_the_runtime_values` | Pre-existing in this container | Same |
