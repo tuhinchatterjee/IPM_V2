@@ -417,11 +417,25 @@ _JUDGEMENTS: dict[str, Judgement] = {
         limitation="The permission is deliberate; the invitation is the "
                    "rough edge. Sign in as Analyst or Administrator."),
     "/lenses/[lensId]": Judgement(
-        "One Lens: its tiles, banded as the lens says to band them, each able "
-        "to explain how its number is calculated. Changed either by asking or "
-        "by arranging it directly — both write a version that can be put "
-        "back, and both are refused by the same rules.",
+        "One Lens: its figures and charts, banded as the lens says to band "
+        "them, each able to explain how its number is calculated. It says "
+        "what it is for and which period it is showing, and the period can "
+        "be changed to any the lens's own datasets hold rows for. Changed "
+        "either by asking or by arranging it directly — both write a version "
+        "that can be put back, and both are refused by the same rules.",
         role="Administrator, Analyst"),
+    "/lenses/new": Judgement(
+        "Creating a lens by being asked three things: what to call it, what "
+        "it is for, and what it should show. The name is matched against the "
+        "Metric Catalogue to suggest the rest, deterministically rather than "
+        "by a model, so the same name suggests the same thing on every "
+        "machine and nothing is invented. The metric search starts empty and "
+        "narrows as words are added.",
+        role="Administrator, Analyst",
+        limitation="A lens is created with metric tiles. Charts and layout "
+                   "come next, on the lens itself, because which chart types "
+                   "are honest depends on the dimension and that belongs to "
+                   "the chart builder."),
     "/lenses/cro": Judgement("The CRO Lens: the executive story.",
                              role="Administrator, Analyst"),
     "/early-warning": Judgement(

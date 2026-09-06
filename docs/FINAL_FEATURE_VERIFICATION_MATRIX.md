@@ -1,6 +1,6 @@
 # Full-system feature verification matrix
 
-Generated from the build at `d83d59e` by `scripts/feature_matrix.py`.
+Generated from the build at `768d01e` by `scripts/feature_matrix.py`.
 
 This inventory is enumerated, not remembered. Every row comes from a page that exists on disk or an endpoint in the live OpenAPI spec, so a route added and forgotten appears here anyway. Three columns cannot be generated and are curated by hand - expected behaviour, defect and remaining limitation - because each is a claim somebody is accountable for, and deriving them from the code would produce a document that agrees with the code by construction and therefore establishes nothing.
 
@@ -8,12 +8,12 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | | |
 |---|---|
-| Pages | 59 |
-| Reviewed | 59 |
+| Pages | 60 |
+| Reviewed | 60 |
 | Not yet reviewed | 0 |
 | Carrying a known defect | 2 |
 | Not fully OK | 5 |
-| API endpoints | 584 across 41 areas |
+| API endpoints | 588 across 41 areas |
 | Browser-crawled routes | 98 |
 
 ## Pages
@@ -55,7 +55,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/` | any signed-in role | The Cockpit: ask a question, see recent investigations, and see what requires attention. Counts reflect what actually moved this period. | `ask` (8) | 15 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Requires Attention shows Portfolio and Data as empty at Q2 2026 because nothing moved at those levels. Nothing is invented to fill a filter. |
+| `/` | any signed-in role | The Cockpit: ask a question, see recent investigations, and see what requires attention. Counts reflect what actually moved this period. | `ask` (8) | 16 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Requires Attention shows Portfolio and Data as empty at Q2 2026 because nothing moved at those levels. Nothing is invented to fill a filter. |
 
 ### data-builder
 
@@ -113,9 +113,10 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/lenses/[lensId]` | Administrator, Analyst | One Lens: its tiles, banded as the lens says to band them, each able to explain how its number is calculated. Changed either by asking or by arranging it directly — both write a version that can be put back, and both are refused by the same rules. | `lenses` (10) | 4 file(s) | `/lenses/cro` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/lenses/cro` | Administrator, Analyst | The CRO Lens: the executive story. | `lenses` (10) | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/lenses` | any signed-in role | Saved dashboards of governed analyses. | `lenses` (10) | 4 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | PARTIAL | A Viewer sees the Lenses link and gets a dashboard of refusals: every tile runs an analysis and running one requires an Analyst. | The permission is deliberate; the invitation is the rough edge. Sign in as Analyst or Administrator. |
+| `/lenses/[lensId]` | Administrator, Analyst | One Lens: its figures and charts, banded as the lens says to band them, each able to explain how its number is calculated. It says what it is for and which period it is showing, and the period can be changed to any the lens's own datasets hold rows for. Changed either by asking or by arranging it directly — both write a version that can be put back, and both are refused by the same rules. | `lenses` (14) | 5 file(s) | `/lenses/cro` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/lenses/cro` | Administrator, Analyst | The CRO Lens: the executive story. | `lenses` (14) | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/lenses/new` | Administrator, Analyst | Creating a lens by being asked three things: what to call it, what it is for, and what it should show. The name is matched against the Metric Catalogue to suggest the rest, deterministically rather than by a model, so the same name suggests the same thing on every machine and nothing is invented. The metric search starts empty and narrows as words are added. | `lenses` (14) | - | - | OK | - | A lens is created with metric tiles. Charts and layout come next, on the lens itself, because which chart types are honest depends on the dimension and that belongs to the chart builder. |
+| `/lenses` | any signed-in role | Saved dashboards of governed analyses. | `lenses` (14) | 5 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | PARTIAL | A Viewer sees the Lenses link and gets a dashboard of refusals: every tile runs an analysis and running one requires an Analyst. | The permission is deliberate; the invitation is the rough edge. Sign in as Analyst or Administrator. |
 
 ### messages
 
@@ -159,7 +160,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 |---|---|---|---|---|---|---|---|---|
 | `/scorecard-validation/history` | Analyst or above to read a run; drafting and finalising a report need the analyse permission and are attributed to the person who did them | Validation History: every recorded validation run, as it was recorded. Filter by scorecard, open a run to see the values it measured against the limits in force at the time, compare two runs to answer what changed since the last validation, re-run the same configuration against current data as a NEW run, and draft or finalise a report bound to one specific run. | `scorecard` (28) | - | - | OK | - | Nothing on this screen recalculates. Every figure was computed when its run was made and is read back unchanged, so a run whose data has since moved still shows what it showed then — which is the point, not a staleness defect. No control on the page edits a stored result: a correction is a new run. A finalised report cannot be reopened or edited. A comparison between two runs produced by different calculation versions is shown with that drift named rather than silently differenced. Runs are institutional evidence and are readable by anyone who may see the module, not only by the person who started them. |
 | `/scorecard-validation/monitoring` | Administrator, Data Steward or Analyst | Retail scorecard ongoing monitoring: the application and behavioural scorecards, twelve tabs covering discrimination, calibration, stability, variable diagnostics, implementation replication, the model registry with its exact equations, the two agentic diagnostics, trends, findings and the validation policy. Same data as the validation cockpit, a different question — monitoring asks what changed this month, validation asks whether the model works. | `scorecard` (28) | 1 file(s) | - | OK | - | Every figure is computed over synthetic demonstration data marked SYNTHETIC_DEMO, which describes no real customer. A month whose twelve-month performance window has not closed shows stability only, and says when the window closes rather than showing a zero. Metrics with no approved limit read NO APPROVED LIMIT, which is not a pass and is not the same as NOT MEASURED. The validation opinion is derived by governed policy and is not regulatory certification. |
-| `/scorecard-validation` | Analyst or above; running a test needs the analyse permission, because a conversational wrapper around a computation is still the computation | Scorecard Validation Intelligence: three scorecards — retail application, retail behaviour and Saudi SME — against forty-eight tests in eleven categories. A question box that answers by running the governed tests, a model-health strip stating how many periods carry a realised outcome, the findings that would change a decision with the route to check each one, and a results workspace carrying every result's chart, table, method and limitations. | `scorecard` (28) | 5 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Every figure is computed over synthetic demonstration data marked SYNTHETIC_DEMO, which describes no real customer, and twenty-six of the ninety SME variables are proxies for external authorities this product is not connected to. A cohort whose performance window has not closed reads NOT YET MATURED, never as zero defaults. A measurement with no governed threshold reads NO APPROVED LIMIT, which is not a pass. There is no overall score for the model, on purpose. The report is a DRAFT for a validator to sign; CreditProbe issues no validation opinion and claims no compliance. A run started here is recorded and can be reopened from Validation History; if the database is unreachable the tests still run and the response says the run was NOT recorded rather than returning a key nobody kept. |
+| `/scorecard-validation` | Analyst or above; running a test needs the analyse permission, because a conversational wrapper around a computation is still the computation | Scorecard Validation Intelligence: three scorecards — retail application, retail behaviour and Saudi SME — against forty-eight tests in eleven categories. A question box that answers by running the governed tests, a model-health strip stating how many periods carry a realised outcome, the findings that would change a decision with the route to check each one, and a results workspace carrying every result's chart, table, method and limitations. | `scorecard` (28) | 6 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Every figure is computed over synthetic demonstration data marked SYNTHETIC_DEMO, which describes no real customer, and twenty-six of the ninety SME variables are proxies for external authorities this product is not connected to. A cohort whose performance window has not closed reads NOT YET MATURED, never as zero defaults. A measurement with no governed threshold reads NO APPROVED LIMIT, which is not a pass. There is no overall score for the model, on purpose. The report is a DRAFT for a validator to sign; CreditProbe issues no validation opinion and claims no compliance. A run started here is recorded and can be reopened from Validation History; if the database is unreachable the tests still run and the response says the run was NOT recorded rather than returning a key nobody kept. |
 
 ### settings
 
@@ -243,7 +244,7 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `intelligence` | 45 |
 | `investigations` | 16 |
 | `learning` | 24 |
-| `lenses` | 10 |
+| `lenses` | 14 |
 | `messages` | 18 |
 | `metadata` | 6 |
 | `metrics` | 16 |
