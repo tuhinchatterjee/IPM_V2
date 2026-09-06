@@ -1225,9 +1225,8 @@ def publish(session: Any, principal: Any, key: str, *,
         # existing caller would have to learn about them.
         project.owner_id = _user(governance.get("owner_id"))
         project.escalation_id = _user(governance.get("escalation_id"))
-        project.agentic_mode = agentic.mode
-        project.agentic_policy = dict(
-            (plan.get("agentic") or {}).get("policy") or {})
+        policy_mod.stamp(project, agentic,
+                         (plan.get("agentic") or {}).get("policy"))
         session.flush()
         service.audit(session, "PLANNER_AGENTIC_SET", actor_id=actor,
                       project_id=int(project.id), source=source,

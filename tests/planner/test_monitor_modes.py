@@ -81,7 +81,10 @@ def _project(mode: str) -> dict:
         session.flush()
         pid = int(project.id)
         project.escalation_id = people["escalation"]
-        project.agentic_mode = mode
+        # Through `stamp`, not by assigning the column, because that is what
+        # every real caller does — and the reminder cadence a mode implies
+        # only reaches the row through it.
+        pol.stamp(project, pol.preset(mode))
         for role in ("owner", "escalation", "sponsor"):
             svc.add_participant(session, who, pid, user_id=people[role],
                                 project_role="CONTRIBUTOR",
@@ -312,3 +315,60 @@ def test_a_change_that_rolls_back_enqueues_nothing(standard):
         after = len(session.execute(select(AgentJob).where(
             AgentJob.kind == monitor.PLANNER_SWEEP)).scalars().all())
     assert after == before
+
+
+# ------------------------------------------------- the mode reaches the row
+
+
+def test_setting_a_mode_writes_the_modes_own_reminder_days():
+    """Choosing Critical must change reminders, not only escalation.
+
+    `policy.of` reads `reminder_days` and `stale_after_days` off the row as
+    overrides on top of the mode, so that a project configured before modes
+    existed keeps its behaviour. A project whose mode was set while those
+    columns still held the creation defaults would therefore be escalated
+    like Critical and reminded like Standard — which is the mode half doing
+    nothing, silently. `stamp` is what closes that, so this asserts it.
+    """
+    class Row:
+        agentic_mode = pol.MODE_STANDARD
+        agentic_policy: dict = {}
+        reminder_days: list = [7, 3, 1, 0]
+        stale_after_days = 7
+
+    row = Row()
+    pol.stamp(row, pol.preset(pol.MODE_CRITICAL))
+
+    assert row.reminder_days == [14, 7, 3, 1, 0], \
+        "Critical warns 14 days out; the creation default does not"
+    assert row.stale_after_days == 3
+    assert pol.of(row).policy.reminder_days == (14, 7, 3, 1, 0), \
+        "and reading the row back must not resurrect the old cadence"
+
+    pol.stamp(row, pol.preset(pol.MODE_LIGHT))
+    assert row.reminder_days == [1, 0], "and a later change must land too"
+    assert pol.of(row).policy.stale_after_days == 14
+
+
+def test_a_custom_mode_keeps_the_document_it_was_built_from():
+    thresholds = {"reminder_days": [5, 2, 0], "stale_after_days": 9}
+    row = type("Row", (), {"agentic_mode": "", "agentic_policy": {},
+                           "reminder_days": [], "stale_after_days": 7})()
+
+    pol.stamp(row, pol.custom(thresholds), thresholds)
+
+    assert row.agentic_mode == pol.MODE_CUSTOM
+    assert row.agentic_policy == thresholds, \
+        "a preset can be re-derived from its name; a custom policy cannot"
+    assert row.reminder_days == [5, 2, 0]
+
+
+def test_a_preset_stores_no_thresholds_of_its_own():
+    """So that a project on Standard follows Standard as it is, not as it was."""
+    row = type("Row", (), {"agentic_mode": "", "agentic_policy": {"stale_after_days": 40},
+                           "reminder_days": [], "stale_after_days": 7})()
+
+    pol.stamp(row, pol.preset(pol.MODE_STANDARD))
+
+    assert row.agentic_policy == {}, \
+        "leftover custom thresholds must not survive a move back to a preset"

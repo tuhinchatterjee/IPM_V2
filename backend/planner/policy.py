@@ -336,6 +336,26 @@ def of(project: Any) -> Agentic:
     return replace(agentic, policy=replace(agentic.policy, **changes))
 
 
+def stamp(project: Any, agentic: Agentic,
+          document: dict[str, Any] | None = None) -> None:
+    """Write one project's agentic behaviour onto its row — all of it.
+
+    `of()` reads `reminder_days` and `stale_after_days` as overrides on top of
+    the mode, so that a project configured before modes existed keeps the
+    behaviour it was given. That kindness to old rows is a trap for new ones:
+    a project set to Critical while those two columns still hold the creation
+    defaults is monitored on the defaults, and choosing Critical then changes
+    escalation but not the reminders it was chosen for. So every caller that
+    SETS a mode writes the mode's numbers through as well, here, in one place,
+    and the override only ever applies to a row nobody has set a mode on.
+    """
+    project.agentic_mode = agentic.mode
+    project.agentic_policy = (dict(document or {})
+                              if agentic.mode == MODE_CUSTOM else {})
+    project.reminder_days = list(agentic.policy.reminder_days)
+    project.stale_after_days = int(agentic.policy.stale_after_days)
+
+
 # ------------------------------------------------------------- in words
 
 
@@ -447,5 +467,5 @@ __all__ = [
     "Agentic", "CUSTOM_KEYS", "Escalation", "MODES", "MODE_CRITICAL",
     "MODE_CUSTOM", "MODE_LABELS", "MODE_LIGHT", "MODE_NOTES", "MODE_STANDARD",
     "POLICY_VERSION", "PolicyError", "choices", "custom", "describe", "of",
-    "preset", "resolve", "sentence",
+    "preset", "resolve", "sentence", "stamp",
 ]
