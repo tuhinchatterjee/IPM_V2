@@ -174,6 +174,29 @@ class Decision:
                 "message": self.message, "anchors": list(self.anchors)}
 
 
+#: Sentences that ask the Copilot to PRODUCE a number or an assessment,
+#: rather than to talk about a piece of work by its name.
+#:
+#: Containment forgives a foreign phrase that sits inside something the plan
+#: is called — that is what lets somebody discuss the "Retail Application
+#: Scorecard Redevelopment" programme without being told scorecards are
+#: somewhere else. But a project whose tasks are named after the metrics
+#: they produce turns that kindness into a hole: name a task "Population
+#: stability index review" and the planner Copilot would accept "what is the
+#: population stability index?" — a question it cannot answer, asked of the
+#: one part of the product that has no data to answer it with.
+#:
+#: So: a phrase used as a NAME is forgiven; a phrase being asked FOR is not,
+#: however it is spelled. The cue is the shape of the question, not the noun.
+_FOR_A_VALUE = re.compile(
+    r"\b(?:what(?:'|’)?s|what\s+is|what\s+are|what\s+was|what\s+were|"
+    r"how\s+much|how\s+many|how\s+high|how\s+low|"
+    r"calculate|compute|work\s+out|re-?run|back-?test|"
+    r"give\s+me\s+the|show\s+me\s+the|tell\s+me\s+the|"
+    r"what\s+does\s+the\s+\w+\s+say)\b",
+    re.IGNORECASE)
+
+
 def _normalise(text: str) -> str:
     return re.sub(r"\s+", " ", str(text or "")).strip()
 
@@ -249,23 +272,38 @@ def classify(message: str, *, names: Any = ()) -> Decision:
 
     spans = occurrences(text, names)
     lowered = text.lower()
+    asking_for_a_value = bool(_FOR_A_VALUE.search(lowered))
 
     def inside(where: tuple[int, int]) -> bool:
         return any(start <= where[0] and where[1] <= end
                    for start, end, _name in spans)
 
+    def refuse(area: Foreign, matched: str) -> Decision:
+        return Decision(
+            False, area=area.key, label=area.label, matched=matched,
+            anchors=anchored(text, names),
+            message=(f"That is a question about {area.label}, and I only "
+                     f"look after project delivery. You will find it in "
+                     f"{area.where}. {PURPOSE}"))
+
+    #: A foreign phrase that appeared only inside something the plan is
+    #: called. Kept rather than discarded, because it is the answer when the
+    #: sentence turns out to be asking for a value.
+    named: tuple[Foreign, str] | None = None
     for area, patterns in _COMPILED:
         for pattern in patterns:
             for found in pattern.finditer(lowered):
                 if inside(found.span()):
+                    if named is None:
+                        named = (area, found.group(0))
                     continue
-                return Decision(
-                    False, area=area.key, label=area.label,
-                    matched=found.group(0), anchors=anchored(text, names),
-                    message=(
-                        f"That is a question about {area.label}, and I only "
-                        f"look after project delivery. You will find it in "
-                        f"{area.where}. {PURPOSE}"))
+                return refuse(area, found.group(0))
+
+    # Nothing foreign outside a name. If the sentence is nevertheless asking
+    # for a number, the name it borrowed is the thing being asked for, and
+    # this is not the place to ask.
+    if named is not None and asking_for_a_value:
+        return refuse(*named)
     return Decision(True, anchors=anchored(text, names))
 
 

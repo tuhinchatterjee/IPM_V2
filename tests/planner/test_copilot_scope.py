@@ -326,3 +326,59 @@ def test_everything_the_copilot_writes_is_marked_as_chat():
 
     assert copilot._source() == SOURCE_AI_CHAT
     assert SOURCE_AI_CHAT in SOURCES
+
+
+# ------------------------------- a task named after the thing it produces
+
+
+def test_a_task_named_after_a_metric_does_not_licence_asking_for_it():
+    """The hole that containment opens, and the shape that closes it.
+
+    Containment forgives a foreign phrase sitting inside something the plan
+    is called — that is what lets somebody discuss a programme called "Retail
+    Application Scorecard Redevelopment" without being sent elsewhere. But
+    real programmes name their tasks after the metrics they produce, and a
+    task called "Population stability index review" would then make "what is
+    the population stability index?" a delivery question: one the planner
+    cannot answer, asked of the one part of the product with no data to
+    answer it with.
+
+    A phrase used as a NAME is forgiven. A phrase being asked FOR is not.
+    """
+    from backend.planner import scope
+
+    names = ["Population stability index review",
+             "Retail Application Scorecard Redevelopment"]
+
+    # Talking about the work by its name: still the Copilot's question.
+    for asked in ("How is the Population stability index review going?",
+                  "Who owns the Population stability index review?",
+                  "Move the Population stability index review to Friday.",
+                  "How is the scorecard redevelopment going?"):
+        assert scope.classify(asked, names=names).in_scope, asked
+
+    # Asking for the number itself: not the Copilot's question, however the
+    # plan happens to have named its work.
+    for asked in ("What is the population stability index?",
+                  "What is the PSI of the application scorecard?",
+                  "Show me the population stability index.",
+                  "Calculate the population stability index for me."):
+        refused = scope.classify(asked, names=names)
+        assert not refused.in_scope, asked
+        assert "Scorecard Validation" in refused.message, asked
+
+
+def test_the_value_cue_does_not_refuse_ordinary_delivery_questions():
+    """"What is overdue?" asks for a value too, and it is ours.
+
+    The cue only ever promotes a phrase that already belongs to another
+    module. A sentence with nothing foreign in it is never refused by it.
+    """
+    from backend.planner import scope
+
+    for asked in ("What is overdue here?",
+                  "What is on the critical path?",
+                  "How many tasks are late?",
+                  "Show me the milestones that are at risk.",
+                  "What is still missing from this plan?"):
+        assert scope.classify(asked, names=[]).in_scope, asked

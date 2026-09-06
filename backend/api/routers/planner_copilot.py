@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session
 
 from backend.api.permissions import Principal, RequireAnalyst, RequireCommenter
 from backend.api.routers.planner import _fail, _guard, get_db
+from backend.planner import access as acl
 from backend.planner import copilot, live
 from backend.planner import draft as dr
 from backend.planner import language as lang
@@ -303,6 +304,13 @@ def chat(payload: ChatIn, session: Session = Depends(get_db),
     # being talked about — whether that is a draft nobody has published or a
     # project that is already running.
     plan: dict[str, Any] = {}
+    # Every project named in the request is checked, even one this turn will
+    # not read: a draft turn that also carried somebody else's project id
+    # would echo that id back unchecked, which is a small leak today and the
+    # kind of thing a later change turns into a large one.
+    if payload.project_id is not None:
+        _run(lambda: acl.readable(session, int(payload.project_id),
+                                  principal))
     if payload.draft:
         row = _run(lambda: dr.load(session, principal, payload.draft))
         plan = row.plan or dr.empty()

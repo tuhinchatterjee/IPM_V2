@@ -376,3 +376,45 @@ def test_a_contributor_cannot_make_the_agent_chase_people(client, cast, live):
     refused = client.post(f"{PLANNER}/projects/{live['id']}/sweep",
                           headers=headers(cast["bob"]))
     assert refused.status_code in (403, 404), refused.text
+
+
+def test_a_project_named_beside_a_draft_is_checked_too(client, cast, live):
+    """A draft turn that carries somebody else's project id is refused.
+
+    The turn would not have READ that project — the draft is what it works
+    on. It would have echoed the id back having checked nothing, which is a
+    small leak now and the kind of thing a later change makes a large one.
+    """
+    made = client.post(f"{PREFIX}/drafts", json={"name": ""},
+                       headers=headers(cast["mallory"]))
+    assert made.status_code == 201, made.text
+
+    refused = client.post(
+        f"{PREFIX}/chat", headers=headers(cast["mallory"]),
+        json={"message": "Add Delivery as the first milestone.",
+              "draft": made.json()["key"], "project_id": live["id"]})
+    assert refused.status_code == 404, refused.text
+
+
+def test_a_contributor_cannot_move_somebody_elses_task_by_saying_so(
+        client, cast, live, named):
+    """The rung between viewer and editor, which is where the mistakes are.
+
+    Bob contributes to this project. He may report on his own work and he may
+    not hand another person's task to somebody else — and saying it rather
+    than clicking it must not be the way round that.
+    """
+    added = client.post(
+        f"{PLANNER}/projects/{live['id']}/participants",
+        headers=headers(cast["alice"]),
+        json={"user_id": cast["bob"], "project_role": "CONTRIBUTOR",
+              "access": "CONTRIBUTOR"})
+    assert added.status_code == 200, added.text
+
+    before = _task(live["id"], "M01-T02").owner_id
+    refused = client.post(
+        f"{PREFIX}/chat", headers=headers(cast["bob"]),
+        json={"message": f"Move M01-T02 to {named['daniel']['first']}.",
+              "project_id": live["id"], "confirm": True})
+    assert refused.status_code == 403, refused.text
+    assert _task(live["id"], "M01-T02").owner_id == before
