@@ -36,6 +36,7 @@ reason it carries `assign_owner`.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -175,6 +176,116 @@ def people(session: Any, principal: Any, *, search: str = "",
          "username": row.username,
          "role": row.role}
         for row in rows]}
+
+
+#: Words that appear in sentences and never in a person's name. Skipped when
+#: working out who a message might be talking about, so a search for
+#: colleagues does not fire on "the" and return the first fifty people
+#: alphabetically.
+_NOT_A_NAME = {
+    "add", "and", "the", "for", "with", "under", "owns", "own", "owned",
+    "escalate", "escalation", "owner", "contact", "task", "tasks", "move",
+    "milestone", "milestones", "start", "starts", "starting", "end", "ends",
+    "due", "until", "after", "before", "link", "to", "from", "this", "that",
+    "it", "its", "project", "change", "set", "make", "monitoring", "days",
+    "day", "critical", "standard", "light", "custom", "need", "needs", "new",
+    "first", "second", "third", "next", "last", "only", "can", "cannot",
+    "finished", "complete", "completed", "done", "review", "report", "data",
+    "call", "called", "name", "named", "remove", "delete", "please",
+}
+
+
+def people_for(session: Any, principal: Any, message: str,
+               plan: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """The colleagues this message might be talking about.
+
+    Looked up by the words the person actually used, plus everybody the plan
+    already names. A directory page would be wrong twice over: on a bank with
+    four thousand staff the fiftieth name alphabetically is not the one being
+    talked about, and a truncated list turns "who is Sameer?" into "nobody",
+    which is a silent wrong answer rather than a question.
+
+    Searching by word also keeps ambiguity honest: two colleagues called
+    Sameer both come back, so the Copilot asks instead of choosing.
+    """
+    from sqlalchemy import or_, select
+
+    from backend.db.models import User
+
+    words = _name_candidates(message)
+    found: dict[int, dict[str, Any]] = {}
+
+    if words:
+        clauses = []
+        for word in words:
+            like = f"{word.lower()}%"
+            clauses.extend([User.first_name.ilike(like),
+                            User.last_name.ilike(like),
+                            User.username.ilike(f"%{word.lower()}%")])
+        rows = session.execute(
+            select(User).where(User.is_active.is_(True), or_(*clauses))
+            .limit(60)).scalars()
+        for row in rows:
+            found[int(row.id)] = _person_row(row)
+
+    # Everybody the plan already names, so "Priya is the escalation owner"
+    # still resolves when the plan is being edited rather than written.
+    named = _named_in(plan or {})
+    missing = [uid for uid in named if uid not in found]
+    if missing:
+        rows = session.execute(
+            select(User).where(User.id.in_(missing[:60]))).scalars()
+        for row in rows:
+            found[int(row.id)] = _person_row(row)
+    return list(found.values())
+
+
+def _name_candidates(message: str, limit: int = 20) -> list[str]:
+    """The words in a message that could be somebody's name, best first.
+
+    Ordered rather than truncated alphabetically: a cap applied to a sorted
+    set drops "Priya" from a sentence that also mentions Draft, December and
+    Committee, and the Copilot then reports that nobody by that name exists.
+    A word capitalised in the middle of a sentence is the strongest signal
+    there is, so those go first and the cap only ever bites on the weak tail.
+    """
+    tokens = list(re.finditer(r"[A-Za-z][\w'’.\-]*", str(message or "")))
+    strong: list[str] = []
+    weak: list[str] = []
+    for index, token in enumerate(tokens):
+        # A name at the end of a sentence carries the full stop with it, and
+        # `ilike 'rohan.%'` matches nobody — which reads as "there is no such
+        # person" rather than as the punctuation bug it is.
+        word = token.group(0).strip(".-'’")
+        if word.lower() in _NOT_A_NAME or len(word) < 2:
+            continue
+        # Capitalised, and not merely the first word of a sentence.
+        opener = index == 0 or str(message)[:token.start()].rstrip().endswith(
+            (".", "!", "?", "\n"))
+        bucket = weak if (not word[0].isupper() or opener) else strong
+        if word not in bucket:
+            bucket.append(word)
+    return (strong + [w for w in weak if w not in strong])[:limit]
+
+
+def _person_row(row: Any) -> dict[str, Any]:
+    return {"user_id": int(row.id),
+            "name": " ".join(p for p in (row.first_name, row.last_name) if p)
+                    or row.username,
+            "username": row.username, "role": row.role}
+
+
+def _named_in(plan: dict[str, Any]) -> list[int]:
+    found: set[int] = set()
+    governance = plan.get("governance") or {}
+    for key in ("sponsor_id", "manager_id", "owner_id", "escalation_id"):
+        if governance.get(key):
+            found.add(int(governance[key]))
+    for row in [*(plan.get("milestones") or []), *(plan.get("tasks") or [])]:
+        for key in ("owner_id", "reviewer_id", "escalation_id"):
+            if row.get(key):
+                found.add(int(row[key]))
+    return sorted(found)
 
 
 def handlers(session: Any) -> dict[str, Any]:
@@ -324,4 +435,4 @@ def in_scope(session: Any, principal: Any, message: str) -> scope.Decision:
 __all__ = ["AGENT_ID", "ALLOWED_DOMAINS", "ALLOWED_TOOLS", "BUSINESS_NAME",
            "COPILOT_VERSION", "Copilot", "NotConfirmed", "agent",
            "catalogue", "call", "confirm_publish", "handlers", "in_scope",
-           "people"]
+           "people", "people_for"]

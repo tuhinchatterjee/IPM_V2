@@ -3,7 +3,14 @@
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
-import { api, ApiError, type CopilotScope, type CopilotTurn } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  type CopilotCommand,
+  type CopilotQuestion,
+  type CopilotScope,
+  type CopilotTurn,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 /**
@@ -22,10 +29,13 @@ import { cn } from "@/lib/utils";
  * and not as an error. The person asked a reasonable question in the wrong
  * room, and the useful response is a direction.
  *
- * **Nothing here mutates.** Every change the conversation produces goes
- * through `onCommand`, which the parent turns into `api.planner.copilot.apply`
- * — the same call the structured panels make. A chat that wrote to its own
- * endpoint would be the second mutation path §39 exists to prevent.
+ * **Nothing here decides anything.** The backend reads the sentence, resolves
+ * the names, and either applies the change, asks which of two things was
+ * meant, or shows what it would do and waits. This component renders those
+ * three outcomes and sends back what the person clicked. It never assembles a
+ * command: a confirmation re-sends the ORIGINAL WORDS with `confirm`, and a
+ * clarification re-sends them with the answer, so there is no path from this
+ * file to a mutation that did not go through the reader.
  */
 
 export type ChatTurn = {
@@ -33,8 +43,14 @@ export type ChatTurn = {
   who: "person" | "copilot";
   text: string;
   refusal?: CopilotScope;
-  /** Something the person can do next, offered rather than performed. */
-  offer?: { label: string; command: string; payload: Record<string, unknown> };
+  /** What the sentence was read as, shown before it is agreed to. */
+  proposed?: CopilotCommand[];
+  /** Which of two things was meant, as buttons. */
+  question?: CopilotQuestion;
+  /** The words that produced this turn, re-sent on confirm or on an answer. */
+  said?: string;
+  /** True while this turn is still waiting for a yes. */
+  open?: boolean;
 };
 
 const OPENING =
@@ -46,14 +62,12 @@ export function CopilotChat({
   projectId,
   suggestions = [],
   onTurn,
-  onCommand,
   className,
 }: {
   draftKey?: string;
   projectId?: number;
   suggestions?: string[];
   onTurn?: (turn: CopilotTurn) => void;
-  onCommand?: (command: string, payload: Record<string, unknown>) => void;
   className?: string;
 }) {
   const [turns, setTurns] = React.useState<ChatTurn[]>([
@@ -61,6 +75,9 @@ export function CopilotChat({
   ]);
   const [draft, setDraft] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  // What the conversation is currently about, so "it starts on the first"
+  // has a subject. The backend works it out and hands it back each turn.
+  const [focus, setFocus] = React.useState("");
   const next = React.useRef(1);
   const foot = React.useRef<HTMLDivElement>(null);
 
@@ -73,28 +90,45 @@ export function CopilotChat({
   }, []);
 
   const send = React.useCallback(
-    async (message: string) => {
+    async (message: string, options: {
+      confirm?: boolean;
+      answers?: Record<string, string>;
+      echo?: boolean;
+    } = {}) => {
       const text = message.trim();
       if (!text || busy) return;
       setDraft("");
-      say({ who: "person", text });
+      if (options.echo !== false) say({ who: "person", text });
       setBusy(true);
+      // A new turn settles the previous one: nothing stays clickable once
+      // the conversation has moved on, so there is no stale "go ahead"
+      // button that would apply a reading of a plan that has since changed.
+      setTurns((existing) => existing.map((t) => ({ ...t, open: false })));
       try {
         const turn = await api.planner.copilot.chat({
           message: text,
           draft: draftKey,
           project_id: projectId,
+          focus,
+          confirm: options.confirm,
+          answers: options.answers,
         });
         if (!turn.in_scope && turn.refusal) {
-          say({
-            who: "copilot",
-            text: turn.refusal.message,
-            refusal: turn.refusal,
-          });
-        } else {
-          say({ who: "copilot", text: describe(turn) });
-          onTurn?.(turn);
+          say({ who: "copilot", text: turn.refusal.message,
+                refusal: turn.refusal });
+          return;
         }
+        setFocus(turn.focus ?? "");
+        const question = turn.questions?.[0];
+        say({
+          who: "copilot",
+          text: turn.said ?? "",
+          question,
+          said: text,
+          proposed: turn.needs_confirmation ? turn.commands : undefined,
+          open: Boolean(question) || Boolean(turn.needs_confirmation),
+        });
+        if ((turn.applied?.length ?? 0) > 0) onTurn?.(turn);
       } catch (error) {
         say({
           who: "copilot",
@@ -107,7 +141,7 @@ export function CopilotChat({
         setBusy(false);
       }
     },
-    [busy, draftKey, projectId, onTurn, say],
+    [busy, draftKey, projectId, focus, onTurn, say],
   );
 
   return (
@@ -119,7 +153,19 @@ export function CopilotChat({
     >
       <div className="max-h-[22rem] min-h-[10rem] flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {turns.map((turn) => (
-          <Turn key={turn.id} turn={turn} onCommand={onCommand} />
+          <Turn
+            key={turn.id}
+            turn={turn}
+            busy={busy}
+            onConfirm={() =>
+              void send(turn.said ?? "", { confirm: true, echo: false })}
+            onAnswer={(value) =>
+              void send(turn.said ?? "", {
+                confirm: true,
+                echo: false,
+                answers: { [turn.question?.fragment ?? ""]: value },
+              })}
+          />
         ))}
         <div ref={foot} />
       </div>
@@ -163,10 +209,14 @@ export function CopilotChat({
 
 function Turn({
   turn,
-  onCommand,
+  busy,
+  onConfirm,
+  onAnswer,
 }: {
   turn: ChatTurn;
-  onCommand?: (command: string, payload: Record<string, unknown>) => void;
+  busy: boolean;
+  onConfirm: () => void;
+  onAnswer: (value: string) => void;
 }) {
   if (turn.who === "person") {
     return (
@@ -179,22 +229,64 @@ function Turn({
     return <Redirect scope={turn.refusal} />;
   }
   return (
-    <div className="max-w-[85%] space-y-2">
-      <p className="rounded-lg bg-surface-raised px-3 py-2 text-sm text-text-secondary">
+    <div className="max-w-[95%] space-y-2">
+      <p className="whitespace-pre-line rounded-lg bg-surface-raised px-3 py-2 text-sm text-text-secondary">
         {turn.text}
       </p>
-      {turn.offer && onCommand && (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => onCommand(turn.offer!.command, turn.offer!.payload)}
-        >
-          {turn.offer.label}
-        </Button>
+
+      {/*
+        §3. A clarification is two buttons, not an instruction to type the
+        sentence again more carefully. The answer travels back with the
+        original words, so what runs is still a reading of what they said.
+      */}
+      {turn.question && turn.question.options.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {turn.question.options.map((option) => (
+            <Button
+              key={option.value}
+              size="sm"
+              variant="outline"
+              disabled={busy || !turn.open}
+              onClick={() => onAnswer(option.value)}
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {/*
+        §4. A change that moves a date, an owner or a dependency is shown
+        first. The button re-sends the same sentence with a confirmation —
+        it does not send a command, because then this file would be a second
+        way into the planner.
+      */}
+      {turn.proposed && turn.proposed.length > 0 && (
+        <div className="rounded-lg border border-border bg-surface-raised px-3 py-2.5">
+          <p className="text-[11px] uppercase tracking-wide text-text-muted">
+            Before I change anything
+          </p>
+          <ul className="mt-1 space-y-1">
+            {turn.proposed.map((command, index) => (
+              <li key={index} className="text-sm text-text-secondary">
+                · {command.sentence}
+              </li>
+            ))}
+          </ul>
+          <Button
+            size="sm"
+            className="mt-2"
+            disabled={busy || !turn.open}
+            onClick={onConfirm}
+          >
+            {turn.open ? "Go ahead" : "Done"}
+          </Button>
+        </div>
       )}
     </div>
   );
 }
+
 
 /**
  * A question that belongs somewhere else, answered with a direction.
@@ -220,28 +312,3 @@ function Redirect({ scope }: { scope: CopilotScope }) {
   );
 }
 
-/** What the Copilot says back when it understood and is ready to act. */
-function describe(turn: CopilotTurn): string {
-  const completeness = turn.completeness;
-  if (!turn.draft) {
-    return (
-      "Right — that is delivery, so it is mine. Open the plan you mean, or " +
-      "start a new one, and I will work on it with you."
-    );
-  }
-  if (!completeness) return "I have the plan open.";
-  if (completeness.publishable && completeness.complete) {
-    return "The plan is complete. Have a look at the preview and publish it when you are happy.";
-  }
-  if (completeness.publishable) {
-    const first = completeness.warnings[0];
-    return first
-      ? `Nothing is blocking publication. Worth a look: ${first.message}`
-      : "Nothing is blocking publication.";
-  }
-  const first = completeness.blockers[0];
-  const count = completeness.blockers.length;
-  return count === 1
-    ? `One thing still to settle: ${first.message}`
-    : `${count} things still to settle. The first: ${first?.message ?? ""}`;
-}

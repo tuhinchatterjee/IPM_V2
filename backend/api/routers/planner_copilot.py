@@ -28,6 +28,7 @@ edge, rather than left to whichever handler happens to run.
 from __future__ import annotations
 
 import logging
+from datetime import date
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -39,7 +40,9 @@ from backend.api.routers.planner import _fail, _guard, get_db
 from backend.planner import access as acl
 from backend.planner import copilot
 from backend.planner import draft as dr
+from backend.planner import language as lang
 from backend.planner import policy as pol
+from backend.planner import reading as rd
 from backend.planner import scope as sc
 
 logger = logging.getLogger(__name__)
@@ -242,25 +245,52 @@ def people(search: str = Query(default="", max_length=120),
 
 
 class ChatIn(BaseModel):
+    """One thing somebody said, and what they have already agreed to.
+
+    `confirm` is the only way a commitment-changing sentence takes effect,
+    and it re-reads the SAME message rather than accepting commands from the
+    client. A body that could name its own commands would be a second way
+    into the planner with none of the reading in front of it.
+    """
+
     message: str = Field(max_length=4000)
     draft: str = Field(default="", max_length=64)
     project_id: int | None = None
+    #: What the conversation was last about, so "it starts on the first" has
+    #: a subject. Echoed back from the previous turn.
+    focus: str = Field(default="", max_length=40)
+    confirm: bool = False
+    #: Answers to earlier clarifications, keyed by the words that were
+    #: ambiguous: {"data review": "M01-T03"}.
+    answers: dict[str, str] = Field(default_factory=dict)
+    expected_version: int | None = None
 
 
 @router.post("/chat", summary="Say what you want, in words")
 def chat(payload: ChatIn, session: Session = Depends(get_db),
          principal: Principal = RequireAnalyst) -> dict:
-    """One conversational turn.
+    """One conversational turn, from words to a changed plan.
 
-    The boundary check runs before anything else. A question about another
-    part of CreditProbe returns a refusal that names where the answer lives,
-    without reaching a tool and without reaching a model — which is both
-    cheaper and the only version of this that cannot be talked around.
+    The order is the whole design.
 
-    What the turn does with an in-scope message is the caller's next call:
-    this returns the resolved context (the draft, what it still needs, what
-    can be linked to what) and the chat client turns it into a `/apply`. The
-    two paths converge on `draft.apply`, which is the point of §39.
+    1. **Scope.** A question about another part of CreditProbe returns a
+       sentence naming where the answer lives, without reaching a tool, a
+       model or a draft.
+    2. **Read.** `language.read` turns the message into resolved proposals
+       drawn from `draft.COMMANDS` and nothing else. Names become codes and
+       user ids HERE, against the plan and directory this person can see.
+    3. **Ask.** Anything ambiguous comes back as a short question with the
+       candidates as buttons. Nothing is applied while a question is open:
+       a turn that half-understood and acted anyway is worse than one that
+       asked.
+    4. **Confirm.** If any proposal moves a commitment — a date, an owner, a
+       dependency, the monitoring policy, a removal — the whole set is shown
+       and nothing happens until `confirm` comes back. Pure additions apply
+       straight away, because nothing was promised about a milestone that did
+       not exist a moment ago.
+    5. **Apply.** Through `draft.apply`, the same writer the panels use, so
+       the permission check, the cycle check, the date validation and the
+       AI_CHAT audit row all happen exactly once and in one place.
     """
     decision = copilot.in_scope(session, principal, payload.message)
     if not decision.in_scope:
@@ -270,18 +300,100 @@ def chat(payload: ChatIn, session: Session = Depends(get_db),
     context: dict[str, Any] = {"in_scope": True,
                                "scope": decision.to_dict(),
                                "purpose": sc.PURPOSE}
-    if payload.draft:
-        row = _run(lambda: dr.load(session, principal, payload.draft))
-        plan = row.plan or dr.empty()
-        context["draft"] = dr.to_dict(row)
-        context["completeness"] = dr.check(plan).to_dict()
-        context["catalogue"] = dr.catalogue(plan)
-        context["commands"] = list(dr.COMMANDS)
     if payload.project_id is not None:
         _run(lambda: acl.readable(session, int(payload.project_id),
                                   principal))
         context["project_id"] = int(payload.project_id)
+    if not payload.draft:
+        context["commands"] = []
+        context["said"] = _no_draft_yet(payload.message)
+        return context
+
+    row = _run(lambda: dr.load(session, principal, payload.draft))
+    plan = row.plan or dr.empty()
+    reading = lang.read(payload.message, lang.Context(
+        plan=plan,
+        directory=rd.Directory(copilot.people_for(
+            session, principal, payload.message, plan)),
+        today=date.today(),
+        focus=payload.focus,
+        answers={rd.normalise(k): str(v)
+                 for k, v in (payload.answers or {}).items()}))
+
+    context.update({
+        "commands": [c.to_dict() for c in reading.commands],
+        "questions": [q.to_dict() for q in reading.questions],
+        "unread": reading.unread,
+        "reader": reading.source,
+        "focus": reading.focus,
+    })
+
+    needs_confirmation = any(c.preview for c in reading.commands)
+    if reading.questions or (needs_confirmation and not payload.confirm):
+        context["needs_confirmation"] = bool(
+            needs_confirmation and not reading.questions)
+        context["applied"] = []
+        context["said"] = _describe(reading, applied=False)
+        context.update(_draft_state(session, principal, payload.draft))
+        return context
+
+    if reading.commands:
+        outcome = _run(lambda: lang.apply_all(
+            session, principal, payload.draft, reading.commands,
+            source=copilot._source()))
+        context["applied"] = outcome["applied"]
+        context["created"] = outcome["created"]
+    else:
+        context["applied"] = []
+    context["needs_confirmation"] = False
+    context["said"] = _describe(reading, applied=bool(reading.commands))
+    context.update(_draft_state(session, principal, payload.draft))
     return context
+
+
+def _draft_state(session: Session, principal: Principal,
+                 key: str) -> dict[str, Any]:
+    """The plan as it stands after this turn.
+
+    Returned on every turn so the panels beside the conversation are never
+    stale: §9 asks that a change made in chat appear in the panel
+    immediately, and the cheapest way to guarantee that is for the chat
+    response to BE the panel's new state.
+    """
+    row = dr.load(session, principal, key)
+    plan = row.plan or dr.empty()
+    return {"draft": dr.to_dict(row),
+            "completeness": dr.check(plan).to_dict(),
+            "catalogue": dr.catalogue(plan)}
+
+
+def _no_draft_yet(message: str) -> str:
+    del message
+    return ("That is delivery, so it is mine. Open the plan you mean, or "
+            "start a new one, and I will work on it with you.")
+
+
+def _describe(reading: lang.Reading, *, applied: bool) -> str:
+    """What the Copilot says back, in the same voice whichever reader ran."""
+    if reading.questions:
+        return reading.questions[0].text
+    if not reading.commands:
+        if reading.unread:
+            return ("I did not follow “" + reading.unread[0] + "”. Try "
+                    "naming the milestone or task, and what you want changed "
+                    "about it.")
+        return ("I did not catch a change in that. Tell me what to add, who "
+                "owns it, or when it is due.")
+    lines = [c.sentence for c in reading.commands if c.sentence]
+    if applied:
+        head = ("Done." if len(lines) == 1
+                else f"Done — {len(lines)} changes.")
+    else:
+        head = ("This is what that would do. Say go ahead and I will make "
+                "the change." if len(lines) == 1 else
+                f"This is what that would do — {len(lines)} changes. Say go "
+                "ahead and I will make them.")
+    return head + "\n" + "\n".join(f"· {line}" for line in lines)
 
 
 __all__ = ["router"]

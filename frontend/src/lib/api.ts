@@ -7199,6 +7199,8 @@ export const api = {
         }),
       chat: (body: {
         message: string; draft?: string; project_id?: number;
+        focus?: string; confirm?: boolean;
+        answers?: Record<string, string>;
       }) =>
         request<CopilotTurn>("/planner/copilot/chat", {
           method: "POST", body: JSON.stringify(body),
@@ -8258,17 +8260,46 @@ export type DraftPreview = {
   completeness: DraftCompleteness;
 };
 
-/** One conversational turn's resolved context. */
+/** One change the Copilot read out of a sentence, resolved and in words. */
+export type CopilotCommand = {
+  command: string;
+  payload: Record<string, unknown>;
+  sentence: string;
+  /** True where the change moves a commitment and needs a confirmation. */
+  preview: boolean;
+  source: string;
+  creates: string;
+};
+
+/** A short clarification, with the answers as buttons. */
+export type CopilotQuestion = {
+  text: string;
+  field: string;
+  options: { label: string; value: string }[];
+  /** The words that were ambiguous — sent back with the answer. */
+  fragment: string;
+};
+
+/** One conversational turn: what was read, what ran, and the plan after it. */
 export type CopilotTurn = {
   in_scope: boolean;
   message?: string;
   refusal?: CopilotScope;
   scope?: CopilotScope;
   purpose?: string;
+  said?: string;
   draft?: DraftRow;
   completeness?: DraftCompleteness;
   catalogue?: DraftCatalogueRow[];
-  commands?: string[];
+  commands?: CopilotCommand[];
+  questions?: CopilotQuestion[];
+  unread?: string[];
+  applied?: { command: string; sentence: string; code: string }[];
+  created?: Record<string, string>;
+  needs_confirmation?: boolean;
+  /** Which reader understood it: "rules", "model" or "rules+model". */
+  reader?: string;
+  focus?: string;
   project_id?: number;
 };
 

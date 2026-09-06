@@ -103,15 +103,11 @@ export default function NewDeliveryProjectPage() {
               draftKey={key}
               suggestions={[
                 "Call it the LGD Model Redevelopment",
-                "Add a milestone for the data foundation",
-                "Who should I put on this?",
+                "Add Data Foundation as the first milestone",
+                "Under Data Foundation add Data Extraction and Reconciliation",
                 "What is still missing?",
               ]}
               onTurn={() => void load(key)}
-              onCommand={async (command, payload) => {
-                await api.planner.copilot.apply(key, command, payload);
-                await load(key);
-              }}
             />
             {detail && (
               <p className="mt-2 px-1 text-xs text-text-muted">
