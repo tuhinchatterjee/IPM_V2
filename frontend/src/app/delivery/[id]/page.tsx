@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import * as React from "react";
 
 import { PageHeader } from "@/components/layout/page-header";
+import { CopilotChat } from "@/components/planner/copilot-chat";
 import { ImportPanel } from "@/components/planner/import-panel";
 import {
   AddTask,
@@ -52,6 +53,7 @@ import { useAsync } from "@/lib/hooks";
  */
 const TABS = [
   { id: "overview", label: "Overview" },
+  { id: "copilot", label: "Copilot" },
   { id: "plan", label: "Plan" },
   { id: "timeline", label: "Timeline" },
   { id: "milestones", label: "Milestones" },
@@ -166,6 +168,31 @@ export default function DeliveryProjectPage() {
       <Tabs tabs={TABS} active={tab} onChange={setTab} className="mt-6" />
 
       <div className="mt-4 flex flex-col gap-4">
+        {/*
+          §22. The same conversation as everywhere else, told which project it
+          is looking at. It answers delivery questions about this project and
+          refuses everything else — including questions about the subject the
+          project is named after, which is the distinction the boundary is
+          built around.
+        */}
+        {tab === "copilot" && (
+          <>
+            <CopilotChat
+              projectId={projectId}
+              suggestions={[
+                "What is overdue here?",
+                "Who has not given me an update?",
+                "What is on the critical path?",
+                "What changed since last week?",
+              ]}
+            />
+            <p className="px-1 text-xs text-text-muted">
+              The Copilot reads this project with your permissions and cannot
+              see more than you can. It will not complete a task, move a date
+              or change an owner — those are yours.
+            </p>
+          </>
+        )}
         {tab === "overview" && (
           <>
             <SectionCard title="What the schedule rules flag">

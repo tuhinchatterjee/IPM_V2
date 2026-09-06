@@ -7181,6 +7181,72 @@ export const api = {
       request<{ requests: PlannerUpdateRequest[]; count: number;
                 state: string }>(
         `/planner/projects/${id}/requests?state=${encodeURIComponent(state)}`),
+
+    /**
+     * The Copilot. Chat and the structured panels call the SAME `apply`.
+     *
+     * There is no `applyFromChat`. A rule the backend enforces on one path it
+     * enforces on both, and a client that had two ways in would be the place
+     * the two paths quietly diverged. `publish` takes `confirm` explicitly,
+     * because a POST is not a person saying yes.
+     */
+    copilot: {
+      capabilities: () =>
+        request<CopilotCapabilities>("/planner/copilot/capabilities"),
+      scope: (message: string) =>
+        request<CopilotScope>("/planner/copilot/scope", {
+          method: "POST", body: JSON.stringify({ message }),
+        }),
+      chat: (body: {
+        message: string; draft?: string; project_id?: number;
+      }) =>
+        request<CopilotTurn>("/planner/copilot/chat", {
+          method: "POST", body: JSON.stringify(body),
+        }),
+      drafts: (status = "") =>
+        request<{ drafts: DraftRow[] }>(
+          `/planner/copilot/drafts${status ? `?status=${status}` : ""}`),
+      start: (name = "") =>
+        request<DraftRow>("/planner/copilot/drafts", {
+          method: "POST", body: JSON.stringify({ name }),
+        }),
+      draft: (key: string) =>
+        request<DraftDetail>(`/planner/copilot/drafts/${key}`),
+      apply: (key: string, command: string,
+              payload: Record<string, unknown> = {},
+              expectedVersion?: number) =>
+        request<Record<string, unknown> & { draft: DraftRow }>(
+          `/planner/copilot/drafts/${key}/apply`, {
+            method: "POST",
+            body: JSON.stringify({
+              command, payload, expected_version: expectedVersion,
+            }),
+          }),
+      linkPreview: (key: string, body: {
+        predecessor: string; successor: string;
+        dependency_type?: string; lag_days?: number;
+      }) =>
+        request<DraftLinkPreview>(
+          `/planner/copilot/drafts/${key}/link-preview`,
+          { method: "POST", body: JSON.stringify(body) }),
+      previousTask: (key: string, code: string) =>
+        request<{ code: string; item: Record<string, unknown> | null }>(
+          `/planner/copilot/drafts/${key}/previous-task` +
+          `?code=${encodeURIComponent(code)}`),
+      preview: (key: string) =>
+        request<DraftPreview>(`/planner/copilot/drafts/${key}/preview`),
+      publish: (key: string, confirm: boolean) =>
+        request<{ project_id: number; code: string; name: string }>(
+          `/planner/copilot/drafts/${key}/publish`,
+          { method: "POST", body: JSON.stringify({ confirm }) }),
+      discard: (key: string) =>
+        request<{ discarded: string }>(`/planner/copilot/drafts/${key}`,
+          { method: "DELETE" }),
+      people: (search = "", limit = 20) =>
+        request<{ people: CopilotPerson[] }>(
+          `/planner/copilot/people?search=${encodeURIComponent(search)}` +
+          `&limit=${limit}`),
+    },
   },
 
   /**
@@ -8033,6 +8099,184 @@ export type PlannerImportPreview = {
   };
   changes: PlannerImportChange[];
   issues: PlannerImportIssue[];
+};
+
+/**
+ * The Copilot's boundary decision about one message.
+ *
+ * `anchors` names the projects that kept an otherwise-foreign phrase in
+ * scope, so the screen can say why it answered rather than leaving the person
+ * to wonder whether it understood.
+ */
+export type CopilotScope = {
+  in_scope: boolean;
+  area: string;
+  label: string;
+  matched: string;
+  message: string;
+  anchors: string[];
+};
+
+export type CopilotCapabilities = {
+  agent: {
+    agent_id: string;
+    business_name: string;
+    purpose: string;
+    allowed_tools: string[];
+    allowed_data_domains: string[];
+    version: string;
+  };
+  tools: {
+    tool_id: string;
+    name: string;
+    purpose: string;
+    writes: boolean;
+  }[];
+  out_of_scope: { area: string; label: string; where: string }[];
+};
+
+/** One thing the plan still needs, or that a careful person would fix. */
+export type DraftNote = {
+  level: "BLOCKER" | "WARNING";
+  scope: string;
+  code: string;
+  message: string;
+  fix: string;
+};
+
+export type DraftCompleteness = {
+  publishable: boolean;
+  complete: boolean;
+  blockers: DraftNote[];
+  warnings: DraftNote[];
+};
+
+/**
+ * The plan document itself.
+ *
+ * Milestones and tasks are flat lists joined by `milestone_code` rather than
+ * nested, because that is the shape the draft is stored in and a client that
+ * re-nested it would have to un-nest it again on every write.
+ */
+export type DraftPlan = {
+  version: string;
+  overview: {
+    name: string; code: string; description: string; objective: string;
+  };
+  governance: {
+    sponsor_id: number | null;
+    manager_id: number | null;
+    owner_id: number | null;
+    escalation_id: number | null;
+    priority: string;
+    status: string;
+    start_date: string | null;
+    target_end_date: string | null;
+    reporting_cadence: string;
+  };
+  agentic: { mode: string; policy: Record<string, unknown> };
+  milestones: Record<string, unknown>[];
+  tasks: Record<string, unknown>[];
+  links: {
+    predecessor: string; successor: string;
+    dependency_type: string; lag_days: number;
+  }[];
+};
+
+export type DraftRow = {
+  key: string;
+  name: string;
+  code: string;
+  status: "DRAFTING" | "READY" | "PUBLISHED";
+  step: string;
+  plan: DraftPlan;
+  version: number;
+  project_id: number | null;
+  created_by: number | null;
+  updated_by: number | null;
+  updated_at: string;
+};
+
+/** Anything a dependency could point at, milestones first then their tasks. */
+export type DraftCatalogueRow = {
+  code: string;
+  kind: string;
+  name: string;
+  milestone: string;
+  owner_id: number | null;
+  start_date: string | null;
+  end_date: string | null;
+};
+
+export type DraftDetail = DraftRow & {
+  completeness: DraftCompleteness;
+  catalogue: DraftCatalogueRow[];
+  agentic_choices: AgenticChoice[];
+};
+
+export type AgenticChoice = {
+  mode: string;
+  label: string;
+  note: string;
+  sentence: string;
+};
+
+/** What a link would do, stated before it is made. §17. */
+export type DraftLinkPreview = {
+  predecessor: string;
+  successor: string;
+  dependency_type: string;
+  lag_days: number;
+  sentence: string;
+  conflict: string;
+  predecessor_label: string;
+  successor_label: string;
+};
+
+/** Who a delay on this item reaches, and where that was decided. */
+export type DraftEscalation = {
+  user_id: number | null;
+  source: "" | "own" | "milestone" | "project";
+  from_code: string;
+};
+
+export type DraftPreview = {
+  overview: DraftPlan["overview"];
+  governance: DraftPlan["governance"];
+  agentic: {
+    mode: string; label: string; sentence: string;
+    [key: string]: unknown;
+  };
+  milestones: (Record<string, unknown> & {
+    escalation: DraftEscalation;
+    tasks: (Record<string, unknown> & { escalation: DraftEscalation })[];
+  })[];
+  links: (DraftPlan["links"][number] & { sentence: string })[];
+  totals: {
+    milestones: number; tasks: number; links: number; people: number;
+  };
+  completeness: DraftCompleteness;
+};
+
+/** One conversational turn's resolved context. */
+export type CopilotTurn = {
+  in_scope: boolean;
+  message?: string;
+  refusal?: CopilotScope;
+  scope?: CopilotScope;
+  purpose?: string;
+  draft?: DraftRow;
+  completeness?: DraftCompleteness;
+  catalogue?: DraftCatalogueRow[];
+  commands?: string[];
+  project_id?: number;
+};
+
+export type CopilotPerson = {
+  user_id: number;
+  name: string;
+  username: string;
+  role: string;
 };
 
 /** §52. One section of the CBUAE-aligned report, as the API returns it. */

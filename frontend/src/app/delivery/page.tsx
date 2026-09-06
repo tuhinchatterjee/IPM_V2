@@ -4,6 +4,7 @@ import Link from "next/link";
 import * as React from "react";
 
 import { PageHeader } from "@/components/layout/page-header";
+import { CopilotChat } from "@/components/planner/copilot-chat";
 import {
   Empty,
   HealthPill,
@@ -20,16 +21,20 @@ import { api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 
 /**
- * The delivery portfolio — every project this person can see, in one table.
+ * Delivery, in the order somebody actually arrives at it.
  *
- * The reader is a senior risk person at nine in the morning. They have four
- * questions and they are in this order: what is in trouble, what is late,
- * what is coming, and everything else. So the Attention panel is above the
- * table, not beside it, and the table's first sortable columns are health and
- * lateness rather than name.
+ * The old version of this page opened with a table of every project, which is
+ * the right thing to show somebody who already knows which project they came
+ * for and the wrong thing to show everybody else. §3 reorders it around what
+ * a person is doing rather than around what the system stores:
  *
- * Every number here is a count of rows that can be opened. A "3 overdue" that
- * leads nowhere teaches people that the figures on this screen are decoration.
+ *   1. say what you want, in words;
+ *   2. two things almost everybody is here to do;
+ *   3. what needs you today;
+ *   4. everything, for when you know what you are looking for.
+ *
+ * The table did not get worse and it did not go away. It stopped being the
+ * first thing, which is a different claim.
  */
 export default function DeliveryPortfolioPage() {
   const [search, setSearch] = React.useState("");
@@ -53,28 +58,89 @@ export default function DeliveryPortfolioPage() {
 
   const totals = portfolio.data?.totals;
   const rows = portfolio.data?.projects ?? [];
+  const attention = brief.data?.attention ?? [];
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-6">
       <PageHeader
-        title="Project Planner"
-        description="Every delivery project you are on: what is late, what is blocked, who owes an update, and what is due next."
+        title="Delivery"
+        description="Tell the Copilot what you want to do, or pick up where you left off."
         actions={
-          <div className="flex gap-2">
-            <Button asChild variant="outline" size="sm">
-              <a href={api.planner.templateUrl()}>Plan template</a>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/delivery/new">New project</Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href="/delivery/my-work">My work</Link>
-            </Button>
-          </div>
+          <Button asChild variant="outline" size="sm">
+            <a href={api.planner.templateUrl()}>Plan template</a>
+          </Button>
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      {/* 1 — the conversation. */}
+      <CopilotChat
+        className="mt-2"
+        suggestions={[
+          "Start a new project",
+          "What is overdue?",
+          "Who owes me an update?",
+          "What is on the critical path?",
+        ]}
+      />
+
+      {/* 2 — the two things almost everybody is here to do. */}
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <QuickAction
+          href="/delivery/new"
+          title="Start a new project"
+          detail="Build the plan in conversation, see the whole thing, then publish it."
+        />
+        <QuickAction
+          href="/delivery/my-work"
+          title="What needs me today"
+          detail="Your tasks, what is late, and what you have been asked for."
+        />
+      </div>
+
+      {/* 3 — what needs somebody, before the list of everything. */}
+      <div className="mt-4" />
+      <SectionCard
+        title="Needs attention"
+        action={
+          brief.data ? <Badge variant="outline">{brief.data.as_of}</Badge> : null
+        }
+      >
+        {brief.loading && <Empty>Working out what needs you…</Empty>}
+        {brief.data && attention.length === 0 && (
+          <Empty>Nothing in your portfolio is amber or red on the record.</Empty>
+        )}
+        {attention.length > 0 && (
+          <ul className="divide-y divide-border">
+            {attention.map((item) => (
+              <li key={item.id} className="px-4 py-3">
+                <Link href={`/delivery/${item.id}`} className="block">
+                  <div className="flex items-center gap-2">
+                    <HealthPill health={item.health} />
+                    <span className="truncate text-sm text-text-primary">
+                      {item.name}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-text-secondary">
+                    {item.reason}
+                  </p>
+                  {item.findings.length > 0 && (
+                    <ul className="mt-1.5 space-y-0.5">
+                      {item.findings.slice(0, 3).map((finding, index) => (
+                        <li key={index} className="text-xs text-text-muted">
+                          · {finding.detail}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SectionCard>
+
+      {/* 4 — everything, for when you know what you are looking for. */}
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Stat label="Projects" value={totals?.projects ?? 0} />
         <Stat label="Red" value={totals?.by_health.RED ?? 0} tone="negative" />
         <Stat label="Amber" value={totals?.by_health.AMBER ?? 0}
@@ -85,7 +151,7 @@ export default function DeliveryPortfolioPage() {
               tone={totals?.blocked_tasks ? "warning" : undefined} />
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_360px]">
+      <div className="mt-4 space-y-4">
         <SectionCard
           title="Projects"
           action={
@@ -213,72 +279,47 @@ export default function DeliveryPortfolioPage() {
           )}
         </SectionCard>
 
-        <div className="flex flex-col gap-4">
-          <SectionCard title="Needs attention">
-            {brief.loading && <Empty>Working out what needs you…</Empty>}
-            {brief.data && brief.data.attention.length === 0 && (
-              <Empty>
-                Nothing in your portfolio is amber or red on the record.
-              </Empty>
-            )}
-            {brief.data && brief.data.attention.length > 0 && (
-              <ul className="divide-y divide-border">
-                {brief.data.attention.map((item) => (
-                  <li key={item.id} className="px-4 py-3">
-                    <Link href={`/delivery/${item.id}`} className="block">
-                      <div className="flex items-center gap-2">
-                        <HealthPill health={item.health} />
-                        <span className="truncate text-sm text-text-primary">
-                          {item.name}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-text-secondary">
-                        {item.reason}
-                      </p>
-                      {item.findings.length > 0 && (
-                        <ul className="mt-1.5 space-y-0.5">
-                          {item.findings.slice(0, 3).map((f, i) => (
-                            <li key={i} className="text-xs text-text-muted">
-                              · {f.detail}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </Link>
-                  </li>
+        <SectionCard title="Portfolio read">
+          {brief.data ? (
+            <div className="px-4 py-3">
+              <p className="text-sm font-medium text-text-primary">
+                {brief.data.headline}
+              </p>
+              <ul className="mt-2 divide-y divide-border">
+                {brief.data.statements.map((statement, index) => (
+                  <StatementLine key={index} statement={statement} />
                 ))}
               </ul>
-            )}
-          </SectionCard>
-
-          <SectionCard
-            title="Portfolio read"
-            action={
-              brief.data ? (
-                <Badge variant="outline">{brief.data.as_of}</Badge>
-              ) : null
-            }
-          >
-            {brief.data ? (
-              <div className="px-4 py-3">
-                <p className="text-sm font-medium text-text-primary">
-                  {brief.data.headline}
-                </p>
-                <ul className="mt-2 divide-y divide-border">
-                  {brief.data.statements.map((s, i) => (
-                    <StatementLine key={i} statement={s} />
-                  ))}
-                </ul>
-                <p className="mt-3 border-t border-border pt-2 text-[11px] text-text-muted">
-                  {brief.data.grounding}
-                </p>
-              </div>
-            ) : (
-              <Empty>{brief.error ?? "Reading the portfolio…"}</Empty>
-            )}
-          </SectionCard>
-        </div>
+              <p className="mt-3 border-t border-border pt-2 text-[11px] text-text-muted">
+                {brief.data.grounding}
+              </p>
+            </div>
+          ) : (
+            <Empty>{brief.error ?? "Reading the portfolio…"}</Empty>
+          )}
+        </SectionCard>
       </div>
     </div>
+  );
+}
+
+/** One of the two things almost everybody opening this page came to do. */
+function QuickAction({
+  href,
+  title,
+  detail,
+}: {
+  href: string;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-lg border border-border bg-surface px-4 py-3.5 transition hover:border-accent"
+    >
+      <p className="text-sm font-semibold text-text-primary">{title}</p>
+      <p className="mt-0.5 text-xs text-text-secondary">{detail}</p>
+    </Link>
   );
 }
