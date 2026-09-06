@@ -17,6 +17,7 @@
 
 import * as React from "react";
 
+import { CategoryBarChart } from "@/components/analytics/charts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -583,6 +584,48 @@ export function MigrationMatrix({
         {migration.note} Continuing {count(migration.continuing.count)} · exited{" "}
         {count(migration.exited.count)} · new {count(migration.new.count)}.
       </p>
+    </div>
+  );
+}
+
+/**
+ * Baseline against What-If, for a dimension the scenario actually moved.
+ *
+ * Two bars per row rather than one, because the whole question is a
+ * comparison, and a chart of the stressed position alone answers half of it.
+ * Rendered only where the scenario moved something: a Stage chart on a
+ * scenario that did not touch staging is noise dressed as evidence.
+ */
+export function BeforeAfterChart({
+  title,
+  rows,
+  currency = "SAR",
+  measure = "ecl",
+}: {
+  title: string;
+  rows: { label: string; before: number; after: number }[];
+  currency?: string;
+  measure?: "ecl" | "exposure";
+}) {
+  const moved = rows.filter((r) => r.before !== 0 || r.after !== 0);
+  if (!moved.length) return null;
+  return (
+    <div data-chart={measure}>
+      <div className="mb-1 text-[12px] font-medium text-text-primary">{title}</div>
+      <CategoryBarChart
+        data={moved.map((r) => ({
+          label: r.label,
+          before: Number(r.before.toFixed(2)),
+          after: Number(r.after.toFixed(2)),
+        }))}
+        xKey="label"
+        series={[
+          { key: "before", label: "Baseline", slot: 0 },
+          { key: "after", label: "What-If", slot: 3 },
+        ]}
+        units={{ before: currency, after: currency }}
+        height={240}
+      />
     </div>
   );
 }

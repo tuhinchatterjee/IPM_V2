@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs } from "@/components/ui/tabs";
 import {
+  BeforeAfterChart,
   Composer,
   EclHeadline,
   Figure,
@@ -682,6 +683,52 @@ export default function WhatIfThreadPage() {
                           label="Cured"
                           value={count(result.stage_movement.cured)}
                           tone="positive"
+                        />
+                      </div>
+                    ) : null}
+                    {result.stage_movement?.stages?.length ? (
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <BeforeAfterChart
+                          title="Exposure by Stage"
+                          measure="exposure"
+                          currency={context.currency}
+                          rows={result.stage_movement.stages.map((s) => ({
+                            label: `Stage ${s.stage}`,
+                            before: s.exposure_before,
+                            after: s.exposure_after,
+                          }))}
+                        />
+                        <BeforeAfterChart
+                          title="ECL by Stage"
+                          currency={context.currency}
+                          rows={result.stage_movement.stages.map((s) => ({
+                            label: `Stage ${s.stage}`,
+                            before: s.ecl_before,
+                            after: s.ecl_after,
+                          }))}
+                        />
+                      </div>
+                    ) : null}
+                    {result.rating_movement?.rows?.length ? (
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <BeforeAfterChart
+                          title="Exposure by rating"
+                          measure="exposure"
+                          currency={context.currency}
+                          rows={result.rating_movement.rows.map((r) => ({
+                            label: r.grade,
+                            before: r.exposure_before,
+                            after: r.exposure_after,
+                          }))}
+                        />
+                        <BeforeAfterChart
+                          title="ECL by rating"
+                          currency={context.currency}
+                          rows={result.rating_movement.rows.map((r) => ({
+                            label: r.grade,
+                            before: r.ecl_before,
+                            after: r.ecl_after,
+                          }))}
                         />
                       </div>
                     ) : null}
