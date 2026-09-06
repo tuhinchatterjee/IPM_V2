@@ -255,6 +255,51 @@ percentage change. A saved What-If persists all of it.
 9. **Spoken numbers, Stage migrations and CCF were unparseable** — "five
    percentage points" failed where "5" worked.
 10. **Recording a Recent entry could take the run down with it.**
+11. **The scenario reader hijacked the screening questions.** Absorbing the
+    retired planner intent's magnitude-free vocabulary (§6) made
+    `whatif.language.read` open a What-If on sentences that report what the
+    book already did: "which sectors deteriorated the most", "which customers
+    had a rating downgrade", "borrowers with rising 12-month PD". The
+    certified analyses that answer those never ran. **Found by the full
+    backend suite, not by the What-If suite** — 79 tests across
+    `tests/api`, `tests/evals` and `tests/docs`, all green on the baseline
+    with the same data lake. The reader now refuses a sentence that asks, is
+    in the past or the perfect, and carries no hypothetical; `deteriorate`
+    and `worsen`, which were never in the retired intent's own trigger list,
+    are gone from the openers. `TestAReportIsNotAScenario` holds it, twenty
+    sentences each way.
+12. **A measure that carries a number in its name was read as a size** —
+    "12-month PD" was a movement of twelve.
+13. **Sixteen figures broke the display contract**
+    (`scripts/check_decimals.py`). The CCF now reads as a percentage, the
+    macro line as a PD effect, the Delta tiles as effects rather than
+    four-decimal multipliers, and the governed 1.082 is quoted as the
+    +8.2% weighting it is. The ML model page is allowlisted with its
+    reason, following the precedent of `backend/scorecard/metrics.py`:
+    an R² of 0.9976 shown as 1.00 makes every candidate look like the
+    champion, and a SHAP contribution rounded to 0.00 stops the
+    contributions summing to the prediction they explain.
+14. **Four new pages carried no curated judgement**, so
+    `docs/FINAL_FEATURE_VERIFICATION_MATRIX.md` did not describe them and
+    two tests in `tests/docs` failed. Judgements added, matrix regenerated.
+15. **The capability claimed a feature area that did not exist** —
+    `product/knowledge.py` named "What-If Analysis" while
+    `backend/proof/matrix.py` had no such area. Eight proof rows added,
+    with the browser and test evidence for each.
+
+### Pre-existing, found and not fixed
+
+- **`tests/proof/test_fresh_clone_acceptance.py::test_the_only_live_domains_are_the_seven`
+  fails when the whole suite runs**: a `Test Domain` registered by an earlier
+  test module is still in the registry. Reproduced on the **baseline**
+  `4f79566` with the same data lake, so it is not this work's. Left alone
+  deliberately — fixing test-order pollution in the domain registry is a
+  change to shared machinery this branch has no reason to touch.
+- **The two universe generators overwrite each other's catalogue.**
+  `scripts/generate_saudi_universe.py` and `scripts/build_corporate_universe.py`
+  each rewrite `metadata/catalog.json` wholesale, so whichever ran last
+  unregisters the other's datasets. CI now runs both, in order; a developer
+  who runs one alone will silently lose the other book.
 
 ## 12. Known limitations
 
