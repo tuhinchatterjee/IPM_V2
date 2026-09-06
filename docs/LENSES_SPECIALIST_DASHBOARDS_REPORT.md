@@ -195,6 +195,11 @@ rather than to blank.
 | 5 | The layout editor offered "Drawn as" on metric tiles, changing nothing; chart panels were badged "Analysis" | Reviewing the editor after fixing #1 | Select only for analysis panels; charts show type and dimension and point at the builder |
 | 6 | An f-string with a line break inside a replacement field — valid on 3.12, a syntax error on 3.11, which `requires-python` allows | `ruff` | Rewritten |
 | 7 | `_values` in the lens tests read every panel into one dictionary, so a chart overwrote its tile's value with `None` and the reconciliation tests compared nothing to nothing | Test failure after adding charts | Filtered to metric panels; chart-specific assertions added |
+| 8 | **A quarterly trend was ordered alphabetically** — Q1 2023, Q1 2024, Q1 2025, Q1 2026, Q2 2023, with Q4 2022 near the end. It rendered, had the right numbers in it, and was not a trend. `_period_order` already existed and its docstring already warned about this; it had never been applied to a chart axis. Monthly labels sort correctly as strings, which is why nothing caught it until a shipped lens carried a quarter-by-quarter chart | Looking at the rendered page | `sort="period"` on a time axis; a test that also asserts alphabetical order is a *different* order on this data, so it cannot pass by accident |
+| 9 | `install(replace=True)` rewrote a shipped lens's tiles and left its old name, description and audience — those are columns and `revise` only wrote the definition. The Retail lens grew a stage-migration band under the header it had before | Reading the rendered header against the spec | `revise` takes name/description/audience; empty means "leave it" |
+| 10 | A library card put audience and counts on one line, so "IFRS 9 Committee and Head of Impairment · 34 figur…" truncated away the half a reader compares between cards | Screenshot review | Two lines |
+| 11 | `periods()` grouped by dataset, so the Retail Credit Risk lens reported one calendar of 31 months. It reads one dataset over two — 31 months of arrears, 25 of scorecard statistics — and a reader could pick a month where five tiles correctly showed nothing, with no warning | Reviewing my own diff | A calendar is a dataset AND its scope; the note names the tiles that do not reach as far, by name rather than by the column that restricts them |
+| 12 | A tile pinned to its own period was computed twice — once in the batch and once on its own | Reviewing my own diff | Pinned tiles are excluded from the batch |
 
 ---
 
@@ -322,9 +327,28 @@ Stated plainly, because a report that lists only what was done is not a report.
   migration band now covers the one leg of that bridge the data supports.
 - **§4 PSI and approval rate, §5 approval and booking rates.** Unsupported,
   with reasons, and each shipped lens says so on screen.
-- **§17 nine of the eleven listed chart types.** The renderer draws bars and
-  lines. Offering the rest would be the defect this branch spent its first
-  commit removing.
+- **§17 nine of the eleven listed chart types.** `ChartTile` draws every chart
+  as labelled horizontal bars with the exact value printed beside each one,
+  and does so deliberately: every number on screen is a governed calculation
+  the backend already did, and a charting library that draws its own axes has
+  a way of quietly rescaling, clipping or interpolating them. A panel's chart
+  type is therefore a *governance declaration* rather than a drawing
+  instruction — `chart_types_for` refuses a line over a dimension with no
+  order, because a line between products asserts a progression that is not
+  there — and an ordered series says "Every period, oldest first" on its own
+  face so a reader can tell a progression from a comparison. Heatmaps,
+  cohort charts, waterfalls, scatter plots and the rest are not offered
+  anywhere, because offering a chart type that renders as something else is
+  the defect this branch spent its first commit removing.
+
+- **Horizontal overflow at 390px.** Every page in the product overflows by
+  33px at mobile width, including pages this branch never touched
+  (`/cockpit`, `/analyses`, `/workspace`). The cause is in the shared app
+  shell's top bar. It is recorded here rather than fixed, because the fix
+  belongs to the layout every parallel workstream shares and changing it from
+  this branch would be the kind of "small shared compatibility fix" that turns
+  into a merge conflict for four people. At 1024px and 1440px there is no
+  overflow anywhere.
 
 ---
 

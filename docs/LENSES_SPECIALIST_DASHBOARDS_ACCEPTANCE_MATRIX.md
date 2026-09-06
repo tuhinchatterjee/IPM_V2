@@ -155,6 +155,10 @@ Carried forward from Lenses 2.0 and re-verified on this HEAD; not rebuilt.
 | Metric, dimension, grouping, period, filters, sort, aggregation, comparison, type, title, preview, save | Journey I, end to end | PASS |
 | Only chart types the renderer can draw are offered | `bar` and `line`; a line over an unordered dimension is refused with the reason | PASS |
 | The nine other types in §17 are not offered | Deliberate — offering one the renderer cannot draw is the defect this branch removed | Stated |
+| Every chart is drawn as labelled bars with exact values | `ChartTile`, deliberately and with the reasoning written down: a charting library that draws its own axes can quietly rescale, clip or interpolate | Stated |
+| A chart type is a governance declaration, not a drawing instruction | Said in `ChartTile`'s own docstring rather than left to be inferred | PASS |
+| An ordered series says so on its face | "Every period, oldest first" from `over_time` on the panel | PASS |
+| A time axis is in time order | **Fixed in this branch** — was alphabetical: Q1 2023, Q1 2024, Q1 2025, Q1 2026, Q2 2023. `test_a_quarterly_trend_is_in_time_order_not_alphabetical` | PASS |
 | Every bar reproduces from the parquet independently | Journey I | PASS |
 | Add, remove, reorder, resize through the existing grid | Journey H | PASS |
 | A rearrangement is a version and can be put back | Journey H | PASS |
@@ -239,7 +243,30 @@ Journey F (custom chart); H covers Journey G (layout).
 
 ---
 
-## K. Static checks
+## K. UX review (§24)
+
+Screenshots taken through the real product at three viewports, signed in.
+
+| Looked for | Found | Action |
+|---|---|---|
+| Horizontal scrolling | None at 1440px or 1024px. **33px at 390px on every page**, including `/cockpit`, `/analyses` and `/workspace`, which this branch never touched — the cause is the shared app shell's top bar | Recorded, not fixed: the fix belongs to the layout every parallel workstream shares |
+| Tiny fonts | The smallest text is the 10px uppercase band label, which is the design system's convention across the whole product | No change — changing it here would make Lenses inconsistent with every other page |
+| Truncated content | A library card truncated its figure and chart counts | Fixed — two lines |
+| Excessive whitespace | The create page's first step was one text box on an empty screen | Fixed — it now says there are three steps and why the name comes first |
+| Technical field names on screen | The period note read "because they are matured_flag = True" | Fixed — it names the tiles instead; the condition stays on the response as data |
+| Hidden formula | Every tile and chart carries an info control with the formula, the terms and the lineage | No change needed |
+| Bad chart labels | A quarterly trend was in alphabetical order | Fixed, with a regression test |
+| Inconsistent periods | Every tile is stamped with the period it used; the lens says which period it is showing; tiles that cannot reach a chosen period say why | No change needed |
+| Giant metric lists | The picker starts empty and answers what is typed; the catalogue is a deliberate second click | No change needed |
+| Too much metadata by default | Governance detail is behind the ⓘ on each tile; the tile itself is a label, a number and a period | No change needed |
+| Unhelpful errors | Every refusal in this branch names what was wrong and what is available instead | No change needed |
+
+The ordinary path — name a lens, choose metrics, save — is three steps and no
+technical vocabulary. The governance detail is one click away on every figure.
+
+---
+
+## K2. Static checks
 
 | Check | Result |
 |---|---|
