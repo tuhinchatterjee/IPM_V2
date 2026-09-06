@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import * as React from "react";
-import { ArrowRight, LayoutGrid, Loader2, Sparkles } from "lucide-react";
+import { ArrowRight, LayoutGrid, Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -11,86 +10,118 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api } from "@/lib/api";
+import { api, type Lens, type ShippedLens } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 
 /**
  * The Lens library.
  *
- * A Lens is a live view of the book for one audience, built by describing it.
- * Opening one runs its analyses against whatever is published now, so a Lens
- * cannot quietly go stale — there are no stored figures to go stale.
+ * A Lens is a live view of the book for one audience. Opening one runs its
+ * metrics against whatever is published now, so a Lens cannot quietly go
+ * stale — there are no stored figures to go stale.
  *
- * The CRO Lens is a hand-built screen and stays where it is; everything else
- * here is a Lens somebody made by asking for it.
+ * Three bands, and the split is the point. A dashboard CreditProbe ships is
+ * not one of "your lenses": it is the answer to "what would a competent head
+ * of this portfolio put on one screen", and burying it in a list of personal
+ * views is how somebody rebuilds a lens that already exists. Each shipped one
+ * says who it is for and how much is on it, so the choice can be made from
+ * the library rather than by opening all four.
+ *
+ * The single "describe your lens and it appears" box that used to sit at the
+ * top is gone. It turned a sentence into a lens in one shot: you described
+ * everything at once, and whatever the matcher did not understand was
+ * silently absent from what you got. `/lenses/new` asks the same matcher the
+ * same things one at a time, and shows what it understood before anything is
+ * stored.
  */
 export default function LensesPage() {
-  const router = useRouter();
   const library = useAsync(() => api.lensList(), []);
-  const [request, setRequest] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
-  const [refusals, setRefusals] = React.useState<string[]>([]);
-  const [error, setError] = React.useState<string | null>(null);
-
-  async function build() {
-    if (!request.trim() || busy) return;
-    setBusy(true);
-    setError(null);
-    setRefusals([]);
-    try {
-      const body = await api.buildLens(request.trim());
-      if (body.lens) {
-        router.push(`/lenses/${body.lens.id}`);
-        return;
-      }
-      setRefusals(body.proposal.refusals);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
+  const shipped: ShippedLens[] = library.data?.shipped ?? [];
+  const bySlug = new Map<string, Lens>(
+    (library.data?.lenses ?? []).map((lens) => [lens.slug, lens]),
+  );
+  const mine = (library.data?.lenses ?? []).filter(
+    (lens) => !shipped.some((spec) => spec.slug === lens.slug),
+  );
 
   return (
     <div className="space-y-7">
       <PageHeader
         title="Lenses"
-        description="A live view of the book for one audience. Describe what it should show and CreditProbe builds it from the certified analyses; ask for a change and it revises. Opening one runs the analyses against what is published now, so nothing on a lens is a stored figure."
+        description="A live view of the book for one audience. Every figure is calculated when you open it, against what is published now, so nothing on a lens is a stored number. Each one carries its own definitions: what every metric means, how it was calculated, and what the lens deliberately does not show."
         status="live"
+        actions={
+          <Button size="sm" asChild>
+            <Link href="/lenses/new">
+              <Plus aria-hidden />
+              Create a lens
+            </Link>
+          </Button>
+        }
       />
 
-      <Card className="p-5">
-        <label htmlFor="lens-request" className="text-xs font-medium text-text-secondary">
-          What should this lens show?
-        </label>
-        <div className="mt-1.5 flex flex-wrap gap-2">
-          <input
-            id="lens-request"
-            value={request}
-            onChange={(e) => setRequest(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void build();
-            }}
-            placeholder="IFRS 9 staging, ECL coverage and where the SICR triggers are firing"
-            className="h-9 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-          />
-          <Button size="sm" onClick={build} disabled={busy || !request.trim()}>
-            {busy ? <Loader2 className="animate-spin" aria-hidden /> : <Sparkles aria-hidden />}
-            Build it
-          </Button>
-        </div>
-        <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
-          Your description is matched against the analysis library, so a lens can
-          only ever contain analyses that exist. Anything it cannot find, it says
-          so rather than approximating with the nearest panel.
+      <section>
+        <h2 className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+          Specialist dashboards
+        </h2>
+        <p className="mb-3 max-w-2xl text-xs leading-relaxed text-text-muted">
+          Built for a role rather than assembled from whatever was to hand.
+          Every tile names a governed metric that calculates against this
+          deployment&rsquo;s data, and each lens says what it cannot show and
+          why.
         </p>
-        {refusals.map((refusal) => (
-          <p key={refusal} className="mt-2 text-xs text-warning">
-            {refusal}
-          </p>
-        ))}
-        {error && <p className="mt-2 text-xs text-negative">{error}</p>}
-      </Card>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {library.loading && !library.data && (
+            <>
+              <Skeleton className="h-44 w-full" />
+              <Skeleton className="h-44 w-full" />
+              <Skeleton className="h-44 w-full" />
+            </>
+          )}
+          {shipped.map((spec) => {
+            const stored = bySlug.get(spec.slug);
+            return (
+              <Link
+                key={spec.slug}
+                href={stored ? `/lenses/${stored.id}` : "/lenses"}
+                className="group"
+              >
+                <Card className="flex h-full flex-col p-5 transition-colors hover:bg-surface-hover">
+                  <div className="mb-2 flex items-start justify-between gap-3">
+                    <LayoutGrid
+                      className="size-5 shrink-0 text-text-muted"
+                      aria-hidden
+                    />
+                    <Badge variant="accent">Shipped</Badge>
+                  </div>
+                  <h3 className="text-sm font-semibold text-text-primary">
+                    {spec.name}
+                  </h3>
+                  <p className="mt-1.5 flex-1 text-xs leading-relaxed text-text-muted">
+                    {spec.purpose || spec.description}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {spec.domains.map((domain) => (
+                      <Badge key={domain} variant="info">
+                        {domain}
+                      </Badge>
+                    ))}
+                  </div>
+                  <p className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3 text-[11px] text-text-muted">
+                    <span className="min-w-0 truncate">
+                      {spec.audience} · {spec.tiles} figures, {spec.charts}{" "}
+                      charts
+                    </span>
+                    <span className="inline-flex shrink-0 items-center gap-1 font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100">
+                      Open <ArrowRight className="size-3" aria-hidden />
+                    </span>
+                  </p>
+                </Card>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
 
       <section>
         <h2 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
@@ -106,9 +137,8 @@ export default function LensesPage() {
               CRO Portfolio Lens
             </h3>
             <p className="mt-1.5 text-xs leading-relaxed text-text-muted">
-              The monthly executive view: position, staging, coverage,
-              concentration, migration and the names driving deterioration —
-              arranged as an argument rather than a grid of tiles.
+              {library.data?.cro.note ??
+                "The monthly executive view: position, staging, coverage, concentration, migration and the names driving deterioration — arranged as an argument rather than a grid of tiles."}
             </p>
             <p className="mt-3 flex items-center justify-between border-t border-border pt-3 text-[11px] text-text-muted">
               Chief Risk Officer · Board Risk Committee
@@ -131,9 +161,9 @@ export default function LensesPage() {
           </Card>
         )}
         {library.data &&
-          (library.data.lenses.length > 0 ? (
+          (mine.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {library.data.lenses.map((lens) => (
+              {mine.map((lens) => (
                 <Link key={lens.id} href={`/lenses/${lens.id}`} className="group">
                   <Card className="flex h-full flex-col p-5 transition-colors hover:bg-surface-hover">
                     <div className="mb-2 flex items-start justify-between gap-3">
@@ -173,7 +203,15 @@ export default function LensesPage() {
             <EmptyState
               icon={LayoutGrid}
               title="No lenses of your own yet"
-              description="Describe one above. It is built from the certified analyses, runs live, and can be changed later by asking."
+              description="Create one and CreditProbe will suggest what it is probably for. It runs live, and can be changed later by asking or by hand."
+              action={
+                <Button size="sm" asChild>
+                  <Link href="/lenses/new">
+                    <Plus aria-hidden />
+                    Create a lens
+                  </Link>
+                </Button>
+              }
             />
           ))}
       </section>

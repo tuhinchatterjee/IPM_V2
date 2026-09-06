@@ -4261,6 +4261,10 @@ export interface MetricHit {
   status: string;
   governed: boolean;
   datasets: string[];
+  /** How the arithmetic reads, so two similarly-named metrics can be told apart. */
+  formula: string;
+  decimals: number;
+  aliases: string[];
   matched: string;
   why: string;
 }
@@ -4275,6 +4279,24 @@ export interface MetricUnavailable {
   needs: string[];
 }
 
+/**
+ * What a lens is FOR, settled before any metric is chosen.
+ *
+ * §8 asks the creation flow to open with this rather than with a metric
+ * picker: a lens whose scope is decided after its tiles is a lens whose tiles
+ * decided its scope, and it ends up being about whatever was easy to find.
+ */
+export interface LensScope {
+  purpose: string;
+  audience: string;
+  portfolio: string;
+  domains: string[];
+  /** The period the lens opens on. Empty means each metric's own default. */
+  default_period: string;
+  comparison_period: string;
+  visibility: string;
+}
+
 export interface Lens {
   id: number;
   slug: string;
@@ -4284,6 +4306,7 @@ export interface Lens {
   panels: LensPanel[];
   sections: LensSection[];
   notes: LensNote[];
+  scope: LensScope;
   status: string;
   version: number;
   origin: string;
@@ -4435,9 +4458,65 @@ export interface RenderedLens {
   panels: RenderedPanel[];
   sections: LensSection[];
   notes: LensNote[];
+  scope: LensScope;
   failed: number;
   unavailable: number;
   note: string;
+}
+
+/**
+ * A dashboard the platform ships, as the library lists it.
+ *
+ * Kept apart from the lenses somebody built, because a specialist dashboard
+ * is not one of "your lenses" — it is the answer to "what would a competent
+ * head of this portfolio put on one screen", and burying it in a list of
+ * personal views is how people rebuild one that already exists.
+ */
+export interface ShippedLens {
+  slug: string;
+  name: string;
+  audience: string;
+  purpose: string;
+  portfolio: string;
+  domains: string[];
+  description: string;
+  tiles: number;
+  charts: number;
+}
+
+/** The periods a lens can honestly be shown for. */
+export interface LensPeriods {
+  lens_id: number;
+  periods: string[];
+  latest: string;
+  default: string;
+  calendars: { datasets: string[]; periods: string[]; latest: string }[];
+  note: string;
+}
+
+/**
+ * What a lens called this is probably for.
+ *
+ * Deterministic, not generated: the name is matched against the Metric
+ * Catalogue with the same search the typeahead uses. Every value is a default
+ * the screen puts in an editable field.
+ */
+export interface LensSuggestion {
+  name: string;
+  scope: LensScope;
+  metrics: MetricHit[];
+  because: string;
+  /** The slug of a shipped lens that already answers this, if one does. */
+  shipped: string;
+}
+
+/** What the lens definition panel may offer. */
+export interface LensVocabulary {
+  domains: { name: string; metrics: number }[];
+  portfolios: string[];
+  visibilities: { name: string; label: string }[];
+  comparisons: { name: string; label: string }[];
+  audiences: string[];
 }
 
 /** What the platform proposes to do about a request, including what it will not. */
@@ -5004,8 +5083,35 @@ export const api = {
       visuals: string[];
       statuses: string[];
       max_panels: number;
+      max_tiles: number;
+      max_charts: number;
+      shipped: ShippedLens[];
+      cro: { slug: string; name: string; note: string };
     }>(`/lenses${status ? `?status=${encodeURIComponent(status)}` : ""}`),
   lens: (id: number) => request<Lens>(`/lenses/${id}`),
+  lensVocabulary: () => request<LensVocabulary>("/lenses/vocabulary"),
+  suggestLens: (name: string) =>
+    request<LensSuggestion>("/lenses/suggest", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  lensPeriods: (id: number) => request<LensPeriods>(`/lenses/${id}/periods`),
+  createLens: (body: {
+    name: string;
+    description?: string;
+    audience?: string;
+    scope?: Partial<LensScope>;
+    panels?: Partial<LensPanel>[];
+  }) =>
+    request<Lens>("/lenses", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  setLensScope: (id: number, scope: Partial<LensScope>) =>
+    request<Lens>(`/lenses/${id}/scope`, {
+      method: "PUT",
+      body: JSON.stringify(scope),
+    }),
   renderLens: (id: number, period?: string) =>
     request<RenderedLens>(
       `/lenses/${id}/render${period ? `?period=${encodeURIComponent(period)}` : ""}`,

@@ -118,6 +118,21 @@ class Hit:
             "status": self.metric.status,
             "governed": self.metric.governed,
             "datasets": list(self.metric.datasets),
+            # §10: enough to choose from without opening the full definition.
+            # The formula and the unit are what a risk person actually reads
+            # to tell two similarly-named metrics apart — "30+ DPD" by count
+            # and by balance have almost the same name and are different
+            # numbers, and the formula line is where that shows.
+            #
+            # Deliberately NOT the available periods or the honest chart
+            # types. Periods need a read of the lake per metric, which would
+            # turn a keystroke into eight queries; chart types depend on the
+            # dimension a chart has not chosen yet, so a list here would be a
+            # guess. Both are on the metric's own panel, one click away.
+            "formula": self.metric.formula_text or (
+                self.metric.formula.describe()),
+            "decimals": self.metric.decimals,
+            "aliases": list(self.metric.aliases),
             "matched": self.matched,
             "why": self.why,
         }

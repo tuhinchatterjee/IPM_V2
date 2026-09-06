@@ -33,6 +33,7 @@ import {
 } from "@/lib/api";
 import { ChartBuilder } from "@/components/lenses/chart-builder";
 import { LayoutEditor } from "@/components/lenses/layout-editor";
+import { LensScopeBar } from "@/components/lenses/lens-scope";
 import { useAsync } from "@/lib/hooks";
 import { fromLens, linkBack, type ReturnContext } from "@/lib/return-to";
 
@@ -67,7 +68,15 @@ export default function LensPage({
 
 function LensView({ id }: { id: number }) {
   const [nonce, setNonce] = React.useState(0);
-  const rendered = useAsync(() => api.renderLens(id), [id, nonce]);
+  // Null means "whatever the lens opens on" — its declared period, or each
+  // metric's own latest. A period is only in the URL of the request once
+  // somebody has picked one, so the lens's own default is not silently
+  // replaced by whatever was showing when the page first loaded.
+  const [period, setPeriod] = React.useState<string | null>(null);
+  const rendered = useAsync(
+    () => api.renderLens(id, period ?? undefined),
+    [id, nonce, period],
+  );
 
   const [request, setRequest] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -127,6 +136,28 @@ function LensView({ id }: { id: number }) {
       <BackLink href="/lenses" label="Lenses" />
 
       <Header lens={lens} rendered={rendered.data} />
+
+      <LensScopeBar
+        lensId={id}
+        scope={rendered.data.scope}
+        showing={rendered.data.period}
+        onPeriod={(chosen) => {
+          setChanged(null);
+          setPeriod(chosen);
+        }}
+        onSaved={() => {
+          setChanged("Saved what this lens is for.");
+          setPeriod(null);
+          setNonce((n) => n + 1);
+        }}
+      />
+
+      {rendered.loading && (
+        <p className="flex items-center gap-1.5 text-xs text-text-muted">
+          <Loader2 className="size-3 animate-spin" aria-hidden />
+          Recalculating every panel for this period.
+        </p>
+      )}
 
       {arranging ? (
         <LayoutEditor

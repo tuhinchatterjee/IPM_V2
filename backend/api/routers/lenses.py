@@ -192,6 +192,31 @@ def lens_vocabulary(principal: Principal = RequireAnalyst) -> dict:
     }
 
 
+class SuggestIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/suggest", summary="What a lens called this is probably for")
+def suggest_lens(payload: SuggestIn,
+                 principal: Principal = RequireAnalyst) -> dict:
+    """The first step of §8's creation flow, after the name.
+
+    Nothing here comes from a model. The name is matched against the Metric
+    Catalogue with the same deterministic search the typeahead uses, so the
+    same name suggests the same thing on every machine, a test can assert it,
+    and a domain the caller may not read can never be suggested — a metric
+    they may not read never reaches the ranking.
+
+    Every value is a default the screen puts in an editable field.
+    """
+    try:
+        return ln.suggest(payload.name, user_id=principal.user_id)
+    except ln.InvalidLens as e:
+        raise _refused(e) from e
+    except ln.StorageUnavailable as e:
+        raise _unavailable(e) from e
+
+
 @router.post("", status_code=201, summary="Create a lens")
 def create_lens(payload: LensIn, principal: Principal = RequireAnalyst) -> dict:
     try:

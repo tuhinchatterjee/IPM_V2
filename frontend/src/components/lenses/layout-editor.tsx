@@ -198,7 +198,11 @@ export function LayoutEditor({
                 className="h-8 min-w-0 flex-1 rounded-md border border-border bg-surface px-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
               />
               <Badge variant="outline">
-                {tile.kind === "metric" ? "Metric" : "Analysis"}
+                {tile.kind === "metric"
+                  ? "Figure"
+                  : tile.kind === "chart"
+                    ? "Chart"
+                    : "Analysis"}
               </Badge>
               <Button
                 variant="ghost"
@@ -229,24 +233,50 @@ export function LayoutEditor({
             </div>
 
             <div className="flex flex-wrap items-center gap-3 pl-8">
-              <label className="text-[11px] text-text-muted">
-                Drawn as
-                <select
-                  value={tile.visual}
-                  onChange={(e) => update(index, { visual: e.target.value })}
-                  aria-label={`How ${tile.fallback} is drawn`}
-                  className="ml-1.5 h-7 rounded-md border border-border bg-surface px-1.5 text-xs text-text-primary focus:border-accent focus:outline-none"
-                >
-                  <option value="auto">auto</option>
-                  {(tile.visuals.length ? tile.visuals : ANALYSIS_VISUALS)
-                    .filter((visual) => visual !== "auto")
-                    .map((visual) => (
-                      <option key={visual} value={visual}>
-                        {visual}
-                      </option>
-                    ))}
-                </select>
-              </label>
+              {/*
+                A metric tile has no chart type to choose. It computes one
+                number for one period and the tile renderer draws exactly
+                that — so a select here would offer choices that change
+                nothing on screen, which is the defect the shipped lenses
+                carried for eleven tiles. A lens that wants a line asks the
+                chart builder for one.
+
+                A chart's type and dimension DO decide what is drawn, but
+                they belong together: which types are honest depends on the
+                dimension, so changing one here without the other could
+                produce a line across a dimension that has no order. The
+                chart builder owns that pair and validates it.
+              */}
+              {tile.kind === "analysis" ? (
+                <label className="text-[11px] text-text-muted">
+                  Drawn as
+                  <select
+                    value={tile.visual}
+                    onChange={(e) => update(index, { visual: e.target.value })}
+                    aria-label={`How ${tile.fallback} is drawn`}
+                    className="ml-1.5 h-7 rounded-md border border-border bg-surface px-1.5 text-xs text-text-primary focus:border-accent focus:outline-none"
+                  >
+                    <option value="auto">auto</option>
+                    {(tile.visuals.length ? tile.visuals : ANALYSIS_VISUALS)
+                      .filter((visual) => visual !== "auto")
+                      .map((visual) => (
+                        <option key={visual} value={visual}>
+                          {visual}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              ) : tile.kind === "chart" ? (
+                <span className="text-[11px] text-text-muted">
+                  {tile.visual} by{" "}
+                  {String(tile.params?.dimension ?? "—")} · change it in the
+                  chart builder
+                </span>
+              ) : (
+                <span className="text-[11px] text-text-muted">
+                  One figure for one period.
+                </span>
+              )}
 
               {bands.length > 0 && (
                 <label className="text-[11px] text-text-muted">
@@ -267,7 +297,7 @@ export function LayoutEditor({
                 </label>
               )}
 
-              {tile.visuals.length === 1 && (
+              {tile.kind === "analysis" && tile.visuals.length === 1 && (
                 <span className="text-[11px] text-text-muted">
                   Only honest as a {tile.visuals[0]}.
                 </span>
