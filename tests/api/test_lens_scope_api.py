@@ -221,6 +221,57 @@ def test_a_lens_spanning_two_calendars_says_so(client):
 
 
 @needs_db
+def test_a_lens_whose_tiles_do_not_all_reach_as_far_says_so(client):
+    """The picker must not hide that five tiles will show a dash.
+
+    The Retail Credit Risk lens reads one dataset over two calendars:
+    thirty-one months of arrears, and twenty-five of scorecard statistics,
+    because the last six cohorts' performance windows have not closed. A
+    picker built on the dataset alone offers thirty-one months and says
+    nothing, so a reader picks a recent one and five tiles correctly show
+    nothing — with no warning that it was coming.
+    """
+    lens_id = ln.by_slug("retail-credit-risk").id
+    body = client.get(f"{API}/lenses/{lens_id}/periods",
+                      headers=ANALYST).json()
+
+    assert len(body["calendars"]) >= 2, (
+        "the maturity-scoped tiles were not reported as a calendar of their "
+        "own")
+    widest, *rest = body["calendars"]
+    assert body["periods"] == widest["periods"]
+    assert any(len(c["periods"]) < len(widest["periods"]) for c in rest)
+
+    assert body["note"].strip(), "a lens with two reaches said nothing"
+    # The tiles by name. The condition that restricts them is a column name
+    # and means nothing to a person reading a dashboard.
+    assert "Retail Default Rate" in body["note"]
+    assert "matured_flag" not in body["note"]
+    # And it is still available, as data, for anyone who wants it.
+    narrow = min(body["calendars"], key=lambda c: len(c["periods"]))
+    assert narrow["restricted_to"] == ["matured_flag = True"]
+
+
+@needs_db
+def test_the_tiles_outside_that_reach_say_why_rather_than_failing(client):
+    """A gap in the book is not a failure of the platform."""
+    lens_id = ln.by_slug("retail-credit-risk").id
+    latest = client.get(f"{API}/lenses/{lens_id}/periods",
+                        headers=ANALYST).json()["latest"]
+    body = client.get(f"{API}/lenses/{lens_id}/render?period={latest}",
+                      headers=ANALYST).json()
+
+    assert body["failed"] == 0, [p.get("error") for p in body["panels"]
+                                 if p["status"] == "failed"]
+    absent = [p for p in body["panels"] if p["status"] == "unavailable"]
+    assert absent, "no tile was out of reach, so this proves nothing"
+    for panel in absent:
+        assert panel["unavailable"].strip(), panel["metric_id"]
+        assert panel.get("value") is None, panel["metric_id"]
+    assert "have no data for this period" in body["note"]
+
+
+@needs_db
 def test_a_lens_that_does_not_exist_has_no_periods(client):
     assert client.get(f"{API}/lenses/999999/periods",
                       headers=ANALYST).status_code == 404

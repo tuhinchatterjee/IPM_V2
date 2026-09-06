@@ -523,8 +523,11 @@ def values(metric_ids: Sequence[str], *, period: str = "",
     return {
         "metrics": answers,
         "requested": wanted,
-        # What the caller saved, so a performance claim on this page can be
-        # checked rather than asserted.
+        # What the caller saved, so a performance claim can be checked rather
+        # than asserted. `reads` counts the scans that computed values — one
+        # per batch, plus one for each metric that could not share. It does
+        # not count period resolution, which is memoised above and was
+        # already memoised before this existed.
         "reads": scans,
         "would_have_been": len(resolved),
     }

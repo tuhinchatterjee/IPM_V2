@@ -976,17 +976,26 @@ def periods(lens_id: int) -> dict[str, Any]:
     seen produces a screen of dashes and teaches the reader that the period
     picker is broken.
 
-    Where a lens spans datasets on different calendars — a retail lens reading
-    monthly behavioural data beside a quarterly scorecard cut — the periods
-    are grouped by the calendar they belong to rather than merged into one
-    list, because merging two calendars produces an ordering that is wrong in
-    both.
+    A calendar is a dataset AND the scope read over it, not a dataset alone.
+    That distinction is the one worth having. The Retail Credit Risk lens
+    reads one dataset, and two of its bands do not have the same reach:
+    thirty-one months of arrears, and twenty-five months of scorecard
+    statistics, because the last six cohorts' performance windows have not
+    closed and those metrics are scoped to matured rows. Grouping by dataset
+    alone reported one calendar of thirty-one months and let a reader pick a
+    month where five tiles correctly show a dash — with nothing on the picker
+    to say that was coming.
+
+    So the widest calendar is what the picker offers, and every narrower one
+    is reported beside it with the note saying so. The tiles on a narrower
+    calendar still explain themselves individually; this is what lets the
+    reader see it before they click rather than after.
     """
     from backend.metrics import service as metrics
 
+    #: (datasets, scope) -> the metrics that read it, for the note.
+    wanted: dict[tuple[Any, ...], list[str]] = {}
     view = get(lens_id)
-    wanted: dict[tuple[str, ...], list[str]] = {}
-    scopes: dict[tuple[str, ...], tuple[Any, ...]] = {}
     for entry in view.panels:
         panel = Panel.from_dict(entry)
         if panel.kind not in (KIND_METRIC, KIND_CHART):
@@ -995,45 +1004,61 @@ def periods(lens_id: int) -> dict[str, Any]:
             metric = metrics.resolve(panel.metric_id)
         except metrics.MetricNotFound:
             continue
-        key = tuple(metric.datasets)
-        if not key:
+        if not metric.datasets:
             continue
+        key = (tuple(metric.datasets), metric.scope)
         wanted.setdefault(key, [])
-        # The tightest scope wins for the purpose of asking which periods have
-        # rows: a lens offering a month its validation tiles cannot answer for
-        # is a lens whose picker lies about four of its tiles.
-        scopes.setdefault(key, metric.scope)
+        if metric.name not in wanted[key]:
+            wanted[key].append(metric.name)
 
     calendars: list[dict[str, Any]] = []
-    for key in wanted:
+    for (datasets, scope), names in wanted.items():
         try:
-            found = metrics.periods_with_rows(key, scopes.get(key, ()))
+            found = metrics.periods_with_rows(datasets, scope)
         except Exception:  # noqa: BLE001 - a dataset that has gone
             found = []
         if not found:
             continue
         calendars.append({
-            "datasets": list(key),
+            "datasets": list(datasets),
             "periods": list(found),
-            "latest": found[-1] if found else "",
+            "latest": found[-1],
+            "restricted_to": [c.describe() for c in scope],
+            "metrics": sorted(names),
         })
 
     calendars.sort(key=lambda c: (-len(c["periods"]), c["datasets"]))
-    #: The list a picker actually offers. The lens's widest calendar, because
-    #: that is the one most of its tiles are on; the others are reported
-    #: beside it so a reader can see that the lens spans two.
+    #: The list a picker actually offers: the lens's widest calendar, because
+    #: that is the one most of its tiles are on.
     offered = calendars[0]["periods"] if calendars else []
+
+    narrower = [c for c in calendars[1:] if c["periods"] != offered]
+    note = ""
+    if narrower:
+        shortest = min(narrower, key=lambda c: len(c["periods"]))
+        named = shortest["metrics"]
+        # The tiles by name, not the condition that restricts them. The
+        # condition is `matured_flag = True`, which is a column and means
+        # nothing to the person reading a dashboard; it stays on the response
+        # as `restricted_to` for anyone who wants it, and each tile explains
+        # itself in full on its own info panel.
+        shown = ", ".join(named[:3]) + (
+            f" and {len(named) - 3} more" if len(named) > 3 else "")
+        note = (
+            f"{len(named)} {'tile' if len(named) == 1 else 'tiles'} on this "
+            f"lens reach only {shortest['periods'][0]} to "
+            f"{shortest['periods'][-1]}, rather than {offered[0]} to "
+            f"{offered[-1]}: {shown}. Outside that range they show no figure "
+            "and say why, which is a fact about the population rather than a "
+            "failure.")
+
     return {
         "lens_id": lens_id,
         "periods": offered,
         "latest": offered[-1] if offered else "",
         "default": view.scope.get("default_period") or "",
         "calendars": calendars,
-        "note": ("" if len(calendars) < 2 else
-                 "This lens reads datasets on more than one calendar. The "
-                 "picker offers the one most of its tiles are on; a tile on "
-                 "another resolves the nearest period it has, and says which "
-                 "on its own face."),
+        "note": note,
     }
 
 
@@ -1172,9 +1197,13 @@ def _compute_tiles(entries: list[dict[str, Any]], *, period: str | None,
     """
     from backend.metrics import service as metrics
 
-    wanted = [Panel.from_dict(e).metric_id for e in entries
-              if Panel.from_dict(e).kind == KIND_METRIC]
-    wanted = [m for m in dict.fromkeys(wanted) if m]
+    # A tile pinned to its own period is left out. It is asking a different
+    # question from the rest of the lens, `_render_metric` reads it on its
+    # own, and including it here would compute it twice.
+    tiles = [Panel.from_dict(e) for e in entries]
+    wanted = [p.metric_id for p in tiles
+              if p.kind == KIND_METRIC and p.metric_id and not p.period]
+    wanted = list(dict.fromkeys(wanted))
     if not wanted:
         return {}
     try:

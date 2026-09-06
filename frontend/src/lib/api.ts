@@ -4484,13 +4484,29 @@ export interface ShippedLens {
   charts: number;
 }
 
-/** The periods a lens can honestly be shown for. */
+/**
+ * The periods a lens can honestly be shown for.
+ *
+ * A calendar is a dataset AND the scope read over it, not a dataset alone.
+ * One lens can read one dataset over two calendars — thirty-one months of
+ * arrears beside twenty-five of scorecard statistics, because the last six
+ * cohorts' performance windows have not closed. `periods` is the widest, and
+ * `note` says which tiles do not reach that far.
+ */
 export interface LensPeriods {
   lens_id: number;
   periods: string[];
   latest: string;
   default: string;
-  calendars: { datasets: string[]; periods: string[]; latest: string }[];
+  calendars: {
+    datasets: string[];
+    periods: string[];
+    latest: string;
+    /** The condition that narrows this calendar, for anyone who wants it. */
+    restricted_to: string[];
+    /** The metrics on it, by name. */
+    metrics: string[];
+  }[];
   note: string;
 }
 
