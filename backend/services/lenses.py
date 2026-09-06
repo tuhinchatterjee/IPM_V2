@@ -1341,6 +1341,11 @@ def _render_chart(panel: Panel, *, period: str | None,
         "series_label": drawn["series_label"],
         "dimension": drawn["dimension"],
         "dimension_label": drawn["dimension_label"],
+        # Whether the points are in time order. The tile draws every chart as
+        # labelled bars — see `ChartTile` for why — so this is how a reader
+        # knows a series is a progression rather than a comparison, and knows
+        # which end is the oldest.
+        "over_time": drawn["over_time"],
         "unit": drawn["unit"],
         "decimals": drawn["decimals"],
         "higher_is_better": drawn["higher_is_better"],

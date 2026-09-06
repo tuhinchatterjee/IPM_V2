@@ -21,6 +21,18 @@ import type { ChartComparison, ChartPoint, RenderedPanel } from "@/lib/api";
  * a way of quietly rescaling, clipping or interpolating them. What is drawn
  * below is exactly what came back, and the numbers are printed beside the bars
  * so nobody has to read a length to know a value.
+ *
+ * That applies to EVERY chart, including one whose panel says `line`. The
+ * panel's chart type is a governance declaration rather than a drawing
+ * instruction: `chart_types_for` refuses a line over a dimension that has no
+ * order, because a line between products asserts a progression that is not
+ * there. What it does not do is make a different picture appear here.
+ *
+ * So a series that IS ordered says so on its own face. Without that, a
+ * reader has a column of labelled bars and no way to tell a progression
+ * from a comparison, or which end is the oldest — and the tile would be
+ * carrying a `line` in its definition that nothing on screen reflects, which
+ * is the shape of defect this lens work spent its first commit removing.
  */
 export function ChartTile({ panel }: { panel: RenderedPanel }) {
   const metric = panel.metric;
@@ -50,7 +62,9 @@ export function ChartTile({ panel }: { panel: RenderedPanel }) {
         <div>
           <p className="text-xs font-medium text-text-secondary">{title}</p>
           <p className="mt-0.5 text-[10px] text-text-muted">
-            {panel.period_used || panel.period}
+            {panel.over_time
+              ? "Every period, oldest first"
+              : panel.period_used || panel.period}
             {panel.comparison ? ` vs ${panel.comparison.period}` : ""}
           </p>
         </div>

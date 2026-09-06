@@ -4349,6 +4349,8 @@ export interface RenderedPanel extends LensPanel {
   series_label?: string;
   dimension?: string;
   dimension_label?: string;
+  /** True when the points are in time order rather than compared side by side. */
+  over_time?: boolean;
   groups_found?: number;
   truncated?: boolean;
   chart_notes?: string[];
