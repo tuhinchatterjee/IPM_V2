@@ -1499,6 +1499,76 @@ def propose(request: str, *, existing: list[Panel] | None = None,
 MAX_SUGGESTED_TILES = 4
 
 
+def _propose_chart(request: str, current: list[Panel], *,
+                   user_id: int | None = None) -> Proposal | None:
+    """A chart for a sentence that asks for one, or None if it does not.
+
+    None means "this was not a breakdown request" — the caller carries on and
+    proposes tiles. A request that IS a breakdown but names a dimension the
+    dataset cannot be cut by comes back from the interpreter with no charts,
+    so it lands in the tile path and gets the metric it named. That is the
+    right fallback: the metric exists, the cut does not.
+
+    Replacing rather than duplicating is the point of the second half. "Show
+    exposure by product instead" is an edit of the chart already there, and a
+    lens that answered it with a second chart of the same metric would be a
+    lens somebody has to tidy up by hand.
+    """
+    from backend.metrics import builder
+
+    try:
+        intent = builder.interpret(request, user_id=user_id)
+    except Exception:  # noqa: BLE001 - an interpreter fault must not block asking
+        return None
+    if not intent.charts:
+        return None
+
+    panels = list(current)
+    added: list[str] = []
+    replaced: list[str] = []
+    for idea in intent.charts[:MAX_SUGGESTED_TILES]:
+        metric_id = str(idea["metric_id"])
+        dimension = str(idea["dimension"])
+        label = str(idea["dimension_label"])
+        name = str(idea["metric_name"])
+        same = [i for i, p in enumerate(panels)
+                if p.kind == KIND_CHART and p.metric_id == metric_id]
+        if any(panels[i].params.get("dimension") == dimension for i in same):
+            continue
+        panel = Panel.chart(
+            metric_id, dimension=dimension, title=f"{name} by {label}",
+            visual=str(idea["visual"]),
+            sort="label" if idea["over_time"] else "value",
+            direction="asc" if idea["over_time"] else "desc")
+        if same:
+            # One chart of one metric, cut the way it was last asked for.
+            was = panels[same[0]].params.get("dimension", "")
+            panels[same[0]] = panel
+            replaced.append(f"{name} by {label} (was by {was})")
+        else:
+            panels.append(panel)
+            added.append(f"{name} by {label}")
+
+    if not added and not replaced:
+        return Proposal(
+            panels=current, change_summary="",
+            refusals=[", ".join(f"{c['metric_name']} by {c['dimension_label']}"
+                                for c in intent.charts)
+                      + " is already on this lens, so nothing was added."],
+            matched=[str(c["metric_id"]) for c in intent.charts])
+
+    validate(panels, user_id=user_id)
+    parts = []
+    if added:
+        parts.append("Added " + ", ".join(added))
+    if replaced:
+        parts.append("Changed " + ", ".join(replaced))
+    return Proposal(
+        panels=panels,
+        change_summary="; ".join(parts) + ".",
+        matched=[str(c["metric_id"]) for c in intent.charts])
+
+
 def _propose_metrics(request: str, text: str, current: list[Panel],
                      removing: bool, *,
                      user_id: int | None = None) -> Proposal:
@@ -1516,6 +1586,18 @@ def _propose_metrics(request: str, text: str, current: list[Panel],
     from backend.metrics import library as metric_library
     from backend.metrics import search as metric_search
     from backend.metrics import service as metrics
+
+    # A breakdown is a chart, not a tile, and it is asked first.
+    #
+    # "Show exposure by sector" and "add exposure" name the same metric and
+    # ask for different things: one is a number, the other is that number cut
+    # by a field. It has to come before the search below, too — that search
+    # requires every word to match something, and "by sector" is two words
+    # about the shape of the answer rather than about which metric it is.
+    if not removing:
+        charted = _propose_chart(request, current, user_id=user_id)
+        if charted is not None:
+            return charted
 
     # The instruction words go first. "Add the roll rate" is a request about a
     # roll rate; leaving "add" and "the" in makes every word have to match

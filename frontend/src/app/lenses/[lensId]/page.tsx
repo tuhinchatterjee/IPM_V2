@@ -360,7 +360,7 @@ function LensView({ id }: { id: number }) {
             onKeyDown={(e) => {
               if (e.key === "Enter") void ask();
             }}
-            placeholder="Add obligor concentration · remove the stress panel"
+            placeholder="Add obligor concentration · exposure by region · remove the stress panel"
             className="h-9 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           <Button size="sm" onClick={ask} disabled={busy || !request.trim()}>

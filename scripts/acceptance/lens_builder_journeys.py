@@ -543,6 +543,20 @@ def _journey_o(page: Any, report: Report) -> None:
         report.check("O", "grouped by the dimension that was asked for",
                      drawn[0]["dimension"] == "sector", drawn[0]["dimension"])
 
+    # §11: the same conversation, on a chart that already exists.
+    page.fill("#lens-ask", "show corporate exposure by region")
+    page.get_by_role("button", name="Apply").click()
+    page.wait_for_timeout(12_000)
+    after = page.request.get(f"{API}/api/v1/lenses/{lens_id}").json()
+    redrawn = [p for p in after["panels"] if p["kind"] == "chart"]
+    report.check("O", "a chart on a lens can be recut by asking",
+                 len(redrawn) == 1
+                 and redrawn[0]["params"]["dimension"] == "region",
+                 str([(p["metric_id"], p["params"].get("dimension"))
+                      for p in redrawn]))
+    report.check("O", "and recutting it is a version, not an overwrite",
+                 after["version"] > 1, f"v{after['version']}")
+
 
 # --------------------------------------------------------------- journey P
 #

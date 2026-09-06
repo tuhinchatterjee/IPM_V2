@@ -225,7 +225,8 @@ Carried forward from Lenses 2.0 and re-verified on this HEAD; not rebuilt.
 Real Chromium, real backend on `:8000`, real frontend on `:3000`, real
 PostgreSQL, `REQUIRE_LOGIN=true`, signed in as `priya.raman`.
 
-**164 checks passed, 0 failed.**
+**286 checks passed, 0 failed** — 213 in `lens_journeys.py` (A–L) and 73 in
+`lens_builder_journeys.py` (M–P).
 
 | Journey | What it proves | Result |
 |---|---|---|
@@ -240,12 +241,39 @@ PostgreSQL, `REQUIRE_LOGIN=true`, signed in as `priya.raman`.
 | I | Building a chart end to end, including why types are refused | PASS |
 | J | Every shipped lens read as a client would read it | PASS |
 | **K** | **Changing the period; figures still reconcile after they move** | PASS |
-| **L** | **Creating a lens by being asked; typeahead narrows** | PASS |
+| **L** | **Creating a lens by saying what it should watch; typeahead narrows** | PASS |
+| **M** | **A sentence to a saved lens: the reading, the domains offered as options, an existing metric from the library, a NEW calculated metric with its formula, its plain-English logic and its real SQL, previewed against the book, locked, another added, saved, still there after a reload** | PASS |
+| **N** | **Edit mode: the pencil, the edit state, reorder by drag AND without a pointer, remove with confirmation, add a metric through the same builder, come back still editing, save, survives a reload** | PASS |
+| **O** | **Asking for a chart in words and putting the chart it offers on a lens** | PASS |
+| **P** | **A compound, multi-domain sentence resolving to more than one domain, with a refusal still standing for what cannot be calculated** | PASS |
 
 Journey mapping to the brief: A/B/J cover Journey A (Retail Risk) and C
 (Corporate IFRS 9); K covers Journey B (change period, coherent updates); L
-covers Journey D (create lens); G covers Journey E (custom metric); I covers
-Journey F (custom chart); H covers Journey G (layout).
+and M cover Journey D (create lens); G and M cover Journey E (custom metric);
+I and O cover Journey F (custom chart); H and N cover Journey G (layout).
+
+### The §20 list, check by check
+
+| Required | Journey | Check |
+|---|---|---|
+| Create a new Lens by describing it | M | "describing it opens the builder carrying the sentence" |
+| Create a new calculated metric | M | "describing a new metric drafts a definition" |
+| See it previewed against real data | M | "it previews against the real book" + "shows a real figure, not a placeholder" |
+| Lock the metric | M | "locking it says so" |
+| Add another metric | M | "and offers to add another" |
+| Search and select an existing metric | M, L | "searching the library finds governed metrics"; "adding a word narrows rather than widens" |
+| Publish/save the Lens | M | "saving opens the lens it made" |
+| Reload and confirm persistence | M | "and it is all still there after a reload" |
+| Open an existing Lens in edit mode | N | "the edit bar appears" |
+| Drag/reorder | N | "dragging a card changes the order on screen"; "and a card can be moved without dragging it" |
+| Remove a metric | N | "removing a card asks before it does it" + "the card goes once confirmed" |
+| Add a metric from edit mode | N | "adding a metric opens the same builder" |
+| Return and still be in edit mode | N | "coming back leaves the lens in edit mode" |
+| Save | N | "the arrangement is saved" |
+| Reload and confirm persistence | N | "and it survives a reload" + "the order after reloading is the order that was saved" |
+| Conversational chart creation | O | "a breakdown request is understood as one" → "grouped by the dimension that was asked for" |
+| Conversational chart editing | O | "a chart on a lens can be recut by asking" — the lens's ask box re-cuts the chart it already has rather than adding a second, and "recutting it is a version, not an overwrite" |
+| Compound multi-domain request | P | "and resolves to more than one data domain" |
 
 ---
 
@@ -266,6 +294,9 @@ Screenshots taken through the real product at three viewports, signed in.
 | Giant metric lists | The picker starts empty and answers what is typed; the catalogue is a deliberate second click | No change needed |
 | Too much metadata by default | Governance detail is behind the ⓘ on each tile; the tile itself is a label, a number and a period | No change needed |
 | Unhelpful errors | Every refusal in this branch names what was wrong and what is available instead | No change needed |
+| Reordering by drag only | Edit mode could be used with a pointer and no other way — no keyboard, and a drag fights the scroll on a touch screen | Fixed — each card carries move-earlier / move-later buttons beside its handle, driving the same reorder, asserted by journey N |
+| A refusal with nowhere to appear | Locking a metric that the catalogue refused set an error the preview step never rendered: the button simply did nothing | Fixed — the builder's error line is rendered at every stage |
+| A lens created without saying what it is for | The creation flow let the definition panel be skipped and saved an empty purpose, so the lens's own definition read as though nobody had ever said what it was for | Fixed — the sentence somebody typed *is* the purpose unless they edit it |
 
 The ordinary path — name a lens, choose metrics, save — is three steps and no
 technical vocabulary. The governance detail is one click away on every figure.

@@ -381,7 +381,182 @@ Stated plainly, because a report that lists only what was done is not a report.
 
 ---
 
-## 8. Recommendation
+## 8. The Lens Builder (second tranche)
+
+The first tranche made the Lens experience better. This one makes it a
+product somebody can use without knowing the schema.
+
+### 8.1 Eight preconfigured lenses, six of them role-shaped
+
+| Lens | Audience | Figures | Charts |
+|---|---|---:|---:|
+| CRO Portfolio | Chief Risk Officer | 20 | 6 |
+| Corporate IFRS 9 | IFRS 9 Committee | 34 | 9 |
+| Early Warning and TAC | Transaction Approval Committee | 10 | 9 |
+| Portfolio Quality | Head of Credit Portfolio Management | 12 | 8 |
+| Concentration and Large Exposures | Credit Committee | 10 | 8 |
+| Board Risk Committee | Board Risk Committee | 16 | 3 |
+| Retail Credit Risk | Head of Retail Credit Risk | 23 | 7 |
+| Retail Analytics | Retail Portfolio Analysts | 9 | 11 |
+
+195 panels, every one producing a real figure, each lens rendering in under
+1.4 seconds.
+
+**§19 is satisfied by construction, and proved.** `install()` calls the same
+`create` and `revise` the HTTP API calls. There is no branch anywhere that
+treats a shipped lens differently, and a test rearranges one, restores it, and
+adds a metric it did not ship with — all through the ordinary paths. A shipped
+lens carries a revision history like any other because it got one the same way.
+
+Twenty-two new metrics support the four new lenses, all read off fields
+`portfolio_facility` already carried and nobody had written down: internal
+grade, rating bucket, credit trend, covenant headroom, debt service cover,
+downgrade probability, appetite breach, collateral value. All twenty-two
+reconcile against an independent DuckDB read and cost one scan between them.
+
+### 8.2 Natural-language Lens creation
+
+The library opens with the question — "How do you want to define a new Lens?"
+— and a box. What is typed is carried into the builder rather than turned into
+a lens on the spot: a box that built a whole lens from one sentence leaves
+whatever it did not understand silently absent.
+
+`interpret` reads the sentence and answers with **candidates, never a
+decision**: the data domains it recognised with what each matched on, the
+metrics that answer to it, the dimension it heard, the period it means. The
+screen shows domains as chips to tick, with a free-text box for one it missed.
+
+It is deterministic. No model reads the sentence; the catalogue does. The same
+words produce the same options on every machine, which is what lets a test
+assert a reading and what stops the builder being a different product on a bad
+day.
+
+The compound case is the one that decides whether this is an interpreter or a
+keyword switch. "IFRS 9 coverage and retail delinquency" names one domain and
+describes another; both are ticked, because a domain that produced one of the
+best-matching metrics is chosen even when its name was never said.
+
+`search.search` could not be used directly: it requires every word of the
+query to match something, which is right for a typeahead and wrong for a
+sentence — "show me exposure by sector" has two words that name a metric and
+four that do not. So a sentence is cut into overlapping phrases, longest
+first, and each is asked separately, reusing the ranking already tested.
+
+### 8.3 A metric definition read four ways, and editable
+
+§6 and §7. A new metric is described in words and comes back as:
+
+- **the algebra**, expanded so every term shows its field and conditions;
+- **the plain-English execution logic**, numbered, so a person checking a
+  definition checks a sequence;
+- **the actual compiled SQL**, from the same compiler the executor calls over
+  the same validated plan — not a reconstruction;
+- **the values bound to it**, printed beside the query.
+
+All four are generated from the one tree on every request. Nothing is stored,
+so nothing can be right when it was written and wrong after an edit.
+
+The bound values earn their place. A threshold is a bound parameter, so moving
+it from 0 to 5 changes what is bound and **not** the query text — a screen
+showing the SQL alone would look frozen to somebody who had just edited the
+number they came to edit. It also means a filter value can never become SQL,
+and a test drives `Healthcare'); DROP TABLE lenses;--` through the route and
+asserts DROP TABLE is absent from the query and present in the parameters.
+
+### 8.4 Real-data preview, then lock
+
+§8 and §9. Preview shows the dataset and its grain, the periods available,
+the fields read, the filters applied, each numerator and denominator term with
+its own value, the aggregation, the final arithmetic written out, and the
+figure formatted as the tile will print it. The per-term row counts are the
+part that earns its place: "the numerator is zero" and "the numerator matched
+no rows" are different problems and only one is a formula error.
+
+Lock sits **after** preview and not beside it. A metric nobody has seen a
+number for is a metric nobody has checked. After locking: add another, or go
+back to the lens.
+
+Locking shares the metric, because putting a metric on a lens is publishing
+it — a private metric on a shared lens is a tile nobody else can resolve, and
+the refusal they would get describes a permission as an absence.
+
+### 8.4a Asking a lens to change, including its charts
+
+§11. The lens's own ask box takes the sentence through the same interpreter
+the creation flow uses, so a breakdown asked for on an existing lens comes
+back as a chart rather than as a KPI tile of the same metric.
+
+Asking for a second cut of a metric that is already charted **changes that
+chart** rather than adding another: "show exposure by region" on a lens that
+draws exposure by sector re-cuts the one chart, and the change summary says
+what it was before. A lens that answered an edit with a duplicate would be a
+lens somebody has to tidy up by hand.
+
+A dimension the dataset cannot be cut by is not an error — the request falls
+through to the tile path and the metric it named is added. The metric exists;
+the cut does not, and the metric is the honest answer to what was asked.
+
+Every proposal still goes through `validate`, so a chart proposed this way is
+refused for the same reasons as one built by hand.
+
+### 8.5 Editing a lens that already exists
+
+§12–§17. The pencil turns the real cards — with their real numbers — into an
+editable board. They wiggle, they drag, each has a remove control that asks
+first, and "Add new metric" opens the **same** builder the creation flow uses.
+Coming back leaves the lens in edit mode, because somebody who was arranging
+it still is.
+
+The wiggle and the drag are two elements, and that is not cosmetic. A browser
+will not begin a drag on an element whose own transform is animating, so the
+draggable element is the outer one and never moves; the wiggle lives one level
+in, on a wrapper carrying the whole visible card. What a person sees is
+unchanged and what the pointer grabs holds still.
+
+Dragging is also not the only way to move a card. Each carries move-earlier
+and move-later buttons beside its handle, driving the same reorder — a board
+that can only be rearranged by dragging cannot be rearranged from a keyboard
+at all, and on a touch screen the drag fights the scroll.
+
+Nothing is saved until Save, and the save goes through `PUT /lenses/{id}/layout`
+— the same validated, versioned path a conversational change goes through.
+
+### 8.6 Defects found in this tranche
+
+| # | Defect | Found by | Fix |
+|---|---|---|---|
+| 13 | **A metric you had just built could not go on a lens.** `validate` resolved metric ids without the user, so an unshared metric did not exist to it; the refusal read "not a metric in the catalogue" | Driving the flow | The user is threaded through validation, and locking shares the metric |
+| 14 | **Nothing could be drafted for "total exposure."** `portfolio_facility.exposure` is catalogued as a *string* and is summed by seven governed metrics; the field picker required a numeric type | Driving the flow | The declared type breaks ties rather than vetoing; the validator keeps the final word |
+| 15 | **Create was enabled for a chart-only lens and did nothing.** The handler guarded on metrics, the button on metrics-or-charts | Browser journey O | The guard matches its own control |
+| 16 | **The wiggle made cards undraggable.** A browser will not begin a drag on an element whose transform is animating, so pausing only the hovered card paused after the hard part | Browser journey N | The whole board holds still the moment the pointer is over it — better for a person aiming, and what makes the drag work |
+| 17 | **A weighted average was silently downgraded to a row count** when no field matched | `test_a_weighted_average_asks_for_its_weight` | It keeps its kind, does not compile, and names both things still to decide. A count is a different metric, not a safer draft |
+| 18 | "over" fuzzy-matched "Overlay", so *Management Overlay* was the best reading of "delinquency trend over time" | Driving the interpreter | Shape words the interpreter has already consumed get no second vote on the subject |
+| 19 | A single word dragged in refusals nobody asked for — "retail" reached Retail ECL | Driving the interpreter | A refusal needs a two-word match |
+| 20 | **The builder was torn down by a reload it had itself asked for.** Adding a metric from inside edit mode re-rendered the lens; the fetch went back to loading with no data, the page blanked its body, and the "Metric locked / Add another / Go back" step went with it | Browser journey N | `useAsync` takes `keepPrevious`: the previous render stays on screen until the next one arrives. Opt-in, so no other screen's loading state changed |
+| 21 | **A lock the catalogue refused looked like a dead button.** The refusal — a duplicate name, most often — set an error that only the *definition* step rendered | Browser journey M | The builder's error line is rendered at every stage, and the journey now reports what it says |
+| 22 | **A lens could be created having never said what it is for.** The definition panel could be skipped and an empty purpose saved, so the lens's own §8 panel read as though nobody had ever answered the question | Browser journey L | The sentence somebody typed *is* the purpose until they edit it |
+| 23 | **Edit mode could only be used with a pointer.** Reordering was drag-only | UX review of what this tranche built | Move-earlier / move-later buttons on every card, driving the same reorder |
+| 24 | **A lens's own ask box answered a breakdown with a KPI tile.** "Show exposure by sector" and "add exposure" name one metric and ask different things; the ask box could only add tiles | §20's list, checked line by line | The interpreter is asked first: a breakdown becomes a chart, and a second cut of a metric already charted *replaces* that chart rather than adding a duplicate |
+
+### 8.7 What this tranche still does not do
+
+- **Full formula surgery in the quick editor.** The definition editor changes
+  aggregations and filter values — the two things people actually change after
+  a draft. Adding or removing terms, or repointing a field, is the existing
+  full metric builder's job.
+- **Synonym resolution between business language and column names.**
+  "probability of default" does not reach `pd_12m_pct`, so that draft comes
+  back with the measure unresolved rather than guessed. Honest, and less
+  helpful than a synonym map would be.
+- **Two doors into rearranging.** The pencil's edit mode and the older
+  "Arrange" panel both reorder a lens, through the same versioned save. The
+  Arrange panel is the one that explains why a metric tile has no chart type,
+  so it was not removed in this tranche; folding that explanation into edit
+  mode and retiring the panel is the obvious next step.
+
+---
+
+## 9. Recommendation
 
 **READY FOR INTEGRATION REHEARSAL.**
 

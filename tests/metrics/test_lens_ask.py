@@ -201,3 +201,55 @@ def test_every_proposed_tile_passes_validation(request_text):
     proposal = service.propose(request_text)
     assert proposal.panels
     service.validate(proposal.panels)
+
+
+# ---------------------------------------------- asking for a chart, in words
+
+
+def charts(proposal) -> list[tuple[str, str]]:
+    return [(p.metric_id, p.params.get("dimension", ""))
+            for p in proposal.panels if p.kind == service.KIND_CHART]
+
+
+def test_a_breakdown_is_answered_with_a_chart_not_a_tile():
+    """"By sector" is a request about the shape of the answer.
+
+    A lens that answered it with a KPI tile would be answering a different
+    question with the same metric, which is the hardest kind of wrong answer
+    to notice.
+    """
+    proposal = service.propose("show corporate exposure by sector")
+    assert proposal.change_summary
+    drawn = charts(proposal)
+    assert drawn, kinds(proposal)
+    assert drawn[0][1] == "sector"
+
+
+def test_a_chart_of_the_same_metric_is_changed_rather_than_duplicated():
+    first = service.propose("show corporate exposure by sector")
+    second = service.propose("show corporate exposure by region",
+                             existing=first.panels)
+    drawn = charts(second)
+    assert len(drawn) == 1, drawn
+    assert drawn[0][1] != "sector"
+    assert "was by sector" in second.change_summary
+
+
+def test_asking_twice_for_the_same_chart_says_it_is_already_there():
+    first = service.propose("show corporate exposure by sector")
+    again = service.propose("show corporate exposure by sector",
+                            existing=first.panels)
+    assert again.change_summary == ""
+    assert again.refusals
+    assert "already on this lens" in again.refusals[0]
+
+
+def test_a_dimension_the_dataset_cannot_be_cut_by_falls_back_to_the_metric():
+    """The metric exists; the cut does not. The metric is the honest answer."""
+    proposal = service.propose("show corporate exposure by astrological sign")
+    assert charts(proposal) == []
+
+
+def test_a_proposed_chart_passes_validation():
+    proposal = service.propose("show corporate exposure by sector")
+    service.validate(proposal.panels)
