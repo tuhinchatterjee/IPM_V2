@@ -375,3 +375,17 @@ or its tests require it.
    requires it, and recorded as such.
 3. **SICR constants duplicated** between `ifrs9/policy.py` and `corporate/universe.py`,
    with a test that passes by coincidence. Fixed as part of §3 consolidation.
+4. **CI never built the Corporate IFRS 9 book.** The workflow ran
+   `generate_saudi_universe.py` (the credit book) and nothing else, so every
+   test that reads `corporate_*` — the pre-existing What-If suite included —
+   ran against a lake that did not contain it. `build_corporate_universe.py`
+   now runs after it. **Order matters**: both write the governed catalogue and
+   the corporate builder MERGES into what is already there, so reversing them
+   leaves the corporate datasets unregistered. That failure does not appear at
+   build time; it surfaces later as *"corporate_borrower_360 is not a governed
+   dataset"*.
+5. **The SME scorecard datasets are registered by neither builder.** The brain
+   vocabulary names them, so `tests/brain` cannot collect until
+   `backend.scorecard.sme.catalogue.merge_into_catalogue()` has run. Recorded
+   rather than fixed: it is a seeding-order question for the environment, and
+   nothing in What-If touches it.
