@@ -798,6 +798,34 @@ def activity(project_id: int, limit: int = Query(default=100, ge=1, le=500),
                                       limit=limit, offset=offset))
 
 
+@router.post("/projects/{project_id}/sweep",
+             summary="Run the agent over this project now")
+def run_project_sweep(project_id: int, dry_run: bool = False,
+                      session: Session = Depends(get_db),
+                      principal: Principal = RequireCommenter) -> dict:
+    """The overnight check, on one project, for the person who runs it.
+
+    The global sweep is an administrator's tool and the scheduler's job. This
+    is neither: "why has nobody been reminded about this?" is a question the
+    project manager asks about their own project on a Tuesday afternoon, and
+    routing them to an administrator to find out is how a monitoring feature
+    stops being trusted. Editor access on the project, and the same
+    fingerprint deduplication as the scheduled run — so pressing it twice
+    does not send anything twice.
+    """
+    _guard(lambda: acl.require(session, project_id, principal,
+                               acl.ACCESS_EDITOR,
+                               "run the agent over this project"))
+    outcome = mon.sweep(session, send=not dry_run, project_ids=[project_id])
+    body = outcome.to_dict()
+    if dry_run:
+        body["would_send"] = [
+            {"user_id": m.user_id, "reference": m.entity_code,
+             "trigger": m.trigger, "body": m.body}
+            for m in outcome.messages]
+    return body
+
+
 @router.get("/projects/{project_id}/changes",
             summary="What actually moved since a moment")
 def changes(project_id: int, days: int = Query(default=7, ge=1, le=365),

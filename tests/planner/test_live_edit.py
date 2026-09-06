@@ -24,6 +24,7 @@ The four claims:
 from __future__ import annotations
 
 import uuid
+from datetime import date, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -138,6 +139,25 @@ def _task(project_id: int, code: str):
             select(PlannerTask).where(
                 PlannerTask.project_id == int(project_id),
                 PlannerTask.code == code)).scalar_one()
+
+
+def _make_late(client, who: int, project_id: int, code: str,
+               days: int) -> str:
+    """Put a task in the past through the ordinary route.
+
+    Through the task API rather than by saying it, because these tests are
+    about the agent rather than the reader, and a task whose start date is
+    still in the future would be refused for a reason that has nothing to do
+    with what is being checked.
+    """
+    task = _task(project_id, code)
+    due = date.today() - timedelta(days=days)
+    moved = client.patch(f"{PLANNER}/tasks/{int(task.id)}",
+                         headers=headers(who),
+                         json={"start_date": str(due - timedelta(days=20)),
+                               "due_date": str(due)})
+    assert moved.status_code == 200, moved.text
+    return str(due)
 
 
 def _project(project_id: int):
@@ -307,3 +327,52 @@ def test_the_boundary_still_holds_on_a_project(client, cast, live):
                 "What is the gini of the application scorecard?")
     assert said["in_scope"] is False
     assert "Scorecard Validation" in said["message"], said["message"]
+
+
+# ------------------------------------------------- running the agent by hand
+
+
+def test_the_manager_can_run_the_agent_over_their_own_project(client, cast,
+                                                              live, named):
+    """"Why has nobody been reminded about this?" is a Tuesday question.
+
+    The global sweep is an administrator's tool. Routing a project manager to
+    an administrator to find out why their own project is quiet is how a
+    monitoring feature stops being believed, so there is a per-project run —
+    with the same deduplication, so pressing it twice does not send twice.
+    """
+    overdue = _make_late(client, cast["alice"], live["id"], "M01-T01", 4)
+    assert str(_task(live["id"], "M01-T01").due_date) == overdue
+
+    url = f"{PLANNER}/projects/{live['id']}/sweep"
+    first = client.post(url, headers=headers(cast["alice"]))
+    assert first.status_code == 200, first.text
+    assert int(first.json()["sent"]) > 0, first.json()
+    assert "overdue" in first.json()["by_trigger"], first.json()
+
+    again = client.post(url, headers=headers(cast["alice"]))
+    assert again.status_code == 200, again.text
+    assert int(again.json()["sent"]) == 0, \
+        "the second run sent the same reminders again"
+
+
+def test_a_dry_run_says_what_it_would_send_without_sending_it(client, cast,
+                                                             live):
+    _make_late(client, cast["alice"], live["id"], "M01-T02", 3)
+
+    url = f"{PLANNER}/projects/{live['id']}/sweep?dry_run=true"
+    looked = client.post(url, headers=headers(cast["alice"]))
+    assert looked.status_code == 200, looked.text
+    assert looked.json()["would_send"], looked.json()
+
+    # And it really did not send: the live run afterwards still has something
+    # to send, which it would not if the dry run had spent it.
+    sent = client.post(f"{PLANNER}/projects/{live['id']}/sweep",
+                       headers=headers(cast["alice"]))
+    assert int(sent.json()["sent"]) > 0, sent.json()
+
+
+def test_a_contributor_cannot_make_the_agent_chase_people(client, cast, live):
+    refused = client.post(f"{PLANNER}/projects/{live['id']}/sweep",
+                          headers=headers(cast["bob"]))
+    assert refused.status_code in (403, 404), refused.text
