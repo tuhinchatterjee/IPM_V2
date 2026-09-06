@@ -85,6 +85,11 @@ class Result:
     sensitivity_rows: list[dict[str, Any]] = field(default_factory=list)
     steps: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    #: The full working frame — every reported and stressed column, before the
+    #: presentation layer narrows it. Kept so a SECOND ECL methodology can be
+    #: applied to exactly the same shocked book rather than re-deriving it,
+    #: which is how the Delta and ML answers stay comparable.
+    frame: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     @property
     def population_size(self) -> int:
@@ -713,7 +718,8 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
     work["primary_driver"] = _drivers(work, scenario)
     result = Result(scenario=scenario, period=settled,
                     borrowers=_present(work), steps=steps,
-                    sensitivity_rows=rows, warnings=warnings)
+                    sensitivity_rows=rows, warnings=warnings,
+                    frame=work.copy())
     result.summary = _summarise(work, scenario, settled)
     result.by_sector = _group(work, "sector")
     result.by_rating = _group(work, "internal_rating")

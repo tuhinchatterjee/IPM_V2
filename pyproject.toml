@@ -60,6 +60,24 @@ dependencies = [
     # scanned page yields no text and is marked NEEDS_OCR rather than stored
     # as empty — backend/regulatory/extract.py refuses to pretend.
     "pypdf==6.4.0",
+
+    # ---- What-If Analysis: the ML ECL methodology ----
+    # The second ECL methodology is a gradient-boosted model, and these are the
+    # only three dependencies it needs. xgboost is the model; scikit-learn
+    # supplies the metrics and the split utilities rather than a second
+    # hand-rolled implementation of R-squared; shap explains a prediction.
+    #
+    # The model is persisted as XGBoost's NATIVE JSON, never a pickle. That is
+    # not a preference: backend/brain/security.py refuses .pkl, .joblib and .pt
+    # on import because "a pickle is a program, not data", and .json is already
+    # on its allowlist. Nothing here weakens that control.
+    "xgboost==3.1.2",
+    "scikit-learn==1.7.2",
+    # Imported by backend/runtime/kernels.py for the stat_test kernel and never
+    # declared, so a container built from these files raised ImportError the
+    # first time anybody ran that kernel. scikit-learn and shap both need it
+    # anyway; declaring it fixes a defect that predates this work.
+    "scipy==1.16.2",
 ]
 
 [dependency-groups]
