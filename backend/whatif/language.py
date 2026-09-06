@@ -138,18 +138,58 @@ _HYPOTHETICAL = re.compile(
     r"|\bunder\s+(?:a|an|the|stress|shock|adverse|severe|downturn)\b",
     re.IGNORECASE)
 
-#: "12-month PD" and "3-month LIBOR" name a measure. The number in them is part
-#: of the measure's name, so it must not be read as the size of a movement.
-_TERM_OF_ART = re.compile(r"\b\d+\s*[- ]?\s*(?:month|year|day)s?\b",
-                          re.IGNORECASE)
+#: Numbers that are part of a NAME, not the size of a movement. "12-month PD"
+#: names a measure, "Stage 2" names a stage, and "four quarters ago" names a
+#: date. Masked before any magnitude is read, the same way a period is.
+_TERM_OF_ART = re.compile(
+    r"\b\d+\s*[- ]?\s*(?:month|year|day)s?\b"
+    r"|\bstage\s*\d\b"
+    r"|\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+"
+    r"(?:quarter|year|month)s?\s+(?:ago|earlier|back|before)\b",
+    re.IGNORECASE)
+
+#: Words that turn a movement verb into a movement NOUN. "rank sectors by the
+#: largest increase" reports one; "increase PD by 20%" instructs one. Without
+#: this the reader answers a ranking question with a shocked book.
+#: A determiner or a superlative makes it a noun — "the largest increase". So
+#: does a preposition: "ranked BY increase", "an increase IN ECL". A conjunction
+#: does not, because "reduce collateral and increase PD" is still two
+#: instructions.
+_NOMINAL_BEFORE = re.compile(
+    r"(?:\b(?:the|a|an|its|their|our|this|that|those|these|any|no|net|"
+    r"largest|biggest|greatest|smallest|sharp|sharpest|recent|same|"
+    r"total|average|overall|percentage|"
+    r"by|in|of|for|with|on|from|per|about)\s+)$", re.IGNORECASE)
+
+
+def _instructs(text: str, pattern: re.Pattern[str]) -> bool:
+    """True when the verb is used as a verb, not as a noun."""
+    for found in pattern.finditer(text):
+        if not _NOMINAL_BEFORE.search(text[:found.start()]):
+            return True
+    return False
 
 #: A plain instruction. "Increase Stage 1 PD by 20%" is a What-If — it just
 #: does not phrase itself as a question. Requiring "what if" would refuse the
 #: most direct way a credit officer states a scenario.
-_INSTRUCTS = re.compile(
-    r"\b(?:increase|decrease|raise|reduce|lower|cut|add|apply|set|move|"
-    r"migrate|downgrade|upgrade|cure|shift|widen|narrow|weaken|strengthen)\b",
+#: Verbs that can only mean a credit move. "Downgrade the BBB names" is a
+#: scenario with or without a notch count, so these open a What-If on their own
+#: and the product asks how far.
+_CREDIT_MOVE = re.compile(
+    r"\b(?:downgrade[sd]?|upgrade[sd]?|cure[sd]?|migrate[sd]?)\b",
     re.IGNORECASE)
+
+#: Verbs that move SOMETHING, but not necessarily a risk parameter. "Add their
+#: latest internal rating" adds a column to the answer on screen; "add 20% to
+#: PD" adds to a risk parameter. Without a size these are enrichment, not a
+#: scenario, and reading them as one takes a thread's follow-up away from the
+#: conversation that owns it.
+#: "weaken" and "strengthen" sit here rather than with the credit moves: a
+#: screening question asks which borrowers ARE weakening, and only a scenario
+#: says by how much.
+_MOVES = re.compile(
+    r"\b(?:increase|decrease|raise|reduce|lower|cut|add|apply|set|move|"
+    r"shift|widen|narrow|weaken\w*|strengthen\w*)\b", re.IGNORECASE)
 
 #: A bare direction. Only counts as an instruction when a size is present too,
 #: because "PD is down" is an observation and "PD down 20%" is a scenario.
@@ -603,7 +643,10 @@ def read(question: str) -> Reading:
     # answered a question nobody asked.
     sized = _TERM_OF_ART.sub(" ", temporal.without_time(said))
     directed = bool(_DIRECTED.search(said) and _HAS_MAGNITUDE.search(sized))
-    opens = bool(_OPENS_WHATIF.search(said) or _INSTRUCTS.search(said) or directed)
+    opens = bool(_OPENS_WHATIF.search(said)
+                 or _instructs(said, _CREDIT_MOVE)
+                 or (_instructs(said, _MOVES) and _HAS_MAGNITUDE.search(sized))
+                 or directed)
     # A report is never a scenario, however many scenario words it borrows.
     reports = bool(_ASKS.search(said)
                    and _PAST_OR_PERFECT.search(said)

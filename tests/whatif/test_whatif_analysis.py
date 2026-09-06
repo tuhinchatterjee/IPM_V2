@@ -714,6 +714,18 @@ class TestAReportIsNotAScenario:
         "Show me the top ten deteriorating borrowers.",
         "Which also had an increase in ECL?",
         "Which borrowers have the strongest evidence of liquidity stress?",
+        # A movement word used as a NOUN, or after a preposition.
+        "Show me the top ten Shipping customers by increase in expected "
+        "credit loss over the latest quarter.",
+        "Rank sectors by the largest increase in ECL.",
+        "For each sector, calculate Stage 2 EAD as a percentage of total "
+        "sector EAD, compare it with four quarters ago, and rank sectors by "
+        "the largest increase.",
+        # A thread follow-up that enriches the answer on screen.
+        "Add their latest internal rating.",
+        "Add their DSCR and leverage.",
+        # A screening question in the present continuous.
+        "Which borrowers are weakening but are not yet on the watchlist?",
     )
 
     SCENARIOS = (
@@ -727,6 +739,9 @@ class TestAReportIsNotAScenario:
         "What if ratings had fallen two notches?",
         "Which borrowers move to Stage 2 under a severe scenario?",
         "Which sectors had the largest ECL under stress?",
+        "Reduce collateral by 20% and increase PD by 10%.",
+        "Weaken DSCR by 20%.",
+        "Cure 30% of Stage 2.",
     )
 
     @pytest.mark.parametrize("question", REPORTS)
