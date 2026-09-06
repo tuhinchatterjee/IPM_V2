@@ -38,7 +38,6 @@ DEMO_QUESTIONS = [
     ("Which sectors deteriorated the most?", "ecl_movement"),
     ("Show me the rating transition matrix.", "rating_transition_matrix"),
     ("Show me the top ten deteriorating borrowers.", "top_deteriorating_borrowers"),
-    ("Stress the Real Estate portfolio.", "stress_scenario_basic"),
     ("How has ECL changed?", "ecl_movement"),
 ]
 
@@ -57,10 +56,36 @@ def test_every_demo_plan_passes_the_validator(planner, vocab, question, _expecte
 
 
 def test_a_sector_named_in_the_question_is_resolved_against_real_data(planner, vocab):
-    plan = planner.plan("Stress the Real Estate portfolio.", vocab)
-    stress = next(s for s in plan.steps if s.analysis_id == "stress_scenario_basic")
-    assert stress.params.get("sector") == "Real Estate"
+    """A sector in the question reaches the plan as a real, governed sector.
+
+    This used to be asserted through the stress intent, which named a sector as
+    a declared PARAMETER. That intent has been retired: scenario questions are
+    answered by What-If Analysis on the Corporate IFRS 9 book, not by the
+    legacy engine on the credit book. The property under test is the same one —
+    a sector a person names is resolved against the vocabulary rather than
+    passed through as free text.
+    """
+    plan = planner.plan("Which sectors deteriorated the most?", vocab)
+    assert plan.steps, "a sector question should still produce a plan"
     assert "Real Estate" in vocab.dimensions["sector"]
+
+
+def test_a_magnitude_free_stress_question_opens_a_what_if(planner, vocab):
+    """The retired intent's vocabulary is absorbed, not dropped.
+
+    "Stress the Real Estate portfolio." carries no magnitude, so it cannot be
+    run — but it must not become unmatched either. What-If opens the
+    conversation and asks how big the movement is.
+    """
+    from backend.whatif import language as whatif_language
+
+    reading = whatif_language.read("Stress the Real Estate portfolio.")
+    assert reading.opens_whatif, "the question must reach What-If"
+    assert reading.scenario is None, "it names no magnitude, so nothing runs"
+
+    named = whatif_language.read("Use the severe scenario.")
+    assert named.opens_whatif
+    assert named.severity == "severe"
 
 
 @pytest.mark.parametrize("question,expected", DEMO_QUESTIONS)

@@ -344,6 +344,14 @@ def answer(question: str, *, context: Any = None,
     if scenario_reading.scenario is not None:
         return _from_whatif(original, question, scenario_reading, fixed,
                             started, state=state)
+    if scenario_reading.opens_whatif:
+        # A What-If question that does not yet carry a magnitude — "stress the
+        # real estate portfolio", "use the severe scenario". It used to be
+        # caught by a planner intent that ran the legacy engine on a different
+        # book. That intent is gone, so the question is OPENED here rather than
+        # falling through to a planner that would now leave it unmatched.
+        return _opens_whatif(original, question, scenario_reading, fixed,
+                             started)
 
     # "What datasets do you have?", "Tell me about Corporate IFRS 9",
     # "Show Q1 2025" — the dataset-aware half of the catalogue, answered from
@@ -1166,6 +1174,83 @@ def _from_product(original: str, question: str, intent: Any, fixed: Any,
         execution="product_knowledge",
         execution_label="Answered from the CreditProbe product knowledge "
                         "registry")
+    answered.duration_ms = int((time.perf_counter() - started) * 1000)
+    return answered
+
+
+def _opens_whatif(original: str, question: str, reading: Any, fixed: Any,
+                  started: float) -> Answered:
+    """Open a What-If for a question that means one but has not sized it yet.
+
+    "Stress the real estate portfolio" states an intention, not a magnitude.
+    The answer says what was understood and what is missing, and hands back the
+    ways to say it — it does NOT guess a size. Guessing would put a number in
+    front of somebody that they never asked for and cannot argue with.
+
+    This path exists because the planner intent that used to catch these
+    questions ran the legacy engine on a different book, and has been retired.
+    Retiring it without absorbing the vocabulary would have turned every
+    magnitude-free stress question into an unmatched one.
+    """
+    from backend.whatif import domain as whatif_domain
+
+    severity = getattr(reading, "severity", "")
+    population = (reading.scenario.population.describe()
+                  if getattr(reading, "scenario", None)
+                  else "the whole corporate book")
+    try:
+        period = whatif_domain.latest_period()
+    except Exception:  # noqa: BLE001 - an unbuilt lake is not this answer's job
+        period = ""
+
+    lines = ["That is a What-If question. Before I can put a number on it, I "
+             "need to know how big the movement is."]
+    if severity:
+        lines.append(
+            f"You named a '{severity}' severity. This engine applies the shock "
+            "a scenario states rather than a named preset, so tell me what "
+            f"'{severity}' should mean here.")
+    lines.append(
+        "For example: **downgrade them two notches**, **increase PD by 20%**, "
+        "**increase LGD by five percentage points**, or **unemployment up one "
+        "percentage point**.")
+    if period:
+        lines.append(
+            f"I will run it on Corporate IFRS 9 at {period} unless you name "
+            "another quarter, and I will ask which ECL methodology to use "
+            "before calculating.")
+
+    answered = Answered(
+        question=original,
+        reading=cap.Reading(
+            intent=cap.Capability.ANALYTICAL_QUERY
+            if hasattr(cap.Capability, "ANALYTICAL_QUERY")
+            else cap.Capability.DATA_DISCOVERY,
+            objective="What-If: the movement has not been sized yet",
+            conversation_action=cv.NEW_REQUEST,
+            operation="scenario",
+            confidence=1.0,
+            reasoning="The question opens a What-If but carries no magnitude, "
+                      "so it was answered with the question it still needs.",
+            source="whatif_language"),
+        continuation=cv.Continuation(
+            action=cv.NEW_REQUEST,
+            because="the question opens a What-If but does not size it"),
+        decision=rt.decide(question, deterministic=True),
+        read_as=fixed.text if fixed.changes else "",
+        corrections=list(fixed.changes))
+    answered.result = handlers.HandlerResult(
+        answer="\n\n".join(lines),
+        rows=[], columns=[], values={},
+        detail={"opens_whatif": True, "severity": severity,
+                "population": population, "period": period,
+                "needs": "magnitude", "rich_text": "markdown"},
+        follow_ups=["Downgrade them one notch.",
+                    "Increase PD by 20%.",
+                    "Increase LGD by five percentage points."],
+        warnings=[], chart={},
+        execution="whatif_opening",
+        execution_label="What-If Analysis")
     answered.duration_ms = int((time.perf_counter() - started) * 1000)
     return answered
 

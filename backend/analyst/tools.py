@@ -1541,11 +1541,14 @@ REGISTRY: tuple[Tool, ...] = (
          {"analysis": "the certified analysis id",
           "parameters": "its parameters, as an object"},
          ("analysis",), run_governed_analysis),
-    Tool("run_stress_analysis",
-         "A governed stress scenario over the book.", RUN_ANALYSIS,
-         {"scenario": "the scenario name, e.g. 'moderate'",
-          "sector": "optional: restrict to one sector"},
-         (), run_stress_analysis),
+    # `run_stress_analysis` is deliberately NOT registered. It executed
+    # `stress_scenario_basic`, which runs on the credit book at facility grain
+    # with a ten-point rating scale and a five-trigger staging rule — a
+    # different book from the one What-If answers about. Two scenario engines
+    # reachable from the same conversation would give a credit officer two
+    # different answers to one question. The handler is left in place because
+    # the engine analysis is still registered for direct API use and for the
+    # historical runs that reference it; nothing routes the model to it.
 
     # ---- evidence
     Tool("fetch_borrower_360",

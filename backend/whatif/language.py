@@ -89,6 +89,27 @@ _PP = re.compile(_NUMBER + r"\s*(?:pp\b|percentage\s+points?\b|ppt\b)",
 _PCT = re.compile(_NUMBER + r"\s*(?:%|per\s?cent\w*\b)", re.IGNORECASE)
 
 
+#: The vocabulary the retired planner intent used to catch. A question using
+#: any of these is a What-If question even when it carries no number — "stress
+#: the real estate portfolio" states an intention, not a magnitude, and the
+#: right response is to open a What-If and ask how hard, not to fall through to
+#: a planner that no longer answers it.
+_OPENS_WHATIF = re.compile(
+    r"\bstress\w*\b|\bshock\w*\b|\bdownturn\b|\bscenario\b|\badverse\b"
+    r"|\bsensitivit\w+|\bdownside\b|\bsevere case\b|\bwhat[- ]if\b"
+    r"|\bdeteriorat\w+|\bworsen\w*\b", re.IGNORECASE)
+
+#: Severity words the old presets were selected by. "Use the severe scenario"
+#: named a preset that no longer exists on this path, so the word is read as a
+#: severity the person wants rather than left unmatched.
+_SEVERITY = {
+    "base": "base", "mild": "mild", "light": "mild", "moderate": "moderate",
+    "severe": "severe", "extreme": "severe", "harsh": "severe",
+}
+_SEVERITY_WORD = re.compile(
+    r"\b(base|mild|light|moderate|severe|extreme|harsh)\b", re.IGNORECASE)
+
+
 @dataclass
 class Reading:
     """What the sentence said, and what could not be read from it."""
@@ -99,8 +120,13 @@ class Reading:
     objective: str = "summary"
     unread: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    #: The question belongs to What-If but does not yet describe a runnable
+    #: scenario. The product should OPEN a What-If and ask, never fall through.
+    opens_whatif: bool = False
+    #: A severity the question named without giving a magnitude.
+    severity: str = ""
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:  # noqa: D102
         return {
             "is_scenario_question": self.is_scenario_question,
             "continues_previous": self.continues_previous,
@@ -378,8 +404,13 @@ def read(question: str) -> Reading:
 
     is_scenario = bool(_ASKS_A_SCENARIO.search(said))
     continues = bool(_CONTINUES.search(said))
-    reading = Reading(is_scenario_question=is_scenario or continues,
-                      continues_previous=continues and not is_scenario)
+    opens = bool(_OPENS_WHATIF.search(said))
+    reading = Reading(is_scenario_question=is_scenario or continues or opens,
+                      continues_previous=continues and not is_scenario,
+                      opens_whatif=opens)
+    severity = _SEVERITY_WORD.search(said)
+    if severity:
+        reading.severity = _SEVERITY[severity.group(1).lower()]
 
     for pattern, objective in _OBJECTIVE_COMPILED:
         if pattern.search(said):
@@ -398,6 +429,15 @@ def read(question: str) -> Reading:
 
     if not shocks:
         if reading.continues_previous:
+            return reading
+        if reading.opens_whatif:
+            # A What-If question with no magnitude. The product opens the
+            # conversation and asks; it does not hand the question back.
+            reading.notes.append(
+                "This is a What-If question, but it does not yet say how big "
+                "the movement is. Opening a What-If to ask."
+                + (f" A '{reading.severity}' severity was named."
+                   if reading.severity else ""))
             return reading
         reading.unread.append("no shock could be read from the question")
         return reading

@@ -275,15 +275,15 @@ export const NAV_ITEMS: NavItem[] = [
       "The transparency argument in one screen. Open a borrower and read a condition out: the value, the previous value, the threshold and who owns it.",
   },
   {
-    href: "/stress",
-    label: "Stress Testing",
+    href: "/what-if",
+    label: "What-If Analysis",
     description:
-      "Named, versioned management scenarios applied to the portfolio, with comparison.",
+      "Change a risk assumption and see what it does to ECL, and why.",
     icon: FlaskConical,
     status: "live",
     phase: "",
     group: "Intelligence",
-    demo: "optional",
+    demo: "core",
   },
 
   // ---- BUILD: what the product is capable of, and what it may read ----
