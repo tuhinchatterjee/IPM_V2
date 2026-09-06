@@ -582,6 +582,81 @@ def methodology_gate(active: str = Query(default="", max_length=16),
                        ml_note="No ML model has been activated yet.")
 
 
+class InterpretIn(BaseModel):
+    instruction: str = Field(min_length=1, max_length=1000)
+    state: StateIn = Field(default_factory=StateIn)
+
+
+@router.post("/interpret")
+def interpret(body: InterpretIn, _: Any = RequireAnalyst) -> dict[str, Any]:
+    """Turn a sentence into a scenario STEP on the current state.
+
+    This is the scenario builder. It is deterministic — regular expressions
+    over a governed vocabulary, no model — which is why the same sentence
+    always produces the same step and why a step can be edited afterwards
+    rather than re-argued.
+
+    Three outcomes, and the product needs all three:
+
+      * a step was read, and is appended to the thread;
+      * the sentence is a What-If but names no magnitude, so the product asks
+        how big rather than guessing;
+      * the sentence asks about the book instead of changing it, and is routed
+        to the profile screens rather than answered with an ECL figure.
+    """
+    said = body.instruction.strip()
+    try:
+        state = _state_from(body.state)
+    except (stg.StagingError, sp.StepError) as e:
+        raise _refused(str(e)) from e
+
+    reading = lg.read(said)
+    informational = rn.informational(said)
+
+    if reading.scenario is None:
+        return {
+            "understood": False,
+            "opens_whatif": bool(getattr(reading, "opens_whatif", False)),
+            "informational": informational,
+            "severity": getattr(reading, "severity", ""),
+            "message": (
+                "That asks about the book rather than changing it. The profile "
+                "views answer it without an ECL calculation, so no methodology "
+                "is needed."
+                if informational else
+                "That is a What-If, but it does not say how big the movement "
+                "is yet. Tell me the size — for example \"two notches\", "
+                "\"20%\", or \"five percentage points\"."),
+            "notes": list(reading.notes),
+            "unread": list(reading.unread),
+            "state": state.to_dict(),
+        }
+
+    scenario = reading.scenario
+    kinds = {shock.kind for shock in scenario.shocks}
+    kind = next((k for k in sp.APPLY_ORDER if k in kinds), sp.PD)
+    step = sp.Step(kind=kind, shocks=tuple(scenario.shocks),
+                   population=scenario.population,
+                   instruction=said, interpreted=scenario.describe())
+    updated = state.add(step)
+    if scenario.period:
+        updated = updated.with_period(scenario.period)
+
+    return {
+        "understood": True,
+        "opens_whatif": True,
+        "informational": False,
+        "step": step.to_dict(),
+        "restatement": (
+            f"Understood: {scenario.describe()} for "
+            f"{scenario.population.describe()}."),
+        "notes": list(reading.notes),
+        "unread": list(reading.unread),
+        "objective": reading.objective,
+        "state": updated.to_dict(),
+    }
+
+
 # ------------------------------------------------------------------ running
 
 
