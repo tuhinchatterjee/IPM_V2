@@ -379,8 +379,8 @@ def _apply_ccf(work: pd.DataFrame, shock: sc.Shock,
     steps.append({
         "step": f"CCF {shock.describe()}",
         "detail": (f"The conversion factor moved from a weighted "
-                   f"{float((current * undrawn).sum() / undrawn.sum()) if undrawn.sum() else 0:.3f} "
-                   f"to {float((moved * undrawn).sum() / undrawn.sum()) if undrawn.sum() else 0:.3f}. "
+                   f"{float((current * undrawn).sum() / undrawn.sum()) * 100 if undrawn.sum() else 0:.1f}% "
+                   f"to {float((moved * undrawn).sum() / undrawn.sum()) * 100 if undrawn.sum() else 0:.1f}%. "
                    f"EAD follows through drawn + CCF x undrawn, moving "
                    f"{(after / before - 1) * 100 if before else 0:+.2f}% — not "
                    "by the CCF's own percentage."),

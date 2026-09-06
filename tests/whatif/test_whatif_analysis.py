@@ -19,6 +19,7 @@ from backend.corporate.universe import RATING_SCALE
 from backend.ifrs9 import policy
 from backend.whatif import delta as dl
 from backend.whatif import domain as dm
+from backend.whatif import language as lang
 from backend.whatif import macro as mc
 from backend.whatif import methodology as me
 from backend.whatif import migration as mg
@@ -685,3 +686,62 @@ class TestRunningAWhatIf:
                 > loose_result.summary["stage_2_migrations"])
         assert strict_result.context()["staging_version"] != \
             loose_result.context()["staging_version"]
+
+
+# ======================================================= reports vs scenarios
+
+class TestAReportIsNotAScenario:
+    """The screening questions the rest of the product answers.
+
+    What-If opens on a magnitude-free instruction — "stress the Real Estate
+    portfolio" — which means the reader now recognises words that also appear
+    in questions about what the book ALREADY did. A question in the perfect or
+    the past tense, asking which names moved, belongs to the certified
+    analysis that answers it; taking it into a scenario answers a question
+    nobody asked and quietly retires a screen that works.
+    """
+
+    REPORTS = (
+        "Which sectors deteriorated the most?",
+        "Which sectors deteriorated most this quarter?",
+        "Which exposures have deteriorated this quarter?",
+        "Which rating grades saw the largest increase in exposure at default?",
+        "Which sectors have borrowers with rising 12-month PD?",
+        "Which customers had a rating downgrade and an increase in ECL over "
+        "the latest year?",
+        "Which customers have worsening leverage and declining DSCR together "
+        "with a rating downgrade?",
+        "Show me the top ten deteriorating borrowers.",
+        "Which also had an increase in ECL?",
+        "Which borrowers have the strongest evidence of liquidity stress?",
+    )
+
+    SCENARIOS = (
+        "Stress the Real Estate portfolio.",
+        "Downgrade everyone two notches.",
+        "Increase Stage 1 PD by 20%.",
+        "Oil price down 20%.",
+        "Policy rates up 200 bps.",
+        "Apply a severe downturn.",
+        "Move half of Stage 1 to Stage 2.",
+        "What if ratings had fallen two notches?",
+        "Which borrowers move to Stage 2 under a severe scenario?",
+        "Which sectors had the largest ECL under stress?",
+    )
+
+    @pytest.mark.parametrize("question", REPORTS)
+    def test_a_question_about_the_past_is_not_a_what_if(self, question) -> None:
+        reading = lang.read(question)
+        assert not reading.is_scenario_question, question
+        assert reading.scenario is None, question
+
+    @pytest.mark.parametrize("question", SCENARIOS)
+    def test_a_hypothetical_or_an_instruction_still_opens_one(
+            self, question) -> None:
+        assert lang.read(question).is_scenario_question, question
+
+    def test_a_measure_that_carries_a_number_in_its_name_is_not_a_size(
+            self) -> None:
+        """"12-month PD" names a measure. The 12 is not the size of a move."""
+        assert not lang.read("Borrowers with rising 12-month PD").is_scenario_question
+        assert lang.read("Increase 12-month PD by 20%").scenario is not None

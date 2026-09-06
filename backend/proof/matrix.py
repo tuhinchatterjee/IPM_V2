@@ -144,6 +144,38 @@ FEATURES: tuple[Feature, ...] = (
        "§8's governed Project Plan is not built. Recorded as not delivered "
        "rather than approximated by the existing Project fields."),
 
+    # -------------------------------------------------- What-If Analysis
+    _f("What-If Analysis", "scenario built in a conversation, in layers",
+       "backend/whatif/steps.py, frontend/src/app/what-if/thread/page.tsx",
+       "tests/whatif/test_whatif_analysis.py", RUN, PROVEN),
+    _f("What-If Analysis", "ECL methodology gate before any figure",
+       "backend/whatif/methodology.py, backend/api/routers/whatif.py",
+       "tests/whatif/test_whatif_ml_and_api.py", RUN, PROVEN),
+    _f("What-If Analysis", "Delta Model: PD, LGD and EAD factors",
+       "backend/whatif/delta.py, frontend/src/app/what-if/models/delta/",
+       "tests/whatif/test_whatif_analysis.py", RUN, PROVEN),
+    _f("What-If Analysis", "ML Model: XGBoost, anchored to reported ECL",
+       "backend/whatif/ml/, frontend/src/app/what-if/models/ml/",
+       "tests/whatif/test_whatif_ml_and_api.py", RUN, PROVEN,
+       "The macro variables are collinear by construction in this universe, "
+       "so they are deliberately not model features; the model card says so."),
+    _f("What-If Analysis", "governed staging criteria, editable per thread",
+       "backend/whatif/staging.py, backend/ifrs9/policy.py",
+       "tests/whatif/test_whatif_analysis.py", RUN, PROVEN,
+       "The UI edits thresholds and enables or disables rules; composing a "
+       "new rule is API-only."),
+    _f("What-If Analysis", "rating and Stage migration matrices",
+       "backend/whatif/migration.py",
+       "tests/whatif/test_whatif_analysis.py", RUN, PROVEN),
+    _f("What-If Analysis", "ten governed macro variables",
+       "backend/whatif/macro.py",
+       "tests/whatif/test_whatif_analysis.py", RUN, PROVEN,
+       "The sensitivities are declared management assumptions, not "
+       "estimated elasticities."),
+    _f("What-If Analysis", "saved and recent What-Ifs, reopened and rerun",
+       "backend/whatif/threads.py",
+       "tests/whatif/test_whatif_ml_and_api.py", RUN, PROVEN),
+
     # ---------------------------------------------------------- Analyses
     _f("Analyses", "dynamic run and saved Analysis",
        "backend/orchestration/, backend/api/routers/hierarchy.py",

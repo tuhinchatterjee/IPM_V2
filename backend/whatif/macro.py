@@ -281,7 +281,8 @@ class Applied:
                 f"{'%' if self.unit == RELATIVE else ''} "
                 f"({self.units:+.2f} {direction} units of "
                 f"{self.variable.adverse_label.replace('per ', '')}): "
-                f"PD x{self.pd_factor:.4f}, LGD {self.lgd_delta_pp:+.2f}pp")
+                f"PD {(self.pd_factor - 1) * 100:+.2f}%, "
+                f"LGD {self.lgd_delta_pp:+.2f}pp")
 
     def to_dict(self) -> dict[str, Any]:
         return {"key": self.variable.key, "name": self.variable.name,

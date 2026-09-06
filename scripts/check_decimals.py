@@ -89,6 +89,21 @@ ALLOWLIST: tuple[Allowed, ...] = (
         "everywhere else — `report.percent` renders every rate, and "
         "`report.stat` every statistic that reaches the report."),
     Allowed(
+        "frontend/src/app/what-if/models/ml/page.tsx",
+        "The What-If ML model's configuration page: the out-of-time metric "
+        "table, the SHAP explanation of one scored example, and the "
+        "prediction the contributions have to add up to. Same reasoning as "
+        "backend/scorecard/metrics.py, on the screen instead of in the "
+        "report. An R-squared of 0.9976 rendered as 1.00 makes every "
+        "candidate look identical to the champion, which is the one "
+        "comparison this page exists to support; and a SHAP contribution of "
+        "0.000412 on an ECL RATE rendered as 0.00 stops the contributions "
+        "summing to the prediction, which is the property that makes the "
+        "explanation checkable at all. These are model diagnostics on a "
+        "model page. Every figure a committee reads as an amount — the "
+        "What-If ECL, the movement, the coverage — is on the RESULT screen "
+        "and goes through the contract there."),
+    Allowed(
         "backend/corporate/graphmath.py",
         "The spectral radius of an ownership component, in the refusal "
         "message that explains why effective ownership was not computed. "

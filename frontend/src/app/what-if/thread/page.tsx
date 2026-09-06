@@ -660,13 +660,13 @@ export default function WhatIfThreadPage() {
                     ) : null}
                     {result.factors ? (
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                        <Figure label="PD factor" value={result.factors.pd_factor.toFixed(4)} />
-                        <Figure label="Stage factor" value={result.factors.stage_factor.toFixed(4)} />
-                        <Figure label="LGD factor" value={result.factors.lgd_factor.toFixed(4)} />
-                        <Figure label="EAD factor" value={result.factors.ead_factor.toFixed(4)} />
+                        <Figure label="PD effect" value={signed((result.factors.pd_factor - 1) * 100)} />
+                        <Figure label="Stage effect" value={signed((result.factors.stage_factor - 1) * 100)} />
+                        <Figure label="LGD effect" value={signed((result.factors.lgd_factor - 1) * 100)} />
+                        <Figure label="EAD effect" value={signed((result.factors.ead_factor - 1) * 100)} />
                         <Figure
                           label="Combined"
-                          value={result.factors.combined_factor.toFixed(4)}
+                          value={signed((result.factors.combined_factor - 1) * 100)}
                           tone="whatif"
                         />
                       </div>
@@ -789,7 +789,7 @@ export default function WhatIfThreadPage() {
                                     <td key={c} className="py-1 pr-2 tabular-nums">
                                       {typeof row[c] === "number"
                                         ? (row[c] as number).toLocaleString(undefined, {
-                                            maximumFractionDigits: 3,
+                                            maximumFractionDigits: 2,
                                           })
                                         : String(row[c] ?? "")}
                                     </td>

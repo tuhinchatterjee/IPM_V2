@@ -245,8 +245,10 @@ def describe() -> dict[str, Any]:
                     "x LGD factor x EAD factor"),
         "as_built": (
             "The engine measures both states on the governed basis "
-            "(ECL = PD_applicable x LGD x EAD x "
-            f"{policy.WEIGHTED_SCENARIO_FACTOR:.3f}) and forms their ratio. "
+            "(ECL = PD_applicable x LGD x EAD, uplifted by the governed "
+            "scenario weighting of "
+            f"{(policy.WEIGHTED_SCENARIO_FACTOR - 1) * 100:+.1f}%) and forms "
+            "their ratio. "
             "The scenario weighting cancels, so the ratio equals the product "
             "of the three factors above. They are reported separately rather "
             "than computed a second way."),

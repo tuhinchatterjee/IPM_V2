@@ -103,8 +103,45 @@ _PCT = re.compile(_NUMBER + r"\s*(?:%|per\s?cent\w*\b)", re.IGNORECASE)
 #: a planner that no longer answers it.
 _OPENS_WHATIF = re.compile(
     r"\bstress\w*\b|\bshock\w*\b|\bdownturn\b|\bscenario\b|\badverse\b"
-    r"|\bsensitivit\w+|\bdownside\b|\bsevere case\b|\bwhat[- ]if\b"
-    r"|\bdeteriorat\w+|\bworsen\w*\b", re.IGNORECASE)
+    r"|\bsensitivit\w+|\bdownside\b|\bsevere case\b|\bwhat[- ]if\b",
+    re.IGNORECASE)
+
+#: A question about what the book ALREADY did. "Which sectors deteriorated the
+#: most?" and "Which customers had a rating downgrade?" are reports: the words
+#: that open a scenario — downgrade, increase, rising — appear in them as
+#: history, not as instructions. Answering either with a shocked book answers a
+#: question nobody asked, and silently takes the screening questions away from
+#: the analysis that is certified to answer them.
+#:
+#: The frame is deliberately narrow: the sentence has to ASK (an interrogative
+#: or a listing verb), it has to be in the past or the perfect, and it must
+#: carry no hypothetical at all. A scenario survives all three — "what if
+#: ratings had fallen" keeps its "what if", and "Downgrade everyone two
+#: notches" never asks in the first place.
+_ASKS = re.compile(
+    r"^\s*(?:which|what|who|whose|whom|how\s+many|how\s+much|list|show|name|"
+    r"rank|give|tell)\b", re.IGNORECASE)
+_PAST_OR_PERFECT = re.compile(
+    r"\b(?:saw|had|has|have|having|were|was|been|did|"
+    r"deteriorated|worsened|improved|rose|fell|grew|shrank|moved|migrated|"
+    r"increased|decreased|breached|defaulted|downgraded|upgraded)\b",
+    re.IGNORECASE)
+#: What makes a past-tense question hypothetical after all. Deliberately does
+#: NOT include "stress", "shock" or "adverse" on their own: "borrowers with the
+#: strongest evidence of liquidity stress" is a screening question, and a word
+#: that names a CONDITION cannot also be the thing that proves a sentence is
+#: about a condition that has not happened. "Under stress" can, because the
+#: preposition is what makes it counterfactual.
+_HYPOTHETICAL = re.compile(
+    r"\bif\b|\bwere\s+to\b|\bwould\b|\bassum\w+|\bsuppose\w*\b"
+    r"|\bscenario\b|\bwhat[- ]if\b|\bsimulat\w+|\bhypothetic\w+"
+    r"|\bunder\s+(?:a|an|the|stress|shock|adverse|severe|downturn)\b",
+    re.IGNORECASE)
+
+#: "12-month PD" and "3-month LIBOR" name a measure. The number in them is part
+#: of the measure's name, so it must not be read as the size of a movement.
+_TERM_OF_ART = re.compile(r"\b\d+\s*[- ]?\s*(?:month|year|day)s?\b",
+                          re.IGNORECASE)
 
 #: A plain instruction. "Increase Stage 1 PD by 20%" is a What-If — it just
 #: does not phrase itself as a question. Requiring "what if" would refuse the
@@ -564,9 +601,16 @@ def read(question: str) -> Reading:
     # downgraded and had ECL rise in Q1 2026?" is a question about what already
     # happened; reading the year as a magnitude turned it into a scenario and
     # answered a question nobody asked.
-    directed = bool(_DIRECTED.search(said)
-                    and _HAS_MAGNITUDE.search(temporal.without_time(said)))
+    sized = _TERM_OF_ART.sub(" ", temporal.without_time(said))
+    directed = bool(_DIRECTED.search(said) and _HAS_MAGNITUDE.search(sized))
     opens = bool(_OPENS_WHATIF.search(said) or _INSTRUCTS.search(said) or directed)
+    # A report is never a scenario, however many scenario words it borrows.
+    reports = bool(_ASKS.search(said)
+                   and _PAST_OR_PERFECT.search(said)
+                   and not _HYPOTHETICAL.search(said))
+    if reports:
+        return Reading(notes=["Read as a question about what the book already "
+                              "did, not as a What-If."])
     reading = Reading(is_scenario_question=is_scenario or continues or opens,
                       continues_previous=continues and not is_scenario,
                       opens_whatif=opens)

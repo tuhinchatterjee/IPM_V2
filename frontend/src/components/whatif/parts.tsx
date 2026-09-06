@@ -422,7 +422,7 @@ export function ProfileTable({
       <TableCell numeric>{pct(row.avg_pd_applicable, 3)}</TableCell>
       <TableCell numeric>{pct(row.avg_lgd, 2)}</TableCell>
       <TableCell numeric>
-        {row.avg_ccf === null ? "—" : row.avg_ccf.toFixed(3)}
+        {row.avg_ccf === null ? "—" : pct(row.avg_ccf * 100, 1)}
       </TableCell>
       <TableCell numeric>{money(row.ecl, currency)}</TableCell>
       <TableCell numeric>{pct(row.ecl_coverage_pct, 3)}</TableCell>
@@ -447,7 +447,7 @@ export function ProfileTable({
             <TableHead numeric>Lifetime PD</TableHead>
             <TableHead numeric>Applicable PD</TableHead>
             <TableHead numeric>LGD</TableHead>
-            <TableHead numeric>CCF</TableHead>
+            <TableHead numeric>CCF %</TableHead>
             <TableHead numeric>ECL</TableHead>
             <TableHead numeric>Coverage</TableHead>
             {extra.map((c) => (
