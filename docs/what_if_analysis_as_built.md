@@ -232,6 +232,8 @@ percentage change. A saved What-If persists all of it.
 | Production build | `npm run build` | all routes built |
 | Migrations | `uv run alembic upgrade head` + `heads` | **single head 0041** |
 | Browser journeys | `node scripts/acceptance/whatif_journeys.mjs` | **9/9, 72/72 checks** |
+| Display contract | `uv run python scripts/check_decimals.py` | **0 unexplained sites** |
+| Feature matrix | `uv run python scripts/feature_matrix.py --write` | every page judged |
 
 ## 11. Defects found and fixed
 
@@ -269,8 +271,21 @@ percentage change. A saved What-If persists all of it.
     are gone from the openers. `TestAReportIsNotAScenario` holds it, twenty
     sentences each way.
 12. **A measure that carries a number in its name was read as a size** —
-    "12-month PD" was a movement of twelve.
-13. **Sixteen figures broke the display contract**
+    "12-month PD" was a movement of twelve, "Stage 2" a movement of two, and
+    "four quarters ago" a movement of four.
+13. **A movement word used as a NOUN was read as an instruction.** "Rank
+    sectors by the largest increase" and "the top ten customers by increase
+    in ECL" report a movement; they do not ask for one. A movement verb now
+    only instructs when it is not preceded by a determiner, a superlative or
+    a preposition — `and` excluded, because "reduce collateral and increase
+    PD" is still two instructions.
+14. **Verbs that move something without naming a risk parameter now need a
+    size.** "Add their latest internal rating" adds a column to the answer on
+    screen; reading it as a scenario took a thread's follow-up away from the
+    conversation that owned it. Only `downgrade`, `upgrade`, `cure` and
+    `migrate` open a What-If unaided. "Which borrowers are weakening" is a
+    screen; "weaken DSCR by 20%" is a scenario.
+15. **Sixteen figures broke the display contract**
     (`scripts/check_decimals.py`). The CCF now reads as a percentage, the
     macro line as a PD effect, the Delta tiles as effects rather than
     four-decimal multipliers, and the governed 1.082 is quoted as the
@@ -279,10 +294,10 @@ percentage change. A saved What-If persists all of it.
     an R² of 0.9976 shown as 1.00 makes every candidate look like the
     champion, and a SHAP contribution rounded to 0.00 stops the
     contributions summing to the prediction they explain.
-14. **Four new pages carried no curated judgement**, so
+16. **Four new pages carried no curated judgement**, so
     `docs/FINAL_FEATURE_VERIFICATION_MATRIX.md` did not describe them and
     two tests in `tests/docs` failed. Judgements added, matrix regenerated.
-15. **The capability claimed a feature area that did not exist** —
+17. **The capability claimed a feature area that did not exist** —
     `product/knowledge.py` named "What-If Analysis" while
     `backend/proof/matrix.py` had no such area. Eight proof rows added,
     with the browser and test evidence for each.
