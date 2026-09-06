@@ -129,18 +129,25 @@ def _row_to_saved(row: Any) -> Saved:
 
 
 def _unique_name(session: Any, model: Any, name: str, owner: int | None) -> str:
-    """A name that does not collide, because `(name, version)` is unique.
+    """A name that does not collide with any row, not just the caller's own.
 
-    A person who saves "Downgrade test" twice means two What-Ifs, not an error,
-    so the second becomes "Downgrade test (2)" rather than failing.
+    The uniqueness constraint on this table is `(name, version)` and it is
+    GLOBAL — it predates this feature and knows nothing about owners. Checking
+    only the caller's own names would pass here and fail in the database the
+    moment two people saved "Downgrade test", so the check has to match the
+    constraint rather than the access rule.
+
+    A person who saves the same name twice means two What-Ifs, not an error, so
+    the second becomes "Downgrade test (2)".
     """
-    base = (name or "Untitled What-If").strip()[:180]
-    existing = {r.name for r in session.query(model.name).filter(
-        model.created_by == owner).all()} if owner is not None else set()
-    existing = {str(x[0]) if isinstance(x, tuple) else str(x) for x in existing}
+    _ = owner
+    base = (name or "Untitled What-If").strip()[:170]
+    rows = session.query(model.name).filter(
+        model.version == THREADS_VERSION).all()
+    existing = {str(r[0]) if isinstance(r, tuple) else str(r) for r in rows}
     if base not in existing:
         return base
-    for n in range(2, 500):
+    for n in range(2, 5000):
         candidate = f"{base} ({n})"
         if candidate not in existing:
             return candidate

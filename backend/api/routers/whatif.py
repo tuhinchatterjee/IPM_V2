@@ -16,14 +16,25 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
+from backend.api.auth import Principal
 from backend.api.permissions import RequireAnalyst
 from backend.ifrs9 import policy
 from backend.whatif import answers as wa
+from backend.whatif import delta as dl
+from backend.whatif import domain as dm
 from backend.whatif import engine as wf
 from backend.whatif import language as lg
+from backend.whatif import macro as mc
 from backend.whatif import masterscale as ms
+from backend.whatif import methodology as me
+from backend.whatif import migration as mg
+from backend.whatif import profiles as pf
+from backend.whatif import run as rn
 from backend.whatif import scenarios as sc
 from backend.whatif import sensitivity as sv
+from backend.whatif import staging as stg
+from backend.whatif import steps as sp
+from backend.whatif import threads as th
 from backend.whatif import trace as wt
 
 logger = logging.getLogger(__name__)
@@ -224,3 +235,637 @@ def sensitivity(scenario_key: str = Query(default="", max_length=64),
 
 
 __all__ = ["router"]
+
+
+# ===================================================================== What-If
+#
+# Everything below serves the What-If Analysis product: the guided journeys,
+# the layered scenario, the methodology gate, and the model configuration.
+#
+# The six endpoints above predate it and are left exactly as they were. They
+# are the narrow scenario API; these are the product.
+
+
+def _domain_refused(message: str) -> HTTPException:
+    """A read this domain will not serve.
+
+    422 rather than 404, because the request was understood and refused. The
+    difference matters to a caller deciding whether to retry.
+    """
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail={"error": "outside_domain", "message": message})
+
+
+def _unavailable(message: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail={"error": "unavailable", "message": message})
+
+
+class StagingRuleIn(BaseModel):
+    key: str = Field(min_length=1, max_length=48)
+    threshold: float | None = Field(default=None, ge=0.0, le=1000.0)
+    floor: float | None = Field(default=None, ge=0.0, le=1000.0)
+    enabled: bool | None = None
+
+
+class StagingIn(BaseModel):
+    rules: list[StagingRuleIn] = Field(default_factory=list, max_length=20)
+    combination: str = Field(default=stg.ANY, max_length=8)
+    note: str = Field(default="", max_length=500)
+
+
+class StepIn(BaseModel):
+    kind: str = Field(min_length=1, max_length=24)
+    shocks: list[ShockIn] = Field(default_factory=list, max_length=12)
+    population: PopulationIn = Field(default_factory=PopulationIn)
+    instruction: str = Field(default="", max_length=1000)
+    interpreted: str = Field(default="", max_length=1000)
+    step_id: str = Field(default="", max_length=48)
+    enabled: bool = True
+    detail: dict[str, Any] = Field(default_factory=dict)
+
+
+class StateIn(BaseModel):
+    period: str = Field(default="", max_length=24)
+    title: str = Field(default="", max_length=200)
+    thread_id: str = Field(default="", max_length=64)
+    steps: list[StepIn] = Field(default_factory=list, max_length=40)
+    staging: StagingIn | None = None
+    methodology: str = Field(default="", max_length=16)
+    model_version: str = Field(default="", max_length=32)
+
+
+class ExecuteIn(BaseModel):
+    state: StateIn
+    #: The methodology the person just chose, if they are answering the gate.
+    methodology: str = Field(default="", max_length=16)
+    instruction: str = Field(default="", max_length=1000)
+    limit: int = Field(default=200, ge=1, le=MAX_ROWS)
+
+
+class SaveIn(BaseModel):
+    state: StateIn
+    name: str = Field(default="", max_length=180)
+    methodology: str = Field(default="", max_length=16)
+    instruction: str = Field(default="", max_length=1000)
+
+
+class TrainIn(BaseModel):
+    development_through: str = Field(default="", max_length=24)
+    excluded: list[str] = Field(default_factory=list, max_length=16)
+    reason: str = Field(default="", max_length=500)
+    instruction: str = Field(default="", max_length=1000)
+
+
+class ActivateIn(BaseModel):
+    version: str = Field(min_length=1, max_length=32)
+    reason: str = Field(default="", max_length=500)
+
+
+def _staging_from(body: StagingIn | None) -> stg.StagingPolicy:
+    policy_ = stg.default()
+    if body is None:
+        return policy_
+    for rule in body.rules:
+        changes: dict[str, Any] = {}
+        if rule.threshold is not None:
+            changes["threshold"] = rule.threshold
+        if rule.floor is not None:
+            changes["floor"] = rule.floor
+        if rule.enabled is not None:
+            changes["enabled"] = rule.enabled
+        if changes:
+            policy_ = policy_.with_rule(rule.key, **changes)
+    if body.combination:
+        policy_ = policy_.combined(body.combination)
+    return policy_
+
+
+def _state_from(body: StateIn) -> sp.ScenarioState:
+    steps = []
+    for raw in body.steps:
+        steps.append(sp.Step(
+            kind=raw.kind,
+            shocks=tuple(sc.Shock(kind=s.kind, magnitude=s.magnitude,
+                                  unit=s.unit, target=s.target)
+                         for s in raw.shocks),
+            population=sc.Population(
+                sectors=tuple(raw.population.sectors),
+                rating_bands=tuple(raw.population.rating_bands),
+                stages=tuple(raw.population.stages),
+                borrower_ids=tuple(raw.population.borrower_ids),
+                watchlist_only=raw.population.watchlist_only),
+            instruction=raw.instruction, interpreted=raw.interpreted,
+            enabled=raw.enabled, detail=dict(raw.detail),
+            **({"step_id": raw.step_id} if raw.step_id else {})))
+    return sp.ScenarioState(
+        period=body.period, title=body.title, thread_id=body.thread_id,
+        steps=tuple(steps), staging=_staging_from(body.staging),
+        methodology=body.methodology, model_version=body.model_version)
+
+
+def _owner(principal: Principal) -> int | None:
+    return principal.user_id
+
+
+# ------------------------------------------------------------------ context
+
+
+@router.get("/periods")
+def periods(_: Any = RequireAnalyst) -> dict[str, Any]:
+    """Every Corporate IFRS 9 quarter, resolved from the book, never hardcoded."""
+    try:
+        found = dm.periods()
+    except dm.DomainError as e:
+        raise _unavailable(str(e)) from e
+    return {"periods": found, "latest": found[-1] if found else None,
+            "earliest": found[0] if found else None, "count": len(found),
+            "domain": dm.DOMAIN_NAME, "grain": dm.GRAIN,
+            "aliases": {"latest": found[-1] if found else None,
+                        "earliest": found[0] if found else None,
+                        "previous": found[-2] if len(found) > 1 else None}}
+
+
+@router.get("/landing")
+def landing(principal: Principal = RequireAnalyst) -> dict[str, Any]:
+    """Everything the What-If landing page shows, in one call."""
+    from backend.whatif.ml import registry as rg
+
+    try:
+        available = dm.periods()
+    except dm.DomainError as e:
+        raise _unavailable(str(e)) from e
+    active = rg.active()
+    owner = _owner(principal)
+    return {
+        "heading": "What-If",
+        "domain": dm.DOMAIN_NAME,
+        "restriction": dm.Binding(period=available[-1] if available else "",
+                                  periods=tuple(available), rows=0,
+                                  borrowers=0).to_dict()["restriction"],
+        "periods": available,
+        "latest_period": available[-1] if available else None,
+        "journeys": JOURNEYS,
+        "saved": [s.card() for s in th.listing(owner=owner, status=th.SAVED)],
+        "recent": [s.card() for s in th.listing(owner=owner, status=th.RECENT)],
+        "persistence": th.describe(),
+        "models": me.describe(ml_available=bool(active),
+                              model_version=active.version if active else ""),
+        "staging": stg.default().describe(),
+        "currency": dm.CURRENCY,
+    }
+
+
+#: The six guided starting points. Shortcuts, never restrictions — a person can
+#: combine several in one sentence and never touch a card.
+JOURNEYS: list[dict[str, Any]] = [
+    {"key": "rating", "title": "Rating Movement",
+     "summary": "Downgrade or upgrade a population and see what it does to staging and ECL.",
+     "opens_with": "rating_profile"},
+    {"key": "parameters", "title": "IFRS 9 Risk Parameter Adjustment",
+     "summary": "Move PD, LGD, CCF, EAD, collateral or haircut directly.",
+     "opens_with": "parameter_profile"},
+    {"key": "stage", "title": "Stage Migration",
+     "summary": "Move borrowers between Stages 1, 2 and 3, in either direction.",
+     "opens_with": "stage_profile"},
+    {"key": "macro", "title": "Macroeconomic Shock",
+     "summary": "Shock any of ten macro variables through configured sensitivities.",
+     "opens_with": "macro_profile"},
+    {"key": "sector", "title": "Sector Stress",
+     "summary": "Concentrate a scenario on one sector of the corporate book.",
+     "opens_with": "sector_profile"},
+    {"key": "borrower", "title": "Borrower Stress",
+     "summary": "Start from a single name and see the borrower, its sector and the book.",
+     "opens_with": "borrower_profile"},
+]
+
+
+# ----------------------------------------------------------------- profiles
+
+
+@router.get("/profile/rating")
+def rating_profile(period: str = Query(default="", max_length=24),
+                   _: Any = RequireAnalyst) -> dict[str, Any]:
+    """The 14 governed grades plus a Total — fifteen rows."""
+    try:
+        return pf.rating_profile(period)
+    except dm.DomainError as e:
+        raise _domain_refused(str(e)) from e
+
+
+@router.get("/profile/stage")
+def stage_profile(period: str = Query(default="", max_length=24),
+                  _: Any = RequireAnalyst) -> dict[str, Any]:
+    try:
+        return pf.stage_profile(period)
+    except dm.DomainError as e:
+        raise _domain_refused(str(e)) from e
+
+
+@router.get("/profile/sector")
+def sector_profile(period: str = Query(default="", max_length=24),
+                   _: Any = RequireAnalyst) -> dict[str, Any]:
+    try:
+        return pf.sector_profile(period)
+    except dm.DomainError as e:
+        raise _domain_refused(str(e)) from e
+
+
+@router.get("/profile/parameter/{parameter}")
+def parameter_profile(parameter: str,
+                      period: str = Query(default="", max_length=24),
+                      _: Any = RequireAnalyst) -> dict[str, Any]:
+    """PD, LGD or CCF described before anybody is asked to change it."""
+    readers = {"pd": pf.pd_profile, "lgd": pf.lgd_profile, "ccf": pf.ccf_profile}
+    found = readers.get(str(parameter).lower())
+    if found is None:
+        raise _domain_refused(
+            f"'{parameter}' is not a risk parameter this screen describes. "
+            "It describes PD, LGD and CCF.")
+    try:
+        return found(period)
+    except dm.DomainError as e:
+        raise _domain_refused(str(e)) from e
+
+
+@router.get("/profile/macro")
+def macro_profile(period: str = Query(default="", max_length=24),
+                  _: Any = RequireAnalyst) -> dict[str, Any]:
+    """The ten macro variables, their observed levels and their sensitivities."""
+    try:
+        series = dm.macro()
+    except dm.DomainError:
+        series = None
+    settled = dm.resolve_period(period) if period else ""
+    return mc.describe(series, settled)
+
+
+@router.get("/profile/borrowers")
+def borrower_profile(period: str = Query(default="", max_length=24),
+                     limit: int = Query(default=10, ge=1, le=100),
+                     _: Any = RequireAnalyst) -> dict[str, Any]:
+    """Top Stage 2 borrowers by ECL, at true obligor grain."""
+    try:
+        return pf.top_stage_2(period, limit=limit)
+    except dm.DomainError as e:
+        raise _domain_refused(str(e)) from e
+
+
+@router.get("/borrower/{borrower_id}")
+def borrower_history(borrower_id: str,
+                     quarters: int = Query(default=8, ge=1, le=16),
+                     _: Any = RequireAnalyst) -> dict[str, Any]:
+    try:
+        return pf.borrower_history(borrower_id, quarters=quarters)
+    except dm.DomainError as e:
+        raise _domain_refused(str(e)) from e
+
+
+# ---------------------------------------------------------------- migration
+
+
+@router.get("/migration/rating")
+def rating_migration(period: str = Query(default="", max_length=24),
+                     opening: str = Query(default="", max_length=24),
+                     _: Any = RequireAnalyst) -> dict[str, Any]:
+    """One year of rating migration as a 15 x 15 displayed matrix."""
+    try:
+        return mg.rating_migration(period, opening)
+    except dm.DomainError as e:
+        raise _domain_refused(str(e)) from e
+
+
+@router.get("/migration/stage")
+def stage_migration(period: str = Query(default="", max_length=24),
+                    opening: str = Query(default="", max_length=24),
+                    _: Any = RequireAnalyst) -> dict[str, Any]:
+    try:
+        return mg.stage_migration(period, opening)
+    except dm.DomainError as e:
+        raise _domain_refused(str(e)) from e
+
+
+# ------------------------------------------------------------------ staging
+
+
+@router.get("/staging")
+def staging_criteria(_: Any = RequireAnalyst) -> dict[str, Any]:
+    """The default staging criteria, and what a thread may change about them."""
+    return {**stg.default().describe(),
+            "editable": ["threshold", "floor", "enabled"],
+            "combinations": list(stg.COMBINATIONS),
+            "kinds": list(stg.KINDS)}
+
+
+@router.post("/staging")
+def staging_preview(body: StagingIn, _: Any = RequireAnalyst) -> dict[str, Any]:
+    """Validate an edited rule set and show what it would be."""
+    try:
+        return _staging_from(body).describe()
+    except stg.StagingError as e:
+        raise _refused(str(e)) from e
+
+
+# ------------------------------------------------------------- methodology
+
+
+@router.get("/methodology")
+def methodology_gate(active: str = Query(default="", max_length=16),
+                     _: Any = RequireAnalyst) -> dict[str, Any]:
+    """The question that must be answered before any ECL impact is calculated."""
+    from backend.whatif.ml import registry as rg
+
+    current = rg.active()
+    return me.question(active=active, ml_available=bool(current),
+                       ml_note="No ML model has been activated yet.")
+
+
+# ------------------------------------------------------------------ running
+
+
+@router.post("/execute")
+def execute(body: ExecuteIn,
+            principal: Principal = RequireAnalyst) -> dict[str, Any]:
+    """Run the thread's scenario — after the methodology gate has been answered.
+
+    Where it has not been, this returns the GATE rather than a number. That is
+    the whole contract: the product does not choose a methodology quietly.
+    """
+    from backend.whatif.ml import registry as rg
+
+    try:
+        state = _state_from(body.state)
+    except (stg.StagingError, sp.StepError) as e:
+        raise _refused(str(e)) from e
+
+    current = rg.active()
+    if me.needs_gate(calculates_ecl=True, requested=body.methodology,
+                     instruction=body.instruction, active=state.methodology):
+        return {"needs_methodology": True,
+                "gate": me.question(active=state.methodology,
+                                    ml_available=bool(current),
+                                    ml_note="No ML model has been activated yet."),
+                "state": state.to_dict()}
+    try:
+        result = rn.execute(state, requested=body.methodology,
+                            instruction=body.instruction, limit=body.limit)
+    except (rn.RunError, dm.DomainError, ValueError) as e:
+        raise _refused(str(e)) from e
+
+    owner = _owner(principal)
+    stored = None
+    if th.available():
+        try:
+            stored = th.save(result, name=state.title or result.state.describe()[:80],
+                             owner=owner, status=th.RECENT,
+                             instruction=body.instruction)
+        except Exception:  # noqa: BLE001 - a recent entry is never the answer
+            # Failing to note a run in the Recent list must not cost the
+            # person the run itself. The scenario computed; it is logged and
+            # returned, and the list is simply one shorter.
+            logger.warning("Could not record the run in Recent What-Ifs",
+                           exc_info=True)
+            stored = None
+    payload = result.to_dict(limit=body.limit)
+    payload["needs_methodology"] = False
+    payload["state"] = result.state.to_dict()
+    payload["confirmation"] = me.confirmation(result.choice)
+    payload["recent_id"] = stored.id if stored else None
+    return payload
+
+
+@router.post("/compare-methodologies")
+def compare_methodologies(body: ExecuteIn,
+                          _: Any = RequireAnalyst) -> dict[str, Any]:
+    """The same scenario under both methodologies, side by side."""
+    try:
+        return rn.compare_methodologies(_state_from(body.state))
+    except (rn.RunError, dm.DomainError, ValueError) as e:
+        raise _refused(str(e)) from e
+
+
+# ------------------------------------------------------------------- saving
+
+
+@router.get("/saved")
+def saved(principal: Principal = RequireAnalyst,
+          limit: int = Query(default=24, ge=1, le=100)) -> dict[str, Any]:
+    rows = th.listing(owner=_owner(principal), status=th.SAVED, limit=limit)
+    return {"saved": [r.card() for r in rows], "count": len(rows),
+            "persistence": th.describe()}
+
+
+@router.get("/recent")
+def recent(principal: Principal = RequireAnalyst,
+           limit: int = Query(default=12, ge=1, le=50)) -> dict[str, Any]:
+    rows = th.listing(owner=_owner(principal), status=th.RECENT, limit=limit)
+    return {"recent": [r.card() for r in rows], "count": len(rows),
+            "persistence": th.describe()}
+
+
+@router.post("/save")
+def save(body: SaveIn, principal: Principal = RequireAnalyst) -> dict[str, Any]:
+    """Run and keep. A saved What-If must be reproducible, so it is run first."""
+    try:
+        state = _state_from(body.state)
+        result = rn.execute(state, requested=body.methodology,
+                            instruction=body.instruction)
+    except (rn.RunError, dm.DomainError, ValueError) as e:
+        raise _refused(str(e)) from e
+    try:
+        stored = th.save(result, name=body.name, owner=_owner(principal),
+                         status=th.SAVED, instruction=body.instruction)
+    except th.Unavailable as e:
+        raise _unavailable(str(e)) from e
+    except th.ThreadError as e:
+        raise _refused(str(e)) from e
+    return {"saved": stored.card(), "id": stored.id}
+
+
+@router.get("/saved/{scenario_id}")
+def open_saved(scenario_id: int,
+               principal: Principal = RequireAnalyst) -> dict[str, Any]:
+    """Reopen a saved What-If, with the state that reproduces it."""
+    try:
+        state, stored = th.reopen(scenario_id, owner=_owner(principal))
+    except th.Unavailable as e:
+        raise _unavailable(str(e)) from e
+    except th.ThreadError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "not_found", "message": str(e)}) from e
+    return {"card": stored.card(), "state": state.to_dict(),
+            "stored": stored.body}
+
+
+@router.delete("/saved/{scenario_id}")
+def delete_saved(scenario_id: int,
+                 principal: Principal = RequireAnalyst) -> dict[str, Any]:
+    try:
+        th.delete(scenario_id, owner=_owner(principal))
+    except th.Unavailable as e:
+        raise _unavailable(str(e)) from e
+    except th.ThreadError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "not_found", "message": str(e)}) from e
+    return {"deleted": scenario_id}
+
+
+# ------------------------------------------------------- model configuration
+
+
+@router.get("/models/delta")
+def delta_model(_: Any = RequireAnalyst) -> dict[str, Any]:
+    """The Delta Model as its configuration page explains it."""
+    return dl.describe()
+
+
+@router.get("/models/ml")
+def ml_model(_: Any = RequireAnalyst) -> dict[str, Any]:
+    """The active model card, the versions, and what retraining would use."""
+    from backend.whatif.ml import registry as rg
+    from backend.whatif.ml import train as tr
+
+    active = rg.active()
+    cards = rg.cards()
+    try:
+        available = dm.periods()
+    except dm.DomainError:
+        available = []
+    trained_through = ""
+    if active and active.split.get("train"):
+        trained_through = str((active.split.get("validation")
+                               or active.split.get("train"))[-1])
+    newer = [p for p in available
+             if active and p not in set(active.split.get("train") or ())
+             and p not in set(active.split.get("validation") or ())
+             and p not in set(active.split.get("out_of_time") or ())]
+    return {
+        "active": active.to_dict() if active else None,
+        "has_active": bool(active),
+        "versions": [{"version": c.version, "state": c.state,
+                      "built_at": c.built_at, "predecessor": c.predecessor,
+                      "validation": c.validation, "out_of_time": c.out_of_time}
+                     for c in cards],
+        "changelog": rg.changelog(),
+        "periods": available,
+        "trained_through": trained_through,
+        "newer_periods": newer,
+        "retrain_prompt": (
+            f"Active model trained through {trained_through}. "
+            f"{len(newer)} newer IFRS 9 quarter(s) available. Retrain?"
+            if active and newer else
+            (f"Active model trained through {trained_through}. No newer data."
+             if active else "No model has been trained yet.")),
+        "defaults": {"development_through": tr.DEFAULT_DEVELOPMENT_THROUGH,
+                     "train_share": tr.TRAIN_SHARE, "seed": tr.SEED},
+        "features": None,
+    }
+
+
+@router.post("/models/ml/train")
+def train_model(body: TrainIn,
+                principal: Principal = RequireAnalyst) -> dict[str, Any]:
+    """Actually retrain. A candidate is produced; nothing is activated."""
+    from backend.whatif.ml import explain as ex
+    from backend.whatif.ml import features as ft
+    from backend.whatif.ml import registry as rg
+    from backend.whatif.ml import train as tr
+
+    try:
+        split = tr.plan_split(
+            development_through=body.development_through
+            or tr.DEFAULT_DEVELOPMENT_THROUGH,
+            excluded=tuple(body.excluded))
+        trained = tr.fit(split=split)
+    except (tr.TrainingError, dm.DomainError, ValueError) as e:
+        raise _refused(str(e)) from e
+
+    X = ft.build(tr.load(split.validation or split.train),
+                 encoding=trained.encoding).X
+    importance = ex.importance(trained.booster, trained.feature_names, limit=25)
+    summary = ex.summary(trained.booster, X)
+    card = rg.save(trained, built_by=str(principal.user_id or "system"),
+                   reason=body.reason or body.instruction,
+                   importance=importance, shap=summary)
+    rg.record_build(card)
+    previous = rg.active_version()
+    return {"candidate": card.to_dict(), "activated": False,
+            "comparison": rg.compare(previous, card.version) if previous else None,
+            "message": ("Trained as a CANDIDATE. The active model is "
+                        "unchanged until you activate this one.")}
+
+
+@router.post("/models/ml/activate")
+def activate_model(body: ActivateIn,
+                   principal: Principal = RequireAnalyst) -> dict[str, Any]:
+    from backend.whatif.ml import registry as rg
+
+    try:
+        card = rg.activate(body.version, actor=str(principal.user_id or "system"),
+                           reason=body.reason)
+    except rg.RegistryError as e:
+        raise _refused(str(e)) from e
+    return {"activated": card.to_dict()}
+
+
+@router.get("/models/ml/explain")
+def explain_model(version: str = Query(default="", max_length=32),
+                  _: Any = RequireAnalyst) -> dict[str, Any]:
+    """Feature importance, SHAP, calibration and sensitivity for one model."""
+    from backend.whatif.ml import explain as ex
+    from backend.whatif.ml import features as ft
+    from backend.whatif.ml import registry as rg
+    from backend.whatif.ml import train as tr
+
+    chosen = version or rg.active_version()
+    if not chosen:
+        raise _refused("No ML model has been activated.")
+    try:
+        card = rg.card(chosen)
+        model = rg.load_booster(chosen)
+    except rg.RegistryError as e:
+        raise _refused(str(e)) from e
+
+    split = tr.Split.from_dict(card.split)
+    frame = tr.load(split.validation or split.train)
+    matrix = ft.build(frame, encoding=ft.Encoding.from_dict(card.encoding))
+    predicted = model.predict(matrix.X)
+    return {
+        "version": chosen,
+        "importance": card.importance or ex.importance(model, tuple(card.features)),
+        "shap": card.shap or ex.summary(model, matrix.X),
+        "actual_vs_predicted": ex.actual_vs_predicted(matrix.y, predicted),
+        "sensitivity": {name: ex.sensitivity(model, matrix.X, name)
+                        for name in ("pd_12m", "lgd", "ccf",
+                                     "collateral_coverage_pct")},
+        "slices": card.slices,
+        "validation": card.validation,
+        "out_of_time": card.out_of_time,
+        "limitations": card.limitations,
+    }
+
+
+@router.post("/models/ml/example")
+def model_example(features: dict[str, Any],
+                  _: Any = RequireAnalyst) -> dict[str, Any]:
+    """Score one made-up borrower and explain the prediction locally."""
+    from backend.whatif.ml import explain as ex
+    from backend.whatif.ml import features as ft
+    from backend.whatif.ml import predict as mp
+    from backend.whatif.ml import registry as rg
+
+    try:
+        scored = mp.one(features)
+        card = rg.card(scored["model_version"])
+        model = rg.load_booster(scored["model_version"])
+    except (mp.PredictionError, rg.RegistryError) as e:
+        raise _refused(str(e)) from e
+    import pandas as pd
+
+    matrix = ft.build(pd.DataFrame([features]),
+                      encoding=ft.Encoding.from_dict(card.encoding))
+    return {**scored, "explanation": ex.local(model, matrix.X)}
