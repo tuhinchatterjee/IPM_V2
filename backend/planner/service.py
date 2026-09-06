@@ -377,13 +377,31 @@ def update_project(session: Any, principal: Any, project_id: int, *,
                                 str(new_date or "")]
                 setattr(project, key, new_date)
 
-    for key in ("sponsor_id", "manager_id", "team_id"):
+    # `owner_id` and `escalation_id` belong here with the other three: the
+    # escalation contact is the last rung of the ladder the monitor walks, and
+    # a project whose contact could only be set at creation would have to be
+    # rebuilt to change who hears about a delay.
+    for key in ("sponsor_id", "manager_id", "team_id", "owner_id",
+                "escalation_id"):
         if key in fields:
             new_id = fields[key]
             new_id = int(new_id) if new_id else None
             if new_id != getattr(project, key):
                 changes[key] = [getattr(project, key), new_id]
                 setattr(project, key, new_id)
+
+    # How hard the agent chases. Written through `policy.stamp` rather than
+    # onto the column, so the mode's own reminder cadence and staleness
+    # window come with it — see the note there.
+    if fields.get("agentic_mode"):
+        from backend.planner import policy as policy_mod
+        document = fields.get("agentic_policy")
+        wanted = policy_mod.resolve(str(fields["agentic_mode"]), document)
+        if (wanted.mode != project.agentic_mode
+                or (dict(document or {}) != dict(project.agentic_policy or {})
+                    and wanted.mode == policy_mod.MODE_CUSTOM)):
+            changes["agentic_mode"] = [project.agentic_mode, wanted.mode]
+            policy_mod.stamp(project, wanted, document)
 
     if "stale_after_days" in fields and fields["stale_after_days"]:
         project.stale_after_days = max(1, int(fields["stale_after_days"]))

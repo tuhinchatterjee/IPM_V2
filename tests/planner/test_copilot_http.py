@@ -643,3 +643,58 @@ def test_a_conversationally_built_plan_publishes(client, cast, named):
     body = seen.json()
     assert [m["code"] for m in body["milestones"]] == ["M01"]
     assert [t["code"] for t in body["tasks"]] == ["M01-T01"]
+
+
+# ------------------------------------------- the directory under real load
+
+
+def test_a_common_word_does_not_crowd_out_the_name_that_was_said(client, cast):
+    """A directory of thousands must not lose the person being talked about.
+
+    The lookup used to be one OR'd query over every word in the sentence
+    with a single overall LIMIT of sixty, which is fine on a demonstration
+    database and wrong on a bank. Say a sentence containing a word many
+    colleagues share, and the sixty rows the database happened to return
+    first were all of them — so the Copilot reported, with no hedging at
+    all, that the person actually named did not work there.
+
+    This builds the crowd on purpose, on a word the sentence really
+    contains, and then says the sentence. The property is that how many
+    other people share a word with what was said does not decide whether
+    the person named is found.
+    """
+    from backend.db.engine import get_session
+    from backend.db.models import User
+
+    tag = uuid.uuid4().hex[:6]
+    crowd = 120  # comfortably more than the old query would ever return
+    with get_session() as session:
+        for index in range(crowd):
+            session.add(User(
+                username=f"committee-{tag}-{index}", password_hash="x",
+                role="ANALYST", first_name=f"Committee{tag}{index:03d}",
+                last_name=f"Review{tag}",
+                email=f"committee-{tag}-{index}@example.invalid"))
+        # Added last, so it is the row a bounded scan reaches last too.
+        rare = User(username=f"rare-{tag}", password_hash="x", role="ANALYST",
+                    first_name=f"Zephyrine{tag}", last_name=f"Delivery{tag}",
+                    email=f"rare-{tag}@example.invalid")
+        session.add(rare)
+        session.flush()
+        wanted = int(rare.id)
+        session.commit()
+
+    key = _start(client, cast["alice"])
+    _say(client, cast["alice"], key, "Add Delivery as the first milestone.")
+    _say(client, cast["alice"], key, "Under Delivery add Committee Review.")
+
+    turn = _say(client, cast["alice"], key,
+                f"Zephyrine{tag} owns Committee Review.", confirm=True)
+    assert not turn.get("questions"), turn.get("questions")
+
+    plan = _plan_of(client, cast["alice"], key)
+    committee = [t for t in plan["tasks"] if t["title"] == "Committee Review"]
+    assert committee, [t["title"] for t in plan["tasks"]]
+    assert committee[0]["owner_id"] == wanted, (
+        "the one person named in the sentence was crowded out by "
+        f"{crowd} colleagues whose names share a word with it")

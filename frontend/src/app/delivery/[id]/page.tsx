@@ -169,11 +169,19 @@ export default function DeliveryProjectPage() {
 
       <div className="mt-4 flex flex-col gap-4">
         {/*
-          §22. The same conversation as everywhere else, told which project it
-          is looking at. It answers delivery questions about this project and
-          refuses everything else — including questions about the subject the
-          project is named after, which is the distinction the boundary is
-          built around.
+          §22 and §23. The same conversation as everywhere else, told which
+          project it is looking at. It answers delivery questions about this
+          project and refuses everything else — including questions about the
+          subject the project is named after, which is the distinction the
+          boundary is built around.
+
+          It also CHANGES this project, which is the point: the plan was
+          talked into being, and a month later the way to move a date is to
+          say so rather than to find the right field on the right tab. Every
+          change goes through the same service layer the tabs below use, and
+          nothing on a running project applies without the person confirming
+          it first — additions included, because on a live project there is
+          no such thing as an addition nobody promised anything about.
         */}
         {tab === "copilot" && (
           <>
@@ -185,11 +193,14 @@ export default function DeliveryProjectPage() {
                 "What is on the critical path?",
                 "What changed since last week?",
               ]}
+              onTurn={() => detail.reload()}
             />
             <p className="px-1 text-xs text-text-muted">
-              The Copilot reads this project with your permissions and cannot
-              see more than you can. It will not complete a task, move a date
-              or change an owner — those are yours.
+              The Copilot reads and changes this project with your
+              permissions and can do nothing here that you could not do
+              yourself. It shows you what a change would do and waits for you
+              to say go ahead, and every change it makes is on the record as
+              yours.
             </p>
           </>
         )}

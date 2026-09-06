@@ -8301,6 +8301,12 @@ export type CopilotTurn = {
   reader?: string;
   focus?: string;
   project_id?: number;
+  /**
+   * The project as it stands after this turn, in the same shape as a draft's
+   * plan. Present on a project turn instead of `draft`, so a screen beside
+   * the conversation can show what changed without a second request.
+   */
+  project_plan?: DraftPlan;
 };
 
 export type CopilotPerson = {

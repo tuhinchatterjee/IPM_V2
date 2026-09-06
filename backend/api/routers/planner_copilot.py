@@ -37,8 +37,7 @@ from sqlalchemy.orm import Session
 
 from backend.api.permissions import Principal, RequireAnalyst, RequireCommenter
 from backend.api.routers.planner import _fail, _guard, get_db
-from backend.planner import access as acl
-from backend.planner import copilot
+from backend.planner import copilot, live
 from backend.planner import draft as dr
 from backend.planner import language as lang
 from backend.planner import policy as pol
@@ -64,6 +63,13 @@ def _refusal(exc: Exception) -> HTTPException:
         return HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"error": "draft_incomplete", "message": str(exc)})
+    # Something asked of a running project that this door does not open —
+    # a bad request rather than a broken one, and the sentence `live` wrote
+    # says which door it is behind.
+    if isinstance(exc, live.LiveError):
+        return HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "not_this_way", "message": str(exc)})
     return _fail(exc)
 
 
@@ -72,7 +78,8 @@ def _run(fn: Any) -> Any:
         return _guard(fn)
     except HTTPException:
         raise
-    except (dr.DraftError, pol.PolicyError, copilot.NotConfirmed) as exc:
+    except (dr.DraftError, live.LiveError, pol.PolicyError,
+            copilot.NotConfirmed) as exc:
         raise _refusal(exc) from exc
 
 
@@ -292,12 +299,16 @@ def chat(payload: ChatIn, session: Session = Depends(get_db),
        the permission check, the cycle check, the date validation and the
        AI_CHAT audit row all happen exactly once and in one place.
     """
-    # The draft is read first, so the boundary knows the names in the plan
-    # being built and not only those of published projects.
+    # The plan is read first, so the boundary knows the names in the thing
+    # being talked about — whether that is a draft nobody has published or a
+    # project that is already running.
     plan: dict[str, Any] = {}
     if payload.draft:
         row = _run(lambda: dr.load(session, principal, payload.draft))
         plan = row.plan or dr.empty()
+    elif payload.project_id is not None:
+        plan = _run(lambda: live.plan_of(session, principal,
+                                         int(payload.project_id)))
 
     decision = copilot.in_scope(session, principal, payload.message, plan=plan)
     if not decision.in_scope:
@@ -308,10 +319,8 @@ def chat(payload: ChatIn, session: Session = Depends(get_db),
                                "scope": decision.to_dict(),
                                "purpose": sc.PURPOSE}
     if payload.project_id is not None:
-        _run(lambda: acl.readable(session, int(payload.project_id),
-                                  principal))
         context["project_id"] = int(payload.project_id)
-    if not payload.draft:
+    if not payload.draft and payload.project_id is None:
         context["commands"] = []
         context["said"] = _no_draft_yet(payload.message)
         return context
@@ -333,27 +342,54 @@ def chat(payload: ChatIn, session: Session = Depends(get_db),
         "focus": reading.focus,
     })
 
-    needs_confirmation = any(c.preview for c in reading.commands)
+    # A change to a running project moves a commitment somebody has already
+    # made, so nothing on one applies without confirmation — not even the
+    # additions a draft applies straight away. There is no such thing as a
+    # task added to a live project that nobody promised anything about.
+    live_edit = not payload.draft
+    needs_confirmation = live_edit or any(c.preview for c in reading.commands)
+    needs_confirmation = needs_confirmation and bool(reading.commands)
     if reading.questions or (needs_confirmation and not payload.confirm):
         context["needs_confirmation"] = bool(
             needs_confirmation and not reading.questions)
         context["applied"] = []
         context["said"] = _describe(reading, applied=False)
-        context.update(_draft_state(session, principal, payload.draft))
+        context.update(_state(session, principal, payload))
         return context
 
     if reading.commands:
-        outcome = _run(lambda: lang.apply_all(
-            session, principal, payload.draft, reading.commands,
-            source=copilot._source()))
+        outcome = _run(lambda: (
+            live.apply_all(session, principal, int(payload.project_id),
+                           reading.commands, source=copilot._source())
+            if live_edit else
+            lang.apply_all(session, principal, payload.draft,
+                           reading.commands, source=copilot._source())))
         context["applied"] = outcome["applied"]
         context["created"] = outcome["created"]
     else:
         context["applied"] = []
     context["needs_confirmation"] = False
     context["said"] = _describe(reading, applied=bool(reading.commands))
-    context.update(_draft_state(session, principal, payload.draft))
+    context.update(_state(session, principal, payload))
     return context
+
+
+def _state(session: Session, principal: Principal,
+           payload: ChatIn) -> dict[str, Any]:
+    """Whatever was changed, as it stands now.
+
+    A draft turn returns the draft; a project turn returns the project's own
+    plan. Both for the same reason — §9 asks that a change made in chat
+    appear beside the conversation immediately, and the cheapest guarantee is
+    for the chat response to BE the new state.
+    """
+    if payload.draft:
+        return _draft_state(session, principal, payload.draft)
+    if payload.project_id is None:
+        return {}
+    plan = _run(lambda: live.plan_of(session, principal,
+                                     int(payload.project_id)))
+    return {"project_plan": plan, "catalogue": dr.catalogue(plan)}
 
 
 def _draft_state(session: Session, principal: Principal,

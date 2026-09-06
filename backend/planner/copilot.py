@@ -215,16 +215,27 @@ def people_for(session: Any, principal: Any, message: str,
     words = _name_candidates(message)
     found: dict[int, dict[str, Any]] = {}
 
-    if words:
-        clauses = []
-        for word in words:
-            like = f"{word.lower()}%"
-            clauses.extend([User.first_name.ilike(like),
-                            User.last_name.ilike(like),
-                            User.username.ilike(f"%{word.lower()}%")])
+    # One bounded query per word rather than one query bounded overall. The
+    # single OR'd SELECT this replaces put every word in the sentence into
+    # competition for the same sixty rows, so on a directory of a few
+    # thousand people "Priya owns the Draft Report by December" could return
+    # sixty Drafts and Decembers and no Priya — and the Copilot would then
+    # say, with total confidence, that nobody by that name works here.
+    # A name now resolves by what it is, not by what else was in the
+    # sentence. The per-word cap is deliberately loose enough that two
+    # colleagues with the same first name both come back and the Copilot
+    # asks, rather than choosing.
+    for word in words:
+        like = f"{word.lower()}%"
         rows = session.execute(
-            select(User).where(User.is_active.is_(True), or_(*clauses))
-            .limit(60)).scalars()
+            select(User)
+            .where(User.is_active.is_(True),
+                   or_(User.first_name.ilike(like),
+                       User.last_name.ilike(like),
+                       User.username.ilike(f"%{word.lower()}%")))
+            # Ordered, so the same sentence resolves the same way twice.
+            .order_by(User.first_name, User.last_name, User.id)
+            .limit(_PER_WORD)).scalars()
         for row in rows:
             found[int(row.id)] = _person_row(row)
 
@@ -238,6 +249,12 @@ def people_for(session: Any, principal: Any, message: str,
         for row in rows:
             found[int(row.id)] = _person_row(row)
     return list(found.values())
+
+
+#: How many people one word may bring back. Enough that a repeated first
+#: name stays visibly ambiguous; small enough that twenty words cannot fill
+#: the resolver with noise.
+_PER_WORD = 12
 
 
 def _name_candidates(message: str, limit: int = 20) -> list[str]:
