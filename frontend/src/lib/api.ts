@@ -5134,7 +5134,11 @@ export const api = {
   // The picker never opens with the whole catalogue: `searchMetrics("")`
   // returns nothing on purpose, and `metricCatalogue()` is the deliberate way
   // to see everything.
-  searchMetrics: (q: string, limit = 8, domain = "") =>
+  // `domain` and `portfolio` are the scope of the lens being built. They rank
+  // the suggestions rather than filtering them: a picker that emptied itself
+  // because the metric somebody wanted lives in another domain is a picker
+  // they stop using.
+  searchMetrics: (q: string, limit = 8, domain = "", portfolio = "") =>
     request<{
       query: string;
       results: MetricHit[];
@@ -5142,7 +5146,8 @@ export const api = {
       unavailable: MetricUnavailable[];
     }>(
       `/metrics?q=${encodeURIComponent(q)}&limit=${limit}` +
-        (domain ? `&domain=${encodeURIComponent(domain)}` : ""),
+        (domain ? `&domain=${encodeURIComponent(domain)}` : "") +
+        (portfolio ? `&portfolio=${encodeURIComponent(portfolio)}` : ""),
     ),
   metricCatalogue: () =>
     request<{

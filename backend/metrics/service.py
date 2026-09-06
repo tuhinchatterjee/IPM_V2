@@ -210,15 +210,23 @@ def unavailable(metric_id: str) -> Unsupported | None:
 
 def find(query: str, *, user_id: int | None = None,
          readable: Iterable[str] | None = None,
-         limit: int = search.DEFAULT_LIMIT, domain: str = "") -> dict[str, Any]:
+         limit: int = search.DEFAULT_LIMIT, domain: str = "",
+         portfolio: str = "") -> dict[str, Any]:
     """Typeahead over everything this person may see.
 
     Returns the suggestions and, when there are none, whatever CreditProbe
     knows it cannot calculate that the words seem to name — so a picker can
     explain an absence instead of showing an empty list.
+
+    `domain` and `portfolio` are the scope of the lens being built. They rank
+    rather than exclude — see `search.search` — so an absence reported here is
+    an absence from the whole catalogue rather than from one corner of it,
+    which is what makes the "not available in this deployment" note true when
+    it is shown.
     """
     pool = catalogue(user_id=user_id, readable=readable)
-    hits = search.search(pool, query, limit=limit, domain=domain)
+    hits = search.search(pool, query, limit=limit, domain=domain,
+                         portfolio=portfolio)
     payload: dict[str, Any] = {
         "query": query,
         "results": [hit.to_dict() for hit in hits],

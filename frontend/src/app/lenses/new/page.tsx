@@ -271,9 +271,17 @@ export default function NewLensPage() {
               &ldquo;NPL rate&rdquo; both reach the default rate — and each
               word you add narrows the list rather than widening it.
             </p>
+            {/*
+              The scope ranks these, it does not filter them. A lens scoped to
+              one domain still reaches a metric that lives in another — which
+              matters, because a retail risk lens legitimately carries
+              scorecard validation figures and an analytics lens legitimately
+              carries behavioural ones.
+            */}
             <MetricPicker
               onPick={add}
               domain={scope?.domains[0] ?? ""}
+              portfolio={scope?.portfolio ?? ""}
               placeholder="del · stage 2 · coverage · gini"
             />
           </div>

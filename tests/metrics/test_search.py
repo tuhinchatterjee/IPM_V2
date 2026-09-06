@@ -249,3 +249,69 @@ def test_a_user_metric_is_searchable_and_carries_its_own_status():
     assert payload["origin"] == ORIGIN_USER
     assert payload["governed"] is False
     assert payload["status"] == STATUS_DRAFT
+
+
+# ------------------------------------------------- the scope of a lens
+#
+# A lens being built has a domain and a portfolio. Those used to FILTER the
+# suggestions, and the result was a picker that emptied itself: somebody
+# scoping a lens to Corporate IFRS 9 typed "del", got nothing at all — not
+# because CreditProbe has no delinquency metrics but because none is in that
+# domain — and then got the roll rate's "not available in this deployment"
+# note underneath, which reads as "delinquency does not exist here" and is
+# false.
+#
+# A scope is context. A permission is `readable`, and that still excludes.
+
+
+def test_a_domain_ranks_the_suggestions_rather_than_emptying_the_list():
+    inside = S.search(ALL, "del", domain=lib.CORPORATE_IFRS9, limit=50)
+    assert inside, (
+        "scoping a lens to a domain with no delinquency metrics emptied the "
+        "picker instead of ranking it")
+    assert set(ids(inside)) == set(ids(S.search(ALL, "del", limit=50)))
+
+
+def test_the_chosen_domain_sorts_first_among_equal_matches():
+    """Their own domain first, and the rest still reachable."""
+    scoped = S.search(ALL, "coverage", domain=lib.CORPORATE_IFRS9, limit=50)
+    assert scoped
+    assert scoped[0].metric.domain == lib.CORPORATE_IFRS9
+
+
+def test_a_scope_never_beats_a_better_match():
+    """Somebody who typed an exact name meant that metric.
+
+    The boost is added within a tier, so a lens scoped to the corporate book
+    cannot turn the exact name of a retail metric into the nearest corporate
+    one. That would be a picker overruling what somebody typed.
+    """
+    hits = S.search(ALL, "retail outstanding balance",
+                    domain=lib.CORPORATE_IFRS9, limit=50)
+    assert ids(hits)[0] == "retail.balance"
+    assert hits[0].tier == S.TIER_EXACT
+
+
+def test_a_portfolio_ranks_too_and_more_gently_than_a_domain():
+    corporate = S.search(ALL, "utilisation", portfolio="Corporate", limit=50)
+    retail = S.search(ALL, "utilisation", portfolio="Retail", limit=50)
+    assert ids(corporate)[0] == "corporate.utilisation"
+    assert ids(retail)[0] == "retail.utilisation"
+    assert set(ids(corporate)) == set(ids(retail)), (
+        "a portfolio removed a metric from the list rather than ranking it")
+
+
+def test_strict_is_still_available_for_a_caller_that_means_it():
+    """Enumerating one domain is a real thing to want; it is just not this."""
+    only = S.search(ALL, "del", domain=lib.CORPORATE_IFRS9, strict=True,
+                    limit=50)
+    assert only == []
+
+
+def test_a_scope_cannot_reach_a_metric_the_asker_may_not_read():
+    """`readable` is the permission, and it still excludes."""
+    allowed = {"ifrs9_staging"}
+    hits = S.search(ALL, "del", domain=lib.CORPORATE_IFRS9,
+                    readable=allowed, limit=50)
+    for hit in hits:
+        assert set(hit.metric.datasets) <= allowed, hit.metric.metric_id

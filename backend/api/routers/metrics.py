@@ -111,14 +111,21 @@ def find_metrics(q: str = Query(default="", max_length=200),
                  limit: int = Query(default=search_mod.DEFAULT_LIMIT,
                                     ge=1, le=50),
                  domain: str = Query(default="", max_length=120),
+                 portfolio: str = Query(default="", max_length=120),
                  principal: Principal = RequireAnalyst) -> dict:
     """Typeahead. An empty query returns nothing, deliberately.
 
     §8.3: the picker does not open with the whole catalogue. `/metrics/all` is
     the deliberate way to see everything.
+
+    `domain` and `portfolio` are the scope of the lens being built. They rank
+    the suggestions rather than filtering them: a scope is context, not a
+    permission, and a picker that emptied itself because the metric somebody
+    wanted lives in another domain is a picker they stop using. What may not
+    be shown is decided by the caller's dataset permissions, which do filter.
     """
     return service.find(q, user_id=principal.user_id, limit=limit,
-                        domain=domain)
+                        domain=domain, portfolio=portfolio)
 
 
 @router.get("/all", summary="The whole catalogue, grouped by domain")

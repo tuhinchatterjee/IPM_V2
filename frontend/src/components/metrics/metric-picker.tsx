@@ -24,11 +24,21 @@ export function MetricPicker({
   onPick,
   placeholder = "Search metrics — delinquency, coverage, gini, npl",
   domain = "",
+  portfolio = "",
   autoFocus = false,
 }: {
   onPick: (hit: MetricHit) => void;
   placeholder?: string;
+  /**
+   * The scope of the lens being built. It RANKS the suggestions — the chosen
+   * domain sorts first among equally good matches — and does not filter them.
+   * Filtering here emptied the picker for anybody whose lens was scoped to
+   * one domain and whose metric lived in another, and then showed the
+   * "not available in this deployment" note underneath, which read as
+   * "delinquency does not exist here" and was false.
+   */
   domain?: string;
+  portfolio?: string;
   autoFocus?: boolean;
 }) {
   const [query, setQuery] = React.useState("");
@@ -58,7 +68,7 @@ export function MetricPicker({
     const timer = setTimeout(async () => {
       setBusy(true);
       try {
-        const body = await api.searchMetrics(wanted, 8, domain);
+        const body = await api.searchMetrics(wanted, 8, domain, portfolio);
         if (!live) return;
         setAnswer({
           for: wanted,
@@ -77,7 +87,7 @@ export function MetricPicker({
       live = false;
       clearTimeout(timer);
     };
-  }, [query, domain]);
+  }, [query, domain, portfolio]);
 
   function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
     if (event.key === "ArrowDown") {
