@@ -81,10 +81,18 @@ function LensView({ id }: { id: number }) {
   // somebody has picked one, so the lens's own default is not silently
   // replaced by whatever was showing when the page first loaded.
   const [period, setPeriod] = React.useState<string | null>(null);
+  // `keepPrevious`: a lens re-renders underneath the person using it — a
+  // period change, or a metric added from inside edit mode — and blanking the
+  // body for that moment unmounts whatever they were in the middle of along
+  // with it. The metric builder was losing its locked step to a reload it had
+  // itself asked for. The previous render is still true until the new one
+  // arrives, so it stays up until then.
   const rendered = useAsync(
     () => api.renderLens(id, period ?? undefined),
     [id, nonce, period],
+    { keepPrevious: true },
   );
+  const view = rendered.data;
 
   const [request, setRequest] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -137,21 +145,21 @@ function LensView({ id }: { id: number }) {
     }
   }
 
-  if (rendered.loading && !rendered.data) return <Skeleton className="h-96 w-full" />;
-  if (rendered.error && !rendered.data) {
+  if (rendered.loading && !view) return <Skeleton className="h-96 w-full" />;
+  if (rendered.error && !view) {
     return (
       <Card className="border-negative/40 p-4 text-sm text-negative">
         {rendered.error}
       </Card>
     );
   }
-  if (!rendered.data) return null;
+  if (!view) return null;
 
-  const { lens } = rendered.data;
-  const cards = order ?? rendered.data.panels;
+  const { lens } = view;
+  const cards = order ?? view.panels;
 
   function startEditing() {
-    setOrder(rendered.data ? [...rendered.data.panels] : []);
+    setOrder(view ? [...view.panels] : []);
     setEditing(true);
     setArranging(false);
     setCharting(false);
@@ -167,7 +175,7 @@ function LensView({ id }: { id: number }) {
 
   function move(from: number, to: number) {
     setOrder((current) => {
-      const list = [...(current ?? rendered.data?.panels ?? [])];
+      const list = [...(current ?? view?.panels ?? [])];
       if (from === to || from < 0 || to < 0 || from >= list.length) return list;
       const [moved] = list.splice(from, 1);
       list.splice(to, 0, moved);
@@ -176,11 +184,11 @@ function LensView({ id }: { id: number }) {
   }
 
   async function commit() {
-    if (!order || !rendered.data) return;
+    if (!order || !view) return;
     setSaving(true);
     setError(null);
     try {
-      await saveLayout(id, order, describeChange(rendered.data, order));
+      await saveLayout(id, order, describeChange(view, order));
       stopEditing();
       setChanged("Saved the arrangement as a version of its own.");
       setNonce((n) => n + 1);
@@ -198,12 +206,12 @@ function LensView({ id }: { id: number }) {
    * edit mode, because somebody who was arranging it was still arranging it.
    */
   async function attach(metricId: string) {
-    if (!rendered.data) return;
+    if (!view) return;
     setSaving(true);
     setError(null);
     try {
       const next = [
-        ...(order ?? rendered.data.panels),
+        ...(order ?? view.panels),
         {
           kind: "metric",
           metric_id: metricId,
@@ -237,15 +245,15 @@ function LensView({ id }: { id: number }) {
 
       <Header
         lens={lens}
-        rendered={rendered.data}
+        rendered={view}
         editing={editing}
         onEdit={startEditing}
       />
 
       <LensScopeBar
         lensId={id}
-        scope={rendered.data.scope}
-        showing={rendered.data.period}
+        scope={view.scope}
+        showing={view.period}
         onPeriod={(chosen) => {
           setChanged(null);
           setPeriod(chosen);
@@ -270,7 +278,7 @@ function LensView({ id }: { id: number }) {
           !!order &&
           JSON.stringify(order.map((p) => p.metric_id || p.analysis_id)) !==
             JSON.stringify(
-              rendered.data.panels.map((p) => p.metric_id || p.analysis_id),
+              view.panels.map((p) => p.metric_id || p.analysis_id),
             )
         }
         busy={saving}
@@ -282,8 +290,8 @@ function LensView({ id }: { id: number }) {
       {editing && addingMetric && (
         <MetricBuilder
           lensName={lens.name}
-          domain={rendered.data.scope.domains[0] ?? ""}
-          portfolio={rendered.data.scope.portfolio}
+          domain={view.scope.domains[0] ?? ""}
+          portfolio={view.scope.portfolio}
           chosen={cards.map((p) => p.metric_id).filter(Boolean)}
           onLocked={(made) => void attach(made.metric_id)}
           onDone={() => setAddingMetric(false)}
@@ -304,11 +312,12 @@ function LensView({ id }: { id: number }) {
               (current ?? cards).filter((_, i) => i !== position),
             )
           }
+          onMove={(position, step) => move(position, position + step)}
         />
       ) : arranging ? (
         <LayoutEditor
           lensId={id}
-          rendered={rendered.data}
+          rendered={view}
           onSaved={() => {
             setArranging(false);
             setChanged("Saved the new arrangement as a version of its own.");
@@ -319,7 +328,7 @@ function LensView({ id }: { id: number }) {
       ) : charting ? (
         <ChartBuilder
           lensId={id}
-          rendered={rendered.data}
+          rendered={view}
           onSaved={() => {
             setCharting(false);
             setChanged("Added the chart as a version of its own.");
@@ -328,7 +337,7 @@ function LensView({ id }: { id: number }) {
           onCancel={() => setCharting(false)}
         />
       ) : addingMetric ? null : (
-        <LensBody rendered={rendered.data} lens={lens} />
+        <LensBody rendered={view} lens={lens} />
       )}
 
       {changed && <p className="text-xs text-positive">{changed}</p>}
@@ -538,12 +547,14 @@ function EditBoard({
   onDragStart,
   onDropOn,
   onRemove,
+  onMove,
 }: {
   panels: RenderedPanel[];
   dragging: number | null;
   onDragStart: (index: number) => void;
   onDropOn: (index: number) => void;
   onRemove: (index: number) => void;
+  onMove: (index: number, step: -1 | 1) => void;
 }) {
   if (panels.length === 0) {
     return (
@@ -566,6 +577,9 @@ function EditBoard({
           onDragOver={(event) => event.preventDefault()}
           onDrop={() => onDropOn(index)}
           onRemove={() => onRemove(index)}
+          onMove={(step) => onMove(index, step)}
+          first={index === 0}
+          last={index === panels.length - 1}
         >
           {panel.kind === "chart" ? (
             <ChartTile panel={panel} />

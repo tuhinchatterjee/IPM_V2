@@ -822,17 +822,15 @@ table th {
   transform-origin: 50% 50%;
 }
 
-.lens-wiggle:nth-child(2n)   { animation-delay: -0.14s; }
-.lens-wiggle:nth-child(3n)   { animation-delay: -0.28s; }
-.lens-wiggle:nth-child(3n+1) { animation-delay: -0.07s; }
+/* The offset between cards is set per card, in the component, from its
+   position on the board — the wiggling element is an only child of the
+   draggable one, so nth-child here would put every card in lockstep. */
 
 /* Stop the WHOLE board the moment the pointer is over it, not just the card
    under it. Somebody reaching for a card is aiming at a target that is still
    moving, and pausing only the one they have already reached is pausing after
-   the hard part. It is also what makes the cards grabbable at all: a browser
-   will not begin a drag on an element whose transform is still animating, so
-   a per-card pause left every card undraggable until the pointer had already
-   settled on it. */
+   the hard part. Grabbability is handled structurally instead: the draggable
+   element is the parent of the wiggling one, so its own box never moves. */
 .lens-board:hover .lens-wiggle,
 .lens-board:focus-within .lens-wiggle,
 .lens-wiggle:hover,

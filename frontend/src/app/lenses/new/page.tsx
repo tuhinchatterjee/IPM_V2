@@ -58,6 +58,8 @@ function Builder() {
 
   const [said, setSaid] = React.useState(carried);
   const [intent, setIntent] = React.useState<LensIntent | null>(null);
+  /** The sentence that was actually read, which is what this lens is for. */
+  const [sentence, setSentence] = React.useState("");
   const [domains, setDomains] = React.useState<string[]>([]);
   const [extra, setExtra] = React.useState("");
 
@@ -80,6 +82,7 @@ function Builder() {
     try {
       const body = await api.interpretLens(text.trim());
       setIntent(body);
+      setSentence(text.trim());
       setDomains(body.domains.filter((d) => d.chosen).map((d) => d.name));
       setName((current) => current || suggestName(body));
     } catch (e) {
@@ -114,8 +117,8 @@ function Builder() {
       const lens = await api.createLens({
         name: named,
         description,
-        audience: scope?.audience ?? "",
-        scope: { ...(scope ?? {}), domains },
+        audience: effectiveScope.audience,
+        scope: effectiveScope,
         panels: [
           ...picked.map((m) => ({
             kind: "metric" as const,
@@ -141,6 +144,27 @@ function Builder() {
   }
 
   const chosenDomain = domains[0] ?? "";
+
+  /**
+   * What this lens says it is for, before anybody edits it.
+   *
+   * The sentence somebody typed IS the purpose — it is the answer to "what
+   * should this lens watch" in their own words — so a lens created without
+   * opening the definition panel still carries one. It used to save an empty
+   * purpose, which made the definition panel on the lens read as though
+   * nobody had ever said what it was for.
+   */
+  const effectiveScope: LensScope = scope
+    ? { ...scope, domains }
+    : {
+        purpose: sentence,
+        audience: "",
+        portfolio: intent?.portfolios[0] ?? "",
+        domains,
+        default_period: "",
+        comparison_period: "",
+        visibility: "shared",
+      };
 
   return (
     <div className="space-y-6">
@@ -295,17 +319,7 @@ function Builder() {
             <LensScopeForm
               lensId={null}
               periods={null}
-              scope={
-                scope ?? {
-                  purpose: "",
-                  audience: "",
-                  portfolio: intent.portfolios[0] ?? "",
-                  domains,
-                  default_period: "",
-                  comparison_period: "",
-                  visibility: "shared",
-                }
-              }
+              scope={effectiveScope}
               onSaved={(saved) => setScope({ ...saved, domains })}
             />
           )}

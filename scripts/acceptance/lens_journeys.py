@@ -713,7 +713,10 @@ def _arrange(page: Any, report: Report, lens: dict) -> None:
     page.goto(f"{WEB}/lenses/{lens['id']}", wait_until="networkidle")
     page.wait_for_timeout(2500)
 
-    page.get_by_role("button", name="Arrange").click()
+    # Exactly "Arrange": this run's lens is called "Arrangement Under Test",
+    # so the pencil's own label — "Edit Arrangement Under Test" — contains the
+    # word, and a substring match picks up two controls.
+    page.get_by_role("button", name="Arrange", exact=True).click()
     page.wait_for_selector("text=Arrange this lens", timeout=10_000)
     body = page.inner_text("body")
     report.check("H", "the editor says a change becomes a version",
@@ -1211,88 +1214,80 @@ def _create_by_asking(page: Any, report: Report) -> dict | None:
                  and "ifrs 9 committee" in body)
 
     page.get_by_role("link", name="Create a lens").first.click()
-    page.wait_for_timeout(2000)
-    report.check("L", "the first thing it asks is what to call it",
-                 "What would you like to call this lens?"
+    page.wait_for_timeout(2500)
+    report.check("L", "the first thing it asks is what it should watch",
+                 "What do you want this lens to watch?"
                  in page.inner_text("body"))
 
-    name = "Acceptance Arrears Watch"
-    page.fill("input[aria-label='What this lens is called']", name)
-    page.get_by_role("button", name="Continue").click()
-    page.wait_for_timeout(3000)
+    # Said the way somebody would say it, rather than by naming a domain.
+    # What is being tested here is that the words reach the catalogue.
+    page.fill("[data-testid=lens-sentence]",
+              "retail delinquency and arrears on the retail book")
+    page.click("[data-testid=read-sentence]")
+    page.wait_for_timeout(7000)
 
-    body = page.inner_text("body")
-    report.check("L", "naming it opens the definition panel, not a metric "
-                 "list", "What is it for?" in body)
-    report.check("L", "and it says where its suggestions came from",
-                 "catalogue" in body.lower())
-    report.check("L", "the definition panel asks the short questions",
-                 all(word in body for word in
-                     ("Business purpose", "Audience", "Portfolio",
-                      "Data domains", "Opens on", "Visibility")))
-    report.check("L", "the whole catalogue is not dumped on screen",
-                 body.count("Add Metric") == 0
-                 and "What should it show?" in body)
-
-    # Fill the definition panel, which is the step this journey exists for.
-    # A lens created without it is a lens whose tiles decided its scope.
-    purpose = "Where the retail book is behind, and whether it is coming back."
-    page.locator("textarea").first.fill(purpose)
-    # By pressed state rather than by accessible name: the chips carry their
-    # metric count in the name too, so a name match is a substring match and
-    # picks whichever chip happens to be first.
-    domain = page.locator("button[aria-pressed]", has_text="Retail Credit Risk")
+    understood = page.locator("[data-testid=understood]")
+    report.check("L", "and it says what it understood before building",
+                 understood.count() == 1,
+                 understood.inner_text()[:140] if understood.count() else "")
+    retail = page.locator("[data-testid=domain-option]",
+                          has_text="Retail Credit Risk")
     report.check("L", "the domains offered are ones the catalogue has",
-                 domain.count() == 1,
-                 f"{domain.count()} chips matched 'Retail Credit Risk'")
-    if domain.count() == 1:
-        domain.click()
-        report.check("L", "choosing a domain is shown as chosen",
-                     domain.get_attribute("aria-pressed") == "true")
-    page.get_by_role("button", name="Use this").click()
-    page.wait_for_timeout(1200)
-    # `inner_text` does not read a textarea's value, so the purpose is checked
-    # where it is actually held rather than in the page's text.
-    report.check("L", "what it is for is kept after saying so",
-                 page.locator("textarea").first.input_value() == purpose)
+                 retail.count() == 1,
+                 f"{retail.count()} chips matched 'Retail Credit Risk'")
+    if retail.count() == 1 and retail.get_attribute("aria-pressed") != "true":
+        retail.click()
+        page.wait_for_timeout(400)
+    report.check("L", "choosing a domain is shown as chosen",
+                 retail.count() == 1
+                 and retail.get_attribute("aria-pressed") == "true")
 
-    # The typeahead: type a fragment, then narrow it.
-    search = page.locator("input[aria-label='Search metrics']")
+    name = "Acceptance Arrears Watch"
+    page.fill("[data-testid=lens-name]", name)
+    page.click("[data-testid=confirm-name]")
+    page.wait_for_timeout(2500)
+    body = page.inner_text("body")
+    report.check("L", "naming it opens what it should show, not a metric list",
+                 "What should it show?" in body and body.count("Add Metric") == 0)
+
+    # The typeahead, inside the library the builder opens on: type a fragment,
+    # then narrow it. The scope must not have emptied it — a domain ranks the
+    # suggestions, it does not filter them, so a lens scoped to retail still
+    # reaches a corporate metric.
+    page.click("[data-testid=open-metric-builder]")
+    page.wait_for_timeout(1500)
+    search = page.locator("input[aria-label='Search the metric library']")
     if not report.check("L", "there is a metric search", search.count() >= 1):
         return None
     search = search.first
 
-    # And the scope must not have emptied it. A domain ranks the suggestions;
-    # it does not filter them, so a lens scoped to retail still reaches a
-    # corporate metric and — the case that made this a defect — a lens scoped
-    # to a domain with no delinquency metrics still finds delinquency.
     search.fill("del")
-    page.wait_for_timeout(1800)
-    broad = page.locator("ul li button").count()
-    broad_text = page.inner_text("body")
+    page.wait_for_timeout(2500)
+    rows = page.locator("[data-testid=metric-library] ul li")
+    broad = rows.count()
     report.check("L", "typing a fragment suggests metrics", broad > 0,
                  f"{broad} suggestions for 'del'")
+    broad_text = page.locator("[data-testid=metric-library]").inner_text()
     report.check("L", "a suggestion shows its formula, not only its name",
                  "COUNT(" in broad_text or "SUM(" in broad_text)
 
     search.fill("delinq 30")
-    page.wait_for_timeout(1800)
-    narrow = page.locator("ul li button").count()
+    page.wait_for_timeout(2500)
+    narrow = rows.count()
     report.check("L", "adding a word narrows rather than widens",
                  0 < narrow <= broad, f"'del' {broad} -> 'delinq 30' {narrow}")
-
-    narrowed = page.inner_text("body")
     report.check("L", "and what is left is about 30 days",
-                 "60" not in narrowed.split("Or search for one")[-1]
-                 or "30" in narrowed)
+                 "30" in page.locator("[data-testid=metric-library]").inner_text())
 
-    page.locator("ul li button").first.click()
-    page.wait_for_timeout(1200)
+    page.locator("[data-testid=library-add]").first.click()
+    page.wait_for_timeout(2500)
+    page.locator("[data-testid=back-to-lens]").first.click()
+    page.wait_for_timeout(1500)
     report.check("L", "the metric is on the lens being built",
-                 "Create the lens" in page.inner_text("body"))
+                 page.locator("[data-testid=lens-contents] li").count() >= 1)
 
-    page.get_by_role("button", name="Create the lens").click()
-    page.wait_for_timeout(5000)
+    page.click("[data-testid=create-lens]")
+    page.wait_for_timeout(6000)
 
     url = page.url
     report.check("L", "saving opens the lens it made", "/lenses/" in url
@@ -1304,9 +1299,10 @@ def _create_by_asking(page: Any, report: Report) -> dict | None:
     stored = page.request.get(f"{API}/api/v1/lenses/{lens_id}").json()
     report.check("L", "it was saved under the name that was typed",
                  stored["name"] == name, stored["name"])
-    report.check("L", "it kept what it was told it was for",
-                 stored["scope"]["purpose"] == purpose
-                 and "Retail Credit Risk" in stored["scope"]["domains"],
+    report.check("L", "it kept the domain it was told to watch, and says "
+                 "what it is for",
+                 "Retail Credit Risk" in stored["scope"]["domains"]
+                 and len(stored["scope"]["purpose"]) > 10,
                  str(stored["scope"]))
     report.check("L", "it holds the metric that was chosen",
                  len(stored["panels"]) >= 1)

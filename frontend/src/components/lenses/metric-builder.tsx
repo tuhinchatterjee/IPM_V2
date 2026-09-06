@@ -180,7 +180,14 @@ export function MetricBuilder({
             </span>
           )}
         </h2>
-        <Button variant="ghost" size="sm" onClick={onDone}>
+        {/* Always there, at every stage. Leaving is not a thing you should
+            have to finish a metric to be allowed to do. */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onDone}
+          data-testid="leave-builder"
+        >
           <ArrowLeft aria-hidden />
           {lensName ? `Back to ${lensName}` : "Back to the lens"}
         </Button>
@@ -331,7 +338,10 @@ export function MetricBuilder({
       )}
 
       {error && (
-        <p className="mt-3 flex items-start gap-1.5 text-xs text-negative">
+        <p
+          className="mt-3 flex items-start gap-1.5 text-xs text-negative"
+          data-testid="builder-error"
+        >
           <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
           {error}
         </p>

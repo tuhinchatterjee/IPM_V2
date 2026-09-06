@@ -55,6 +55,14 @@ EXIT_CANNOT_RUN = 2
 #: Lenses this run creates, removed at the end however it ends.
 MADE: list[int] = []
 
+#: Metrics this run builds, by name, removed at the end however it ends.
+#: A built metric outlives the lens it was built for — that is the point of
+#: a governed library — so deleting the lenses is not enough to leave the
+#: deployment as this run found it. It also has to be enough to let the run
+#: repeat: a second run drafting the same definition is refused by name, and
+#: a refusal that only ever appears on the second run is the worst kind.
+BUILT: list[str] = []
+
 
 @dataclass
 class Step:
@@ -72,9 +80,20 @@ class Step:
 class Report:
     steps: list[Step] = field(default_factory=list)
     error: str = ""
+    #: Print each check as it happens rather than only at the end. A run that
+    #: takes ten minutes and prints nothing until it finishes is a run nobody
+    #: can diagnose while it is stuck — and the one thing you want to know
+    #: about a stuck acceptance run is which check it is stuck on.
+    live: bool = True
 
     def check(self, journey: str, name: str, ok: bool, detail: str = "") -> bool:
-        self.steps.append(Step(journey, name, bool(ok), detail))
+        step = Step(journey, name, bool(ok), detail)
+        self.steps.append(step)
+        if self.live:
+            print(f"  [{'PASS' if step.ok else 'FAIL'}] {journey}  {name}",
+                  flush=True)
+            if not step.ok and detail:
+                print(f"         {detail[:400]}", flush=True)
         return bool(ok)
 
     @property
@@ -194,6 +213,13 @@ def _journey_m(page: Any, report: Report) -> None:
 
     report.check("M", "describing a new metric drafts a definition",
                  page.locator("[data-testid=metric-definition]").count() == 1)
+    # Remember it, and clear whatever a previous run left under the same
+    # name. The catalogue refuses two metrics with one name — correctly —
+    # so without this the lock below fails on every run after the first.
+    drafted = page.locator("input[aria-label='Metric name']").input_value()
+    if drafted:
+        BUILT.append(drafted)
+        _forget_metric(page, drafted)
     formula = page.locator("[data-testid=formula-line]")
     english = page.locator("[data-testid=plain-english] li")
     sql = page.locator("[data-testid=sql-line]")
@@ -231,12 +257,14 @@ def _journey_m(page: Any, report: Report) -> None:
     if not report.check("M", "it previews against the real book",
                         preview.count() == 1):
         return
-    shown = preview.inner_text()
+    # Lowercased on both sides: these headings are uppercased by CSS, and
+    # `inner_text` returns what is rendered rather than what is in the markup.
+    shown = preview.inner_text().lower()
     for wanted, label in (("portfolio_facility", "the dataset it reads"),
-                          ("Fields read", "the fields it reads"),
-                          ("Numerator", "the numerator"),
-                          ("Aggregation", "the aggregation"),
-                          ("Final calculation", "the final calculation")):
+                          ("fields read", "the fields it reads"),
+                          ("numerator", "the numerator"),
+                          ("aggregation", "the aggregation"),
+                          ("final calculation", "the final calculation")):
         report.check("M", f"the preview names {label}", wanted in shown)
     value = page.locator("[data-testid=preview-value]")
     report.check("M", "and shows a real figure, not a placeholder",
@@ -247,8 +275,15 @@ def _journey_m(page: Any, report: Report) -> None:
     # ---- §9, §10: lock, then add another, then back ----
     page.click("[data-testid=lock-metric]")
     page.wait_for_timeout(7000)
-    report.check("M", "locking it says so",
-                 page.locator("[data-testid=metric-locked]").count() == 1)
+    # Carry the builder's own refusal into the report. A lock that fails
+    # silently reads as a missing element, and "element not found" is not a
+    # diagnosis of anything.
+    refused = page.locator("[data-testid=builder-error]")
+    if not report.check(
+            "M", "locking it says so",
+            page.locator("[data-testid=metric-locked]").count() == 1,
+            refused.inner_text()[:200] if refused.count() else ""):
+        return
     report.check("M", "and offers to add another",
                  page.locator("[data-testid=add-another-metric]").count() == 1)
     report.check("M", "and to go back to the lens",
@@ -340,14 +375,24 @@ def _journey_n(page: Any, report: Report) -> None:
                  f"{cards.count()} cards for {len(before)} panels")
 
     # ---- §13: the edit state is visible ----
+    # The wiggle sits one level inside the draggable element, so that the box
+    # the pointer grabs holds still. Look where it actually is.
     wiggling = page.evaluate(
         """() => {
-             const el = document.querySelector('[data-testid=editable-card]');
+             const el = document.querySelector(
+               '[data-testid=editable-card] .lens-wiggle');
              if (!el) return '';
              return getComputedStyle(el).animationName || '';
            }""")
     report.check("N", "the cards carry a visible edit state",
                  wiggling == "lens-wiggle", f"animation-name={wiggling!r}")
+    grabbed = page.evaluate(
+        """() => {
+             const el = document.querySelector('[data-testid=editable-card]');
+             return el ? getComputedStyle(el).animationName || 'none' : '';
+           }""")
+    report.check("N", "and the thing being dragged is not itself moving",
+                 grabbed == "none", f"animation-name={grabbed!r}")
     report.check("N", "and every card has a remove control",
                  page.locator("[data-testid=remove-card]").count()
                  == cards.count())
@@ -363,7 +408,23 @@ def _journey_n(page: Any, report: Report) -> None:
                  f"{before[0]} -> "
                  f"{after_drag.nth(0).get_attribute('data-metric')}")
 
+    # ---- the same move, without a pointer ----
+    order_before = [after_drag.nth(i).get_attribute("data-metric")
+                    for i in range(after_drag.count())]
+    page.locator("[data-testid=move-later]").first.click()
+    page.wait_for_timeout(700)
+    cards_now = page.locator("[data-testid=editable-card]")
+    order_after = [cards_now.nth(i).get_attribute("data-metric")
+                   for i in range(cards_now.count())]
+    report.check("N", "and a card can be moved without dragging it",
+                 len(order_before) > 1
+                 and order_after[:2] == [order_before[1], order_before[0]]
+                 and order_after[2:] == order_before[2:],
+                 f"{order_before[:3]} -> {order_after[:3]}")
+
     # ---- §15: remove asks first ----
+    removed = (page.locator("[data-testid=editable-card]").last
+               .get_attribute("data-metric"))
     page.locator("[data-testid=remove-card]").last.click()
     page.wait_for_timeout(700)
     report.check("N", "removing a card asks before it does it",
@@ -382,10 +443,16 @@ def _journey_n(page: Any, report: Report) -> None:
     page.fill("input[aria-label='Search the metric library']", "utilisation")
     page.wait_for_timeout(2500)
     add = page.locator("[data-testid=library-add]")
-    if add.count():
+    if report.check("N", "the library offers one to add",
+                    add.count() > 0,
+                    f"{add.count()} results for 'utilisation'"):
         add.first.click()
         page.wait_for_timeout(6000)
-    page.locator("[data-testid=back-to-lens]").first.click()
+        report.check("N", "and adding it locks it onto the lens",
+                     page.locator("[data-testid=metric-locked]").count() == 1)
+    # The header's own way out, which is there at every stage — so this step
+    # tests coming back rather than testing that the previous one worked.
+    page.locator("[data-testid=leave-builder]").first.click()
     page.wait_for_timeout(6000)
     report.check("N", "coming back leaves the lens in edit mode",
                  page.locator("[data-testid=edit-bar]").count() == 1)
@@ -403,8 +470,8 @@ def _journey_n(page: Any, report: Report) -> None:
     report.check("N", "the arrangement is saved",
                  stored_after != before, f"{before} -> {stored_after}")
     report.check("N", "the removed card is gone from the definition",
-                 len(stored_after) < len(before) + 2,
-                 f"{len(before)} -> {len(stored_after)}")
+                 removed not in stored_after,
+                 f"removed {removed}, stored {stored_after}")
 
     page.reload(wait_until="networkidle")
     page.wait_for_timeout(8000)
@@ -419,7 +486,9 @@ def _journey_n(page: Any, report: Report) -> None:
                  page.request.get(
                      f"{API}/api/v1/lenses/{lens_id}/render"
                  ).json()["failed"] == 0)
-    if moved:
+    # Unless it is the one that was then removed — the removal takes the last
+    # card, and the moves above decide which card that is.
+    if moved and moved != removed:
         report.check("N", "the card that was dragged is still on the lens",
                      moved in reloaded, f"{moved} in {reloaded}")
 
@@ -519,14 +588,36 @@ def _journey_p(page: Any, report: Report) -> None:
 # ---------------------------------------------------------------- running
 
 
+def _forget_metric(page: Any, name: str) -> None:
+    """Delete a metric of exactly this name, if this user has one.
+
+    Names, not ids, because the name is what the screen shows and what the
+    catalogue refuses a duplicate of. Only `user.` metrics: the shipped
+    catalogue is not this run's to tidy.
+    """
+    try:
+        got = page.request.get(f"{API}/api/v1/metrics",
+                               params={"q": name, "limit": 50})
+        for hit in got.json().get("results", []):
+            if (str(hit.get("metric_id", "")).startswith("user.")
+                    and str(hit.get("name", "")).strip().lower()
+                    == name.strip().lower()):
+                page.request.delete(
+                    f"{API}/api/v1/metrics/{hit['metric_id']}")
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _cleanup(page: Any, report: Report) -> None:
+    for name in BUILT:
+        _forget_metric(page, name)
     for lens_id in MADE:
         try:
             page.request.delete(f"{API}/api/v1/lenses/{lens_id}")
         except Exception:  # noqa: BLE001
             pass
     report.check("cleanup", "the lenses this run made were removed", True,
-                 f"{len(MADE)} removed")
+                 f"{len(MADE)} lenses, {len(BUILT)} metrics removed")
 
 
 def _guard(report: Report, journey: str, fn: Any, *args: Any) -> Any:
@@ -575,18 +666,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     started = time.time()
-    report = run(Report())
+    report = run(Report(live=not args.json))
     body = report.to_dict()
     body["seconds"] = round(time.time() - started, 1)
 
     if args.json:
         print(json.dumps(body, indent=2))
     else:
-        for step in report.steps:
-            print(f"  [{'PASS' if step.ok else 'FAIL'}] {step.journey}  "
-                  f"{step.name}")
-            if not step.ok and step.detail:
-                print(f"         {step.detail}")
         if report.error:
             print(f"\n{report.error}")
         print(f"\n{body['passed']} passed, {body['failed']} failed "
