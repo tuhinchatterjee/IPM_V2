@@ -24,6 +24,12 @@ EAD = "ead"
 FINANCIAL = "financial"
 COLLATERAL = "collateral"
 MACRO = "macro"
+#: Credit conversion factor. Reaches ECL through EAD, never directly.
+CCF = "ccf"
+#: A haircut on collateral. Reaches ECL through LGD.
+HAIRCUT = "haircut"
+#: A direct Stage migration, asked for rather than triggered by a PD move.
+STAGE = "stage"
 
 #: How a magnitude is expressed. Kept explicit because "PD up 25" is ambiguous
 #: and every ambiguity here becomes a number somebody cannot reconcile.

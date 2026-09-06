@@ -333,6 +333,148 @@ def _apply_financial(work: pd.DataFrame, shock: sc.Shock,
     })
 
 
+def _apply_ccf(work: pd.DataFrame, shock: sc.Shock,
+                steps: list[dict[str, Any]]) -> None:
+    """Move the credit conversion factor, and let EAD follow.
+
+        EAD = drawn + CCF x undrawn
+
+    A CCF change is NOT an EAD change of the same size, because the drawn
+    balance does not move at all. A borrower half-drawn on a 50% CCF sees a
+    20% rise in CCF turn into under 7% of EAD. Converting properly is the
+    whole point of offering CCF as a shock rather than telling somebody to
+    work out the exposure themselves.
+    """
+    if "undrawn_commitment" not in work.columns:
+        return
+    undrawn = pd.to_numeric(work["undrawn_commitment"], errors="coerce").fillna(0.0)
+    drawn = (pd.to_numeric(work["drawn_exposure"], errors="coerce").fillna(0.0)
+             if "drawn_exposure" in work.columns
+             else (work["ead_stressed"] - undrawn).clip(lower=0.0))
+    base = pd.to_numeric(work.get("ccf"), errors="coerce") if "ccf" in work.columns \
+        else pd.Series(np.nan, index=work.index)
+    # Where no CCF is carried, imply it from the borrower's own EAD rather
+    # than assuming a number the book never stated.
+    implied = ((work["ead_stressed"] - drawn) / undrawn.replace(0, np.nan)).clip(0.0, 1.0)
+    current = base.fillna(implied).fillna(0.0)
+
+    if shock.unit == sc.RELATIVE:
+        moved = current * (1.0 + shock.magnitude / 100.0)
+    elif shock.unit == sc.ABSOLUTE_PP:
+        moved = current + shock.magnitude / 100.0
+    elif shock.unit == sc.BASIS_POINTS:
+        moved = current + shock.magnitude / 10_000.0
+    else:
+        moved = current
+    moved = moved.clip(lower=0.0, upper=1.0)
+    work["ccf_stressed"] = moved
+    before = float(work["ead_stressed"].sum())
+    work["ead_stressed"] = (drawn + moved * undrawn).clip(lower=0.0)
+    after = float(work["ead_stressed"].sum())
+    steps.append({
+        "step": f"CCF {shock.describe()}",
+        "detail": (f"The conversion factor moved from a weighted "
+                   f"{float((current * undrawn).sum() / undrawn.sum()) if undrawn.sum() else 0:.3f} "
+                   f"to {float((moved * undrawn).sum() / undrawn.sum()) if undrawn.sum() else 0:.3f}. "
+                   f"EAD follows through drawn + CCF x undrawn, moving "
+                   f"{(after / before - 1) * 100 if before else 0:+.2f}% — not "
+                   "by the CCF's own percentage."),
+        "affected": int((moved != current).sum()),
+    })
+
+
+def _apply_haircut(work: pd.DataFrame, shock: sc.Shock,
+                   assumptions: sc.Assumptions,
+                   steps: list[dict[str, Any]]) -> None:
+    """Move the haircut on collateral, and let LGD follow.
+
+    A haircut is applied to the collateral value, so a rise in the haircut is
+    a fall in the covered share, which raises loss given default on exactly
+    the secured part of the exposure and leaves the unsecured part alone.
+    """
+    if not assumptions.collateral_to_lgd or "collateral_market_value" not in work.columns:
+        return
+    exposure = work["ead_stressed"].replace(0, np.nan)
+    collateral = pd.to_numeric(work["collateral_market_value"], errors="coerce").fillna(0.0)
+    secured_share = (collateral / exposure).clip(0, 1).fillna(0.0)
+    if shock.unit == sc.RELATIVE:
+        change = secured_share * (shock.magnitude / 100.0)
+    else:
+        change = secured_share * (shock.magnitude / 100.0)
+    before = float(work["lgd_stressed"].mean())
+    work["lgd_stressed"] = (work["lgd_stressed"] + (change * 100.0)).clip(0.0, 95.0)
+    steps.append({
+        "step": f"Haircut {shock.describe()}",
+        "detail": ("The haircut moved, so the covered share of each secured "
+                   "exposure moved with it. LGD went from an average "
+                   f"{before:.2f}% to {float(work['lgd_stressed'].mean()):.2f}%. "
+                   "Unsecured exposure is untouched."),
+        "affected": int((secured_share > 0).sum()),
+    })
+
+
+def _apply_stage(work: pd.DataFrame, shock: sc.Shock,
+                 steps: list[dict[str, Any]]) -> None:
+    """Move a share of one Stage into another, because somebody asked.
+
+    This is a DIRECT migration — "move half the Stage 1 BBB borrowers to Stage
+    2" — as distinct from a Stage change triggered by a PD move. Both exist:
+    one is an assumption about staging, the other a consequence of a shock.
+
+    Who moves is decided by PD, worst first for a deterioration and best first
+    for a cure, rather than at random. A random half would make the same
+    instruction produce a different answer every time it was run, and "the
+    weakest names deteriorate first" is the assumption a credit officer would
+    make if asked. It is stated in the step so nobody has to guess.
+    """
+    target = str(shock.target or "1->2")
+    try:
+        start, end = (int(x) for x in target.replace(">", "").split("-")[:2]) \
+            if "-" in target else (int(target[0]), int(target[-1]))
+    except (ValueError, IndexError):
+        raise ValueError(
+            f"'{shock.target}' is not a Stage movement this engine reads. "
+            "Use a form like '1->2', '2->3', '2->1' or '3->2'.") from None
+    if start not in (1, 2, 3) or end not in (1, 2, 3) or start == end:
+        raise ValueError(
+            f"Stage {start} to Stage {end} is not a movement this engine "
+            "applies. Stages are 1, 2 and 3, and a movement needs two "
+            "different ones.")
+
+    pool = work.index[work["stage_stressed_direct"] == start] \
+        if "stage_stressed_direct" in work.columns \
+        else work.index[work["stage_baseline"] == start]
+    if not len(pool):
+        steps.append({"step": f"Stage {start} to Stage {end}",
+                      "detail": f"No borrower is in Stage {start}, so nothing moved.",
+                      "affected": 0})
+        return
+
+    share = float(shock.magnitude)
+    if shock.unit in (sc.RELATIVE, sc.ABSOLUTE_PP):
+        wanted = int(round(len(pool) * min(max(share, 0.0), 100.0) / 100.0))
+    else:
+        wanted = int(min(max(share, 0), len(pool)))
+
+    worsening = end > start
+    ranked = work.loc[pool, "pd_stressed"].sort_values(ascending=not worsening)
+    chosen = ranked.index[:wanted]
+    if "stage_stressed_direct" not in work.columns:
+        work["stage_stressed_direct"] = work["stage_baseline"]
+    work.loc[chosen, "stage_stressed_direct"] = end
+
+    steps.append({
+        "step": f"Stage {start} to Stage {end}",
+        "detail": (f"{len(chosen):,} of {len(pool):,} Stage {start} borrowers "
+                   f"moved to Stage {end} — "
+                   f"{'the highest' if worsening else 'the lowest'}-PD names "
+                   "first, so the same instruction always selects the same "
+                   "borrowers. Their ECL is now measured on "
+                   f"{'lifetime' if end >= 2 else 'twelve-month'} PD."),
+        "affected": int(len(chosen)),
+    })
+
+
 def _apply_macro(work: pd.DataFrame, shock: sc.Shock,
                  steps: list[dict[str, Any]],
                  rows: list[dict[str, Any]]) -> None:
@@ -385,8 +527,14 @@ def _apply_macro(work: pd.DataFrame, shock: sc.Shock,
 # ------------------------------------------------------------------- the run
 
 
-def run(scenario: sc.Scenario, *, period: str = "", source: Any = None) -> Result:
-    """Run one scenario over the book, borrower by borrower."""
+def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
+        staging: Any = None) -> Result:
+    """Run one scenario over the book, borrower by borrower.
+
+    `staging` is the thread's staging criteria. Left as None it is the
+    governed corporate policy, which is what produced the reported book, so an
+    unmodified thread reproduces it exactly.
+    """
     frame, settled = _read(period or scenario.period, source)
     work = select(frame, scenario.population)
     steps: list[dict[str, Any]] = []
@@ -435,7 +583,8 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None) -> Resul
             work[f"{measure}_stressed"] = work[measure]
 
     # ---- apply every shock, in a fixed order so a scenario is reproducible
-    order = (sc.RATING, sc.MACRO, sc.FINANCIAL, sc.PD, sc.LGD, sc.COLLATERAL, sc.EAD)
+    order = (sc.RATING, sc.MACRO, sc.FINANCIAL, sc.STAGE, sc.PD, sc.LGD,
+             sc.CCF, sc.COLLATERAL, sc.HAIRCUT, sc.EAD)
     for kind in order:
         for shock in scenario.shocks_of(kind):
             if kind == sc.RATING:
@@ -450,6 +599,12 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None) -> Resul
                 _apply_lgd(work, shock, steps)
             elif kind == sc.COLLATERAL:
                 _apply_collateral(work, shock, scenario.assumptions, steps)
+            elif kind == sc.CCF:
+                _apply_ccf(work, shock, steps)
+            elif kind == sc.HAIRCUT:
+                _apply_haircut(work, shock, scenario.assumptions, steps)
+            elif kind == sc.STAGE:
+                _apply_stage(work, shock, steps)
             elif kind == sc.EAD:
                 _apply_ead(work, shock, steps)
 
@@ -457,13 +612,29 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None) -> Resul
     work["lgd_stressed"] = work["lgd_stressed"].clip(lower=0.0, upper=95.0)
     work["ead_stressed"] = work["ead_stressed"].clip(lower=0.0)
 
-    # ---- re-stage against the STRESSED PD, using the governed triggers
-    if scenario.assumptions.reevaluate_sicr:
-        stressed_stage = policy.stage_of(
-            work["pd_stressed"], work["pd_at_origination_pct"],
-            work["current_dpd"], work["default_flag"])
+    # ---- re-stage against the STRESSED PD, using the thread's criteria
+    #
+    # The criteria default to the governed corporate policy, so a thread that
+    # has changed nothing reproduces the reported book. A thread that has
+    # edited them is running its own assumption, and says so on every result.
+    work["pd_12m_baseline"] = work["pd_12m"]
+    criteria = staging
+    if criteria is None:
+        stressed_stage = (
+            policy.stage_of(work["pd_stressed"], work["pd_at_origination_pct"],
+                            work["current_dpd"], work["default_flag"])
+            if scenario.assumptions.reevaluate_sicr
+            else work["stage_baseline"].to_numpy())
     else:
-        stressed_stage = work["stage_baseline"].to_numpy()
+        # The criteria read `pd_12m`, and the thing being staged is the
+        # STRESSED PD. Assigning over a copy rather than renaming, because a
+        # rename would leave two columns called `pd_12m` and the rule would
+        # read whichever came first.
+        evaluated = work.copy()
+        evaluated["pd_12m"] = work["pd_stressed"]
+        stressed_stage = (criteria.stage(evaluated)
+                          if scenario.assumptions.reevaluate_sicr
+                          else work["stage_baseline"].to_numpy())
 
     if scenario.assumptions.rating_deterioration_sicr and "notches_moved" in work.columns:
         deteriorated = (work["notches_moved"]
@@ -471,11 +642,35 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None) -> Resul
         stressed_stage = np.where((stressed_stage == 1) & deteriorated, 2,
                                   stressed_stage)
 
-    # A scenario never improves a Stage. Curing is a credit event and a
-    # negotiation, not an arithmetic consequence of a shock.
-    work["stage_stressed"] = np.maximum(stressed_stage,
-                                        work["stage_baseline"].to_numpy())
-    moved = int((work["stage_stressed"] > work["stage_baseline"]).sum())
+    # A SHOCK never improves a Stage. Curing is a credit event and a
+    # negotiation, not an arithmetic consequence of a PD move.
+    stressed_stage = np.maximum(stressed_stage, work["stage_baseline"].to_numpy())
+
+    # A Stage migration somebody ASKED for is a different thing: the person is
+    # asserting the movement rather than deriving it, and the product supports
+    # curing as well as deterioration because a book cures. So a direct
+    # migration overrides the derived Stage in both directions.
+    held = 0
+    if "stage_stressed_direct" in work.columns:
+        asked = pd.to_numeric(work["stage_stressed_direct"],
+                              errors="coerce").fillna(0).astype(int).to_numpy()
+        requested = np.where(asked > 0, asked, stressed_stage)
+        # The default presumption is not a staging opinion. A borrower with a
+        # recorded default, or 90+ days past due, stays in Stage 3 whatever
+        # the instruction said, and the instruction is told how many.
+        presumed = (work["default_flag"].to_numpy()
+                    | (pd.to_numeric(work["current_dpd"], errors="coerce")
+                       .fillna(0) >= policy.DEFAULT_DPD_DAYS).to_numpy())
+        held = int(((requested < 3) & presumed).sum())
+        stressed_stage = np.where(presumed, 3, requested)
+        if held:
+            warnings.append(
+                f"{held:,} borrower(s) were asked to leave Stage 3 but carry a "
+                "recorded default or 90+ days past due, so they stayed. The "
+                "default presumption is not a staging assumption.")
+
+    work["stage_stressed"] = stressed_stage
+    moved = int((work["stage_stressed"] != work["stage_baseline"]).sum())
     steps.append({
         "step": "SICR re-evaluation",
         "detail": ("The governed SICR triggers were re-read against the "

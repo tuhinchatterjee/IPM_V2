@@ -74,6 +74,22 @@ ALL = "ALL"
 COMBINATIONS: tuple[str, ...] = (ANY, ALL)
 
 
+def _column(frame: pd.DataFrame, name: str) -> pd.Series:
+    """One numeric column, even where the caller handed us a duplicated name.
+
+    A frame carrying two columns of the same name returns a DataFrame from
+    `frame[name]`, and every rule downstream would then compare a table
+    against a threshold. Taking the first is arbitrary, so this refuses to
+    guess and takes the LAST — the one an assignment would have written.
+    """
+    if name not in frame.columns:
+        return pd.Series(np.zeros(len(frame)), index=frame.index)
+    found = frame[name]
+    if isinstance(found, pd.DataFrame):
+        found = found.iloc[:, -1]
+    return pd.to_numeric(found, errors="coerce").fillna(0.0)
+
+
 class StagingError(ValueError):
     """A staging rule that cannot be applied, stated rather than ignored."""
 
@@ -258,12 +274,11 @@ class StagingPolicy:
         did not fire".
         """
         rows = len(frame)
-        current = pd.to_numeric(frame.get(pd_column), errors="coerce").fillna(0.0) \
-            if pd_column in frame.columns else pd.Series(np.zeros(rows))
+        current = _column(frame, pd_column)
         out: dict[str, np.ndarray] = {}
         for rule in self.enabled:
             if rule.kind == RELATIVE_PD and origination_column in frame.columns:
-                origination = pd.to_numeric(frame[origination_column], errors="coerce")
+                origination = _column(frame, origination_column)
                 ratio = current / origination.replace(0, np.nan)
                 absolute = current - origination
                 out[rule.key] = ((ratio >= rule.threshold)
@@ -271,13 +286,13 @@ class StagingPolicy:
             elif rule.kind == ABSOLUTE_PD:
                 out[rule.key] = (current >= rule.threshold).to_numpy()
             elif rule.kind == DAYS_PAST_DUE and dpd_column in frame.columns:
-                dpd = pd.to_numeric(frame[dpd_column], errors="coerce").fillna(0.0)
+                dpd = _column(frame, dpd_column)
                 out[rule.key] = (dpd >= rule.threshold).to_numpy()
             elif rule.kind == RATING_NOTCHES and notches_column in frame.columns:
-                notches = pd.to_numeric(frame[notches_column], errors="coerce").fillna(0.0)
+                notches = _column(frame, notches_column)
                 out[rule.key] = (notches >= rule.threshold).to_numpy()
             elif rule.kind == SCENARIO_PD_RATIO and baseline_pd_column in frame.columns:
-                base = pd.to_numeric(frame[baseline_pd_column], errors="coerce")
+                base = _column(frame, baseline_pd_column)
                 ratio = current / base.replace(0, np.nan)
                 out[rule.key] = (ratio >= rule.threshold).fillna(False).to_numpy()
             else:
