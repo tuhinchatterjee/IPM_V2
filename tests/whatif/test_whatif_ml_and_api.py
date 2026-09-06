@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 
-import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
@@ -381,6 +380,39 @@ class TestTheHttpSurface:
                               headers=ANALYST)
         assert response.status_code == 422
         assert "NOT-A-BORROWER" in response.json()["detail"]["message"]
+
+    def test_the_state_it_returns_is_state_it_will_accept(self, client) -> None:
+        """The round trip a conversation actually makes.
+
+        The client posts a state, gets one back, adds to it and posts it
+        again. `ScenarioState.to_dict()` writes None for a methodology nobody
+        has chosen yet, and the request model refused it — so every second
+        turn in a thread failed with a validation error while the first
+        looked fine.
+        """
+        first = client.post("/api/v1/whatif/interpret", headers=ANALYST, json={
+            "instruction": "Increase Stage 1 PD by 20%.",
+            "state": {"period": dm.latest_period(), "steps": []}}).json()
+        assert first["understood"] is True
+
+        # Post the returned state straight back, unmodified.
+        second = client.post("/api/v1/whatif/execute", headers=ANALYST,
+                             json={"state": first["state"]})
+        assert second.status_code == 200, second.json()
+        assert second.json()["needs_methodology"] is True
+
+        third = client.post("/api/v1/whatif/execute", headers=ANALYST,
+                            json={"state": second.json()["state"],
+                                  "methodology": "delta"})
+        assert third.status_code == 200, third.json()
+        assert third.json()["context"]["baseline_ecl"] > 0
+
+        # And once more, carrying the methodology the run settled.
+        fourth = client.post("/api/v1/whatif/execute", headers=ANALYST,
+                             json={"state": third.json()["state"]})
+        assert fourth.status_code == 200, fourth.json()
+        assert fourth.json()["needs_methodology"] is False, (
+            "a thread that has chosen must not be asked again")
 
     def test_the_landing_page_has_six_guided_journeys(self, client) -> None:
         body = client.get("/api/v1/whatif/landing", headers=ANALYST).json()

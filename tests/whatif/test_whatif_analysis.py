@@ -366,6 +366,27 @@ class TestTheMacroMatrix:
         assert variable.pd_factor(1.0) == pytest.approx(pd_multiplier)
         assert variable.lgd_delta(1.0) == pytest.approx(lgd_pp)
 
+    def test_a_basis_point_variable_is_sized_in_basis_points(self) -> None:
+        """The bug this catches cost a rates scenario a factor of a hundred.
+
+        The policy rate's adverse unit is 200 BASIS POINTS. Converting a
+        200bps shock into 2 percentage points and dividing by 200 gave 0.01
+        adverse units, so "rates up 200bps" moved the provision by almost
+        nothing.
+        """
+        applied = mc.applied("policy_rate", 200.0, mc.BASIS_POINTS)
+        assert applied.units == pytest.approx(1.0)
+        assert applied.pd_factor == pytest.approx(1.08)
+
+        # And the same move stated in percentage points means the same thing.
+        in_points = mc.applied("policy_rate", 2.0, mc.ABSOLUTE_PP)
+        assert in_points.units == pytest.approx(1.0)
+
+    def test_the_spread_is_also_sized_in_basis_points(self) -> None:
+        applied = mc.applied("credit_spread", 100.0, mc.BASIS_POINTS)
+        assert applied.units == pytest.approx(1.0)
+        assert applied.pd_factor == pytest.approx(1.08)
+
     def test_a_relative_move_is_relative_to_the_level(self) -> None:
         # Unemployment at 5%, "increase by 30%" is 6.5% — a 1.5pp move.
         applied = mc.applied("unemployment", 30.0, mc.RELATIVE, level=5.0)

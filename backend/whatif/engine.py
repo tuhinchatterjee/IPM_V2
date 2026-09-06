@@ -480,7 +480,74 @@ def _apply_stage(work: pd.DataFrame, shock: sc.Shock,
     })
 
 
+def _observed_level(variable: Any) -> float | None:
+    """The latest published level of a macro variable, where the book has one.
+
+    Needed only to size a RELATIVE move of a variable quoted in points —
+    "increase unemployment by 30%" is meaningless without knowing it is at 5%.
+    Returns None rather than a guess when the book does not publish it, and the
+    caller refuses instead of inventing a level.
+    """
+    if not getattr(variable, "column", ""):
+        return None
+    try:
+        from backend.whatif import domain as wf_domain
+        from backend.whatif import macro as mc
+
+        return mc.levels(wf_domain.macro()).get(variable.key)
+    except Exception:  # noqa: BLE001 - an unbuilt lake is not this function's job
+        return None
+
+
 def _apply_macro(work: pd.DataFrame, shock: sc.Shock,
+                 steps: list[dict[str, Any]], rows: list[dict[str, Any]]) -> None:
+    """Move a macro variable, and let PD and LGD follow its declared sensitivity.
+
+    The governed ten (`backend.whatif.macro`) are tried first: those are the
+    CreditProbe V1 variables the product configures, each with a declared PD
+    multiplier and LGD change per adverse unit. The older eight-variable
+    sensitivity matrix is still consulted for targets only it carries, so
+    scenarios written against it keep working.
+
+    Nothing here is fitted. The sensitivities are declared assumptions and the
+    step says so, because a screen that showed "unemployment +1pp raises PD by
+    12%" without saying where that came from would invite a committee to
+    believe a coefficient nobody measured.
+    """
+    from backend.whatif import macro as mc
+
+    governed = mc.variable(shock.target)
+    if governed is not None:
+        unit = {sc.RELATIVE: mc.RELATIVE, sc.ABSOLUTE_PP: mc.ABSOLUTE_PP,
+                sc.BASIS_POINTS: mc.BASIS_POINTS}.get(shock.unit, mc.ABSOLUTE_PP)
+        level = None
+        if unit == mc.RELATIVE and governed.unit != "percent":
+            level = _observed_level(governed)
+        try:
+            applied = mc.applied(governed.key, shock.magnitude, unit, level=level)
+        except mc.MacroError as e:
+            steps.append({"step": f"{governed.name} — not applied",
+                          "detail": str(e), "affected": 0})
+            return
+        work["pd_stressed"] = mc.apply_pd(work["pd_stressed"], applied.pd_factor)
+        if applied.lgd_delta_pp:
+            work["lgd_stressed"] = mc.apply_lgd(work["lgd_stressed"],
+                                                applied.lgd_delta_pp)
+        rows.append(applied.to_dict())
+        steps.append({
+            "step": governed.name,
+            "detail": (f"{applied.describe()}. This is a declared CreditProbe "
+                       f"What-If sensitivity (v{mc.MACRO_VERSION}), not an "
+                       "IFRS 9 coefficient and not an estimate fitted to this "
+                       "book."),
+            "affected": int(len(work)),
+        })
+        return
+
+    _apply_macro_legacy(work, shock, steps, rows)
+
+
+def _apply_macro_legacy(work: pd.DataFrame, shock: sc.Shock,
                  steps: list[dict[str, Any]],
                  rows: list[dict[str, Any]]) -> None:
     """A macro shock, through the versioned sensitivity matrix."""

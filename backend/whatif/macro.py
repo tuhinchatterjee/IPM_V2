@@ -110,10 +110,16 @@ class Variable:
         magnitude IS the move and no level is needed.
         """
         said = float(magnitude)
+        # The magnitude has to be expressed in the variable's OWN measure
+        # before it can be divided by an adverse unit written in that measure.
+        # The policy rate's adverse unit is 200 BASIS POINTS; converting a
+        # 200bps shock into 2 percentage points and then dividing by 200 gave
+        # a hundredth of the intended move, and a rates scenario that barely
+        # touched the provision.
         if unit == BASIS_POINTS:
-            absolute = said / 100.0
+            absolute = said if self.unit == "basis points" else said / 100.0
         elif unit == ABSOLUTE_PP:
-            absolute = said
+            absolute = said * 100.0 if self.unit == "basis points" else said
         elif unit == RELATIVE:
             if self.unit == "percent":
                 absolute = said

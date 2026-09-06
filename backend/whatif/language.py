@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.orchestration import temporal
+from backend.whatif import macro as mc
 from backend.whatif import masterscale as ms
 from backend.whatif import scenarios as sc
 
@@ -84,7 +85,13 @@ _UPGRADE = re.compile(r"\bupgrad\w*\b", re.IGNORECASE)
 # questions were lost to that one boundary, so the percent sign stands alone
 # and only the spelled-out forms carry a boundary.
 _BPS = re.compile(_NUMBER + r"\s*(?:bps|basis\s+points?|bp)\b", re.IGNORECASE)
-_PP = re.compile(_NUMBER + r"\s*(?:pp\b|percentage\s+points?\b|ppt\b)",
+#: A magnitude may be written out. "five percentage points" is how a credit
+#: officer says it out loud, and refusing it because it is not "5" would be a
+#: parser telling a person how to talk.
+_WORD = "|".join(_WORD_NUMBERS)
+_ANY_NUMBER = rf"(\d+(?:\.\d+)?|{_WORD}|half|a\s+quarter|three\s+quarters)"
+
+_PP = re.compile(_ANY_NUMBER + r"\s*(?:pp\b|percentage\s+points?\b|ppt\b)",
                  re.IGNORECASE)
 _PCT = re.compile(_NUMBER + r"\s*(?:%|per\s?cent\w*\b)", re.IGNORECASE)
 
@@ -106,6 +113,15 @@ _INSTRUCTS = re.compile(
     r"\b(?:increase|decrease|raise|reduce|lower|cut|add|apply|set|move|"
     r"migrate|downgrade|upgrade|cure|shift|widen|narrow|weaken|strengthen)\b",
     re.IGNORECASE)
+
+#: A bare direction. Only counts as an instruction when a size is present too,
+#: because "PD is down" is an observation and "PD down 20%" is a scenario.
+_DIRECTED = re.compile(
+    r"\b(?:up|down|rise[sn]?|rose|rising|fall[sn]?|fell|falling|higher|lower|"
+    r"widen\w*|narrow\w*|weaken\w*|strengthen\w*)\b", re.IGNORECASE)
+_HAS_MAGNITUDE = re.compile(
+    r"\d|\bnotch\w*\b|\bhalf\b|\bquarter\b|\b(?:one|two|three|four|five|"
+    r"six|seven|eight|nine|ten)\b", re.IGNORECASE)
 
 #: Severity words the old presets were selected by. "Use the severe scenario"
 #: named a preset that no longer exists on this path, so the word is read as a
@@ -179,6 +195,23 @@ _ASSUME_RATING_SICR = re.compile(
 
 
 def _word_number(said: str) -> float:
+    """A magnitude however it was written — "5", "five", or "half"."""
+    text = str(said or "").strip().lower()
+    if text in ("half", "a half"):
+        return 50.0
+    if text in ("a quarter",):
+        return 25.0
+    if text in ("three quarters",):
+        return 75.0
+    if text in _WORD_NUMBERS:
+        return float(_WORD_NUMBERS[text])
+    try:
+        return float(text)
+    except ValueError:
+        return 1.0
+
+
+def _word_number_original(said: str) -> float:
     said = said.strip().lower()
     if said in _WORD_NUMBERS:
         return float(_WORD_NUMBERS[said])
@@ -263,6 +296,37 @@ def _population(text: str) -> tuple[sc.Population, list[str]]:
                          watchlist_only=watchlist), notes
 
 
+#: "Move half the Stage 1 borrowers to Stage 2", "Stage 2 to Stage 3",
+#: "move 30% of Stage 2 back to Stage 1".
+_STAGE_MOVE = re.compile(
+    r"stage\s*(?P<from>[123])\b.{0,40}?\b(?:to|into|back\s+to)\s+stage\s*"
+    r"(?P<to>[123])\b", re.IGNORECASE)
+
+#: How much of a population moves. "half" is a share people actually say.
+_SHARE = re.compile(
+    r"\b(half|a\s+quarter|three\s+quarters|\d+(?:\.\d+)?)\s*(?:%|per\s?cent)?"
+    r"\s*(?:of\s+)?", re.IGNORECASE)
+
+#: The ten governed macro variables, by the words people use for them. Ordered
+#: so a more specific name is tried before a more general one — "house prices"
+#: before "prices", "credit spread" before "spread".
+_MACRO_SPOKEN: tuple[tuple[str, str], ...] = (
+    (r"\bunemployment\b|\bjobless\w*\b", "unemployment"),
+    (r"\bhouse\s+price\w*\b|\bproperty\s+price\w*\b|\bhpi\b"
+     r"|\bhousing\b|\breal\s+estate\s+price\w*\b", "house_price_index"),
+    (r"\bcurrent\s+account\b|\bexternal\s+balance\b", "current_account"),
+    (r"\bstock\s+market\b|\bequit\w+\b|\bshare\s+price\w*\b"
+     r"|\btadawul\b", "equity_index"),
+    (r"\bcredit\s+spread\w*\b|\bcorporate\s+spread\w*\b", "credit_spread"),
+    (r"\bcurrency\b|\bfx\b|\bexchange\s+rate\b|\bdepreciat\w+\b"
+     r"|\briyal\b", "fx_depreciation"),
+    (r"\binflation\b|\bcpi\b", "inflation"),
+    (r"\bgdp\b|\breal\s+gdp\b", "gdp_growth"),
+    (r"\boil\b|\bcrude\b|\bbrent\b", "oil_price"),
+    (r"\bpolicy\s+rate\w*\b", "policy_rate"),
+)
+
+
 def _shocks(text: str) -> tuple[list[sc.Shock], list[str], list[str]]:
     """Every shock the sentence states, with its unit read explicitly."""
     shocks: list[sc.Shock] = []
@@ -283,16 +347,67 @@ def _shocks(text: str) -> tuple[list[sc.Shock], list[str], list[str]]:
     elif _UPGRADE.search(text):
         shocks.append(sc.Shock(sc.RATING, -1, sc.NOTCHES))
 
+    # ---- a Stage migration somebody asked for outright
+    stage_move = _STAGE_MOVE.search(text)
+    if stage_move:
+        start, end = int(stage_move.group("from")), int(stage_move.group("to"))
+        share = _SHARE.search(text)
+        size = _word_number(share.group(1)) if share else 100.0
+        if share and share.group(0).strip().lower() in ("half", "a half"):
+            size = 50.0
+        shocks.append(sc.Shock(sc.STAGE, size, sc.RELATIVE,
+                               target=f"{start}->{end}"))
+        if not share:
+            notes.append(
+                f"No share was given, so every Stage {start} borrower in the "
+                f"population was moved to Stage {end}.")
+
+    # ---- credit conversion factor
+    if re.search(r"\bccf\b|\bcredit\s+conversion\s+factor\b", text,
+                 re.IGNORECASE):
+        found = _PCT.search(text) or _PP.search(text)
+        if found:
+            size = _word_number(found.group(1)) * _direction(text, found.start())
+            unit = sc.RELATIVE if found.re is _PCT else sc.ABSOLUTE_PP
+            shocks.append(sc.Shock(sc.CCF, size, unit))
+        else:
+            unread.append("a CCF movement with no size given")
+
+    # ---- the ten governed macro variables, by the names people use
+    for spoken, key in _MACRO_SPOKEN:
+        if key in {s.target for s in shocks}:
+            continue
+        if not re.search(spoken, text, re.IGNORECASE):
+            continue
+        variable = mc.BY_KEY[key]
+        bps = _BPS.search(text)
+        pp = _PP.search(text)
+        percent = _PCT.search(text)
+        if variable.unit == "basis points" and bps:
+            size = _word_number(bps.group(1)) * _direction(text, bps.start())
+            shocks.append(sc.Shock(sc.MACRO, size, sc.BASIS_POINTS, target=key))
+        elif variable.unit == "percent" and percent:
+            size = _word_number(percent.group(1)) * _direction(text, percent.start())
+            shocks.append(sc.Shock(sc.MACRO, size, sc.RELATIVE, target=key))
+        elif pp:
+            size = _word_number(pp.group(1)) * _direction(text, pp.start())
+            shocks.append(sc.Shock(sc.MACRO, size, sc.ABSOLUTE_PP, target=key))
+        elif percent:
+            size = _word_number(percent.group(1)) * _direction(text, percent.start())
+            shocks.append(sc.Shock(sc.MACRO, size, sc.RELATIVE, target=key))
+        else:
+            unread.append(f"a {variable.name} movement with no size given")
+
     # ---- macro variables, each with its own unit
     if re.search(r"\b(?:interest\s+)?rates?\b|\bpolicy\s+rate\b", text,
                  re.IGNORECASE):
         bps = _BPS.search(text)
         pp = _PP.search(text)
         if bps:
-            size = float(bps.group(1)) * _direction(text, bps.start())
+            size = _word_number(bps.group(1)) * _direction(text, bps.start())
             shocks.append(sc.Shock(sc.MACRO, size, sc.BASIS_POINTS, target="rates"))
         elif pp:
-            size = float(pp.group(1)) * 100.0 * _direction(text, pp.start())
+            size = _word_number(pp.group(1)) * 100.0 * _direction(text, pp.start())
             shocks.append(sc.Shock(sc.MACRO, size, sc.BASIS_POINTS, target="rates"))
         else:
             unread.append("a rate movement with no size given")
@@ -304,18 +419,18 @@ def _shocks(text: str) -> tuple[list[sc.Shock], list[str], list[str]]:
                                target="shipping_disruption"))
     if re.search(r"\boil\b|\bcrude\b|\bcommodity\s+price", text, re.IGNORECASE):
         pct = _PCT.search(text)
-        size = -float(pct.group(1)) if pct else -20.0
+        size = -_word_number(pct.group(1)) if pct else -20.0
         if not pct:
             notes.append("No size was given for the oil move, so the "
                          "configured 20% downside was applied.")
         shocks.append(sc.Shock(sc.MACRO, size, sc.RELATIVE, target="oil"))
     if re.search(r"\bgdp\b|\brecession\b|\bdemand\s+shock\b", text, re.IGNORECASE):
         pp = _PP.search(text)
-        size = -float(pp.group(1)) if pp else -1.0
+        size = -_word_number(pp.group(1)) if pp else -1.0
         shocks.append(sc.Shock(sc.MACRO, size, sc.ABSOLUTE_PP, target="gdp"))
     if re.search(r"\binflation\b", text, re.IGNORECASE):
         pp = _PP.search(text)
-        shocks.append(sc.Shock(sc.MACRO, float(pp.group(1)) if pp else 1.0,
+        shocks.append(sc.Shock(sc.MACRO, _word_number(pp.group(1)) if pp else 1.0,
                                sc.ABSOLUTE_PP, target="inflation"))
 
     # ---- PD
@@ -326,13 +441,13 @@ def _shocks(text: str) -> tuple[list[sc.Shock], list[str], list[str]]:
         pp = _PP.search(text)
         bps = _BPS.search(text)
         if pct:
-            shocks.append(sc.Shock(sc.PD, float(pct.group(1))
+            shocks.append(sc.Shock(sc.PD, _word_number(pct.group(1))
                                    * _direction(text, pct.start()), sc.RELATIVE))
         elif pp:
-            shocks.append(sc.Shock(sc.PD, float(pp.group(1))
+            shocks.append(sc.Shock(sc.PD, _word_number(pp.group(1))
                                    * _direction(text, pp.start()), sc.ABSOLUTE_PP))
         elif bps:
-            shocks.append(sc.Shock(sc.PD, float(bps.group(1))
+            shocks.append(sc.Shock(sc.PD, _word_number(bps.group(1))
                                    * _direction(text, bps.start()), sc.BASIS_POINTS))
         elif anchor and not any(s.kind == sc.RATING for s in shocks):
             unread.append("a PD movement with no size given")
@@ -344,10 +459,10 @@ def _shocks(text: str) -> tuple[list[sc.Shock], list[str], list[str]]:
         bare = re.search(r"\blgd\b\s+\w*\s*(?:by\s+)?" + _NUMBER, text,
                          re.IGNORECASE)
         if pp:
-            shocks.append(sc.Shock(sc.LGD, float(pp.group(1))
+            shocks.append(sc.Shock(sc.LGD, _word_number(pp.group(1))
                                    * _direction(text, pp.start()), sc.ABSOLUTE_PP))
         elif pct:
-            shocks.append(sc.Shock(sc.LGD, float(pct.group(1))
+            shocks.append(sc.Shock(sc.LGD, _word_number(pct.group(1))
                                    * _direction(text, pct.start()), sc.RELATIVE))
         elif bare:
             shocks.append(sc.Shock(sc.LGD, float(bare.group(1))
@@ -364,7 +479,7 @@ def _shocks(text: str) -> tuple[list[sc.Shock], list[str], list[str]]:
         moves = bool(_UP.search(text) or _DOWN.search(text))
         pct = _PCT.search(text)
         if pct and moves:
-            shocks.append(sc.Shock(sc.EAD, float(pct.group(1))
+            shocks.append(sc.Shock(sc.EAD, _word_number(pct.group(1))
                                    * _direction(text, pct.start()), sc.RELATIVE))
         elif moves:
             shocks.append(sc.Shock(sc.EAD, 15.0, sc.RELATIVE))
@@ -376,7 +491,7 @@ def _shocks(text: str) -> tuple[list[sc.Shock], list[str], list[str]]:
                  text, re.IGNORECASE):
         pct = _PCT.search(text)
         if pct:
-            size = float(pct.group(1)) * _direction(text, pct.start())
+            size = _word_number(pct.group(1)) * _direction(text, pct.start())
             shocks.append(sc.Shock(sc.COLLATERAL, size, sc.RELATIVE))
         else:
             unread.append("a collateral movement with no size given")
@@ -391,7 +506,7 @@ def _shocks(text: str) -> tuple[list[sc.Shock], list[str], list[str]]:
         after = text[found.end(): found.end() + 60]
         pct = _PCT.search(after) or _PCT.search(text)
         if pct:
-            size = float(pct.group(1)) * _direction(text, found.start())
+            size = _word_number(pct.group(1)) * _direction(text, found.start())
             shocks.append(sc.Shock(sc.FINANCIAL, size, sc.RELATIVE, target=measure))
         else:
             unread.append(f"an {measure.replace('_', ' ')} movement with no "
@@ -401,7 +516,36 @@ def _shocks(text: str) -> tuple[list[sc.Shock], list[str], list[str]]:
                                          lowered) and not shocks:
         shocks.append(sc.Shock(sc.MACRO, 2.0, sc.STEPS, target="sector_stress"))
 
-    return shocks, notes, unread
+    return _deduplicate(shocks), notes, unread
+
+
+#: The older sensitivity matrix's keys, and the governed variable each one is
+#: really about. A sentence like "oil price down 20%" matches both readers, and
+#: applying it twice would double the shock.
+_LEGACY_MACRO: dict[str, str] = {
+    "rates": "policy_rate", "oil": "oil_price", "gdp": "gdp_growth",
+    "inflation": "inflation", "property": "house_price_index",
+    "fx": "fx_depreciation",
+}
+
+
+def _deduplicate(shocks: list[sc.Shock]) -> list[sc.Shock]:
+    """One shock per concept, keeping the governed reading.
+
+    Both the governed ten and the older matrix can recognise the same
+    sentence. Left alone that produces two macro shocks for one instruction
+    and the engine applies both, so the answer is the square of what was
+    asked for.
+    """
+    governed = {s.target for s in shocks
+                if s.kind == sc.MACRO and s.target not in _LEGACY_MACRO}
+    out: list[sc.Shock] = []
+    for shock in shocks:
+        if (shock.kind == sc.MACRO
+                and _LEGACY_MACRO.get(shock.target) in governed):
+            continue
+        out.append(shock)
+    return out
 
 
 def read(question: str) -> Reading:
@@ -412,7 +556,17 @@ def read(question: str) -> Reading:
 
     is_scenario = bool(_ASKS_A_SCENARIO.search(said))
     continues = bool(_CONTINUES.search(said))
-    opens = bool(_OPENS_WHATIF.search(said) or _INSTRUCTS.search(said))
+    # A direction plus a size is an instruction too: "oil price down 20%" and
+    # "policy rates up 200 bps" are how these are actually written, and neither
+    # carries a verb.
+    #
+    # The size is looked for with TIME MASKED OUT. "Which customers were
+    # downgraded and had ECL rise in Q1 2026?" is a question about what already
+    # happened; reading the year as a magnitude turned it into a scenario and
+    # answered a question nobody asked.
+    directed = bool(_DIRECTED.search(said)
+                    and _HAS_MAGNITUDE.search(temporal.without_time(said)))
+    opens = bool(_OPENS_WHATIF.search(said) or _INSTRUCTS.search(said) or directed)
     reading = Reading(is_scenario_question=is_scenario or continues or opens,
                       continues_previous=continues and not is_scenario,
                       opens_whatif=opens)

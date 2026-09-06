@@ -271,9 +271,13 @@ class StagingRuleIn(BaseModel):
 
 
 class StagingIn(BaseModel):
+    """Edited staging criteria. Also has to read `StagingPolicy.describe()`,
+    which the client holds and posts back, so the extra descriptive fields it
+    carries are ignored rather than refused."""
+
     rules: list[StagingRuleIn] = Field(default_factory=list, max_length=20)
-    combination: str = Field(default=stg.ANY, max_length=8)
-    note: str = Field(default="", max_length=500)
+    combination: str | None = Field(default=stg.ANY, max_length=8)
+    note: str | None = Field(default="", max_length=500)
 
 
 class StepIn(BaseModel):
@@ -288,13 +292,22 @@ class StepIn(BaseModel):
 
 
 class StateIn(BaseModel):
+    """The scenario state, as the browser holds it.
+
+    The optional strings accept None as well as "" because this model has to
+    accept its OWN output: `ScenarioState.to_dict()` writes `None` for a
+    methodology that has not been chosen yet, and the client posts that dict
+    straight back. A contract that cannot read what it just emitted rejects
+    every second request, which is exactly what it did.
+    """
+
     period: str = Field(default="", max_length=24)
-    title: str = Field(default="", max_length=200)
-    thread_id: str = Field(default="", max_length=64)
+    title: str | None = Field(default="", max_length=200)
+    thread_id: str | None = Field(default="", max_length=64)
     steps: list[StepIn] = Field(default_factory=list, max_length=40)
     staging: StagingIn | None = None
-    methodology: str = Field(default="", max_length=16)
-    model_version: str = Field(default="", max_length=32)
+    methodology: str | None = Field(default="", max_length=16)
+    model_version: str | None = Field(default="", max_length=32)
 
 
 class ExecuteIn(BaseModel):
@@ -361,9 +374,11 @@ def _state_from(body: StateIn) -> sp.ScenarioState:
             enabled=raw.enabled, detail=dict(raw.detail),
             **({"step_id": raw.step_id} if raw.step_id else {})))
     return sp.ScenarioState(
-        period=body.period, title=body.title, thread_id=body.thread_id,
+        period=body.period, title=body.title or "",
+        thread_id=body.thread_id or "",
         steps=tuple(steps), staging=_staging_from(body.staging),
-        methodology=body.methodology, model_version=body.model_version)
+        methodology=body.methodology or "",
+        model_version=body.model_version or "")
 
 
 def _owner(principal: Principal) -> int | None:
