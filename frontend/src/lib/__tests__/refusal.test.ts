@@ -68,16 +68,26 @@ test("the refusal panel says which panel, and does not dress it as an error", ()
 
 // ------------------------------------------------- the six refused screens
 
-test("What-If states a refused configuration instead of emptying the page", () => {
-  const stress = read("app/stress/page.tsx");
+test("What-If states a refused landing instead of emptying the page", () => {
+  // The capability moved from /stress to /what-if when Stress Testing became
+  // What-If Analysis. /stress is now a redirect and has nothing to refuse.
+  const landing = read("app/what-if/page.tsx");
 
-  assert.match(stress, /<Unavailable state=\{configuration\}/);
+  assert.match(landing, /<Unavailable state=\{landing\}/);
 
-  // Above the controls it explains, not below the results nobody got.
-  const stated = stress.indexOf("<Unavailable");
-  const controls = stress.indexOf("Configured scenario");
-  assert.ok(stated > 0 && stated < controls,
+  // Above the guided journeys it explains, not below the results nobody got.
+  const stated = landing.indexOf("<Unavailable");
+  const journeys = landing.indexOf("Start from a guided scenario");
+  assert.ok(stated > 0 && stated < journeys,
     "the refusal must come before the controls it explains");
+});
+
+test("the What-If model pages state a refusal too", () => {
+  for (const page of ["app/what-if/models/delta/page.tsx",
+                      "app/what-if/models/ml/page.tsx"]) {
+    assert.match(read(page), /<Unavailable state=\{model\}/,
+      `${page} must say why it is empty`);
+  }
 });
 
 test("the CRO lens states one refusal, not seven", () => {
