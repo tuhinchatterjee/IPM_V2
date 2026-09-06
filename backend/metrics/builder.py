@@ -522,6 +522,22 @@ def propose(text: str, *, domain: str = "", dataset: str = "",
             f"Filters on {fields[condition.field]['business_name']} "
             f"{condition.describe().split(' ', 1)[1]}, read from your words.")
 
+    # With no field to measure, a sum or an average has nothing to compute, so
+    # the only thing left that compiles is a row count. Offering the sum
+    # anyway would put a definition on screen that fails the moment somebody
+    # previews it.
+    #
+    # A WEIGHTED average is deliberately not downgraded. A count is a
+    # different metric, not a safer version of the one asked for, and quietly
+    # returning one would answer a question nobody put. It keeps its kind, it
+    # does not compile, and the two things still to decide are named — which
+    # is the honest state of a request CreditProbe understood and cannot yet
+    # satisfy.
+    if not measure and kind in ("sum", "average"):
+        kind = "count"
+        unresolved.append(
+            "Which field to measure. CreditProbe drafted a row count instead, "
+            "because a total with no field to total is not a definition.")
     aggregate = {"sum": "sum", "average": "avg", "count": "count",
                  "distinct_count": "count_distinct",
                  "weighted_average": "weighted_avg",
@@ -551,9 +567,25 @@ def propose(text: str, *, domain: str = "", dataset: str = "",
         unresolved.append("Which field to weight by. A weighted average needs "
                           "one, and guessing it would change the answer.")
 
+    # A rate whose two sides are identical is 100% by construction. It
+    # compiles, it previews, and it is never what anybody meant — so it is
+    # named as the thing still to decide rather than left to be discovered
+    # when the tile reads 100.00%.
+    if formula.denominator and formula.numerator.terms:
+        top = formula.numerator.terms[0]
+        bottom = formula.denominator.terms[0]
+        if (top.field, top.aggregate, top.where) == (
+                bottom.field, bottom.aggregate, bottom.where):
+            unresolved.append(
+                "What makes the top of this rate different from the bottom. "
+                "As drafted the two are the same measure over the same rows, "
+                "so it would read 100% for every period. Add a filter to the "
+                "numerator, or change the denominator's population.")
+
     return Proposal(name=_title(said) or "New metric", kind=kind,
                     dataset=dataset, domain=domain, formula=formula,
-                    assumptions=assumptions, unresolved=unresolved)
+                    assumptions=assumptions,
+                    unresolved=list(dict.fromkeys(unresolved)))
 
 
 def _catalog() -> Any:
@@ -608,19 +640,32 @@ def _dataset_for(text: str, pool: list[MetricDefinition],
     return dataset, domain or found
 
 
+#: Types that cannot be the measured quantity of a metric, whatever their
+#: name says. Everything else is allowed to be, and the validator has the
+#: final word — which matters here because the declared type is not always
+#: right: `portfolio_facility.exposure` is catalogued as a string and is
+#: summed by seven governed metrics. Refusing it on the declared type alone
+#: would have made "total exposure" the one thing this builder could not
+#: draft.
+_NOT_A_MEASURE = ("boolean", "date", "datetime", "timestamp")
+
+
 def _best_field(text: str, fields: dict[str, dict[str, Any]], *,
                 numeric: bool) -> str:
     """The field whose name is closest to what somebody wrote, or nothing.
 
     Nothing rather than the first numeric column: a metric measuring a field
     nobody asked for is worse than one that asks which field to measure.
+
+    A field the catalogue types as a number wins a tie against one it types as
+    a string, so the declared type still counts — it just does not veto.
     """
     tokens = set(_signal(text))
     if not tokens:
         return ""
     best, chosen = 0.0, ""
     for name, definition in fields.items():
-        if numeric and definition["data_type"] not in ("number", "integer"):
+        if numeric and definition["data_type"] in _NOT_A_MEASURE:
             continue
         if definition["sensitivity"] in ("confidential", "restricted"):
             continue
@@ -628,7 +673,11 @@ def _best_field(text: str, fields: dict[str, dict[str, Any]], *,
         overlap = tokens & vocabulary
         if not overlap:
             continue
-        weight = len(overlap) + (0.5 if name.lower() in text.lower() else 0.0)
+        weight = float(len(overlap))
+        if name.lower() in text.lower():
+            weight += 0.5
+        if definition["data_type"] in ("number", "integer"):
+            weight += 0.25
         if weight > best:
             best, chosen = weight, name
     return chosen

@@ -211,8 +211,16 @@ class Panel:
                            "limit": int(limit), "compare": compare})
 
 
-def validate(panels: list[Panel]) -> None:
-    """Refuse a definition the platform cannot honestly render."""
+def validate(panels: list[Panel], *, user_id: int | None = None) -> None:
+    """Refuse a definition the platform cannot honestly render.
+
+    `user_id` is who the lens is being written by, and it matters for one
+    reason: a metric somebody built a minute ago is theirs and not yet
+    shared, so resolving it without them says it does not exist — and the
+    refusal read "'user.1.watchlist_exposure' is not a metric in the
+    catalogue", which is both alarming and wrong. Nobody could put a metric
+    they had just built onto a lens.
+    """
     from backend.engine.registry import get_registry
 
     if not panels:
@@ -247,10 +255,10 @@ def validate(panels: list[Panel]) -> None:
                 f"'{panel.kind}' is not a kind of panel. "
                 f"Available: {', '.join(KINDS)}.")
         if panel.kind == KIND_METRIC:
-            _validate_metric_panel(panel)
+            _validate_metric_panel(panel, user_id=user_id)
             continue
         if panel.kind == KIND_CHART:
-            _validate_chart_panel(panel)
+            _validate_chart_panel(panel, user_id=user_id)
             continue
         contract = known.get(panel.analysis_id)
         if contract is None:
@@ -273,7 +281,8 @@ def validate(panels: list[Panel]) -> None:
             )
 
 
-def _validate_metric_panel(panel: Panel) -> None:
+def _validate_metric_panel(panel: Panel, *, user_id: int | None = None
+                           ) -> None:
     """Refuse a metric tile that cannot honestly be drawn as asked.
 
     Two separate checks, and the second is the interesting one. A metric that
@@ -294,7 +303,7 @@ def _validate_metric_panel(panel: Panel) -> None:
             f"{absent.because}")
 
     try:
-        metric = metrics.resolve(panel.metric_id)
+        metric = metrics.resolve(panel.metric_id, user_id=user_id)
     except metrics.MetricNotFound as e:
         raise InvalidLens(
             f"'{panel.metric_id}' is not a metric in the catalogue. A lens can "
@@ -321,7 +330,8 @@ def _validate_metric_panel(panel: Panel) -> None:
             f"{', '.join(here) or 'nothing this lens can draw'}.{also}")
 
 
-def _validate_chart_panel(panel: Panel) -> None:
+def _validate_chart_panel(panel: Panel, *, user_id: int | None = None
+                          ) -> None:
     """Refuse a chart the platform cannot honestly draw.
 
     Every check here has an equivalent in the builder's own pickers, and it is
@@ -347,7 +357,7 @@ def _validate_chart_panel(panel: Panel) -> None:
             f"{absent.name} cannot be calculated in this deployment. "
             f"{absent.because}")
     try:
-        metric = metrics.resolve(panel.metric_id)
+        metric = metrics.resolve(panel.metric_id, user_id=user_id)
     except metrics.MetricNotFound as e:
         raise InvalidLens(
             f"'{panel.metric_id}' is not a metric in the catalogue. A chart "
@@ -588,7 +598,7 @@ def create(*, name: str, panels: list[Panel], description: str = "",
     slug derived from a name is not stable enough to be an address.
     """
     _require_db()
-    validate(panels)
+    validate(panels, user_id=user_id)
     scope = validate_scope(scope)
 
     from backend.db.engine import get_session
@@ -644,7 +654,7 @@ def revise(lens_id: int, panels: list[Panel], *, request: str = "",
     still described itself as the lens it was before.
     """
     _require_db()
-    validate(panels)
+    validate(panels, user_id=user_id)
     kept = get(lens_id).scope if scope is None else validate_scope(scope)
 
     from backend.db.engine import get_session
@@ -1578,7 +1588,7 @@ def _propose_metrics(request: str, text: str, current: list[Panel],
                      note=metric.definition)
         for metric in added]
     try:
-        validate(panels)
+        validate(panels, user_id=user_id)
     except InvalidLens:
         raise
 

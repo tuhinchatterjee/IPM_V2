@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as React from "react";
-import { ArrowRight, LayoutGrid, Plus } from "lucide-react";
+import { ArrowRight, LayoutGrid, Plus, Sparkles } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,8 @@ import { useAsync } from "@/lib/hooks";
  * stored.
  */
 export default function LensesPage() {
+  const router = useRouter();
+  const [said, setSaid] = React.useState("");
   const library = useAsync(() => api.lensList(), []);
   const shipped: ShippedLens[] = library.data?.shipped ?? [];
   const bySlug = new Map<string, Lens>(
@@ -59,6 +62,81 @@ export default function LensesPage() {
           </Button>
         }
       />
+
+      {/*
+        §1. The question first, and a box under it.
+
+        A person arriving here wants one of two things: to open a dashboard
+        that already exists, or to make one. Asking the second question at the
+        top costs one line and saves the reader deciding whether the page is
+        for browsing or for building — it is for both, and it says so.
+
+        What they type is not turned into a lens on the spot. It is carried
+        into the builder, which shows what it understood before anything is
+        created. A box that built a whole lens from one sentence would leave
+        whatever it did not understand silently absent.
+      */}
+      <Card className="p-5">
+        <h2 className="text-sm font-semibold tracking-tight text-text-primary">
+          How do you want to define a new Lens?
+        </h2>
+        <p className="mt-1 text-xs leading-relaxed text-text-muted">
+          Describe what you want to monitor in your own words, and CreditProbe
+          will show you which governed data it recognised and which metrics
+          answer to it — before it builds anything. Or start from a blank one
+          and pick metrics from the library.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <input
+            value={said}
+            aria-label="Describe what you want to monitor"
+            data-testid="lens-intent"
+            placeholder="Watchlist exposure and covenant breaches across the corporate book"
+            onChange={(e) => setSaid(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && said.trim()) {
+                router.push(
+                  `/lenses/new?say=${encodeURIComponent(said.trim())}`,
+                );
+              }
+            }}
+            className="h-10 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+          />
+          <Button
+            data-testid="describe-lens"
+            disabled={!said.trim()}
+            onClick={() =>
+              router.push(`/lenses/new?say=${encodeURIComponent(said.trim())}`)
+            }
+          >
+            <Sparkles aria-hidden />
+            Describe it
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/lenses/new">
+              <Plus aria-hidden />
+              Start blank
+            </Link>
+          </Button>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] text-text-muted">For example:</span>
+          {[
+            "Watchlist exposure and covenant breaches",
+            "IFRS 9 coverage and retail delinquency",
+            "Exposure by sector",
+          ].map((example) => (
+            <button
+              key={example}
+              type="button"
+              onClick={() => setSaid(example)}
+              className="rounded-full border border-border px-2.5 py-1 text-[11px] text-text-secondary transition-colors hover:bg-surface-hover"
+            >
+              {example}
+            </button>
+          ))}
+        </div>
+      </Card>
 
       <section>
         <h2 className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">

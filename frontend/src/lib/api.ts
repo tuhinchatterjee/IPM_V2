@@ -4528,6 +4528,171 @@ export interface LensSuggestion {
   shipped: string;
 }
 
+// ---------------------------------------------------- the conversational builder
+
+/** A governed data domain a sentence might mean. Ticked, never decided. */
+export interface DomainOption {
+  name: string;
+  metrics: number;
+  matched: string;
+  chosen: boolean;
+}
+
+/** A chart a sentence asked for. */
+export interface ChartIntent {
+  metric_id: string;
+  metric_name: string;
+  dimension: string;
+  dimension_label: string;
+  over_time: boolean;
+  visual: string;
+  chart_types: string[];
+}
+
+/**
+ * What CreditProbe understood, as options rather than as a decision.
+ *
+ * Deterministic: no model reads the sentence, the catalogue does. The same
+ * words produce the same options every time, which is what makes a wrong
+ * reading visibly wrong rather than mysteriously wrong.
+ */
+export interface LensIntent {
+  text: string;
+  domains: DomainOption[];
+  portfolios: string[];
+  metrics: MetricHit[];
+  charts: ChartIntent[];
+  periods: string[];
+  over_time: boolean;
+  dimensions: string[];
+  unavailable: MetricUnavailable[];
+  wants_new: boolean;
+  question: string;
+  understood: string;
+}
+
+/** A metric skeleton, and everything about it that is still a guess. */
+export interface MetricProposal {
+  name: string;
+  kind: string;
+  dataset: string;
+  domain: string;
+  formula: FormulaTree;
+  assumptions: string[];
+  unresolved: string[];
+  explained: MetricExplained | null;
+}
+
+export interface FormulaTree {
+  kind: string;
+  numerator: { terms: FormulaTerm[]; combine: string; describes: string };
+  denominator: { terms: FormulaTerm[]; combine: string; describes: string } | null;
+  scale: number;
+  function: string;
+  function_args: Record<string, unknown>;
+  describes: string;
+}
+
+export interface FormulaTerm {
+  id: string;
+  label: string;
+  dataset: string;
+  aggregate: string;
+  field: string;
+  weight_field: string;
+  where: { field: string; op: string; value: unknown }[];
+  describes: string;
+}
+
+/**
+ * One definition, read three ways.
+ *
+ * `formula` is the labelled reading an info panel shows. `formula_detail`
+ * writes every term out and is the one that moves when a threshold does — a
+ * label is prose written once, and an editor that showed only the label would
+ * show a person editing a threshold no change at all.
+ *
+ * `sql_params` matters for the same reason: a threshold is a BOUND parameter,
+ * so moving it changes what is bound and not the query text. A screen showing
+ * the SQL alone would look frozen. Both are shown.
+ */
+export interface MetricExplained {
+  metric_id: string;
+  name: string;
+  definition: string;
+  kind: string;
+  unit: string;
+  decimals: number;
+  domain: string;
+  portfolio: string;
+  datasets: string[];
+  formula: string;
+  formula_detail: string;
+  formula_tree: FormulaTree;
+  plain_english: string[];
+  sql: string;
+  sql_params: string[];
+  sql_unavailable: string;
+  fields: MetricField[];
+  filters: string[];
+  status: string;
+  origin: string;
+  version: string;
+}
+
+export interface MetricField {
+  name: string;
+  business_name: string;
+  definition: string;
+  data_type: string;
+  sensitivity: string;
+  allowed_values: string[];
+}
+
+/** A term as the preview shows it: its own value and its own filters. */
+export interface PreviewTerm {
+  id: string;
+  label: string;
+  describes: string;
+  dataset: string;
+  aggregate: string;
+  field: string;
+  filters: string[];
+  value: number | null;
+  rows: number | null;
+}
+
+/** §8: everything a person checks before they trust a definition. */
+export interface MetricPreview {
+  metric_id: string;
+  name: string;
+  domain: string;
+  portfolio: string;
+  dataset: string;
+  grain: string;
+  periods: string[];
+  period: string;
+  unit: string;
+  decimals: number;
+  fields: MetricField[];
+  scope: string[];
+  kind: string;
+  aggregations: string[];
+  numerator: PreviewTerm[];
+  denominator: PreviewTerm[];
+  numerator_value: number | null;
+  denominator_value: number | null;
+  final: string;
+  value: number | null;
+  formatted: string;
+  rows_considered: number;
+  sample: { columns: string[]; rows: Record<string, unknown>[]; unavailable?: string };
+  sql: string;
+  run_id: string;
+  warnings: string[];
+  unavailable: string;
+}
+
 /** What the lens definition panel may offer. */
 export interface LensVocabulary {
   domains: { name: string; metrics: number }[];
@@ -5108,6 +5273,46 @@ export const api = {
     }>(`/lenses${status ? `?status=${encodeURIComponent(status)}` : ""}`),
   lens: (id: number) => request<Lens>(`/lenses/${id}`),
   lensVocabulary: () => request<LensVocabulary>("/lenses/vocabulary"),
+  // ---- the conversational builder ----
+  interpretLens: (text: string) =>
+    request<LensIntent>("/lenses/interpret", {
+      method: "POST",
+      body: JSON.stringify({ text }),
+      timeoutMs: 60_000,
+    }),
+  proposeMetric: (text: string, domain = "", dataset = "") =>
+    request<MetricProposal>("/metrics/propose", {
+      method: "POST",
+      body: JSON.stringify({ text, domain, dataset }),
+      timeoutMs: 60_000,
+    }),
+  explainDraft: (draft: Record<string, unknown>) =>
+    request<MetricExplained>("/metrics/explain", {
+      method: "POST",
+      body: JSON.stringify(draft),
+      timeoutMs: 60_000,
+    }),
+  previewDraft: (draft: Record<string, unknown>) =>
+    request<MetricPreview>("/metrics/preview-full", {
+      method: "POST",
+      body: JSON.stringify(draft),
+      timeoutMs: 120_000,
+    }),
+  explainMetric: (metricId: string, period = "") =>
+    request<MetricExplained>(
+      `/metrics/${encodeURIComponent(metricId)}/explain` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+    ),
+  // `previewStoredMetric`, not `previewMetric`: the older `previewMetric`
+  // runs an unsaved formula and returns a value, and this returns the whole
+  // §8 walk-through for a metric that exists. Two different questions, and
+  // one name for both is how a caller ends up reading the wrong shape.
+  previewStoredMetric: (metricId: string, period = "") =>
+    request<MetricPreview>(
+      `/metrics/${encodeURIComponent(metricId)}/preview` +
+        (period ? `?period=${encodeURIComponent(period)}` : ""),
+      { timeoutMs: 120_000 },
+    ),
   suggestLens: (name: string) =>
     request<LensSuggestion>("/lenses/suggest", {
       method: "POST",
