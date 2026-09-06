@@ -102,6 +102,9 @@ is not a row that was quietly dropped — it says what exists instead and why.
 | What it is NOT | `not_this`, written for every metric where a reader would reasonably assume otherwise | PASS |
 | Chart: measures, dimension, aggregation, type, period, filters | `_render_chart` lineage block, including the SQL and run id | PASS |
 | The panel travels with the tile, not fetched on open | `_render_metric` embeds it | PASS |
+| Every field present on every shipped metric | 66 of 68 carry all of them. The two exceptions are `retail.accounts` and `retail.applications`, which are `COUNT(rows)` and name no field, so `source_fields` is correctly empty — the grain ("one row per account per observation month") is what says what is being counted, and both carry it | PASS |
+| Every unsupported metric is surfaced by a lens that would have shown it | All 8 entries in `library.UNSUPPORTED` are named in at least one lens's `absent` list; an unsupported entry nobody mentions is invisible | PASS |
+| No unrelated metric on a specialist lens | 12 of the 77 governed metrics are on no shipped lens: seven Corporate Portfolio metrics (the CRO lens's territory) and five alternatives — 60+ DPD by count, 1+ DPD by balance, credit limit, average bureau score, and the aggregate stage-moved rate the five explicit transitions replaced. All remain available in the builder | PASS |
 | Verified on screen, not only in the payload | Journey B: 13 checks; Journey J: "a tile explains itself on screen" for all three lenses | PASS |
 
 ---
