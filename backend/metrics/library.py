@@ -43,6 +43,12 @@ RETAIL = "Retail Credit Risk"
 RETAIL_ANALYTICS = "Retail Analytics"
 CORPORATE_IFRS9 = "Corporate IFRS 9"
 CORPORATE = "Corporate Portfolio"
+#: Two more corporate domains, so the Metric Library has categories a person
+#: navigates by rather than one bucket with forty things in it. They read the
+#: same dataset as `CORPORATE`; what differs is the question being asked of
+#: it, which is what a category is for.
+CORPORATE_EW = "Corporate Early Warning"
+CORPORATE_CONC = "Corporate Concentration"
 
 BEHAVIOURAL = "retail_behavioral_scorecard_monthly_validation"
 APPLICATIONS = "retail_application_scorecard_monthly_validation"
@@ -1052,6 +1058,328 @@ CORPORATE_PORTFOLIO: tuple[MetricDefinition, ...] = (
 )
 
 
+# ====================================== corporate — portfolio quality
+
+#: The corporate book read as a credit portfolio rather than as an impairment
+#: calculation. `portfolio_facility` carries the internal grade, the rating
+#: bucket, the return and the trend on every facility row, so these are all
+#: single-pass measures over the same scan the exposure total uses.
+#:
+#: Exposure-weighted wherever a weighting is possible, and each says so. An
+#: unweighted mean internal grade treats a two-million riyal facility and a
+#: two-hundred-million one as equally important, which is not what anybody
+#: means by "the average grade of the book".
+
+CORPORATE_QUALITY: tuple[MetricDefinition, ...] = (
+    _m("corporate.limit_amount", "Corporate Approved Limits",
+       "The total approved limit across the corporate book, drawn or not.",
+       _total(_t("l", "Approved limit", FACILITIES, "sum", "limit_amount")),
+       unit="currency", domain=CORPORATE, portfolio="Corporate",
+       aliases=("limits", "approved limits", "total limit", "sanctioned"),
+       formula_text="SUM(limit_amount)", decimals=0,
+       not_this="Not exposure. A limit is what the bank has committed to "
+                "lend; exposure is what has been drawn."),
+
+    _m("corporate.undrawn", "Undrawn Commitment",
+       "The part of the approved limit that has not been drawn.",
+       _total(_t("u", "Undrawn", FACILITIES, "sum", "undrawn")),
+       unit="currency", domain=CORPORATE, portfolio="Corporate",
+       aliases=("undrawn", "undrawn commitment", "available headroom",
+                "unutilised"),
+       formula_text="SUM(undrawn)", decimals=0, higher_is_better=None,
+       not_this="Not spare capacity in a risk sense. Undrawn commitment is "
+                "still an exposure the bank is obliged to fund, which is why "
+                "IFRS 9 measures it with a credit conversion factor."),
+
+    _m("corporate.weighted_internal_grade", "Exposure-Weighted Internal Grade",
+       "The average internal risk grade across the book, weighted by "
+       "exposure.",
+       Formula(kind="weighted_average", numerator=Side(terms=(
+           Term(id="g", label="Internal grade", dataset=FACILITIES,
+                aggregate="weighted_avg", field="internal_grade",
+                weight_field="exposure"),))),
+       unit="score", domain=CORPORATE, portfolio="Corporate",
+       aliases=("average grade", "internal grade", "weighted grade",
+                "portfolio grade", "average rating"),
+       formula_text="Σ(internal_grade × exposure) / Σ(exposure)",
+       decimals=2, higher_is_better=False,
+       transformation="Weighted by exposure, because an unweighted mean "
+                      "treats a small facility and a very large one as "
+                      "equally important.",
+       not_this="Not an external rating. The internal grade runs 1 to 10 on "
+                "CreditProbe's own scale, where a higher number is worse."),
+
+    _m("corporate.investment_grade_rate", "Investment Grade Exposure Rate",
+       "The share of exposure rated investment grade internally.",
+       _ratio([_t("ig", "Investment grade EAD", FACILITIES, "sum", "exposure",
+                  rating_bucket="Investment grade")],
+              [_t("all", "Total exposure", FACILITIES, "sum", "exposure")]),
+       unit="percent", domain=CORPORATE, portfolio="Corporate",
+       aliases=("investment grade", "investment grade share", "ig share",
+                "quality mix"),
+       formula_text=("SUM(exposure where rating_bucket = 'Investment grade') "
+                     "/ SUM(exposure) × 100"),
+       higher_is_better=True,
+       not_this="Not an agency rating. This is CreditProbe's own rating "
+                "bucket, mapped from the internal grade."),
+
+    _m("corporate.impaired_rate", "Impaired Exposure Rate",
+       "The share of exposure in the impaired rating bucket.",
+       _ratio([_t("im", "Impaired EAD", FACILITIES, "sum", "exposure",
+                  rating_bucket="Impaired")],
+              [_t("all", "Total exposure", FACILITIES, "sum", "exposure")]),
+       unit="percent", domain=CORPORATE, portfolio="Corporate",
+       aliases=("impaired", "impaired share", "impaired exposure"),
+       formula_text=("SUM(exposure where rating_bucket = 'Impaired') / "
+                     "SUM(exposure) × 100"),
+       higher_is_better=False,
+       not_this="Close to the NPL rate and not identical to it: the rating "
+                "bucket is a grade, and the NPL flag is a status."),
+
+    _m("corporate.weighted_raroc", "Exposure-Weighted RAROC",
+       "Risk-adjusted return on capital across the book, weighted by "
+       "exposure.",
+       Formula(kind="weighted_average", numerator=Side(terms=(
+           Term(id="r", label="RAROC", dataset=FACILITIES,
+                aggregate="weighted_avg", field="raroc_pct",
+                weight_field="exposure"),))),
+       unit="percent", domain=CORPORATE, portfolio="Corporate",
+       aliases=("raroc", "risk adjusted return", "return on capital"),
+       formula_text="Σ(raroc_pct × exposure) / Σ(exposure)",
+       decimals=2, higher_is_better=True,
+       not_this="Not a profit figure. RAROC is a return on the capital the "
+                "facility consumes, and can be negative on a facility that "
+                "is still making money."),
+
+    _m("corporate.portfolio_weighted_pd", "Book-Weighted 12-Month PD",
+       "The average twelve-month probability of default across the facility "
+       "book, weighted by exposure.",
+       Formula(kind="weighted_average", numerator=Side(terms=(
+           Term(id="pd", label="12-month PD", dataset=FACILITIES,
+                aggregate="weighted_avg", field="pd_12m_pct",
+                weight_field="exposure"),))),
+       unit="percent", domain=CORPORATE, portfolio="Corporate",
+       aliases=("book pd", "portfolio pd", "facility pd"),
+       formula_text="Σ(pd_12m_pct × exposure) / Σ(exposure)",
+       decimals=2, higher_is_better=False,
+       not_this="Read from the facility book. The IFRS 9 staging dataset "
+                "carries its own exposure-weighted PD, and the two are "
+                "measured over different populations."),
+)
+
+
+# ====================================== corporate — early warning
+
+CORPORATE_EARLY_WARNING: tuple[MetricDefinition, ...] = (
+    _m("corporate.watchlist_exposure", "Watchlist Exposure",
+       "Exposure to customers the bank has placed on the watchlist.",
+       _total(_t("w", "Watchlist EAD", FACILITIES, "sum", "exposure",
+                 watchlist=True)),
+       unit="currency", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("watchlist", "watchlist exposure", "on watch",
+                "names on watch"),
+       formula_text="SUM(exposure where watchlist)", decimals=0,
+       higher_is_better=False,
+       not_this="Not defaulted exposure. A watchlist name is one the bank is "
+                "watching, which is the point of watching it."),
+
+    _m("corporate.downgrade_probability", "Exposure-Weighted Downgrade Risk",
+       "The modelled probability of a rating downgrade over the next twelve "
+       "months, weighted by exposure.",
+       Formula(kind="weighted_average", numerator=Side(terms=(
+           Term(id="d", label="Downgrade probability", dataset=FACILITIES,
+                aggregate="weighted_avg", field="downgrade_prob_pct",
+                weight_field="exposure"),))),
+       unit="percent", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("downgrade probability", "downgrade risk",
+                "probability of downgrade", "migration risk"),
+       formula_text="Σ(downgrade_prob_pct × exposure) / Σ(exposure)",
+       decimals=2, higher_is_better=False,
+       not_this="Not a probability of default. A downgrade is a move in "
+                "grade, and most downgrades never reach default."),
+
+    _m("corporate.covenant_headroom", "Exposure-Weighted Covenant Headroom",
+       "How much room borrowers have before their covenants bite, weighted "
+       "by exposure.",
+       Formula(kind="weighted_average", numerator=Side(terms=(
+           Term(id="h", label="Covenant headroom", dataset=FACILITIES,
+                aggregate="weighted_avg", field="covenant_headroom_pct",
+                weight_field="exposure"),))),
+       unit="percent", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("covenant headroom", "headroom", "covenant cushion"),
+       formula_text="Σ(covenant_headroom_pct × exposure) / Σ(exposure)",
+       decimals=2, higher_is_better=True,
+       not_this="An average, so it hides the tail. The breach rate beside it "
+                "is what says how much of the book has already run out."),
+
+    _m("corporate.covenant_breach_rate", "Covenant Breach Exposure Rate",
+       "The share of exposure where covenant headroom has gone negative.",
+       _ratio([_t("b", "Breached EAD", FACILITIES, "sum", "exposure",
+                  covenant_headroom_pct__lt=0)],
+              [_t("all", "Total exposure", FACILITIES, "sum", "exposure")]),
+       unit="percent", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("covenant breach", "breach rate", "covenants breached"),
+       formula_text=("SUM(exposure where covenant_headroom_pct < 0) / "
+                     "SUM(exposure) × 100"),
+       higher_is_better=False,
+       not_this="A breach on the reported headroom, not a waiver decision. "
+                "Whether the bank has waived it is a separate record."),
+
+    _m("corporate.weighted_dscr", "Exposure-Weighted DSCR",
+       "Debt service coverage across the book, weighted by exposure.",
+       Formula(kind="weighted_average", numerator=Side(terms=(
+           Term(id="d", label="DSCR", dataset=FACILITIES,
+                aggregate="weighted_avg", field="dscr",
+                weight_field="exposure"),))),
+       unit="ratio", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("dscr", "debt service coverage", "coverage ratio"),
+       formula_text="Σ(dscr × exposure) / Σ(exposure)",
+       decimals=2, higher_is_better=True,
+       not_this="Not ECL coverage. This is cash flow over debt service; ECL "
+                "coverage is provision over exposure."),
+
+    _m("corporate.dscr_below_one_rate", "Exposure Not Covering Debt Service",
+       "The share of exposure to borrowers whose cash flow does not cover "
+       "their debt service.",
+       _ratio([_t("b", "DSCR below 1", FACILITIES, "sum", "exposure",
+                  dscr__lt=1.0)],
+              [_t("all", "Total exposure", FACILITIES, "sum", "exposure")]),
+       unit="percent", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("dscr below 1", "cannot service debt", "negative coverage"),
+       formula_text="SUM(exposure where dscr < 1) / SUM(exposure) × 100",
+       higher_is_better=False,
+       not_this="Not a default rate. A borrower below one is funding debt "
+                "service from somewhere other than operating cash flow, "
+                "which many do for a year without defaulting."),
+
+    _m("corporate.deteriorating_rate", "Deteriorating Exposure Rate",
+       "The share of exposure whose credit trend is assessed as "
+       "deteriorating.",
+       _ratio([_t("d", "Deteriorating EAD", FACILITIES, "sum", "exposure",
+                  trend="Deteriorating")],
+              [_t("all", "Total exposure", FACILITIES, "sum", "exposure")]),
+       unit="percent", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("deteriorating", "worsening", "negative trend",
+                "trend deteriorating"),
+       formula_text=("SUM(exposure where trend = 'Deteriorating') / "
+                     "SUM(exposure) × 100"),
+       higher_is_better=False),
+
+    _m("corporate.critical_severity_rate", "Critical Severity Exposure Rate",
+       "The share of exposure carrying a critical early-warning severity.",
+       _ratio([_t("c", "Critical EAD", FACILITIES, "sum", "exposure",
+                  severity="Critical")],
+              [_t("all", "Total exposure", FACILITIES, "sum", "exposure")]),
+       unit="percent", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("critical severity", "critical", "highest severity"),
+       formula_text=("SUM(exposure where severity = 'Critical') / "
+                     "SUM(exposure) × 100"),
+       higher_is_better=False),
+
+    _m("corporate.ai_risk_score", "Average AI Risk Score",
+       "The mean forward-looking risk score CreditProbe assigns each "
+       "facility.",
+       Formula(kind="average", numerator=Side(terms=(
+           _t("s", "AI risk score", FACILITIES, "avg", "ai_risk_score"),))),
+       unit="index", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("ai risk score", "risk score", "forward risk signal"),
+       formula_text="AVG(ai_risk_score)", decimals=3,
+       higher_is_better=False,
+       not_this="An unweighted mean across facilities, not an exposure "
+                "weighting: the score is a property of the name rather than "
+                "of the amount lent to it."),
+)
+
+
+# ================================ corporate — concentration and limits
+
+CORPORATE_CONCENTRATION: tuple[MetricDefinition, ...] = (
+    _m("corporate.obligor_groups", "Obligor Groups",
+       "How many connected borrower groups the book is spread across.",
+       Formula(kind="distinct_count", numerator=Side(terms=(
+           _t("g", "Obligor groups", FACILITIES, "count_distinct",
+              "obligor_group"),))),
+       unit="count", domain=CORPORATE_CONC, portfolio="Corporate",
+       aliases=("obligor groups", "connected groups", "borrower groups",
+                "counterparty groups"),
+       formula_text="COUNT(DISTINCT obligor_group)", decimals=0,
+       higher_is_better=True,
+       not_this="Not a count of customers. A group is several customers the "
+                "bank treats as one credit risk, which is the unit a large "
+                "exposure limit applies to."),
+
+    _m("corporate.average_group_exposure", "Average Exposure Per Group",
+       "Total exposure divided by the number of connected borrower groups.",
+       Formula(kind="ratio",
+               numerator=Side(terms=(
+                   _t("e", "Total exposure", FACILITIES, "sum", "exposure"),)),
+               denominator=Side(terms=(
+                   _t("g", "Obligor groups", FACILITIES, "count_distinct",
+                      "obligor_group"),)),
+               scale=1.0),
+       unit="currency", domain=CORPORATE_CONC, portfolio="Corporate",
+       aliases=("average group exposure", "exposure per group",
+                "average obligor size"),
+       formula_text="SUM(exposure) / COUNT(DISTINCT obligor_group)",
+       numerator_text="Total exposure across the book",
+       denominator_text="Connected borrower groups in it",
+       decimals=0, higher_is_better=None,
+       not_this="A mean, so it says nothing about the largest group. The "
+                "concentration charts beside it are where a single name "
+                "shows."),
+
+    _m("corporate.appetite_breach_exposure", "Exposure Breaching Appetite",
+       "Exposure on facilities that breach the bank's stated risk appetite.",
+       _total(_t("b", "Breaching EAD", FACILITIES, "sum", "exposure",
+                 appetite_breach=True)),
+       unit="currency", domain=CORPORATE_CONC, portfolio="Corporate",
+       aliases=("appetite breach", "over appetite", "breaching appetite",
+                "limit breach"),
+       formula_text="SUM(exposure where appetite_breach)", decimals=0,
+       higher_is_better=False),
+
+    _m("corporate.appetite_breach_rate", "Appetite Breach Exposure Rate",
+       "The share of exposure that breaches the bank's stated risk appetite.",
+       _ratio([_t("b", "Breaching EAD", FACILITIES, "sum", "exposure",
+                  appetite_breach=True)],
+              [_t("all", "Total exposure", FACILITIES, "sum", "exposure")]),
+       unit="percent", domain=CORPORATE_CONC, portfolio="Corporate",
+       aliases=("appetite breach rate", "over appetite share",
+                "breach of appetite"),
+       formula_text=("SUM(exposure where appetite_breach) / SUM(exposure) "
+                     "× 100"),
+       higher_is_better=False,
+       not_this="Appetite, not regulatory limit. A breach here is against "
+                "the bank's own stated appetite for the sector."),
+
+    _m("corporate.collateral_coverage", "Collateral Coverage",
+       "Registered collateral value as a share of exposure.",
+       _ratio([_t("c", "Collateral value", FACILITIES, "sum",
+                  "collateral_value")],
+              [_t("e", "Total exposure", FACILITIES, "sum", "exposure")]),
+       unit="percent", domain=CORPORATE_CONC, portfolio="Corporate",
+       aliases=("collateral coverage", "security coverage", "collateral",
+                "secured share"),
+       formula_text="SUM(collateral_value) / SUM(exposure) × 100",
+       decimals=1, higher_is_better=True,
+       not_this="Registered value, not realisable value. Recovery depends on "
+                "enforceability and on what the collateral is worth when it "
+                "is needed, which is not when it was valued."),
+
+    _m("corporate.utilisation_of_limits", "Limit Utilisation",
+       "Drawn exposure as a share of the approved limit.",
+       _ratio([_t("e", "Exposure", FACILITIES, "sum", "exposure")],
+              [_t("l", "Approved limit", FACILITIES, "sum", "limit_amount")]),
+       unit="percent", domain=CORPORATE_CONC, portfolio="Corporate",
+       aliases=("limit utilisation", "utilisation of limits", "drawn share"),
+       formula_text="SUM(exposure) / SUM(limit_amount) × 100",
+       decimals=1, higher_is_better=None,
+       not_this="The same arithmetic as Corporate Utilisation, kept in this "
+                "domain so a concentration lens can carry it without "
+                "reaching into another. Both read the same fields and always "
+                "agree."),
+)
+
 # ================================================ what is NOT available
 
 UNSUPPORTED: tuple[Unsupported, ...] = (
@@ -1139,14 +1467,18 @@ ALL: tuple[MetricDefinition, ...] = (
     + RETAIL_MOVEMENT + RETAIL_VALIDATION + RETAIL_ORIGINATION
     + CORPORATE_IFRS9_METRICS + CORPORATE_IFRS9_MIGRATION
     + CORPORATE_IFRS9_TRIGGERS + CORPORATE_PORTFOLIO
+    + CORPORATE_QUALITY + CORPORATE_EARLY_WARNING + CORPORATE_CONCENTRATION
 )
 
 
 __all__ = [
     "LIBRARY_VERSION", "ALL", "UNSUPPORTED",
     "RETAIL", "RETAIL_ANALYTICS", "CORPORATE_IFRS9", "CORPORATE",
+    "CORPORATE_EW", "CORPORATE_CONC",
     "RETAIL_PORTFOLIO", "RETAIL_DELINQUENCY", "RETAIL_QUALITY",
     "RETAIL_MOVEMENT", "RETAIL_VALIDATION", "RETAIL_ORIGINATION",
     "CORPORATE_IFRS9_METRICS", "CORPORATE_IFRS9_MIGRATION",
     "CORPORATE_IFRS9_TRIGGERS", "CORPORATE_PORTFOLIO",
+    "CORPORATE_QUALITY", "CORPORATE_EARLY_WARNING",
+    "CORPORATE_CONCENTRATION",
 ]

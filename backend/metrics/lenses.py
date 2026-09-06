@@ -54,7 +54,7 @@ from typing import Any
 from backend.metrics import library as lib
 from backend.metrics.catalogue import Unsupported
 
-LENSES_VERSION = "2.1.0"
+LENSES_VERSION = "2.2.0"
 
 #: The CRO Lens is preserved as-is. Recorded here so that anything enumerating
 #: the shipped lenses knows it exists and knows why it is not in `ALL`.
@@ -538,7 +538,436 @@ CORPORATE_IFRS9 = LensSpec(
 )
 
 
-ALL: tuple[LensSpec, ...] = (RETAIL_RISK, RETAIL_ANALYTICS, CORPORATE_IFRS9)
+# =========================================================== CRO Portfolio
+
+
+CRO_PORTFOLIO = LensSpec(
+    slug="cro-portfolio",
+    name="CRO Portfolio",
+    audience="Chief Risk Officer",
+    portfolio="Corporate",
+    domains=("Corporate Portfolio", "Corporate IFRS 9",
+             "Corporate Early Warning"),
+    purpose=(
+        "The monthly read a Chief Risk Officer is asked for: how big the book "
+        "is, what it is provisioned at, how much of it is already in trouble, "
+        "and how much of it is heading there."),
+    description=(
+        "Position, provision, and the exposure that is deteriorating — the "
+        "four questions a CRO is asked in the first five minutes of a risk "
+        "committee."),
+    sections=(
+        Section(
+            title="The book",
+            subtitle="Size and spread, before anything is said about quality.",
+            tiles=(
+                Tile("corporate.exposure"),
+                Tile("corporate.limit_amount"),
+                Tile("corporate.customers"),
+                Tile("corporate.obligor_groups"),
+                Tile("corporate.utilisation_of_limits"),
+                Chart("corporate.exposure", "period", "line",
+                      title="Exposure, quarter by quarter"),
+            )),
+        Section(
+            title="What it is provisioned at",
+            subtitle=("Total provision and the coverage it implies, read off "
+                      "the IFRS 9 staging book."),
+            tiles=(
+                Tile("corporate.ifrs9.total_ecl"),
+                Tile("corporate.ifrs9.coverage"),
+                Tile("corporate.ifrs9.stage2_share"),
+                Tile("corporate.ifrs9.stage3_share"),
+                Chart("corporate.ifrs9.coverage", "period", "line",
+                      title="ECL coverage, quarter by quarter"),
+            )),
+        Section(
+            title="What is already wrong",
+            subtitle="Non-performing, impaired and in breach of appetite.",
+            tiles=(
+                Tile("corporate.npl_rate"),
+                Tile("corporate.impaired_rate"),
+                Tile("corporate.delinquent_rate"),
+                Tile("corporate.appetite_breach_rate"),
+            )),
+        Section(
+            title="What is heading that way",
+            subtitle=("Watchlist, trend and covenant pressure. These run "
+                      "ahead of the arrears above them."),
+            tiles=(
+                Tile("corporate.watchlist_rate"),
+                Tile("corporate.deteriorating_rate"),
+                Tile("corporate.downgrade_probability"),
+                Tile("corporate.covenant_breach_rate"),
+                Chart("corporate.exposure", "trend", "bar",
+                      title="Exposure by credit trend"),
+            )),
+        Section(
+            title="Where it is concentrated",
+            subtitle=("A portfolio number that is comfortable can be two "
+                      "sectors moving in opposite directions."),
+            tiles=(
+                Chart("corporate.exposure", "sector", "bar",
+                      title="Exposure by sector"),
+                Chart("corporate.npl_rate", "sector", "bar",
+                      title="NPL rate by sector"),
+                Chart("corporate.exposure", "region", "bar",
+                      title="Exposure by region"),
+            )),
+        Section(
+            title="What it earns",
+            subtitle="Return against the capital the book consumes.",
+            tiles=(
+                Tile("corporate.weighted_raroc"),
+                Tile("corporate.portfolio_weighted_pd"),
+                Tile("corporate.weighted_internal_grade"),
+            )),
+    ),
+    absent=("corporate.ifrs9.scenario_ecl", "corporate.ifrs9.ecl_movement"),
+)
+
+
+# ==================================================== Early Warning / TAC
+
+
+EARLY_WARNING = LensSpec(
+    slug="early-warning-tac",
+    name="Early Warning and TAC",
+    audience="Transaction Approval Committee and Head of Credit Risk",
+    portfolio="Corporate",
+    domains=("Corporate Early Warning", "Corporate Portfolio"),
+    purpose=(
+        "What is deteriorating before it is delinquent. A watchlist committee "
+        "meets to decide which names to act on, and the figures that decide "
+        "that are trend, covenant pressure and debt service — not arrears, "
+        "which arrive after the decision should have been made."),
+    description=(
+        "Exposure that is deteriorating rather than delinquent: the "
+        "watchlist, covenant headroom, debt service coverage, and where the "
+        "early-warning triggers are firing."),
+    sections=(
+        Section(
+            title="On the watchlist",
+            subtitle="What the bank has already decided to watch.",
+            tiles=(
+                Tile("corporate.watchlist_exposure"),
+                Tile("corporate.watchlist_rate"),
+                Tile("corporate.critical_severity_rate"),
+                Chart("corporate.watchlist_rate", "period", "line",
+                      title="Watchlist exposure rate, quarter by quarter"),
+            )),
+        Section(
+            title="Which way it is moving",
+            subtitle=("The trend assessment and the modelled downgrade risk "
+                      "behind it. A downgrade is a move in grade, and most "
+                      "downgrades never reach default."),
+            tiles=(
+                Tile("corporate.deteriorating_rate"),
+                Tile("corporate.downgrade_probability"),
+                Tile("corporate.ai_risk_score"),
+                Chart("corporate.exposure", "trend", "bar",
+                      title="Exposure by credit trend"),
+                Chart("corporate.exposure", "severity", "bar",
+                      title="Exposure by early-warning severity"),
+            )),
+        Section(
+            title="Can they service the debt",
+            subtitle=("Debt service coverage and covenant headroom. The "
+                      "averages hide the tail, which is what the two rates "
+                      "beside them are for."),
+            tiles=(
+                Tile("corporate.weighted_dscr"),
+                Tile("corporate.dscr_below_one_rate"),
+                Tile("corporate.covenant_headroom"),
+                Tile("corporate.covenant_breach_rate"),
+            )),
+        Section(
+            title="What fired the trigger",
+            subtitle=("The recorded reason and the recommended action, by "
+                      "exposure. Read with the SICR trigger split on the "
+                      "IFRS 9 lens, which measures the same idea against the "
+                      "staging book."),
+            tiles=(
+                Chart("corporate.exposure", "trigger_type", "bar",
+                      title="Exposure by trigger type"),
+                Chart("corporate.exposure", "reason_code", "bar",
+                      title="Exposure by reason code"),
+                Chart("corporate.exposure", "recommended_action", "bar",
+                      title="Exposure by recommended action"),
+            )),
+        Section(
+            title="Where it is",
+            subtitle="The deteriorating book, split the two ways a committee "
+                     "asks for.",
+            tiles=(
+                Chart("corporate.deteriorating_rate", "sector", "bar",
+                      title="Deteriorating rate by sector"),
+                Chart("corporate.watchlist_rate", "sector", "bar",
+                      title="Watchlist rate by sector"),
+                Chart("corporate.deteriorating_rate", "region", "bar",
+                      title="Deteriorating rate by region"),
+            )),
+    ),
+    absent=("corporate.ifrs9.ecl_movement",),
+)
+
+
+# ======================================================= Portfolio Quality
+
+
+PORTFOLIO_QUALITY = LensSpec(
+    slug="portfolio-quality",
+    name="Portfolio Quality",
+    audience="Head of Credit Portfolio Management",
+    portfolio="Corporate",
+    domains=("Corporate Portfolio",),
+    purpose=(
+        "What the book is made of, by grade and by return. Not whether it is "
+        "in trouble — that is the CRO lens — but whether the mix the bank has "
+        "written is the mix it meant to write."),
+    description=(
+        "The credit quality mix of the corporate book: grade, rating bucket, "
+        "probability of default, non-performing share and the return each "
+        "slice earns."),
+    sections=(
+        Section(
+            title="The book",
+            subtitle="What there is to assess the quality of.",
+            tiles=(
+                Tile("corporate.exposure"),
+                Tile("corporate.facilities"),
+                Tile("corporate.customers"),
+                Tile("corporate.undrawn"),
+            )),
+        Section(
+            title="What grade it is",
+            subtitle=("Exposure-weighted, because an unweighted mean grade "
+                      "treats a small facility and a very large one as "
+                      "equally important."),
+            tiles=(
+                Tile("corporate.weighted_internal_grade"),
+                Tile("corporate.investment_grade_rate"),
+                Tile("corporate.impaired_rate"),
+                Tile("corporate.portfolio_weighted_pd"),
+                Chart("corporate.exposure", "grade_band", "line",
+                      title="Exposure by grade band", sort="label",
+                      direction="asc"),
+                Chart("corporate.exposure", "rating_bucket", "bar",
+                      title="Exposure by rating bucket"),
+            )),
+        Section(
+            title="How much is not performing",
+            subtitle="Status rather than grade: what has actually gone wrong.",
+            tiles=(
+                Tile("corporate.npl_rate"),
+                Tile("corporate.delinquent_rate"),
+                Chart("corporate.npl_rate", "sector", "bar",
+                      title="NPL rate by sector"),
+                Chart("corporate.npl_rate", "period", "line",
+                      title="NPL rate, quarter by quarter"),
+            )),
+        Section(
+            title="What it earns for the risk",
+            subtitle=("RAROC is a return on the capital a facility consumes, "
+                      "so it can be negative on a facility that is still "
+                      "making money."),
+            tiles=(
+                Tile("corporate.weighted_raroc"),
+                Chart("corporate.weighted_raroc", "rating_bucket", "bar",
+                      title="RAROC by rating bucket"),
+                Chart("corporate.weighted_raroc", "sector", "bar",
+                      title="RAROC by sector"),
+            )),
+        Section(
+            title="What it is secured on",
+            subtitle="Registered value, not realisable value.",
+            tiles=(
+                Tile("corporate.collateral_coverage"),
+                Chart("corporate.exposure", "collateral_type", "bar",
+                      title="Exposure by collateral type"),
+                Chart("corporate.exposure", "product_type", "bar",
+                      title="Exposure by product"),
+            )),
+    ),
+    absent=("corporate.ifrs9.scenario_ecl",),
+)
+
+
+# ========================================= Concentration and Large Exposures
+
+
+CONCENTRATION = LensSpec(
+    slug="concentration-large-exposures",
+    name="Concentration and Large Exposures",
+    audience="Credit Committee and Head of Credit Risk",
+    portfolio="Corporate",
+    domains=("Corporate Concentration", "Corporate Portfolio"),
+    purpose=(
+        "Where the book is bunched. A portfolio can be well graded, well "
+        "provisioned and well inside every limit on average, and still fail "
+        "because too much of it is one sector, one region or one connected "
+        "group."),
+    description=(
+        "How the corporate book is spread across sectors, regions, groups and "
+        "products — and where it sits against the bank's stated appetite."),
+    sections=(
+        Section(
+            title="How many names it is spread across",
+            subtitle=("A group is several customers the bank treats as one "
+                      "credit risk, which is the unit a large exposure limit "
+                      "applies to."),
+            tiles=(
+                Tile("corporate.exposure"),
+                Tile("corporate.customers"),
+                Tile("corporate.obligor_groups"),
+                Tile("corporate.average_group_exposure"),
+            )),
+        Section(
+            title="Against appetite",
+            subtitle="Appetite is the bank's own stated limit, not a "
+                     "regulatory one.",
+            tiles=(
+                Tile("corporate.appetite_breach_exposure"),
+                Tile("corporate.appetite_breach_rate"),
+                Chart("corporate.appetite_breach_rate", "sector", "bar",
+                      title="Appetite breach rate by sector"),
+                Chart("corporate.appetite_breach_rate", "period", "line",
+                      title="Appetite breach rate, quarter by quarter"),
+            )),
+        Section(
+            title="Where the exposure is bunched",
+            subtitle=("The same total, split four ways. Read the largest bar "
+                      "on each rather than the shape of the whole."),
+            tiles=(
+                Chart("corporate.exposure", "sector", "bar",
+                      title="Exposure by sector"),
+                Chart("corporate.exposure", "region", "bar",
+                      title="Exposure by region"),
+                Chart("corporate.exposure", "country", "bar",
+                      title="Exposure by country"),
+                Chart("corporate.exposure", "segment", "bar",
+                      title="Exposure by segment"),
+            )),
+        Section(
+            title="Committed but not drawn",
+            subtitle=("Undrawn commitment is still an exposure the bank is "
+                      "obliged to fund, which is why IFRS 9 measures it with "
+                      "a credit conversion factor."),
+            tiles=(
+                Tile("corporate.limit_amount"),
+                Tile("corporate.undrawn"),
+                Tile("corporate.utilisation_of_limits"),
+                Chart("corporate.utilisation_of_limits", "sector", "bar",
+                      title="Limit utilisation by sector"),
+            )),
+        Section(
+            title="What it is secured on",
+            subtitle="Registered collateral against the exposure it secures.",
+            tiles=(
+                Tile("corporate.collateral_coverage"),
+                Chart("corporate.collateral_coverage", "sector", "bar",
+                      title="Collateral coverage by sector"),
+            )),
+    ),
+    absent=("corporate.ifrs9.scenario_ecl",),
+)
+
+
+# ======================================================= Board / Risk Committee
+
+
+BOARD_RISK = LensSpec(
+    slug="board-risk-committee",
+    name="Board Risk Committee",
+    audience="Board Risk Committee",
+    portfolio="Corporate",
+    domains=("Corporate Portfolio", "Corporate IFRS 9",
+             "Corporate Early Warning", "Corporate Concentration"),
+    purpose=(
+        "One page a board can read in five minutes: how big, how provisioned, "
+        "how much is wrong, how much is going wrong, and whether the bank is "
+        "inside its own appetite. Every figure on it also appears on a "
+        "specialist lens where it can be taken apart."),
+    description=(
+        "The quarterly one-page read for a board risk committee: position, "
+        "provision, deterioration, concentration and appetite."),
+    sections=(
+        Section(
+            title="Position",
+            subtitle="What the bank has lent, and to how many.",
+            tiles=(
+                Tile("corporate.exposure"),
+                Tile("corporate.customers"),
+                Tile("corporate.obligor_groups"),
+                Tile("corporate.utilisation_of_limits"),
+            )),
+        Section(
+            title="Provision",
+            subtitle=("Expected credit loss and the coverage it implies, from "
+                      "the IFRS 9 staging book."),
+            tiles=(
+                Tile("corporate.ifrs9.total_ecl"),
+                Tile("corporate.ifrs9.coverage"),
+                Tile("corporate.ifrs9.stage3_share"),
+                Chart("corporate.ifrs9.coverage", "period", "line",
+                      title="ECL coverage, quarter by quarter"),
+            )),
+        Section(
+            title="What has gone wrong",
+            tiles=(
+                Tile("corporate.npl_rate"),
+                Tile("corporate.impaired_rate"),
+                Chart("corporate.npl_rate", "period", "line",
+                      title="NPL rate, quarter by quarter"),
+            )),
+        Section(
+            title="What is going wrong",
+            subtitle="Deterioration runs ahead of arrears by a quarter or "
+                     "more.",
+            tiles=(
+                Tile("corporate.watchlist_rate"),
+                Tile("corporate.deteriorating_rate"),
+                Tile("corporate.covenant_breach_rate"),
+            )),
+        Section(
+            title="Inside appetite",
+            subtitle="The bank's own stated limits, and where the book sits "
+                     "against them.",
+            tiles=(
+                Tile("corporate.appetite_breach_rate"),
+                Tile("corporate.collateral_coverage"),
+                Chart("corporate.exposure", "sector", "bar",
+                      title="Exposure by sector"),
+            )),
+        Section(
+            title="Return",
+            tiles=(
+                Tile("corporate.weighted_raroc"),
+                Tile("corporate.portfolio_weighted_pd"),
+            )),
+    ),
+    absent=("corporate.ifrs9.scenario_ecl", "corporate.ifrs9.ecl_movement"),
+)
+
+#: The lenses a deployment starts with, in the order the library shows them.
+#:
+#: Six of these answer the six roles §18 names; the two retail lenses are the
+#: specialist pair this branch began with. They are one list rather than two
+#: because a shipped lens and a lens somebody builds go through exactly the
+#: same engine — `install()` calls the same `create` and `revise` the API
+#: calls, writes the same definition JSON, and the result is editable,
+#: rearrangeable and versioned like any other. A preconfigured lens that was
+#: special-cased anywhere would be a demo rather than a starting point.
+ALL: tuple[LensSpec, ...] = (
+    CRO_PORTFOLIO,
+    CORPORATE_IFRS9,
+    EARLY_WARNING,
+    PORTFOLIO_QUALITY,
+    CONCENTRATION,
+    BOARD_RISK,
+    RETAIL_RISK,
+    RETAIL_ANALYTICS,
+)
 
 # ------------------------------------------------------------------- proving
 
@@ -644,6 +1073,8 @@ def check() -> list[str]:
 
 __all__ = ["LENSES_VERSION", "CRO_LENS", "Tile", "Chart", "Section",
            "LensSpec", "RETAIL_RISK", "RETAIL_ANALYTICS", "CORPORATE_IFRS9",
+           "CRO_PORTFOLIO", "EARLY_WARNING", "PORTFOLIO_QUALITY",
+           "CONCENTRATION", "BOARD_RISK",
            "ALL", "check", "install"]
 
 

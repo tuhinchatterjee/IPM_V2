@@ -65,9 +65,45 @@ def test_every_shipped_lens_matches_the_metric_library():
     assert shipped.check() == []
 
 
-def test_the_shipped_lenses_are_the_three_that_were_asked_for():
+def test_the_shipped_lenses_are_the_ones_that_were_asked_for():
+    """Six roles, plus the two retail specialists this work started from.
+
+    Named rather than counted, because "at least five" is satisfied by five of
+    anything and the point is which five: a deployment should open with the
+    lens each of these people would otherwise build by hand.
+    """
     assert {spec.slug for spec in shipped.ALL} == {
-        "retail-credit-risk", "retail-analytics", "corporate-ifrs9"}
+        "cro-portfolio",
+        "corporate-ifrs9",
+        "early-warning-tac",
+        "portfolio-quality",
+        "concentration-large-exposures",
+        "board-risk-committee",
+        "retail-credit-risk",
+        "retail-analytics",
+    }
+
+
+def test_every_shipped_lens_says_who_it_is_for_and_what_it_reads():
+    """A lens whose audience is blank is a lens nobody knows to open."""
+    for spec in shipped.ALL:
+        assert spec.audience.strip(), spec.slug
+        assert spec.purpose.strip(), spec.slug
+        assert spec.portfolio.strip(), spec.slug
+        assert spec.domains, spec.slug
+
+
+def test_no_two_shipped_lenses_are_the_same_lens():
+    """Six role lenses will overlap; none of them may BE another.
+
+    Overlap is the point — a board sees the CRO's headline figures — so the
+    test is on the whole tile set rather than on any single metric.
+    """
+    seen: dict[frozenset, str] = {}
+    for spec in shipped.ALL:
+        key = frozenset(spec.metric_ids)
+        assert key not in seen, f"{spec.slug} shows the same metrics as {seen.get(key)}"
+        seen[key] = spec.slug
 
 
 def test_the_cro_lens_is_preserved_rather_than_rebuilt():
