@@ -51,6 +51,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -202,7 +203,7 @@ class Truth:
 
     def people(self) -> list[dict[str, Any]]:
         return self._get(
-            "/api/v1/planner/copilot/people?limit=60").get("people", [])
+            "/api/v1/planner/copilot/people?limit=50").get("people", [])
 
 
 def _plan(truth: Truth, key: str) -> dict[str, Any]:
@@ -272,18 +273,69 @@ def _sign_in(page: Any, report: Report) -> bool:
 
 def _cast(truth: Truth, report: Report) -> dict[str, dict] | None:
     """Four colleagues to name, read from the product's own directory."""
-    rows = [row for row in truth.people()
+    found = truth.people()
+    rows = [row for row in found
             if len(str(row.get("name") or "").split()) >= 2]
     if not report.check("setup", "there are four colleagues to name",
-                        len(rows) >= 4, f"{len(rows)} found"):
+                        len(rows) >= 4, json.dumps(found)[:300]):
         return None
     roles = ("owner", "escalation", "second", "sponsor")
     return {role: rows[index] for index, role in enumerate(roles)}
 
 
+def _labelled(page: Any, label: str) -> Any:
+    """One field, found by its label whatever case it is rendered in.
+
+    Two things make an exact match wrong here rather than strict. The labels
+    are uppercased by CSS, so a case-sensitive match finds nothing; and a
+    field with a hint under it has that hint run straight onto its accessible
+    name, so "Objective" is really "ObjectiveWhat has to be true for this to
+    be finished?" — with no space, which defeats a word-boundary match too.
+    Both would fail a journey on a stylesheet rather than on the product, so
+    this matches on the label the field's name starts with.
+    """
+    return page.get_by_label(re.compile(rf"^{re.escape(label)}", re.I))
+
+
 def _pick(page: Any, label: str, name: str) -> None:
     """Choose a person in one of the governance selects, by their real name."""
-    page.get_by_label(label, exact=True).select_option(label=name)
+    _labelled(page, label).first.select_option(label=name)
+
+
+def _clear_blockers(page: Any, truth: Truth, key: str,
+                    cast: dict[str, dict], rounds: int = 4) -> dict[str, Any]:
+    """Say the missing thing until nothing is missing.
+
+    Each blocker names what it wants and what would satisfy it, so this
+    answers them in words rather than reaching for the panel: a completeness
+    check that can only be cleared through the form would only be half of
+    §19. ISO dates on purpose — "25 December" is ambiguous across a year end,
+    and a journey that failed on that would be testing the calendar.
+    """
+    owner = cast["owner"]["name"].split()[0]
+    starts = STARTS + timedelta(days=10)
+    ends = ENDS - timedelta(days=10)
+    detail = truth.draft(key)
+    for _ in range(rounds):
+        blockers = detail.get("completeness", {}).get("blockers", [])
+        if not blockers:
+            return detail
+        for note in blockers:
+            code = str(note.get("code") or "")
+            message = str(note.get("message") or "").lower()
+            if not code:
+                continue
+            if "owner" in message:
+                _say(page, f"{owner} owns {code}.")
+            elif "date" in message and note.get("scope") == "milestone":
+                _say(page, f"{code} starts {starts} and ends {ends}.")
+            elif "date" in message:
+                _say(page, f"{owner} owns {code} until {ends}.")
+            else:
+                continue
+            _go_ahead(page)
+        detail = truth.draft(key)
+    return detail
 
 
 # -------------------------------------------------------------- the journey
@@ -307,14 +359,20 @@ def _flow(page: Any, report: Report) -> None:  # noqa: PLR0915 - it is a flow
         return
     key = made[0]
     report.check("M1", "it is a draft, not a project",
-                 truth.draft(key).get("status") == "DRAFT")
+                 truth.draft(key).get("status") == "DRAFTING",
+                 str(truth.draft(key).get("status")))
 
     # ------------------------------------------- M2  name it, in conversation
     tag = key[-6:].upper()
     name = f"Recovery Rate Refresh {tag}"
     _say(page, f"Call it the {name}.")
-    _say(page, "Its objective is a validated set of recovery curves signed "
-               "off by the Model Risk committee.")
+    # The objective is typed into the panel rather than said, because §9's
+    # claim is that the two surfaces are one document — and the next step
+    # reads it back from the same draft the conversation just named.
+    _labelled(page, "Objective").fill(
+        "A validated set of recovery curves signed off by Model Risk.")
+    page.get_by_role("button", name="Save").first.click()
+    page.wait_for_timeout(900)
     overview = _plan(truth, key).get("overview") or {}
     report.check("M2", "the name was persisted from what was said",
                  overview.get("name") == name, json.dumps(overview)[:200])
@@ -327,9 +385,9 @@ def _flow(page: Any, report: Report) -> None:  # noqa: PLR0915 - it is a flow
     _pick(page, "Manager", cast["owner"]["name"])
     _pick(page, "Owner", cast["owner"]["name"])
     _pick(page, "Escalation contact", cast["escalation"]["name"])
-    page.get_by_label("Starts", exact=True).first.fill(str(STARTS))
-    page.get_by_label("Target completion", exact=True).fill(str(ENDS))
-    page.get_by_label("Priority", exact=True).select_option("HIGH")
+    _labelled(page, "Starts").first.fill(str(STARTS))
+    _labelled(page, "Target completion").first.fill(str(ENDS))
+    _labelled(page, "Priority").first.select_option("HIGH")
     page.get_by_role("button", name="Save").nth(1).click()
     page.wait_for_timeout(900)
 
@@ -347,7 +405,9 @@ def _flow(page: Any, report: Report) -> None:  # noqa: PLR0915 - it is a flow
                  json.dumps(governance)[:250])
 
     # ------------------------------------------------ M4  the agentic policy
-    page.get_by_role("button", name="Critical", exact=False).first.click()
+    # By a name that STARTS with Critical: every mode's sentence mentions the
+    # critical path, so a loose match would press Standard and pass.
+    page.get_by_role("button", name=re.compile(r"^Critical\b")).first.click()
     page.wait_for_timeout(900)
     agentic = _plan(truth, key).get("agentic") or {}
     report.check("M4", "the monitoring policy was chosen and persisted",
@@ -442,10 +502,10 @@ def _flow(page: Any, report: Report) -> None:  # noqa: PLR0915 - it is a flow
                  ("M01-T01", "M01-T02") in links, str(sorted(links)))
 
     # --------------------------------------- M9  from the catalogue, previewed
-    page.get_by_label("This has to finish first",
-                      exact=True).select_option(value="M02-T01")
-    page.get_by_label("Before this can start",
-                      exact=True).select_option(value="M02-T02")
+    _labelled(page, "This has to finish first").first.select_option(
+        value="M02-T01")
+    _labelled(page, "Before this can start").first.select_option(
+        value="M02-T02")
     page.get_by_role("button", name="Show me what that would do").click()
     page.wait_for_timeout(800)
     report.check("M9", "the catalogue link is previewed, not made",
@@ -474,20 +534,18 @@ def _flow(page: Any, report: Report) -> None:  # noqa: PLR0915 - it is a flow
     blockers = detail.get("completeness", {}).get("blockers", [])
     report.check("M11", "the plan reports what it still needs",
                  isinstance(blockers, list))
-    # Whatever it blocks on gets cleared here, by the same means a person
-    # would use, until the plan is genuinely publishable. Publishing past a
-    # blocker is not something this journey is allowed to do.
-    if blockers:
-        for note in blockers:
-            code = str(note.get("code") or "")
-            if code.count("-"):  # a task without a date or an owner
-                _say(page, f"{cast['owner']['name'].split()[0]} owns {code}, "
-                           f"due {ENDS.day} {ENDS.strftime('%B')}.")
-                _go_ahead(page)
-        detail = truth.draft(key)
+    report.check("M11", "and it is not publishable while they stand",
+                 (not blockers)
+                 or detail.get("completeness", {}).get("publishable") is False,
+                 json.dumps(detail.get("completeness", {}))[:300])
+
+    # Whatever it blocks on is cleared here, by saying the missing thing —
+    # the same way a person would. Publishing past a blocker is not something
+    # this journey is allowed to do, so it clears them or it fails.
+    detail = _clear_blockers(page, truth, key, cast)
     report.check("M11", "the plan is publishable, with nothing outstanding",
                  detail.get("completeness", {}).get("publishable") is True,
-                 json.dumps(detail.get("completeness", {}))[:400])
+                 json.dumps(detail.get("completeness", {}))[:500])
 
     # ------------------------------------------------------- M12  preview
     page.get_by_role("button", name="Show me the whole plan").click()
@@ -511,9 +569,24 @@ def _flow(page: Any, report: Report) -> None:  # noqa: PLR0915 - it is a flow
     report.check("M13", "nothing exists until the person says so",
                  not any(p.get("name") == name for p in truth.projects()))
     page.get_by_role("button", name="Yes, create this project").click()
-    page.wait_for_url(f"{WEB}/delivery/*", timeout=WAIT_MS)
-    page.wait_for_timeout(1200)
-    project_id = int(page.url.rstrip("/").split("/")[-1])
+    # A NUMBERED url: "/delivery/*" also matches "/delivery/new", which is the
+    # page we are still on, so it would return instantly and the journey would
+    # then read the project id out of the word "new".
+    landed = True
+    try:
+        page.wait_for_url(re.compile(r"/delivery/\d+$"), timeout=WAIT_MS)
+    except Exception:  # noqa: BLE001 - reported below, with what is on screen
+        landed = False
+    page.wait_for_timeout(1500)
+
+    mine = [row for row in truth.projects() if row.get("name") == name]
+    if not report.check("M13", "the project was created",
+                        bool(mine), _panel(page)[-600:]):
+        return
+    project_id = int(mine[0]["id"])
+    report.check("M13", "and publishing opened it",
+                 landed and page.url.rstrip("/").endswith(str(project_id)),
+                 page.url)
 
     detail = truth.project(project_id)
     project = detail.get("project", {})
@@ -534,6 +607,10 @@ def _flow(page: Any, report: Report) -> None:  # noqa: PLR0915 - it is a flow
     report.check("M13", "and on the monitoring policy that was chosen",
                  project.get("agentic_mode") == "CRITICAL",
                  str(project.get("agentic_mode")))
+    report.check("M13", "which the project can state in words",
+                 "escalat" in str(
+                     (project.get("agentic") or {}).get("sentence", "")),
+                 json.dumps(project.get("agentic"))[:250])
     report.check("M13", "the draft is marked published, not left open",
                  truth.draft(key).get("status") == "PUBLISHED")
 
@@ -548,7 +625,9 @@ def _flow(page: Any, report: Report) -> None:  # noqa: PLR0915 - it is a flow
 
     # ------------------------------- M15  reopen it and change it by saying so
     page.goto(f"{WEB}/delivery/{project_id}", wait_until="networkidle")
-    page.get_by_role("button", name="Copilot", exact=True).click()
+    # A tab, not a button: the Tabs component sets role="tab", which replaces
+    # the implicit button role rather than adding to it.
+    page.get_by_role("tab", name="Copilot", exact=True).click()
     page.wait_for_timeout(600)
     _say(page, f"Move M03-T02 to {cast['second']['name'].split()[0]}.")
     report.check("M15", "a change to a running project is previewed first",
@@ -586,7 +665,12 @@ def _flow(page: Any, report: Report) -> None:  # noqa: PLR0915 - it is a flow
                  json.dumps(moved_row[:1])[:300])
 
     # ------------------------------------- M17  the agent chases somebody
-    _say(page, "M01-T01 is due yesterday.")
+    # Both dates, in one sentence: a task cannot be due before it starts, and
+    # this project was deliberately built in the future so that the only
+    # overdue thing in it is the one put there here.
+    late_start = TODAY - timedelta(days=30)
+    late_due = TODAY - timedelta(days=4)
+    _say(page, f"M01-T01 starts {late_start} and ends {late_due}.")
     _go_ahead(page)
     page.wait_for_timeout(800)
     late = [t for t in truth.project(project_id).get("tasks", [])

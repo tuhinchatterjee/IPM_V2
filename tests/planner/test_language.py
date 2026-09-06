@@ -501,3 +501,47 @@ def test_a_provider_that_fails_leaves_the_rules_reading_standing():
                       _ctx(), provider=Broken())
     assert found.commands[0].payload == {"code": "M03-T02", "owner_id": 4}
     assert found.source == "rules"
+
+
+# ------------------------------------------ naming the stages in one breath
+
+
+def test_three_milestones_from_one_sentence():
+    """How somebody names the stages of a programme the first time.
+
+    The singular rule reads "add X as the first milestone" — the sentence
+    said second. Reading only that one made the FIRST sentence of every new
+    project unreadable.
+    """
+    read = _read("Add Data Foundation, Model Build and Independent "
+                 "Validation as the milestones.", plan=dr.empty())
+
+    assert not read.questions, read.questions
+    assert not read.unread, read.unread
+    assert [c.command for c in read.commands] == ["add_milestone"] * 3
+    assert [c.payload["name"] for c in read.commands] == [
+        "Data Foundation", "Model Build", "Independent Validation"]
+    assert len({c.creates for c in read.commands}) == 3, \
+        "each new milestone needs its own handle for later commands to name"
+
+
+def test_the_milestones_are_form_reads_too():
+    read = _read("The milestones are Discovery, Build and Handover.",
+                 plan=dr.empty())
+    assert [c.payload["name"] for c in read.commands] == [
+        "Discovery", "Build", "Handover"]
+
+
+def test_a_single_milestone_still_goes_through_the_ordinal_rule():
+    """So that "as the first milestone" keeps working, ordinal and all."""
+    read = _read("Add Data Foundation as the first milestone.",
+                 plan=dr.empty())
+    assert [c.command for c in read.commands] == ["add_milestone"]
+    assert read.commands[0].payload["name"] == "Data Foundation"
+
+
+def test_a_list_of_milestones_sets_no_focus():
+    """"It" after three names refers to nothing, and guessing would be worse."""
+    read = _read("Add One, Two and Three as the milestones.",
+                 plan=dr.empty())
+    assert not read.focus, read.focus

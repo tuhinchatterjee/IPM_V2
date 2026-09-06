@@ -59,6 +59,7 @@ from sqlalchemy import select
 from backend.models.planner import (
     ACCESS_CONTRIBUTOR,
     ACCESS_EDITOR,
+    ACCESS_VIEWER,
     CADENCE_WEEKLY,
     CADENCES,
     DEP_FINISH_TO_START,
@@ -72,6 +73,13 @@ from backend.models.planner import (
     PRIORITIES,
     PRIORITY_MEDIUM,
     PROJECT_STATUSES,
+    ROLE_CONTRIBUTOR,
+    ROLE_MANAGER,
+    ROLE_OWNER,
+    ROLE_REVIEWER,
+    ROLE_SPONSOR,
+    ROLE_VIEWER,
+    ROLE_WORKSTREAM_LEAD,
     SOURCE_UI,
     STEP_AGENTIC,
     STEP_GOVERNANCE,
@@ -1331,19 +1339,26 @@ def _seat_everybody(session: Any, principal: Any, project: PlannerProject,
         # First seat wins: a sponsor who also owns a task stays the sponsor.
         seats.setdefault(found, (role, access))
 
-    seat(governance.get("sponsor_id"), "SPONSOR", "VIEWER")
-    seat(governance.get("manager_id"), "PROJECT_MANAGER", ACCESS_EDITOR)
-    seat(governance.get("owner_id"), "PROJECT_OWNER", ACCESS_EDITOR)
-    seat(governance.get("escalation_id"), "STAKEHOLDER", "VIEWER")
+    # The constants rather than the words: this seated escalation contacts as
+    # "STAKEHOLDER", which is not one of the eight project roles, so
+    # publishing ANY plan whose escalation contact was not already the
+    # sponsor, manager or owner failed at the last step with a message about
+    # role names. An escalation contact reads the project and is told when
+    # something has been escalated to them; VIEWER is what that is.
+    seat(governance.get("sponsor_id"), ROLE_SPONSOR, ACCESS_VIEWER)
+    seat(governance.get("manager_id"), ROLE_MANAGER, ACCESS_EDITOR)
+    seat(governance.get("owner_id"), ROLE_OWNER, ACCESS_EDITOR)
+    seat(governance.get("escalation_id"), ROLE_VIEWER, ACCESS_VIEWER)
     for milestone in milestones_of(plan):
-        seat(milestone.get("owner_id"), "WORKSTREAM_LEAD", ACCESS_CONTRIBUTOR)
-        seat(milestone.get("escalation_id"), "STAKEHOLDER", "VIEWER")
+        seat(milestone.get("owner_id"), ROLE_WORKSTREAM_LEAD,
+             ACCESS_CONTRIBUTOR)
+        seat(milestone.get("escalation_id"), ROLE_VIEWER, ACCESS_VIEWER)
     for task in tasks_of(plan):
-        seat(task.get("owner_id"), "CONTRIBUTOR", ACCESS_CONTRIBUTOR)
-        seat(task.get("reviewer_id"), "REVIEWER", ACCESS_CONTRIBUTOR)
-        seat(task.get("escalation_id"), "STAKEHOLDER", "VIEWER")
+        seat(task.get("owner_id"), ROLE_CONTRIBUTOR, ACCESS_CONTRIBUTOR)
+        seat(task.get("reviewer_id"), ROLE_REVIEWER, ACCESS_CONTRIBUTOR)
+        seat(task.get("escalation_id"), ROLE_VIEWER, ACCESS_VIEWER)
         for contributor in task.get("contributor_ids") or []:
-            seat(contributor, "CONTRIBUTOR", ACCESS_CONTRIBUTOR)
+            seat(contributor, ROLE_CONTRIBUTOR, ACCESS_CONTRIBUTOR)
 
     for user_id, (role, access) in sorted(seats.items()):
         service.add_participant(session, principal, int(project.id),

@@ -342,6 +342,44 @@ def _resolve_parent(ctx: Context, state: dict, said: Any) -> str | Question:
     return _ask("milestone", str(said), found)
 
 
+def _rule_add_milestones(text: str, ctx: Context, state: dict) -> Hit | None:
+    """"Add Data Foundation, Model Build and Validation as the milestones."
+
+    The list form, which is how somebody names the stages of a programme the
+    first time: one sentence, three or five or eight names. The singular rule
+    below reads "add X as the first milestone" — the sentence somebody says
+    second. Reading only that one made the first sentence of every new
+    project unreadable, which is a poor place to start.
+
+    No focus is set. "It" after a list of three names does not refer to
+    anything in particular, and guessing the last one would be a plausible
+    wrong answer rather than a question.
+    """
+    del ctx
+    match = (
+        re.search(r"\badd\s+(?P<list>.+?)\s+as\s+(?:the\s+)?milestones?\b",
+                  text, re.IGNORECASE)
+        or re.search(r"\b(?:the\s+)?milestones?\s+(?:are|will be)\s+"
+                     r"(?P<list>.+)", text, re.IGNORECASE)
+        or re.search(r"\badd\s+(?:the\s+)?milestones?\s+(?P<list>.+)",
+                     text, re.IGNORECASE))
+    if not match:
+        return None
+    names = [_clean_name(said) for said in _split_list(match["list"])]
+    names = [n for n in names if n and rd.normalise(n) not in _PRONOUNS]
+    if len(names) < 2:
+        # One name is the singular rule's job, and only it knows the
+        # ordinals ("as the first milestone").
+        return None
+    hit = Hit(match.start(), match.end())
+    for name in names:
+        hit.commands.append(Proposal(
+            "add_milestone", {"name": name},
+            f"Add a milestone called \u201c{name}\u201d.",
+            creates=_remember(state, name, "MILESTONE")))
+    return hit
+
+
 def _rule_add_milestone(text: str, ctx: Context, state: dict) -> Hit | None:
     """"Add Data Foundation as the first milestone", and its neighbours."""
     match = (
@@ -854,6 +892,7 @@ def _rule_remove(text: str, ctx: Context, state: dict) -> Hit | None:
 #: is written.
 RULES = (
     _rule_add_tasks_under,
+    _rule_add_milestones,
     _rule_add_milestone,
     _rule_add_task,
     _rule_escalate_after,

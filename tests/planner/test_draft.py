@@ -37,7 +37,7 @@ def people() -> dict[str, int]:
     tag = uuid.uuid4().hex[:8]
     ids: dict[str, int] = {}
     with get_session() as session:
-        for name in ("maya", "omar", "hana", "zaid"):
+        for name in ("maya", "omar", "hana", "zaid", "noor"):
             row = User(username=f"draft-{name}-{tag}", password_hash="x",
                        role="ANALYST", first_name=name.title(),
                        last_name="Test", email=f"{name}-{tag}@example.invalid")
@@ -598,3 +598,47 @@ def test_the_preview_shows_the_whole_plan(people):
                for m in shown["milestones"])
     assert shown["agentic"]["sentence"]
     assert shown["completeness"]["publishable"] is True
+
+
+# ------------------------------------------------- seating everybody named
+
+
+def test_an_escalation_contact_named_nowhere_else_can_still_be_seated(people):
+    """The defect this catches shipped, and only a browser found it.
+
+    `_seat_everybody` gave escalation contacts the project role "STAKEHOLDER",
+    which is not one of the eight roles the service accepts — so publishing
+    ANY plan whose escalation contact was not already its sponsor, manager or
+    owner failed at the very last step, after the preview and the
+    confirmation, with a message about role names.
+
+    Every test here had the same person as sponsor AND escalation contact, and
+    the first seat wins, so the bad role was never reached. This one names a
+    fifth person who appears nowhere else.
+    """
+    from sqlalchemy import select
+
+    from backend.db.engine import get_session
+    from backend.models.planner import PROJECT_ROLES, PlannerParticipant
+    from backend.planner import draft
+
+    plan = _plan(people)
+    plan["governance"]["escalation_id"] = people["noor"]
+    plan["milestones"][1]["escalation_id"] = people["noor"]
+
+    who = Principal(people["maya"])
+    with get_session() as session:
+        row = draft.create(session, who, plan=plan)
+        session.commit()
+        project = draft.publish(session, who, row.key)
+        session.commit()
+
+        seats = list(session.execute(
+            select(PlannerParticipant).where(
+                PlannerParticipant.project_id == int(project.id))).scalars())
+
+    assert people["noor"] in {int(s.user_id) for s in seats}, \
+        "the person a delay escalates to cannot open the project"
+    assert all(s.project_role in PROJECT_ROLES for s in seats), \
+        [s.project_role for s in seats
+         if s.project_role not in PROJECT_ROLES]

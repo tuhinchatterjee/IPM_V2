@@ -209,6 +209,30 @@ export default function DeliveryProjectPage() {
             <SectionCard title="What the schedule rules flag">
               <FindingList findings={findings} />
             </SectionCard>
+
+            {/*
+              §11. The policy the person approved when they created this
+              project, read back to them in the same words. It was settled at
+              creation and then invisible from the day after — so nobody
+              could answer "why has the agent not chased this?" without
+              reading the database.
+            */}
+            <SectionCard title="How the Agentic AI works on this project">
+              <div className="px-4 py-3">
+                <p className="text-sm font-medium text-text-primary">
+                  {project.agentic.label}
+                </p>
+                <p className="mt-1 text-sm text-text-secondary">
+                  {project.agentic.sentence}
+                </p>
+                <p className="mt-2 text-xs text-text-muted">
+                  Escalates to{" "}
+                  {project.escalation?.name ?? "nobody — it stops at the "
+                    + "project manager"}
+                  {project.owner?.name ? ` · owned by ${project.owner.name}` : ""}
+                </p>
+              </div>
+            </SectionCard>
             {mayEdit && (
               <SectionCard title="Project settings">
                 <EditProject detail={detail.data!} people={people}

@@ -7789,6 +7789,8 @@ export type PlannerTaskRow = {
   critical: boolean;
   owner: PlannerPerson;
   workstream_id: number | null;
+  /** The milestone it hangs off — the first rung of the escalation ladder. */
+  milestone_id: number | null;
   last_update_at: string | null;
   last_update_text: string;
   version: number;
@@ -7902,6 +7904,8 @@ export type PlannerMilestone = {
   days_overdue: number | null;
   critical: boolean;
   owner: PlannerPerson;
+  /** Who hears about it when the work under it will not land. */
+  escalation: PlannerPerson;
   workstream_id: number | null;
   version: number;
 };
@@ -7976,6 +7980,25 @@ export type PlannerProjectDetail = {
     reporting_cadence: string;
     reminder_days: number[];
     stale_after_days: number;
+    owner: PlannerPerson;
+    /** The last stop when a delay has not been resolved. */
+    escalation: PlannerPerson;
+    agentic_mode: string;
+    /** How hard the agent chases this project, in numbers and in words. */
+    agentic: {
+      mode: string;
+      label: string;
+      note: string;
+      sentence: string;
+      reminder_days: number[];
+      escalate_after_days: number | null;
+      escalate_blocked_after_days: number | null;
+      overdue_every_days: number;
+      notify_manager_on_critical_path: boolean;
+      notify_sponsor_after_days: number | null;
+      remind_reviewers: boolean;
+      milestone_escalate_before_days: number | null;
+    };
     archived: boolean;
     version: number;
     created_at: string | null;

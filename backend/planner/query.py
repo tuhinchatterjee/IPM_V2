@@ -39,6 +39,7 @@ from backend.models.planner import (
 )
 from backend.planner import access as acl
 from backend.planner import control, schedule
+from backend.planner import policy as policy_mod
 
 QUERY_VERSION = "1.0.0"
 
@@ -466,6 +467,11 @@ def _task_row(row: Any, project: Any, directory: dict[int, dict[str, Any]],
         "critical": bool(row.critical),
         "owner": _person(directory, row.owner_id),
         "workstream_id": row.workstream_id,
+        # Which milestone it hangs off. Carried on every task row because the
+        # escalation ladder walks task → milestone → project, and a screen
+        # that cannot say which milestone a task belongs to cannot say who
+        # hears about it being late.
+        "milestone_id": row.milestone_id,
         "last_update_at": _iso(row.last_update_at),
         "last_update_text": row.last_update_text or "",
         "version": int(row.version or 1),
@@ -554,10 +560,11 @@ def project_detail(session: Any, principal: Any, project_id: int
 
     directory = people(session, (
         [t.owner_id for t in tasks] + [t.reviewer_id for t in tasks]
-        + [m.owner_id for m in milestones] + [r.owner_id for r in raid]
+        + [m.owner_id for m in milestones]
+        + [m.escalation_id for m in milestones] + [r.owner_id for r in raid]
         + [p.user_id for p in participants] + [w.lead_id for w in workstreams]
-        + [project.manager_id, project.sponsor_id,
-           project.manual_health_by]))
+        + [project.manager_id, project.sponsor_id, project.owner_id,
+           project.escalation_id, project.manual_health_by]))
     ws_progress = control.workstream_progress(plan.tasks)
     waiting = control.blocking(plan)
 
@@ -583,6 +590,15 @@ def project_detail(session: Any, principal: Any, project_id: int
             "reporting_cadence": project.reporting_cadence,
             "reminder_days": list(project.reminder_days or []),
             "stale_after_days": int(project.stale_after_days or 7),
+            "owner": _person(directory, project.owner_id),
+            # The last stop when a delay has not been resolved, and how hard
+            # the agent chases. Both were settled when the project was
+            # created and neither could be read back afterwards, so the
+            # policy a person approved was invisible from the day after they
+            # approved it.
+            "escalation": _person(directory, project.escalation_id),
+            "agentic_mode": project.agentic_mode,
+            "agentic": policy_mod.describe(policy_mod.of(project)),
             "archived": bool(project.archived),
             "version": int(project.version or 1),
             "created_at": _iso(project.created_at),
@@ -620,6 +636,7 @@ def project_detail(session: Any, principal: Any, project_id: int
             "actual_date": _iso(m.actual_date),
             "critical": bool(m.critical),
             "owner": _person(directory, m.owner_id),
+            "escalation": _person(directory, m.escalation_id),
             "workstream_id": m.workstream_id,
             "days_overdue": (max(0, (now - m.target_date).days)
                              if m.target_date and m.status in MILESTONE_OPEN
