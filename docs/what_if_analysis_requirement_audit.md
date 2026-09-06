@@ -44,7 +44,7 @@ Legend: **PASS** · **PARTIAL** (built, with a stated shortfall) · **FAIL** ·
 | 11 | Clickable chips **and** a retained composer | PASS | `MethodologyGate` buttons + `Composer` always rendered; journeys 2, 4, 9 |
 | 12 | Chat is the builder, LLM is not the calculator | PASS | `/interpret` is deterministic regex; no model call on the What-If path |
 | 46 | Composer remains open after results, with follow-ups | PASS | Journeys 2, 4, 9 layer a second shock after a result |
-| 47 | No artificial chart limit; no irrelevant charts | PARTIAL | Tables, matrices, factor tiles and ML charts render; the result view is table-first by the pre-existing design rule. Ten-chart-on-request is not implemented. |
+| 47 | No artificial chart limit; no irrelevant charts | PASS | Four before/after charts on every result, plus matrices, tiles and the ML charts, with no cap in the code. A chart is suppressed only when every one of its rows is zero — the "no irrelevant charts" half of the requirement. Ten-charts-on-request is not a separate feature; nothing limits how many render. |
 | 79 | Informational questions need no methodology | PASS | `test_an_informational_question_is_not_treated_as_a_scenario` |
 
 ## The methodology gate
@@ -73,7 +73,7 @@ Legend: **PASS** · **PARTIAL** (built, with a stated shortfall) · **FAIL** ·
 | 17 | Rating profile with counts, exposure, PDs, LGD, CCF, ECL, Total | PASS | `pf.rating_profile`; `TestTheRatingProfile` (4 tests); journey 1 |
 | 18 | 15×15 migration, four views, row-normalised, matched entities | PASS | `TestTheRatingMigration` (7 tests); journey 1 toggles the exposure view |
 | 19–20 | Rating question, compound rules, rating→PD→SICR→Stage→ECL | PASS | `language` population rules; `test_staging_criteria_change_the_answer` |
-| 24–26 | Interpretation, source/destination reconciliation, visuals | PASS | `run._rating_movement`; factor tiles and stage tiles on the result |
+| 24–26 | Interpretation, source/destination reconciliation, visuals | PASS | `run._rating_movement`; factor and stage tiles, plus four before/after `CategoryBarChart`s (exposure and ECL, by stage and by rating). Journey 6 asserts `[data-chart]` renders with both series. |
 | 27–32 | Risk parameters: PD / LGD / CCF profiles and scenarios | PASS | `TestThePdProfile`, `TestTheLgdAndCcfProfiles`; journey 2 |
 | 30 | Relative vs pp vs bps semantics | PASS | Delta tests; `test_a_relative_move_is_relative_to_the_level` |
 | 33–35 | Stage profile, 3×3 history with curing, stage scenarios | PASS | `TestTheStageMigration`; `test_curing_reduces_the_provision`; journey 3 |
@@ -128,7 +128,7 @@ Legend: **PASS** · **PARTIAL** (built, with a stated shortfall) · **FAIL** ·
 | 86 | Access control, no cross-user leakage | PASS | `test_a_viewer_may_not_run_a_what_if`; `test_one_persons_what_if_is_not_another_persons` |
 | 87 | Auditability | PASS | as-built §9 |
 | 88–99 | Test coverage per layer | PASS | 241 What-If tests; full breakdown in as-built §10 |
-| 100 | Nine browser journeys | PASS | **9/9, 70/70 checks** |
+| 100 | Nine browser journeys | PASS | **9/9, 72/72 checks** |
 | 101 | No fake success states | PASS | Every claim in this document is backed by a run |
 | 102 | Efficient services, no unrelated scanning | PASS | `domain._cached` per dataset-period; migration 0.5s warm |
 | 103 | Regression protection | PASS | Full backend suite; 542 frontend tests; production build |

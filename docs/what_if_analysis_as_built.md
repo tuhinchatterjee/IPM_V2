@@ -231,7 +231,7 @@ percentage change. A saved What-If persists all of it.
 | Frontend tests | `npm test` | **542 passed** |
 | Production build | `npm run build` | all routes built |
 | Migrations | `uv run alembic upgrade head` + `heads` | **single head 0041** |
-| Browser journeys | `node scripts/acceptance/whatif_journeys.mjs` | **9/9, 70/70 checks** |
+| Browser journeys | `node scripts/acceptance/whatif_journeys.mjs` | **9/9, 72/72 checks** |
 
 ## 11. Defects found and fixed
 

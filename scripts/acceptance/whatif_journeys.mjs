@@ -200,6 +200,13 @@ async function main() {
     if (ran) {
       const text = await page.textContent('[data-testid="whatif-result"]');
       check("the book-level impact is reported", text.includes("What-If ECL"));
+      const ecl = await page.locator('[data-chart="ecl"]').count();
+      const exposure = await page.locator('[data-chart="exposure"]').count();
+      check("the movement is drawn, not only tabulated", ecl > 0 && exposure > 0,
+        `ecl=${ecl} exposure=${exposure}`);
+      check("the charts carry a baseline and a What-If series",
+        (await page.getByText("Baseline", { exact: true }).count()) > 0 &&
+        (await page.getByText("What-If", { exact: true }).count()) > 0);
     }
   });
 
