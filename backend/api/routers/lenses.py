@@ -217,6 +217,29 @@ def suggest_lens(payload: SuggestIn,
         raise _unavailable(e) from e
 
 
+class InterpretIn(BaseModel):
+    text: str = Field(min_length=1, max_length=600)
+
+
+@router.post("/interpret", summary="What a sentence asks a lens to watch")
+def interpret_lens(payload: InterpretIn,
+                   principal: Principal = RequireAnalyst) -> dict:
+    """§1–§3. Ordinary language in; recognised options out.
+
+    Options rather than a decision. The next screen shows the data domains it
+    recognised as things to tick, the metrics as things to add, and the
+    dimension it heard as a chart to draw — each with what it matched on, so a
+    reading that is wrong is visibly wrong before anything is built.
+
+    Deterministic: no model reads this, the catalogue does. The same sentence
+    produces the same options on every machine, which is what lets a test
+    assert it and what stops the builder inventing a metric on a bad day.
+    """
+    from backend.metrics import builder
+
+    return builder.interpret(payload.text, user_id=principal.user_id).to_dict()
+
+
 @router.post("", status_code=201, summary="Create a lens")
 def create_lens(payload: LensIn, principal: Principal = RequireAnalyst) -> dict:
     try:

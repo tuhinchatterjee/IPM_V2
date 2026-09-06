@@ -192,6 +192,144 @@ def metric_vocabulary(principal: Principal = RequireAnalyst) -> dict:
     }
 
 
+class DraftIn(BaseModel):
+    """A metric definition that may not be stored yet.
+
+    The builder works on unsaved definitions: §7 asks that the algebra, the
+    English and the SQL stay reconciled *while somebody edits*, which means
+    before there is anything to save. So every builder route takes the
+    definition in the body rather than an id in the path.
+    """
+
+    name: str = Field(default="", max_length=200)
+    definition: str = Field(default="", max_length=MAX_TEXT)
+    formula: dict = Field(default_factory=dict)
+    unit: str = Field(default="number", max_length=24)
+    decimals: int = Field(default=2, ge=0, le=6)
+    domain: str = Field(default="", max_length=120)
+    portfolio: str = Field(default="", max_length=120)
+    period: str = Field(default="", max_length=32)
+    dimension: str = Field(default="", max_length=120)
+
+
+class ProposeIn(BaseModel):
+    text: str = Field(min_length=1, max_length=600)
+    domain: str = Field(default="", max_length=120)
+    dataset: str = Field(default="", max_length=160)
+
+
+def _as_metric(payload: DraftIn):
+    """A draft as a `MetricDefinition`, so one code path explains both.
+
+    A saved metric and one being typed differ in whether they have an id.
+    Everything downstream — the English, the SQL, the preview — reads a
+    `MetricDefinition`, so the draft becomes one here rather than growing a
+    second explain path that could disagree with the first.
+    """
+    from backend.metrics.catalogue import (
+        ORIGIN_USER,
+        STATUS_DRAFT,
+        MetricDefinition,
+    )
+
+    formula = service.formula_from_dict(payload.formula)
+    return MetricDefinition(
+        metric_id="draft", name=payload.name or "Untitled metric",
+        definition=payload.definition, formula=formula,
+        unit=payload.unit, decimals=int(payload.decimals),
+        domain=payload.domain, portfolio=payload.portfolio,
+        origin=ORIGIN_USER, status=STATUS_DRAFT)
+
+
+@router.post("/propose", summary="A metric skeleton for a sentence")
+def propose_metric(payload: ProposeIn,
+                   principal: Principal = RequireAnalyst) -> dict:
+    """§4 and §6: what a new metric would look like, from ordinary words.
+
+    Every field it names exists in the dataset, every aggregation is in the
+    governed set and every filter is a comparison the engine performs — but
+    none of it is a decision. What it assumed and what it could not work out
+    both come back named, so the screen shows them as fields to correct
+    rather than as a definition to accept.
+    """
+    from backend.metrics import builder
+
+    proposal = builder.propose(payload.text, domain=payload.domain,
+                               dataset=payload.dataset,
+                               user_id=principal.user_id)
+    body = proposal.to_dict()
+    try:
+        body["explained"] = builder.explain(_as_metric(DraftIn(
+            name=proposal.name, formula=proposal.formula.to_dict(),
+            domain=proposal.domain)))
+    except Exception:  # noqa: BLE001 - a skeleton may not compile yet
+        body["explained"] = None
+    return body
+
+
+@router.post("/explain", summary="One definition, read three ways")
+def explain_draft(payload: DraftIn,
+                  principal: Principal = RequireAnalyst) -> dict:
+    """§6 and §7. The algebra, the plain-English steps and the real SQL.
+
+    Generated together from the one tree on every request, so an edit cannot
+    leave them disagreeing: there is no stored prose to go stale.
+    """
+    from backend.metrics import builder
+
+    try:
+        metric = _as_metric(payload)
+    except service.MetricRefused as e:
+        raise _refused(e) from e
+    return builder.explain(metric, period=payload.period,
+                           dimension=payload.dimension)
+
+
+@router.post("/preview-full", summary="Run a draft against real data, step by step")
+def preview_draft(payload: DraftIn,
+                  principal: Principal = RequireAnalyst) -> dict:
+    """§8. Dataset, periods, fields, filters, terms, aggregation, result.
+
+    Never a fabricated number. A period with no data comes back saying so,
+    with the periods that do exist beside it.
+    """
+    from backend.metrics import builder
+
+    try:
+        metric = _as_metric(payload)
+    except service.MetricRefused as e:
+        raise _refused(e) from e
+    return builder.preview(metric, period=payload.period,
+                           user_id=principal.user_id)
+
+
+@router.get("/{metric_id}/explain", summary="A stored metric, read three ways")
+def explain_metric(metric_id: str,
+                   period: str = Query(default="", max_length=32),
+                   dimension: str = Query(default="", max_length=120),
+                   principal: Principal = RequireAnalyst) -> dict:
+    from backend.metrics import builder
+
+    try:
+        metric = service.resolve(metric_id, user_id=principal.user_id)
+    except service.MetricNotFound as e:
+        raise _not_found(e) from e
+    return builder.explain(metric, period=period, dimension=dimension)
+
+
+@router.get("/{metric_id}/preview", summary="A stored metric, step by step")
+def preview_stored(metric_id: str,
+                   period: str = Query(default="", max_length=32),
+                   principal: Principal = RequireAnalyst) -> dict:
+    from backend.metrics import builder
+
+    try:
+        metric = service.resolve(metric_id, user_id=principal.user_id)
+    except service.MetricNotFound as e:
+        raise _not_found(e) from e
+    return builder.preview(metric, period=period, user_id=principal.user_id)
+
+
 @router.post("/preview", summary="What a formula would produce, before storing it")
 def preview_metric(payload: MetricIn,
                    period: str = Query(default="", max_length=32),
