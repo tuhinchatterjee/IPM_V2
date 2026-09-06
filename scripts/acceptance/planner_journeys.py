@@ -195,7 +195,12 @@ def _journey_a(page: Any, report: Report) -> int | None:
     cards = page.locator("p:text-is('Red')").first
     red_card = _number(
         cards.evaluate("el => el.parentElement.textContent")) if cards.count() else None
-    red_rows = page.locator("table tbody tr", has_text="RED").count()
+    # The health BADGE, not any text in the row. `has_text="RED"` is a
+    # case-insensitive substring match, so it counted every programme with
+    # "Redevelopment" in its name — which on a realistic portfolio is most of
+    # them, and made this check compare a number with a word.
+    red_rows = page.locator(
+        "table tbody tr td span:text-is('RED')").count()
     report.check("A", "the red count matches the red rows",
                  red_card == red_rows, f"card={red_card} rows={red_rows}")
 
