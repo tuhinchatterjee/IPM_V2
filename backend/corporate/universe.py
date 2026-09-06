@@ -45,6 +45,7 @@ import pandas as pd
 
 from backend import scenarios
 from backend.corporate import NOT_CLIENT_DATA, ORIGIN
+from backend.ifrs9 import policy
 
 logger = logging.getLogger(__name__)
 
@@ -1173,27 +1174,24 @@ def build_facilities(entities: pd.DataFrame, spine_df: pd.DataFrame,
 
 
 # ------------------------------------------------------------------- IFRS 9
-
-#: Relative PD increase that counts as a significant increase in credit risk.
-SICR_PD_RATIO = 2.0
-#: And the absolute increase it must also clear, so a move from 0.03% to 0.07%
-#: does not trip a trigger on its own.
-#:
-#: At 0.75 this floor was too thin to do its job. Origination PD is anchored to
-#: the borrower's through-the-cycle quality, so by the trough a doubling is the
-#: NORMAL experience of the book rather than a signal about one name, and the
-#: relative test alone put a quarter of the book into Stage 2 - a population
-#: too large to review and therefore not a watchlist at all. Two hundred basis
-#: points is a movement a credit officer would want to look at, and leaves a
-#: Stage 2 population somebody could actually work through.
-SICR_PD_ABSOLUTE = 2.00
-#: A twelve-month PD this high is a significant increase on its own, whatever
-#: the borrower was graded at origination. Roughly the CCC band.
-SICR_ABSOLUTE_PD = 13.0
-#: Days past due at which a facility is presumed to have suffered a SICR.
-SICR_DPD_DAYS = 30
-#: Days past due at which default is presumed.
-DEFAULT_DPD_DAYS = 90
+#
+# The staging thresholds are NOT declared here. They are the governed corporate
+# policy and they live in `backend.ifrs9.policy`, which What-If also reads.
+#
+# They used to be declared here as well, with the same values, and a test
+# asserted the two agreed. That test passed by coincidence rather than by
+# construction: nothing stopped somebody changing one copy. A generator that
+# stages the book on one set of thresholds and an engine that re-stages it on
+# another would disagree about which borrowers are Stage 2, and the
+# disagreement would surface as a What-If answer nobody could defend.
+#
+# So there is one declaration and this module imports it. The names are
+# re-exported because callers and tests already read them from here.
+SICR_PD_RATIO = policy.SICR_PD_RATIO
+SICR_PD_ABSOLUTE = policy.SICR_PD_ABSOLUTE
+SICR_ABSOLUTE_PD = policy.SICR_ABSOLUTE_PD
+SICR_DPD_DAYS = policy.SICR_DPD_DAYS
+DEFAULT_DPD_DAYS = policy.DEFAULT_DPD_DAYS
 
 SCENARIOS: tuple[tuple[str, float], ...] = (
     ("Base", 0.50), ("Upside", 0.20), ("Downside", 0.30),
