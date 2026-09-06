@@ -99,6 +99,14 @@ _OPENS_WHATIF = re.compile(
     r"|\bsensitivit\w+|\bdownside\b|\bsevere case\b|\bwhat[- ]if\b"
     r"|\bdeteriorat\w+|\bworsen\w*\b", re.IGNORECASE)
 
+#: A plain instruction. "Increase Stage 1 PD by 20%" is a What-If — it just
+#: does not phrase itself as a question. Requiring "what if" would refuse the
+#: most direct way a credit officer states a scenario.
+_INSTRUCTS = re.compile(
+    r"\b(?:increase|decrease|raise|reduce|lower|cut|add|apply|set|move|"
+    r"migrate|downgrade|upgrade|cure|shift|widen|narrow|weaken|strengthen)\b",
+    re.IGNORECASE)
+
 #: Severity words the old presets were selected by. "Use the severe scenario"
 #: named a preset that no longer exists on this path, so the word is read as a
 #: severity the person wants rather than left unmatched.
@@ -404,7 +412,7 @@ def read(question: str) -> Reading:
 
     is_scenario = bool(_ASKS_A_SCENARIO.search(said))
     continues = bool(_CONTINUES.search(said))
-    opens = bool(_OPENS_WHATIF.search(said))
+    opens = bool(_OPENS_WHATIF.search(said) or _INSTRUCTS.search(said))
     reading = Reading(is_scenario_question=is_scenario or continues or opens,
                       continues_previous=continues and not is_scenario,
                       opens_whatif=opens)

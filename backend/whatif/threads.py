@@ -144,7 +144,12 @@ def _unique_name(session: Any, model: Any, name: str, owner: int | None) -> str:
     base = (name or "Untitled What-If").strip()[:170]
     rows = session.query(model.name).filter(
         model.version == THREADS_VERSION).all()
-    existing = {str(r[0]) if isinstance(r, tuple) else str(r) for r in rows}
+    # SQLAlchemy 2.0 returns Row objects, which are tuple-LIKE but are not a
+    # tuple subclass. An isinstance check against tuple therefore fails, and
+    # str(row) yields "('Some name',)" — which matches nothing, so every name
+    # looked unique and the database raised the collision this function exists
+    # to prevent. Index into the row instead of asking what type it is.
+    existing = {str(row[0]) for row in rows}
     if base not in existing:
         return base
     for n in range(2, 5000):
