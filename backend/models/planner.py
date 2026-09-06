@@ -460,6 +460,12 @@ class PlannerTask(Base):
     #: rather than an obligation.
     escalation_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    #: The milestone this work sits under, when it sits under one. Separate
+    #: from `workstream_id` because a workstream is a slice of the team and a
+    #: milestone is a date: a task usually has both and may have either.
+    milestone_id: Mapped[int | None] = mapped_column(
+        ForeignKey("planner_milestones.id", ondelete="SET NULL"),
+        nullable=True, index=True)
     #: User ids. A join table would be correct and is not worth six extra
     #: queries per screen for a list that is read whole and written whole.
     contributor_ids: Mapped[list] = mapped_column(JSONB, nullable=False,

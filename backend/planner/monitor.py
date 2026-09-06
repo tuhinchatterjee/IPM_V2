@@ -45,7 +45,10 @@ from backend.models.planner import (
     PlannerReminder,
 )
 from backend.planner import control
+from backend.planner import escalation as esc
+from backend.planner import policy as pol
 from backend.planner import query as pq
+from backend.planner import schedule as sched
 from backend.planner import service as svc
 
 logger = logging.getLogger(__name__)
@@ -72,7 +75,9 @@ REVIEW = "review"
 #: them".
 UPDATE_REQUESTED = "update_requested"
 
-#: How each reads to the person receiving it.
+#: How each reads to the person receiving it. The escalation titles come from
+#: `escalation.py`, which owns that vocabulary — one word for one thing, in
+#: one place, so a screen grouping by trigger cannot find two spellings.
 _TITLES = {
     DUE: "Due soon",
     OVERDUE: "Overdue",
@@ -83,6 +88,7 @@ _TITLES = {
     HEALTH_RED: "Project needs attention",
     REVIEW: "Review required",
     UPDATE_REQUESTED: "Action required",
+    **esc.TITLES,
 }
 
 #: What the reader is being asked to do. A notification that says a task is
@@ -99,6 +105,7 @@ _ACTIONS = {
     HEALTH_RED: "Review the project and decide what changes.",
     REVIEW: "Review the work and accept it or send it back.",
     UPDATE_REQUESTED: "Please update your progress, blocker and next step.",
+    **esc.ACTIONS,
 }
 
 #: The button the notification effectively is.
@@ -107,6 +114,9 @@ _LABELS = {
     BLOCKED: "Open task", MILESTONE_DUE: "Open milestone",
     MILESTONE_OVERDUE: "Open milestone", HEALTH_RED: "Review project",
     REVIEW: "Review task", UPDATE_REQUESTED: "Update task",
+    esc.ESCALATED: "Open task", esc.ESCALATED_BLOCKED: "Open task",
+    esc.CRITICAL_PATH: "Open task", esc.SPONSOR_ALERT: "Open task",
+    esc.MILESTONE_AT_RISK: "Open milestone",
 }
 
 
@@ -203,12 +213,19 @@ def _print(project_id: int, entity_type: str, entity_id: int, user_id: int,
 
 
 def _task_messages(project: Any, plan: control.Plan, today: date,
-                   policy: control.Policy) -> list[Message]:
+                   policy: control.Policy, *,
+                   every: int = 1) -> list[Message]:
     """Reminders about tasks, at most one per task per person.
 
     Ordered by seriousness and stopping at the first hit: an overdue, blocked,
     silent task must not send its owner three messages that all mean "look at
     T-104".
+
+    `every` is the project's own chase cadence. A Light project reminds its
+    owner about an overdue task every third day and a Critical one every day,
+    and the difference is in the fingerprint rather than in a decision about
+    whether to send: bucketing by how long it has been late means two sweeps
+    on the same day collapse and a missed day does not skip the reminder.
     """
     out: list[Message] = []
     days = tuple(project.reminder_days or policy.reminder_days)
@@ -224,7 +241,8 @@ def _task_messages(project: Any, plan: control.Plan, today: date,
                 owner, int(project.id), project.code, ENTITY_TASK,
                 int(task.id), task.code, OVERDUE,
                 _print(int(project.id), ENTITY_TASK, int(task.id), owner,
-                       OVERDUE, f"{task.due_date}:{today}"),
+                       OVERDUE,
+                       f"{task.due_date}:{esc.bucket(late, every)}"),
                 _TITLES[OVERDUE],
                 f"{task.code} {task.title} was due {task.due_date} and is "
                 f"{late} day{'' if late == 1 else 's'} overdue."))
@@ -401,11 +419,47 @@ def _health_messages(project: Any, verdict: Any, was: str,
         for user_id in dict.fromkeys(managers)]
 
 
+def _escalation_messages(project: Any, plan: control.Plan,
+                         milestones: list[Any], today: date, *,
+                         agentic: pol.Agentic) -> list[Message]:
+    """The rungs above the owner, told what the owner did not resolve.
+
+    The critical path is computed once per project rather than per task,
+    because it is a property of the whole network: asking the schedule engine
+    per task would be both slow and capable of disagreeing with itself inside
+    one sweep. When the network cannot be scheduled — no dependencies yet —
+    `critical_path` is empty and the rule simply does not fire, which is the
+    honest answer rather than a guess about which task matters most.
+    """
+    critical: frozenset[str] = frozenset()
+    if agentic.escalation.notify_manager_on_critical_path:
+        found = sched.compute(plan)
+        if found.computed:
+            critical = frozenset(found.critical_path)
+
+    out: list[Message] = []
+    for finding in esc.findings(project, plan, milestones, today,
+                                agentic=agentic, critical_codes=critical):
+        out.append(Message(
+            finding.rung.user_id, int(project.id), project.code,
+            finding.entity_type, finding.entity_id, finding.entity_code,
+            finding.trigger,
+            _print(int(project.id), finding.entity_type, finding.entity_id,
+                   finding.rung.user_id, finding.trigger, finding.about),
+            _TITLES.get(finding.trigger, "Escalated"),
+            # The reason is part of the message, not a tooltip: somebody
+            # receiving an escalation needs to know why it reached THEM, or
+            # the next one goes unread.
+            f"{finding.sentence} You are seeing this because "
+            f"{finding.rung.because}."))
+    return out
+
+
 # ================================================================ the sweep
 
 
 def sweep(session: Any, *, today: date | None = None,
-          policy: control.Policy = control.DEFAULT_POLICY,
+          policy: control.Policy | None = None,
           project_ids: list[int] | None = None,
           send: bool = True) -> Sweep:
     """One pass over the open projects. Nothing commits; the caller owns that.
@@ -413,6 +467,12 @@ def sweep(session: Any, *, today: date | None = None,
     `today` is a parameter and never `date.today()` inside a rule, so the
     whole engine can be tested at a frozen moment — which is the only way to
     prove that a reminder fires once rather than on every run.
+
+    Each project is assessed under ITS OWN policy, read from the mode its
+    manager chose. `policy` here overrides that for every project and exists
+    for tests that want one fixed rule set; leaving it alone is what the
+    product does, and it is what makes Light and Critical mean anything. A
+    single global policy would have made the mode a label on a screen.
     """
     now = datetime.now(UTC)
     day = today or now.date()
@@ -452,8 +512,11 @@ def sweep(session: Any, *, today: date | None = None,
         result.projects += 1
         result.tasks += len(plan.tasks)
 
+        agentic = pol.of(project)
+        rules = policy or agentic.policy
+
         was = project.calculated_health or "UNKNOWN"
-        verdict = control.health(plan, day, policy=policy)
+        verdict = control.health(plan, day, policy=rules)
         percent = control.progress(plan.tasks)
         if (verdict.status != was
                 or verdict.reason != (project.calculated_health_reason or "")
@@ -478,11 +541,17 @@ def sweep(session: Any, *, today: date | None = None,
                            narrative=verdict.reason)
 
         pending.extend(_merge_chases(
-            _task_messages(project, plan, day, policy),
-            _chase_messages(project, plan, day, policy)))
-        pending.extend(_review_messages(project, plan))
+            _task_messages(project, plan, day, rules,
+                           every=agentic.escalation.overdue_every_days),
+            _chase_messages(project, plan, day, rules)))
+        # A project set to Light does not remind reviewers. That is the whole
+        # point of Light: fewer people hear about fewer things.
+        if agentic.escalation.remind_reviewers:
+            pending.extend(_review_messages(project, plan))
         pending.extend(_milestone_messages(project, milestones[pid], day,
-                                           policy))
+                                           rules))
+        pending.extend(_escalation_messages(project, plan, milestones[pid],
+                                            day, agentic=agentic))
         managers = [i for i in ([project.manager_id] if project.manager_id
                                 else []) + watchers[pid] if i]
         pending.extend(_health_messages(project, verdict, was, managers))

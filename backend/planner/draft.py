@@ -1259,6 +1259,8 @@ def publish(session: Any, principal: Any, key: str, *,
             code = str(task.get("code", ""))
             row = service.create_task(
                 session, principal, int(project.id), code=code,
+                milestone_id=milestone_ids.get(
+                    str(task.get("milestone_code", "")).upper()),
                 title=str(task.get("title") or ""),
                 description=str(task.get("description") or ""),
                 owner_id=task.get("owner_id"),

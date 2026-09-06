@@ -22,7 +22,7 @@ from sqlalchemy import select
 
 from backend.models.planner import PlannerReminder
 from backend.models.platform import Notification
-from backend.planner import monitor
+from backend.planner import escalation, monitor
 from backend.planner import service as svc
 from tests.conftest import database_available
 
@@ -147,9 +147,30 @@ class TestWhoIsTold:
             "the same person was told twice about the same task"
 
     def test_the_reminder_reaches_the_owner_not_the_manager(self, world):
+        """A reminder is for the person who can fix it. Nobody else.
+
+        Scoped to the reminder triggers because an ESCALATION about the same
+        task deliberately reaches somebody else — that is the next test, and
+        the distinction between the two audiences is the whole point of the
+        ladder in `escalation.py`.
+        """
         sent = [r for r in reminders(world["project_id"])
-                if r.entity_type == "TASK"]
+                if r.entity_type == "TASK"
+                and r.trigger not in escalation.TRIGGERS]
         assert {r.user_id for r in sent} == {world["bob"]}
+
+    def test_an_escalation_reaches_somebody_above_the_owner(self, world):
+        """§26. The owner already had the reminder.
+
+        Alice manages this project, so a task of Bob's that has been overdue
+        long enough escalates to her — and never back to Bob, however many
+        rungs of the ladder he happens to occupy.
+        """
+        escalated = [r for r in reminders(world["project_id"])
+                     if r.trigger in escalation.TRIGGERS]
+        assert escalated, "an overdue task under Standard should escalate"
+        assert world["bob"] not in {r.user_id for r in escalated}
+        assert world["alice"] in {r.user_id for r in escalated}
 
     def test_a_notification_row_is_written_for_each(self, world):
         from backend.db.engine import get_session

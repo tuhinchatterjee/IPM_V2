@@ -612,9 +612,27 @@ def _resolve_workstream(session: Any, project_id: int,
     return int(workstream_id)
 
 
+def _resolve_milestone(session: Any, project_id: int,
+                       milestone_id: Any) -> int | None:
+    """A milestone on THIS project, or nothing.
+
+    Checked rather than trusted, for the same reason `_resolve_workstream`
+    checks: an id in a request body is a request. Hanging a task off another
+    project's milestone would put it on a screen its owner cannot open.
+    """
+    if not milestone_id:
+        return None
+    row = session.get(PlannerMilestone, int(milestone_id))
+    if row is None or int(row.project_id) != int(project_id):
+        raise PlannerError(
+            f"Milestone {milestone_id} is not part of this project.")
+    return int(row.id)
+
+
 def create_task(session: Any, principal: Any, project_id: int, *,
                 code: str, title: str, description: str = "",
                 workstream_id: int | None = None,
+                milestone_id: int | None = None,
                 parent_id: int | None = None,
                 owner_id: int | None = None, reviewer_id: int | None = None,
                 escalation_id: int | None = None,
@@ -658,6 +676,7 @@ def create_task(session: Any, principal: Any, project_id: int, *,
         project_id=int(project_id), code=code, title=_text(title, 300),
         description=_text(description),
         workstream_id=_resolve_workstream(session, project_id, workstream_id),
+        milestone_id=_resolve_milestone(session, project_id, milestone_id),
         parent_id=int(parent_id) if parent else None,
         owner_id=owner_id, reviewer_id=reviewer_id,
         escalation_id=escalation_id,
@@ -808,7 +827,7 @@ def update_task(session: Any, principal: Any, task_id: int, *,
     # moving the date is a change to the commitment, not a report on it.
     restricted = {"owner_id", "reviewer_id", "contributor_ids", "due_date",
                   "start_date", "weight", "critical", "workstream_id",
-                  "parent_id", "code",
+                  "milestone_id", "parent_id", "code",
                   # Who a delay escalates to, and the date after which the
                   # task cannot recover, are both statements about the
                   # commitment rather than reports on it.
@@ -828,6 +847,12 @@ def update_task(session: Any, principal: Any, task_id: int, *,
                 setattr(task, key, new_id)
     if "contributor_ids" in fields and fields["contributor_ids"] is not None:
         task.contributor_ids = [int(c) for c in fields["contributor_ids"]]
+    if "milestone_id" in fields:
+        moved = _resolve_milestone(session, int(task.project_id),
+                                   fields["milestone_id"])
+        if moved != task.milestone_id:
+            changes["milestone_id"] = [task.milestone_id, moved]
+            task.milestone_id = moved
     for key in ("start_date", "due_date", "critical_date"):
         if key in fields:
             new_date = _as_date(fields[key], key.replace("_", " ").title())

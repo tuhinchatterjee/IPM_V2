@@ -154,6 +154,10 @@ class TaskView:
     blocker_reason: str = ""
     last_update_at: datetime | None = None
     workstream_id: int | None = None
+    #: The milestone this work sits under, when it sits under one. The
+    #: escalation ladder needs it: a late task with no escalation owner of its
+    #: own escalates to whoever owns the milestone it belongs to.
+    milestone_id: int | None = None
     parent_id: int | None = None
     priority: str = ""
     #: Who has to accept the work. The monitor tells them when it arrives; the
@@ -176,7 +180,9 @@ class TaskView:
             blocked=bool(row.blocked),
             blocker_reason=str(row.blocker_reason or ""),
             last_update_at=row.last_update_at,
-            workstream_id=row.workstream_id, parent_id=row.parent_id,
+            workstream_id=row.workstream_id,
+            milestone_id=getattr(row, "milestone_id", None),
+            parent_id=row.parent_id,
             priority=str(row.priority or ""),
             reviewer_id=getattr(row, "reviewer_id", None),
             effort_days=getattr(row, "effort_days", None))
