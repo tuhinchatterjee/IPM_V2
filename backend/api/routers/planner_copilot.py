@@ -292,7 +292,14 @@ def chat(payload: ChatIn, session: Session = Depends(get_db),
        the permission check, the cycle check, the date validation and the
        AI_CHAT audit row all happen exactly once and in one place.
     """
-    decision = copilot.in_scope(session, principal, payload.message)
+    # The draft is read first, so the boundary knows the names in the plan
+    # being built and not only those of published projects.
+    plan: dict[str, Any] = {}
+    if payload.draft:
+        row = _run(lambda: dr.load(session, principal, payload.draft))
+        plan = row.plan or dr.empty()
+
+    decision = copilot.in_scope(session, principal, payload.message, plan=plan)
     if not decision.in_scope:
         return {"in_scope": False, "refusal": decision.to_dict(),
                 "message": decision.message}
@@ -309,8 +316,6 @@ def chat(payload: ChatIn, session: Session = Depends(get_db),
         context["said"] = _no_draft_yet(payload.message)
         return context
 
-    row = _run(lambda: dr.load(session, principal, payload.draft))
-    plan = row.plan or dr.empty()
     reading = lang.read(payload.message, lang.Context(
         plan=plan,
         directory=rd.Directory(copilot.people_for(

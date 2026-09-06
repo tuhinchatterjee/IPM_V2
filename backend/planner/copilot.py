@@ -421,15 +421,28 @@ def call(session: Any, principal: Any, tool_id: str,
                       principal=principal, handlers=handlers(session))
 
 
-def in_scope(session: Any, principal: Any, message: str) -> scope.Decision:
+def in_scope(session: Any, principal: Any, message: str, *,
+             plan: dict[str, Any] | None = None) -> scope.Decision:
     """Whether the Copilot should answer this at all.
 
     Asked before a tool is chosen, and anchored against the names this person
     can actually see, so a project named after another part of the bank is
     still a project.
+
+    `plan` adds the names in the draft being built. Without it the boundary
+    knows about published projects only, and a milestone somebody has just
+    created called "Retail Application Scorecard Redevelopment" cannot be
+    asked about by name — the browser journey found exactly that, one
+    sentence after creating it.
     """
-    return scope.classify(message,
-                          names=scope.names_in_reach(session, principal))
+    names = scope.names_in_reach(session, principal)
+    for row in (plan or {}).get("milestones") or []:
+        names.extend(str(row.get(key) or "") for key in ("name", "code"))
+    for row in (plan or {}).get("tasks") or []:
+        names.extend(str(row.get(key) or "") for key in ("title", "code"))
+    overview = (plan or {}).get("overview") or {}
+    names.extend(str(overview.get(key) or "") for key in ("name", "code"))
+    return scope.classify(message, names=[n for n in names if n])
 
 
 __all__ = ["AGENT_ID", "ALLOWED_DOMAINS", "ALLOWED_TOOLS", "BUSINESS_NAME",
