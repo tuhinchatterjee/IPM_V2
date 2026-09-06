@@ -171,8 +171,22 @@ stop at the edge of one metric. Every term of every metric reading the same
 dataset, over the same period, under the same scope is measurable in one pass.
 
 `execution.run_batch` does that; `metrics.values` groups for it; `render` uses
-it. The Corporate IFRS 9 lens went from **34 scans of the staging dataset to
-1**, and from **1.83s to 0.54s for 43 panels**.
+it. What each shipped lens actually costs, asserted by a test rather than
+quoted once:
+
+| Lens | Metrics | Reads before | Reads now | Why not 1 |
+|---|---:|---:|---:|---|
+| Corporate IFRS 9 | 34 | 34 | **1** | One dataset, one scope, no function metrics |
+| Retail Credit Risk | 23 | 23 | **4** | Two scopes (all rows, matured rows) plus Gini and KS, which are governed functions and never join a batch |
+| Retail Analytics | 11 | 11 | **5** | Two datasets, each read twice for the same reason, plus one function metric |
+
+Rendering the whole Corporate IFRS 9 lens — 43 panels including its nine
+charts, which are separate grouped scans and are not batched — went from
+**1.83s to 0.54s**. Retail Credit Risk went from 2.03s to 1.23s and Retail
+Analytics from 1.28s to 0.97s.
+
+The three numbers are given rather than the best one, because "34 scans became
+1" is true of one lens and would be a claim about all three if left alone.
 
 The arithmetic is untouched — each figure still comes out of its own formula
 over its own terms — and 34 of 34 batched values match the individually-run
@@ -266,7 +280,22 @@ PostgreSQL, real sign-in as `priya.raman`, `REQUIRE_LOGIN=true`.
 | `eslint` | clean |
 | `next build` | Compiled successfully |
 
-Full-suite figures are in the acceptance matrix.
+### 5.4 The full suite, and what fails in this container
+
+Eight tests fail on the final HEAD. Two were this branch's — `/lenses/new`
+existed with no curated judgement in the feature matrix — and are fixed. One
+is suite pollution: the offending domain is named "Test Domain", is created by
+`tests/api/test_data_builder.py` against the shared PostgreSQL, and the test
+passes in isolation once that row is deleted.
+
+The remaining five were proved not to be this branch's by checking out the
+base commit's entire `backend/` tree, re-running exactly those tests, watching
+them fail identically, and restoring. That is a claim about this container,
+not about the base branch's CI: this container regenerated the data lake and
+the SME scorecard universe from scratch, and those five reconcile against
+particular figures in it.
+
+The full classification, and the method, are in the acceptance matrix.
 
 ---
 

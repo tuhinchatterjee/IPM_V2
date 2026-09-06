@@ -203,6 +203,9 @@ Carried forward from Lenses 2.0 and re-verified on this HEAD; not rebuilt.
 | Check | Before | After | Evidence |
 |---|---:|---:|---|
 | Corporate IFRS 9: scans of the staging dataset | 34 | **1** | `test_a_lens_worth_of_metrics_costs_one_read` |
+| Retail Credit Risk: reads for 23 metrics | 23 | **4** | `test_what_each_shipped_lens_actually_costs` — two scopes plus two function metrics that never batch |
+| Retail Analytics: reads for 11 metrics | 11 | **5** | Same test — two datasets, two scopes each, plus one function metric |
+| No lens costs more than half a read per metric | — | — | Same test, asserted for all three |
 | Corporate IFRS 9: 43 panels rendered | 1.83s | **0.54s** | Measured on this HEAD |
 | Retail Credit Risk: 30 panels | 2.03s | 1.23s | Measured |
 | Retail Analytics: 20 panels | 1.28s | 0.97s | Measured |
@@ -266,7 +269,38 @@ technical vocabulary. The governance detail is one click away on every figure.
 
 ---
 
-## K2. Static checks
+## K2. Full backend regression, and what fails in this container
+
+The full suite was run on the final HEAD. Eight tests fail, and each was
+classified rather than dismissed. **Classification method matters more than
+the classification**, so it is written down:
+
+| Failure | Classified as | How it was proved |
+|---|---|---|
+| `test_feature_matrix::test_every_page_that_exists_carries_an_expected_behaviour` | **This branch's** | `/lenses/new` exists on disk with no curated judgement. **Fixed** — the page now has one, and `/lenses/[lensId]`'s stale judgement was updated too |
+| `test_feature_matrix::test_the_committed_matrix_matches_the_current_build` | **This branch's** | Same cause. **Fixed** — matrix regenerated |
+| `test_fresh_clone_acceptance::test_the_only_live_domains_are_the_seven` | Suite pollution | The extra domain is literally named "Test Domain" and is created by `tests/api/test_data_builder.py` against the shared PostgreSQL. Deleting that row and re-running the test in isolation passes |
+| `test_workbooks::TestExcelReconstruction::test_it_writes_real_excel_formulas` | Pre-existing in this container | Reproduces with the **base** backend checked out (`git checkout 4f79566 -- backend/`) |
+| `test_workbooks::TestExcelReconstruction::test_the_formulas_reconcile_against_the_runtime_values` | Pre-existing in this container | Same |
+| `test_properties::test_a_share_is_of_the_population_asked_about` | Pre-existing in this container | Same |
+| `test_properties::test_customer_level_exposure_reconciles_with_the_facility_book` | Pre-existing in this container | Same |
+| `test_multi_analysis_response::…::test_the_exposure_block_reconciles_with_an_independent_read` | Pre-existing in this container | Same |
+
+The five "pre-existing" ones were proved by checking out the base commit's
+entire `backend/` tree, re-running exactly those tests, watching them fail
+identically, and restoring. They are not an assertion that they fail on the
+base branch's own CI — they are an assertion that **this branch's code is not
+what makes them fail in this container.** The likely cause is the synthetic
+universe: this container regenerated the data lake and the SME scorecard
+universe from scratch, and those tests reconcile against particular figures in
+it.
+
+An integration rehearsal should re-run them against the environment it will
+actually rehearse in, rather than take this result either way.
+
+---
+
+## K3. Static checks
 
 | Check | Result |
 |---|---|

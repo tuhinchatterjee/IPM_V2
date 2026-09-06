@@ -181,6 +181,36 @@ def test_a_lens_worth_of_metrics_costs_one_read():
 
 
 @needs_lake
+def test_what_each_shipped_lens_actually_costs():
+    """§21 as three numbers rather than one flattering one.
+
+    The Corporate IFRS 9 lens is the good case: one dataset, one scope, no
+    function metrics, so thirty-four metrics cost one read. The retail lenses
+    cost more and should — a maturity-scoped metric reads a different
+    population from an unscoped one, and a Gini cannot be computed from
+    aggregates at all. Asserting the real number for each stops the headline
+    from quietly becoming a claim about all three, and fails if a change makes
+    any of them cost more.
+    """
+    costs = {}
+    for spec in shipped.ALL:
+        answer = metrics.values(list(spec.metric_ids))
+        costs[spec.slug] = (answer["reads"], answer["would_have_been"])
+
+    assert costs["corporate-ifrs9"] == (1, 34)
+    # Two scopes (all rows, and matured rows) plus Gini and KS, which are
+    # governed functions and never join a batch.
+    assert costs["retail-credit-risk"] == (4, 23)
+    # Two datasets, each read twice for the same reason, plus one function.
+    assert costs["retail-analytics"] == (5, 11)
+
+    for slug, (reads, wanted) in costs.items():
+        assert reads < wanted / 2, (
+            f"{slug} reads {reads} times for {wanted} metrics, which is not "
+            "worth the batching")
+
+
+@needs_lake
 def test_values_and_value_agree_metric_for_metric():
     ids = list(shipped.CORPORATE_IFRS9.metric_ids)
     together = metrics.values(ids, period=QUARTER)["metrics"]
