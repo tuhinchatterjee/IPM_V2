@@ -407,3 +407,70 @@ def test_a_definition_written_before_metric_tiles_still_reads_as_an_analysis():
                                      "title": "Staging", "visual": "table"})
     assert panel.kind == service.KIND_ANALYSIS
     assert panel.metric_id == ""
+
+
+# ------------------------------- a shipped lens is a lens, not a fixture
+#
+# §19. The claim is that the six preconfigured lenses use the same persisted
+# engine as one somebody builds — not a parallel path that happens to look the
+# same. A claim like that is worth a test that would fail if a special case
+# were ever added, because a special case would not announce itself.
+
+
+@needs_db
+def test_a_shipped_lens_is_stored_like_any_other(installed):
+    for spec in shipped.ALL:
+        view = service.by_slug(spec.slug)
+        assert view.id > 0, spec.slug
+        assert view.panels, spec.slug
+        assert view.revisions, f"{spec.slug} has no revision history"
+        assert view.scope["purpose"], spec.slug
+
+
+@needs_db
+def test_a_shipped_lens_can_be_rearranged_and_put_back(installed):
+    """The whole point of §19: no branch anywhere treats these differently.
+
+    Rearranged through the same `revise` a person's edit goes through, and
+    restored through the same `restore`. If a shipped lens were special-cased
+    to protect it, this is where that would show.
+    """
+    view = service.by_slug("board-risk-committee")
+    original = [p["metric_id"] for p in view.panels]
+    assert len(original) > 2
+
+    panels = [service.Panel.from_dict(p) for p in view.panels]
+    swapped = [panels[1], panels[0], *panels[2:]]
+    edited = service.revise(view.id, swapped, request="test rearrangement",
+                            change_summary="Swapped the first two.",
+                            user_id=1)
+    assert [p["metric_id"] for p in edited.panels][:2] == original[1::-1][:2]
+    assert edited.version == view.version + 1
+
+    back = service.restore(view.id, view.version, user_id=1)
+    assert [p["metric_id"] for p in back.panels] == original
+    # Restored FORWARD, so the rearrangement is still on the record.
+    assert back.version > edited.version
+
+
+@needs_db
+def test_a_shipped_lens_can_take_a_metric_it_did_not_ship_with(installed):
+    """§16 reaches shipped lenses too, or they are not really lenses."""
+    view = service.by_slug("portfolio-quality")
+    before = len(view.panels)
+    panels = [service.Panel.from_dict(p) for p in view.panels]
+    panels.append(service.Panel.metric("corporate.undrawn"))
+    after = service.revise(view.id, panels, request="test addition",
+                           change_summary="Added one.", user_id=1)
+    assert len(after.panels) == before + 1
+    service.restore(view.id, view.version, user_id=1)
+
+
+@needs_db
+def test_reinstalling_puts_a_shipped_lens_back_where_it_was(installed):
+    """So an edit made in a demo does not have to be undone by hand."""
+    shipped.install(user_id=1, replace=True)
+    for spec in shipped.ALL:
+        view = service.by_slug(spec.slug)
+        assert [p["metric_id"] for p in view.panels] == list(
+            spec.metric_ids_in_order()), spec.slug

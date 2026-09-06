@@ -147,7 +147,17 @@ class LensSpec:
 
     @property
     def metric_ids(self) -> tuple[str, ...]:
+        """The distinct metrics this lens reads, for scope and suggestion."""
         return tuple(dict.fromkeys(t.metric_id for t in self.tiles))
+
+    def metric_ids_in_order(self) -> tuple[str, ...]:
+        """Every tile's metric, in layout order, keeping repeats.
+
+        Distinct from `metric_ids`: a lens names one metric more than once on
+        purpose — a figure and a chart of it — so a check that a reinstall put
+        the tiles back has to compare the sequence rather than the set.
+        """
+        return tuple(t.metric_id for t in self.tiles)
 
     def scope(self) -> dict[str, Any]:
         """The lens definition panel §8 asks the creation flow to fill in.
