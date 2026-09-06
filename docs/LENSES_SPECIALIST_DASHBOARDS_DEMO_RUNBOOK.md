@@ -44,9 +44,24 @@ rules only mean something as somebody in particular.
 **Check before you present:**
 
 ```bash
+python scripts/bootstrap_demo.py --check
+# expect: 15 of 15 readiness checks pass
+
 python scripts/acceptance/lens_journeys.py
 # expect: 164 passed, 0 failed
 ```
+
+**If you have run the test suite against this database**, `--check` will
+report the Q2 2026 portfolio review as missing — the suite writes to the same
+tables and the review is consumed. It names its own remedy:
+
+```bash
+python scripts/bootstrap_demo.py --step review
+```
+
+Run the readiness check, not just the journeys. The journeys prove the Lenses
+work; the readiness check proves the rest of the product a client will click
+into from them still does.
 
 ---
 
