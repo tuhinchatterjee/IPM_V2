@@ -54,11 +54,23 @@ VISUALS = ("auto", "kpi", "table", "bar", "line", "matrix")
 #: beyond a dozen nobody reads the lens, they scroll past it.
 MAX_PANELS = 12
 
-#: How many METRIC tiles a lens may hold. Higher, because a tile is one number
-#: with a label — a real IFRS 9 committee pack carries about eighteen — and
-#: because tiles are grouped into named sections rather than presented as one
-#: undifferentiated run. The analysis limit above is unchanged.
-MAX_TILES = 24
+#: How many METRIC tiles a lens may hold. Higher than the analysis limit,
+#: because a tile is one number with a label rather than a whole result table.
+#:
+#: Raised from 24 deliberately. The number that matters for readability is
+#: tiles per BAND, not tiles per lens, and bands are what the reader actually
+#: scans — a screen of thirty-two figures under seven headings reads, and a
+#: screen of eighteen under none does not. The shipped Corporate IFRS 9 lens
+#: is the case that forced the question: stage exposure, stage ECL, stage
+#: coverage, the five stage transitions, the five SICR triggers, overlay and
+#: the model parameters are all things an impairment committee is asked about
+#: by name, and at 24 the lens had to drop one of those groups entirely rather
+#: than show it. Dropping a group a committee asks for is a worse failure than
+#: a longer page.
+#:
+#: It is still a limit, and still refuses: past this a lens has stopped being
+#: a view of one thing and become a catalogue.
+MAX_TILES = 36
 
 SLUG_RE = re.compile(r"[^a-z0-9]+")
 
@@ -402,6 +414,12 @@ class LensView:
     #: that says "retail IFRS 9 staging is not available in this deployment,
     #: because there is no retail impairment dataset" does the opposite.
     notes: list[dict[str, Any]]
+    #: What the lens is FOR: purpose, audience, portfolio, the governed data
+    #: domains it reads, the period it opens on and what it compares against.
+    #: Filled by the creation flow before any metric is chosen, because a lens
+    #: whose scope is decided after its tiles is a lens whose tiles decided
+    #: its scope.
+    scope: dict[str, Any]
     status: str
     version: int
     origin: str
@@ -420,6 +438,7 @@ class LensView:
             "panels": self.panels,
             "sections": self.sections,
             "notes": self.notes,
+            "scope": self.scope,
             "status": self.status,
             "version": self.version,
             "origin": self.origin,
@@ -460,6 +479,7 @@ def _view(session: Any, row: Any, *, with_revisions: bool = False) -> LensView:
         panels=list(definition.get("panels") or []),
         sections=list(definition.get("sections") or []),
         notes=list(definition.get("notes") or []),
+        scope=default_scope(definition.get("scope")),
         status=row.status,
         version=row.version,
         origin=row.origin,
@@ -470,14 +490,83 @@ def _view(session: Any, row: Any, *, with_revisions: bool = False) -> LensView:
     )
 
 
+#: What a lens says about itself before it says anything about the book.
+#: §8 asks the creation flow to settle these before a single metric is
+#: chosen, and they are stored in the definition JSON rather than in columns
+#: of their own so that a lens written before they existed reads back with
+#: sensible blanks rather than failing to load.
+SCOPE_FIELDS = ("purpose", "audience", "portfolio", "domains",
+                "default_period", "comparison_period", "visibility")
+
+#: Who may open a lens. `private` is the owner alone; `shared` is anyone who
+#: can reach the workspace. This is the lens's own declaration and is not a
+#: permission on the data underneath it — a shared lens still shows each
+#: reader only the metrics their datasets allow, which is enforced where the
+#: metric is resolved rather than here.
+VISIBILITIES = ("private", "shared")
+
+#: Comparisons a lens may open with, mirrored from the chart vocabulary so a
+#: lens and a chart cannot mean different things by "the previous period".
+LENS_COMPARISONS = ("", "previous_period", "same_period_last_year")
+
+
+def default_scope(stored: Any = None) -> dict[str, Any]:
+    """A lens's scope, with every field present whether it was set or not.
+
+    A screen that has to test each key before reading it grows a different
+    default in each place that reads one, and the lens header and the lens
+    editor then disagree about what "no default period" means.
+    """
+    raw = dict(stored or {})
+    scope: dict[str, Any] = {
+        "purpose": str(raw.get("purpose") or ""),
+        "audience": str(raw.get("audience") or ""),
+        "portfolio": str(raw.get("portfolio") or ""),
+        "domains": [str(d) for d in (raw.get("domains") or []) if str(d)],
+        "default_period": str(raw.get("default_period") or ""),
+        "comparison_period": str(raw.get("comparison_period") or ""),
+        "visibility": str(raw.get("visibility") or "shared"),
+    }
+    if scope["visibility"] not in VISIBILITIES:
+        scope["visibility"] = "shared"
+    if scope["comparison_period"] not in LENS_COMPARISONS:
+        scope["comparison_period"] = ""
+    return scope
+
+
+def validate_scope(scope: dict[str, Any] | None) -> dict[str, Any]:
+    """Refuse a scope the platform cannot honour, and say which field."""
+    if scope is None:
+        return {}
+    unknown = set(scope) - set(SCOPE_FIELDS)
+    if unknown:
+        raise InvalidLens(
+            f"A lens has no {', '.join(sorted(unknown))}. It carries: "
+            f"{', '.join(SCOPE_FIELDS)}.")
+    visibility = str(scope.get("visibility") or "shared")
+    if visibility not in VISIBILITIES:
+        raise InvalidLens(
+            f"'{visibility}' is not a visibility a lens may have. "
+            f"Available: {', '.join(VISIBILITIES)}.")
+    comparison = str(scope.get("comparison_period") or "")
+    if comparison not in LENS_COMPARISONS:
+        raise InvalidLens(
+            f"'{comparison}' is not a comparison a lens may open with. "
+            f"Available: {', '.join(c or 'none' for c in LENS_COMPARISONS)}.")
+    return default_scope(scope)
+
+
 def _definition(panels: list[Panel],
                 sections: list[dict[str, Any]] | None,
-                notes: list[dict[str, Any]] | None) -> dict[str, Any]:
+                notes: list[dict[str, Any]] | None,
+                scope: dict[str, Any] | None = None) -> dict[str, Any]:
     definition: dict[str, Any] = {"panels": [p.to_dict() for p in panels]}
     if sections:
         definition["sections"] = [dict(s) for s in sections]
     if notes:
         definition["notes"] = [dict(n) for n in notes]
+    if scope:
+        definition["scope"] = dict(scope)
     return definition
 
 
@@ -489,7 +578,8 @@ def create(*, name: str, panels: list[Panel], description: str = "",
            project_id: int | None = None, request: str = "",
            user_id: int | None = None, slug: str = "",
            sections: list[dict[str, Any]] | None = None,
-           notes: list[dict[str, Any]] | None = None) -> LensView:
+           notes: list[dict[str, Any]] | None = None,
+           scope: dict[str, Any] | None = None) -> LensView:
     """Store a new lens.
 
     `slug` is normally derived from the name. A caller installing a lens the
@@ -499,11 +589,12 @@ def create(*, name: str, panels: list[Panel], description: str = "",
     """
     _require_db()
     validate(panels)
+    scope = validate_scope(scope)
 
     from backend.db.engine import get_session
     from backend.models.platform import Lens, LensRevision
 
-    definition = _definition(panels, sections, notes)
+    definition = _definition(panels, sections, notes, scope)
     with get_session() as session:
         slug = slugify(slug) if slug else slugify(name)
         existing = {s for (s,) in session.query(Lens.slug).all()}
@@ -534,15 +625,23 @@ def create(*, name: str, panels: list[Panel], description: str = "",
 def revise(lens_id: int, panels: list[Panel], *, request: str = "",
            change_summary: str = "", user_id: int | None = None,
            sections: list[dict[str, Any]] | None = None,
-           notes: list[dict[str, Any]] | None = None) -> LensView:
-    """Store a new revision. The previous one is kept, so it can be put back."""
+           notes: list[dict[str, Any]] | None = None,
+           scope: dict[str, Any] | None = None) -> LensView:
+    """Store a new revision. The previous one is kept, so it can be put back.
+
+    `scope` left as None keeps whatever the lens already declares. A caller
+    that meant to clear it passes the fields explicitly — a revision that
+    silently dropped a lens's purpose and default period because it was only
+    moving a tile would lose them on the first edit.
+    """
     _require_db()
     validate(panels)
+    kept = get(lens_id).scope if scope is None else validate_scope(scope)
 
     from backend.db.engine import get_session
     from backend.models.platform import Lens, LensRevision
 
-    definition = _definition(panels, sections, notes)
+    definition = _definition(panels, sections, notes, kept)
     with get_session() as session:
         row = session.get(Lens, lens_id)
         if row is None:
@@ -584,17 +683,33 @@ def restore(lens_id: int, version: int, *, user_id: int | None = None) -> LensVi
         panels = [Panel.from_dict(p) for p in stored.get("panels") or []]
         sections = list(stored.get("sections") or [])
         notes = list(stored.get("notes") or [])
+        # The scope travels with the version being put back. A restore that
+        # kept the CURRENT purpose and default period would put back the
+        # tiles of one lens under the description of another, and the
+        # revision history would say it had restored something it had not.
+        scope = default_scope(stored.get("scope"))
 
     return revise(
         lens_id, panels, request=f"Restore version {version}",
         change_summary=f"Restored the definition from version {version}.",
-        user_id=user_id, sections=sections, notes=notes,
+        user_id=user_id, sections=sections, notes=notes, scope=scope,
     )
 
 
-def _identity(panel: Panel) -> tuple[str, str]:
-    """What makes a panel the same panel across a revision."""
-    return (panel.kind, panel.metric_id or panel.analysis_id)
+def _identity(panel: Panel) -> tuple[str, str, str]:
+    """What makes a panel the same panel across a revision.
+
+    The dimension is part of a chart's identity. Without it, "exposure by
+    sector" and "exposure by segment" were the same panel — they name one
+    metric — so a revision put both in whichever band the second one was
+    found in, and a lens that had its concentration charts in one band and
+    its trend in another came back with them merged. No shipped lens carried
+    two charts of one metric until now, which is why this held.
+    """
+    if panel.kind == KIND_CHART:
+        return (panel.kind, panel.metric_id,
+                str((panel.params or {}).get("dimension") or ""))
+    return (panel.kind, panel.metric_id or panel.analysis_id, "")
 
 
 def resection(old: list[Panel], sections: list[dict[str, Any]],
@@ -614,20 +729,25 @@ def resection(old: list[Panel], sections: list[dict[str, Any]],
     if not sections:
         return []
 
-    where: dict[tuple[str, str], int] = {}
+    # A queue of bands per identity, not one band, because a lens is allowed
+    # to show one metric twice — the same figure under two titles, in two
+    # sections. Matching by identity alone put the second copy in the first
+    # copy's band and left the other band a tile short. Each surviving panel
+    # claims the earliest band that still has an unclaimed copy of it.
+    where: dict[tuple[str, str, str], list[int]] = {}
     for number, section in enumerate(sections):
         for index in section.get("panels") or []:
             if 0 <= int(index) < len(old):
-                where[_identity(old[int(index)])] = number
+                where.setdefault(_identity(old[int(index)]), []).append(number)
 
     grouped: dict[int, list[int]] = {n: [] for n in range(len(sections))}
     fresh: list[int] = []
     for index, panel in enumerate(new):
-        number = where.get(_identity(panel))
-        if number is None:
+        queue = where.get(_identity(panel)) or []
+        if not queue:
             fresh.append(index)
         else:
-            grouped[number].append(index)
+            grouped[queue.pop(0)].append(index)
 
     out: list[dict[str, Any]] = []
     for number, section in enumerate(sections):
@@ -719,6 +839,109 @@ def by_slug(slug: str) -> LensView:
         return _view(session, row, with_revisions=True)
 
 
+# ------------------------------------------------------- what it can show
+
+
+def periods(lens_id: int) -> dict[str, Any]:
+    """The periods this lens can honestly be shown for.
+
+    Not "every period in the lake". A lens is a set of metrics over a set of
+    datasets, and the only periods worth offering are the ones those datasets
+    actually hold rows for — offering a quarter the staging dataset has never
+    seen produces a screen of dashes and teaches the reader that the period
+    picker is broken.
+
+    Where a lens spans datasets on different calendars — a retail lens reading
+    monthly behavioural data beside a quarterly scorecard cut — the periods
+    are grouped by the calendar they belong to rather than merged into one
+    list, because merging two calendars produces an ordering that is wrong in
+    both.
+    """
+    from backend.metrics import service as metrics
+
+    view = get(lens_id)
+    wanted: dict[tuple[str, ...], list[str]] = {}
+    scopes: dict[tuple[str, ...], tuple[Any, ...]] = {}
+    for entry in view.panels:
+        panel = Panel.from_dict(entry)
+        if panel.kind not in (KIND_METRIC, KIND_CHART):
+            continue
+        try:
+            metric = metrics.resolve(panel.metric_id)
+        except metrics.MetricNotFound:
+            continue
+        key = tuple(metric.datasets)
+        if not key:
+            continue
+        wanted.setdefault(key, [])
+        # The tightest scope wins for the purpose of asking which periods have
+        # rows: a lens offering a month its validation tiles cannot answer for
+        # is a lens whose picker lies about four of its tiles.
+        scopes.setdefault(key, metric.scope)
+
+    calendars: list[dict[str, Any]] = []
+    for key in wanted:
+        try:
+            found = metrics.periods_with_rows(key, scopes.get(key, ()))
+        except Exception:  # noqa: BLE001 - a dataset that has gone
+            found = []
+        if not found:
+            continue
+        calendars.append({
+            "datasets": list(key),
+            "periods": list(found),
+            "latest": found[-1] if found else "",
+        })
+
+    calendars.sort(key=lambda c: (-len(c["periods"]), c["datasets"]))
+    #: The list a picker actually offers. The lens's widest calendar, because
+    #: that is the one most of its tiles are on; the others are reported
+    #: beside it so a reader can see that the lens spans two.
+    offered = calendars[0]["periods"] if calendars else []
+    return {
+        "lens_id": lens_id,
+        "periods": offered,
+        "latest": offered[-1] if offered else "",
+        "default": view.scope.get("default_period") or "",
+        "calendars": calendars,
+        "note": ("" if len(calendars) < 2 else
+                 "This lens reads datasets on more than one calendar. The "
+                 "picker offers the one most of its tiles are on; a tile on "
+                 "another resolves the nearest period it has, and says which "
+                 "on its own face."),
+    }
+
+
+def set_scope(lens_id: int, scope: dict[str, Any], *,
+              user_id: int | None = None) -> LensView:
+    """Change what a lens says it is for, keeping its tiles.
+
+    A revision of its own, through the same path as every other change, so
+    that "somebody repointed this lens at a different portfolio" is on the
+    record next to "somebody added a tile".
+    """
+    before = get(lens_id)
+    checked = validate_scope(scope)
+    panels = [Panel.from_dict(p) for p in before.panels]
+    return revise(
+        lens_id, panels, request="Changed what this lens is for",
+        change_summary=_scope_change(before.scope, checked),
+        user_id=user_id, sections=before.sections, notes=before.notes,
+        scope=checked)
+
+
+def _scope_change(before: dict[str, Any], after: dict[str, Any]) -> str:
+    """What changed about the lens's own description, in a sentence."""
+    moved = [name for name in SCOPE_FIELDS
+             if before.get(name) != after.get(name)]
+    if not moved:
+        return "Reviewed what this lens is for and changed nothing."
+    readable = {"default_period": "the period it opens on",
+                "comparison_period": "what it compares against",
+                "domains": "the data domains it reads"}
+    return ("Changed " + ", ".join(readable.get(m, m) for m in moved) + ".")
+
+
 # ------------------------------------------------------------------ running
 
 
@@ -731,26 +954,37 @@ def render(lens_id: int, *, period: str | None = None,
     ordinary engine runner, so each carries its own Trace.
     """
     view = get(lens_id)
+    # A lens that declares a period opens on it. Explicit beats declared —
+    # somebody who picked a quarter meant that quarter — and both beat the
+    # per-metric default, which is what a lens with neither falls back to.
+    period = period or (view.scope.get("default_period") or None)
     from backend.engine.runner import persist_run, run_analysis
 
-    # Which period each metric means when the lens is not pinned to one.
-    # Resolved once per source rather than once per tile: twenty-one tiles
-    # reading the same dataset asked the same question twenty-one times, and —
-    # worse than the cost — two tiles that resolved separately could land on
-    # different periods, so an IFRS 9 lens whose stage exposures are meant to
-    # sum to its total would stop summing to it.
+    # §21. Every metric tile on the lens is computed together, so tiles that
+    # share a dataset, a period and a scope are measured in one pass of it
+    # rather than one pass each. The Corporate IFRS 9 lens went from
+    # thirty-four scans of the staging dataset to one.
     #
-    # The memo lives for this render alone. A cache that outlived it would
-    # keep serving yesterday's latest period after a load, which is the one
-    # kind of staleness a lens must not have.
-    periods: dict[tuple[Any, ...], str] = {}
+    # Two properties this has to keep, and does:
+    #
+    # * The period each tile means is resolved once per (dataset, scope,
+    #   rule), not once per tile. Two tiles that resolved separately could
+    #   land on different periods, and stage exposures meant to sum to a
+    #   total would stop summing to it.
+    # * The arithmetic is unchanged. Each tile's value still comes out of the
+    #   metric's own formula over its own terms, so a batched figure is the
+    #   same number the tile would have shown on its own.
+    #
+    # Nothing survives this render. A cache that outlived it would keep
+    # serving yesterday's latest period after a load, which is the one kind
+    # of staleness a lens must not have.
+    computed = _compute_tiles(view.panels, period=period, user_id=user_id)
 
     panels: list[dict[str, Any]] = []
     for entry in view.panels:
         panel = Panel.from_dict(entry)
         if panel.kind == KIND_METRIC:
-            panels.append(_render_metric(panel, period=period,
-                                         user_id=user_id, periods=periods))
+            panels.append(_render_metric(panel, computed=computed))
             continue
         if panel.kind == KIND_CHART:
             panels.append(_render_chart(panel, period=period,
@@ -795,6 +1029,7 @@ def render(lens_id: int, *, period: str | None = None,
         "period": period,
         "sections": view.sections,
         "notes": view.notes,
+        "scope": view.scope,
         "panels": panels,
         "failed": len(failed),
         "unavailable": len(unavailable),
@@ -802,9 +1037,34 @@ def render(lens_id: int, *, period: str | None = None,
     }
 
 
-def _render_metric(panel: Panel, *, period: str | None,
-                   user_id: int | None,
-                   periods: dict[tuple[Any, ...], str] | None = None
+def _compute_tiles(entries: list[dict[str, Any]], *, period: str | None,
+                   user_id: int | None) -> dict[str, Any]:
+    """Every metric tile on the lens, computed together.
+
+    Returns the answer for each metric id, in the shape one tile needs. A
+    metric named by two tiles — the same figure under two titles, which a lens
+    is allowed to do — is computed once and read twice.
+    """
+    from backend.metrics import service as metrics
+
+    wanted = [Panel.from_dict(e).metric_id for e in entries
+              if Panel.from_dict(e).kind == KIND_METRIC]
+    wanted = [m for m in dict.fromkeys(wanted) if m]
+    if not wanted:
+        return {}
+    try:
+        return metrics.values(wanted, period=period or "",
+                              user_id=user_id)["metrics"]
+    except Exception:  # pragma: no cover - a genuinely broken lake
+        # Not fatal, and not silent. Each tile falls back to its own read
+        # below and reports its own failure, which is a slow lens rather than
+        # a blank one.
+        logger.warning("batched tile read failed for this lens", exc_info=True)
+        return {}
+
+
+def _render_metric(panel: Panel, *, computed: dict[str, Any] | None = None,
+                   period: str | None = None, user_id: int | None = None
                    ) -> dict[str, Any]:
     """One metric tile: the number, the working, and how it is defined.
 
@@ -815,41 +1075,35 @@ def _render_metric(panel: Panel, *, period: str | None,
     A metric with no data for the period is `unavailable`, not `failed`. The
     distinction matters on screen: one is a gap in the book, the other is a
     gap in the platform, and telling a reader the wrong one wastes their time.
+
+    A tile pinned to its own period is not in the batch — it is asking a
+    different question from the rest of the lens — so it reads on its own.
     """
     from backend.metrics import service as metrics
 
-    wanted = panel.period or (period or "")
-    if not wanted and periods is not None:
+    outcome = None
+    if not panel.period and computed:
+        outcome = computed.get(panel.metric_id)
+    if outcome is None:
         try:
-            definition = metrics.resolve(panel.metric_id, user_id=user_id)
+            outcome = metrics.value(panel.metric_id,
+                                    period=panel.period or (period or ""),
+                                    user_id=user_id)
         except metrics.MetricNotFound as e:
             return {**panel.to_dict(), "status": "failed", "error": str(e),
                     "result": None, "metric": None}
-        key = (definition.datasets, definition.scope, definition.period_rule)
-        if key not in periods:
-            try:
-                periods[key] = metrics.default_period(definition)
-            except Exception:  # noqa: BLE001 - handled where it is reported
-                # Left unresolved on purpose. `metrics.value` resolves it
-                # again inside its own guard and turns the failure into a
-                # tile that says why, so the reason reaches the reader
-                # through one path rather than two that could disagree.
-                periods[key] = ""
-        wanted = periods[key]
-
-    try:
-        outcome = metrics.value(panel.metric_id, period=wanted,
-                                user_id=user_id)
-    except metrics.MetricNotFound as e:
-        return {**panel.to_dict(), "status": "failed", "error": str(e),
-                "result": None, "metric": None}
-    except Exception as e:  # pragma: no cover - a genuinely broken metric
-        logger.warning("metric panel %s could not be produced",
-                       panel.metric_id, exc_info=True)
-        return {**panel.to_dict(), "status": "failed", "error": str(e),
-                "result": None, "metric": None}
+        except Exception as e:  # pragma: no cover - a genuinely broken metric
+            logger.warning("metric panel %s could not be produced",
+                           panel.metric_id, exc_info=True)
+            return {**panel.to_dict(), "status": "failed", "error": str(e),
+                    "result": None, "metric": None}
 
     definition = outcome["metric"]
+    if definition is None:
+        return {**panel.to_dict(), "status": "failed",
+                "error": outcome.get("error") or outcome["unavailable"],
+                "result": None, "metric": None}
+
     return {
         **panel.to_dict(),
         "title": panel.title or definition["name"],

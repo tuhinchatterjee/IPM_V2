@@ -40,7 +40,21 @@ def ifrs9(installed):
 
 
 def _values(rendered) -> dict[str, float | None]:
-    return {p["metric_id"]: p.get("value") for p in rendered["panels"]}
+    """The figure each metric TILE shows.
+
+    Only the tiles. A lens now carries charts as well, and a chart names the
+    same metric as the tile above it — deliberately, because a bar has to be
+    comparable to the figure it sits under. A chart panel has points rather
+    than a value, so reading every panel into one dictionary let the chart
+    overwrite the tile's number with None and the reconciliation tests below
+    silently compared nothing to nothing.
+    """
+    return {p["metric_id"]: p.get("value") for p in rendered["panels"]
+            if p.get("kind") == "metric"}
+
+
+def _charts(rendered) -> list[dict]:
+    return [p for p in rendered["panels"] if p.get("kind") == "chart"]
 
 
 # ------------------------------------------------------- the definitions
@@ -133,7 +147,41 @@ def test_every_tile_on_the_ifrs9_lens_produces_a_number(ifrs9):
     assert ifrs9["unavailable"] == 0
     for panel in ifrs9["panels"]:
         assert panel["status"] == "succeeded", panel["metric_id"]
+        if panel["kind"] == "chart":
+            continue
         assert isinstance(panel["value"], float), panel["metric_id"]
+
+
+@needs_db
+def test_every_chart_on_the_ifrs9_lens_draws_points(ifrs9):
+    """A chart with no points is a chart nobody should be shown."""
+    charts = _charts(ifrs9)
+    assert charts, "the IFRS 9 lens carries no charts"
+    for panel in charts:
+        assert panel["status"] == "succeeded", panel["metric_id"]
+        assert panel["points"], panel["metric_id"]
+        assert any(p["value"] is not None for p in panel["points"]), (
+            panel["metric_id"])
+
+
+@needs_db
+def test_a_chart_agrees_with_the_tile_it_sits_under(ifrs9):
+    """The bars and the figure are one calculation, so they must reconcile.
+
+    Total exposure by sector is the total exposure. If the chart computed its
+    groups a different way from the tile, the two would drift and the reader
+    would have no way to tell which was right.
+    """
+    tiles = _values(ifrs9)
+    by_sector = next(p for p in _charts(ifrs9)
+                     if p["metric_id"] == "corporate.ifrs9.total_ead"
+                     and p["dimension"] == "sector")
+    assert not by_sector["truncated"], (
+        "the sector chart is truncated, so its bars cannot sum to the book")
+    drawn = sum(p["value"] for p in by_sector["points"]
+                if p["value"] is not None)
+    assert drawn == pytest.approx(tiles["corporate.ifrs9.total_ead"],
+                                  rel=1e-9)
 
 
 @needs_db
@@ -225,7 +273,21 @@ def test_the_retail_analytics_lens_renders(installed):
                                 if p["status"] == "failed"]
     v = _values(out)
     assert v["retail.applications"] > 0
-    for name in ("retail.scorecard.gini", "retail.application_gini"):
+    # The application scorecard is the one this lens is about. The
+    # behavioural scorecard's statistics are on the Retail Credit Risk lens,
+    # where the book they describe is.
+    assert 0.0 < v["retail.application_gini"] < 1.0, (
+        "a Gini outside 0-1 means the metric is not what it says it is; a "
+        "negative one in particular means the score direction is the wrong "
+        "way round")
+
+
+@needs_db
+def test_the_behavioural_scorecard_statistics_are_on_the_risk_lens(installed):
+    """§4 puts the validation read next to the book it is a read of."""
+    out = service.render(installed["retail-credit-risk"].id, user_id=1)
+    v = _values(out)
+    for name in ("retail.scorecard.gini", "retail.scorecard.ks"):
         assert 0.0 < v[name] < 1.0, (
             f"{name} outside 0-1 means the metric is not what it says it is; "
             "a negative Gini in particular means the score direction is "
@@ -240,7 +302,7 @@ def test_a_validation_metric_reports_on_a_cohort_that_has_outcomes(installed):
     resolve to the most recent period whose performance window has closed, and
     the panel says so rather than leaving a reader to assume.
     """
-    out = service.render(installed["retail-analytics"].id, user_id=1)
+    out = service.render(installed["retail-credit-risk"].id, user_id=1)
     panel = next(p for p in out["panels"]
                  if p["metric_id"] == "retail.scorecard.gini")
     assert panel["status"] == "succeeded"

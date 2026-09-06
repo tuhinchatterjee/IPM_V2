@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -399,6 +399,17 @@ def value(metric_id: str, *, period: str = "", user_id: int | None = None,
             dataset=metric.datasets[0] if metric.datasets else "")
         calculation.unavailable = str(e)
 
+    return _shape(metric, calculation)
+
+
+def _shape(metric: MetricDefinition,
+           calculation: execution.Calculation) -> dict[str, Any]:
+    """One metric's answer, however it was computed.
+
+    Shared by `value` and `values` deliberately: a figure read on its own and
+    the same figure read as part of a lens must arrive in the same shape, or
+    the tile that draws it grows a branch for which route produced it.
+    """
     return {
         "metric": metric.panel(catalog=_catalog()),
         "calculation": calculation.to_dict(),
@@ -408,6 +419,106 @@ def value(metric_id: str, *, period: str = "", user_id: int | None = None,
         "period": calculation.period,
         "available": calculation.value is not None,
         "unavailable": calculation.unavailable,
+    }
+
+
+def values(metric_ids: Sequence[str], *, period: str = "",
+           user_id: int | None = None,
+           readable: Iterable[str] | None = None) -> dict[str, Any]:
+    """Calculate many metrics, reading each dataset as few times as possible.
+
+    §21. Metrics that share a dataset, a period and a scope are measured in
+    one pass; the rest run on their own. Which group a metric lands in is
+    decided by `execution.batch_key`, and a metric that cannot share — a
+    governed function, a filtered average — is not made to.
+
+    The answer for each metric is the same shape `value` returns, and is
+    produced by the same arithmetic over the same aggregates. This is one
+    query where there were many, not a second way of calculating.
+
+    A metric that cannot be resolved or whose period cannot be worked out
+    comes back with its own reason rather than taking the others with it: a
+    lens where one tile names a deleted metric should lose that tile, not the
+    page.
+    """
+    wanted = list(dict.fromkeys(metric_ids))
+    answers: dict[str, Any] = {}
+    resolved: dict[str, MetricDefinition] = {}
+    at: dict[str, str] = {}
+
+    #: Which period each metric means, resolved once per (dataset, scope,
+    #: rule) rather than once per metric. Twenty-one tiles reading the same
+    #: dataset used to ask the same question twenty-one times — and, worse
+    #: than the cost, two that resolved separately could land on different
+    #: periods, so stage exposures meant to sum to a total would stop.
+    when: dict[tuple[Any, ...], str] = {}
+
+    for metric_id in wanted:
+        try:
+            metric = resolve(metric_id, user_id=user_id, readable=readable)
+        except (MetricNotFound, MetricRefused) as e:
+            answers[metric_id] = {"metric": None, "calculation": None,
+                                  "value": None, "unit": "", "decimals": 2,
+                                  "period": period, "available": False,
+                                  "unavailable": str(e), "error": str(e)}
+            continue
+        resolved[metric_id] = metric
+        if period:
+            at[metric_id] = period
+            continue
+        key = (metric.datasets, metric.scope, metric.period_rule)
+        if key not in when:
+            try:
+                when[key] = default_period(metric)
+            except DataAccessError:
+                when[key] = ""
+        at[metric_id] = when[key]
+
+    groups: dict[tuple[Any, ...], dict[str, Any]] = {}
+    alone: list[str] = []
+    for metric_id, metric in resolved.items():
+        key = execution.batch_key(metric.formula, at[metric_id], metric.scope)
+        if key is None:
+            alone.append(metric_id)
+            continue
+        groups.setdefault(key, {})[metric_id] = metric.formula
+
+    scans = 0
+    for key, formulas in groups.items():
+        metric_id = next(iter(formulas))
+        scope = resolved[metric_id].scope
+        scans += 1
+        when_text = at[metric_id] or "the latest period"
+        try:
+            computed = execution.run_batch(
+                formulas, period=at[metric_id], scope=scope,
+                question=(f"{len(formulas)} metrics over {key[0]} for "
+                          f"{when_text}"))
+        except DataAccessError as e:
+            for one in formulas:
+                calculation = execution.Calculation(
+                    value=None, formula=resolved[one].formula,
+                    period=at[one],
+                    dataset=resolved[one].datasets[0]
+                    if resolved[one].datasets else "")
+                calculation.unavailable = str(e)
+                answers[one] = _shape(resolved[one], calculation)
+            continue
+        for one, calculation in computed.items():
+            answers[one] = _shape(resolved[one], calculation)
+
+    for metric_id in alone:
+        scans += 1
+        answers[metric_id] = value(metric_id, period=at[metric_id],
+                                   user_id=user_id, readable=readable)
+
+    return {
+        "metrics": answers,
+        "requested": wanted,
+        # What the caller saved, so a performance claim on this page can be
+        # checked rather than asserted.
+        "reads": scans,
+        "would_have_been": len(resolved),
     }
 
 

@@ -287,6 +287,86 @@ RETAIL_QUALITY: tuple[MetricDefinition, ...] = (
 )
 
 
+# ================================== retail — movement within the book
+
+#: A roll rate compares two consecutive months for the same account, and the
+#: metric engine computes one period at a time — so a true roll rate is still
+#: unsupported, and says so below.
+#:
+#: These two are not that, and are named so they cannot be mistaken for it.
+#: The behavioural dataset carries a trailing window ON EACH ROW —
+#: `max_dpd_3m` is the worst arrears that account reached over the last three
+#: months, `times_dpd_30plus_6m` is how often it went behind over the last
+#: six. That is a comparison across time held within one row, which the engine
+#: measures in one pass, and it answers the two questions a head of retail
+#: risk actually asks about movement: how many of the accounts that went
+#: behind have come back, and how many keep going behind.
+
+RETAIL_MOVEMENT: tuple[MetricDefinition, ...] = (
+    _m("retail.cure_rate_3m", "Cure Rate (3-Month Look-Back)",
+       "Of the accounts that reached 30 or more days past due at any point in "
+       "the last three months, the share that are fully up to date now.",
+       _ratio([_t("cured", "Reached 30+ DPD and is now current", BEHAVIOURAL,
+                  "count", "current_dpd", max_dpd_3m__gte=30,
+                  current_dpd=0)],
+              [_t("behind", "Reached 30+ DPD in the window", BEHAVIOURAL,
+                  "count", "current_dpd", max_dpd_3m__gte=30)]),
+       unit="percent", domain=RETAIL, portfolio="Retail",
+       aliases=("cure rate", "cures", "cured accounts", "recovery rate",
+                "back to current", "rehabilitation rate"),
+       formula_text=("COUNT(max_dpd_3m >= 30 and current_dpd = 0) / "
+                     "COUNT(max_dpd_3m >= 30) × 100"),
+       numerator_text="Accounts that went 30+ days behind in the last three "
+                      "months and owe nothing overdue now",
+       denominator_text="Accounts that went 30+ days behind in the last three "
+                        "months",
+       decimals=2, higher_is_better=True,
+       transformation=(
+           "Both sides read `max_dpd_3m`, the worst arrears the account "
+           "reached over the trailing three months, which the behavioural "
+           "dataset carries on the account's own row. The comparison across "
+           "time is therefore held within one row and measured in one pass."),
+       exclusions=("Accounts with fewer than three months on book have no "
+                   "full trailing window; they carry whatever window exists "
+                   "and are neither excluded nor extrapolated."),
+       not_this=(
+           "Not a roll rate, and not a month-on-month cure. This is a "
+           "look-back over a three-month window on one reporting date, so an "
+           "account that went behind and cured twice inside the window is "
+           "counted once, as cured.")),
+
+    _m("retail.repeat_delinquency_rate", "Repeat Delinquency Rate",
+       "The share of accounts that have gone 30 or more days past due more "
+       "than once in the last six months.",
+       _ratio([_t("repeat", "Behind more than once", BEHAVIOURAL, "count",
+                  "times_dpd_30plus_6m", times_dpd_30plus_6m__gte=2)],
+              [Term(id="all", label="Accounts", dataset=BEHAVIOURAL,
+                    aggregate="count")]),
+       unit="percent", domain=RETAIL, portfolio="Retail",
+       aliases=("repeat delinquency", "repeat arrears", "chronic delinquency",
+                "serial delinquency", "recurring arrears",
+                # It is a 30+ DPD metric and says so, because a search for
+                # "delinq 30" reaches it through its definition either way,
+                # and a suggestion whose name does not mention 30 days looks
+                # like the picker widening rather than narrowing.
+                "repeat 30 dpd", "30 dpd more than once",
+                "30+ dpd repeat rate"),
+       formula_text=("COUNT(times_dpd_30plus_6m >= 2) / COUNT(accounts) "
+                     "× 100"),
+       numerator_text="Accounts that went 30+ days behind twice or more in "
+                      "the last six months",
+       denominator_text="Every open account in the month",
+       decimals=2, higher_is_better=False,
+       transformation=(
+           "Reads `times_dpd_30plus_6m`, the count of separate 30+ episodes "
+           "over the trailing six months, carried on the account's own row."),
+       not_this=(
+           "Not the 30+ DPD rate. An account can be 30+ today having never "
+           "been behind before, and an account can be current today having "
+           "been behind three times since January. This measures the second "
+           "kind, which the arrears buckets do not see.")),
+)
+
 # ============================================= retail — scorecard validation
 
 RETAIL_VALIDATION: tuple[MetricDefinition, ...] = (
@@ -658,6 +738,248 @@ CORPORATE_IFRS9_METRICS: tuple[MetricDefinition, ...] = tuple(
 )
 
 
+# ==================================== corporate IFRS 9 — stage migration
+
+#: Where a facility sat last period, and where it sits now. The staging
+#: dataset carries `prior_stage` on every row, so a transition is a property
+#: of one row rather than a comparison of two periods — which is why these can
+#: be metrics at all, and why the ECL movement bridge below them still cannot.
+#:
+#: Named by the transition rather than by "migration", because "migration" on
+#: its own is read as deterioration and half of these are the opposite.
+
+
+def _transition(metric_id: str, name: str, definition: str, *,
+                frm: Condition, to: Condition, aliases: tuple[str, ...],
+                reads: str) -> MetricDefinition:
+    """Exposure that moved between two stages this period."""
+    return _m(metric_id, name, definition,
+              _total(Term(id="moved", label=name, dataset=STAGING,
+                          aggregate="sum", field="ead", where=(frm, to))),
+              unit="currency", domain=CORPORATE_IFRS9, portfolio="Corporate",
+              aliases=aliases,
+              formula_text=f"SUM(ead where {reads})",
+              decimals=0, higher_is_better=None,
+              period_rule=PERIOD_SELECTED,
+              transformation=(
+                  "Read from `prior_stage` and `ifrs9_stage` on the same row. "
+                  "The staging dataset records where each facility sat at the "
+                  "previous reporting date, so a transition is a property of "
+                  "one row and is measured in one pass."),
+              exclusions=(
+                  "A facility with no prior stage — one that entered the book "
+                  "this period — matches no transition and is counted in "
+                  "none of them."),
+              not_this=(
+                  "Not a balance. This is the exposure that moved, not the "
+                  "exposure now sitting in the destination stage."),
+              visuals=("kpi", "bar"))
+
+
+def _transition_rate(metric_id: str, name: str, definition: str, *,
+                     frm: Condition, to: Condition,
+                     aliases: tuple[str, ...], reads: str,
+                     base: str) -> MetricDefinition:
+    """A transition as a share of the population that could have made it.
+
+    The denominator is the exposure that started the period where the
+    transition starts — not the whole book. A new-default rate over total
+    exposure would fall whenever the book grew, which is the opposite of what
+    the reader takes from it.
+    """
+    return _m(metric_id, name, definition,
+              _ratio([Term(id="moved", label="Exposure that moved",
+                           dataset=STAGING, aggregate="sum", field="ead",
+                           where=(frm, to))],
+                     [Term(id="base", label=base, dataset=STAGING,
+                           aggregate="sum", field="ead", where=(frm,))]),
+              unit="percent", domain=CORPORATE_IFRS9, portfolio="Corporate",
+              aliases=aliases,
+              formula_text=f"SUM(ead where {reads}) / "
+                           f"SUM(ead where {frm.describe()}) × 100",
+              numerator_text="Exposure that made this transition",
+              denominator_text=base,
+              decimals=2,
+              period_rule=PERIOD_SELECTED,
+              transformation=(
+                  "Both sides are measured over the same scan of the same "
+                  "period, so the share is of the population that could have "
+                  "made the move rather than of the whole book."),
+              not_this=(
+                  "Not a share of total exposure. The denominator is the "
+                  "exposure that started the period in the origin stage, "
+                  "which is what makes the rate comparable between periods "
+                  "when the book grows."))
+
+
+CORPORATE_IFRS9_MIGRATION: tuple[MetricDefinition, ...] = (
+    _transition(
+        "corporate.ifrs9.stage_1_to_2_ead", "Stage 1 To Stage 2 Exposure",
+        "Exposure that was performing at the last reporting date and has "
+        "since been assessed as significantly deteriorated.",
+        frm=Condition("prior_stage", "=", 1),
+        to=Condition("ifrs9_stage", "=", 2),
+        aliases=("stage 1 to 2", "stage 1 to stage 2", "sicr transfers",
+                 "transfers to stage 2", "stage 2 inflow"),
+        reads="prior_stage = 1 and ifrs9_stage = 2"),
+
+    _transition(
+        "corporate.ifrs9.stage_2_to_1_ead", "Stage 2 To Stage 1 Exposure",
+        "Exposure that has recovered from significant deterioration back to "
+        "twelve-month expected loss.",
+        frm=Condition("prior_stage", "=", 2),
+        to=Condition("ifrs9_stage", "=", 1),
+        aliases=("stage 2 to 1", "stage 2 to stage 1", "transfers to stage 1",
+                 "stage 2 cures", "recoveries to performing"),
+        reads="prior_stage = 2 and ifrs9_stage = 1"),
+
+    _transition(
+        "corporate.ifrs9.stage_2_to_3_ead", "Stage 2 To Stage 3 Exposure",
+        "Exposure that was already deteriorated at the last reporting date "
+        "and has since defaulted.",
+        frm=Condition("prior_stage", "=", 2),
+        to=Condition("ifrs9_stage", "=", 3),
+        aliases=("stage 2 to 3", "stage 2 to stage 3", "transfers to stage 3",
+                 "defaults from stage 2"),
+        reads="prior_stage = 2 and ifrs9_stage = 3"),
+
+    _transition(
+        "corporate.ifrs9.new_default_ead", "Newly Defaulted Exposure",
+        "Exposure that entered Stage 3 this period, from wherever it was "
+        "before.",
+        frm=Condition("prior_stage", "!=", 3),
+        to=Condition("ifrs9_stage", "=", 3),
+        aliases=("new defaults", "newly defaulted", "defaults", "new npl",
+                 "entries to stage 3", "default inflow"),
+        reads="prior_stage != 3 and ifrs9_stage = 3"),
+
+    _transition(
+        "corporate.ifrs9.cured_ead", "Cured Exposure",
+        "Exposure that was in default at the last reporting date and is no "
+        "longer.",
+        frm=Condition("prior_stage", "=", 3),
+        to=Condition("ifrs9_stage", "!=", 3),
+        aliases=("cured", "cured exposure", "exits from stage 3",
+                 "default outflow", "exposure that cured"),
+        reads="prior_stage = 3 and ifrs9_stage != 3"),
+
+    _transition_rate(
+        "corporate.ifrs9.stage_2_inflow_rate", "Stage 2 Inflow Rate",
+        "The share of last period's performing exposure that has been "
+        "assessed as significantly deteriorated this period.",
+        frm=Condition("prior_stage", "=", 1),
+        to=Condition("ifrs9_stage", "=", 2),
+        aliases=("stage 2 inflow rate", "sicr transfer rate",
+                 "deterioration rate", "stage 1 to 2 rate"),
+        reads="prior_stage = 1 and ifrs9_stage = 2",
+        base="Exposure that started the period in Stage 1"),
+
+    _transition_rate(
+        "corporate.ifrs9.new_default_rate", "New Default Rate",
+        "The share of last period's non-defaulted exposure that has defaulted "
+        "this period.",
+        frm=Condition("prior_stage", "!=", 3),
+        to=Condition("ifrs9_stage", "=", 3),
+        # Not the bare "default rate", which the retail book's own default
+        # rate answers to.
+        aliases=("new default rate", "default emergence",
+                 "inflow to default", "corporate default rate",
+                 "rate of new defaults"),
+        reads="prior_stage != 3 and ifrs9_stage = 3",
+        base="Exposure that started the period outside Stage 3"),
+
+    _transition_rate(
+        "corporate.ifrs9.cure_rate", "Cure Rate",
+        "The share of last period's defaulted exposure that is no longer in "
+        "default.",
+        frm=Condition("prior_stage", "=", 3),
+        to=Condition("ifrs9_stage", "!=", 3),
+        # Deliberately not the bare "cure rate": the retail book's cure
+        # rate owns that phrasing, and an alias claimed twice makes a
+        # typeahead answer one of them by alphabetical accident.
+        aliases=("corporate cure rate", "stage 3 exit rate",
+                 "exit rate from default", "default cure rate"),
+        reads="prior_stage = 3 and ifrs9_stage != 3",
+        base="Exposure that started the period in Stage 3"),
+)
+
+
+# ============================== corporate IFRS 9 — what fired the trigger
+
+#: SICR is one rule with five ways of firing, and a committee asked "why is
+#: Stage 2 up" needs to know which. `corporate.ifrs9.sicr_rate` answers
+#: whether ANY fired; these five answer which, and they overlap on purpose —
+#: one facility can breach a covenant and be downgraded in the same quarter,
+#: so these do not sum to the SICR rate and each says so.
+
+
+def _sicr_trigger(suffix: str, name: str, field: str, definition: str,
+                  aliases: tuple[str, ...]) -> MetricDefinition:
+    return _m(f"corporate.ifrs9.sicr_{suffix}", name, definition,
+              _ratio([_t("fired", f"{name} EAD", STAGING, "sum", "ead",
+                         **{field: True})],
+                     [_t("all", "Total EAD", STAGING, "sum", "ead")]),
+              unit="percent", domain=CORPORATE_IFRS9, portfolio="Corporate",
+              aliases=aliases,
+              formula_text=f"SUM(ead where {field}) / SUM(ead) × 100",
+              numerator_text=f"Exposure on which the {name.lower()} fired",
+              denominator_text="Total exposure at default across all stages",
+              decimals=2, higher_is_better=False,
+              period_rule=PERIOD_SELECTED,
+              not_this=(
+                  "Not a share of the SICR rate. A facility can fire more "
+                  "than one trigger in a period, so the five trigger rates "
+                  "overlap and do not sum to the rate at which any trigger "
+                  "fired."))
+
+
+CORPORATE_IFRS9_TRIGGERS: tuple[MetricDefinition, ...] = (
+    _sicr_trigger("dpd", "SICR: Days Past Due", "sicr_dpd_trigger",
+                  "The share of exposure where the significant-increase "
+                  "assessment was triggered by arrears.",
+                  ("sicr dpd", "sicr days past due", "dpd trigger",
+                   "arrears trigger")),
+    _sicr_trigger("pd", "SICR: PD Deterioration", "sicr_pd_trigger",
+                  "The share of exposure where the significant-increase "
+                  "assessment was triggered by the probability of default "
+                  "moving against its level at origination.",
+                  ("sicr pd", "pd trigger", "pd deterioration trigger")),
+    _sicr_trigger("rating", "SICR: Rating Downgrade", "sicr_rating_trigger",
+                  "The share of exposure where the significant-increase "
+                  "assessment was triggered by an internal rating downgrade.",
+                  ("sicr rating", "rating trigger", "downgrade trigger")),
+    _sicr_trigger("watchlist", "SICR: Watchlist", "sicr_watchlist_trigger",
+                  "The share of exposure where the significant-increase "
+                  "assessment was triggered by the name being placed on the "
+                  "watchlist.",
+                  ("sicr watchlist", "watchlist trigger")),
+    _sicr_trigger("covenant", "SICR: Covenant Breach",
+                  "sicr_covenant_trigger",
+                  "The share of exposure where the significant-increase "
+                  "assessment was triggered by a covenant breach.",
+                  ("sicr covenant", "covenant trigger", "covenant breach "
+                   "trigger")),
+
+    _m("corporate.ifrs9.pd_drift", "PD Drift Since Origination",
+       "How far the twelve-month probability of default has moved from where "
+       "it was when the facility was written, weighted by exposure.",
+       Formula(kind="weighted_average", numerator=Side(terms=(
+           Term(id="drift", label="PD relative to origination",
+                dataset=STAGING, aggregate="weighted_avg",
+                field="pd_ratio_to_origination", weight_field="ead"),))),
+       unit="ratio", domain=CORPORATE_IFRS9, portfolio="Corporate",
+       aliases=("pd drift", "pd deterioration", "pd versus origination",
+                "pd ratio to origination"),
+       formula_text="Σ(pd_ratio_to_origination × ead) / Σ(ead)",
+       decimals=2, higher_is_better=False,
+       period_rule=PERIOD_SELECTED,
+       transformation="Weighted by exposure, so a large facility whose PD has "
+                      "doubled counts for more than a small one.",
+       not_this="Not a PD. It is a multiple: 1.0 means the book is priced "
+                "where it was written, 2.0 means twice the risk it was "
+                "written at."),
+)
+
 # ============================================== corporate — portfolio
 
 CORPORATE_PORTFOLIO: tuple[MetricDefinition, ...] = (
@@ -767,14 +1089,26 @@ UNSUPPORTED: tuple[Unsupported, ...] = (
     Unsupported(
         "retail.roll_rate", "Delinquency Roll Rate", RETAIL,
         "A roll rate is a movement between two consecutive months for the "
-        "same account. The behavioural dataset supports it structurally, but "
-        "a period-over-period metric needs a comparison period the metric "
-        "engine does not yet carry — it computes one period at a time.",
+        "same account: the share of one arrears bucket that moves into the "
+        "next. The "
+        "behavioural dataset supports it structurally, but a "
+        "period-over-period metric needs a comparison period the metric "
+        "engine does not yet carry — it computes one period at a time. "
+        "Repeat Delinquency Rate is the nearest thing this deployment can "
+        "measure honestly: it reads the trailing six-month episode count "
+        "carried on each account's own row, and says how many accounts keep "
+        "going behind rather than how much of one bucket rolled into the "
+        "next.",
         needs=("period-over-period comparison in the metric engine",)),
     Unsupported(
-        "retail.cure_rate", "Cure Rate", RETAIL,
-        "Same reason as the roll rate: curing is a movement between periods, "
-        "not a level within one.",
+        "retail.cure_rate", "Cure Rate (Month On Month)", RETAIL,
+        "A month-on-month cure — the share of accounts behind last month that "
+        "are current this month — is a comparison of two periods, and the "
+        "metric engine computes one at a time. Cure Rate (3-Month Look-Back) "
+        "is on this lens instead and is a different measurement, not a "
+        "substitute: it reads `max_dpd_3m` from the account's own row, so it "
+        "asks how many of the accounts that went behind at any point in the "
+        "trailing three months are up to date now.",
         needs=("period-over-period comparison in the metric engine",)),
     Unsupported(
         "corporate.ifrs9.ecl_movement", "ECL Movement Attribution",
@@ -783,7 +1117,11 @@ UNSUPPORTED: tuple[Unsupported, ...] = (
         "migration, parameter movement, macro, overlays — is a decomposition "
         "across two periods with an attribution rule, not a metric. "
         "CreditProbe computes it in the IFRS 9 decomposition, and a tile here "
-        "would be a second implementation of it.",
+        "would be a second implementation of it. The stage migration band on "
+        "this lens covers the one component of the bridge the staging dataset "
+        "can answer on its own, because `prior_stage` is carried on each "
+        "row; the parameter, macro and overlay legs are not derivable that "
+        "way.",
         needs=("the existing ECL decomposition, surfaced as a lens panel",)),
     Unsupported(
         "corporate.ifrs9.scenario_ecl", "Scenario-Weighted ECL",
@@ -798,8 +1136,9 @@ UNSUPPORTED: tuple[Unsupported, ...] = (
 
 ALL: tuple[MetricDefinition, ...] = (
     RETAIL_PORTFOLIO + RETAIL_DELINQUENCY + RETAIL_QUALITY
-    + RETAIL_VALIDATION + RETAIL_ORIGINATION
-    + CORPORATE_IFRS9_METRICS + CORPORATE_PORTFOLIO
+    + RETAIL_MOVEMENT + RETAIL_VALIDATION + RETAIL_ORIGINATION
+    + CORPORATE_IFRS9_METRICS + CORPORATE_IFRS9_MIGRATION
+    + CORPORATE_IFRS9_TRIGGERS + CORPORATE_PORTFOLIO
 )
 
 
@@ -807,6 +1146,7 @@ __all__ = [
     "LIBRARY_VERSION", "ALL", "UNSUPPORTED",
     "RETAIL", "RETAIL_ANALYTICS", "CORPORATE_IFRS9", "CORPORATE",
     "RETAIL_PORTFOLIO", "RETAIL_DELINQUENCY", "RETAIL_QUALITY",
-    "RETAIL_VALIDATION", "RETAIL_ORIGINATION",
-    "CORPORATE_IFRS9_METRICS", "CORPORATE_PORTFOLIO",
+    "RETAIL_MOVEMENT", "RETAIL_VALIDATION", "RETAIL_ORIGINATION",
+    "CORPORATE_IFRS9_METRICS", "CORPORATE_IFRS9_MIGRATION",
+    "CORPORATE_IFRS9_TRIGGERS", "CORPORATE_PORTFOLIO",
 ]

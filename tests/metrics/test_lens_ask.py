@@ -126,11 +126,15 @@ def test_a_tile_can_be_removed_by_asking():
 
 
 def _sectioned() -> tuple[list, list[dict]]:
+    """The shipped IFRS 9 lens as panels, built the way the seeder builds it.
+
+    Through `shipped._panels` rather than by rebuilding the mapping here: a
+    second way of turning a spec into panels is a second thing to keep in step
+    with the spec, and it was already out of step — this read `tile.visual`
+    after a metric tile stopped carrying one.
+    """
     spec = shipped.CORPORATE_IFRS9
-    panels = [service.Panel.metric(tile.metric_id, title=tile.title,
-                                   visual=tile.visual)
-              for tile in spec.tiles]
-    return panels, spec.layout()
+    return shipped._panels(spec), spec.layout()
 
 
 def test_sections_survive_a_change_that_removes_a_tile():
@@ -144,13 +148,21 @@ def test_sections_survive_a_change_that_removes_a_tile():
 
     # Every panel is still in the band it was in, by identity rather than
     # by position.
+    #
+    # By full identity, not by metric id. A lens names one metric in more
+    # than one band on purpose — the IFRS 9 lens shows total exposure as a
+    # figure in "The provision" and as a chart by sector in "Where the risk
+    # is concentrated" — so locating "the band it was in" by metric id alone
+    # finds whichever band comes first and asserts nothing.
+    was = {service._identity(panel): number
+           for number, section in enumerate(sections)
+           for index in section["panels"]
+           for panel in [panels[index]]}
+    titles = [s["title"] for s in sections]
     for section in remapped:
         for index in section["panels"]:
-            original = next(
-                s for s in sections
-                if any(panels[i].metric_id == kept[index].metric_id
-                       for i in s["panels"]))
-            assert original["title"] == section["title"]
+            assert titles[was[service._identity(kept[index])]] == (
+                section["title"])
 
 
 def test_a_new_tile_lands_in_its_own_band_not_somebody_elses():
