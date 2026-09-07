@@ -126,11 +126,15 @@ def test_a_tile_can_be_removed_by_asking():
 
 
 def _sectioned() -> tuple[list, list[dict]]:
+    """The shipped IFRS 9 lens as panels, built the way the seeder builds it.
+
+    Through `shipped._panels` rather than by rebuilding the mapping here: a
+    second way of turning a spec into panels is a second thing to keep in step
+    with the spec, and it was already out of step — this read `tile.visual`
+    after a metric tile stopped carrying one.
+    """
     spec = shipped.CORPORATE_IFRS9
-    panels = [service.Panel.metric(tile.metric_id, title=tile.title,
-                                   visual=tile.visual)
-              for tile in spec.tiles]
-    return panels, spec.layout()
+    return shipped._panels(spec), spec.layout()
 
 
 def test_sections_survive_a_change_that_removes_a_tile():
@@ -144,13 +148,21 @@ def test_sections_survive_a_change_that_removes_a_tile():
 
     # Every panel is still in the band it was in, by identity rather than
     # by position.
+    #
+    # By full identity, not by metric id. A lens names one metric in more
+    # than one band on purpose — the IFRS 9 lens shows total exposure as a
+    # figure in "The provision" and as a chart by sector in "Where the risk
+    # is concentrated" — so locating "the band it was in" by metric id alone
+    # finds whichever band comes first and asserts nothing.
+    was = {service._identity(panel): number
+           for number, section in enumerate(sections)
+           for index in section["panels"]
+           for panel in [panels[index]]}
+    titles = [s["title"] for s in sections]
     for section in remapped:
         for index in section["panels"]:
-            original = next(
-                s for s in sections
-                if any(panels[i].metric_id == kept[index].metric_id
-                       for i in s["panels"]))
-            assert original["title"] == section["title"]
+            assert titles[was[service._identity(kept[index])]] == (
+                section["title"])
 
 
 def test_a_new_tile_lands_in_its_own_band_not_somebody_elses():
@@ -188,4 +200,56 @@ def test_every_proposed_tile_passes_validation(request_text):
     """A proposal the platform would then refuse to store is worse than none."""
     proposal = service.propose(request_text)
     assert proposal.panels
+    service.validate(proposal.panels)
+
+
+# ---------------------------------------------- asking for a chart, in words
+
+
+def charts(proposal) -> list[tuple[str, str]]:
+    return [(p.metric_id, p.params.get("dimension", ""))
+            for p in proposal.panels if p.kind == service.KIND_CHART]
+
+
+def test_a_breakdown_is_answered_with_a_chart_not_a_tile():
+    """"By sector" is a request about the shape of the answer.
+
+    A lens that answered it with a KPI tile would be answering a different
+    question with the same metric, which is the hardest kind of wrong answer
+    to notice.
+    """
+    proposal = service.propose("show corporate exposure by sector")
+    assert proposal.change_summary
+    drawn = charts(proposal)
+    assert drawn, kinds(proposal)
+    assert drawn[0][1] == "sector"
+
+
+def test_a_chart_of_the_same_metric_is_changed_rather_than_duplicated():
+    first = service.propose("show corporate exposure by sector")
+    second = service.propose("show corporate exposure by region",
+                             existing=first.panels)
+    drawn = charts(second)
+    assert len(drawn) == 1, drawn
+    assert drawn[0][1] != "sector"
+    assert "was by sector" in second.change_summary
+
+
+def test_asking_twice_for_the_same_chart_says_it_is_already_there():
+    first = service.propose("show corporate exposure by sector")
+    again = service.propose("show corporate exposure by sector",
+                            existing=first.panels)
+    assert again.change_summary == ""
+    assert again.refusals
+    assert "already on this lens" in again.refusals[0]
+
+
+def test_a_dimension_the_dataset_cannot_be_cut_by_falls_back_to_the_metric():
+    """The metric exists; the cut does not. The metric is the honest answer."""
+    proposal = service.propose("show corporate exposure by astrological sign")
+    assert charts(proposal) == []
+
+
+def test_a_proposed_chart_passes_validation():
+    proposal = service.propose("show corporate exposure by sector")
     service.validate(proposal.panels)

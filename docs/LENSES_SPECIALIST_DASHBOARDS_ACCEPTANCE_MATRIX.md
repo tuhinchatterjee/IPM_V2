@@ -1,0 +1,368 @@
+# Lenses 2.1 — Acceptance Matrix
+
+**Branch** `claude/lenses-specialist-dashboards-esd591` · **Base**
+`origin/claude/integration-rehearsal` @ `4f79566` · **Migration head** `0041`
+(unchanged)
+
+Every row says what was actually verified and how. A row marked **Not built**
+is not a row that was quietly dropped — it says what exists instead and why.
+
+---
+
+## A. Branch and baseline
+
+| Check | Evidence | Result |
+|---|---|---|
+| Branched from a verified integrated baseline | `origin/claude/integration-rehearsal` contains main + 131 commits including Lenses 2.0, Playbook, Scorecard Validation and the rehearsal fixes | PASS |
+| Not branched from the active Planner branch | `origin/claude/project-planner-copilot` untouched | PASS |
+| Local and remote equal | `git rev-parse HEAD == origin/claude/lenses-specialist-dashboards-esd591` | PASS |
+| Clean tree | `git status --porcelain` empty at each commit | PASS |
+| Migration head unchanged | `0041`; no file added to `alembic/versions/` | PASS |
+| No merge to main, no force push, no rebase, no PR | Only fast-forward pushes to the designated branch | PASS |
+
+---
+
+## B. Preconfigured lenses (§3–§6)
+
+Eight, installed by the same `create`/`revise` a user's own lens goes through.
+Counts read off `backend/metrics/lenses.py` on this HEAD.
+
+| Lens | Audience | Sections | Figures | Charts | Renders | Evidence |
+|---|---|---:|---:|---:|---|---|
+| CRO Portfolio | Chief Risk Officer | 6 | 20 | 6 | PASS | Journey J; `CRO_LENS` records why its narrative page is not a tile grid |
+| Corporate IFRS 9 | IFRS 9 Committee and Head of Impairment | 7 | 34 | 9 | PASS | Journey A and J; five reconciliation tests |
+| Early Warning and TAC | Transaction Approval Committee | 5 | 10 | 9 | PASS | Journey J |
+| Portfolio Quality | Head of Credit Portfolio Management | 5 | 12 | 8 | PASS | Journey J |
+| Concentration and Large Exposures | Credit Committee and Head of Credit Risk | 5 | 10 | 8 | PASS | Journey J |
+| Board Risk Committee | Board Risk Committee | 6 | 16 | 3 | PASS | Journey J |
+| Retail Credit Risk | Head of Retail Credit Risk | 8 | 23 | 7 | PASS | Journey J; `test_the_retail_lens_renders_and_its_arrears_buckets_nest` |
+| Retail Analytics | Retail Portfolio and Model Validation Analysts | 6 | 9 | 11 | PASS | Journey J; `test_the_retail_analytics_lens_renders` |
+
+195 panels in total, every one producing a real figure.
+
+| Check | Evidence | Result |
+|---|---|---|
+| Every tile names a metric that exists | `lenses.check()` == `[]`, run by a test | PASS |
+| Every chart's dimension is one the dataset offers | `check()` calls `metrics.dimension_fields` | PASS |
+| Every chart type is honest over its dimension | `check()` calls `metrics.chart_types_for` | PASS |
+| No tile fails or renders empty on any shipped lens | Journey J, across all eight | PASS |
+| Stage exposures sum to total exposure | `test_the_three_stage_exposures_sum_to_the_total` | PASS |
+| Stage shares account for the whole book | `test_the_stage_shares_account_for_the_whole_book` | PASS |
+| Coverage is the provision over the exposure | `test_coverage_is_the_provision_over_the_exposure` | PASS |
+| A chart reconciles with the tile above it | `test_a_chart_agrees_with_the_tile_it_sits_under` — exposure by sector sums to total exposure | PASS |
+| Arrears buckets nest (30+ ≥ 60+ ≥ 90+) | Reconciliation and lens tests | PASS |
+| No unrelated metric leaks into a specialist lens | Each lens declares its domains; behavioural scorecard statistics moved to Retail Credit Risk, next to the book they read | PASS |
+| Each lens says what it cannot show, and why | `test_a_lens_says_what_it_cannot_show`; Journey J asserts the reasons are on screen | PASS |
+
+### §4 Retail Risk coverage
+
+| Asked for | Status |
+|---|---|
+| Retail exposure, accounts, average balance, utilisation | Present |
+| 1+/30+/60+/90+ DPD, delinquent exposure, default rate, NPL rate | Present (count and balance for each bucket; NPL rate is an alias of default rate) |
+| Roll rates | **Not built** — a movement between two consecutive months; the engine computes one period at a time. Repeat Delinquency Rate is the nearest honest measurement and is on the lens |
+| Cure rates | Present as Cure Rate (3-Month Look-Back), read from the trailing window on the account's row. A month-on-month cure rate remains unsupported and says so |
+| IFRS 9 staging / ECL for retail | **Not available** — no retail impairment dataset in this deployment; the lens says so |
+| Gini/AUROC, KS, calibration | Present |
+| PSI | **Not available** — needs a reference distribution; the scorecard validation module reports it against each model's declared reference window |
+| Bad rate by score band | Present as a chart: default rate by bureau score band |
+| Approval rate by score band, override rate | **Not available** — the application dataset records no accept/decline decision |
+| New originations, customers | Origination volume is on Retail Analytics, which is where an origination question belongs; the behavioural dataset carries no customer id |
+
+### §5 Retail Analytics coverage
+
+| Asked for | Status |
+|---|---|
+| Portfolio mix by product, channel, segment | Present as three charts |
+| Mix by geography | **Not available** — no geography field on either retail dataset |
+| Mix by vintage | Present (vintage delinquency chart) |
+| Mix by risk band, balance band | Present via the bureau score band chart; no balance band field exists |
+| Applications, average ticket, requested amount | Present |
+| Approvals, declines, approval rate, booking rate | **Not available** — no decision field |
+| Score distribution, origination risk mix | Present as bad rate by score band and by segment |
+| Utilisation, payment behaviour, delinquency | Present |
+| Vintage bad rate, delinquency by vintage | Present |
+| Cohort curves, default emergence, score migration | **Not built** — each needs a period-over-period series per cohort, which the single-period metric engine does not carry |
+
+### §6 Corporate IFRS 9 coverage
+
+| Asked for | Status |
+|---|---|
+| Stage 1/2/3 exposure, total exposure | Present |
+| Stage 1/2/3 ECL, total ECL, coverage | Present, plus per-stage coverage |
+| PD, LGD, EAD | Exposure-weighted PD and LGD present; EAD is the exposure measure itself. PD drift since origination added |
+| Stage 1→2, 2→1, 2→3, new defaults, cures | **All five present, new in this branch**, as amounts, plus three rates over the correct base |
+| Scenarios: base / upside / downside ECL, weights, sensitivity | **Not available** — the staging dataset carries one already-weighted ECL rather than one per scenario. Scenario definitions exist separately; they cannot be joined to an ECL that was never split |
+| Overlay amount, overlay % of ECL, movement | Amount and share present; movement is part of the bridge below |
+| ECL movement bridge (opening → closing) | **Not built** — a two-period decomposition with an attribution rule. The stage migration band covers the one leg the staging dataset can answer alone |
+
+---
+
+## C. Every metric explains itself (§7)
+
+| Field §7 asks for | Where it comes from | Result |
+|---|---|---|
+| Name, business definition, formula, unit | `MetricDefinition.panel()` | PASS |
+| Numerator, denominator, component terms | `formula.to_dict()` — the tree, term by term | PASS |
+| Data domain, dataset, grain, source fields | `panel()` with the catalogue | PASS |
+| Filters, period rule, transformation, exclusions | Declared per metric | PASS |
+| Calculation version, verification status, origin | `version`, `status_label`, `origin_label` | PASS |
+| Data as-of / last calculated | `period_used` on every tile; `calculation.period` | PASS |
+| What it is NOT | `not_this`, written for every metric where a reader would reasonably assume otherwise | PASS |
+| Chart: measures, dimension, aggregation, type, period, filters | `_render_chart` lineage block, including the SQL and run id | PASS |
+| The panel travels with the tile, not fetched on open | `_render_metric` embeds it | PASS |
+| Every field present on every shipped metric | 66 of 68 carry all of them. The two exceptions are `retail.accounts` and `retail.applications`, which are `COUNT(rows)` and name no field, so `source_fields` is correctly empty — the grain ("one row per account per observation month") is what says what is being counted, and both carry it | PASS |
+| Every unsupported metric is surfaced by a lens that would have shown it | All 8 entries in `library.UNSUPPORTED` are named in at least one lens's `absent` list; an unsupported entry nobody mentions is invisible | PASS |
+| No unrelated metric on a specialist lens | 12 of the 77 governed metrics are on no shipped lens: seven Corporate Portfolio metrics (the CRO lens's territory) and five alternatives — 60+ DPD by count, 1+ DPD by balance, credit limit, average bureau score, and the aggregate stage-moved rate the five explicit transitions replaced. All remain available in the builder | PASS |
+| Verified on screen, not only in the payload | Journey B: 13 checks; Journey J: "a tile explains itself on screen" for all three lenses | PASS |
+
+---
+
+## D. Creating a lens (§8–§12)
+
+| Check | Evidence | Result |
+|---|---|---|
+| The flow opens by asking what to call it | Journey L | PASS |
+| Naming it opens a short definition panel, not a metric list | Journey L | PASS |
+| The panel asks purpose, audience, portfolio, domains, period, comparison, visibility — and not twenty questions | Journey L asserts all seven fields | PASS |
+| Suggested values, user-controlled | `POST /lenses/suggest`; every value lands in an editable field | PASS |
+| Suggestions are deterministic, not model-generated | `service.suggest` uses the same search as the typeahead; asserted by test | PASS |
+| A name echoing a shipped lens is told it already exists | `suggest` returns `shipped`; the screen says so | PASS |
+| The catalogue is never dumped into a dropdown | Journey L asserts it; `search("")` returns nothing by design | PASS |
+| Typeahead: `del` suggests, `delinq 30` narrows | Journey L asserts the second list is no longer; `test_delinq_30_returns_only_thirty_day_metrics` | PASS |
+| Ranking: canonical name, aliases, prefix, token, fuzzy | Five tiers, tested per tier | PASS |
+| Ranking uses selected domain and portfolio | **New in this branch** — `DOMAIN_BOOST`, six tests | PASS |
+| A suggestion shows definition, formula and unit before it is added | Journey L asserts the formula is on screen | PASS |
+| Available periods and permitted chart types in the suggestion row | **Not built** — periods would turn a keystroke into eight lake reads; chart types depend on a dimension no chart has chosen. Both are on the metric's own panel, one click away | Stated |
+| Governed data domains shown, not table names | `GET /lenses/vocabulary` | PASS |
+| Only periods that exist are offered | `GET /lenses/{id}/periods`; Journey K asserts the picker matches the API exactly | PASS |
+| Single period / multiple periods / rolling windows | Single period selection built. Multi-period selection is the chart's `compare` and the over-time dimension; an explicit range/rolling picker is **not built** | Partial |
+
+---
+
+## E. Custom metrics and verification (§11, §14–§16)
+
+Carried forward from Lenses 2.0 and re-verified on this HEAD; not rebuilt.
+
+| Check | Evidence | Result |
+|---|---|---|
+| Builder: name, description, scope, unit, format, metric type | Journey G | PASS |
+| Metric kinds (direct, count, distinct, sum, average, weighted, ratio, percentage, rate, change, growth, difference, function) | `formula.KINDS` | PASS |
+| Numerator and denominator as separate multi-term sections | `Side` with a combining operation; Journey G | PASS |
+| Every term exposes dataset, field, filter, aggregation | `Term.to_dict()` | PASS |
+| No `eval`, no model-authored SQL | The formula is a tree; it compiles to the existing IR and is validated against the catalogue | PASS |
+| Verification runs against real stored data and shows every step | Journey G asserts the saved metric computes the number it previewed | PASS |
+| A disagreement is recorded and confers nothing | Journey E | PASS |
+| A user metric is labelled as user-built and draft until verified | Journey G | PASS |
+| Nested derived terms, weighting inside the builder | **Not built** | Stated |
+| Natural-language transformation → editable deterministic plan (§13) | **Not built** — the safe IR exists and is used; the translation step is not | Stated |
+| "I expect a different result" → CreditProbe identifies likely differences (§16) | **Not built** — the disagreement is recorded; it is not explained | Stated |
+
+---
+
+## F. Charts and layout (§17–§18)
+
+| Check | Evidence | Result |
+|---|---|---|
+| Metric, dimension, grouping, period, filters, sort, aggregation, comparison, type, title, preview, save | Journey I, end to end | PASS |
+| Only chart types the renderer can draw are offered | `bar` and `line`; a line over an unordered dimension is refused with the reason | PASS |
+| The nine other types in §17 are not offered | Deliberate — offering one the renderer cannot draw is the defect this branch removed | Stated |
+| Every chart is drawn as labelled bars with exact values | `ChartTile`, deliberately and with the reasoning written down: a charting library that draws its own axes can quietly rescale, clip or interpolate | Stated |
+| A chart type is a governance declaration, not a drawing instruction | Said in `ChartTile`'s own docstring rather than left to be inferred | PASS |
+| An ordered series says so on its face | "Every period, oldest first" from `over_time` on the panel | PASS |
+| A time axis is in time order | **Fixed in this branch** — was alphabetical: Q1 2023, Q1 2024, Q1 2025, Q1 2026, Q2 2023. `test_a_quarterly_trend_is_in_time_order_not_alphabetical` | PASS |
+| Every bar reproduces from the parquet independently | Journey I | PASS |
+| Add, remove, reorder, resize through the existing grid | Journey H | PASS |
+| A rearrangement is a version and can be put back | Journey H | PASS |
+| Bands survive a change that removes a tile | `test_sections_survive_a_change_that_removes_a_tile` | PASS |
+| A metric shown twice keeps both bands | **Fixed in this branch** — identity queue in `resection` | PASS |
+
+---
+
+## G. AI Lens Copilot (§19)
+
+| Check | Evidence | Result |
+|---|---|---|
+| "Add 30+ DPD Exposure Rate" adds the governed metric | Journey C and `POST /lenses/{id}/ask` | PASS |
+| A request the deployment cannot satisfy is refused with the reason | Journey D | PASS |
+| Formulas are never invented; only catalogue definitions are used | `propose` resolves against the catalogue only | PASS |
+| "How is this calculated?" / "show me the numerator" | The info panel carries the tree, term by term, with values | PASS |
+| Conversational remove and reorder | `ask` + `resection` | PASS |
+| "Build me a Retail Collections Lens" as a one-shot build | **Removed deliberately** — replaced by `/lenses/new`, which asks the same matcher one thing at a time and shows what it understood before storing | Stated |
+
+---
+
+## H. Permissions (§20)
+
+| Check | Evidence | Result |
+|---|---|---|
+| The general Cockpit still cannot read a restricted scorecard dataset | `test_the_general_cockpit_still_cannot_read_what_a_lens_reads` | PASS |
+| The batched path is scoped exactly like the single path | `test_the_batched_path_is_scoped_exactly_like_the_single_one` | PASS |
+| `GOVERNED_METRIC` is still the only extra scope | `test_governed_metric_is_still_the_only_extra_scope` | PASS |
+| An unauthorised dataset is absent from autocomplete | `test_the_typeahead_never_suggests_one` | PASS |
+| A direct metric id cannot bypass the filter | `test_asking_for_it_by_id_does_not_get_round_that` | PASS |
+| The refusal does not reveal whether the metric exists | `test_the_refusal_does_not_say_whether_the_metric_exists` | PASS |
+| A batch does not compute a metric the asker may not read | `test_a_batch_does_not_compute_a_metric_the_asker_may_not_read` | PASS |
+| A lens tile over a dataset that has gone reports the absence | `test_a_lens_tile_over_a_missing_dataset_says_so_rather_than_guessing` | PASS |
+| Every shipped lens reads only datasets this deployment has | `test_every_shipped_lens_reads_only_datasets_this_deployment_has` | PASS |
+| Scorecard validation domain isolation unchanged | `tests/scorecard/test_domain_isolation.py` passes unmodified | PASS |
+| Per-user dataset permission revocation | **No such model in this deployment.** `readable` exists at the service level and only the Playbook supplies it; access is by role gate and domain scope. Stated in the report rather than implied | Stated |
+
+---
+
+## I. Performance (§21)
+
+| Check | Before | After | Evidence |
+|---|---:|---:|---|
+| Corporate IFRS 9: scans of the staging dataset | 34 | **1** | `test_a_lens_worth_of_metrics_costs_one_read` |
+| Retail Credit Risk: reads for 23 metrics | 23 | **4** | `test_what_each_shipped_lens_actually_costs` — two scopes plus two function metrics that never batch |
+| Retail Analytics: reads for 11 metrics | 11 | **5** | Same test — two datasets, two scopes each, plus one function metric |
+| No lens costs more than half a read per metric | — | — | Same test, asserted for all three |
+| Corporate IFRS 9: 43 panels rendered | 1.83s | **0.54s** | Measured on this HEAD |
+| Retail Credit Risk: 30 panels | 2.03s | 1.23s | Measured |
+| Retail Analytics: 20 panels | 1.28s | 0.97s | Measured |
+| Two datasets cost two reads, not one and not many | — | 2 | `test_metrics_on_two_datasets_are_two_reads_not_one_and_not_many` |
+| Period resolved once per source, not per tile | — | — | `test_every_tile_on_a_lens_lands_on_the_same_period` |
+| An aggregate wanted by nine metrics is written once | — | — | `test_an_aggregate_wanted_twice_is_written_once` |
+| Batched figures equal individually-run ones | — | 34 of 34 | `test_values_and_value_agree_metric_for_metric` |
+| No cache outlives the render | The memo is per-render; nothing is stored | By construction; documented in `render` | PASS |
+
+---
+
+## J. Browser acceptance (§22)
+
+Real Chromium, real backend on `:8000`, real frontend on `:3000`, real
+PostgreSQL, `REQUIRE_LOGIN=true`, signed in as `priya.raman`.
+
+**286 checks passed, 0 failed** — 213 in `lens_journeys.py` (A–L) and 73 in
+`lens_builder_journeys.py` (M–P).
+
+| Journey | What it proves | Result |
+|---|---|---|
+| A | A shipped lens shows real figures that reconcile with each other | PASS |
+| B | A tile explains itself: formula, terms, fields, period, governance | PASS |
+| C | Finding a metric by typing what you call it | PASS |
+| D | A request the deployment cannot satisfy is refused with the reason | PASS |
+| E | Checking a figure against your own number, including disagreement | PASS |
+| F | What the lens deliberately does not show, on screen | PASS |
+| G | Building a metric and getting the right number for it | PASS |
+| H | Arranging a lens by hand as a version like any other | PASS |
+| I | Building a chart end to end, including why types are refused | PASS |
+| J | Every shipped lens read as a client would read it | PASS |
+| **K** | **Changing the period; figures still reconcile after they move** | PASS |
+| **L** | **Creating a lens by saying what it should watch; typeahead narrows** | PASS |
+| **M** | **A sentence to a saved lens: the reading, the domains offered as options, an existing metric from the library, a NEW calculated metric with its formula, its plain-English logic and its real SQL, previewed against the book, locked, another added, saved, still there after a reload** | PASS |
+| **N** | **Edit mode: the pencil, the edit state, reorder by drag AND without a pointer, remove with confirmation, add a metric through the same builder, come back still editing, save, survives a reload** | PASS |
+| **O** | **Asking for a chart in words and putting the chart it offers on a lens** | PASS |
+| **P** | **A compound, multi-domain sentence resolving to more than one domain, with a refusal still standing for what cannot be calculated** | PASS |
+
+Journey mapping to the brief: A/B/J cover Journey A (Retail Risk) and C
+(Corporate IFRS 9); K covers Journey B (change period, coherent updates); L
+and M cover Journey D (create lens); G and M cover Journey E (custom metric);
+I and O cover Journey F (custom chart); H and N cover Journey G (layout).
+
+### The §20 list, check by check
+
+| Required | Journey | Check |
+|---|---|---|
+| Create a new Lens by describing it | M | "describing it opens the builder carrying the sentence" |
+| Create a new calculated metric | M | "describing a new metric drafts a definition" |
+| See it previewed against real data | M | "it previews against the real book" + "shows a real figure, not a placeholder" |
+| Lock the metric | M | "locking it says so" |
+| Add another metric | M | "and offers to add another" |
+| Search and select an existing metric | M, L | "searching the library finds governed metrics"; "adding a word narrows rather than widens" |
+| Publish/save the Lens | M | "saving opens the lens it made" |
+| Reload and confirm persistence | M | "and it is all still there after a reload" |
+| Open an existing Lens in edit mode | N | "the edit bar appears" |
+| Drag/reorder | N | "dragging a card changes the order on screen"; "and a card can be moved without dragging it" |
+| Remove a metric | N | "removing a card asks before it does it" + "the card goes once confirmed" |
+| Add a metric from edit mode | N | "adding a metric opens the same builder" |
+| Return and still be in edit mode | N | "coming back leaves the lens in edit mode" |
+| Save | N | "the arrangement is saved" |
+| Reload and confirm persistence | N | "and it survives a reload" + "the order after reloading is the order that was saved" |
+| Conversational chart creation | O | "a breakdown request is understood as one" → "grouped by the dimension that was asked for" |
+| Conversational chart editing | O | "a chart on a lens can be recut by asking" — the lens's ask box re-cuts the chart it already has rather than adding a second, and "recutting it is a version, not an overwrite" |
+| Compound multi-domain request | P | "and resolves to more than one data domain" |
+
+---
+
+## K. UX review (§24)
+
+Screenshots taken through the real product at three viewports, signed in.
+
+| Looked for | Found | Action |
+|---|---|---|
+| Horizontal scrolling | None at 1440px or 1024px. **33px at 390px on every page**, including `/cockpit`, `/analyses` and `/workspace`, which this branch never touched — the cause is the shared app shell's top bar | Recorded, not fixed: the fix belongs to the layout every parallel workstream shares |
+| Tiny fonts | The smallest text is the 10px uppercase band label, which is the design system's convention across the whole product | No change — changing it here would make Lenses inconsistent with every other page |
+| Truncated content | A library card truncated its figure and chart counts | Fixed — two lines |
+| Excessive whitespace | The create page's first step was one text box on an empty screen | Fixed — it now says there are three steps and why the name comes first |
+| Technical field names on screen | The period note read "because they are matured_flag = True" | Fixed — it names the tiles instead; the condition stays on the response as data |
+| Hidden formula | Every tile and chart carries an info control with the formula, the terms and the lineage | No change needed |
+| Bad chart labels | A quarterly trend was in alphabetical order | Fixed, with a regression test |
+| Inconsistent periods | Every tile is stamped with the period it used; the lens says which period it is showing; tiles that cannot reach a chosen period say why | No change needed |
+| Giant metric lists | The picker starts empty and answers what is typed; the catalogue is a deliberate second click | No change needed |
+| Too much metadata by default | Governance detail is behind the ⓘ on each tile; the tile itself is a label, a number and a period | No change needed |
+| Unhelpful errors | Every refusal in this branch names what was wrong and what is available instead | No change needed |
+| Reordering by drag only | Edit mode could be used with a pointer and no other way — no keyboard, and a drag fights the scroll on a touch screen | Fixed — each card carries move-earlier / move-later buttons beside its handle, driving the same reorder, asserted by journey N |
+| A refusal with nowhere to appear | Locking a metric that the catalogue refused set an error the preview step never rendered: the button simply did nothing | Fixed — the builder's error line is rendered at every stage |
+| A lens created without saying what it is for | The creation flow let the definition panel be skipped and saved an empty purpose, so the lens's own definition read as though nobody had ever said what it was for | Fixed — the sentence somebody typed *is* the purpose unless they edit it |
+
+The ordinary path — name a lens, choose metrics, save — is three steps and no
+technical vocabulary. The governance detail is one click away on every figure.
+
+---
+
+## K2. Full backend regression, and what fails in this container
+
+Run once, after the whole workflow was implemented, as the brief asks:
+
+```
+12,947 passed · 6 failed · 46 skipped
+```
+
+The two `test_feature_matrix` failures listed in the earlier run of this
+matrix are fixed and no longer appear. The six that remain:
+
+Each was classified rather than dismissed. **Classification method matters
+more than the classification**, so it is written down:
+
+| Failure | Classified as | How it was proved |
+|---|---|---|
+| `test_fresh_clone_acceptance::test_the_only_live_domains_are_the_seven` | Suite pollution | The extra domain is literally named "Test Domain" and is created by `tests/api/test_data_builder.py` against the shared PostgreSQL. Deleting that row and re-running the test in isolation passes |
+| `test_workbooks::TestExcelReconstruction::test_it_writes_real_excel_formulas` | Pre-existing in this container | Reproduces with the **base** backend checked out (`git checkout 4f79566 -- backend/`) |
+| `test_workbooks::TestExcelReconstruction::test_the_formulas_reconcile_against_the_runtime_values` | Pre-existing in this container | Same |
+| `test_properties::test_a_share_is_of_the_population_asked_about` | Pre-existing in this container | Same |
+| `test_properties::test_customer_level_exposure_reconciles_with_the_facility_book` | Pre-existing in this container | Same |
+| `test_multi_analysis_response::…::test_the_exposure_block_reconciles_with_an_independent_read` | Pre-existing in this container | Same |
+
+The five "pre-existing" ones were proved by checking out the base commit's
+entire `backend/` tree, re-running exactly those tests, watching them fail
+identically, and restoring. They are not an assertion that they fail on the
+base branch's own CI — they are an assertion that **this branch's code is not
+what makes them fail in this container.** The likely cause is the synthetic
+universe: this container regenerated the data lake and the SME scorecard
+universe from scratch, and those tests reconcile against particular figures in
+it.
+
+An integration rehearsal should re-run them against the environment it will
+actually rehearse in, rather than take this result either way.
+
+---
+
+## K3. Static checks
+
+| Check | Result |
+|---|---|
+| `ruff check backend tests scripts` | All checks passed |
+| `npm run typecheck` (`tsc --noEmit`) | clean |
+| `npm run lint` (eslint) | clean |
+| `npm run build` (next build) | Compiled successfully |
+| Migrations | none added; head `0041` |
+
+---
+
+## Verdict
+
+**READY FOR INTEGRATION REHEARSAL.**
+
+Not merged. No pull request. No force push, no rebase, no merge to main.

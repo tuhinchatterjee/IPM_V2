@@ -118,6 +118,21 @@ class Hit:
             "status": self.metric.status,
             "governed": self.metric.governed,
             "datasets": list(self.metric.datasets),
+            # §10: enough to choose from without opening the full definition.
+            # The formula and the unit are what a risk person actually reads
+            # to tell two similarly-named metrics apart — "30+ DPD" by count
+            # and by balance have almost the same name and are different
+            # numbers, and the formula line is where that shows.
+            #
+            # Deliberately NOT the available periods or the honest chart
+            # types. Periods need a read of the lake per metric, which would
+            # turn a keystroke into eight queries; chart types depend on the
+            # dimension a chart has not chosen yet, so a list here would be a
+            # guess. Both are on the metric's own panel, one click away.
+            "formula": self.metric.formula_text or (
+                self.metric.formula.describe()),
+            "decimals": self.metric.decimals,
+            "aliases": list(self.metric.aliases),
             "matched": self.matched,
             "why": self.why,
         }
@@ -228,10 +243,19 @@ def _tier_and_score(entry: _Indexed, query: str,
     return 0, 0.0, "", ""
 
 
+#: What being in the domain the person has chosen is worth, added to the
+#: score WITHIN a tier. Big enough that the chosen domain sorts first among
+#: equally good matches, small enough that it can never beat a stronger tier:
+#: somebody who has scoped a lens to Corporate IFRS 9 and types the exact name
+#: of a retail metric wants that metric, not the nearest corporate one.
+DOMAIN_BOOST = 25.0
+
+
 def search(metrics: Iterable[MetricDefinition], query: str, *,
            limit: int = DEFAULT_LIMIT,
            readable: Iterable[str] | None = None,
-           domain: str = "") -> list[Hit]:
+           domain: str = "", portfolio: str = "",
+           strict: bool = False) -> list[Hit]:
     """Rank metrics against what somebody has typed so far.
 
     An empty query returns nothing on purpose: §8.3 asks that the catalogue is
@@ -241,6 +265,25 @@ def search(metrics: Iterable[MetricDefinition], query: str, *,
     ``readable`` is the set of dataset names the asker may read. Passing
     ``None`` means no restriction, which is correct only for callers that have
     already resolved permissions or are not acting for a user.
+
+    ``domain`` and ``portfolio`` RANK rather than exclude
+    ----------------------------------------------------
+    They used to exclude, and the result was a picker that emptied itself.
+    Somebody building a lens scoped to Corporate IFRS 9 typed "del" and got
+    nothing at all — not because CreditProbe has no delinquency metrics, but
+    because none of them is in that domain — and then got the roll rate's
+    "not available in this deployment" note underneath, which reads as
+    "delinquency does not exist here" and is false.
+
+    A scope is context, not a permission. What may not be shown is decided by
+    ``readable``, which still excludes, because that IS a permission. So a
+    metric in the chosen domain sorts above an equally good match outside it
+    and the rest stay reachable, which is what a person scoping a lens
+    actually wants: their own domain first, and the ability to reach across
+    when the metric they need lives elsewhere.
+
+    ``strict`` restores the old behaviour for a caller that genuinely means to
+    enumerate one domain and nothing else.
     """
     text = _normalise(query)
     if not text:
@@ -253,15 +296,20 @@ def search(metrics: Iterable[MetricDefinition], query: str, *,
 
     hits: list[Hit] = []
     for metric in metrics:
-        if domain and metric.domain != domain:
+        if strict and domain and metric.domain != domain:
             continue
         if not _visible(metric, readable):
             continue
         entry = _index(metric)
         tier, score, matched, why = _tier_and_score(entry, text, tokens)
-        if tier:
-            hits.append(Hit(metric=metric, tier=tier, score=score,
-                            matched=matched, why=why))
+        if not tier:
+            continue
+        if domain and metric.domain == domain:
+            score += DOMAIN_BOOST
+        if portfolio and metric.portfolio == portfolio:
+            score += DOMAIN_BOOST / 2.0
+        hits.append(Hit(metric=metric, tier=tier, score=score,
+                        matched=matched, why=why))
 
     # A near-miss is only interesting when nothing matched properly. Typing
     # "30+ dpd" should not suggest the 60-day metric just because the two
@@ -319,6 +367,7 @@ def unsupported_for(entries: Iterable[Unsupported], query: str, *,
     return [entry for _, _, entry in scored[:max(0, limit)]]
 
 
-__all__ = ["DEFAULT_LIMIT", "Hit", "search", "browse", "unsupported_for",
+__all__ = ["DEFAULT_LIMIT", "DOMAIN_BOOST", "Hit", "search", "browse",
+           "unsupported_for",
            "TIER_EXACT", "TIER_NAME_PREFIX", "TIER_ALIAS_PREFIX",
            "TIER_TOKENS", "TIER_FUZZY"]

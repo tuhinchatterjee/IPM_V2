@@ -16,6 +16,10 @@ harder: that a person can trust a number they find here.
        you are NOT offered are refused, and put it on a lens.
     J  Read every shipped lens as a client would: every tile a real figure,
        every tile able to explain itself, no placeholder anywhere.
+    K  Change the period, and watch the figures still reconcile with each
+       other after they move.
+    L  Create a lens by being asked what to call it, what it is for, and what
+       it should show — and watch the typeahead narrow as you type.
 
 Each journey asserts something a screenshot cannot: that the three stage
 exposures on screen sum to the total exposure on screen, that the info panel
@@ -136,7 +140,8 @@ def run(report: Report) -> Report:
                                   ("C", _journey_c), ("D", _journey_d),
                                   ("E", _journey_e), ("F", _journey_f),
                                   ("G", _journey_g), ("H", _journey_h),
-                                  ("I", _journey_i), ("J", _journey_j)):
+                                  ("I", _journey_i), ("J", _journey_j),
+                                  ("K", _journey_k), ("L", _journey_l)):
                 _guard(report, name, journey, page, report)
         finally:
             context.close()
@@ -708,25 +713,37 @@ def _arrange(page: Any, report: Report, lens: dict) -> None:
     page.goto(f"{WEB}/lenses/{lens['id']}", wait_until="networkidle")
     page.wait_for_timeout(2500)
 
-    page.get_by_role("button", name="Arrange").click()
+    # Exactly "Arrange": this run's lens is called "Arrangement Under Test",
+    # so the pencil's own label — "Edit Arrangement Under Test" — contains the
+    # word, and a substring match picks up two controls.
+    page.get_by_role("button", name="Arrange", exact=True).click()
     page.wait_for_selector("text=Arrange this lens", timeout=10_000)
     body = page.inner_text("body")
     report.check("H", "the editor says a change becomes a version",
                  "new version" in body and "stays where it is" in body)
 
-    # A metric that declares one honest visual says so, rather than offering
-    # a chart type that would misrepresent it.
+    # A metric tile offers NO chart type, and says why.
+    #
+    # This used to assert the opposite: that the select here offered the
+    # metric's own declared visuals rather than the platform's list. It did,
+    # and the assertion passed for as long as the control existed — but a
+    # metric panel computes one number for one period and the tile renderer
+    # draws exactly that, so every choice in that select moved nothing on
+    # screen. The check was green while the control was inert, which is the
+    # same shape of defect the shipped lenses carried on eleven tiles.
+    #
+    # So the property worth holding is the absence: a metric tile has no
+    # chart-type control, and the editor says what it is instead.
     first_metric = next((p for p in before["panels"]
-                         if p.get("metric_id")), None)
+                         if p.get("kind") == "metric"), None)
     if first_metric:
-        panel = page.request.get(
-            f"{API}/api/v1/metrics/{first_metric['metric_id']}").json()
-        offered = page.locator("select[aria-label^='How ']").first
-        options = [o.strip() for o in offered.locator("option").all_inner_texts()]
-        report.check("H", "the chart choices are the metric's own, not the "
-                     "platform's list",
-                     set(options) - {"auto"} == set(panel["visuals"]),
-                     f"offered {options}, declared {panel['visuals']}")
+        selects = page.locator("select[aria-label^='How ']").count()
+        report.check("H", "a metric tile is not offered a chart type it "
+                     "cannot be drawn as",
+                     selects == 0,
+                     f"{selects} chart-type select(s) on a lens of figures")
+        report.check("H", "and the editor says what a metric tile is",
+                     "One figure for one period" in page.inner_text("body"))
 
     page.locator("button[aria-label^='Move ']").nth(1).click()
     page.wait_for_timeout(300)
@@ -1091,6 +1108,220 @@ def _scratch_lens(page: Any) -> dict | None:
     if not made.ok:
         return None
     return made.json()
+
+
+# --------------------------------------------------------------- journey K
+#
+# Change the period on a lens and watch every figure move together.
+#
+# The assertion that matters is not that a number changed. It is that the
+# figures still RECONCILE after it changed: three stage exposures that summed
+# to the total in one quarter and do not in another mean the tiles resolved
+# their periods separately, which is the failure a period picker makes easy.
+
+
+def _journey_k(page: Any, report: Report) -> None:
+    library = page.request.get(f"{API}/api/v1/lenses").json()
+    ifrs9 = next((row for row in library["lenses"]
+                  if row["slug"] == "corporate-ifrs9"), None)
+    if not report.check("K", "the IFRS 9 lens is installed", ifrs9 is not None):
+        return
+
+    offered = page.request.get(
+        f"{API}/api/v1/lenses/{ifrs9['id']}/periods").json()
+    periods = offered.get("periods") or []
+    if not report.check("K", "the lens offers periods to choose from",
+                        len(periods) > 1, f"offered {periods}"):
+        return
+
+    page.goto(f"{WEB}/lenses/{ifrs9['id']}", wait_until="networkidle")
+    page.wait_for_timeout(2500)
+
+    picker = page.locator("select[aria-label='Which period this lens shows']")
+    report.check("K", "the period picker is on the lens",
+                 picker.count() == 1)
+    if picker.count() != 1:
+        return
+
+    on_screen = [o.strip() for o in picker.locator("option").all_inner_texts()]
+    report.check("K", "it offers exactly the periods the lens can be shown "
+                 "for", set(on_screen) == set(periods),
+                 f"on screen {sorted(on_screen)} vs offered {sorted(periods)}")
+
+    # Every offered period must be one the datasets actually hold. A picker
+    # built from a range rather than from the data would list a quarter that
+    # renders as a screen of dashes.
+    earlier, later = periods[-2], periods[-1]
+    before = _figures(page, ifrs9["id"], later)
+    after = _figures(page, ifrs9["id"], earlier)
+
+    report.check("K", "a different period is a different set of figures",
+                 before.get("corporate.ifrs9.total_ead")
+                 != after.get("corporate.ifrs9.total_ead"),
+                 f"{later}: {before.get('corporate.ifrs9.total_ead')} vs "
+                 f"{earlier}: {after.get('corporate.ifrs9.total_ead')}")
+
+    for period, figures in ((later, before), (earlier, after)):
+        parts = sum(figures.get(f"corporate.ifrs9.stage{n}_ead") or 0.0
+                    for n in (1, 2, 3))
+        whole = figures.get("corporate.ifrs9.total_ead") or 0.0
+        report.check("K", f"the stage exposures still sum to the total in "
+                     f"{period}",
+                     whole > 0 and abs(parts - whole) <= abs(whole) * 1e-9,
+                     f"{parts} vs {whole}")
+
+    # And the picker actually drives the page, not only the API.
+    picker.select_option(earlier)
+    page.wait_for_timeout(4000)
+    body = page.inner_text("body")
+    report.check("K", "choosing a period redraws the lens",
+                 earlier in body, f"'{earlier}' is not on screen")
+
+
+def _figures(page: Any, lens_id: int, period: str) -> dict[str, float | None]:
+    rendered = page.request.get(
+        f"{API}/api/v1/lenses/{lens_id}/render?period={period}").json()
+    return {panel["metric_id"]: panel.get("value")
+            for panel in rendered["panels"] if panel.get("kind") == "metric"}
+
+
+# --------------------------------------------------------------- journey L
+#
+# Create a lens by being asked three things, not by describing it in one box.
+
+
+def _journey_l(page: Any, report: Report) -> None:
+    made: dict | None = None
+    try:
+        made = _create_by_asking(page, report)
+    finally:
+        if made:
+            _discard(report, "L", made)
+
+
+def _create_by_asking(page: Any, report: Report) -> dict | None:
+    page.goto(f"{WEB}/lenses", wait_until="networkidle")
+    page.wait_for_timeout(1500)
+
+    # Lowercased: these headings are uppercased by CSS, and `inner_text`
+    # returns what is rendered rather than what is in the markup.
+    body = page.inner_text("body").lower()
+    report.check("L", "the library separates what is shipped from what is "
+                 "built", "specialist dashboards" in body
+                 and "your lenses" in body)
+    report.check("L", "each shipped lens says who it is for",
+                 "head of retail credit risk" in body
+                 and "ifrs 9 committee" in body)
+
+    page.get_by_role("link", name="Create a lens").first.click()
+    page.wait_for_timeout(2500)
+    report.check("L", "the first thing it asks is what it should watch",
+                 "What do you want this lens to watch?"
+                 in page.inner_text("body"))
+
+    # Said the way somebody would say it, rather than by naming a domain.
+    # What is being tested here is that the words reach the catalogue.
+    page.fill("[data-testid=lens-sentence]",
+              "retail delinquency and arrears on the retail book")
+    page.click("[data-testid=read-sentence]")
+    page.wait_for_timeout(7000)
+
+    understood = page.locator("[data-testid=understood]")
+    report.check("L", "and it says what it understood before building",
+                 understood.count() == 1,
+                 understood.inner_text()[:140] if understood.count() else "")
+    retail = page.locator("[data-testid=domain-option]",
+                          has_text="Retail Credit Risk")
+    report.check("L", "the domains offered are ones the catalogue has",
+                 retail.count() == 1,
+                 f"{retail.count()} chips matched 'Retail Credit Risk'")
+    if retail.count() == 1 and retail.get_attribute("aria-pressed") != "true":
+        retail.click()
+        page.wait_for_timeout(400)
+    report.check("L", "choosing a domain is shown as chosen",
+                 retail.count() == 1
+                 and retail.get_attribute("aria-pressed") == "true")
+
+    name = "Acceptance Arrears Watch"
+    page.fill("[data-testid=lens-name]", name)
+    page.click("[data-testid=confirm-name]")
+    page.wait_for_timeout(2500)
+    body = page.inner_text("body")
+    report.check("L", "naming it opens what it should show, not a metric list",
+                 "What should it show?" in body and body.count("Add Metric") == 0)
+
+    # The typeahead, inside the library the builder opens on: type a fragment,
+    # then narrow it. The scope must not have emptied it — a domain ranks the
+    # suggestions, it does not filter them, so a lens scoped to retail still
+    # reaches a corporate metric.
+    page.click("[data-testid=open-metric-builder]")
+    page.wait_for_timeout(1500)
+    search = page.locator("input[aria-label='Search the metric library']")
+    if not report.check("L", "there is a metric search", search.count() >= 1):
+        return None
+    search = search.first
+
+    search.fill("del")
+    page.wait_for_timeout(2500)
+    rows = page.locator("[data-testid=metric-library] ul li")
+    broad = rows.count()
+    report.check("L", "typing a fragment suggests metrics", broad > 0,
+                 f"{broad} suggestions for 'del'")
+    broad_text = page.locator("[data-testid=metric-library]").inner_text()
+    report.check("L", "a suggestion shows its formula, not only its name",
+                 "COUNT(" in broad_text or "SUM(" in broad_text)
+
+    search.fill("delinq 30")
+    page.wait_for_timeout(2500)
+    narrow = rows.count()
+    report.check("L", "adding a word narrows rather than widens",
+                 0 < narrow <= broad, f"'del' {broad} -> 'delinq 30' {narrow}")
+    report.check("L", "and what is left is about 30 days",
+                 "30" in page.locator("[data-testid=metric-library]").inner_text())
+
+    page.locator("[data-testid=library-add]").first.click()
+    page.wait_for_timeout(2500)
+    page.locator("[data-testid=back-to-lens]").first.click()
+    page.wait_for_timeout(1500)
+    report.check("L", "the metric is on the lens being built",
+                 page.locator("[data-testid=lens-contents] li").count() >= 1)
+
+    page.click("[data-testid=create-lens]")
+    page.wait_for_timeout(6000)
+
+    url = page.url
+    report.check("L", "saving opens the lens it made", "/lenses/" in url
+                 and url.rsplit("/", 1)[-1].isdigit(), url)
+    if not url.rsplit("/", 1)[-1].isdigit():
+        return None
+
+    lens_id = int(url.rsplit("/", 1)[-1])
+    stored = page.request.get(f"{API}/api/v1/lenses/{lens_id}").json()
+    report.check("L", "it was saved under the name that was typed",
+                 stored["name"] == name, stored["name"])
+    report.check("L", "it kept the domain it was told to watch, and says "
+                 "what it is for",
+                 "Retail Credit Risk" in stored["scope"]["domains"]
+                 and len(stored["scope"]["purpose"]) > 10,
+                 str(stored["scope"]))
+    report.check("L", "it holds the metric that was chosen",
+                 len(stored["panels"]) >= 1)
+
+    # Waited for rather than slept through: until the render returns, the
+    # page is a skeleton and every assertion about it is about the skeleton.
+    shown = True
+    try:
+        page.wait_for_selector("text=What this lens is for", timeout=30_000)
+    except Exception:  # noqa: BLE001
+        shown = False
+    report.check("L", "the new lens says what it is for when it opens", shown,
+                 page.inner_text("body")[:200])
+    rendered = page.request.get(
+        f"{API}/api/v1/lenses/{lens_id}/render").json()
+    report.check("L", "and no tile on it failed", rendered["failed"] == 0,
+                 str([p.get("error") for p in rendered["panels"]
+                      if p["status"] == "failed"]))
+    return stored
 
 
 def _discard(report: Report, journey: str, lens: dict) -> None:

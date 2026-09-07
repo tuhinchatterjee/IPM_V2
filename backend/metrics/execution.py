@@ -20,6 +20,7 @@ of them is a formula error.
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass, field
 from typing import Any
@@ -29,7 +30,9 @@ from backend.metrics.formula import Formula, FormulaError, Side, Term
 from backend.runtime import ir
 from backend.runtime.ir import PlanError
 
-EXECUTION_VERSION = "1.0.0"
+logger = logging.getLogger(__name__)
+
+EXECUTION_VERSION = "1.1.0"
 
 #: How many rows a verification sample may inspect. Enough to show somebody
 #: the inclusion logic; not enough to be an export route.
@@ -371,6 +374,194 @@ def run(formula: Formula, *, period: str = "",
     calculation.sql = result.query.sql if result.query else ""
     calculation.warnings = list(result.warnings)
     return calculation
+
+
+# ---------------------------------------------------------------------------
+# Many metrics, one scan
+# ---------------------------------------------------------------------------
+
+#: Why this exists, and what it does not change.
+#:
+#: A lens is dozens of metrics over a handful of datasets. Run one at a time,
+#: the Corporate IFRS 9 lens asked the staging dataset the same question
+#: thirty-four times for one screen — thirty-four scans, thirty-four plans,
+#: thirty-four permission checks, for a single row of aggregates each.
+#:
+#: The fix is the same trick a single metric already uses on its own terms.
+#: A term becomes a conditional aggregate rather than a filtered scan, so
+#: terms that are filtered differently are still measured over one pass. That
+#: property does not stop at the edge of one metric: every term of every
+#: metric reading the same dataset, over the same period, under the same
+#: scope, is measurable in the same pass.
+#:
+#: What it deliberately does NOT change is the arithmetic. Each metric's value
+#: still comes out of `evaluate` over its own terms, so a batched figure and
+#: an individually-run figure are the same number produced by the same code —
+#: this is one query where there were many, not a second way of calculating.
+#:
+#: Three things keep a batch honest:
+#:
+#: * **The scope is part of the key.** A metric's scope is a filter on the
+#:   whole scan, so two metrics with different scopes are reading different
+#:   populations and must not share one.
+#: * **A term the engine cannot batch leaves the batch.** A filtered average
+#:   has no conditional form in the IR, and `_measure` refuses it; that metric
+#:   runs on its own rather than taking the others down with it.
+#: * **A failed batch falls back.** If the one query fails, every metric in it
+#:   is run individually, so a lens degrades to slow rather than to blank.
+
+
+def batch_key(formula: Formula, period: str,
+              scope: tuple[Any, ...]) -> tuple[Any, ...] | None:
+    """What makes two metrics shareable, or None if this one cannot share.
+
+    None rather than a raise: the caller is assembling a lens, and "this one
+    runs on its own" is an ordinary answer rather than an error.
+    """
+    if formula.kind == "function":
+        return None
+    if not formula.datasets:
+        return None
+    try:
+        for term in formula.terms:
+            _measure(term)
+    except FormulaError:
+        return None
+    return (formula.datasets[0], period,
+            tuple((c.field, c.op, _hashable(c.value)) for c in scope))
+
+
+def _hashable(value: Any) -> Any:
+    return tuple(value) if isinstance(value, list) else value
+
+
+def compile_batch(formulas: dict[str, Formula], *, period: str = "",
+                  scope: tuple[Any, ...] = ()
+                  ) -> tuple[ir.AnalyticalPlan, dict[tuple[str, str], str]]:
+    """One plan measuring every term of every metric given, over one scan.
+
+    Aliases are generated (`t1`, `t2`, …) rather than taken from term ids,
+    because term ids are only unique within one metric — six metrics on an
+    IFRS 9 lens all call their denominator `all` — and two aggregates sharing
+    an output name is a silently wrong answer rather than an error.
+
+    Identical aggregates are written once. Nine metrics on that lens divide by
+    `SUM(ead)`, and computing it nine times in one query would trade N scans
+    for one scan doing N times the arithmetic.
+    """
+    if not formulas:
+        raise FormulaError("A batch needs at least one metric to measure.")
+
+    datasets = {f.datasets[0] for f in formulas.values() if f.datasets}
+    if len(datasets) != 1:
+        raise FormulaError(
+            "Every metric in one batch has to read the same dataset. This "
+            f"batch reads {', '.join(sorted(datasets)) or 'none'}.")
+    dataset = datasets.pop()
+
+    steps: list[ir.Operation] = []
+    scan_params: dict[str, Any] = {"dataset": dataset}
+    if period:
+        scan_params["period"] = period
+    steps.append(ir.Operation(id="scan", op=ir.OpType.SCAN, params=scan_params,
+                              label=f"Read {dataset}"))
+    source = "scan"
+    if scope:
+        steps.append(ir.Operation(
+            id="scope", op=ir.OpType.FILTER, inputs=("scan",),
+            params={"where": [{"column": c.field, "op": c.op, "value": c.value}
+                              for c in scope]},
+            label="Apply the shared scope"))
+        source = "scope"
+
+    measures: list[dict[str, Any]] = []
+    aliases: dict[tuple[str, str], str] = {}
+    written: dict[str, str] = {}
+    for key, formula in formulas.items():
+        for term in formula.terms:
+            spec = _measure(term)
+            signature = repr(sorted(
+                (k, repr(v)) for k, v in spec.items() if k != "as"))
+            alias = written.get(signature)
+            if alias is None:
+                alias = f"t{len(written) + 1}"
+                written[signature] = alias
+                measures.append({**spec, "as": alias})
+            aliases[(key, term.id)] = alias
+
+    measures.append({"function": "count", "as": "_rows"})
+    steps.append(ir.Operation(
+        id="measure", op=ir.OpType.AGGREGATE, inputs=(source,),
+        params={"measures": measures},
+        label=f"Measure every term of {len(formulas)} metrics over the "
+              "same rows"))
+
+    plan = ir.AnalyticalPlan(
+        objective=f"{len(formulas)} metrics over {dataset}",
+        operations=steps, output="measure",
+        meta={"period": period, "batched": sorted(formulas)})
+    return plan, aliases
+
+
+def run_batch(formulas: dict[str, Formula], *, period: str = "",
+              scope: tuple[Any, ...] = (), question: str = ""
+              ) -> dict[str, Calculation]:
+    """Every metric given, computed from one scan.
+
+    Falls back to running each on its own if the single query fails, so a lens
+    degrades to slow rather than to blank.
+    """
+    from backend.runtime.executor import execute
+    from backend.scorecard.domains import GOVERNED_METRIC
+
+    if len(formulas) == 1:
+        key, only = next(iter(formulas.items()))
+        return {key: run(only, period=period, scope=scope,
+                         question=question)}
+
+    try:
+        plan, aliases = compile_batch(formulas, period=period, scope=scope)
+        result = execute(plan, scope=GOVERNED_METRIC,
+                         question=question or plan.objective,
+                         intent="metric_batch")
+    except (FormulaError, PlanError, DataAccessError):
+        logger.warning("batched metric read failed; falling back to one "
+                       "query per metric", exc_info=True)
+        return {key: run(formula, period=period, scope=scope,
+                         question=question)
+                for key, formula in formulas.items()}
+
+    if not result.rows:
+        out: dict[str, Calculation] = {}
+        for key, formula in formulas.items():
+            calculation = Calculation(
+                value=None, formula=formula, period=period,
+                dataset=formula.datasets[0] if formula.datasets else "")
+            calculation.unavailable = (
+                "The query returned no rows at all, which usually means the "
+                "dataset has nothing for this period.")
+            out[key] = calculation
+        return out
+
+    row = dict(result.rows[0])
+    rows_considered = int(row.get("_rows") or 0)
+    sql = result.query.sql if result.query else ""
+    shared = (f"Computed in one pass with {len(formulas) - 1} other "
+              f"{'metric' if len(formulas) == 2 else 'metrics'} reading the "
+              "same rows.")
+
+    out = {}
+    for key, formula in formulas.items():
+        mapped = {term.id: row.get(aliases[(key, term.id)])
+                  for term in formula.terms}
+        calculation = evaluate(formula, mapped,
+                               rows_considered=rows_considered)
+        calculation.period = period
+        calculation.run_id = result.run_id
+        calculation.sql = sql
+        calculation.warnings = [*result.warnings, shared]
+        out[key] = calculation
+    return out
 
 
 def sample(formula: Formula, *, period: str = "",
@@ -745,6 +936,10 @@ def breakdown(formula: Formula, *, dimension: str, period: str = "",
               limit: int = MAX_GROUPS, question: str = "") -> dict[str, Any]:
     """One metric across one dimension, computed group by group.
 
+    `sort` is "value", "label" or "period". The last is for a time axis and
+    orders chronologically rather than alphabetically — see the note where it
+    is applied.
+
     Every point comes out of `evaluate` — the same arithmetic the single
     figure uses, over that group's aggregates. That is what makes a bar
     comparable to the KPI beside it: not a similar calculation, the same one.
@@ -787,7 +982,18 @@ def breakdown(formula: Formula, *, dimension: str, period: str = "",
             unavailable=calculation.unavailable))
 
     found = len(points)
-    if sort == "label":
+    if sort == "period":
+        # Chronological, not alphabetical. "Q4 2022" sorts before "Q1 2023"
+        # as a date and after it as a string, so a quarterly trend ordered by
+        # label reads Q1 2023, Q1 2024, Q1 2025, Q1 2026, Q2 2023 — which is
+        # not a trend, and looks exactly like one. Monthly labels happen to
+        # sort correctly as strings, which is why this survived until a
+        # shipped lens carried a quarter-by-quarter chart.
+        from backend.metrics.service import _period_order
+
+        points.sort(key=lambda p: _period_order(p.label),
+                    reverse=(direction == "desc"))
+    elif sort == "label":
         points.sort(key=lambda p: p.label, reverse=(direction == "desc"))
     else:
         # Points with no value have no place in an ordering by value. They are

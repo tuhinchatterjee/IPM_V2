@@ -43,6 +43,12 @@ RETAIL = "Retail Credit Risk"
 RETAIL_ANALYTICS = "Retail Analytics"
 CORPORATE_IFRS9 = "Corporate IFRS 9"
 CORPORATE = "Corporate Portfolio"
+#: Two more corporate domains, so the Metric Library has categories a person
+#: navigates by rather than one bucket with forty things in it. They read the
+#: same dataset as `CORPORATE`; what differs is the question being asked of
+#: it, which is what a category is for.
+CORPORATE_EW = "Corporate Early Warning"
+CORPORATE_CONC = "Corporate Concentration"
 
 BEHAVIOURAL = "retail_behavioral_scorecard_monthly_validation"
 APPLICATIONS = "retail_application_scorecard_monthly_validation"
@@ -286,6 +292,86 @@ RETAIL_QUALITY: tuple[MetricDefinition, ...] = (
        higher_is_better=False),
 )
 
+
+# ================================== retail — movement within the book
+
+#: A roll rate compares two consecutive months for the same account, and the
+#: metric engine computes one period at a time — so a true roll rate is still
+#: unsupported, and says so below.
+#:
+#: These two are not that, and are named so they cannot be mistaken for it.
+#: The behavioural dataset carries a trailing window ON EACH ROW —
+#: `max_dpd_3m` is the worst arrears that account reached over the last three
+#: months, `times_dpd_30plus_6m` is how often it went behind over the last
+#: six. That is a comparison across time held within one row, which the engine
+#: measures in one pass, and it answers the two questions a head of retail
+#: risk actually asks about movement: how many of the accounts that went
+#: behind have come back, and how many keep going behind.
+
+RETAIL_MOVEMENT: tuple[MetricDefinition, ...] = (
+    _m("retail.cure_rate_3m", "Cure Rate (3-Month Look-Back)",
+       "Of the accounts that reached 30 or more days past due at any point in "
+       "the last three months, the share that are fully up to date now.",
+       _ratio([_t("cured", "Reached 30+ DPD and is now current", BEHAVIOURAL,
+                  "count", "current_dpd", max_dpd_3m__gte=30,
+                  current_dpd=0)],
+              [_t("behind", "Reached 30+ DPD in the window", BEHAVIOURAL,
+                  "count", "current_dpd", max_dpd_3m__gte=30)]),
+       unit="percent", domain=RETAIL, portfolio="Retail",
+       aliases=("cure rate", "cures", "cured accounts", "recovery rate",
+                "back to current", "rehabilitation rate"),
+       formula_text=("COUNT(max_dpd_3m >= 30 and current_dpd = 0) / "
+                     "COUNT(max_dpd_3m >= 30) × 100"),
+       numerator_text="Accounts that went 30+ days behind in the last three "
+                      "months and owe nothing overdue now",
+       denominator_text="Accounts that went 30+ days behind in the last three "
+                        "months",
+       decimals=2, higher_is_better=True,
+       transformation=(
+           "Both sides read `max_dpd_3m`, the worst arrears the account "
+           "reached over the trailing three months, which the behavioural "
+           "dataset carries on the account's own row. The comparison across "
+           "time is therefore held within one row and measured in one pass."),
+       exclusions=("Accounts with fewer than three months on book have no "
+                   "full trailing window; they carry whatever window exists "
+                   "and are neither excluded nor extrapolated."),
+       not_this=(
+           "Not a roll rate, and not a month-on-month cure. This is a "
+           "look-back over a three-month window on one reporting date, so an "
+           "account that went behind and cured twice inside the window is "
+           "counted once, as cured.")),
+
+    _m("retail.repeat_delinquency_rate", "Repeat Delinquency Rate",
+       "The share of accounts that have gone 30 or more days past due more "
+       "than once in the last six months.",
+       _ratio([_t("repeat", "Behind more than once", BEHAVIOURAL, "count",
+                  "times_dpd_30plus_6m", times_dpd_30plus_6m__gte=2)],
+              [Term(id="all", label="Accounts", dataset=BEHAVIOURAL,
+                    aggregate="count")]),
+       unit="percent", domain=RETAIL, portfolio="Retail",
+       aliases=("repeat delinquency", "repeat arrears", "chronic delinquency",
+                "serial delinquency", "recurring arrears",
+                # It is a 30+ DPD metric and says so, because a search for
+                # "delinq 30" reaches it through its definition either way,
+                # and a suggestion whose name does not mention 30 days looks
+                # like the picker widening rather than narrowing.
+                "repeat 30 dpd", "30 dpd more than once",
+                "30+ dpd repeat rate"),
+       formula_text=("COUNT(times_dpd_30plus_6m >= 2) / COUNT(accounts) "
+                     "× 100"),
+       numerator_text="Accounts that went 30+ days behind twice or more in "
+                      "the last six months",
+       denominator_text="Every open account in the month",
+       decimals=2, higher_is_better=False,
+       transformation=(
+           "Reads `times_dpd_30plus_6m`, the count of separate 30+ episodes "
+           "over the trailing six months, carried on the account's own row."),
+       not_this=(
+           "Not the 30+ DPD rate. An account can be 30+ today having never "
+           "been behind before, and an account can be current today having "
+           "been behind three times since January. This measures the second "
+           "kind, which the arrears buckets do not see.")),
+)
 
 # ============================================= retail — scorecard validation
 
@@ -658,6 +744,248 @@ CORPORATE_IFRS9_METRICS: tuple[MetricDefinition, ...] = tuple(
 )
 
 
+# ==================================== corporate IFRS 9 — stage migration
+
+#: Where a facility sat last period, and where it sits now. The staging
+#: dataset carries `prior_stage` on every row, so a transition is a property
+#: of one row rather than a comparison of two periods — which is why these can
+#: be metrics at all, and why the ECL movement bridge below them still cannot.
+#:
+#: Named by the transition rather than by "migration", because "migration" on
+#: its own is read as deterioration and half of these are the opposite.
+
+
+def _transition(metric_id: str, name: str, definition: str, *,
+                frm: Condition, to: Condition, aliases: tuple[str, ...],
+                reads: str) -> MetricDefinition:
+    """Exposure that moved between two stages this period."""
+    return _m(metric_id, name, definition,
+              _total(Term(id="moved", label=name, dataset=STAGING,
+                          aggregate="sum", field="ead", where=(frm, to))),
+              unit="currency", domain=CORPORATE_IFRS9, portfolio="Corporate",
+              aliases=aliases,
+              formula_text=f"SUM(ead where {reads})",
+              decimals=0, higher_is_better=None,
+              period_rule=PERIOD_SELECTED,
+              transformation=(
+                  "Read from `prior_stage` and `ifrs9_stage` on the same row. "
+                  "The staging dataset records where each facility sat at the "
+                  "previous reporting date, so a transition is a property of "
+                  "one row and is measured in one pass."),
+              exclusions=(
+                  "A facility with no prior stage — one that entered the book "
+                  "this period — matches no transition and is counted in "
+                  "none of them."),
+              not_this=(
+                  "Not a balance. This is the exposure that moved, not the "
+                  "exposure now sitting in the destination stage."),
+              visuals=("kpi", "bar"))
+
+
+def _transition_rate(metric_id: str, name: str, definition: str, *,
+                     frm: Condition, to: Condition,
+                     aliases: tuple[str, ...], reads: str,
+                     base: str) -> MetricDefinition:
+    """A transition as a share of the population that could have made it.
+
+    The denominator is the exposure that started the period where the
+    transition starts — not the whole book. A new-default rate over total
+    exposure would fall whenever the book grew, which is the opposite of what
+    the reader takes from it.
+    """
+    return _m(metric_id, name, definition,
+              _ratio([Term(id="moved", label="Exposure that moved",
+                           dataset=STAGING, aggregate="sum", field="ead",
+                           where=(frm, to))],
+                     [Term(id="base", label=base, dataset=STAGING,
+                           aggregate="sum", field="ead", where=(frm,))]),
+              unit="percent", domain=CORPORATE_IFRS9, portfolio="Corporate",
+              aliases=aliases,
+              formula_text=f"SUM(ead where {reads}) / "
+                           f"SUM(ead where {frm.describe()}) × 100",
+              numerator_text="Exposure that made this transition",
+              denominator_text=base,
+              decimals=2,
+              period_rule=PERIOD_SELECTED,
+              transformation=(
+                  "Both sides are measured over the same scan of the same "
+                  "period, so the share is of the population that could have "
+                  "made the move rather than of the whole book."),
+              not_this=(
+                  "Not a share of total exposure. The denominator is the "
+                  "exposure that started the period in the origin stage, "
+                  "which is what makes the rate comparable between periods "
+                  "when the book grows."))
+
+
+CORPORATE_IFRS9_MIGRATION: tuple[MetricDefinition, ...] = (
+    _transition(
+        "corporate.ifrs9.stage_1_to_2_ead", "Stage 1 To Stage 2 Exposure",
+        "Exposure that was performing at the last reporting date and has "
+        "since been assessed as significantly deteriorated.",
+        frm=Condition("prior_stage", "=", 1),
+        to=Condition("ifrs9_stage", "=", 2),
+        aliases=("stage 1 to 2", "stage 1 to stage 2", "sicr transfers",
+                 "transfers to stage 2", "stage 2 inflow"),
+        reads="prior_stage = 1 and ifrs9_stage = 2"),
+
+    _transition(
+        "corporate.ifrs9.stage_2_to_1_ead", "Stage 2 To Stage 1 Exposure",
+        "Exposure that has recovered from significant deterioration back to "
+        "twelve-month expected loss.",
+        frm=Condition("prior_stage", "=", 2),
+        to=Condition("ifrs9_stage", "=", 1),
+        aliases=("stage 2 to 1", "stage 2 to stage 1", "transfers to stage 1",
+                 "stage 2 cures", "recoveries to performing"),
+        reads="prior_stage = 2 and ifrs9_stage = 1"),
+
+    _transition(
+        "corporate.ifrs9.stage_2_to_3_ead", "Stage 2 To Stage 3 Exposure",
+        "Exposure that was already deteriorated at the last reporting date "
+        "and has since defaulted.",
+        frm=Condition("prior_stage", "=", 2),
+        to=Condition("ifrs9_stage", "=", 3),
+        aliases=("stage 2 to 3", "stage 2 to stage 3", "transfers to stage 3",
+                 "defaults from stage 2"),
+        reads="prior_stage = 2 and ifrs9_stage = 3"),
+
+    _transition(
+        "corporate.ifrs9.new_default_ead", "Newly Defaulted Exposure",
+        "Exposure that entered Stage 3 this period, from wherever it was "
+        "before.",
+        frm=Condition("prior_stage", "!=", 3),
+        to=Condition("ifrs9_stage", "=", 3),
+        aliases=("new defaults", "newly defaulted", "defaults", "new npl",
+                 "entries to stage 3", "default inflow"),
+        reads="prior_stage != 3 and ifrs9_stage = 3"),
+
+    _transition(
+        "corporate.ifrs9.cured_ead", "Cured Exposure",
+        "Exposure that was in default at the last reporting date and is no "
+        "longer.",
+        frm=Condition("prior_stage", "=", 3),
+        to=Condition("ifrs9_stage", "!=", 3),
+        aliases=("cured", "cured exposure", "exits from stage 3",
+                 "default outflow", "exposure that cured"),
+        reads="prior_stage = 3 and ifrs9_stage != 3"),
+
+    _transition_rate(
+        "corporate.ifrs9.stage_2_inflow_rate", "Stage 2 Inflow Rate",
+        "The share of last period's performing exposure that has been "
+        "assessed as significantly deteriorated this period.",
+        frm=Condition("prior_stage", "=", 1),
+        to=Condition("ifrs9_stage", "=", 2),
+        aliases=("stage 2 inflow rate", "sicr transfer rate",
+                 "deterioration rate", "stage 1 to 2 rate"),
+        reads="prior_stage = 1 and ifrs9_stage = 2",
+        base="Exposure that started the period in Stage 1"),
+
+    _transition_rate(
+        "corporate.ifrs9.new_default_rate", "New Default Rate",
+        "The share of last period's non-defaulted exposure that has defaulted "
+        "this period.",
+        frm=Condition("prior_stage", "!=", 3),
+        to=Condition("ifrs9_stage", "=", 3),
+        # Not the bare "default rate", which the retail book's own default
+        # rate answers to.
+        aliases=("new default rate", "default emergence",
+                 "inflow to default", "corporate default rate",
+                 "rate of new defaults"),
+        reads="prior_stage != 3 and ifrs9_stage = 3",
+        base="Exposure that started the period outside Stage 3"),
+
+    _transition_rate(
+        "corporate.ifrs9.cure_rate", "Cure Rate",
+        "The share of last period's defaulted exposure that is no longer in "
+        "default.",
+        frm=Condition("prior_stage", "=", 3),
+        to=Condition("ifrs9_stage", "!=", 3),
+        # Deliberately not the bare "cure rate": the retail book's cure
+        # rate owns that phrasing, and an alias claimed twice makes a
+        # typeahead answer one of them by alphabetical accident.
+        aliases=("corporate cure rate", "stage 3 exit rate",
+                 "exit rate from default", "default cure rate"),
+        reads="prior_stage = 3 and ifrs9_stage != 3",
+        base="Exposure that started the period in Stage 3"),
+)
+
+
+# ============================== corporate IFRS 9 — what fired the trigger
+
+#: SICR is one rule with five ways of firing, and a committee asked "why is
+#: Stage 2 up" needs to know which. `corporate.ifrs9.sicr_rate` answers
+#: whether ANY fired; these five answer which, and they overlap on purpose —
+#: one facility can breach a covenant and be downgraded in the same quarter,
+#: so these do not sum to the SICR rate and each says so.
+
+
+def _sicr_trigger(suffix: str, name: str, field: str, definition: str,
+                  aliases: tuple[str, ...]) -> MetricDefinition:
+    return _m(f"corporate.ifrs9.sicr_{suffix}", name, definition,
+              _ratio([_t("fired", f"{name} EAD", STAGING, "sum", "ead",
+                         **{field: True})],
+                     [_t("all", "Total EAD", STAGING, "sum", "ead")]),
+              unit="percent", domain=CORPORATE_IFRS9, portfolio="Corporate",
+              aliases=aliases,
+              formula_text=f"SUM(ead where {field}) / SUM(ead) × 100",
+              numerator_text=f"Exposure on which the {name.lower()} fired",
+              denominator_text="Total exposure at default across all stages",
+              decimals=2, higher_is_better=False,
+              period_rule=PERIOD_SELECTED,
+              not_this=(
+                  "Not a share of the SICR rate. A facility can fire more "
+                  "than one trigger in a period, so the five trigger rates "
+                  "overlap and do not sum to the rate at which any trigger "
+                  "fired."))
+
+
+CORPORATE_IFRS9_TRIGGERS: tuple[MetricDefinition, ...] = (
+    _sicr_trigger("dpd", "SICR: Days Past Due", "sicr_dpd_trigger",
+                  "The share of exposure where the significant-increase "
+                  "assessment was triggered by arrears.",
+                  ("sicr dpd", "sicr days past due", "dpd trigger",
+                   "arrears trigger")),
+    _sicr_trigger("pd", "SICR: PD Deterioration", "sicr_pd_trigger",
+                  "The share of exposure where the significant-increase "
+                  "assessment was triggered by the probability of default "
+                  "moving against its level at origination.",
+                  ("sicr pd", "pd trigger", "pd deterioration trigger")),
+    _sicr_trigger("rating", "SICR: Rating Downgrade", "sicr_rating_trigger",
+                  "The share of exposure where the significant-increase "
+                  "assessment was triggered by an internal rating downgrade.",
+                  ("sicr rating", "rating trigger", "downgrade trigger")),
+    _sicr_trigger("watchlist", "SICR: Watchlist", "sicr_watchlist_trigger",
+                  "The share of exposure where the significant-increase "
+                  "assessment was triggered by the name being placed on the "
+                  "watchlist.",
+                  ("sicr watchlist", "watchlist trigger")),
+    _sicr_trigger("covenant", "SICR: Covenant Breach",
+                  "sicr_covenant_trigger",
+                  "The share of exposure where the significant-increase "
+                  "assessment was triggered by a covenant breach.",
+                  ("sicr covenant", "covenant trigger", "covenant breach "
+                   "trigger")),
+
+    _m("corporate.ifrs9.pd_drift", "PD Drift Since Origination",
+       "How far the twelve-month probability of default has moved from where "
+       "it was when the facility was written, weighted by exposure.",
+       Formula(kind="weighted_average", numerator=Side(terms=(
+           Term(id="drift", label="PD relative to origination",
+                dataset=STAGING, aggregate="weighted_avg",
+                field="pd_ratio_to_origination", weight_field="ead"),))),
+       unit="ratio", domain=CORPORATE_IFRS9, portfolio="Corporate",
+       aliases=("pd drift", "pd deterioration", "pd versus origination",
+                "pd ratio to origination"),
+       formula_text="Σ(pd_ratio_to_origination × ead) / Σ(ead)",
+       decimals=2, higher_is_better=False,
+       period_rule=PERIOD_SELECTED,
+       transformation="Weighted by exposure, so a large facility whose PD has "
+                      "doubled counts for more than a small one.",
+       not_this="Not a PD. It is a multiple: 1.0 means the book is priced "
+                "where it was written, 2.0 means twice the risk it was "
+                "written at."),
+)
+
 # ============================================== corporate — portfolio
 
 CORPORATE_PORTFOLIO: tuple[MetricDefinition, ...] = (
@@ -730,6 +1058,328 @@ CORPORATE_PORTFOLIO: tuple[MetricDefinition, ...] = (
 )
 
 
+# ====================================== corporate — portfolio quality
+
+#: The corporate book read as a credit portfolio rather than as an impairment
+#: calculation. `portfolio_facility` carries the internal grade, the rating
+#: bucket, the return and the trend on every facility row, so these are all
+#: single-pass measures over the same scan the exposure total uses.
+#:
+#: Exposure-weighted wherever a weighting is possible, and each says so. An
+#: unweighted mean internal grade treats a two-million riyal facility and a
+#: two-hundred-million one as equally important, which is not what anybody
+#: means by "the average grade of the book".
+
+CORPORATE_QUALITY: tuple[MetricDefinition, ...] = (
+    _m("corporate.limit_amount", "Corporate Approved Limits",
+       "The total approved limit across the corporate book, drawn or not.",
+       _total(_t("l", "Approved limit", FACILITIES, "sum", "limit_amount")),
+       unit="currency", domain=CORPORATE, portfolio="Corporate",
+       aliases=("limits", "approved limits", "total limit", "sanctioned"),
+       formula_text="SUM(limit_amount)", decimals=0,
+       not_this="Not exposure. A limit is what the bank has committed to "
+                "lend; exposure is what has been drawn."),
+
+    _m("corporate.undrawn", "Undrawn Commitment",
+       "The part of the approved limit that has not been drawn.",
+       _total(_t("u", "Undrawn", FACILITIES, "sum", "undrawn")),
+       unit="currency", domain=CORPORATE, portfolio="Corporate",
+       aliases=("undrawn", "undrawn commitment", "available headroom",
+                "unutilised"),
+       formula_text="SUM(undrawn)", decimals=0, higher_is_better=None,
+       not_this="Not spare capacity in a risk sense. Undrawn commitment is "
+                "still an exposure the bank is obliged to fund, which is why "
+                "IFRS 9 measures it with a credit conversion factor."),
+
+    _m("corporate.weighted_internal_grade", "Exposure-Weighted Internal Grade",
+       "The average internal risk grade across the book, weighted by "
+       "exposure.",
+       Formula(kind="weighted_average", numerator=Side(terms=(
+           Term(id="g", label="Internal grade", dataset=FACILITIES,
+                aggregate="weighted_avg", field="internal_grade",
+                weight_field="exposure"),))),
+       unit="score", domain=CORPORATE, portfolio="Corporate",
+       aliases=("average grade", "internal grade", "weighted grade",
+                "portfolio grade", "average rating"),
+       formula_text="Σ(internal_grade × exposure) / Σ(exposure)",
+       decimals=2, higher_is_better=False,
+       transformation="Weighted by exposure, because an unweighted mean "
+                      "treats a small facility and a very large one as "
+                      "equally important.",
+       not_this="Not an external rating. The internal grade runs 1 to 10 on "
+                "CreditProbe's own scale, where a higher number is worse."),
+
+    _m("corporate.investment_grade_rate", "Investment Grade Exposure Rate",
+       "The share of exposure rated investment grade internally.",
+       _ratio([_t("ig", "Investment grade EAD", FACILITIES, "sum", "exposure",
+                  rating_bucket="Investment grade")],
+              [_t("all", "Total exposure", FACILITIES, "sum", "exposure")]),
+       unit="percent", domain=CORPORATE, portfolio="Corporate",
+       aliases=("investment grade", "investment grade share", "ig share",
+                "quality mix"),
+       formula_text=("SUM(exposure where rating_bucket = 'Investment grade') "
+                     "/ SUM(exposure) × 100"),
+       higher_is_better=True,
+       not_this="Not an agency rating. This is CreditProbe's own rating "
+                "bucket, mapped from the internal grade."),
+
+    _m("corporate.impaired_rate", "Impaired Exposure Rate",
+       "The share of exposure in the impaired rating bucket.",
+       _ratio([_t("im", "Impaired EAD", FACILITIES, "sum", "exposure",
+                  rating_bucket="Impaired")],
+              [_t("all", "Total exposure", FACILITIES, "sum", "exposure")]),
+       unit="percent", domain=CORPORATE, portfolio="Corporate",
+       aliases=("impaired", "impaired share", "impaired exposure"),
+       formula_text=("SUM(exposure where rating_bucket = 'Impaired') / "
+                     "SUM(exposure) × 100"),
+       higher_is_better=False,
+       not_this="Close to the NPL rate and not identical to it: the rating "
+                "bucket is a grade, and the NPL flag is a status."),
+
+    _m("corporate.weighted_raroc", "Exposure-Weighted RAROC",
+       "Risk-adjusted return on capital across the book, weighted by "
+       "exposure.",
+       Formula(kind="weighted_average", numerator=Side(terms=(
+           Term(id="r", label="RAROC", dataset=FACILITIES,
+                aggregate="weighted_avg", field="raroc_pct",
+                weight_field="exposure"),))),
+       unit="percent", domain=CORPORATE, portfolio="Corporate",
+       aliases=("raroc", "risk adjusted return", "return on capital"),
+       formula_text="Σ(raroc_pct × exposure) / Σ(exposure)",
+       decimals=2, higher_is_better=True,
+       not_this="Not a profit figure. RAROC is a return on the capital the "
+                "facility consumes, and can be negative on a facility that "
+                "is still making money."),
+
+    _m("corporate.portfolio_weighted_pd", "Book-Weighted 12-Month PD",
+       "The average twelve-month probability of default across the facility "
+       "book, weighted by exposure.",
+       Formula(kind="weighted_average", numerator=Side(terms=(
+           Term(id="pd", label="12-month PD", dataset=FACILITIES,
+                aggregate="weighted_avg", field="pd_12m_pct",
+                weight_field="exposure"),))),
+       unit="percent", domain=CORPORATE, portfolio="Corporate",
+       aliases=("book pd", "portfolio pd", "facility pd"),
+       formula_text="Σ(pd_12m_pct × exposure) / Σ(exposure)",
+       decimals=2, higher_is_better=False,
+       not_this="Read from the facility book. The IFRS 9 staging dataset "
+                "carries its own exposure-weighted PD, and the two are "
+                "measured over different populations."),
+)
+
+
+# ====================================== corporate — early warning
+
+CORPORATE_EARLY_WARNING: tuple[MetricDefinition, ...] = (
+    _m("corporate.watchlist_exposure", "Watchlist Exposure",
+       "Exposure to customers the bank has placed on the watchlist.",
+       _total(_t("w", "Watchlist EAD", FACILITIES, "sum", "exposure",
+                 watchlist=True)),
+       unit="currency", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("watchlist", "watchlist exposure", "on watch",
+                "names on watch"),
+       formula_text="SUM(exposure where watchlist)", decimals=0,
+       higher_is_better=False,
+       not_this="Not defaulted exposure. A watchlist name is one the bank is "
+                "watching, which is the point of watching it."),
+
+    _m("corporate.downgrade_probability", "Exposure-Weighted Downgrade Risk",
+       "The modelled probability of a rating downgrade over the next twelve "
+       "months, weighted by exposure.",
+       Formula(kind="weighted_average", numerator=Side(terms=(
+           Term(id="d", label="Downgrade probability", dataset=FACILITIES,
+                aggregate="weighted_avg", field="downgrade_prob_pct",
+                weight_field="exposure"),))),
+       unit="percent", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("downgrade probability", "downgrade risk",
+                "probability of downgrade", "migration risk"),
+       formula_text="Σ(downgrade_prob_pct × exposure) / Σ(exposure)",
+       decimals=2, higher_is_better=False,
+       not_this="Not a probability of default. A downgrade is a move in "
+                "grade, and most downgrades never reach default."),
+
+    _m("corporate.covenant_headroom", "Exposure-Weighted Covenant Headroom",
+       "How much room borrowers have before their covenants bite, weighted "
+       "by exposure.",
+       Formula(kind="weighted_average", numerator=Side(terms=(
+           Term(id="h", label="Covenant headroom", dataset=FACILITIES,
+                aggregate="weighted_avg", field="covenant_headroom_pct",
+                weight_field="exposure"),))),
+       unit="percent", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("covenant headroom", "headroom", "covenant cushion"),
+       formula_text="Σ(covenant_headroom_pct × exposure) / Σ(exposure)",
+       decimals=2, higher_is_better=True,
+       not_this="An average, so it hides the tail. The breach rate beside it "
+                "is what says how much of the book has already run out."),
+
+    _m("corporate.covenant_breach_rate", "Covenant Breach Exposure Rate",
+       "The share of exposure where covenant headroom has gone negative.",
+       _ratio([_t("b", "Breached EAD", FACILITIES, "sum", "exposure",
+                  covenant_headroom_pct__lt=0)],
+              [_t("all", "Total exposure", FACILITIES, "sum", "exposure")]),
+       unit="percent", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("covenant breach", "breach rate", "covenants breached"),
+       formula_text=("SUM(exposure where covenant_headroom_pct < 0) / "
+                     "SUM(exposure) × 100"),
+       higher_is_better=False,
+       not_this="A breach on the reported headroom, not a waiver decision. "
+                "Whether the bank has waived it is a separate record."),
+
+    _m("corporate.weighted_dscr", "Exposure-Weighted DSCR",
+       "Debt service coverage across the book, weighted by exposure.",
+       Formula(kind="weighted_average", numerator=Side(terms=(
+           Term(id="d", label="DSCR", dataset=FACILITIES,
+                aggregate="weighted_avg", field="dscr",
+                weight_field="exposure"),))),
+       unit="ratio", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("dscr", "debt service coverage", "coverage ratio"),
+       formula_text="Σ(dscr × exposure) / Σ(exposure)",
+       decimals=2, higher_is_better=True,
+       not_this="Not ECL coverage. This is cash flow over debt service; ECL "
+                "coverage is provision over exposure."),
+
+    _m("corporate.dscr_below_one_rate", "Exposure Not Covering Debt Service",
+       "The share of exposure to borrowers whose cash flow does not cover "
+       "their debt service.",
+       _ratio([_t("b", "DSCR below 1", FACILITIES, "sum", "exposure",
+                  dscr__lt=1.0)],
+              [_t("all", "Total exposure", FACILITIES, "sum", "exposure")]),
+       unit="percent", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("dscr below 1", "cannot service debt", "negative coverage"),
+       formula_text="SUM(exposure where dscr < 1) / SUM(exposure) × 100",
+       higher_is_better=False,
+       not_this="Not a default rate. A borrower below one is funding debt "
+                "service from somewhere other than operating cash flow, "
+                "which many do for a year without defaulting."),
+
+    _m("corporate.deteriorating_rate", "Deteriorating Exposure Rate",
+       "The share of exposure whose credit trend is assessed as "
+       "deteriorating.",
+       _ratio([_t("d", "Deteriorating EAD", FACILITIES, "sum", "exposure",
+                  trend="Deteriorating")],
+              [_t("all", "Total exposure", FACILITIES, "sum", "exposure")]),
+       unit="percent", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("deteriorating", "worsening", "negative trend",
+                "trend deteriorating"),
+       formula_text=("SUM(exposure where trend = 'Deteriorating') / "
+                     "SUM(exposure) × 100"),
+       higher_is_better=False),
+
+    _m("corporate.critical_severity_rate", "Critical Severity Exposure Rate",
+       "The share of exposure carrying a critical early-warning severity.",
+       _ratio([_t("c", "Critical EAD", FACILITIES, "sum", "exposure",
+                  severity="Critical")],
+              [_t("all", "Total exposure", FACILITIES, "sum", "exposure")]),
+       unit="percent", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("critical severity", "critical", "highest severity"),
+       formula_text=("SUM(exposure where severity = 'Critical') / "
+                     "SUM(exposure) × 100"),
+       higher_is_better=False),
+
+    _m("corporate.ai_risk_score", "Average AI Risk Score",
+       "The mean forward-looking risk score CreditProbe assigns each "
+       "facility.",
+       Formula(kind="average", numerator=Side(terms=(
+           _t("s", "AI risk score", FACILITIES, "avg", "ai_risk_score"),))),
+       unit="index", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("ai risk score", "risk score", "forward risk signal"),
+       formula_text="AVG(ai_risk_score)", decimals=3,
+       higher_is_better=False,
+       not_this="An unweighted mean across facilities, not an exposure "
+                "weighting: the score is a property of the name rather than "
+                "of the amount lent to it."),
+)
+
+
+# ================================ corporate — concentration and limits
+
+CORPORATE_CONCENTRATION: tuple[MetricDefinition, ...] = (
+    _m("corporate.obligor_groups", "Obligor Groups",
+       "How many connected borrower groups the book is spread across.",
+       Formula(kind="distinct_count", numerator=Side(terms=(
+           _t("g", "Obligor groups", FACILITIES, "count_distinct",
+              "obligor_group"),))),
+       unit="count", domain=CORPORATE_CONC, portfolio="Corporate",
+       aliases=("obligor groups", "connected groups", "borrower groups",
+                "counterparty groups"),
+       formula_text="COUNT(DISTINCT obligor_group)", decimals=0,
+       higher_is_better=True,
+       not_this="Not a count of customers. A group is several customers the "
+                "bank treats as one credit risk, which is the unit a large "
+                "exposure limit applies to."),
+
+    _m("corporate.average_group_exposure", "Average Exposure Per Group",
+       "Total exposure divided by the number of connected borrower groups.",
+       Formula(kind="ratio",
+               numerator=Side(terms=(
+                   _t("e", "Total exposure", FACILITIES, "sum", "exposure"),)),
+               denominator=Side(terms=(
+                   _t("g", "Obligor groups", FACILITIES, "count_distinct",
+                      "obligor_group"),)),
+               scale=1.0),
+       unit="currency", domain=CORPORATE_CONC, portfolio="Corporate",
+       aliases=("average group exposure", "exposure per group",
+                "average obligor size"),
+       formula_text="SUM(exposure) / COUNT(DISTINCT obligor_group)",
+       numerator_text="Total exposure across the book",
+       denominator_text="Connected borrower groups in it",
+       decimals=0, higher_is_better=None,
+       not_this="A mean, so it says nothing about the largest group. The "
+                "concentration charts beside it are where a single name "
+                "shows."),
+
+    _m("corporate.appetite_breach_exposure", "Exposure Breaching Appetite",
+       "Exposure on facilities that breach the bank's stated risk appetite.",
+       _total(_t("b", "Breaching EAD", FACILITIES, "sum", "exposure",
+                 appetite_breach=True)),
+       unit="currency", domain=CORPORATE_CONC, portfolio="Corporate",
+       aliases=("appetite breach", "over appetite", "breaching appetite",
+                "limit breach"),
+       formula_text="SUM(exposure where appetite_breach)", decimals=0,
+       higher_is_better=False),
+
+    _m("corporate.appetite_breach_rate", "Appetite Breach Exposure Rate",
+       "The share of exposure that breaches the bank's stated risk appetite.",
+       _ratio([_t("b", "Breaching EAD", FACILITIES, "sum", "exposure",
+                  appetite_breach=True)],
+              [_t("all", "Total exposure", FACILITIES, "sum", "exposure")]),
+       unit="percent", domain=CORPORATE_CONC, portfolio="Corporate",
+       aliases=("appetite breach rate", "over appetite share",
+                "breach of appetite"),
+       formula_text=("SUM(exposure where appetite_breach) / SUM(exposure) "
+                     "× 100"),
+       higher_is_better=False,
+       not_this="Appetite, not regulatory limit. A breach here is against "
+                "the bank's own stated appetite for the sector."),
+
+    _m("corporate.collateral_coverage", "Collateral Coverage",
+       "Registered collateral value as a share of exposure.",
+       _ratio([_t("c", "Collateral value", FACILITIES, "sum",
+                  "collateral_value")],
+              [_t("e", "Total exposure", FACILITIES, "sum", "exposure")]),
+       unit="percent", domain=CORPORATE_CONC, portfolio="Corporate",
+       aliases=("collateral coverage", "security coverage", "collateral",
+                "secured share"),
+       formula_text="SUM(collateral_value) / SUM(exposure) × 100",
+       decimals=1, higher_is_better=True,
+       not_this="Registered value, not realisable value. Recovery depends on "
+                "enforceability and on what the collateral is worth when it "
+                "is needed, which is not when it was valued."),
+
+    _m("corporate.utilisation_of_limits", "Limit Utilisation",
+       "Drawn exposure as a share of the approved limit.",
+       _ratio([_t("e", "Exposure", FACILITIES, "sum", "exposure")],
+              [_t("l", "Approved limit", FACILITIES, "sum", "limit_amount")]),
+       unit="percent", domain=CORPORATE_CONC, portfolio="Corporate",
+       aliases=("limit utilisation", "utilisation of limits", "drawn share"),
+       formula_text="SUM(exposure) / SUM(limit_amount) × 100",
+       decimals=1, higher_is_better=None,
+       not_this="The same arithmetic as Corporate Utilisation, kept in this "
+                "domain so a concentration lens can carry it without "
+                "reaching into another. Both read the same fields and always "
+                "agree."),
+)
+
 # ================================================ what is NOT available
 
 UNSUPPORTED: tuple[Unsupported, ...] = (
@@ -767,14 +1417,26 @@ UNSUPPORTED: tuple[Unsupported, ...] = (
     Unsupported(
         "retail.roll_rate", "Delinquency Roll Rate", RETAIL,
         "A roll rate is a movement between two consecutive months for the "
-        "same account. The behavioural dataset supports it structurally, but "
-        "a period-over-period metric needs a comparison period the metric "
-        "engine does not yet carry — it computes one period at a time.",
+        "same account: the share of one arrears bucket that moves into the "
+        "next. The "
+        "behavioural dataset supports it structurally, but a "
+        "period-over-period metric needs a comparison period the metric "
+        "engine does not yet carry — it computes one period at a time. "
+        "Repeat Delinquency Rate is the nearest thing this deployment can "
+        "measure honestly: it reads the trailing six-month episode count "
+        "carried on each account's own row, and says how many accounts keep "
+        "going behind rather than how much of one bucket rolled into the "
+        "next.",
         needs=("period-over-period comparison in the metric engine",)),
     Unsupported(
-        "retail.cure_rate", "Cure Rate", RETAIL,
-        "Same reason as the roll rate: curing is a movement between periods, "
-        "not a level within one.",
+        "retail.cure_rate", "Cure Rate (Month On Month)", RETAIL,
+        "A month-on-month cure — the share of accounts behind last month that "
+        "are current this month — is a comparison of two periods, and the "
+        "metric engine computes one at a time. Cure Rate (3-Month Look-Back) "
+        "is on this lens instead and is a different measurement, not a "
+        "substitute: it reads `max_dpd_3m` from the account's own row, so it "
+        "asks how many of the accounts that went behind at any point in the "
+        "trailing three months are up to date now.",
         needs=("period-over-period comparison in the metric engine",)),
     Unsupported(
         "corporate.ifrs9.ecl_movement", "ECL Movement Attribution",
@@ -783,7 +1445,11 @@ UNSUPPORTED: tuple[Unsupported, ...] = (
         "migration, parameter movement, macro, overlays — is a decomposition "
         "across two periods with an attribution rule, not a metric. "
         "CreditProbe computes it in the IFRS 9 decomposition, and a tile here "
-        "would be a second implementation of it.",
+        "would be a second implementation of it. The stage migration band on "
+        "this lens covers the one component of the bridge the staging dataset "
+        "can answer on its own, because `prior_stage` is carried on each "
+        "row; the parameter, macro and overlay legs are not derivable that "
+        "way.",
         needs=("the existing ECL decomposition, surfaced as a lens panel",)),
     Unsupported(
         "corporate.ifrs9.scenario_ecl", "Scenario-Weighted ECL",
@@ -798,15 +1464,21 @@ UNSUPPORTED: tuple[Unsupported, ...] = (
 
 ALL: tuple[MetricDefinition, ...] = (
     RETAIL_PORTFOLIO + RETAIL_DELINQUENCY + RETAIL_QUALITY
-    + RETAIL_VALIDATION + RETAIL_ORIGINATION
-    + CORPORATE_IFRS9_METRICS + CORPORATE_PORTFOLIO
+    + RETAIL_MOVEMENT + RETAIL_VALIDATION + RETAIL_ORIGINATION
+    + CORPORATE_IFRS9_METRICS + CORPORATE_IFRS9_MIGRATION
+    + CORPORATE_IFRS9_TRIGGERS + CORPORATE_PORTFOLIO
+    + CORPORATE_QUALITY + CORPORATE_EARLY_WARNING + CORPORATE_CONCENTRATION
 )
 
 
 __all__ = [
     "LIBRARY_VERSION", "ALL", "UNSUPPORTED",
     "RETAIL", "RETAIL_ANALYTICS", "CORPORATE_IFRS9", "CORPORATE",
+    "CORPORATE_EW", "CORPORATE_CONC",
     "RETAIL_PORTFOLIO", "RETAIL_DELINQUENCY", "RETAIL_QUALITY",
-    "RETAIL_VALIDATION", "RETAIL_ORIGINATION",
-    "CORPORATE_IFRS9_METRICS", "CORPORATE_PORTFOLIO",
+    "RETAIL_MOVEMENT", "RETAIL_VALIDATION", "RETAIL_ORIGINATION",
+    "CORPORATE_IFRS9_METRICS", "CORPORATE_IFRS9_MIGRATION",
+    "CORPORATE_IFRS9_TRIGGERS", "CORPORATE_PORTFOLIO",
+    "CORPORATE_QUALITY", "CORPORATE_EARLY_WARNING",
+    "CORPORATE_CONCENTRATION",
 ]

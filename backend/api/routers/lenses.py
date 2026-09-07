@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from backend.api.permissions import Principal, RequireAnalyst, RequireDataSteward
+from backend.metrics import lenses as shipped
 from backend.services import lenses as ln
 
 logger = logging.getLogger(__name__)
@@ -87,10 +88,31 @@ class LayoutIn(BaseModel):
     change_summary: str = Field(default="", max_length=500)
 
 
+class ScopeIn(BaseModel):
+    """What a lens is for, settled before any metric is chosen.
+
+    §8 asks the creation flow to open with this rather than with a metric
+    picker: a lens whose scope is decided after its tiles is a lens whose
+    tiles decided its scope, and it ends up being about whatever was easy to
+    find. Every field is optional here and defaulted by the service, because
+    a person naming a lens should not be stopped by a field they have not
+    thought about yet.
+    """
+
+    purpose: str = Field(default="", max_length=MAX_TEXT)
+    audience: str = Field(default="", max_length=120)
+    portfolio: str = Field(default="", max_length=120)
+    domains: list[str] = Field(default_factory=list, max_length=12)
+    default_period: str = Field(default="", max_length=32)
+    comparison_period: str = Field(default="", max_length=32)
+    visibility: str = Field(default="shared", max_length=16)
+
+
 class LensIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=MAX_TEXT)
     audience: str = Field(default="", max_length=120)
+    scope: ScopeIn | None = None
     # `TileIn`, not a panel shape requiring an analysis id: a lens made
     # through this route could otherwise hold no metric tiles at all,
     # which is most of what a lens is for now. A tile naming neither an
@@ -118,7 +140,104 @@ def list_lenses(status_filter: str | None = Query(default=None, alias="status"))
         "visuals": list(ln.VISUALS),
         "statuses": list(ln.STATUSES),
         "max_panels": ln.MAX_PANELS,
+        "max_tiles": ln.MAX_TILES,
+        "max_charts": ln.MAX_CHARTS,
+        "shipped": [
+            {"slug": spec.slug, "name": spec.name, "audience": spec.audience,
+             "purpose": spec.purpose, "portfolio": spec.portfolio,
+             "domains": list(spec.domains),
+             "description": spec.description,
+             "tiles": len([t for t in spec.tiles
+                           if isinstance(t, shipped.Tile)]),
+             "charts": len([t for t in spec.tiles
+                            if isinstance(t, shipped.Chart)])}
+            for spec in shipped.ALL],
+        "cro": dict(shipped.CRO_LENS),
     }
+
+
+@router.get("/vocabulary", summary="What a lens may say it is for")
+def lens_vocabulary(principal: Principal = RequireAnalyst) -> dict:
+    """The choices the lens definition panel offers.
+
+    Served rather than hard-coded in the screen so that a domain the reader
+    may not read never appears as an option — and so the panel and the
+    validator cannot drift apart about what a visibility or a comparison is.
+    """
+    from backend.metrics import service as metrics
+
+    catalogue = metrics.catalogue(user_id=principal.user_id)
+    domains: dict[str, int] = {}
+    portfolios: dict[str, int] = {}
+    for metric in catalogue:
+        if metric.domain:
+            domains[metric.domain] = domains.get(metric.domain, 0) + 1
+        if metric.portfolio:
+            portfolios[metric.portfolio] = portfolios.get(
+                metric.portfolio, 0) + 1
+    return {
+        "domains": [{"name": name, "metrics": count}
+                    for name, count in sorted(domains.items())],
+        "portfolios": sorted(portfolios),
+        "visibilities": [
+            {"name": "shared",
+             "label": "Anyone who can reach the workspace"},
+            {"name": "private", "label": "Only me"}],
+        "comparisons": [
+            {"name": "", "label": "No comparison"},
+            {"name": "previous_period", "label": "The period before"},
+            {"name": "same_period_last_year",
+             "label": "The same period a year earlier"}],
+        "audiences": [spec.audience for spec in shipped.ALL],
+    }
+
+
+class SuggestIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/suggest", summary="What a lens called this is probably for")
+def suggest_lens(payload: SuggestIn,
+                 principal: Principal = RequireAnalyst) -> dict:
+    """The first step of §8's creation flow, after the name.
+
+    Nothing here comes from a model. The name is matched against the Metric
+    Catalogue with the same deterministic search the typeahead uses, so the
+    same name suggests the same thing on every machine, a test can assert it,
+    and a domain the caller may not read can never be suggested — a metric
+    they may not read never reaches the ranking.
+
+    Every value is a default the screen puts in an editable field.
+    """
+    try:
+        return ln.suggest(payload.name, user_id=principal.user_id)
+    except ln.InvalidLens as e:
+        raise _refused(e) from e
+    except ln.StorageUnavailable as e:
+        raise _unavailable(e) from e
+
+
+class InterpretIn(BaseModel):
+    text: str = Field(min_length=1, max_length=600)
+
+
+@router.post("/interpret", summary="What a sentence asks a lens to watch")
+def interpret_lens(payload: InterpretIn,
+                   principal: Principal = RequireAnalyst) -> dict:
+    """§1–§3. Ordinary language in; recognised options out.
+
+    Options rather than a decision. The next screen shows the data domains it
+    recognised as things to tick, the metrics as things to add, and the
+    dimension it heard as a chart to draw — each with what it matched on, so a
+    reading that is wrong is visibly wrong before anything is built.
+
+    Deterministic: no model reads this, the catalogue does. The same sentence
+    produces the same options on every machine, which is what lets a test
+    assert it and what stops the builder inventing a metric on a bad day.
+    """
+    from backend.metrics import builder
+
+    return builder.interpret(payload.text, user_id=principal.user_id).to_dict()
 
 
 @router.post("", status_code=201, summary="Create a lens")
@@ -129,6 +248,7 @@ def create_lens(payload: LensIn, principal: Principal = RequireAnalyst) -> dict:
             panels=[ln.Panel.from_dict(p.model_dump()) for p in payload.panels],
             description=payload.description, audience=payload.audience,
             project_id=payload.project_id, user_id=principal.user_id,
+            scope=(payload.scope.model_dump() if payload.scope else None),
         ).to_dict()
     except ln.InvalidLens as e:
         raise _refused(e) from e
@@ -171,6 +291,43 @@ def get_lens(lens_id: int) -> dict:
         return ln.get(lens_id).to_dict()
     except ln.LensNotFound as e:
         raise _not_found(e) from e
+    except ln.StorageUnavailable as e:
+        raise _unavailable(e) from e
+
+
+@router.get("/{lens_id}/periods",
+            summary="The periods this lens can be shown for")
+def lens_periods(lens_id: int) -> dict:
+    """What the period picker may offer.
+
+    Not every period in the lake: only the ones this lens's own datasets hold
+    rows for. A picker offering a quarter the staging dataset has never seen
+    draws a screen of dashes and teaches the reader that the picker is broken.
+    """
+    try:
+        return ln.periods(lens_id)
+    except ln.LensNotFound as e:
+        raise _not_found(e) from e
+    except ln.StorageUnavailable as e:
+        raise _unavailable(e) from e
+
+
+@router.put("/{lens_id}/scope", summary="Change what a lens is for")
+def set_lens_scope(lens_id: int, payload: ScopeIn,
+                   principal: Principal = RequireAnalyst) -> dict:
+    """The lens definition panel, saved as a revision of its own.
+
+    Through the same versioning path as every other change, so "somebody
+    repointed this lens at a different portfolio" is on the record next to
+    "somebody added a tile".
+    """
+    try:
+        return ln.set_scope(lens_id, payload.model_dump(),
+                            user_id=principal.user_id).to_dict()
+    except ln.LensNotFound as e:
+        raise _not_found(e) from e
+    except ln.InvalidLens as e:
+        raise _refused(e) from e
     except ln.StorageUnavailable as e:
         raise _unavailable(e) from e
 

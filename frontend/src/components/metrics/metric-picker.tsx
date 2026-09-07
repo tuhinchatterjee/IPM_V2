@@ -24,11 +24,21 @@ export function MetricPicker({
   onPick,
   placeholder = "Search metrics — delinquency, coverage, gini, npl",
   domain = "",
+  portfolio = "",
   autoFocus = false,
 }: {
   onPick: (hit: MetricHit) => void;
   placeholder?: string;
+  /**
+   * The scope of the lens being built. It RANKS the suggestions — the chosen
+   * domain sorts first among equally good matches — and does not filter them.
+   * Filtering here emptied the picker for anybody whose lens was scoped to
+   * one domain and whose metric lived in another, and then showed the
+   * "not available in this deployment" note underneath, which read as
+   * "delinquency does not exist here" and was false.
+   */
   domain?: string;
+  portfolio?: string;
   autoFocus?: boolean;
 }) {
   const [query, setQuery] = React.useState("");
@@ -58,7 +68,7 @@ export function MetricPicker({
     const timer = setTimeout(async () => {
       setBusy(true);
       try {
-        const body = await api.searchMetrics(wanted, 8, domain);
+        const body = await api.searchMetrics(wanted, 8, domain, portfolio);
         if (!live) return;
         setAnswer({
           for: wanted,
@@ -77,7 +87,7 @@ export function MetricPicker({
       live = false;
       clearTimeout(timer);
     };
-  }, [query, domain]);
+  }, [query, domain, portfolio]);
 
   function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
     if (event.key === "ArrowDown") {
@@ -134,8 +144,17 @@ export function MetricPicker({
                   index === active ? "bg-surface-muted" : "bg-surface"
                 }`}
               >
+                {/*
+                  §10: enough to choose without opening the full definition.
+                  The formula line is the one that earns its space — "30+ DPD"
+                  by count and by balance have almost the same name and are
+                  different numbers, and this is where that shows.
+                */}
                 <span className="flex flex-wrap items-baseline gap-x-2">
                   <span className="text-sm text-text-primary">{hit.name}</span>
+                  <span className="rounded border border-border px-1 text-[10px] text-text-muted">
+                    {hit.unit}
+                  </span>
                   <span className="text-[11px] text-text-muted">
                     {hit.domain}
                   </span>
@@ -143,6 +162,16 @@ export function MetricPicker({
                     <span className="text-[11px] text-warning">User built</span>
                   )}
                 </span>
+                {hit.definition && (
+                  <span className="mt-0.5 block line-clamp-2 text-[11px] leading-relaxed text-text-secondary">
+                    {hit.definition}
+                  </span>
+                )}
+                {hit.formula && (
+                  <span className="mt-0.5 block truncate font-mono text-[10px] text-text-muted">
+                    {hit.formula}
+                  </span>
+                )}
                 <span className="mt-0.5 block text-[11px] text-text-muted">
                   {hit.why}
                 </span>

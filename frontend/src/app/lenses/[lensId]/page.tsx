@@ -8,6 +8,7 @@ import {
   History,
   LayoutGrid,
   Loader2,
+  Pencil,
   RotateCcw,
   Sparkles,
   TriangleAlert,
@@ -32,7 +33,15 @@ import {
   type RenderedPanel,
 } from "@/lib/api";
 import { ChartBuilder } from "@/components/lenses/chart-builder";
+import {
+  EditableCard,
+  LensEditBar,
+  describeChange,
+  saveLayout,
+} from "@/components/lenses/edit-mode";
 import { LayoutEditor } from "@/components/lenses/layout-editor";
+import { LensScopeBar } from "@/components/lenses/lens-scope";
+import { MetricBuilder } from "@/components/lenses/metric-builder";
 import { useAsync } from "@/lib/hooks";
 import { fromLens, linkBack, type ReturnContext } from "@/lib/return-to";
 
@@ -67,7 +76,23 @@ export default function LensPage({
 
 function LensView({ id }: { id: number }) {
   const [nonce, setNonce] = React.useState(0);
-  const rendered = useAsync(() => api.renderLens(id), [id, nonce]);
+  // Null means "whatever the lens opens on" — its declared period, or each
+  // metric's own latest. A period is only in the URL of the request once
+  // somebody has picked one, so the lens's own default is not silently
+  // replaced by whatever was showing when the page first loaded.
+  const [period, setPeriod] = React.useState<string | null>(null);
+  // `keepPrevious`: a lens re-renders underneath the person using it — a
+  // period change, or a metric added from inside edit mode — and blanking the
+  // body for that moment unmounts whatever they were in the middle of along
+  // with it. The metric builder was losing its locked step to a reload it had
+  // itself asked for. The previous render is still true until the new one
+  // arrives, so it stays up until then.
+  const rendered = useAsync(
+    () => api.renderLens(id, period ?? undefined),
+    [id, nonce, period],
+    { keepPrevious: true },
+  );
+  const view = rendered.data;
 
   const [request, setRequest] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -77,6 +102,16 @@ function LensView({ id }: { id: number }) {
   const [showHistory, setShowHistory] = React.useState(false);
   const [arranging, setArranging] = React.useState(false);
   const [charting, setCharting] = React.useState(false);
+
+  // §12–§17. Edit mode is a state of the lens page rather than a different
+  // screen, because what somebody is arranging is the cards with their real
+  // numbers on them — a list of titles reordered well often looks wrong as
+  // tiles.
+  const [editing, setEditing] = React.useState(false);
+  const [order, setOrder] = React.useState<RenderedPanel[] | null>(null);
+  const [dragging, setDragging] = React.useState<number | null>(null);
+  const [addingMetric, setAddingMetric] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
 
   async function ask() {
     if (!request.trim() || busy) return;
@@ -110,28 +145,179 @@ function LensView({ id }: { id: number }) {
     }
   }
 
-  if (rendered.loading && !rendered.data) return <Skeleton className="h-96 w-full" />;
-  if (rendered.error && !rendered.data) {
+  if (rendered.loading && !view) return <Skeleton className="h-96 w-full" />;
+  if (rendered.error && !view) {
     return (
       <Card className="border-negative/40 p-4 text-sm text-negative">
         {rendered.error}
       </Card>
     );
   }
-  if (!rendered.data) return null;
+  if (!view) return null;
 
-  const { lens } = rendered.data;
+  const { lens } = view;
+  const cards = order ?? view.panels;
+
+  function startEditing() {
+    setOrder(view ? [...view.panels] : []);
+    setEditing(true);
+    setArranging(false);
+    setCharting(false);
+    setChanged(null);
+  }
+
+  function stopEditing() {
+    setEditing(false);
+    setOrder(null);
+    setAddingMetric(false);
+    setDragging(null);
+  }
+
+  function move(from: number, to: number) {
+    setOrder((current) => {
+      const list = [...(current ?? view?.panels ?? [])];
+      if (from === to || from < 0 || to < 0 || from >= list.length) return list;
+      const [moved] = list.splice(from, 1);
+      list.splice(to, 0, moved);
+      return list;
+    });
+  }
+
+  async function commit() {
+    if (!order || !view) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await saveLayout(id, order, describeChange(view, order));
+      stopEditing();
+      setChanged("Saved the arrangement as a version of its own.");
+      setNonce((n) => n + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /**
+   * §16 and §17. Adding a metric from an existing lens uses the same builder
+   * the creation flow uses — the same library, the same definition editor, the
+   * same real-data preview, the same lock — and coming back leaves the lens in
+   * edit mode, because somebody who was arranging it was still arranging it.
+   */
+  async function attach(metricId: string) {
+    if (!view) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const next = [
+        ...(order ?? view.panels),
+        {
+          kind: "metric",
+          metric_id: metricId,
+          analysis_id: "",
+          title: "",
+          visual: "kpi",
+          params: {},
+          filters: {},
+          period: "",
+          note: "",
+          status: "succeeded",
+          error: null,
+          result: null,
+        } as unknown as RenderedPanel,
+      ];
+      await saveLayout(id, next, `Added ${metricId} from the lens.`);
+      setChanged(`Added ${metricId}.`);
+      setNonce((n) => n + 1);
+      // Stay in edit mode, and re-seed the order from the reload below.
+      setOrder(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="space-y-7">
       <BackLink href="/lenses" label="Lenses" />
 
-      <Header lens={lens} rendered={rendered.data} />
+      <Header
+        lens={lens}
+        rendered={view}
+        editing={editing}
+        onEdit={startEditing}
+      />
 
-      {arranging ? (
+      <LensScopeBar
+        lensId={id}
+        scope={view.scope}
+        showing={view.period}
+        onPeriod={(chosen) => {
+          setChanged(null);
+          setPeriod(chosen);
+        }}
+        onSaved={() => {
+          setChanged("Saved what this lens is for.");
+          setPeriod(null);
+          setNonce((n) => n + 1);
+        }}
+      />
+
+      {rendered.loading && (
+        <p className="flex items-center gap-1.5 text-xs text-text-muted">
+          <Loader2 className="size-3 animate-spin" aria-hidden />
+          Recalculating every panel for this period.
+        </p>
+      )}
+
+      <LensEditBar
+        editing={editing}
+        dirty={
+          !!order &&
+          JSON.stringify(order.map((p) => p.metric_id || p.analysis_id)) !==
+            JSON.stringify(
+              view.panels.map((p) => p.metric_id || p.analysis_id),
+            )
+        }
+        busy={saving}
+        onSave={commit}
+        onCancel={stopEditing}
+        onAddMetric={() => setAddingMetric(true)}
+      />
+
+      {editing && addingMetric && (
+        <MetricBuilder
+          lensName={lens.name}
+          domain={view.scope.domains[0] ?? ""}
+          portfolio={view.scope.portfolio}
+          chosen={cards.map((p) => p.metric_id).filter(Boolean)}
+          onLocked={(made) => void attach(made.metric_id)}
+          onDone={() => setAddingMetric(false)}
+        />
+      )}
+
+      {editing && !addingMetric ? (
+        <EditBoard
+          panels={cards}
+          dragging={dragging}
+          onDragStart={setDragging}
+          onDropOn={(position) => {
+            if (dragging !== null) move(dragging, position);
+            setDragging(null);
+          }}
+          onRemove={(position) =>
+            setOrder((current) =>
+              (current ?? cards).filter((_, i) => i !== position),
+            )
+          }
+          onMove={(position, step) => move(position, position + step)}
+        />
+      ) : arranging ? (
         <LayoutEditor
           lensId={id}
-          rendered={rendered.data}
+          rendered={view}
           onSaved={() => {
             setArranging(false);
             setChanged("Saved the new arrangement as a version of its own.");
@@ -142,7 +328,7 @@ function LensView({ id }: { id: number }) {
       ) : charting ? (
         <ChartBuilder
           lensId={id}
-          rendered={rendered.data}
+          rendered={view}
           onSaved={() => {
             setCharting(false);
             setChanged("Added the chart as a version of its own.");
@@ -150,8 +336,8 @@ function LensView({ id }: { id: number }) {
           }}
           onCancel={() => setCharting(false)}
         />
-      ) : (
-        <LensBody rendered={rendered.data} lens={lens} />
+      ) : addingMetric ? null : (
+        <LensBody rendered={view} lens={lens} />
       )}
 
       {changed && <p className="text-xs text-positive">{changed}</p>}
@@ -174,7 +360,7 @@ function LensView({ id }: { id: number }) {
             onKeyDown={(e) => {
               if (e.key === "Enter") void ask();
             }}
-            placeholder="Add obligor concentration · remove the stress panel"
+            placeholder="Add obligor concentration · exposure by region · remove the stress panel"
             className="h-9 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           <Button size="sm" onClick={ask} disabled={busy || !request.trim()}>
@@ -347,6 +533,73 @@ function LensBody({
 }
 
 /**
+ * The lens as an editable board.
+ *
+ * The real cards, wiggling, each with a handle and a remove control. One flat
+ * grid rather than the lens's bands: a reorder that crosses a band boundary
+ * has no correct band to land in, and pretending otherwise would put a tile
+ * somewhere nobody chose. The bands come back when the lens is next changed
+ * conversationally, which is where band membership is actually decided.
+ */
+function EditBoard({
+  panels,
+  dragging,
+  onDragStart,
+  onDropOn,
+  onRemove,
+  onMove,
+}: {
+  panels: RenderedPanel[];
+  dragging: number | null;
+  onDragStart: (index: number) => void;
+  onDropOn: (index: number) => void;
+  onRemove: (index: number) => void;
+  onMove: (index: number, step: -1 | 1) => void;
+}) {
+  if (panels.length === 0) {
+    return (
+      <Card className="border-warning/40 p-4 text-xs text-warning">
+        Every card has been removed. A lens needs at least one, so this will not
+        save until you add something back.
+      </Card>
+    );
+  }
+  return (
+    <div className="lens-board grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+         data-testid="edit-board">
+      {panels.map((panel, index) => (
+        <EditableCard
+          key={`${panel.kind}-${panel.metric_id}-${panel.analysis_id}-${index}`}
+          panel={panel}
+          index={index}
+          dragging={dragging === index}
+          onDragStart={() => onDragStart(index)}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={() => onDropOn(index)}
+          onRemove={() => onRemove(index)}
+          onMove={(step) => onMove(index, step)}
+          first={index === 0}
+          last={index === panels.length - 1}
+        >
+          {panel.kind === "chart" ? (
+            <ChartTile panel={panel} />
+          ) : panel.kind === "metric" ? (
+            <MetricTile panel={panel} />
+          ) : (
+            <Card className="p-4">
+              <p className="text-xs font-medium text-text-secondary">
+                {panel.title || panel.analysis_id}
+              </p>
+              <p className="mt-1 text-[11px] text-text-muted">Analysis panel</p>
+            </Card>
+          )}
+        </EditableCard>
+      ))}
+    </div>
+  );
+}
+
+/**
  * What this lens deliberately does not show, and why.
  *
  * A view that quietly omits the number somebody came for teaches them not to
@@ -376,7 +629,17 @@ function NotShownHere({ notes }: { notes: RenderedLens["notes"] }) {
   );
 }
 
-function Header({ lens, rendered }: { lens: Lens; rendered: RenderedLens }) {
+function Header({
+  lens,
+  rendered,
+  editing,
+  onEdit,
+}: {
+  lens: Lens;
+  rendered: RenderedLens;
+  editing: boolean;
+  onEdit: () => void;
+}) {
   return (
     <header>
       <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-text-muted">
@@ -387,6 +650,25 @@ function Header({ lens, rendered }: { lens: Lens; rendered: RenderedLens }) {
           {lens.name}
         </h1>
         <Badge variant="outline">version {lens.version}</Badge>
+        {/*
+          §12. The pencil, next to the name, because "change this thing" is
+          about the thing and the name is what identifies it. Hidden while
+          editing rather than toggling: the edit bar below owns leaving the
+          mode, and two controls for one state is how somebody ends up unable
+          to tell which one they are in.
+        */}
+        {!editing && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onEdit}
+            aria-label={`Edit ${lens.name}`}
+            data-testid="edit-lens"
+          >
+            <Pencil aria-hidden />
+            Edit
+          </Button>
+        )}
         <InfoPopover title="What you are looking at">
           <p>
             Every panel here was executed just now against the published data.

@@ -40,7 +40,21 @@ def ifrs9(installed):
 
 
 def _values(rendered) -> dict[str, float | None]:
-    return {p["metric_id"]: p.get("value") for p in rendered["panels"]}
+    """The figure each metric TILE shows.
+
+    Only the tiles. A lens now carries charts as well, and a chart names the
+    same metric as the tile above it — deliberately, because a bar has to be
+    comparable to the figure it sits under. A chart panel has points rather
+    than a value, so reading every panel into one dictionary let the chart
+    overwrite the tile's number with None and the reconciliation tests below
+    silently compared nothing to nothing.
+    """
+    return {p["metric_id"]: p.get("value") for p in rendered["panels"]
+            if p.get("kind") == "metric"}
+
+
+def _charts(rendered) -> list[dict]:
+    return [p for p in rendered["panels"] if p.get("kind") == "chart"]
 
 
 # ------------------------------------------------------- the definitions
@@ -51,9 +65,45 @@ def test_every_shipped_lens_matches_the_metric_library():
     assert shipped.check() == []
 
 
-def test_the_shipped_lenses_are_the_three_that_were_asked_for():
+def test_the_shipped_lenses_are_the_ones_that_were_asked_for():
+    """Six roles, plus the two retail specialists this work started from.
+
+    Named rather than counted, because "at least five" is satisfied by five of
+    anything and the point is which five: a deployment should open with the
+    lens each of these people would otherwise build by hand.
+    """
     assert {spec.slug for spec in shipped.ALL} == {
-        "retail-credit-risk", "retail-analytics", "corporate-ifrs9"}
+        "cro-portfolio",
+        "corporate-ifrs9",
+        "early-warning-tac",
+        "portfolio-quality",
+        "concentration-large-exposures",
+        "board-risk-committee",
+        "retail-credit-risk",
+        "retail-analytics",
+    }
+
+
+def test_every_shipped_lens_says_who_it_is_for_and_what_it_reads():
+    """A lens whose audience is blank is a lens nobody knows to open."""
+    for spec in shipped.ALL:
+        assert spec.audience.strip(), spec.slug
+        assert spec.purpose.strip(), spec.slug
+        assert spec.portfolio.strip(), spec.slug
+        assert spec.domains, spec.slug
+
+
+def test_no_two_shipped_lenses_are_the_same_lens():
+    """Six role lenses will overlap; none of them may BE another.
+
+    Overlap is the point — a board sees the CRO's headline figures — so the
+    test is on the whole tile set rather than on any single metric.
+    """
+    seen: dict[frozenset, str] = {}
+    for spec in shipped.ALL:
+        key = frozenset(spec.metric_ids)
+        assert key not in seen, f"{spec.slug} shows the same metrics as {seen.get(key)}"
+        seen[key] = spec.slug
 
 
 def test_the_cro_lens_is_preserved_rather_than_rebuilt():
@@ -133,7 +183,41 @@ def test_every_tile_on_the_ifrs9_lens_produces_a_number(ifrs9):
     assert ifrs9["unavailable"] == 0
     for panel in ifrs9["panels"]:
         assert panel["status"] == "succeeded", panel["metric_id"]
+        if panel["kind"] == "chart":
+            continue
         assert isinstance(panel["value"], float), panel["metric_id"]
+
+
+@needs_db
+def test_every_chart_on_the_ifrs9_lens_draws_points(ifrs9):
+    """A chart with no points is a chart nobody should be shown."""
+    charts = _charts(ifrs9)
+    assert charts, "the IFRS 9 lens carries no charts"
+    for panel in charts:
+        assert panel["status"] == "succeeded", panel["metric_id"]
+        assert panel["points"], panel["metric_id"]
+        assert any(p["value"] is not None for p in panel["points"]), (
+            panel["metric_id"])
+
+
+@needs_db
+def test_a_chart_agrees_with_the_tile_it_sits_under(ifrs9):
+    """The bars and the figure are one calculation, so they must reconcile.
+
+    Total exposure by sector is the total exposure. If the chart computed its
+    groups a different way from the tile, the two would drift and the reader
+    would have no way to tell which was right.
+    """
+    tiles = _values(ifrs9)
+    by_sector = next(p for p in _charts(ifrs9)
+                     if p["metric_id"] == "corporate.ifrs9.total_ead"
+                     and p["dimension"] == "sector")
+    assert not by_sector["truncated"], (
+        "the sector chart is truncated, so its bars cannot sum to the book")
+    drawn = sum(p["value"] for p in by_sector["points"]
+                if p["value"] is not None)
+    assert drawn == pytest.approx(tiles["corporate.ifrs9.total_ead"],
+                                  rel=1e-9)
 
 
 @needs_db
@@ -225,7 +309,21 @@ def test_the_retail_analytics_lens_renders(installed):
                                 if p["status"] == "failed"]
     v = _values(out)
     assert v["retail.applications"] > 0
-    for name in ("retail.scorecard.gini", "retail.application_gini"):
+    # The application scorecard is the one this lens is about. The
+    # behavioural scorecard's statistics are on the Retail Credit Risk lens,
+    # where the book they describe is.
+    assert 0.0 < v["retail.application_gini"] < 1.0, (
+        "a Gini outside 0-1 means the metric is not what it says it is; a "
+        "negative one in particular means the score direction is the wrong "
+        "way round")
+
+
+@needs_db
+def test_the_behavioural_scorecard_statistics_are_on_the_risk_lens(installed):
+    """§4 puts the validation read next to the book it is a read of."""
+    out = service.render(installed["retail-credit-risk"].id, user_id=1)
+    v = _values(out)
+    for name in ("retail.scorecard.gini", "retail.scorecard.ks"):
         assert 0.0 < v[name] < 1.0, (
             f"{name} outside 0-1 means the metric is not what it says it is; "
             "a negative Gini in particular means the score direction is "
@@ -240,7 +338,7 @@ def test_a_validation_metric_reports_on_a_cohort_that_has_outcomes(installed):
     resolve to the most recent period whose performance window has closed, and
     the panel says so rather than leaving a reader to assume.
     """
-    out = service.render(installed["retail-analytics"].id, user_id=1)
+    out = service.render(installed["retail-credit-risk"].id, user_id=1)
     panel = next(p for p in out["panels"]
                  if p["metric_id"] == "retail.scorecard.gini")
     assert panel["status"] == "succeeded"
@@ -309,3 +407,70 @@ def test_a_definition_written_before_metric_tiles_still_reads_as_an_analysis():
                                      "title": "Staging", "visual": "table"})
     assert panel.kind == service.KIND_ANALYSIS
     assert panel.metric_id == ""
+
+
+# ------------------------------- a shipped lens is a lens, not a fixture
+#
+# §19. The claim is that the six preconfigured lenses use the same persisted
+# engine as one somebody builds — not a parallel path that happens to look the
+# same. A claim like that is worth a test that would fail if a special case
+# were ever added, because a special case would not announce itself.
+
+
+@needs_db
+def test_a_shipped_lens_is_stored_like_any_other(installed):
+    for spec in shipped.ALL:
+        view = service.by_slug(spec.slug)
+        assert view.id > 0, spec.slug
+        assert view.panels, spec.slug
+        assert view.revisions, f"{spec.slug} has no revision history"
+        assert view.scope["purpose"], spec.slug
+
+
+@needs_db
+def test_a_shipped_lens_can_be_rearranged_and_put_back(installed):
+    """The whole point of §19: no branch anywhere treats these differently.
+
+    Rearranged through the same `revise` a person's edit goes through, and
+    restored through the same `restore`. If a shipped lens were special-cased
+    to protect it, this is where that would show.
+    """
+    view = service.by_slug("board-risk-committee")
+    original = [p["metric_id"] for p in view.panels]
+    assert len(original) > 2
+
+    panels = [service.Panel.from_dict(p) for p in view.panels]
+    swapped = [panels[1], panels[0], *panels[2:]]
+    edited = service.revise(view.id, swapped, request="test rearrangement",
+                            change_summary="Swapped the first two.",
+                            user_id=1)
+    assert [p["metric_id"] for p in edited.panels][:2] == original[1::-1][:2]
+    assert edited.version == view.version + 1
+
+    back = service.restore(view.id, view.version, user_id=1)
+    assert [p["metric_id"] for p in back.panels] == original
+    # Restored FORWARD, so the rearrangement is still on the record.
+    assert back.version > edited.version
+
+
+@needs_db
+def test_a_shipped_lens_can_take_a_metric_it_did_not_ship_with(installed):
+    """§16 reaches shipped lenses too, or they are not really lenses."""
+    view = service.by_slug("portfolio-quality")
+    before = len(view.panels)
+    panels = [service.Panel.from_dict(p) for p in view.panels]
+    panels.append(service.Panel.metric("corporate.undrawn"))
+    after = service.revise(view.id, panels, request="test addition",
+                           change_summary="Added one.", user_id=1)
+    assert len(after.panels) == before + 1
+    service.restore(view.id, view.version, user_id=1)
+
+
+@needs_db
+def test_reinstalling_puts_a_shipped_lens_back_where_it_was(installed):
+    """So an edit made in a demo does not have to be undone by hand."""
+    shipped.install(user_id=1, replace=True)
+    for spec in shipped.ALL:
+        view = service.by_slug(spec.slug)
+        assert [p["metric_id"] for p in view.panels] == list(
+            spec.metric_ids_in_order()), spec.slug

@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -210,15 +210,23 @@ def unavailable(metric_id: str) -> Unsupported | None:
 
 def find(query: str, *, user_id: int | None = None,
          readable: Iterable[str] | None = None,
-         limit: int = search.DEFAULT_LIMIT, domain: str = "") -> dict[str, Any]:
+         limit: int = search.DEFAULT_LIMIT, domain: str = "",
+         portfolio: str = "") -> dict[str, Any]:
     """Typeahead over everything this person may see.
 
     Returns the suggestions and, when there are none, whatever CreditProbe
     knows it cannot calculate that the words seem to name — so a picker can
     explain an absence instead of showing an empty list.
+
+    `domain` and `portfolio` are the scope of the lens being built. They rank
+    rather than exclude — see `search.search` — so an absence reported here is
+    an absence from the whole catalogue rather than from one corner of it,
+    which is what makes the "not available in this deployment" note true when
+    it is shown.
     """
     pool = catalogue(user_id=user_id, readable=readable)
-    hits = search.search(pool, query, limit=limit, domain=domain)
+    hits = search.search(pool, query, limit=limit, domain=domain,
+                         portfolio=portfolio)
     payload: dict[str, Any] = {
         "query": query,
         "results": [hit.to_dict() for hit in hits],
@@ -399,6 +407,17 @@ def value(metric_id: str, *, period: str = "", user_id: int | None = None,
             dataset=metric.datasets[0] if metric.datasets else "")
         calculation.unavailable = str(e)
 
+    return _shape(metric, calculation)
+
+
+def _shape(metric: MetricDefinition,
+           calculation: execution.Calculation) -> dict[str, Any]:
+    """One metric's answer, however it was computed.
+
+    Shared by `value` and `values` deliberately: a figure read on its own and
+    the same figure read as part of a lens must arrive in the same shape, or
+    the tile that draws it grows a branch for which route produced it.
+    """
     return {
         "metric": metric.panel(catalog=_catalog()),
         "calculation": calculation.to_dict(),
@@ -408,6 +427,109 @@ def value(metric_id: str, *, period: str = "", user_id: int | None = None,
         "period": calculation.period,
         "available": calculation.value is not None,
         "unavailable": calculation.unavailable,
+    }
+
+
+def values(metric_ids: Sequence[str], *, period: str = "",
+           user_id: int | None = None,
+           readable: Iterable[str] | None = None) -> dict[str, Any]:
+    """Calculate many metrics, reading each dataset as few times as possible.
+
+    §21. Metrics that share a dataset, a period and a scope are measured in
+    one pass; the rest run on their own. Which group a metric lands in is
+    decided by `execution.batch_key`, and a metric that cannot share — a
+    governed function, a filtered average — is not made to.
+
+    The answer for each metric is the same shape `value` returns, and is
+    produced by the same arithmetic over the same aggregates. This is one
+    query where there were many, not a second way of calculating.
+
+    A metric that cannot be resolved or whose period cannot be worked out
+    comes back with its own reason rather than taking the others with it: a
+    lens where one tile names a deleted metric should lose that tile, not the
+    page.
+    """
+    wanted = list(dict.fromkeys(metric_ids))
+    answers: dict[str, Any] = {}
+    resolved: dict[str, MetricDefinition] = {}
+    at: dict[str, str] = {}
+
+    #: Which period each metric means, resolved once per (dataset, scope,
+    #: rule) rather than once per metric. Twenty-one tiles reading the same
+    #: dataset used to ask the same question twenty-one times — and, worse
+    #: than the cost, two that resolved separately could land on different
+    #: periods, so stage exposures meant to sum to a total would stop.
+    when: dict[tuple[Any, ...], str] = {}
+
+    for metric_id in wanted:
+        try:
+            metric = resolve(metric_id, user_id=user_id, readable=readable)
+        except (MetricNotFound, MetricRefused) as e:
+            answers[metric_id] = {"metric": None, "calculation": None,
+                                  "value": None, "unit": "", "decimals": 2,
+                                  "period": period, "available": False,
+                                  "unavailable": str(e), "error": str(e)}
+            continue
+        resolved[metric_id] = metric
+        if period:
+            at[metric_id] = period
+            continue
+        key = (metric.datasets, metric.scope, metric.period_rule)
+        if key not in when:
+            try:
+                when[key] = default_period(metric)
+            except DataAccessError:
+                when[key] = ""
+        at[metric_id] = when[key]
+
+    groups: dict[tuple[Any, ...], dict[str, Any]] = {}
+    alone: list[str] = []
+    for metric_id, metric in resolved.items():
+        key = execution.batch_key(metric.formula, at[metric_id], metric.scope)
+        if key is None:
+            alone.append(metric_id)
+            continue
+        groups.setdefault(key, {})[metric_id] = metric.formula
+
+    scans = 0
+    for key, formulas in groups.items():
+        metric_id = next(iter(formulas))
+        scope = resolved[metric_id].scope
+        scans += 1
+        when_text = at[metric_id] or "the latest period"
+        try:
+            computed = execution.run_batch(
+                formulas, period=at[metric_id], scope=scope,
+                question=(f"{len(formulas)} metrics over {key[0]} for "
+                          f"{when_text}"))
+        except DataAccessError as e:
+            for one in formulas:
+                calculation = execution.Calculation(
+                    value=None, formula=resolved[one].formula,
+                    period=at[one],
+                    dataset=resolved[one].datasets[0]
+                    if resolved[one].datasets else "")
+                calculation.unavailable = str(e)
+                answers[one] = _shape(resolved[one], calculation)
+            continue
+        for one, calculation in computed.items():
+            answers[one] = _shape(resolved[one], calculation)
+
+    for metric_id in alone:
+        scans += 1
+        answers[metric_id] = value(metric_id, period=at[metric_id],
+                                   user_id=user_id, readable=readable)
+
+    return {
+        "metrics": answers,
+        "requested": wanted,
+        # What the caller saved, so a performance claim can be checked rather
+        # than asserted. `reads` counts the scans that computed values — one
+        # per batch, plus one for each metric that could not share. It does
+        # not count period resolution, which is memoised above and was
+        # already memoised before this existed.
+        "reads": scans,
+        "would_have_been": len(resolved),
     }
 
 
@@ -1196,7 +1318,7 @@ def series(metric_id: str, *, dimension: str, period: str = "",
         wanted = "" if over_time else (period or default_period(metric))
         drawn = execution.breakdown(
             formula, dimension=dimension, period=wanted, scope=metric.scope,
-            where=where, sort=("label" if over_time else sort),
+            where=where, sort=("period" if over_time else sort),
             direction=("asc" if over_time else direction), limit=limit,
             question=f"{series_label} by {dimension}")
     except DataAccessError as e:
