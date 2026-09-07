@@ -228,6 +228,40 @@ def test_record_action_does_not_require_prior_escalation(client, domain_built):
     assert r.json()["comment"]["body"].startswith("Action recorded")
 
 
+# ============================================================= escalation matrix
+
+
+def test_escalation_matrix_get_needs_no_data_build(client):
+    r = client.get("/api/v1/early-warning/v2/escalation-matrix", headers=headers("VIEWER"))
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["ladder"]) == 6
+    assert len(body["specialist_routes"]) == 5
+
+
+def test_escalation_matrix_edit_refused_to_analyst(client):
+    body = client.get("/api/v1/early-warning/v2/escalation-matrix", headers=headers("VIEWER")).json()
+    bundle = {k: v for k, v in body.items() if k not in ("version", "change_note")}
+    r = client.put("/api/v1/early-warning/v2/escalation-matrix", headers=headers("ANALYST"),
+                    json={"bundle": bundle, "change_note": "should be refused"})
+    assert r.status_code == 403
+
+
+def test_escalation_matrix_edit_creates_a_new_version_not_overwrite(client):
+    before = client.get("/api/v1/early-warning/v2/escalation-matrix", headers=headers("VIEWER")).json()
+    bundle = {k: v for k, v in before.items() if k not in ("version", "change_note")}
+
+    r = client.put("/api/v1/early-warning/v2/escalation-matrix", headers=headers("ADMIN"),
+                    json={"bundle": bundle, "change_note": "widen S3 routing"})
+    assert r.status_code == 200
+    after_version = r.json()["version"]
+    assert after_version != before["version"] or before["version"] == "default"
+
+    reread = client.get("/api/v1/early-warning/v2/escalation-matrix", headers=headers("VIEWER")).json()
+    assert reread["version"] == after_version
+    assert reread["change_note"] == "widen S3 routing"
+
+
 def test_record_action_refused_to_viewer(client, domain_built):
     _require_domain(domain_built)
     overview = client.get("/api/v1/early-warning/v2", headers=headers("ANALYST")).json()

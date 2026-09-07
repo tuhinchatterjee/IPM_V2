@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 
 from backend.api.permissions import (
     Principal,
+    RequireEarlyWarningEditEscalationMatrix,
     RequireEarlyWarningEscalate,
     RequireEarlyWarningRecordAction,
     RequireEarlyWarningView,
@@ -32,6 +33,7 @@ from backend.early_warning import (
     case_bridge,
     catalog as ews_catalog,
     classifiers_v2 as clf,
+    escalation as esc,
     lineage as ews_lineage,
     reasons,
     triggers_v2 as trg,
@@ -111,6 +113,62 @@ def methodology() -> dict:
 @router.get("/lineage", summary="Field-level source lineage")
 def lineage() -> dict:
     return {"lineage_version": ews_lineage.LINEAGE_VERSION, "fields": ews_lineage.full_lineage()}
+
+
+# ============================================================= escalation matrix
+
+
+def _active_escalation_bundle() -> tuple[str, dict, str]:
+    """(version, bundle, change_note) of the active escalation matrix, or the
+    default bundle if nothing has been seeded/edited yet."""
+    from backend.db.engine import get_session
+    from backend.models.platform import EarlyWarningEscalationVersion
+
+    try:
+        with get_session() as session:
+            row = (session.query(EarlyWarningEscalationVersion)
+                   .filter_by(is_active=True).order_by(
+                       EarlyWarningEscalationVersion.id.desc()).first())
+            if row is not None:
+                return row.version, row.bundle, row.change_note
+    except Exception:  # pragma: no cover - no database configured
+        pass
+    return "default", esc.default_bundle(), "Seed default — never edited."
+
+
+@router.get("/escalation-matrix", summary="The escalation ladder, specialist routes and routing matrix")
+def escalation_matrix(principal: Principal = RequireEarlyWarningView) -> dict:
+    version, bundle, change_note = _active_escalation_bundle()
+    return {"version": version, "change_note": change_note, **bundle}
+
+
+class EscalationMatrixUpdate(BaseModel):
+    bundle: dict
+    change_note: str = Field(..., min_length=1, max_length=500)
+
+
+@router.put("/escalation-matrix", summary="Edit the escalation matrix (versioned, audited)")
+def update_escalation_matrix(payload: EscalationMatrixUpdate,
+                              principal: Principal = RequireEarlyWarningEditEscalationMatrix) -> dict:
+    """Every edit creates a NEW version rather than overwriting the active
+    one (spec Section AF): a case raised under the old matrix keeps that
+    matrix's routing even after this edit takes effect."""
+    from backend.db.engine import get_session
+    from backend.models.platform import EarlyWarningEscalationVersion
+
+    with get_session() as session:
+        session.query(EarlyWarningEscalationVersion).filter_by(is_active=True).update(
+            {"is_active": False})
+        existing = session.query(EarlyWarningEscalationVersion).count()
+        new_version = f"1.0.{existing}"
+        row = EarlyWarningEscalationVersion(
+            version=new_version, is_active=True, bundle=payload.bundle,
+            change_note=payload.change_note, created_by=principal.user_id,
+        )
+        session.add(row)
+        session.flush()
+        return {"version": row.version, "change_note": row.change_note,
+                "created_by": row.created_by, **row.bundle}
 
 
 # ================================================================ portfolio
