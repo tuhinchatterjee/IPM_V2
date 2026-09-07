@@ -48,7 +48,10 @@ python scripts/bootstrap_demo.py --check
 # expect: 15 of 15 readiness checks pass
 
 python scripts/acceptance/lens_journeys.py
-# expect: 164 passed, 0 failed
+# expect: 213 passed, 0 failed
+
+python scripts/acceptance/lens_builder_journeys.py
+# expect: 73 passed, 0 failed
 ```
 
 **If you have run the test suite against this database**, `--check` will

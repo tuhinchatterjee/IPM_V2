@@ -24,19 +24,28 @@ is not a row that was quietly dropped — it says what exists instead and why.
 
 ## B. Preconfigured lenses (§3–§6)
 
-| Lens | Sections | Figures | Charts | Renders | Evidence |
-|---|---:|---:|---:|---|---|
-| CRO Portfolio | hand-built narrative | — | — | PASS | Preserved as-is; `CRO_LENS` records why it is not a tile grid |
-| Retail Credit Risk | 8 | 23 | 7 | PASS | Journey J; `test_the_retail_lens_renders_and_its_arrears_buckets_nest` |
-| Retail Analytics | 6 | 9 | 11 | PASS | Journey J; `test_the_retail_analytics_lens_renders` |
-| Corporate IFRS 9 | 7 | 34 | 9 | PASS | Journey A and J; five reconciliation tests |
+Eight, installed by the same `create`/`revise` a user's own lens goes through.
+Counts read off `backend/metrics/lenses.py` on this HEAD.
+
+| Lens | Audience | Sections | Figures | Charts | Renders | Evidence |
+|---|---|---:|---:|---:|---|---|
+| CRO Portfolio | Chief Risk Officer | 6 | 20 | 6 | PASS | Journey J; `CRO_LENS` records why its narrative page is not a tile grid |
+| Corporate IFRS 9 | IFRS 9 Committee and Head of Impairment | 7 | 34 | 9 | PASS | Journey A and J; five reconciliation tests |
+| Early Warning and TAC | Transaction Approval Committee | 5 | 10 | 9 | PASS | Journey J |
+| Portfolio Quality | Head of Credit Portfolio Management | 5 | 12 | 8 | PASS | Journey J |
+| Concentration and Large Exposures | Credit Committee and Head of Credit Risk | 5 | 10 | 8 | PASS | Journey J |
+| Board Risk Committee | Board Risk Committee | 6 | 16 | 3 | PASS | Journey J |
+| Retail Credit Risk | Head of Retail Credit Risk | 8 | 23 | 7 | PASS | Journey J; `test_the_retail_lens_renders_and_its_arrears_buckets_nest` |
+| Retail Analytics | Retail Portfolio and Model Validation Analysts | 6 | 9 | 11 | PASS | Journey J; `test_the_retail_analytics_lens_renders` |
+
+195 panels in total, every one producing a real figure.
 
 | Check | Evidence | Result |
 |---|---|---|
 | Every tile names a metric that exists | `lenses.check()` == `[]`, run by a test | PASS |
 | Every chart's dimension is one the dataset offers | `check()` calls `metrics.dimension_fields` | PASS |
 | Every chart type is honest over its dimension | `check()` calls `metrics.chart_types_for` | PASS |
-| No tile fails or renders empty on any shipped lens | Journey J across all three | PASS |
+| No tile fails or renders empty on any shipped lens | Journey J, across all eight | PASS |
 | Stage exposures sum to total exposure | `test_the_three_stage_exposures_sum_to_the_total` | PASS |
 | Stage shares account for the whole book | `test_the_stage_shares_account_for_the_whole_book` | PASS |
 | Coverage is the provision over the exposure | `test_coverage_is_the_provision_over_the_exposure` | PASS |
