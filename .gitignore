@@ -67,3 +67,4 @@ CreditProbe_*.xlsx.*
 data/analytics/retail_application_scorecard_*/
 data/analytics/retail_behavioral_scorecard_*/
 data/scorecard/
+.env.local.migration
