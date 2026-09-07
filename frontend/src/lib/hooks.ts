@@ -36,15 +36,28 @@ export interface AsyncState<T> {
 type Phase<T> =
   | { status: "idle" }
   | { status: "loading" }
+  /** Fetching again, with the previous answer still on screen. */
+  | { status: "reloading"; data: T }
   | { status: "ready"; data: T }
   | { status: "error"; message: string; code: number };
 
 export function useAsync<T>(
   fn: () => Promise<T>,
   deps: React.DependencyList = [],
-  options: { enabled?: boolean } = {},
+  options: { enabled?: boolean; keepPrevious?: boolean } = {},
 ): AsyncState<T> {
   const enabled = options.enabled ?? true;
+  /**
+   * Keep showing the last answer while the next one is fetched.
+   *
+   * Off by default, because on most screens a reload means "this is now
+   * different" and showing the old figures would be a lie. It is on where a
+   * screen re-reads the SAME thing after changing it — a form that saves a
+   * field and re-reads the document. There, blanking the data unmounts the
+   * form between the save and the response, which loses whatever the person
+   * was typing and, on a stepped form, loses the step they were on.
+   */
+  const keepPrevious = options.keepPrevious ?? false;
   const [phase, setPhase] = React.useState<Phase<T>>(enabled ? { status: "loading" } : { status: "idle" });
   const [nonce, setNonce] = React.useState(0);
 
@@ -66,7 +79,10 @@ export function useAsync<T>(
     async function load() {
       // Not called synchronously in the effect body — this is the async
       // subscription-style callback the rule permits.
-      setPhase({ status: "loading" });
+      setPhase((was) =>
+        keepPrevious && was.status === "ready"
+          ? { status: "reloading", data: was.data }
+          : { status: "loading" });
       try {
         const result = await fnRef.current();
         if (!cancelled) setPhase({ status: "ready", data: result });
@@ -90,9 +106,10 @@ export function useAsync<T>(
   const reload = React.useCallback(() => setNonce((n) => n + 1), []);
 
   return {
-    data: phase.status === "ready" ? phase.data : null,
+    data: phase.status === "ready" || phase.status === "reloading"
+      ? phase.data : null,
     error: phase.status === "error" ? phase.message : null,
-    loading: phase.status === "loading",
+    loading: phase.status === "loading" || phase.status === "reloading",
     reload,
     refused: phase.status === "error" && phase.code === 403,
     status: phase.status === "error" && phase.code > 0 ? phase.code : 0,

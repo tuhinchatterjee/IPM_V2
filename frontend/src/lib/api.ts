@@ -8279,6 +8279,12 @@ export type DraftCatalogueRow = {
 export type DraftDetail = DraftRow & {
   completeness: DraftCompleteness;
   catalogue: DraftCatalogueRow[];
+  /**
+   * Everybody this plan names, and nobody else. The person-pickers search
+   * the directory; this is what lets the screen print a name beside a task
+   * without holding a staff list a browser has no business holding.
+   */
+  people: CopilotPerson[];
   agentic_choices: AgenticChoice[];
 };
 

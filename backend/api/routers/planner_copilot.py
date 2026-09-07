@@ -142,6 +142,11 @@ def read_draft(key: str, session: Session = Depends(get_db),
     return {**dr.to_dict(row),
             "completeness": dr.check(plan).to_dict(),
             "catalogue": dr.catalogue(plan),
+            # Everybody this plan names, so a screen can print "Priya Raman"
+            # beside a task without holding the whole staff directory. On an
+            # installation with five thousand people, that directory is not a
+            # list a browser should be asked to keep.
+            "people": dr.people_named(session, plan),
             "agentic_choices": pol.choices()}
 
 
@@ -279,7 +284,11 @@ def code_available(code: str = Query(max_length=40),
 
 @router.get("/people", summary="Colleagues who can be named on a plan")
 def people(search: str = Query(default="", max_length=120),
-           limit: int = Query(default=20, ge=1, le=50),
+           # The governance step needs the WHOLE directory in one select,
+           # not a page of it: a form where the sponsor you want is missing
+           # because they were the fifty-first name is a form nobody can
+           # finish. 50 was a chat-completion limit, and this is not chat.
+           limit: int = Query(default=20, ge=1, le=500),
            session: Session = Depends(get_db),
            principal: Principal = RequireAnalyst) -> dict:
     return copilot.people(session, principal, search=search, limit=limit)

@@ -168,7 +168,10 @@ def people(session: Any, principal: Any, *, search: str = "",
             User.last_name.ilike(like)))
     rows = list(session.execute(
         query.order_by(User.first_name, User.last_name)
-        .limit(max(1, min(int(limit or 20), 50)))).scalars())
+        # 500 rather than 50: this is what fills the governance selects on
+        # the creation form, and a form where the sponsor you want is missing
+        # because they were the fifty-first name is a form nobody can finish.
+        .limit(max(1, min(int(limit or 20), 500)))).scalars())
     return {"people": [
         {"user_id": int(row.id),
          "name": " ".join(p for p in (row.first_name, row.last_name) if p)

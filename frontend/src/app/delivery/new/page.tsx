@@ -38,7 +38,8 @@ export default function NewDeliveryProjectPage() {
   const [showImport, setShowImport] = React.useState(
     params.get("import") === "1");
 
-  const directory = useAsync(() => api.planner.plan.people("", 200), []);
+  // A first offer, not the directory: the person-pickers search.
+  const directory = useAsync(() => api.planner.plan.people("", 50), []);
   const people: CopilotPerson[] = directory.data?.people ?? [];
 
   // The draft is fetched from the key rather than pushed into state after
@@ -46,7 +47,11 @@ export default function NewDeliveryProjectPage() {
   // always shows the plan as it actually is rather than as the last response
   // said it would be.
   const draft = useAsync(
-    () => api.planner.plan.draft(key), [key], { enabled: Boolean(key) });
+    () => api.planner.plan.draft(key), [key],
+    // `keepPrevious`, because every step saves and then re-reads: without it
+    // the form would be replaced by a loading message after every field,
+    // remount, and lose both what was being typed and which step it was on.
+    { enabled: Boolean(key), keepPrevious: true });
   const detail: DraftDetail | null = draft.data;
 
   const start = React.useCallback(async () => {

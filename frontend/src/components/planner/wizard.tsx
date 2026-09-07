@@ -14,6 +14,7 @@ import {
   type DraftNote,
   type DraftPreview,
 } from "@/lib/api";
+import { useAsync } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 
 /**
@@ -54,10 +55,10 @@ const num = (row: Row, key: string): number | null => {
 export const STEPS = [
   { key: "OVERVIEW", n: 1, title: "Overview",
     detail: "What this project is and what it has to achieve.",
-    scopes: ["project"] },
+    scopes: ["overview"] },
   { key: "GOVERNANCE", n: 2, title: "People & governance",
     detail: "Who sponsors it, who runs it, and who hears about a delay.",
-    scopes: ["project"] },
+    scopes: ["governance"] },
   { key: "AGENTIC", n: 3, title: "Agentic AI policy",
     detail: "When the agent chases somebody, and who it escalates to.",
     scopes: ["agentic"] },
@@ -105,6 +106,19 @@ export function ProjectWizard({
   onPublished: (projectId: number) => void;
   onSaved: () => void;
 }) {
+  // Names to print come from the plan itself; the `people` prop is only the
+  // handful offered before anybody searches.
+  const named = React.useMemo(
+    () => {
+      const rows = [...(detail.people ?? [])];
+      for (const person of people) {
+        if (!rows.some((row) => row.user_id === person.user_id)) {
+          rows.push(person);
+        }
+      }
+      return rows;
+    },
+    [detail.people, people]);
   const [at, setAt] = React.useState(() => stepIndex(detail.step));
   const [error, setError] = React.useState("");
   const [blockers, setBlockers] = React.useState<DraftNote[]>([]);
@@ -227,7 +241,7 @@ export function ProjectWizard({
           )}
           {step.key === "GOVERNANCE" && (
             <GovernanceStep key={`g${detail.version}`} detail={detail}
-                            people={people} apply={apply}
+                            people={named} apply={apply}
                             register={register} />
           )}
           {step.key === "AGENTIC" && (
@@ -235,11 +249,11 @@ export function ProjectWizard({
                          register={register} />
           )}
           {step.key === "MILESTONES" && (
-            <MilestonesStep detail={detail} people={people} apply={apply}
+            <MilestonesStep detail={detail} people={named} apply={apply}
                             busy={busy} register={register} />
           )}
           {step.key === "TASKS" && (
-            <TasksStep detail={detail} people={people} apply={apply}
+            <TasksStep detail={detail} people={named} apply={apply}
                        busy={busy} register={register} />
           )}
           {step.key === "DEPENDENCIES" && (
@@ -247,7 +261,7 @@ export function ProjectWizard({
                               register={register} />
           )}
           {step.key === "REVIEW" && (
-            <PreviewStep detail={detail} people={people} register={register} />
+            <PreviewStep detail={detail} people={named} register={register} />
           )}
           {step.key === "PUBLISH" && (
             <PublishStep detail={detail} onPublished={onPublished}
@@ -334,6 +348,15 @@ function Field({
   );
 }
 
+/**
+ * Naming a colleague, on an installation with more people than a list.
+ *
+ * A plain select over the directory works until the directory is a bank's:
+ * then the person you want is the six hundredth name alphabetically, the
+ * list does not contain them, and the form cannot be completed at all. So
+ * this searches. The people already on the plan are offered without typing,
+ * because most of the time the next name is one of the last few.
+ */
 function PersonSelect({
   value,
   people,
@@ -341,25 +364,59 @@ function PersonSelect({
   label,
 }: {
   value: number | null;
+  /** Everybody already named on this plan, offered before any search. */
   people: CopilotPerson[];
   onChange: (id: number | null) => void;
   label?: string;
 }) {
+  const [search, setSearch] = React.useState("");
+  const [query, setQuery] = React.useState("");
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => setQuery(search.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const found = useAsync(
+    () => api.planner.plan.people(query, 50), [query]);
+
+  // The chosen person always stays in the list, whatever the search says:
+  // a select that dropped its own value while somebody typed would silently
+  // unassign them.
+  const chosen = [...people, ...(found.data?.people ?? [])]
+    .find((person) => person.user_id === value);
+  const options: CopilotPerson[] = [];
+  for (const person of [...(chosen ? [chosen] : []), ...people,
+                        ...(found.data?.people ?? [])]) {
+    if (!options.some((row) => row.user_id === person.user_id)) {
+      options.push(person);
+    }
+  }
+
   return (
-    <select
-      value={value ?? ""}
-      aria-label={label}
-      onChange={(event) =>
-        onChange(event.target.value ? Number(event.target.value) : null)}
-      className="mt-1 h-9 w-full rounded-md border border-border bg-surface-raised px-2 text-sm text-text-primary"
-    >
-      <option value="">Nobody yet</option>
-      {people.map((person) => (
-        <option key={person.user_id} value={person.user_id}>
-          {person.name}
-        </option>
-      ))}
-    </select>
+    <>
+      <Input
+        value={search}
+        aria-label={label ? `Find ${label}` : "Find a person"}
+        placeholder="Type a name to search"
+        className="mt-1 h-8 text-xs"
+        onChange={(event) => setSearch(event.target.value)}
+      />
+      <select
+        value={value ?? ""}
+        aria-label={label}
+        onChange={(event) =>
+          onChange(event.target.value ? Number(event.target.value) : null)}
+        className="mt-1 h-9 w-full rounded-md border border-border bg-surface-raised px-2 text-sm text-text-primary"
+      >
+        <option value="">Nobody yet</option>
+        {options.map((person) => (
+          <option key={person.user_id} value={person.user_id}>
+            {person.name} ({person.username})
+          </option>
+        ))}
+      </select>
+    </>
   );
 }
 

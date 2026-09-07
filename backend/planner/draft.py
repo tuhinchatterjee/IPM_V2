@@ -544,38 +544,45 @@ def check(plan: dict[str, Any]) -> Completeness:
     def warn(scope: str, code: str, message: str, fix: str = "") -> None:
         found.notes.append(Note(WARNING, scope, code, message, fix))
 
-    # ---- the project
+    # ---- what the project IS
+    #
+    # Scoped "overview" and "governance" rather than both "project", because
+    # the form asks for them on different steps and a step that cannot tell
+    # which of its own notes belong to it either blocks on somebody else's
+    # question or lets its own through.
     if not str(overview.get("name") or "").strip():
-        blocker("project", "", "The project has no name.",
+        blocker("overview", "", "The project has no name.",
                 "Give it a name a committee would recognise.")
     if not str(overview.get("code") or "").strip():
-        blocker("project", "", "The project has no code.",
+        blocker("overview", "", "The project has no code.",
                 "A code is how people refer to it in chat and in exports.")
     if not str(overview.get("description") or "").strip():
-        warn("project", "", "There is no overview.",
+        warn("overview", "", "There is no overview.",
              "One sentence is enough, and it is what the agent quotes back.")
     if not str(overview.get("objective") or "").strip():
-        warn("project", "", "There is no objective.",
+        warn("overview", "", "There is no objective.",
              "What has to be true for this to be finished?")
+
+    # ---- who is answerable, and when it runs
     for key, label in (("sponsor_id", "sponsor"), ("manager_id", "manager")):
         if not governance.get(key):
-            blocker("project", "", f"The project has no {label}.",
+            blocker("governance", "", f"The project has no {label}.",
                     f"Name a {label}: the agent escalates through them.")
     if not governance.get("owner_id"):
-        warn("project", "", "The project has no owner.",
+        warn("governance", "", "The project has no owner.",
              "Often the manager; say so explicitly and the plan reads better.")
     if not governance.get("escalation_id"):
-        blocker("project", "", "There is nobody to escalate to.",
+        blocker("governance", "", "There is nobody to escalate to.",
                 "This is the last stop when a task's own escalation owner has "
                 "not resolved something.")
     start = _as_date(governance.get("start_date"), "Project start")
     end = _as_date(governance.get("target_end_date"), "Target completion")
     if not start:
-        blocker("project", "", "The project has no start date.")
+        blocker("governance", "", "The project has no start date.")
     if not end:
-        blocker("project", "", "The project has no target completion date.")
+        blocker("governance", "", "The project has no target completion date.")
     if start and end and end < start:
-        blocker("project", "",
+        blocker("governance", "",
                 f"The project would finish on {end}, before it starts "
                 f"on {start}.")
 
@@ -1346,6 +1353,28 @@ _COMMANDS = {
 
 
 # ------------------------------------------------------------------ preview
+
+
+def people_named(session: Any, plan: dict[str, Any]) -> list[dict[str, Any]]:
+    """Everybody this plan puts a name to, resolved once.
+
+    The form needs display names for the owners, sponsors and escalation
+    contacts it is showing back. Sending the whole staff directory to do that
+    is what made the person-pickers unusable on a large installation; this is
+    the ten or twenty people the plan actually mentions.
+    """
+    wanted = _people(plan)
+    if not wanted:
+        return []
+    from backend.db.models import User
+
+    rows = session.execute(select(User).where(User.id.in_(wanted))).scalars()
+    return [{"user_id": int(row.id),
+             "name": " ".join(p for p in (row.first_name, row.last_name) if p)
+                     or row.username,
+             "username": row.username,
+             "role": row.role}
+            for row in rows]
 
 
 def to_dict(draft: PlannerDraft) -> dict[str, Any]:
