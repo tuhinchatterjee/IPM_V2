@@ -37,6 +37,7 @@ from backend.whatif import domain as dm
 from backend.whatif import engine as wf
 from backend.whatif import macro as mc
 from backend.whatif import methodology as me
+from backend.whatif import staging as st
 from backend.whatif import steps as sp
 
 RUN_VERSION = "1.0.0"
@@ -81,8 +82,19 @@ class WhatIfResult:
             "steps": [s.to_dict() for s in self.state.active],
             "population": self.summary.get("population_description", ""),
             "population_count": self.population,
+            # Two rule sets, named separately, because a reader has to know
+            # which one produced which column.
             "staging_criteria": self.state.staging.describe(),
             "staging_version": self.state.staging.version,
+            "reported_staging": st.reported().describe(),
+            "reported_staging_version": st.reported().version,
+            "whatif_staging": self.state.staging.describe(),
+            "whatif_staging_version": self.state.staging.version,
+            "staging_note": (
+                "The baseline column is the reported book, staged by the "
+                "governed corporate policy. The What-If column is staged by "
+                "this thread's rule set. No What-If rule changes the reported "
+                "book."),
             "ecl_methodology": self.choice.label,
             "ecl_methodology_version": self.choice.version,
             "methodology_stamp": self.choice.stamp,
@@ -217,8 +229,12 @@ def execute(state: sp.ScenarioState, *, requested: str = "",
             "Train and activate one, or use the Delta Model.")
 
     scenario = state.scenario()
+    # The thread's rule set is ALWAYS what stages the scenario — including the
+    # default one, which is the governed three plus Rule A and Rule B. Passing
+    # None here when it happened to be the default was how the two scenario
+    # rules got quietly switched off.
     engine_result = wf.run(scenario, period=period, source=source,
-                           staging=state.staging if not state.staging.is_default else None)
+                           staging=state.staging)
     frame = engine_result.frame
     warnings = list(engine_result.warnings)
     warnings.extend(state.staging.unread(frame))

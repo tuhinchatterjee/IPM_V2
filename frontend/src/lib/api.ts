@@ -4596,6 +4596,16 @@ export interface WhatIfStagingRule {
   note: string;
 }
 
+export interface WhatIfStagingKind {
+  kind: string;
+  label: string;
+  threshold_means: string;
+  threshold_unit: string;
+  has_floor: boolean;
+  floor_means: string;
+  needs: string;
+}
+
 export interface WhatIfStaging {
   owner: string;
   policy_version: string;
@@ -4604,16 +4614,36 @@ export interface WhatIfStaging {
   is_default: boolean;
   combination: string;
   note: string;
+  scope: string;
+  label: string;
+  scope_note: string;
+  editable: boolean;
+  combination_note: string;
   rules: WhatIfStagingRule[];
   default_presumption: string;
   measurement: Record<string, string>;
-  editable?: string[];
+  /** Present on the /staging responses: the two rule sets, side by side. */
+  reported?: WhatIfStaging;
+  whatif?: WhatIfStaging;
+  editable_fields?: string[];
   combinations?: string[];
   kinds?: string[];
+  kind_catalogue?: WhatIfStagingKind[];
+}
+
+export interface WhatIfStagingRuleIn {
+  key: string;
+  threshold?: number;
+  floor?: number;
+  enabled?: boolean;
+  name?: string;
+  kind?: string;
+  note?: string;
+  remove?: boolean;
 }
 
 export interface WhatIfStagingIn {
-  rules: { key: string; threshold?: number; floor?: number; enabled?: boolean }[];
+  rules: WhatIfStagingRuleIn[];
   combination?: string;
   note?: string;
 }

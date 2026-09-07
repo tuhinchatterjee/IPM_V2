@@ -283,7 +283,15 @@ class TestTheStageMigration:
 
 
 class TestTheStagingCriteria:
-    def test_the_default_reproduces_the_governed_policy_exactly(self) -> None:
+    """Two rule sets, and what keeps them apart.
+
+    `reported()` is what staged the accounts. `default()` is what a scenario
+    is staged on, and it carries Rule A and Rule B switched ON. The tests that
+    matter here are the ones that prove the first is unchanged by the second.
+    """
+
+    def test_the_reported_rule_set_is_the_governed_policy(self) -> None:
+        """Not "agrees with" — IS. Elementwise, on a hard random frame."""
         rng = np.random.default_rng(11)
         n = 3000
         frame = pd.DataFrame({
@@ -291,18 +299,72 @@ class TestTheStagingCriteria:
             "pd_at_origination_pct": rng.uniform(0.05, 12, n),
             "current_dpd": rng.integers(0, 150, n),
             "default_flag": rng.integers(0, 2, n) == 1})
-        mine = st.default().stage(frame)
+        mine = st.reported().stage(frame)
         governed = policy.stage_of(frame["pd_12m"], frame["pd_at_origination_pct"],
                                    frame["current_dpd"], frame["default_flag"])
         assert (mine == governed).all(), (
-            "an unmodified thread must get the reported book back")
+            "the reported rule set must be a second READING of the governed "
+            "policy, not a second implementation of it")
 
-    def test_the_governed_rules_are_on_and_the_assumptions_are_off(self) -> None:
+    def test_the_reported_rule_set_reproduces_the_book_it_staged(self, period) -> None:
+        """The real book, borrower by borrower. This is the tie to the accounts."""
+        frame, _ = dm.book(period)
+        staged = st.reported().stage(frame)
+        reported = pd.to_numeric(frame["stage"], errors="coerce").to_numpy()
+        assert (staged == reported).all(), (
+            "if these differ the base column of every What-If has stopped "
+            "tying to the reported book")
+
+    def test_the_reported_set_is_the_governed_three_and_nothing_else(self) -> None:
+        on = {r.key for r in st.reported().enabled}
+        assert on == {st.RELATIVE_PD, st.ABSOLUTE_PD, st.DAYS_PAST_DUE}
+
+    def test_the_whatif_default_adds_rule_a_and_rule_b(self) -> None:
         criteria = st.default()
         on = {r.key for r in criteria.enabled}
-        assert on == {st.RELATIVE_PD, st.ABSOLUTE_PD, st.DAYS_PAST_DUE}
-        assert not criteria.rule(st.RATING_NOTCHES).enabled
-        assert not criteria.rule(st.SCENARIO_PD_RATIO).enabled
+        assert on == {st.RELATIVE_PD, st.ABSOLUTE_PD, st.DAYS_PAST_DUE,
+                      st.RULE_A, st.RULE_B}
+        assert criteria.rule(st.RULE_A).threshold == 2.0, "two notches"
+        assert criteria.rule(st.RULE_B).threshold == 2.0, "twice the PD"
+
+    def test_the_two_sets_are_labelled_apart(self) -> None:
+        assert st.reported().label != st.default().label
+        assert st.reported().version != st.default().version
+        assert st.reported().scope == st.SCOPE_REPORTED
+        assert st.default().scope == st.SCOPE_WHATIF
+
+    def test_the_reported_set_cannot_be_edited(self) -> None:
+        """It is what staged the accounts. It is shown, not changed."""
+        assert not st.reported().editable
+        for change in (lambda p: p.with_rule(st.RULE_A, enabled=True),
+                       lambda p: p.combined(st.ALL),
+                       lambda p: p.removed(st.RULE_A)):
+            with pytest.raises(st.StagingError) as raised:
+                change(st.reported())
+            assert "reported-book" in str(raised.value).lower()
+
+    def test_rule_a_fires_on_two_notches_and_not_on_one(self) -> None:
+        frame = pd.DataFrame({
+            "pd_12m": [0.5, 0.5], "pd_at_origination_pct": [0.5, 0.5],
+            "current_dpd": [0, 0], "default_flag": [False, False],
+            "notches_moved": [1, 2]})
+        staged = st.default().stage(frame)
+        assert staged[0] == 1, "one notch is not the rule"
+        assert staged[1] == 2, "two notches is a SICR under the What-If set"
+
+    def test_rule_b_fires_on_a_doubling_against_the_pre_scenario_pd(self) -> None:
+        """The comparison a scenario is actually about: the borrower's OWN
+        pre-shock level, not its level at origination years ago."""
+        frame = pd.DataFrame({
+            "pd_12m": [1.90, 2.10],           # the scenario PD
+            "pd_12m_baseline": [1.0, 1.0],    # the pre-scenario PD
+            "pd_at_origination_pct": [1.0, 1.0],
+            "current_dpd": [0, 0], "default_flag": [False, False]})
+        staged = st.default().stage(frame)
+        assert staged[0] == 1, "1.9x is not a doubling"
+        assert staged[1] == 2, "2.1x is"
+        assert (st.reported().stage(frame) == 1).all(), (
+            "and neither of them moves under the rules that staged the book")
 
     def test_an_assumption_says_it_is_an_assumption(self) -> None:
         rule = st.default().rule(st.RATING_NOTCHES)
@@ -678,14 +740,111 @@ class TestRunningAWhatIf:
         base = sp.ScenarioState(period=dm.latest_period()).add(
             sp.Step(sp.RATING, (sc.Shock(sc.RATING, 2, sc.NOTCHES),),
                     interpreted="downgrade two notches"))
-        strict = base.with_staging(
-            st.default().with_rule(st.RATING_NOTCHES, enabled=True))
-        loose_result = rn.execute(base, requested=me.DELTA)
-        strict_result = rn.execute(strict, requested=me.DELTA)
-        assert (strict_result.summary["stage_2_migrations"]
-                > loose_result.summary["stage_2_migrations"])
-        assert strict_result.context()["staging_version"] != \
-            loose_result.context()["staging_version"]
+        looser = base.with_staging(st.default()
+                                   .with_rule(st.RULE_A, enabled=False)
+                                   .with_rule(st.RULE_B, enabled=False))
+        default_result = rn.execute(base, requested=me.DELTA)
+        looser_result = rn.execute(looser, requested=me.DELTA)
+        assert (default_result.summary["stage_2_migrations"]
+                > looser_result.summary["stage_2_migrations"])
+        assert default_result.context()["staging_version"] != \
+            looser_result.context()["staging_version"]
+
+    def test_rule_a_and_rule_b_are_not_the_same_rule(self) -> None:
+        """On a rating shock they mostly agree, because notching moves PD by
+        the masterscale ratio. They part company as soon as the scenario is
+        not a rating move — and on a single notch, where the PD ratio is
+        1.7x and only a one-notch Rule A can see it."""
+        period = dm.latest_period()
+        only_a = st.default().with_rule(st.RULE_B, enabled=False)
+        only_b = st.default().with_rule(st.RULE_A, enabled=False)
+        neither = only_a.with_rule(st.RULE_A, enabled=False)
+
+        # A PD shock moves no rating, so Rule A cannot see it and Rule B can.
+        pd_shock = sp.ScenarioState(period=period).add(
+            sp.Step(sp.PD, (sc.Shock(sc.PD, 150.0, sc.RELATIVE),),
+                    interpreted="PD +150%"))
+        a_only = rn.execute(pd_shock.with_staging(only_a), requested=me.DELTA)
+        b_only = rn.execute(pd_shock.with_staging(only_b), requested=me.DELTA)
+        none = rn.execute(pd_shock.with_staging(neither), requested=me.DELTA)
+        assert a_only.summary["stage_2_migrations"] == \
+            none.summary["stage_2_migrations"], "Rule A sees no rating move"
+        assert b_only.summary["stage_2_migrations"] > \
+            none.summary["stage_2_migrations"], "Rule B sees the PD double"
+
+        # One notch is a 1.7x PD move: Rule B misses it, a one-notch Rule A
+        # does not.
+        one_notch = sp.ScenarioState(period=period).add(
+            sp.Step(sp.RATING, (sc.Shock(sc.RATING, 1, sc.NOTCHES),),
+                    interpreted="downgrade one notch"))
+        sharper = rn.execute(
+            one_notch.with_staging(only_a.with_rule(st.RULE_A, threshold=1.0)),
+            requested=me.DELTA)
+        blunter = rn.execute(one_notch.with_staging(neither), requested=me.DELTA)
+        assert sharper.summary["stage_2_migrations"] > \
+            blunter.summary["stage_2_migrations"]
+
+    def test_a_two_notch_downgrade_triggers_sicr_under_the_whatif_default(self) -> None:
+        """The requirement, end to end: Rule A on by default, and the reported
+        book unmoved by it."""
+        period = dm.latest_period()
+        state = sp.ScenarioState(period=period).add(
+            sp.Step(sp.RATING, (sc.Shock(sc.RATING, 2, sc.NOTCHES),),
+                    interpreted="downgrade two notches"))
+        result = rn.execute(state, requested=me.DELTA)
+        frame = result.borrowers
+
+        # The default rule set is the What-If one, and it is named as such.
+        assert result.state.staging.scope == st.SCOPE_WHATIF
+        assert result.state.staging.rule(st.RULE_A).enabled
+
+        # Names that were Stage 1 and moved two notches are now Stage 2.
+        opening = pd.to_numeric(frame["stage_baseline"], errors="coerce")
+        stressed = pd.to_numeric(frame["stage_stressed"], errors="coerce")
+        moved = int(((opening == 1) & (stressed == 2)).sum())
+        assert moved > 0, "Rule A must move somebody on a two-notch downgrade"
+
+        # And the same scenario staged by the REPORTED rules moves fewer.
+        reported_only = rn.execute(state.with_staging(st.reported()),
+                                   requested=me.DELTA)
+        assert (result.summary["stage_2_migrations"]
+                > reported_only.summary["stage_2_migrations"])
+
+    def test_the_historical_book_is_untouched_by_the_whatif_rules(self) -> None:
+        """The load-bearing one. Whatever the scenario does, the baseline
+        column is the reported book — the same Stage distribution, the same
+        ECL, to the last riyal."""
+        period = dm.latest_period()
+        frame, _ = dm.book(period)
+        before = (pd.to_numeric(frame["stage"], errors="coerce")
+                  .value_counts().sort_index().to_dict())
+        reported_ecl = float(pd.to_numeric(frame["final_ecl"],
+                                           errors="coerce").fillna(0).sum())
+
+        state = sp.ScenarioState(period=period).add(
+            sp.Step(sp.RATING, (sc.Shock(sc.RATING, 4, sc.NOTCHES),),
+                    interpreted="downgrade four notches"))
+        result = rn.execute(state, requested=me.DELTA)
+
+        after, _ = dm.book(period)
+        assert (pd.to_numeric(after["stage"], errors="coerce")
+                .value_counts().sort_index().to_dict()) == before
+        assert result.summary["baseline_ecl"] == pytest.approx(
+            reported_ecl, rel=1e-9), (
+            "the baseline column is the reported ECL, whatever the scenario "
+            "rule set did to the What-If column")
+
+    def test_the_result_names_both_rule_sets(self) -> None:
+        state = sp.ScenarioState(period=dm.latest_period()).add(
+            sp.Step(sp.PD, (sc.Shock(sc.PD, 20.0, sc.RELATIVE),),
+                    interpreted="PD +20%"))
+        context = rn.execute(state, requested=me.DELTA).context()
+        assert context["reported_staging_version"] == st.reported().version
+        assert context["whatif_staging_version"] == st.default().version
+        assert context["reported_staging"]["label"] != \
+            context["whatif_staging"]["label"]
+        assert context["reported_staging"]["editable"] is False
+        assert context["whatif_staging"]["editable"] is True
 
 
 # ======================================================= reports vs scenarios

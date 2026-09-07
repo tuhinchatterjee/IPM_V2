@@ -53,6 +53,8 @@ import type {
   WhatIfSectorProfile,
   WhatIfStageProfile,
   WhatIfStaging,
+  WhatIfStagingKind,
+  WhatIfStagingRuleIn,
   WhatIfState,
 } from "@/lib/api";
 import { ApiError, api } from "@/lib/api";
@@ -120,6 +122,11 @@ export default function WhatIfThreadPage() {
   const [error, setError] = React.useState("");
   const [stagingOpen, setStagingOpen] = React.useState(false);
   const [staging, setStaging] = React.useState<WhatIfStaging | null>(null);
+  // The reported-book rule set is held separately and never edited: it is what
+  // staged the accounts, and the screen shows it so the override is legible.
+  const [reportedStaging, setReportedStaging] = React.useState<WhatIfStaging | null>(null);
+  const [stagingKinds, setStagingKinds] = React.useState<WhatIfStagingKind[]>([]);
+  const [stagingCombinations, setStagingCombinations] = React.useState<string[]>([]);
   const [periods, setPeriods] = React.useState<string[]>([]);
   const [migrationView, setMigrationView] = React.useState("count");
   const [saveName, setSaveName] = React.useState("");
@@ -152,7 +159,10 @@ export default function WhatIfThreadPage() {
         ]);
         if (cancelled) return;
         setPeriods(periodBody.periods);
-        setStaging(stagingBody);
+        setStaging(stagingBody.whatif ?? stagingBody);
+        setReportedStaging(stagingBody.reported ?? null);
+        setStagingKinds(stagingBody.kind_catalogue ?? []);
+        setStagingCombinations(stagingBody.combinations ?? []);
         const period = periodBody.latest ?? "";
 
         if (savedId) {
@@ -317,17 +327,80 @@ export default function WhatIfThreadPage() {
     say({ kind: "replied", text: "Reset to the reported position." });
   };
 
-  const changeStaging = async (key: string, changes: { threshold?: number; enabled?: boolean }) => {
-    const rules = (staging?.rules ?? []).map((r) =>
-      r.key === key ? { key: r.key, threshold: changes.threshold ?? r.threshold, enabled: changes.enabled ?? r.enabled } : { key: r.key, threshold: r.threshold, enabled: r.enabled },
-    );
+  /**
+   * Every staging edit goes through here.
+   *
+   * The thread holds the WHOLE rule set as a list of edits against the default
+   * one, and posts it to /whatif/staging for validation before it is allowed
+   * near a result. That way a rule the engine cannot apply is refused on the
+   * screen that composed it, not three clicks later inside a run — and the
+   * thread's override is exactly what the next execute will use.
+   */
+  const applyStaging = async (
+    rules: WhatIfStagingRuleIn[],
+    combination?: string,
+    told?: string,
+  ) => {
     try {
-      const preview = await api.whatIfStagingPreview({ rules, combination: staging?.combination });
-      setStaging(preview);
+      const preview = await api.whatIfStagingPreview({
+        rules,
+        combination: combination ?? staging?.combination,
+      });
+      setStaging(preview.whatif ?? preview);
+      setReportedStaging(preview.reported ?? reportedStaging);
       setState({ ...state, staging: { rules, combination: preview.combination } });
       say({
         kind: "replied",
-        text: `Staging criteria updated (${preview.version}). Run again to apply them.`,
+        text: told ?? `Staging criteria updated (${preview.version}). Run again to apply them.`,
+        tone: "note",
+      });
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : String(e));
+    }
+  };
+
+  /** The current rule set as the edit list the API speaks. */
+  const stagingEdits = (): WhatIfStagingRuleIn[] =>
+    (staging?.rules ?? []).map((r) => ({
+      key: r.key,
+      kind: r.kind,
+      name: r.name,
+      threshold: r.threshold,
+      floor: r.floor,
+      enabled: r.enabled,
+    }));
+
+  const changeStaging = (key: string, changes: WhatIfStagingRuleIn) =>
+    applyStaging(
+      stagingEdits().map((r) => (r.key === key ? { ...r, ...changes, key } : r)),
+    );
+
+  const addStagingRule = (rule: WhatIfStagingRuleIn) =>
+    applyStaging([...stagingEdits(), rule], undefined,
+      `Added "${rule.name}" to this What-If's staging criteria. Run again to apply it.`);
+
+  const removeStagingRule = (key: string) =>
+    applyStaging(
+      [...stagingEdits().filter((r) => r.key !== key), { key, remove: true }],
+      undefined,
+      "Rule removed from this What-If's staging criteria.");
+
+  const combineStaging = (how: string) =>
+    applyStaging(stagingEdits(), how,
+      how === "ALL"
+        ? "A borrower now needs EVERY enabled rule to fire before it moves to Stage 2."
+        : "A borrower now moves to Stage 2 if ANY enabled rule fires.");
+
+  const resetStaging = async () => {
+    try {
+      const fresh = await api.whatIfStaging();
+      setStaging(fresh.whatif ?? fresh);
+      setReportedStaging(fresh.reported ?? null);
+      setStagingKinds(fresh.kind_catalogue ?? []);
+      setState({ ...state, staging: null });
+      say({
+        kind: "replied",
+        text: "Staging criteria back to the What-If default.",
         tone: "note",
       });
     } catch (e) {
@@ -401,9 +474,16 @@ export default function WhatIfThreadPage() {
       {staging ? (
         <StagingCriteria
           staging={staging}
+          reported={reportedStaging}
+          kinds={stagingKinds}
+          combinations={stagingCombinations}
           open={stagingOpen}
           onToggle={() => setStagingOpen((v) => !v)}
           onChange={changeStaging}
+          onAdd={addStagingRule}
+          onRemove={removeStagingRule}
+          onCombination={combineStaging}
+          onReset={resetStaging}
         />
       ) : null}
 

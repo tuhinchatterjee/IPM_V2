@@ -370,6 +370,82 @@ class TestTheHttpSurface:
         assert assumptions and all(
             "ot a requirement of IFRS 9" in r["basis"] for r in assumptions)
 
+    def test_both_rule_sets_are_served_and_only_one_is_editable(self, client) -> None:
+        body = client.get("/api/v1/whatif/staging", headers=ANALYST).json()
+        assert body["reported"]["editable"] is False
+        assert body["whatif"]["editable"] is True
+        assert body["reported"]["label"] != body["whatif"]["label"]
+        on_reported = {r["key"] for r in body["reported"]["rules"] if r["enabled"]}
+        on_whatif = {r["key"] for r in body["whatif"]["rules"] if r["enabled"]}
+        assert on_whatif - on_reported == {"rating_notches", "scenario_pd_ratio"}, (
+            "Rule A and Rule B are exactly what the What-If set adds")
+
+    def test_the_composition_surface_says_what_a_rule_can_be(self, client) -> None:
+        body = client.get("/api/v1/whatif/staging", headers=ANALYST).json()
+        kinds = {k["kind"] for k in body["kind_catalogue"]}
+        assert kinds == set(body["kinds"])
+        for entry in body["kind_catalogue"]:
+            assert entry["label"] and entry["threshold_means"] and entry["needs"]
+        assert set(body["combinations"]) == {"ANY", "ALL"}
+
+    def test_a_rule_can_be_added_and_then_removed(self, client) -> None:
+        added = client.post(
+            "/api/v1/whatif/staging", headers=ANALYST,
+            json={"rules": [{"key": "watch_pd", "kind": "absolute_pd",
+                             "name": "Watchlist PD", "threshold": 6.0}]}).json()
+        assert any(r["key"] == "watch_pd" for r in added["rules"])
+        assert not [r for r in added["rules"] if r["key"] == "watch_pd"][0]["governed"]
+        assert added["version"] != added["reported"]["version"]
+
+        removed = client.post(
+            "/api/v1/whatif/staging", headers=ANALYST,
+            json={"rules": [{"key": "watch_pd", "kind": "absolute_pd",
+                             "name": "Watchlist PD", "threshold": 6.0},
+                            {"key": "watch_pd", "remove": True}]}).json()
+        assert not any(r["key"] == "watch_pd" for r in removed["rules"])
+
+    def test_rules_can_be_combined_with_and_as_well_as_or(self, client) -> None:
+        body = client.post("/api/v1/whatif/staging", headers=ANALYST,
+                           json={"rules": [], "combination": "ALL"}).json()
+        assert body["combination"] == "ALL"
+        assert "EVERY" in body["combination_note"]
+
+    def test_an_unknown_kind_is_refused_on_the_screen_that_composed_it(
+            self, client) -> None:
+        response = client.post(
+            "/api/v1/whatif/staging", headers=ANALYST,
+            json={"rules": [{"key": "nonsense", "kind": "vibes",
+                             "threshold": 1.0}]})
+        assert response.status_code in (400, 422)
+
+    def test_a_new_key_with_no_kind_is_refused_rather_than_ignored(
+            self, client) -> None:
+        response = client.post(
+            "/api/v1/whatif/staging", headers=ANALYST,
+            json={"rules": [{"key": "no_such_rule", "threshold": 1.0}]})
+        assert response.status_code in (400, 422)
+
+    def test_a_thread_level_override_survives_execution(self, client) -> None:
+        """The override the screen composed is what the run is staged on."""
+        state = {"period": "", "steps": [
+            {"kind": "rating", "shocks": [
+                {"kind": "rating", "magnitude": 2, "unit": "notches",
+                 "target": "", "label": ""}],
+             "interpreted": "downgrade two notches"}],
+            "staging": {"rules": [{"key": "rating_notches", "enabled": False},
+                                  {"key": "scenario_pd_ratio", "enabled": False}],
+                        "combination": "ANY"},
+            "methodology": "delta", "model_version": None,
+            "title": None, "thread_id": None}
+        body = client.post("/api/v1/whatif/execute", headers=ANALYST,
+                           json={"state": state}).json()
+        context = body["context"]
+        assert context["whatif_staging_version"] != context["reported_staging_version"]
+        assert not [r for r in context["whatif_staging"]["rules"]
+                    if r["key"] == "rating_notches"][0]["enabled"]
+        # And the reported set on the same result is untouched by the override.
+        assert context["reported_staging"]["version"].endswith("reported-book")
+
     def test_the_delta_model_explains_itself(self, client) -> None:
         body = client.get("/api/v1/whatif/models/delta", headers=ANALYST).json()
         assert "Official Baseline ECL" in body["formula"]

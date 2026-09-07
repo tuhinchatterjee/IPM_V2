@@ -275,12 +275,14 @@ class ScenarioState:
                 if step.kind == kind:
                     shocks.extend(step.shocks)
         population = _merge_populations([s.population for s in self.active])
+        # Rule A belongs to the STAGING RULE SET, and only there. The engine
+        # also carries a scenario-level `rating_deterioration_sicr` assumption,
+        # which is the legacy `/whatif/run` path's way of asking for the same
+        # thing; setting both would be two implementations of one rule, so a
+        # thread leaves the assumption off and lets its rule set decide.
         assumptions = sc.Assumptions(
             reevaluate_sicr=True,
-            rating_deterioration_sicr=bool(
-                (self.staging.rule(st.RATING_NOTCHES) or st.Rule("", "", "", 0)).enabled),
-            rating_sicr_notches=int(
-                (self.staging.rule(st.RATING_NOTCHES) or st.Rule("", "", "", 2)).threshold or 2),
+            rating_deterioration_sicr=False,
             collateral_to_lgd=True)
         return sc.Scenario(
             key=key, name=name or self.title or self.describe(),

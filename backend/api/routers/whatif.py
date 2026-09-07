@@ -11,6 +11,7 @@ can argue with is one nobody should believe.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -264,10 +265,21 @@ def _unavailable(message: str) -> HTTPException:
 
 
 class StagingRuleIn(BaseModel):
+    """One edit to the rule set: change a rule, add one, or remove one.
+
+    `kind` is what makes it an ADDITION — a key the set does not have, with a
+    kind the engine can apply, is a new rule. `remove` takes one out. Anything
+    else edits the rule the key names.
+    """
+
     key: str = Field(min_length=1, max_length=48)
     threshold: float | None = Field(default=None, ge=0.0, le=1000.0)
     floor: float | None = Field(default=None, ge=0.0, le=1000.0)
     enabled: bool | None = None
+    name: str | None = Field(default=None, max_length=80)
+    kind: str | None = Field(default=None, max_length=32)
+    note: str | None = Field(default=None, max_length=300)
+    remove: bool = False
 
 
 class StagingIn(BaseModel):
@@ -338,10 +350,32 @@ class ActivateIn(BaseModel):
 
 
 def _staging_from(body: StagingIn | None) -> stg.StagingPolicy:
+    """The thread's What-If rule set, from the edits the client sent.
+
+    Starts from `stg.default()` — the governed three plus Rule A and Rule B —
+    and applies each edit in order. A rule the set does not have, carrying a
+    kind, is an addition; `remove` takes one out; everything else is an edit.
+    """
     policy_ = stg.default()
     if body is None:
         return policy_
     for rule in body.rules:
+        if rule.remove:
+            policy_ = policy_.removed(rule.key)
+            continue
+        if policy_.rule(rule.key) is None:
+            if not rule.kind:
+                raise stg.StagingError(
+                    f"There is no staging rule called '{rule.key}', and no "
+                    "kind was given to add one. The kinds are: "
+                    + ", ".join(stg.KINDS))
+            policy_ = policy_.added(stg.Rule(
+                key=rule.key, name=rule.name or rule.key, kind=rule.kind,
+                threshold=float(rule.threshold or 0.0),
+                floor=float(rule.floor or 0.0),
+                enabled=True if rule.enabled is None else rule.enabled,
+                governed=False, note=rule.note or ""))
+            continue
         changes: dict[str, Any] = {}
         if rule.threshold is not None:
             changes["threshold"] = rule.threshold
@@ -349,10 +383,16 @@ def _staging_from(body: StagingIn | None) -> stg.StagingPolicy:
             changes["floor"] = rule.floor
         if rule.enabled is not None:
             changes["enabled"] = rule.enabled
+        if rule.name is not None:
+            changes["name"] = rule.name
+        if rule.note is not None:
+            changes["note"] = rule.note
         if changes:
             policy_ = policy_.with_rule(rule.key, **changes)
     if body.combination:
         policy_ = policy_.combined(body.combination)
+    if body.note is not None:
+        policy_ = replace(policy_, note=body.note)
     return policy_
 
 
@@ -567,20 +607,38 @@ def stage_migration(period: str = Query(default="", max_length=24),
 
 @router.get("/staging")
 def staging_criteria(_: Any = RequireAnalyst) -> dict[str, Any]:
-    """The default staging criteria, and what a thread may change about them."""
-    return {**stg.default().describe(),
-            "editable": ["threshold", "floor", "enabled"],
+    """Both rule sets, and what a thread may change about the What-If one.
+
+    The reported-book set is returned alongside so a screen can show the two
+    next to each other. It is marked `editable: false` and the engine refuses
+    to change it, because it is what staged the accounts.
+    """
+    whatif = stg.default()
+    return {**whatif.describe(),
+            "reported": stg.reported().describe(),
+            "whatif": whatif.describe(),
+            "editable_fields": ["threshold", "floor", "enabled", "name", "note"],
             "combinations": list(stg.COMBINATIONS),
-            "kinds": list(stg.KINDS)}
+            "kinds": list(stg.KINDS),
+            "kind_catalogue": [dict(k) for k in stg.KIND_CATALOGUE]}
 
 
 @router.post("/staging")
 def staging_preview(body: StagingIn, _: Any = RequireAnalyst) -> dict[str, Any]:
-    """Validate an edited rule set and show what it would be."""
+    """Validate an edited rule set and show what it would be.
+
+    The reported-book set comes back unchanged next to it, so the screen that
+    is about to save an override can show what it is overriding.
+    """
     try:
-        return _staging_from(body).describe()
+        edited = _staging_from(body)
     except stg.StagingError as e:
         raise _refused(str(e)) from e
+    return {**edited.describe(),
+            "reported": stg.reported().describe(),
+            "whatif": edited.describe(),
+            "kind_catalogue": [dict(k) for k in stg.KIND_CATALOGUE],
+            "combinations": list(stg.COMBINATIONS)}
 
 
 # ------------------------------------------------------------- methodology

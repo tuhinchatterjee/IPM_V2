@@ -43,6 +43,7 @@ from backend.ifrs9 import policy
 from backend.whatif import masterscale as ms
 from backend.whatif import scenarios as sc
 from backend.whatif import sensitivity as sv
+from backend.whatif import staging as st
 
 #: What the engine reads. Everything else in the answer is derived from these.
 FIELDS: tuple[str, ...] = (
@@ -90,6 +91,9 @@ class Result:
     #: applied to exactly the same shocked book rather than re-deriving it,
     #: which is how the Delta and ML answers stay comparable.
     frame: pd.DataFrame = field(default_factory=pd.DataFrame)
+    #: The rule set that staged the SCENARIO. The baseline column is always
+    #: staged by the reported-book policy, so the trace can name both.
+    staging: Any = None
 
     @property
     def population_size(self) -> int:
@@ -690,23 +694,27 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
     # has changed nothing reproduces the reported book. A thread that has
     # edited them is running its own assumption, and says so on every result.
     work["pd_12m_baseline"] = work["pd_12m"]
-    criteria = staging
-    if criteria is None:
-        stressed_stage = (
-            policy.stage_of(work["pd_stressed"], work["pd_at_origination_pct"],
-                            work["current_dpd"], work["default_flag"])
-            if scenario.assumptions.reevaluate_sicr
-            else work["stage_baseline"].to_numpy())
-    else:
-        # The criteria read `pd_12m`, and the thing being staged is the
-        # STRESSED PD. Assigning over a copy rather than renaming, because a
-        # rename would leave two columns called `pd_12m` and the rule would
-        # read whichever came first.
-        evaluated = work.copy()
-        evaluated["pd_12m"] = work["pd_stressed"]
-        stressed_stage = (criteria.stage(evaluated)
-                          if scenario.assumptions.reevaluate_sicr
-                          else work["stage_baseline"].to_numpy())
+    # Two rule sets, and which one applies to which column is the point.
+    #
+    #   stage_baseline  — the REPORTED book's own Stage column, staged by the
+    #                     governed policy. Never recomputed here, so no What-If
+    #                     rule can move a name in it.
+    #   stage_stressed  — staged by the THREAD's rule set, which defaults to
+    #                     the governed three plus Rule A and Rule B.
+    #
+    # A caller that passes no criteria gets `reported()`, which reproduces
+    # `policy.stage_of` exactly — one code path, proven equivalent by test,
+    # rather than two implementations that agree by inspection.
+    criteria = staging if staging is not None else st.reported()
+    # The criteria read `pd_12m`, and the thing being staged is the STRESSED
+    # PD. Assigning over a copy rather than renaming, because a rename would
+    # leave two columns called `pd_12m` and the rule would read whichever came
+    # first.
+    evaluated = work.copy()
+    evaluated["pd_12m"] = work["pd_stressed"]
+    stressed_stage = (criteria.stage(evaluated)
+                      if scenario.assumptions.reevaluate_sicr
+                      else work["stage_baseline"].to_numpy())
 
     if scenario.assumptions.rating_deterioration_sicr and "notches_moved" in work.columns:
         deteriorated = (work["notches_moved"]
@@ -743,17 +751,23 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
 
     work["stage_stressed"] = stressed_stage
     moved = int((work["stage_stressed"] != work["stage_baseline"]).sum())
+    if scenario.assumptions.reevaluate_sicr:
+        applied = "; ".join(rule.describe() for rule in criteria.enabled)
+        detail = (
+            f"The reported book was staged by the governed corporate policy "
+            f"({policy.POLICY_VERSION}) and that column is untouched. The "
+            f"SCENARIO was staged by the {criteria.label.lower()} "
+            f"({criteria.version}), which fires on "
+            f"{'any' if criteria.combination == st.ANY else 'every'} of: "
+            f"{applied}.")
+    else:
+        detail = "Staging was held at the reported Stage."
     steps.append({
         "step": "SICR re-evaluation",
-        "detail": ("The governed SICR triggers were re-read against the "
-                   f"stressed PD ({policy.POLICY_VERSION}): PD at least "
-                   f"{policy.SICR_PD_RATIO:g}x origination and "
-                   f"{policy.SICR_PD_ABSOLUTE:.2f}pp higher, PD at or above "
-                   f"{policy.SICR_ABSOLUTE_PD:.0f}%, or "
-                   f"{policy.SICR_DPD_DAYS}+ days past due."
-                   if scenario.assumptions.reevaluate_sicr
-                   else "Staging was held at the reported Stage."),
+        "detail": detail,
         "affected": moved,
+        "reported_staging_version": st.reported().version,
+        "whatif_staging_version": criteria.version,
     })
 
     # ---- re-measure, and carry onto the reported basis
@@ -786,7 +800,7 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
     result = Result(scenario=scenario, period=settled,
                     borrowers=_present(work), steps=steps,
                     sensitivity_rows=rows, warnings=warnings,
-                    frame=work.copy())
+                    frame=work.copy(), staging=criteria)
     result.summary = _summarise(work, scenario, settled)
     result.by_sector = _group(work, "sector")
     result.by_rating = _group(work, "internal_rating")

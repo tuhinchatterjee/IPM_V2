@@ -16,6 +16,7 @@
  */
 
 import * as React from "react";
+import { useState } from "react";
 
 import { CategoryBarChart } from "@/components/analytics/charts";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +37,8 @@ import type {
   WhatIfMigration,
   WhatIfProfileRow,
   WhatIfStaging,
+  WhatIfStagingKind,
+  WhatIfStagingRuleIn,
   WhatIfStepState,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -238,17 +241,204 @@ export function MethodologyGate({
 }
 
 /** The staging criteria, viewable and editable, near the top of every thread. */
-export function StagingCriteria({
+export function StagingRuleTable({
   staging,
   onChange,
+  onRemove,
+}: {
+  staging: WhatIfStaging;
+  onChange?: (key: string, changes: WhatIfStagingRuleIn) => void;
+  onRemove?: (key: string) => void;
+}) {
+  const editable = staging.editable !== false && Boolean(onChange);
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Rule</TableHead>
+            <TableHead>What it says</TableHead>
+            <TableHead numeric>Threshold</TableHead>
+            <TableHead>Basis</TableHead>
+            <TableHead>On</TableHead>
+            {onRemove ? <TableHead /> : null}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {staging.rules.map((rule) => (
+            <TableRow key={rule.key} data-rule={rule.key} data-scope={staging.scope}>
+              <TableCell className="font-medium">{rule.name}</TableCell>
+              <TableCell className="text-text-secondary">{rule.rule}</TableCell>
+              <TableCell numeric>
+                {editable ? (
+                  <input
+                    type="number"
+                    step="0.01"
+                    defaultValue={rule.threshold}
+                    aria-label={`${rule.name} threshold`}
+                    onBlur={(e) => onChange?.(rule.key, { key: rule.key, threshold: Number(e.target.value) })}
+                    className="w-20 rounded border border-border bg-surface px-2 py-1 text-right tabular-nums"
+                  />
+                ) : (
+                  rule.threshold
+                )}
+              </TableCell>
+              <TableCell>
+                <Badge variant={rule.governed ? "info" : "warning"}>
+                  {rule.governed ? "Governed" : "Assumption"}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <input
+                  type="checkbox"
+                  defaultChecked={rule.enabled}
+                  disabled={!editable}
+                  aria-label={`${rule.name} enabled`}
+                  onChange={(e) => onChange?.(rule.key, { key: rule.key, enabled: e.target.checked })}
+                />
+              </TableCell>
+              {onRemove ? (
+                <TableCell>
+                  {rule.governed ? (
+                    <span className="text-[11px] text-text-muted">kept</span>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Remove ${rule.name}`}
+                      onClick={() => onRemove(rule.key)}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </TableCell>
+              ) : null}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+/** Compose a new rule. Kept deliberately small: a kind, a number, a name. */
+function AddStagingRule({
+  kinds,
+  onAdd,
+}: {
+  kinds: WhatIfStagingKind[];
+  onAdd: (rule: WhatIfStagingRuleIn) => void;
+}) {
+  const [kind, setKind] = useState(kinds[0]?.kind ?? "");
+  const [threshold, setThreshold] = useState("2");
+  const [name, setName] = useState("");
+  const chosen = kinds.find((k) => k.kind === kind);
+  if (!kinds.length) return null;
+  return (
+    <div className="rounded-md border border-border bg-surface-subtle p-3" data-testid="staging-add">
+      <div className="mb-2 text-[12px] font-medium text-text-primary">Add a rule</div>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-[11px] text-text-muted">
+          Kind
+          <select
+            aria-label="New rule kind"
+            value={kind}
+            onChange={(e) => setKind(e.target.value)}
+            className="rounded border border-border bg-surface px-2 py-1 text-[12px] text-text-primary"
+          >
+            {kinds.map((k) => (
+              <option key={k.kind} value={k.kind}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-[11px] text-text-muted">
+          Threshold{chosen ? ` (${chosen.threshold_unit})` : ""}
+          <input
+            type="number"
+            step="0.01"
+            aria-label="New rule threshold"
+            value={threshold}
+            onChange={(e) => setThreshold(e.target.value)}
+            className="w-24 rounded border border-border bg-surface px-2 py-1 text-right tabular-nums"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-[11px] text-text-muted">
+          Name
+          <input
+            type="text"
+            aria-label="New rule name"
+            placeholder={chosen?.label ?? ""}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-56 rounded border border-border bg-surface px-2 py-1 text-[12px]"
+          />
+        </label>
+        <Button
+          size="sm"
+          data-testid="staging-add-submit"
+          onClick={() => {
+            const label = name.trim() || chosen?.label || kind;
+            onAdd({
+              key: `custom_${kind}_${Date.now().toString(36)}`,
+              kind,
+              name: label,
+              threshold: Number(threshold),
+              enabled: true,
+              note: "Added for this What-If thread.",
+            });
+            setName("");
+          }}
+        >
+          Add rule
+        </Button>
+      </div>
+      {chosen ? (
+        <p className="mt-2 text-[11px] text-text-muted">
+          {chosen.threshold_means}. Needs <code>{chosen.needs}</code>.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The two staging rule sets, side by side.
+ *
+ * The reported-book set is shown and never edited: it is what staged the
+ * accounts, and the baseline column of every What-If ties to it. The What-If
+ * set is this thread's, and everything about it can be changed — thresholds,
+ * which rules are on, rules added or removed, and whether a borrower needs to
+ * trip ANY rule or EVERY rule.
+ */
+export function StagingCriteria({
+  staging,
+  reported,
+  kinds,
+  combinations,
+  onChange,
+  onAdd,
+  onRemove,
+  onCombination,
+  onReset,
   open,
   onToggle,
 }: {
   staging: WhatIfStaging;
-  onChange?: (key: string, changes: { threshold?: number; enabled?: boolean }) => void;
+  reported?: WhatIfStaging | null;
+  kinds?: WhatIfStagingKind[];
+  combinations?: string[];
+  onChange?: (key: string, changes: WhatIfStagingRuleIn) => void;
+  onAdd?: (rule: WhatIfStagingRuleIn) => void;
+  onRemove?: (key: string) => void;
+  onCombination?: (how: string) => void;
+  onReset?: () => void;
   open: boolean;
   onToggle: () => void;
 }) {
+  const [showReported, setShowReported] = useState(false);
+  const options = combinations?.length ? combinations : ["ANY", "ALL"];
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3">
@@ -256,9 +446,11 @@ export function StagingCriteria({
           <CardTitle className="text-[14px]">Staging criteria</CardTitle>
           <p className="mt-0.5 text-[11px] text-text-muted">
             {staging.is_default
-              ? "The governed corporate policy — what staged the reported book."
-              : "Edited for this What-If. The result says so."}{" "}
-            <span className="tabular-nums">{staging.version}</span>
+              ? "The default What-If rule set: the governed triggers plus Rule A and Rule B."
+              : "Overridden for this What-If. Every result says so."}{" "}
+            <span className="tabular-nums" data-testid="whatif-staging-version">
+              {staging.version}
+            </span>
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={onToggle} data-testid="staging-toggle">
@@ -266,61 +458,70 @@ export function StagingCriteria({
         </Button>
       </CardHeader>
       {open ? (
-        <CardContent className="space-y-3">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Rule</TableHead>
-                  <TableHead>What it says</TableHead>
-                  <TableHead numeric>Threshold</TableHead>
-                  <TableHead>Basis</TableHead>
-                  <TableHead>On</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {staging.rules.map((rule) => (
-                  <TableRow key={rule.key} data-rule={rule.key}>
-                    <TableCell className="font-medium">{rule.name}</TableCell>
-                    <TableCell className="text-text-secondary">{rule.rule}</TableCell>
-                    <TableCell numeric>
-                      {onChange ? (
-                        <input
-                          type="number"
-                          step="0.01"
-                          defaultValue={rule.threshold}
-                          aria-label={`${rule.name} threshold`}
-                          onBlur={(e) =>
-                            onChange(rule.key, { threshold: Number(e.target.value) })
-                          }
-                          className="w-20 rounded border border-border bg-surface px-2 py-1 text-right tabular-nums"
-                        />
-                      ) : (
-                        rule.threshold
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={rule.governed ? "info" : "warning"}>
-                        {rule.governed ? "Governed" : "Assumption"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <input
-                        type="checkbox"
-                        defaultChecked={rule.enabled}
-                        aria-label={`${rule.name} enabled`}
-                        onChange={(e) => onChange?.(rule.key, { enabled: e.target.checked })}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+        <CardContent className="space-y-4">
+          <div data-testid="whatif-staging" data-scope={staging.scope}>
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[12px] font-medium text-text-primary">{staging.label}</div>
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1 text-[11px] text-text-muted">
+                  Combine with
+                  <select
+                    aria-label="Combine staging rules"
+                    data-testid="staging-combination"
+                    value={staging.combination}
+                    disabled={!onCombination}
+                    onChange={(e) => onCombination?.(e.target.value)}
+                    className="rounded border border-border bg-surface px-2 py-1 text-[12px] text-text-primary"
+                  >
+                    {options.map((how) => (
+                      <option key={how} value={how}>
+                        {how}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {onReset ? (
+                  <Button variant="ghost" size="sm" onClick={onReset} data-testid="staging-reset">
+                    Reset
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+            <p className="mb-2 text-[11px] text-text-muted">{staging.scope_note}</p>
+            <p className="mb-2 text-[11px] text-text-muted">{staging.combination_note}</p>
+            <StagingRuleTable staging={staging} onChange={onChange} onRemove={onRemove} />
           </div>
+
+          {onAdd && kinds?.length ? <AddStagingRule kinds={kinds} onAdd={onAdd} /> : null}
+
+          {reported ? (
+            <div data-testid="reported-staging" data-scope={reported.scope}>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <div className="text-[12px] font-medium text-text-primary">
+                  {reported.label}{" "}
+                  <span className="tabular-nums text-[11px] text-text-muted">
+                    {reported.version}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-testid="reported-staging-toggle"
+                  onClick={() => setShowReported((was) => !was)}
+                >
+                  {showReported ? "Hide" : "Show"}
+                </Button>
+              </div>
+              <p className="mb-2 text-[11px] text-text-muted">{reported.scope_note}</p>
+              {showReported ? <StagingRuleTable staging={reported} /> : null}
+            </div>
+          ) : null}
+
           <p className="text-[11px] text-text-muted">{staging.default_presumption}</p>
           <p className="text-[11px] text-text-muted">
             Rules marked <strong>Assumption</strong> are CreditProbe What-If settings
-            chosen by the person asking. They are not requirements of IFRS 9.
+            chosen by the person asking. They are not requirements of IFRS 9, and they
+            change the What-If column only — never the reported book.
           </p>
         </CardContent>
       ) : null}

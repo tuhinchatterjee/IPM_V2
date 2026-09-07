@@ -15,14 +15,36 @@ pre-shock PD counts rather than against origination. Those are ASSUMPTIONS a
 person is making, not requirements the standard imposes, and the difference has
 to survive into the answer or the answer is misleading.
 
-So this module is a thin, explicit layer over the governed policy:
+So this module holds TWO rule sets, and keeping them apart is the whole
+design:
+
+  * `reported()` — the rule set that produced the REPORTED BOOK. The governed
+    three triggers, at the policy's own thresholds. It reproduces
+    `policy.stage_of` exactly, and `test_the_reported_rule_set_is_the_governed
+    _policy` proves it borrower by borrower on the real book. Nothing a thread
+    does can change it, because the base column of every scenario answer ties
+    to the accounts through it.
+
+  * `default()` — the default rule set a WHAT-IF SCENARIO is staged on. The
+    same governed three, PLUS the two scenario rules the product requires:
+    Rule A, a rating deterioration of two notches or more; and Rule B, a
+    scenario PD at or above twice the borrower's own pre-scenario level. Both
+    are enabled, because a simulation that cannot recognise a two-notch
+    downgrade as a significant increase in credit risk is not simulating the
+    question anyone asked.
+
+The two never meet. The baseline side of a comparison is staged by
+`reported()`; the scenario side by the thread's own rule set, which starts as
+`default()`. So enabling Rule A moves names in the SCENARIO and cannot move a
+single name in the reported book — and every result says which rule set
+produced which column.
+
+Beyond that:
 
   * every rule says whether its basis is GOVERNED or a WHAT-IF ASSUMPTION;
-  * the default set reproduces `policy.stage_of` EXACTLY, so a thread that
-    changes nothing gets the reported book back;
-  * a thread may enable, disable, re-threshold or add rules, and the resulting
-    rule set carries a version fingerprint that is persisted with the saved
-    What-If and stamped into the trace.
+  * a thread may enable, disable, re-threshold, add or remove rules and choose
+    how they combine, and the resulting rule set carries a version fingerprint
+    that is persisted with the saved What-If and stamped into the trace.
 
 What this module will not do
 ----------------------------
@@ -67,11 +89,65 @@ SCENARIO_PD_RATIO = "scenario_pd_ratio"
 KINDS: tuple[str, ...] = (RELATIVE_PD, ABSOLUTE_PD, DAYS_PAST_DUE,
                           RATING_NOTCHES, SCENARIO_PD_RATIO)
 
+#: What each kind of rule is, for a screen that offers to ADD one. A person
+#: composing a rule has to know what the number they type means and what the
+#: book needs to carry for it to be answerable, so both are stated here rather
+#: than left to a tooltip.
+KIND_CATALOGUE: tuple[dict[str, Any], ...] = (
+    {"kind": RELATIVE_PD, "label": "Relative PD increase",
+     "threshold_means": "multiple of the PD at origination",
+     "threshold_unit": "x", "has_floor": True,
+     "floor_means": "and at least this many percentage points higher",
+     "needs": "pd_at_origination_pct"},
+    {"kind": ABSOLUTE_PD, "label": "Absolute PD level",
+     "threshold_means": "12-month PD at or above this level",
+     "threshold_unit": "%", "has_floor": False, "floor_means": "",
+     "needs": "pd_12m"},
+    {"kind": DAYS_PAST_DUE, "label": "Days past due",
+     "threshold_means": "days past due at or above this many",
+     "threshold_unit": "days", "has_floor": False, "floor_means": "",
+     "needs": "current_dpd"},
+    {"kind": RATING_NOTCHES, "label": "Rating deterioration",
+     "threshold_means": "notches of deterioration under the scenario",
+     "threshold_unit": "notches", "has_floor": False, "floor_means": "",
+     "needs": "the scenario to move a rating"},
+    {"kind": SCENARIO_PD_RATIO, "label": "PD against the pre-scenario level",
+     "threshold_means": "multiple of the borrower's own pre-scenario PD",
+     "threshold_unit": "x", "has_floor": False, "floor_means": "",
+     "needs": "pd_12m"},
+)
+
 #: How the enabled rules combine. ANY is the governed reading — a borrower
 #: trips Stage 2 if any trigger fires.
 ANY = "ANY"
 ALL = "ALL"
 COMBINATIONS: tuple[str, ...] = (ANY, ALL)
+
+# ------------------------------------------------------------------ scopes
+
+#: The rule set that staged the reported book. Fixed, and not a What-If
+#: setting: the base column of every scenario answer ties to the accounts
+#: through it.
+SCOPE_REPORTED = "reported_book"
+#: The rule set a What-If SCENARIO is staged on. Starts from the governed three
+#: plus Rule A and Rule B, and a thread may change it.
+SCOPE_WHATIF = "what_if"
+SCOPES: tuple[str, ...] = (SCOPE_REPORTED, SCOPE_WHATIF)
+
+SCOPE_LABEL = {
+    SCOPE_REPORTED: "Reported-book staging policy",
+    SCOPE_WHATIF: "What-If staging policy",
+}
+SCOPE_NOTE = {
+    SCOPE_REPORTED: (
+        "The governed corporate IFRS 9 policy that staged the reported book. "
+        "It is shown so the comparison is legible; it is not editable, and no "
+        "What-If rule can move a borrower in it."),
+    SCOPE_WHATIF: (
+        "The rules the SCENARIO is staged on. It starts from the governed "
+        "three plus the two What-If scenario rules, and this thread may change "
+        "it. Changing it changes the scenario column only."),
+}
 
 
 def _column(frame: pd.DataFrame, name: str) -> pd.Series:
@@ -138,14 +214,14 @@ class Rule:
                 "note": self.note}
 
 
-def _defaults() -> tuple[Rule, ...]:
-    """The governed three, plus the two What-If assumptions, switched off.
+#: Rule A and Rule B, in the product's own numbering. Named here because both
+#: rule sets refer to them and the numbering is what the requirement uses.
+RULE_A = RATING_NOTCHES
+RULE_B = SCENARIO_PD_RATIO
 
-    The governed rules are enabled and carry the policy's own thresholds, so an
-    unmodified policy reproduces `policy.stage_of` exactly. The assumptions are
-    present but OFF: a rating downgrade is not a SICR trigger in this policy,
-    and turning it on is a decision somebody has to make and be seen to make.
-    """
+
+def _governed() -> tuple[Rule, ...]:
+    """The three triggers of the governed corporate policy, at its thresholds."""
     return (
         Rule(RELATIVE_PD, "Relative PD increase", RELATIVE_PD,
              policy.SICR_PD_RATIO, policy.SICR_PD_ABSOLUTE,
@@ -154,15 +230,56 @@ def _defaults() -> tuple[Rule, ...]:
              policy.SICR_ABSOLUTE_PD, 0.0, enabled=True, governed=True),
         Rule(DAYS_PAST_DUE, "Days past due", DAYS_PAST_DUE,
              policy.SICR_DPD_DAYS, 0.0, enabled=True, governed=True),
-        Rule(RATING_NOTCHES, "Rating deterioration", RATING_NOTCHES,
-             2.0, 0.0, enabled=False, governed=False,
-             note="Rule A. Off by default: a notch is not a governed SICR "
-                  "trigger in this policy."),
-        Rule(SCENARIO_PD_RATIO, "PD against the pre-scenario level",
-             SCENARIO_PD_RATIO, 2.0, 0.0, enabled=False, governed=False,
-             note="Rule B. Compares the scenario PD against the borrower's own "
-                  "pre-scenario PD rather than against origination."),
     )
+
+
+def _scenario_rules(*, enabled: bool) -> tuple[Rule, ...]:
+    """Rule A and Rule B, as the requirement states them.
+
+    A: a rating deterioration of two notches or more is a significant increase
+       in credit risk, so Stage 1 becomes Stage 2.
+    B: a scenario 12-month PD at or above twice the borrower's own pre-scenario
+       PD is a significant increase in credit risk, so Stage 1 becomes Stage 2.
+
+    Neither is a requirement of IFRS 9 and both say so. They are the
+    assumptions a scenario is run under, which is a different thing from the
+    policy that measured the book.
+    """
+    return (
+        Rule(RATING_NOTCHES, "Rating deterioration (Rule A)", RATING_NOTCHES,
+             2.0, 0.0, enabled=enabled, governed=False,
+             note="Rule A. A downgrade of this many notches or more under the "
+                  "scenario is treated as a significant increase in credit "
+                  "risk. On in the What-If rule set; never part of the policy "
+                  "that staged the reported book."),
+        Rule(SCENARIO_PD_RATIO, "PD against the pre-scenario level (Rule B)",
+             SCENARIO_PD_RATIO, 2.0, 0.0, enabled=enabled, governed=False,
+             note="Rule B. Compares the scenario PD against the borrower's own "
+                  "PRE-SCENARIO PD rather than against origination, which is "
+                  "the comparison a scenario is actually about. On in the "
+                  "What-If rule set; never part of the policy that staged the "
+                  "reported book."),
+    )
+
+
+def _reported_rules() -> tuple[Rule, ...]:
+    """What staged the reported book: the governed three, and nothing else.
+
+    Rule A and Rule B are carried here too, switched OFF and not switchable,
+    so a reader comparing the two rule sets on screen sees the same five rows
+    and can tell at a glance which two are the difference.
+    """
+    return (*_governed(), *_scenario_rules(enabled=False))
+
+
+def _whatif_rules() -> tuple[Rule, ...]:
+    """What a What-If scenario is staged on: the governed three, plus A and B."""
+    return (*_governed(), *_scenario_rules(enabled=True))
+
+
+def _defaults() -> tuple[Rule, ...]:
+    """The default rule set for a What-If thread."""
+    return _whatif_rules()
 
 
 @dataclass(frozen=True)
@@ -173,12 +290,26 @@ class StagingPolicy:
     combination: str = ANY
     #: Free text a person may attach when they change the criteria.
     note: str = ""
+    #: Which of the two rule sets this is. A reported-book policy is a fact
+    #: about the accounts; a What-If policy is an assumption about a scenario.
+    scope: str = SCOPE_WHATIF
 
     # ------------------------------------------------------------ identity
 
     @property
+    def label(self) -> str:
+        return SCOPE_LABEL.get(self.scope, SCOPE_LABEL[SCOPE_WHATIF])
+
+    @property
+    def editable(self) -> bool:
+        """The reported-book rule set is shown, never edited."""
+        return self.scope != SCOPE_REPORTED
+
+    @property
     def is_default(self) -> bool:
-        return (self.rules == _defaults()) and self.combination == ANY
+        expected = (_reported_rules() if self.scope == SCOPE_REPORTED
+                    else _whatif_rules())
+        return self.rules == expected and self.combination == ANY
 
     @property
     def fingerprint(self) -> str:
@@ -192,7 +323,16 @@ class StagingPolicy:
 
     @property
     def version(self) -> str:
-        return f"{STAGING_VERSION}+{'default' if self.is_default else self.fingerprint}"
+        """The version stamped on a result.
+
+        A default set names itself rather than hashing, because "what-if
+        default" is what a reader needs to see; anything edited carries the
+        fingerprint of exactly what it was edited to.
+        """
+        if not self.is_default:
+            return f"{STAGING_VERSION}+{self.fingerprint}"
+        named = "reported-book" if self.scope == SCOPE_REPORTED else "what-if-default"
+        return f"{STAGING_VERSION}+{named}"
 
     def rule(self, key: str) -> Rule | None:
         for found in self.rules:
@@ -206,8 +346,16 @@ class StagingPolicy:
 
     # ------------------------------------------------------------ editing
 
+    def _may_edit(self) -> None:
+        if not self.editable:
+            raise StagingError(
+                "The reported-book staging policy cannot be edited. It is what "
+                "staged the accounts, and the base column of every What-If "
+                "ties to it. Change the What-If staging policy instead.")
+
     def with_rule(self, key: str, **changes: Any) -> StagingPolicy:
         """A copy with one rule changed. Unknown keys are refused, not ignored."""
+        self._may_edit()
         found = self.rule(key)
         if found is None:
             raise StagingError(
@@ -230,6 +378,7 @@ class StagingPolicy:
 
     def added(self, rule: Rule) -> StagingPolicy:
         """A copy with one more rule. A rule the caller added is never governed."""
+        self._may_edit()
         if rule.kind not in KINDS:
             raise StagingError(
                 f"'{rule.kind}' is not a staging rule this engine can apply. "
@@ -239,6 +388,7 @@ class StagingPolicy:
         return replace(self, rules=(*self.rules, replace(rule, governed=False)))
 
     def removed(self, key: str) -> StagingPolicy:
+        self._may_edit()
         found = self.rule(key)
         if found is None:
             raise StagingError(f"There is no staging rule called '{key}'.")
@@ -249,6 +399,7 @@ class StagingPolicy:
         return replace(self, rules=tuple(r for r in self.rules if r.key != key))
 
     def combined(self, how: str) -> StagingPolicy:
+        self._may_edit()
         said = str(how or "").strip().upper()
         if said not in COMBINATIONS:
             raise StagingError(
@@ -256,7 +407,8 @@ class StagingPolicy:
         return replace(self, combination=said)
 
     def reset(self) -> StagingPolicy:
-        return StagingPolicy()
+        """Back to the default set for this scope."""
+        return (reported() if self.scope == SCOPE_REPORTED else StagingPolicy())
 
     # ------------------------------------------------------------ applying
 
@@ -356,6 +508,7 @@ class StagingPolicy:
                 "policy_version": STAGING_VERSION,
                 "combination": self.combination,
                 "note": self.note,
+                "scope": self.scope,
                 "rules": [r.to_dict() for r in self.rules]}
 
     def describe(self) -> dict[str, Any]:
@@ -364,6 +517,13 @@ class StagingPolicy:
         body["version"] = self.version
         body["fingerprint"] = self.fingerprint
         body["is_default"] = self.is_default
+        body["label"] = self.label
+        body["scope_note"] = SCOPE_NOTE.get(self.scope, "")
+        body["editable"] = self.editable
+        body["combination_note"] = (
+            "A borrower trips Stage 2 if ANY enabled rule fires."
+            if self.combination == ANY else
+            "A borrower trips Stage 2 only if EVERY enabled rule fires.")
         body["default_presumption"] = (
             f"Stage 3 where a default is recorded, or at "
             f"{policy.DEFAULT_DPD_DAYS}+ days past due. No What-If rule "
@@ -377,6 +537,9 @@ class StagingPolicy:
     @classmethod
     def from_dict(cls, body: dict[str, Any] | None) -> StagingPolicy:
         """Rebuild saved criteria. An unreadable body returns the default set."""
+        scope = str((body or {}).get("scope") or SCOPE_WHATIF)
+        if scope not in SCOPES:
+            scope = SCOPE_WHATIF
         if not body:
             return cls()
         rules = []
@@ -393,20 +556,42 @@ class StagingPolicy:
                 raise StagingError(f"A saved staging rule could not be read: {e}") from e
         if not rules:
             return cls(combination=str(body.get("combination") or ANY),
-                       note=str(body.get("note") or ""))
+                       note=str(body.get("note") or ""), scope=scope)
         return cls(rules=tuple(rules),
                    combination=str(body.get("combination") or ANY),
-                   note=str(body.get("note") or ""))
+                   note=str(body.get("note") or ""), scope=scope)
+
+
+def reported() -> StagingPolicy:
+    """The rule set that staged the REPORTED BOOK.
+
+    The governed three, at the policy's own thresholds, combined with ANY.
+    `test_the_reported_rule_set_is_the_governed_policy` asserts this produces
+    `policy.stage_of` borrower for borrower on the real book, which is what
+    makes it a second reading of one source of truth rather than a second
+    source of truth.
+    """
+    return StagingPolicy(rules=_reported_rules(), scope=SCOPE_REPORTED)
 
 
 def default() -> StagingPolicy:
-    """The governed criteria, which reproduce the reported book."""
+    """The default rule set a What-If SCENARIO is staged on.
+
+    The governed three PLUS Rule A (a two-notch deterioration) and Rule B (a
+    scenario PD at twice the pre-scenario level). Both are on: the product's
+    requirement is that a What-If recognises them, and a simulation that
+    cannot see a two-notch downgrade is not answering the question.
+
+    This does not change the reported book. The baseline column of every
+    comparison is staged by `reported()`.
+    """
     return StagingPolicy()
 
 
 __all__ = [
     "ABSOLUTE_PD", "ALL", "ANY", "BASIS_ASSUMPTION", "BASIS_GOVERNED",
     "COMBINATIONS", "DAYS_PAST_DUE", "KINDS", "RATING_NOTCHES", "RELATIVE_PD",
-    "Rule", "SCENARIO_PD_RATIO", "STAGING_OWNER", "STAGING_VERSION",
-    "StagingError", "StagingPolicy", "default",
+    "KIND_CATALOGUE", "RULE_A", "RULE_B", "Rule", "SCENARIO_PD_RATIO", "SCOPES", "SCOPE_LABEL",
+    "SCOPE_NOTE", "SCOPE_REPORTED", "SCOPE_WHATIF", "STAGING_OWNER",
+    "STAGING_VERSION", "StagingError", "StagingPolicy", "default", "reported",
 ]
