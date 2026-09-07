@@ -228,6 +228,55 @@ def test_record_action_does_not_require_prior_escalation(client, domain_built):
     assert r.json()["comment"]["body"].startswith("Action recorded")
 
 
+# ==================================================================== reports
+
+
+def test_borrower_report_download(client, domain_built):
+    _require_domain(domain_built)
+    overview = client.get("/api/v1/early-warning/v2", headers=headers("ANALYST")).json()
+    customer_id = overview["top_high_risk"][0]["customer_id"]
+    r = client.get(f"/api/v1/early-warning/v2/reports/borrower/{customer_id}",
+                    headers=headers("ANALYST"))
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    assert len(r.content) > 10_000
+
+
+def test_borrower_report_refused_to_viewer(client, domain_built):
+    _require_domain(domain_built)
+    overview = client.get("/api/v1/early-warning/v2", headers=headers("ANALYST")).json()
+    customer_id = overview["top_high_risk"][0]["customer_id"]
+    r = client.get(f"/api/v1/early-warning/v2/reports/borrower/{customer_id}",
+                    headers=headers("VIEWER"))
+    assert r.status_code == 403
+
+
+def test_portfolio_report_download(client, domain_built):
+    _require_domain(domain_built)
+    r = client.get("/api/v1/early-warning/v2/reports/portfolio", headers=headers("ANALYST"))
+    assert r.status_code == 200
+    assert len(r.content) > 10_000
+
+
+def test_segment_report_download(client, domain_built):
+    _require_domain(domain_built)
+    segments = client.get("/api/v1/early-warning/v2/segments", headers=headers("ANALYST")).json()
+    segment = segments["segments"][0]["segment"]
+    r = client.get(f"/api/v1/early-warning/v2/reports/segment/{segment}", headers=headers("ANALYST"))
+    assert r.status_code == 200
+
+
+def test_multi_borrower_report_download(client, domain_built):
+    _require_domain(domain_built)
+    overview = client.get("/api/v1/early-warning/v2", headers=headers("ANALYST")).json()
+    ids = [r["customer_id"] for r in overview["top_high_risk"][:5]]
+    r = client.post("/api/v1/early-warning/v2/reports/borrowers", headers=headers("ANALYST"),
+                     json={"customer_ids": ids})
+    assert r.status_code == 200
+    assert len(r.content) > 10_000
+
+
 # ============================================================= escalation matrix
 
 

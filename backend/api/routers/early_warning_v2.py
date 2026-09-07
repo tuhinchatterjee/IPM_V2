@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 from dataclasses import asdict
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 
 from backend.api.permissions import (
@@ -26,6 +26,7 @@ from backend.api.permissions import (
     RequireEarlyWarningEditEscalationMatrix,
     RequireEarlyWarningEscalate,
     RequireEarlyWarningRecordAction,
+    RequireEarlyWarningReport,
     RequireEarlyWarningView,
 )
 from backend.early_warning import (
@@ -36,6 +37,7 @@ from backend.early_warning import (
     escalation as esc,
     lineage as ews_lineage,
     reasons,
+    reports as ews_reports,
     triggers_v2 as trg,
     v2_service as svc,
 )
@@ -338,6 +340,68 @@ def inform(customer_id: str, payload: InformRequest,
         action="fyi", priority="normal", requested_by=principal.user_id,
     )
     return {"case_id": case_id, "workflow_item": asdict(view)}
+
+
+DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+@router.get("/reports/portfolio", summary="Portfolio Word report")
+def report_portfolio(period: str | None = Query(None),
+                      principal: Principal = RequireEarlyWarningReport) -> Response:
+    try:
+        data = ews_reports.generate_docx("portfolio", period=period)
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+    filename = f"early-warning-portfolio-{period or svc.latest_period()}.docx"
+    return Response(content=data, media_type=DOCX_MIME,
+                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@router.get("/reports/segment/{segment}", summary="Segment Word report")
+def report_segment(segment: str, period: str | None = Query(None),
+                    principal: Principal = RequireEarlyWarningReport) -> Response:
+    try:
+        data = ews_reports.generate_docx("segment", segment, period=period)
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+    except KeyError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                             detail={"error": "segment_not_found", "message": segment})
+    filename = f"early-warning-segment-{segment.replace(' ', '-').lower()}.docx"
+    return Response(content=data, media_type=DOCX_MIME,
+                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@router.get("/reports/borrower/{customer_id}", summary="Borrower Word report")
+def report_borrower(customer_id: str, principal: Principal = RequireEarlyWarningReport) -> Response:
+    try:
+        data = ews_reports.generate_docx("borrower", customer_id)
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+    except KeyError:
+        raise _not_found(customer_id)
+    filename = f"early-warning-{customer_id}.docx"
+    return Response(content=data, media_type=DOCX_MIME,
+                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+class MultiBorrowerReportRequest(BaseModel):
+    customer_ids: list[str] = Field(..., min_length=1, max_length=200)
+
+
+@router.post("/reports/borrowers", summary="Multi-borrower Word report")
+def report_multi_borrower(payload: MultiBorrowerReportRequest,
+                           principal: Principal = RequireEarlyWarningReport) -> Response:
+    try:
+        data = ews_reports.generate_docx("multi_borrower", customer_ids=payload.customer_ids)
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+    except KeyError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                             detail={"error": "no_borrowers_found", "message": str(exc)})
+    filename = f"early-warning-{len(payload.customer_ids)}-borrowers.docx"
+    return Response(content=data, media_type=DOCX_MIME,
+                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
 @router.post("/borrower/{customer_id}/action", summary="Record an action against the case")
