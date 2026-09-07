@@ -314,6 +314,34 @@ SCORECARD_FINDING_APPROVE = frozenset({Role.ADMIN})
 #: Configure validation policy: limits, thresholds, severity mapping.
 SCORECARD_ADMIN = frozenset({Role.ADMIN})
 
+# --------------------------------------------------- Early Warning V2
+#
+# Viewing a score, escalating it and changing the methodology or matrix that
+# produced it are three different acts, mirroring the scorecard governance
+# shape above: a role that can silently redefine the model it is escalating
+# against is a role with no independent check on it.
+
+#: See scores, drill into layers/signals, run diagnosis, save investigations.
+EARLY_WARNING_VIEW = frozenset({Role.ADMIN, Role.DATA_STEWARD, Role.ANALYST, Role.VIEWER})
+#: Escalate or inform on a borrower/segment/portfolio finding.
+EARLY_WARNING_ESCALATE = frozenset({Role.ADMIN, Role.DATA_STEWARD, Role.ANALYST})
+#: Record an action against an open case.
+EARLY_WARNING_RECORD_ACTION = frozenset({Role.ADMIN, Role.DATA_STEWARD, Role.ANALYST})
+#: Close a case. Narrower than recording an action against it — closing
+#: requires the closure evidence a single analyst's own action does not.
+EARLY_WARNING_CLOSE_CASE = frozenset({Role.ADMIN, Role.DATA_STEWARD})
+#: Generate a borrower/segment/portfolio Word report.
+EARLY_WARNING_REPORT_GENERATE = frozenset({Role.ADMIN, Role.DATA_STEWARD, Role.ANALYST})
+#: Edit the escalation matrix (ladder, specialist routing, SLAs). Versioned
+#: and audited — never the same permission as escalating against it.
+EARLY_WARNING_EDIT_ESCALATION_MATRIX = frozenset({Role.ADMIN})
+#: Change the scoring methodology configuration itself.
+EARLY_WARNING_CHANGE_METHODOLOGY = frozenset({Role.ADMIN})
+#: Apply a manual override to a score. Distinct from the deterministic
+#: overrides the engine applies on its own (Tab 2/4) — this is a human
+#: judgement call layered on top, and it needs its own narrow permission.
+EARLY_WARNING_APPLY_OVERRIDE = frozenset({Role.ADMIN})
+
 # ==========================================================================
 # Borrower 360 and the corporate relationship graph.
 #
@@ -355,6 +383,15 @@ RequireScorecardReport = Depends(require(SCORECARD_REPORT_GENERATE))
 RequireScorecardFindingCreate = Depends(require(SCORECARD_FINDING_CREATE))
 RequireScorecardFindingApprove = Depends(require(SCORECARD_FINDING_APPROVE))
 RequireScorecardAdmin = Depends(require(SCORECARD_ADMIN))
+
+RequireEarlyWarningView = Depends(require(EARLY_WARNING_VIEW))
+RequireEarlyWarningEscalate = Depends(require(EARLY_WARNING_ESCALATE))
+RequireEarlyWarningRecordAction = Depends(require(EARLY_WARNING_RECORD_ACTION))
+RequireEarlyWarningCloseCase = Depends(require(EARLY_WARNING_CLOSE_CASE))
+RequireEarlyWarningReport = Depends(require(EARLY_WARNING_REPORT_GENERATE))
+RequireEarlyWarningEditEscalationMatrix = Depends(require(EARLY_WARNING_EDIT_ESCALATION_MATRIX))
+RequireEarlyWarningChangeMethodology = Depends(require(EARLY_WARNING_CHANGE_METHODOLOGY))
+RequireEarlyWarningApplyOverride = Depends(require(EARLY_WARNING_APPLY_OVERRIDE))
 
 
 # ==========================================================================
@@ -507,6 +544,31 @@ NAMED: dict[str, tuple[frozenset[Role], str]] = {
     "SCORECARD_ADMIN": (SCORECARD_ADMIN,
                         "Configure validation policy: limits, thresholds "
                         "and severity mapping."),
+    "EARLY_WARNING_VIEW": (EARLY_WARNING_VIEW,
+                           "See Early Warning scores, drill into layers and "
+                           "signals, run diagnosis, save investigations."),
+    "EARLY_WARNING_ESCALATE": (EARLY_WARNING_ESCALATE,
+                               "Escalate or inform on a borrower, segment or "
+                               "portfolio Early Warning finding."),
+    "EARLY_WARNING_RECORD_ACTION": (EARLY_WARNING_RECORD_ACTION,
+                                    "Record an action against an open Early "
+                                    "Warning case."),
+    "EARLY_WARNING_CLOSE_CASE": (EARLY_WARNING_CLOSE_CASE,
+                                 "Close an Early Warning case, with its "
+                                 "closure evidence."),
+    "EARLY_WARNING_REPORT_GENERATE": (EARLY_WARNING_REPORT_GENERATE,
+                                      "Generate a borrower, segment or "
+                                      "portfolio Early Warning Word report."),
+    "EARLY_WARNING_EDIT_ESCALATION_MATRIX": (
+        EARLY_WARNING_EDIT_ESCALATION_MATRIX,
+        "Edit the Early Warning escalation matrix: the ladder, specialist "
+        "routing and SLAs."),
+    "EARLY_WARNING_CHANGE_METHODOLOGY": (
+        EARLY_WARNING_CHANGE_METHODOLOGY,
+        "Change the Early Warning scoring methodology configuration."),
+    "EARLY_WARNING_APPLY_OVERRIDE": (
+        EARLY_WARNING_APPLY_OVERRIDE,
+        "Apply a manual override to an Early Warning score."),
     "AI_LEARNING_CERTIFY": (AI_LEARNING_CERTIFY,
                             "Run an evaluation against the sealed holdout. "
                             "Each run spends some of what makes it "
