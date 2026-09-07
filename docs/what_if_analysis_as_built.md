@@ -83,24 +83,48 @@ naming what the domain does carry. Facilities and collateral are aggregated
 CC, D`. Displayed as **15 rows** (grades + Total) and a **15 × 15** migration
 matrix. The universe was not regenerated and `SEED = 20260830` is untouched.
 
-**Staging.** `backend/whatif/staging.py` layers over `backend/ifrs9/policy.py`.
-Five rules; the three governed ones are on, the two What-If assumptions are off:
+**Staging — two rule sets, kept apart.** `backend/whatif/staging.py` layers over
+`backend/ifrs9/policy.py` and holds two policies that never meet.
 
-| Rule | Basis | Default |
-|---|---|---|
-| Relative PD increase (≥2× origination AND ≥2.00pp) | Governed | on |
-| Absolute PD level (≥13%) | Governed | on |
-| Days past due (≥30) | Governed | on |
-| **Rule A** — rating deterioration ≥2 notches | **Assumption** | **off** |
-| **Rule B** — PD ≥2× the pre-scenario level | **Assumption** | **off** |
+| Rule | Basis | Reported book | What-If |
+|---|---|---|---|
+| Relative PD increase (≥2× origination AND ≥2.00pp) | Governed | on | on |
+| Absolute PD level (≥13%) | Governed | on | on |
+| Days past due (≥30) | Governed | on | on |
+| **Rule A** — rating deterioration ≥2 notches | **Assumption** | off, not switchable | **on** |
+| **Rule B** — PD ≥2× the pre-scenario level | **Assumption** | off, not switchable | **on** |
 
-Rule A and Rule B are **off by default** and this is deliberate: a downgrade is
-not a governed SICR trigger in this policy, and the existing invariant
-`test_a_downgrade_alone_is_not_a_sicr_trigger` says so. They are exposed
-prominently in the Staging Criteria panel and are one click from being on. The
-default set reproduces `policy.stage_of` **exactly** — asserted by test — so a
-thread that changes nothing gets the reported book back. No rule reaches Stage
-3 in either direction; the default presumption is not a staging opinion.
+`staging.reported()` is what staged the accounts. It reproduces
+`policy.stage_of` **elementwise** on a hard random frame, and reproduces the
+reported `stage` column on all **3,244 borrowers** of the real book — a second
+*reading* of one source of truth, not a second source. It is not editable:
+`with_rule`, `added`, `removed` and `combined` all refuse on it.
+
+`staging.default()` is what a **scenario** is staged on, and Rule A and Rule B
+are **on**. The baseline column of every comparison is the reported book's own
+Stage, so enabling them moves names in the What-If column and cannot move one
+in the accounts: a four-notch downgrade leaves the book's Stage distribution
+and its reported ECL identical to the riyal, and
+`test_the_historical_book_is_untouched_by_the_whatif_rules` says so.
+
+Measured on this book, a two-notch downgrade at Q2 2026 moves **2,528**
+borrowers to Stage 2 under the What-If rule set against **518** under the
+reported one. Rule A and Rule B agree on rating shocks — notching moves PD by
+the masterscale ratio, so two notches is also roughly a doubling — and part
+company on a PD shock, which Rule A cannot see, and on a single notch at 1.7×,
+which Rule B cannot. Both directions are tested.
+
+A thread may edit thresholds, switch rules on or off, add a rule, remove a
+non-governed one, and choose whether a borrower needs **ANY** or **EVERY**
+enabled rule to trip. Each edit is validated by `POST /whatif/staging` before
+it reaches a run, and the resulting fingerprint is stamped on every result and
+saved with the What-If. No rule reaches Stage 3 in either direction; the
+default presumption is not a staging opinion.
+
+The engine has **one** staging path: a caller that passes no criteria gets
+`reported()`. `ScenarioState` no longer mirrors Rule A into the scenario-level
+`rating_deterioration_sicr` assumption either — the rule set owns it, so there
+is one implementation of the rule rather than two.
 
 **ECL, as built:**
 
@@ -198,6 +222,85 @@ registers a **CANDIDATE**. The active model is never replaced automatically;
 old and new metrics are shown side by side and activation is explicit. Every
 version is kept and the change log records `trained` and `activated` events.
 
+## 7b. Stage-aware: the measurement that chose the design
+
+The requirement is a stage-aware model, and there are two ways to build one.
+Both are fitted and scored out of time on **every** training run
+(`train.stage_study`), so the choice is re-measured rather than asserted.
+
+| Out of time, Q1–Q2 2026 | Single model, Stage as a feature | One model per Stage |
+|---|---|---|
+| R² (book) | **0.997645** | 0.997522 |
+| RMSE | **0.003814** | 0.003913 |
+| Exposure-weighted MAE | **0.000738** | 0.000771 |
+| WAPE | 3.1529 | **3.1499** |
+
+The book-level metrics are what the What-If actually uses, because the
+anchoring is a ratio of two book-level predictions. Separate models win only on
+unweighted WAPE, which is dominated by tiny Stage 1 exposures.
+
+**The boundary decides it.** A What-If's job is moving names from Stage 1 to
+Stage 2. The governed measurement says that crossing is worth **4.07×** for
+these borrowers. The single model reproduces it at **4.09×** (+0.4%); separate
+models jump **4.38×** (+7.7%), because two models fitted apart do not share a
+calibration level and the gap lands on exactly the borrowers a scenario moves —
+in the Stage holding **71% of the ECL on 14% of the exposure**.
+
+| Stage | OOT rows | Share of ECL | Single model R² | Separate model R² |
+|---|---|---|---|---|
+| 1 | 5,016 | 9.3% | 0.9060 | 0.9821 |
+| 2 | 1,069 | 70.8% | 0.9957 | 0.9956 |
+| 3 | 276 | 19.9% | 0.9970 | 0.9952 |
+
+Stage 1 alone is better fitted separately, and it is 9% of the provision.
+Stage 3 has 964 training rows and its own model is materially worse.
+
+**And the model is genuinely stage-aware, not stage-labelled.** Shocking PD to
+2× *inside* each Stage moves the predicted rate **1.68× in Stage 1, 1.25× in
+Stage 2, 1.17× in Stage 3**. Nothing crosses the staging line in that test, so
+it is the model reading the rest of the borrower differently either side of it.
+`test_the_stages_respond_differently_to_the_same_shock` fails if those
+responses ever converge.
+
+## 7c. What moved the provision — exact Shapley
+
+`backend/whatif/attribution.py` splits the ECL movement across the drivers of
+the scenario: rating, macro, financial, PD, Stage, LGD, collateral, CCF, EAD,
+and the policy clamps.
+
+The engine records each driver's before and after on PD, LGD and EAD as it
+applies each shock. Those ratios telescope — read on the **applicable** PD, so
+the lifetime transform cancels rather than leaving a residual — so the drivers
+multiply back to the whole measurement movement exactly. The coalitional game
+is then `V(S) = the book's ECL with exactly the drivers in S moved`, and
+`decomposition.shapley_of` splits it.
+
+That function is the **governed** one. `decomposition.shapley` was refactored to
+call it, so order-neutrality has one implementation and two callers rather than
+a weaker parallel attribution.
+
+A three-shock scenario (two notches, LGD +5pp, policy rate +200bps) at Q2 2026:
+
+| Driver | Effect (SAR mn) | Share |
+|---|---|---|
+| Rating migration | 42,012.1 | 60.4% |
+| Stage migration (change of measurement basis) | 16,943.2 | 24.4% |
+| Loss given default | 6,748.5 | 9.7% |
+| Macroeconomic shock | 3,824.5 | 5.5% |
+| **Total** | **69,528.3** | 100% |
+
+It reconciles to the last decimal. A driver the scenario never touched gets
+**exactly zero** and is listed as unmoved rather than dropped. The clamps are a
+named driver, so a shock that ran into the PD ceiling is not credited with the
+effect it asked for.
+
+**This is not SHAP.** SHAP explains one XGBoost prediction from a borrower's
+features; this explains a scenario's ECL movement from what the scenario
+changed. Where the ML methodology prices the same shocked book differently, the
+difference is its own labelled line — on a PD +20% scenario, Delta +5,713.5 and
+ML +5,330.4, with **−383.2** shown as "ML model adjustment" — and is never
+folded into a driver that did not cause it.
+
 ## 8. Persistence — no migration was required
 
 **Migration head remains `0041`.** No migration was written. Saved and recent
@@ -223,7 +326,7 @@ percentage change. A saved What-If persists all of it.
 
 | Check | Command | Result |
 |---|---|---|
-| What-If suite | `uv run pytest tests/whatif tests/ifrs9` | **271 passed** |
+| What-If suite | `uv run pytest tests/whatif tests/ifrs9` | **305 passed** |
 | Full backend | `uv run pytest` | **12,950 passed, 46 skipped, 6 failed** — every one of the six reproduced on the baseline `4f79566` with the same data lake; named in §11 |
 | Backend lint | `uv run ruff check .` | clean |
 | Frontend types | `npx tsc --noEmit` | clean |
@@ -231,7 +334,7 @@ percentage change. A saved What-If persists all of it.
 | Frontend tests | `npm test` | **542 passed** |
 | Production build | `npm run build` | all routes built |
 | Migrations | `uv run alembic upgrade head` + `heads` | **single head 0041** |
-| Browser journeys | `node scripts/acceptance/whatif_journeys.mjs` | **9/9, 72/72 checks** |
+| Browser journeys | `node scripts/acceptance/whatif_journeys.mjs` | **11/11, 114/114 checks** |
 | Display contract | `uv run python scripts/check_decimals.py` | **0 unexplained sites** |
 | Feature matrix | `uv run python scripts/feature_matrix.py --write` | every page judged |
 
@@ -340,7 +443,18 @@ them is this work's:
   ten-variable macro What-If runs on **declared sensitivities**, which is both
   honest and what a scenario committee actually uses. User-facing macro
   functionality is not reduced.
-- **Rule A and Rule B are off by default** (see §4).
+- **Rule A and Rule B apply to the SCENARIO only.** They are on by default in
+  the What-If rule set and cannot be switched on in the reported-book one —
+  the two are separate policies and `staging.reported()` refuses every edit.
+  That is the design, not a shortfall: a What-If assumption has no business
+  restating the accounts.
+- **The driver attribution is exact but bounded.** More than twelve moving
+  drivers and it refuses rather than approximating, because an exact Shapley
+  is 2^n coalitions. This engine has ten drivers, so the cap is a guard nobody
+  meets.
+- **Per-Stage models were measured and not adopted.** The evidence is in §7b;
+  Stage 1 alone would be better fitted separately, and that is 9% of the
+  provision against a 7.7% bias at the boundary where 71% of it sits.
 - **Seven of ten macro variables have no observed level** in this installation.
 - **No contractual cash-flow engine**, by scope: no cash-flow projection, no
   lifetime PD term structure, no EIR discounting.
