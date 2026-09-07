@@ -1220,8 +1220,6 @@ export function RiskParameterPanel({
   const isCcf = parameter === "CCF";
   const unit = isCcf ? "" : "%";
   const digits = isCcf ? 4 : parameter === "PD" ? 3 : 2;
-  const scale = (rows: WhatIfParameterGroup[] | undefined) => rows;
-
   if (parameter === "PD" && profile.blocks) {
     const blocks = [profile.blocks.stage_1, profile.blocks.stage_2,
                     profile.blocks.stage_3].filter(Boolean);
@@ -1375,7 +1373,7 @@ export function RiskParameterPanel({
       {profile.by_stage && profile.by_stage.length ? (
         <div>
           <h4 className="mb-1 text-[13px] font-semibold text-text-primary">By stage</h4>
-          <GroupTable rows={scale(profile.by_stage)} first="Stage" currency={currency}
+          <GroupTable rows={profile.by_stage} first="Stage" currency={currency}
                       unit={unit} digits={digits} />
         </div>
       ) : null}
@@ -1383,7 +1381,7 @@ export function RiskParameterPanel({
       {profile.by_sector && profile.by_sector.length ? (
         <div>
           <h4 className="mb-1 text-[13px] font-semibold text-text-primary">By sector</h4>
-          <GroupTable rows={scale(profile.by_sector)} first="Sector" currency={currency}
+          <GroupTable rows={profile.by_sector} first="Sector" currency={currency}
                       unit={unit} digits={digits} />
         </div>
       ) : null}

@@ -340,6 +340,47 @@ async function main() {
       }
     });
 
+  /* ------------------------------------------------------------------- H */
+  await journey("H — The gate is confirmed and the result is READ, not only shown",
+    async (page, check) => {
+      await page.goto(`${WEB}/what-if/thread?journey=parameters`,
+        { waitUntil: "networkidle" });
+      await appears(page, '[data-testid="whatif-composer"]', 90_000);
+      await say(page, "Increase Stage 1 PD by 20%.");
+
+      // The gate is a QUESTION, and nothing is priced while it is open.
+      const gate = await appears(page, 'button[data-methodology="delta"]', 90_000);
+      check("the methodology gate is asked before any ECL figure", gate);
+      if (!gate) return;
+      check("and no result is on screen while it is open",
+        (await page.locator('[data-testid="whatif-result"]').count()) === 0);
+      await page.click('button[data-methodology="delta"]');
+      const ran = await appears(page, '[data-testid="whatif-result"]', 180_000);
+      check("a result appears once the methodology is chosen", ran);
+      if (!ran) return;
+
+      const result = page.locator('[data-testid="whatif-result"]').last();
+      const shown = (await result.textContent()) ?? "";
+      check("the choice is confirmed in words, not only recorded",
+        /Delta Model/i.test(shown));
+
+      // §32: a number with no reading is where a scenario tool stops being
+      // useful. Somebody has to say whether this matters.
+      const reading = result.locator('text=What this means');
+      check("the result carries a reading of what it MEANS",
+        (await reading.count()) > 0);
+      const followups = await result.locator("[data-followup]").count();
+      check("with follow-up questions offered as buttons", followups >= 3,
+        `${followups}`);
+
+      // And the buttons work: clicking one asks it and is answered.
+      if (followups > 0) {
+        await result.locator("[data-followup]").first().click();
+        check("a suggested question is answered when clicked",
+          await appears(page, '[data-testid="whatif-answer"]', 120_000));
+      }
+    });
+
   await browser.close();
 
   const passed = results.filter((r) => r.ok).length;
