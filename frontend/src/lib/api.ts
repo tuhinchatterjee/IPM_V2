@@ -5312,6 +5312,24 @@ export interface WhatIfMlModel {
   newer_periods: string[];
   retrain_prompt: string;
   defaults: { development_through: string; train_share: number; seed: number };
+  /** Whether this installation can run XGBoost at all, and what to do if not. */
+  environment?: WhatIfMlEnvironment;
+}
+
+export interface WhatIfMlEnvironment {
+  available: boolean;
+  version: string;
+  platform: string;
+  reason: string;
+  cause: string;
+  command: string;
+  then: string;
+  message: string;
+  fallback: string;
+  preflight_version?: string;
+  python?: string;
+  xgboost_version?: string;
+  statement?: string;
 }
 
 export interface WhatIfMlExplain {

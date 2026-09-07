@@ -143,6 +143,61 @@ export default function MlModelPage() {
         </div>
       ) : null}
 
+      {/* Whether this installation can run the thing at all, said before
+          anybody composes a scenario on it. XGBoost is a wrapper around a
+          compiled library, and on macOS that library needs OpenMP, which Apple
+          does not ship — so the import raises and the product, having no
+          answer to that, showed a dynamic-linker path where an expected credit
+          loss should have been. */}
+      {data?.environment ? (
+        <Card
+          className={data.environment.available ? undefined : "border-warning/40"}
+          data-testid="ml-environment"
+          data-available={String(data.environment.available)}
+        >
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-[14px]">This installation</CardTitle>
+            <Badge variant={data.environment.available ? "positive" : "warning"}>
+              {data.environment.available ? "XGBoost available" : "XGBoost unavailable"}
+            </Badge>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-[12px] text-text-secondary">
+              {data.environment.message}
+            </p>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4">
+              {[
+                { label: "Platform", value: data.environment.platform },
+                { label: "Python", value: data.environment.python ?? "—" },
+                { label: "XGBoost", value: data.environment.xgboost_version || "—" },
+                { label: "Preflight", value: data.environment.preflight_version ?? "—" },
+              ].map((cell) => (
+                <div key={cell.label}>
+                  <dt className="text-[11px] uppercase tracking-wide text-text-tertiary">
+                    {cell.label}
+                  </dt>
+                  <dd className="text-[12px] text-text-secondary">{cell.value}</dd>
+                </div>
+              ))}
+            </dl>
+            {!data.environment.available && data.environment.command ? (
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-text-tertiary">
+                  To enable it
+                </p>
+                <code className="mt-0.5 block rounded bg-surface-sunken px-2 py-1 text-[12px]">
+                  {data.environment.command}
+                </code>
+                <p className="mt-1 text-[11px] text-text-muted">
+                  {data.environment.then} Nothing is installed from here — the
+                  product does not change the machine it is running on.
+                </p>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
       {data && !data.has_active ? (
         <Card>
           <CardContent className="py-6 text-[13px] text-text-secondary">

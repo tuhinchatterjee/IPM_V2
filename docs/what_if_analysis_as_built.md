@@ -292,7 +292,9 @@ sentence: what caused it, the command that fixes it (`brew install libomp` on
 macOS, `apt-get install -y libgomp1` on a slim Linux image, the MSVC
 redistributable on Windows), and the Delta Model named as the way to keep
 working. The linker error goes to the log. **Nothing is installed from the
-request handler** — the command is printed and a person runs it.
+request handler** — the command is printed and a person runs it. The same
+figures are on the Model Configuration screen as an environment panel, and the
+per-platform instructions are `docs/whatif_ml_setup.md`.
 
 **Anchoring**, mandatory and implemented:
 
