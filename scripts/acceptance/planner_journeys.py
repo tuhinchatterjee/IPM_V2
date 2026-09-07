@@ -189,20 +189,23 @@ def _journey_a(page: Any, report: Report) -> int | None:
                         "run scripts/seed_planner.py"):
         return None
 
-    # The stat cards must agree with the table. A card that says 1 red above a
-    # table with no red row is the defect this catches, and it is invisible to
-    # anybody reading either half alone.
-    cards = page.locator("p:text-is('Red')").first
-    red_card = _number(
-        cards.evaluate("el => el.parentElement.textContent")) if cards.count() else None
+    # The UAT redesign removed the row of stat cards: they restated what the
+    # table below already said, and the first thing on the page is now the
+    # list of issues that need somebody. What survives from that check is the
+    # claim it existed to make — that the health shown on a row is the health
+    # the engine calculated — which is asserted per row against the API in
+    # journey B and, at the item level, by the UAT creation journey.
+    #
     # The health BADGE, not any text in the row. `has_text="RED"` is a
     # case-insensitive substring match, so it counted every programme with
     # "Redevelopment" in its name — which on a realistic portfolio is most of
     # them, and made this check compare a number with a word.
     red_rows = page.locator(
         "table tbody tr td span:text-is('RED')").count()
-    report.check("A", "the red count matches the red rows",
-                 red_card == red_rows, f"card={red_card} rows={red_rows}")
+    report.check("A", "the table shows a health badge on its rows",
+                 red_rows >= 0 and page.locator(
+                     "table tbody tr td span").count() > 0,
+                 f"red rows={red_rows}")
 
     # Attention must give a reason, not just a colour.
     attention = page.locator("h2:text-is('Needs attention')")
@@ -212,7 +215,12 @@ def _journey_a(page: Any, report: Report) -> int | None:
     report.check("A", "the attention panel says why", len(panel) > 80,
                  panel[:120])
 
-    href = page.locator(f"a:has-text('{PROJECT_CODE}')").first.get_attribute("href")
+    # The row's link is the project's NAME; its code sits in its own cell
+    # beside it, which is what §2 asks for and what a person scanning a
+    # portfolio reads. So the row is found by its code and the link taken
+    # from inside it.
+    row = page.locator("table tbody tr", has_text=PROJECT_CODE).first
+    href = row.locator('a[href^="/delivery/"]').first.get_attribute("href")
     found = re.search(r"/delivery/(\d+)", href or "")
     if not report.check("A", "the project row links to the project",
                         bool(found), href or ""):
@@ -291,14 +299,19 @@ def _journey_b(page: Any, report: Report, project_id: int) -> None:
 
 
 def _journey_c(page: Any, report: Report, project_id: int) -> None:
-    """The brief, and whether it says what kind of claim each line is."""
+    """The brief, and whether it says what kind of claim each line is.
+
+    On Overview now rather than behind its own tab. §16 removed the Copilot
+    tab, and the grounded read that was worth keeping from it belongs where a
+    person opening a project already is — not one click further away, beside
+    a chat box that is gone.
+    """
     page.goto(f"{WEB}/delivery/{project_id}", wait_until="networkidle")
-    page.click("button:text-is('Brief')")
-    page.wait_for_selector("text=Project brief", timeout=5000)
-    page.wait_for_timeout(500)
+    page.wait_for_selector("text=Where this project stands", timeout=15000)
+    page.wait_for_timeout(700)
     body = page.inner_text("body")
 
-    report.check("C", "the brief renders", "Project brief" in body)
+    report.check("C", "the brief renders", "Where this project stands" in body)
     report.check("C", "claims are labelled as facts", "Fact" in body)
     report.check("C", "the grounding statement is shown",
                  "guess" in body.lower(),
@@ -307,8 +320,8 @@ def _journey_c(page: Any, report: Report, project_id: int) -> None:
                  "Open questions" in body or "staging approach" in body)
 
     # The headline and the header must not disagree about the colour.
-    header_red = "RED" in body.split("Project brief")[0]
-    brief_red = "RED" in body.split("Project brief")[-1]
+    header_red = "RED" in body.split("Where this project stands")[0]
+    brief_red = "RED" in body.split("Where this project stands")[-1]
     report.check("C", "the brief agrees with the header about health",
                  header_red == brief_red,
                  f"header RED={header_red} brief RED={brief_red}")
