@@ -4799,6 +4799,7 @@ export interface WhatIfRunResult {
             left: number; arrived: number }[];
     moved: number; note: string;
   };
+  attribution?: WhatIfAttribution;
   ml?: {
     model_version?: string; rows?: number; mean_factor?: number;
     fell_back_to_delta?: number; in_distribution?: boolean;
@@ -5015,6 +5016,81 @@ export interface WhatIfDeltaModel {
   near_zero_rule: string;
 }
 
+/**
+ * One model with Stage as a feature, or one model per Stage? Both are fitted
+ * on every training run and scored out of time, so the page shows the
+ * comparison that chose rather than a claim about it.
+ */
+/**
+ * The ECL movement split across the drivers of the scenario, by an exact
+ * order-neutral Shapley value. Not SHAP: SHAP explains one ML prediction from
+ * a borrower's features, this explains a scenario's movement from what the
+ * scenario changed.
+ */
+export interface WhatIfAttributionDriver {
+  key: string;
+  label: string;
+  effect: number;
+  share_pct: number;
+  mean_factor: number;
+  borrowers_moved: number;
+}
+
+export interface WhatIfAttribution {
+  available: boolean;
+  why?: string;
+  version?: string;
+  method?: string;
+  currency?: string;
+  note?: string;
+  drivers?: WhatIfAttributionDriver[];
+  unmoved?: string[];
+  baseline_ecl?: number;
+  whatif_ecl?: number;
+  total?: number;
+  measured_total?: number;
+  attributed_total?: number;
+  model_adjustment?: { key: string; label: string; effect: number; note: string };
+  reconciliation?: {
+    attributed: number; measured_movement: number; model_adjustment: number;
+    reported_movement: number; difference: number; reconciles: boolean;
+  };
+}
+
+export interface WhatIfStageStudy {
+  available: boolean;
+  why?: string;
+  design?: string;
+  chosen?: string;
+  because?: string[];
+  champion_book?: Record<string, number | null>;
+  challenger_book?: Record<string, number | null>;
+  champion_by_stage?: Record<string, {
+    rows: number; exposure: number; ecl: number;
+    champion?: Record<string, number>;
+  }>;
+  challenger_by_stage?: Record<string, {
+    fitted: boolean; why?: string; training_rows?: number;
+    r2?: number; mae?: number; wape?: number;
+  }>;
+  boundary?: {
+    available: boolean; rows?: number; governed_step: number;
+    champion_step: number; challenger_step?: number;
+    champion_step_error_pct?: number; challenger_step_error_pct?: number;
+  };
+}
+
+export interface WhatIfStageInteraction {
+  feature: string;
+  finding?: string;
+  note?: string;
+  stages: {
+    stage: number; rows: number; base_mean_predicted_rate: number;
+    points: { multiplier: number; mean_predicted_rate: number;
+              relative_to_base: number | null }[];
+  }[];
+}
+
 export interface WhatIfModelCard {
   version: string;
   state: string;
@@ -5033,6 +5109,7 @@ export interface WhatIfModelCard {
   out_of_time: Record<string, number | null>;
   slices: Record<string, { label: string; count: number; r2: number | null;
                            wape: number | null; exposure?: number }[]>;
+  stage_study?: WhatIfStageStudy;
   importance: { feature: string; gain: number; share_pct: number }[];
   shap: { features?: { feature: string; mean_abs_shap: number;
                        share_pct: number }[]; method?: string;
@@ -5077,6 +5154,8 @@ export interface WhatIfMlExplain {
               relative_to_base: number | null }[];
     rows_sampled: number; note: string;
   }>;
+  stage_interaction?: WhatIfStageInteraction;
+  stage_study?: WhatIfStageStudy;
   slices: WhatIfModelCard["slices"];
   validation: Record<string, number | null>;
   out_of_time: Record<string, number | null>;

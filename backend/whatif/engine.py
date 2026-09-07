@@ -94,6 +94,10 @@ class Result:
     #: The rule set that staged the SCENARIO. The baseline column is always
     #: staged by the reported-book policy, so the trace can name both.
     staging: Any = None
+    #: Per-driver before/after of PD, LGD and EAD, recorded as each shock was
+    #: applied. What `backend.whatif.attribution` turns into an exact,
+    #: order-neutral split of the ECL movement.
+    tracked: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @property
     def population_size(self) -> int:
@@ -198,6 +202,26 @@ def select(frame: pd.DataFrame, population: sc.Population) -> pd.DataFrame:
 
 
 # ------------------------------------------------------------------ shocks
+
+
+#: Which DRIVER each shock kind belongs to, for attribution. Collateral and
+#: haircut are one driver because they are one idea — the security is worth
+#: less — reaching LGD by two routes.
+DRIVER_OF: dict[str, str] = {
+    sc.RATING: "rating",
+    sc.MACRO: "macro",
+    sc.FINANCIAL: "financial",
+    sc.PD: "pd",
+    sc.LGD: "lgd",
+    sc.CCF: "ccf",
+    sc.COLLATERAL: "collateral",
+    sc.HAIRCUT: "collateral",
+    sc.EAD: "ead",
+    sc.STAGE: "stage",
+}
+#: The clamps. Named so a shock that ran into a policy limit is not credited
+#: with the effect it asked for.
+DRIVER_LIMITS = "limits"
 
 
 def _apply_rating(work: pd.DataFrame, notches: int,
@@ -659,10 +683,33 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
             work[f"{measure}_stressed"] = work[measure]
 
     # ---- apply every shock, in a fixed order so a scenario is reproducible
+    #
+    # Each shock's effect on the three risk parameters is recorded as it is
+    # applied, so the ECL movement can be attributed back to the driver that
+    # caused it. The record is a BEFORE and AFTER per driver, which telescopes:
+    # the drivers' factors multiply back to the whole movement exactly, and
+    # nothing has to be inferred from the order they ran in.
     order = (sc.RATING, sc.MACRO, sc.FINANCIAL, sc.STAGE, sc.PD, sc.LGD,
              sc.CCF, sc.COLLATERAL, sc.HAIRCUT, sc.EAD)
+    tracked: dict[str, dict[str, np.ndarray]] = {}
+
+    def _snapshot() -> dict[str, np.ndarray]:
+        return {name: work[column].to_numpy(dtype=float, copy=True)
+                for name, column in (("pd", "pd_stressed"),
+                                     ("lgd", "lgd_stressed"),
+                                     ("ead", "ead_stressed"))}
+
+    def _record(driver: str, before: dict[str, np.ndarray]) -> None:
+        entry = tracked.setdefault(driver, {})
+        for name, opening in before.items():
+            entry.setdefault(f"{name}_before", opening)
+            entry[f"{name}_after"] = work[
+                {"pd": "pd_stressed", "lgd": "lgd_stressed",
+                 "ead": "ead_stressed"}[name]].to_numpy(dtype=float, copy=True)
+
     for kind in order:
         for shock in scenario.shocks_of(kind):
+            _before = _snapshot()
             if kind == sc.RATING:
                 _apply_rating(work, int(shock.magnitude), steps)
             elif kind == sc.MACRO:
@@ -683,10 +730,16 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
                 _apply_stage(work, shock, steps)
             elif kind == sc.EAD:
                 _apply_ead(work, shock, steps)
+            _record(DRIVER_OF.get(kind, kind), _before)
 
+    # The clamps are a driver too, and a named one. A shock that ran into the
+    # policy limits did not have the effect it asked for, and attributing the
+    # difference to the shock would overstate it.
+    _before = _snapshot()
     work["pd_stressed"] = work["pd_stressed"].clip(lower=0.0, upper=99.0)
     work["lgd_stressed"] = work["lgd_stressed"].clip(lower=0.0, upper=95.0)
     work["ead_stressed"] = work["ead_stressed"].clip(lower=0.0)
+    _record(DRIVER_LIMITS, _before)
 
     # ---- re-stage against the STRESSED PD, using the thread's criteria
     #
@@ -800,7 +853,7 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
     result = Result(scenario=scenario, period=settled,
                     borrowers=_present(work), steps=steps,
                     sensitivity_rows=rows, warnings=warnings,
-                    frame=work.copy(), staging=criteria)
+                    frame=work.copy(), staging=criteria, tracked=tracked)
     result.summary = _summarise(work, scenario, settled)
     result.by_sector = _group(work, "sector")
     result.by_rating = _group(work, "internal_rating")

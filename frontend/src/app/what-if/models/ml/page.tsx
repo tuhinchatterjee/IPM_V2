@@ -281,7 +281,8 @@ export default function MlModelPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {(["stage", "pd_band", "lgd_band", "period"] as const).flatMap(
+                        {(["stage", "out_of_time_stage", "pd_band", "lgd_band",
+                           "period"] as const).flatMap(
                           (key) =>
                             (card.slices[key] ?? []).map((row) => (
                               <tr key={`${key}-${row.label}`} className="border-t border-border">
@@ -300,6 +301,93 @@ export default function MlModelPage() {
                         )}
                       </tbody>
                     </table>
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {card.stage_study?.available ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-[14px]">
+                      Stage-aware: one model, or one per Stage?
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3" data-testid="stage-study">
+                    <p className="text-[12px] text-text-secondary">
+                      <strong>{card.stage_study.chosen}</strong> Both designs were
+                      fitted and scored out of time on this training run, so this is
+                      what the numbers chose rather than what was preferred.
+                    </p>
+                    {(card.stage_study.because ?? []).map((line) => (
+                      <p key={line} className="text-[12px] text-text-secondary">
+                        {line}
+                      </p>
+                    ))}
+                    {card.stage_study.boundary?.available ? (
+                      <div className="grid grid-cols-3 gap-3" data-testid="stage-boundary">
+                        <Figure
+                          label="Governed Stage 1 → 2 step"
+                          value={`${card.stage_study.boundary.governed_step.toFixed(2)}x`}
+                        />
+                        <Figure
+                          label="This model"
+                          value={`${card.stage_study.boundary.champion_step.toFixed(2)}x`}
+                          tone="whatif"
+                        />
+                        <Figure
+                          label="Separate models"
+                          value={
+                            card.stage_study.boundary.challenger_step === undefined
+                              ? "—"
+                              : `${card.stage_study.boundary.challenger_step.toFixed(2)}x`
+                          }
+                        />
+                      </div>
+                    ) : null}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-[12px]">
+                        <thead>
+                          <tr className="text-left text-text-muted">
+                            <th className="py-1">Stage</th>
+                            <th className="text-right">OOT rows</th>
+                            <th className="text-right">Share of ECL</th>
+                            <th className="text-right">This model R²</th>
+                            <th className="text-right">Separate model R²</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {["1", "2", "3"].map((stage) => {
+                            const mine = card.stage_study!.champion_by_stage?.[stage];
+                            const theirs = card.stage_study!.challenger_by_stage?.[stage];
+                            if (!mine) return null;
+                            const totalEcl = ["1", "2", "3"].reduce(
+                              (sum, k) =>
+                                sum + (card.stage_study!.champion_by_stage?.[k]?.ecl ?? 0),
+                              0,
+                            );
+                            return (
+                              <tr key={stage} className="border-t border-border">
+                                <td className="py-1">Stage {stage}</td>
+                                <td className="text-right tabular-nums">{count(mine.rows)}</td>
+                                <td className="text-right tabular-nums">
+                                  {totalEcl ? pct((mine.ecl / totalEcl) * 100, 1) : "—"}
+                                </td>
+                                <td className="text-right tabular-nums">
+                                  {mine.champion?.r2 === undefined
+                                    ? "—"
+                                    : mine.champion.r2.toFixed(4)}
+                                </td>
+                                <td className="text-right tabular-nums">
+                                  {theirs?.fitted && theirs.r2 !== undefined
+                                    ? theirs.r2.toFixed(4)
+                                    : theirs?.why ?? "—"}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </CardContent>
                 </Card>
               ) : null}
@@ -390,6 +478,51 @@ export default function MlModelPage() {
                   ))}
                 </CardContent>
               </Card>
+
+              {explain.stage_interaction?.stages?.length ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-[14px]">
+                      Stage interaction — the same shock, inside each Stage
+                    </CardTitle>
+                    <p className="mt-0.5 text-[11px] text-text-muted">
+                      A single model is only stage-aware if the Stage changes how it
+                      reads everything else. This shocks {explain.stage_interaction.feature}{" "}
+                      within each Stage, so nothing here is a migration effect.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-3" data-testid="stage-interaction">
+                    {explain.stage_interaction.stages.map((entry) => (
+                      <div key={entry.stage} data-stage-response={entry.stage}>
+                        <div className="text-[12px] font-medium text-text-primary">
+                          Stage {entry.stage}{" "}
+                          <span className="text-[11px] text-text-muted">
+                            ({count(entry.rows)} rows)
+                          </span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-text-secondary">
+                          {entry.points.map((p) => (
+                            <span key={p.multiplier} className="tabular-nums">
+                              ×{p.multiplier} →{" "}
+                              {p.relative_to_base === null
+                                ? "—"
+                                : `${p.relative_to_base.toFixed(3)}×`}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    {explain.stage_interaction.finding ? (
+                      <p className="text-[12px] text-text-secondary">
+                        {explain.stage_interaction.finding}
+                      </p>
+                    ) : null}
+                    <p className="text-[10px] text-text-muted">
+                      {explain.stage_interaction.note}
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : null}
             </div>
           ) : null}
 

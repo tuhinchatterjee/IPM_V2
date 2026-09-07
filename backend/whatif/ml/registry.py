@@ -118,6 +118,9 @@ class Card:
     validation: dict[str, Any] = field(default_factory=dict)
     out_of_time: dict[str, Any] = field(default_factory=dict)
     slices: dict[str, Any] = field(default_factory=dict)
+    #: One model with Stage as a feature, or one model per Stage? The
+    #: comparison that chose, re-measured on every fit.
+    stage_study: dict[str, Any] = field(default_factory=dict)
     ranges: dict[str, Any] = field(default_factory=dict)
     encoding: dict[str, Any] = field(default_factory=dict)
     importance: list[dict[str, Any]] = field(default_factory=list)
@@ -225,6 +228,7 @@ def save(trained: Any, *, version: str = "", built_by: str = "",
         validation=dict(trained.validation),
         out_of_time=dict(trained.out_of_time),
         slices=dict(trained.slices), ranges=dict(trained.ranges),
+        stage_study=dict(trained.stage_study),
         encoding=trained.encoding.to_dict(),
         importance=list(importance or []), shap=dict(shap or {}),
         artifact_bytes=len(artifact),

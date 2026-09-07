@@ -32,6 +32,7 @@ from typing import Any
 
 import pandas as pd
 
+from backend.whatif import attribution as at
 from backend.whatif import delta as dl
 from backend.whatif import domain as dm
 from backend.whatif import engine as wf
@@ -63,6 +64,9 @@ class WhatIfResult:
     by_stage: pd.DataFrame = field(default_factory=pd.DataFrame)
     stage_movement: dict[str, Any] = field(default_factory=dict)
     rating_movement: dict[str, Any] = field(default_factory=dict)
+    #: The ECL movement split across the drivers that caused it, by an exact
+    #: order-neutral Shapley value.
+    attribution: dict[str, Any] = field(default_factory=dict)
     ml: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
 
@@ -115,6 +119,7 @@ class WhatIfResult:
             "steps": list(self.steps),
             "stage_movement": dict(self.stage_movement),
             "rating_movement": dict(self.rating_movement),
+            "attribution": dict(self.attribution),
             "ml": dict(self.ml),
             "warnings": list(self.warnings),
             "borrowers": {
@@ -130,6 +135,20 @@ class WhatIfResult:
             "by_stage": self.by_stage.to_dict(orient="records")
             if not self.by_stage.empty else [],
         }
+
+
+def _attribution(work: pd.DataFrame, engine_result: Any) -> dict[str, Any]:
+    """The driver split, or a stated reason there is not one.
+
+    An attribution that cannot be computed says so on the result. It never
+    comes back as an empty table, because an empty table reads as "nothing
+    caused this".
+    """
+    try:
+        return at.attribute(work, getattr(engine_result, "tracked", {}) or {},
+                            currency=dm.CURRENCY)
+    except at.AttributionError as e:
+        return {"available": False, "why": str(e)}
 
 
 def _movement(frame: pd.DataFrame) -> dict[str, Any]:
@@ -284,6 +303,7 @@ def execute(state: sp.ScenarioState, *, requested: str = "",
         if "opening_rating" in work.columns else wf._group(work, "internal_rating"),
         by_stage=wf._group(work, "stage_baseline", label="Opening stage"),
         stage_movement=_movement(work), rating_movement=_rating_movement(work),
+        attribution=_attribution(work, engine_result),
         ml=ml_body, warnings=warnings)
 
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 
+import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
@@ -20,6 +21,7 @@ from backend.whatif import run as rn
 from backend.whatif import scenarios as sc
 from backend.whatif import steps as sp
 from backend.whatif import threads as th
+from backend.whatif.ml import explain as ex
 from backend.whatif.ml import features as ft
 from backend.whatif.ml import registry as rg
 from backend.whatif.ml import train as tr
@@ -130,6 +132,100 @@ class TestTheSplits:
 
 
 @needs_model
+class TestItIsGenuinelyStageAware:
+    """The requirement is a stage-aware model. This is the evidence that the
+    single model IS one, and the evidence that chose it over one per Stage.
+
+    Nothing here re-fits: the study is measured on every training run and
+    stored on the card, so the assertions read what the last run actually
+    found rather than recomputing a friendlier answer.
+    """
+
+    def test_the_card_carries_the_design_comparison(self) -> None:
+        study = rg.active().stage_study
+        assert study.get("available"), (
+            "a model card with no stage study cannot support the claim that "
+            "the design was chosen rather than assumed")
+        assert study["design"] in ("single_stage_aware", "per_stage")
+        assert study["because"], "a verdict with no reasons is a preference"
+
+    def test_both_designs_were_actually_fitted(self) -> None:
+        study = rg.active().stage_study
+        fitted = {k: v for k, v in study["challenger_by_stage"].items()
+                  if v.get("fitted")}
+        assert len(fitted) >= 2, (
+            "the comparison is only worth having if the challenger was built")
+        for stage, body in fitted.items():
+            assert body["training_rows"] > 0 and body["count"] > 0, stage
+            assert body["r2"] is not None
+
+    def test_the_boundary_is_where_the_designs_part(self) -> None:
+        """A What-If's job is moving names from Stage 1 to Stage 2, so what a
+        crossing is WORTH decides the headline number."""
+        boundary = rg.active().stage_study["boundary"]
+        assert boundary["available"]
+        assert boundary["governed_step"] > 1.0
+        assert abs(boundary["champion_step_error_pct"]) < 2.0, (
+            "the model must reproduce the governed Stage 1 to Stage 2 step")
+        if "challenger_step_error_pct" in boundary:
+            assert (abs(boundary["champion_step_error_pct"])
+                    < abs(boundary["challenger_step_error_pct"])), (
+                "this is the reason the single model was kept; if it stops "
+                "being true the design should change")
+
+    def test_the_per_stage_error_is_reported_out_of_time_not_only_in_sample(
+            self) -> None:
+        slices = rg.active().slices
+        assert slices.get("out_of_time_stage"), (
+            "validation-period error by Stage is not the same claim as "
+            "out-of-time error by Stage")
+        labels = {row["label"] for row in slices["out_of_time_stage"]}
+        assert {"1", "2"} <= labels
+
+    def test_each_stage_carries_what_it_is_worth(self) -> None:
+        """R-squared on a Stage holding 9% of the ECL is not the same finding
+        as R-squared on the Stage holding 71% of it."""
+        by_stage = rg.active().stage_study["champion_by_stage"]
+        total = sum(body["ecl"] for body in by_stage.values())
+        assert total > 0
+        assert by_stage["2"]["ecl"] / total > 0.4, (
+            "Stage 2 is where the provision is; the card has to say so")
+
+    def test_the_stages_respond_differently_to_the_same_shock(self) -> None:
+        """The load-bearing evidence for a single model. If Stage were an
+        intercept, one model would be fitting one surface and the design would
+        deserve the challenge."""
+        card = rg.active()
+        model = rg.load_booster(card.version)
+        split = tr.Split.from_dict(card.split)
+        frame = tr.load(split.validation or split.train)
+        matrix = ft.build(frame, encoding=ft.Encoding.from_dict(card.encoding))
+        found = ex.stage_interaction(model, matrix.X, frame)
+        responses = {
+            entry["stage"]: next(p["relative_to_base"] for p in entry["points"]
+                                 if p["multiplier"] == 2.0)
+            for entry in found["stages"]}
+        assert {1, 2} <= set(responses)
+        assert abs(responses[1] - responses[2]) > 0.05, (
+            f"Stage 1 and Stage 2 respond alike ({responses}); the Stage is "
+            "behaving as an intercept and one model per Stage should be "
+            "reconsidered")
+        assert found["finding"]
+
+    def test_the_interaction_is_not_a_migration_effect(self) -> None:
+        """Each Stage is shocked within itself, so nothing crosses the line."""
+        card = rg.active()
+        model = rg.load_booster(card.version)
+        split = tr.Split.from_dict(card.split)
+        frame = tr.load(split.validation or split.train)
+        matrix = ft.build(frame, encoding=ft.Encoding.from_dict(card.encoding))
+        found = ex.stage_interaction(model, matrix.X, frame)
+        stages = pd.to_numeric(frame.loc[matrix.X.index, "stage"], errors="coerce")
+        for entry in found["stages"]:
+            assert entry["rows"] <= int((stages == entry["stage"]).sum())
+        assert "migration" in found["note"]
+
+
 class TestTheStoredModel:
     def test_the_artifact_is_json_and_not_a_pickle(self) -> None:
         card = rg.active()

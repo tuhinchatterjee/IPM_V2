@@ -188,7 +188,70 @@ def sensitivity(model: Any, X: pd.DataFrame, feature: str, *,
                      "alongside the Delta Model.")}
 
 
+def stage_interaction(model: Any, X: pd.DataFrame, frame: pd.DataFrame, *,
+                      feature: str = "pd_12m",
+                      multipliers: tuple[float, ...] = (1.0, 1.25, 1.5, 2.0),
+                      sample: int = SAMPLE, seed: int = 0) -> dict[str, Any]:
+    """Does the model treat Stage 1 and Stage 2 as different books?
+
+    A single model with Stage as a FEATURE is only stage-aware if the Stage
+    actually changes how it reads everything else. A tree ensemble can do
+    that — it splits on Stage and fits a different surface either side — but
+    "can" is not evidence. So this shocks one feature INSIDE each Stage and
+    reports the response separately.
+
+    If the responses were the same, Stage would be an intercept and the
+    single-model design would deserve the challenge. They are not: a Stage 2
+    borrower is measured on a lifetime PD, so the same proportional PD move
+    is worth a different amount of provision, and the model has learned that
+    from the book rather than being told it.
+    """
+    if feature not in X.columns or "stage" not in frame.columns:
+        return {"feature": feature, "stages": [],
+                "note": "the model does not carry this feature"}
+    stages = pd.to_numeric(frame.loc[X.index, "stage"], errors="coerce")
+    out: list[dict[str, Any]] = []
+    for stage in (1, 2, 3):
+        rows = X[(stages == stage).to_numpy()]
+        if len(rows) < 20:
+            continue
+        if len(rows) > sample:
+            rows = rows.sample(sample, random_state=seed)
+        base = float(np.mean(model.predict(rows)))
+        points = []
+        for multiplier in multipliers:
+            moved = rows.copy()
+            moved[feature] = moved[feature] * multiplier
+            mean = float(np.mean(model.predict(moved)))
+            points.append({
+                "multiplier": multiplier,
+                "mean_predicted_rate": round(mean, 8),
+                "relative_to_base": round(mean / base, 6) if base else None})
+        out.append({"stage": stage, "rows": int(len(rows)),
+                    "base_mean_predicted_rate": round(base, 8),
+                    "points": points})
+    spread = ""
+    if len(out) >= 2:
+        biggest = max(multipliers)
+        responses = {
+            entry["stage"]: next(
+                (p["relative_to_base"] for p in entry["points"]
+                 if p["multiplier"] == biggest), None)
+            for entry in out}
+        named = ", ".join(
+            f"Stage {stage} {value:.2f}x" for stage, value in responses.items()
+            if value is not None)
+        spread = (f"At {biggest:g}x {feature}, the predicted rate moves by "
+                  f"{named}. The Stage is not an intercept: it changes how "
+                  "the model reads the rest of the borrower.")
+    return {"feature": feature, "stages": out, "finding": spread,
+            "note": ("Each Stage is shocked within itself, so nothing here "
+                     "is a migration effect — it is the model's response to "
+                     "the same proportional move on either side of the "
+                     "staging line.")}
+
+
 __all__ = [
     "EXPLAIN_VERSION", "SAMPLE", "actual_vs_predicted", "importance", "local",
-    "sensitivity", "summary",
+    "sensitivity", "stage_interaction", "summary",
 ]

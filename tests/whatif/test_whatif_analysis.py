@@ -17,6 +17,8 @@ import pytest
 
 from backend.corporate.universe import RATING_SCALE
 from backend.ifrs9 import policy
+from backend.orchestration import decomposition as dc
+from backend.whatif import attribution as at
 from backend.whatif import delta as dl
 from backend.whatif import domain as dm
 from backend.whatif import language as lang
@@ -845,6 +847,137 @@ class TestRunningAWhatIf:
             context["whatif_staging"]["label"]
         assert context["reported_staging"]["editable"] is False
         assert context["whatif_staging"]["editable"] is True
+
+
+# ================================================== driver attribution
+
+class TestTheDriverAttribution:
+    """What moved the provision, split across the things the scenario changed.
+
+    The claim is EXACTNESS, so the tests are about exactness: the effects sum
+    to the movement, a driver that did not move gets zero, and the answer does
+    not depend on the order the shocks were written in.
+    """
+
+    def _state(self, *steps: sp.Step) -> sp.ScenarioState:
+        state = sp.ScenarioState(period=dm.latest_period())
+        for step in steps:
+            state = state.add(step)
+        return state
+
+    RATING = sp.Step(sp.RATING, (sc.Shock(sc.RATING, 2, sc.NOTCHES),),
+                     interpreted="downgrade two notches")
+    LGD = sp.Step(sp.LGD, (sc.Shock(sc.LGD, 5.0, sc.ABSOLUTE_PP),),
+                  interpreted="LGD +5pp")
+    MACRO = sp.Step(sp.MACRO,
+                    (sc.Shock(sc.MACRO, 200.0, sc.BASIS_POINTS,
+                              target="policy_rate"),),
+                    interpreted="policy rate +200bps")
+
+    def test_it_uses_the_governed_shapley_and_says_so(self) -> None:
+        body = at.describe()
+        assert "Shapley" in body["method"]
+        assert "order-neutral" in body["statement"]
+
+    def test_the_effects_sum_to_the_movement(self) -> None:
+        result = rn.execute(self._state(self.RATING, self.LGD, self.MACRO),
+                            requested=me.DELTA)
+        body = result.attribution
+        assert body["available"]
+        total = sum(d["effect"] for d in body["drivers"])
+        # 1e-7 is float64 accumulation over 2^n coalitions each summed across
+        # the book, not a modelling residual: on a SAR 69bn movement it is
+        # under two thousand riyals, and it does not grow with the scenario.
+        assert total == pytest.approx(result.summary["incremental_ecl"],
+                                      rel=1e-7), (
+            "an attribution that does not add up to the number it is "
+            "explaining is a picture, not a decomposition")
+        assert body["reconciliation"]["reconciles"]
+
+    def test_it_is_order_neutral(self) -> None:
+        """The engine applies shocks in a fixed order. The ATTRIBUTION must not
+        depend on the order the person wrote them in."""
+        one = rn.execute(self._state(self.RATING, self.LGD, self.MACRO),
+                         requested=me.DELTA).attribution
+        two = rn.execute(self._state(self.MACRO, self.LGD, self.RATING),
+                         requested=me.DELTA).attribution
+        first = {d["key"]: d["effect"] for d in one["drivers"]}
+        second = {d["key"]: d["effect"] for d in two["drivers"]}
+        assert set(first) == set(second)
+        for key, effect in first.items():
+            assert effect == pytest.approx(second[key], rel=1e-9), key
+        assert one["total"] == pytest.approx(two["total"], rel=1e-9)
+
+    def test_a_driver_that_did_not_move_gets_exactly_zero(self) -> None:
+        result = rn.execute(self._state(self.LGD), requested=me.DELTA)
+        body = result.attribution
+        moved = {d["key"] for d in body["drivers"]}
+        assert "lgd" in moved
+        assert "rating" not in moved, (
+            "a driver the scenario never touched must not appear with a "
+            "rounding-error effect")
+        assert body["unmoved"], "and it must be named as unmoved, not omitted"
+
+    def test_the_named_drivers_are_the_ones_the_product_promises(self) -> None:
+        keys = {entry["key"] for entry in at.describe()["drivers"]}
+        assert {"rating", "pd", "lgd", "ead", "ccf", "stage", "macro"} <= keys
+
+    def test_the_stage_effect_is_the_change_of_measurement_basis(self) -> None:
+        """A rating downgrade both raises PD and migrates the Stage. The two
+        are separate facts and the table has to keep them apart."""
+        body = rn.execute(self._state(self.RATING), requested=me.DELTA).attribution
+        keys = {d["key"]: d for d in body["drivers"]}
+        assert "rating" in keys and "stage" in keys
+        assert keys["stage"]["effect"] > 0
+        assert "measurement basis" in keys["stage"]["label"]
+
+    def test_the_ml_difference_is_its_own_line_not_a_driver(self) -> None:
+        """SHAP explains the model; this explains the scenario. Where the two
+        methodologies disagree, the disagreement is labelled."""
+        state = self._state(sp.Step(sp.PD, (sc.Shock(sc.PD, 20.0, sc.RELATIVE),),
+                                    interpreted="PD +20%"))
+        delta = rn.execute(state, requested=me.DELTA).attribution
+        ml = rn.execute(state, requested=me.ML).attribution
+        assert "model_adjustment" not in delta
+        assert "model_adjustment" in ml, (
+            "the ML methodology priced it differently and the difference has "
+            "to be visible")
+        assert {d["key"] for d in delta["drivers"]} == \
+            {d["key"] for d in ml["drivers"]}
+        for left, right in zip(delta["drivers"], ml["drivers"], strict=True):
+            assert left["effect"] == pytest.approx(right["effect"], rel=1e-9), (
+                "the scenario drivers are the same scenario; only the pricing "
+                "of it changed")
+        assert ml["reconciliation"]["reconciles"]
+
+    def test_it_reconciles_on_a_scenario_that_hits_the_clamps(self) -> None:
+        """PD is clamped at 99%. A shock that ran into the limit did not have
+        the effect it asked for, and the difference is a named driver."""
+        huge = self._state(sp.Step(sp.PD, (sc.Shock(sc.PD, 900.0, sc.RELATIVE),),
+                                   interpreted="PD +900%"))
+        body = rn.execute(huge, requested=me.DELTA).attribution
+        assert body["reconciliation"]["reconciles"]
+        assert sum(d["effect"] for d in body["drivers"]) == pytest.approx(
+            body["measured_total"], rel=1e-7)
+
+    def test_the_attribution_is_on_the_result_a_reader_gets(self) -> None:
+        body = rn.execute(self._state(self.RATING),
+                          requested=me.DELTA).to_dict()
+        assert body["attribution"]["available"]
+        assert body["attribution"]["drivers"]
+
+    def test_it_reuses_the_governed_function_rather_than_a_copy(self) -> None:
+        """The order-neutrality claim is only as good as the function behind
+        it, and there is exactly one of those in this repository."""
+        game = {frozenset(): 0.0, frozenset({0}): 3.0, frozenset({1}): 5.0,
+                frozenset({0, 1}): 10.0}
+        effects = dc.shapley_of(game, 2)
+        assert sum(effects) == pytest.approx(10.0)
+        # Symmetric with the product form the ECL bridge uses.
+        assert dc.shapley((1.0, 1.0), (2.0, 3.0)) == pytest.approx(
+            tuple(dc.shapley_of(
+                {frozenset(): 1.0, frozenset({0}): 2.0, frozenset({1}): 3.0,
+                 frozenset({0, 1}): 6.0}, 2)))
 
 
 # ======================================================= reports vs scenarios

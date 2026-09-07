@@ -230,6 +230,19 @@ async function main() {
       const exposure = await page.locator('[data-chart="exposure"]').count();
       check("the movement is drawn, not only tabulated", ecl > 0 && exposure > 0,
         `ecl=${ecl} exposure=${exposure}`);
+      check("the movement is attributed to the drivers that caused it",
+        await appears(page, '[data-testid="whatif-attribution"]', 20_000));
+      const attributed = await page.locator('[data-testid="whatif-attribution"]').textContent();
+      check("the attribution names the method",
+        attributed.includes("Shapley") && attributed.includes("order-neutral"));
+      check("the rating driver is on the table",
+        (await page.locator('[data-driver="rating"]').count()) > 0);
+      check("the Stage migration is kept apart from the rating move",
+        (await page.locator('[data-driver="stage"]').count()) > 0
+        && attributed.includes("measurement basis"));
+      check("the table says whether it reconciles",
+        (await page.locator('[data-testid="attribution-check"]').textContent())
+          .includes("Reconciles"));
       check("the charts carry a baseline and a What-If series",
         (await page.getByText("Baseline", { exact: true }).count()) > 0 &&
         (await page.getByText("What-If", { exact: true }).count()) > 0);
@@ -286,6 +299,33 @@ async function main() {
     await page.getByRole("tab", { name: "Retrain" }).click();
     check("the retrain prompt names the periods",
       (await page.textContent("body")).includes("trained through"));
+    // Stage-awareness: the evidence, not the claim. The model card tab, which
+    // an earlier check navigated away from.
+    await page.getByRole("tab", { name: "Model card" }).click();
+    check("the stage-design study is on the model card",
+      await appears(page, '[data-testid="stage-study"]', 20_000));
+    const study = await page.locator('[data-testid="stage-study"]').textContent();
+    check("it says which design was chosen",
+      study.includes("One model with Stage as a feature")
+      || study.includes("One model per Stage"), "");
+    check("it reports the governed Stage 1 to 2 step and both models against it",
+      (await page.locator('[data-testid="stage-boundary"]').count()) > 0);
+    check("it reports each Stage's share of the ECL",
+      study.includes("Share of ECL"));
+
+    await page.getByRole("tab", { name: "Explainability" }).click();
+    check("the Stage interaction is shown",
+      await appears(page, '[data-testid="stage-interaction"]', 20_000));
+    const interaction = await page.locator('[data-testid="stage-interaction"]').textContent();
+    check("Stage 1 and Stage 2 responses are both reported",
+      (await page.locator('[data-stage-response="1"]').count()) > 0
+      && (await page.locator('[data-stage-response="2"]').count()) > 0);
+    check("and the finding is stated in words",
+      interaction.includes("not an intercept"));
+
+    // The version list lives on the Retrain tab, where a person goes to make a
+    // new one and needs to see what is already there.
+    await page.getByRole("tab", { name: "Retrain" }).click();
     check("versions are listed", (await page.textContent("body")).includes("ACTIVE"));
   });
 

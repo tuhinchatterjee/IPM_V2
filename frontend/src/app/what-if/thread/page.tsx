@@ -28,6 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs } from "@/components/ui/tabs";
 import {
   BeforeAfterChart,
+  DriverAttribution,
   Composer,
   EclHeadline,
   Figure,
@@ -782,6 +783,12 @@ export default function WhatIfThreadPage() {
                           tone="positive"
                         />
                       </div>
+                    ) : null}
+                    {result.attribution ? (
+                      <DriverAttribution
+                        attribution={result.attribution}
+                        currency={context.currency}
+                      />
                     ) : null}
                     {result.stage_movement?.stages?.length ? (
                       <div className="grid gap-4 lg:grid-cols-2">

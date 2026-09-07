@@ -32,6 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type {
+  WhatIfAttribution,
   WhatIfContext,
   WhatIfGate,
   WhatIfMigration,
@@ -530,6 +531,108 @@ export function StagingCriteria({
           </p>
         </CardContent>
       ) : null}
+    </Card>
+  );
+}
+
+/**
+ * Which driver moved the provision.
+ *
+ * The split is an exact Shapley value, so the effects sum to the movement and
+ * a driver that did not move gets exactly zero. The reconciliation is shown
+ * rather than asserted: a table that claims to add up should be checkable
+ * without a calculator.
+ */
+export function DriverAttribution({
+  attribution,
+  currency = "SAR",
+}: {
+  attribution: WhatIfAttribution;
+  currency?: string;
+}) {
+  if (!attribution.available) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-[14px]">What moved the provision</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-[12px] text-text-secondary">{attribution.why}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  const drivers = attribution.drivers ?? [];
+  if (!drivers.length) return null;
+  const model = attribution.model_adjustment;
+  const check = attribution.reconciliation;
+  return (
+    <Card data-testid="whatif-attribution">
+      <CardHeader>
+        <CardTitle className="text-[14px]">What moved the provision</CardTitle>
+        <p className="mt-0.5 text-[11px] text-text-muted">
+          {attribution.method} · v{attribution.version}
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Driver</TableHead>
+                <TableHead numeric>Effect on ECL</TableHead>
+                <TableHead numeric>Share</TableHead>
+                <TableHead numeric>Borrowers moved</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {drivers.map((driver) => (
+                <TableRow key={driver.key} data-driver={driver.key}>
+                  <TableCell className="font-medium">{driver.label}</TableCell>
+                  <TableCell numeric>{money(driver.effect, currency)}</TableCell>
+                  <TableCell numeric>{signed(driver.share_pct)}</TableCell>
+                  <TableCell numeric>{count(driver.borrowers_moved)}</TableCell>
+                </TableRow>
+              ))}
+              {model ? (
+                <TableRow data-driver="model">
+                  <TableCell className="font-medium text-text-secondary">
+                    {model.label}
+                  </TableCell>
+                  <TableCell numeric>{money(model.effect, currency)}</TableCell>
+                  <TableCell numeric>—</TableCell>
+                  <TableCell numeric>—</TableCell>
+                </TableRow>
+              ) : null}
+              <TableRow>
+                <TableCell className="font-medium">Total movement</TableCell>
+                <TableCell numeric className="font-medium">
+                  {money(attribution.total, currency)}
+                </TableCell>
+                <TableCell numeric>—</TableCell>
+                <TableCell numeric>—</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+        {model ? (
+          <p className="text-[11px] text-text-muted">{model.note}</p>
+        ) : null}
+        {check ? (
+          <p className="text-[11px] text-text-muted" data-testid="attribution-check">
+            {check.reconciles
+              ? `Reconciles: the drivers add to ${money(check.attributed, currency)} and the movement is ${money(check.reported_movement, currency)}.`
+              : `Does not reconcile — ${money(check.difference, currency)} unexplained.`}
+          </p>
+        ) : null}
+        <p className="text-[11px] text-text-muted">{attribution.note}</p>
+        {attribution.unmoved?.length ? (
+          <p className="text-[11px] text-text-muted">
+            Unmoved by this scenario, and therefore exactly zero:{" "}
+            {attribution.unmoved.join(", ")}.
+          </p>
+        ) : null}
+      </CardContent>
     </Card>
   );
 }

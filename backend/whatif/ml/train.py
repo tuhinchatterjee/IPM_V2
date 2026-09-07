@@ -237,6 +237,213 @@ LGD_BANDS: list[tuple[str, Any, Any]] = [
     ("45 to 60%", 45.0, 60.0), ("60% and above", 60.0, 1e9)]
 
 
+def stage_study(split: Split, *, source: Any = None,
+                champion: Any = None, encoding: ft.Encoding | None = None,
+                ) -> dict[str, Any]:
+    """One stage-aware model, or one model per Stage? Measured, not asserted.
+
+    The requirement is a STAGE-AWARE model, and there are two ways to build
+    one: give a single model the Stage as a feature, or fit a separate model
+    for each Stage. This function fits the challengers and reports both, so
+    the choice is evidence rather than preference — and so it is re-measured
+    on every retraining rather than being a paragraph that ages.
+
+    Three things are compared:
+
+      * BOOK LEVEL out-of-time error, which is what the What-If actually uses,
+        since the anchoring is a ratio of two book-level predictions;
+      * PER-STAGE out-of-time error, which is where separate models could win;
+      * THE BOUNDARY. A What-If's whole job is moving names from Stage 1 to
+        Stage 2, so what a crossing is WORTH decides the headline number. The
+        governed measurement gives the right answer for the same borrowers
+        (12-month PD against lifetime PD, same LGD, same EAD), and a design
+        that does not reproduce it is manufacturing provision at the boundary.
+    """
+    from xgboost import XGBRegressor
+
+    from backend.ifrs9 import policy
+
+    def _stage(frame: pd.DataFrame, stage: int) -> pd.DataFrame:
+        return frame[pd.to_numeric(frame.get("stage"), errors="coerce") == stage]
+
+    def _fit(frame: pd.DataFrame, validation: pd.DataFrame):
+        built = ft.build(frame)
+        checked = (ft.build(validation, encoding=built.encoding)
+                   if not validation.empty else None)
+        model = XGBRegressor(**HYPERPARAMETERS)
+        if checked is not None and checked.rows:
+            model.fit(built.X, built.y, eval_set=[(checked.X, checked.y)],
+                      verbose=False)
+        else:
+            model.fit(built.X, built.y, verbose=False)
+        return model, built.encoding
+
+    train_frame = load(split.train, source=source)
+    validation_frame = load(split.validation, source=source)
+    oot_frame = load(split.out_of_time, source=source)
+    if train_frame.empty or oot_frame.empty:
+        return {"available": False,
+                "why": "The study needs both training and out-of-time rows."}
+
+    if champion is None or encoding is None:
+        champion, encoding = _fit(train_frame, validation_frame)
+
+    built = ft.build(oot_frame, encoding=encoding)
+    champion_predicted = champion.predict(built.X)
+    rows = oot_frame.loc[built.X.index]
+    exposure = pd.to_numeric(rows["ead"], errors="coerce").fillna(0.0)
+    champion_book = metrics(built.y, champion_predicted, weights=exposure)
+    stages = pd.to_numeric(rows["stage"], errors="coerce").to_numpy()
+    actual = built.y.to_numpy()
+
+    per_stage: dict[str, Any] = {}
+    challengers: dict[str, Any] = {}
+    fitted: dict[int, Any] = {}
+    combined_actual, combined_predicted, combined_weights = [], [], []
+
+    for stage in (1, 2, 3):
+        mask = stages == stage
+        share_ecl = float(
+            pd.to_numeric(rows.loc[mask, "final_ecl"], errors="coerce")
+            .fillna(0.0).sum())
+        entry: dict[str, Any] = {
+            "rows": int(mask.sum()),
+            "exposure": float(exposure.to_numpy()[mask].sum()),
+            "ecl": share_ecl,
+        }
+        if mask.sum() >= 5:
+            entry["champion"] = metrics(
+                actual[mask], champion_predicted[mask],
+                weights=pd.Series(exposure.to_numpy()[mask]))
+        per_stage[str(stage)] = entry
+
+        training_rows = _stage(train_frame, stage)
+        out_rows = _stage(oot_frame, stage)
+        if len(training_rows) < 50 or out_rows.empty:
+            challengers[str(stage)] = {
+                "fitted": False,
+                "why": f"{len(training_rows):,} training row(s) is too few to "
+                       "fit a model of its own."}
+            continue
+        model, own_encoding = _fit(training_rows, _stage(validation_frame, stage))
+        fitted[stage] = (model, own_encoding)
+        scored = ft.build(out_rows, encoding=own_encoding)
+        if not scored.rows:
+            challengers[str(stage)] = {"fitted": False,
+                                       "why": "No out-of-time rows survived."}
+            continue
+        predicted = model.predict(scored.X)
+        weights = pd.to_numeric(out_rows.loc[scored.X.index, "ead"],
+                                errors="coerce").fillna(0.0)
+        challengers[str(stage)] = {
+            "fitted": True, "training_rows": int(len(training_rows)),
+            **metrics(scored.y, predicted, weights=weights)}
+        combined_actual.append(scored.y.to_numpy())
+        combined_predicted.append(predicted)
+        combined_weights.append(weights.to_numpy())
+
+    combined: dict[str, Any] = {}
+    if combined_actual:
+        combined = metrics(
+            pd.Series(np.concatenate(combined_actual)),
+            np.concatenate(combined_predicted),
+            weights=pd.Series(np.concatenate(combined_weights)))
+
+    # ---- the boundary: what is a Stage 1 to Stage 2 crossing worth?
+    boundary: dict[str, Any] = {"available": False}
+    one = _stage(oot_frame, 1)
+    if not one.empty:
+        scored = ft.build(one, encoding=encoding)
+        held = one.loc[scored.X.index]
+        as_is = champion.predict(scored.X)
+        moved = scored.X.copy()
+        if "stage" in moved.columns:
+            moved["stage"] = 2
+        as_stage_2 = champion.predict(moved)
+        pd_12m = pd.to_numeric(held["pd_12m"], errors="coerce").fillna(0.0)
+        lgd = pd.to_numeric(held["lgd"], errors="coerce").fillna(0.0)
+        ead = pd.to_numeric(held["ead"], errors="coerce").fillna(0.0)
+        governed = float(
+            policy.measured_ecl(np.full(len(held), 2), pd_12m, lgd, ead).sum()
+            / max(policy.measured_ecl(np.ones(len(held), dtype=int), pd_12m,
+                                      lgd, ead).sum(), 1e-12))
+        boundary = {
+            "available": True,
+            "rows": int(len(held)),
+            "governed_step": governed,
+            "champion_step": float(as_stage_2.mean() / max(as_is.mean(), 1e-12)),
+        }
+        if 1 in fitted and 2 in fitted:
+            model_1, encoding_1 = fitted[1]
+            model_2, encoding_2 = fitted[2]
+            from_1 = model_1.predict(ft.build(one, encoding=encoding_1).X)
+            from_2 = model_2.predict(ft.build(one, encoding=encoding_2).X)
+            boundary["challenger_step"] = float(
+                from_2.mean() / max(from_1.mean(), 1e-12))
+        for key in ("champion_step", "challenger_step"):
+            if key in boundary:
+                boundary[f"{key}_error_pct"] = float(
+                    (boundary[key] / governed - 1.0) * 100.0)
+
+    verdict = _stage_verdict(champion_book, combined, boundary, challengers)
+    return {"available": True,
+            "champion_book": champion_book,
+            "champion_by_stage": per_stage,
+            "challenger_by_stage": challengers,
+            "challenger_book": combined,
+            "boundary": boundary,
+            **verdict}
+
+
+def _stage_verdict(champion_book: dict[str, Any], challenger_book: dict[str, Any],
+                   boundary: dict[str, Any],
+                   challengers: dict[str, Any]) -> dict[str, Any]:
+    """Which design the numbers chose, and in one sentence, why."""
+    reasons: list[str] = []
+    keeps_single = True
+
+    champion_error = abs(boundary.get("champion_step_error_pct", 0.0))
+    challenger_error = abs(boundary.get("challenger_step_error_pct", 0.0))
+    if boundary.get("available") and "challenger_step" in boundary:
+        reasons.append(
+            f"A Stage 1 to Stage 2 crossing is worth "
+            f"{boundary['governed_step']:.2f}x on the governed measurement. "
+            f"The single stage-aware model reproduces it at "
+            f"{boundary['champion_step']:.2f}x "
+            f"({champion_error:+.1f}%); separate models jump "
+            f"{boundary['challenger_step']:.2f}x "
+            f"({challenger_error:+.1f}%), because two models fitted apart do "
+            f"not share a calibration level and the difference lands on "
+            f"exactly the borrowers a scenario moves.")
+        keeps_single = champion_error <= challenger_error
+
+    if champion_book and challenger_book:
+        better = []
+        for measure, lower_is_better in (("r2", False), ("rmse", True),
+                                         ("exposure_weighted_mae", True),
+                                         ("wape", True)):
+            mine, theirs = champion_book.get(measure), challenger_book.get(measure)
+            if mine is None or theirs is None:
+                continue
+            won = (mine < theirs) if lower_is_better else (mine > theirs)
+            better.append(f"{measure} {mine:.6g} vs {theirs:.6g}"
+                          f"{' (single)' if won else ' (separate)'}")
+        reasons.append("Book level, out of time: " + "; ".join(better) + ".")
+
+    thin = [k for k, v in challengers.items() if not v.get("fitted")]
+    if thin:
+        reasons.append(
+            "Stage " + ", ".join(sorted(thin)) + " could not support a model "
+            "of its own at all.")
+
+    return {
+        "design": "single_stage_aware" if keeps_single else "per_stage",
+        "chosen": ("One model with Stage as a feature."
+                   if keeps_single else "One model per Stage."),
+        "because": reasons,
+    }
+
+
 @dataclass
 class Trained:
     """A fitted model and everything needed to judge or reproduce it."""
@@ -254,6 +461,8 @@ class Trained:
     warnings: list[str] = field(default_factory=list)
     #: The observed range of each feature, for the out-of-distribution check.
     ranges: dict[str, dict[str, float]] = field(default_factory=dict)
+    #: The single-model-versus-per-Stage comparison, re-measured on every fit.
+    stage_study: dict[str, Any] = field(default_factory=dict)
 
     def artifact(self) -> bytes:
         """The model as XGBoost's native JSON. Never a pickle.
@@ -265,8 +474,14 @@ class Trained:
 
 
 def fit(*, split: Split | None = None, source: Any = None,
-        hyperparameters: dict[str, Any] | None = None) -> Trained:
-    """Train the model, validate it, and score it out of time."""
+        hyperparameters: dict[str, Any] | None = None,
+        compare_designs: bool = True) -> Trained:
+    """Train the model, validate it, and score it out of time.
+
+    `compare_designs` also fits one challenger per Stage and reports which
+    design the numbers chose. It costs three small extra fits and is what
+    makes "stage-aware" an answer rather than an assertion.
+    """
     from xgboost import XGBRegressor
 
     chosen = split or plan_split(source=source)
@@ -340,6 +555,15 @@ def fit(*, split: Split | None = None, source: Any = None,
             oot_frame.loc[oot_matrix.X.index], oot_matrix.y.to_numpy(),
             predicted_oot, "period")
 
+    if oot_matrix is not None:
+        trained.slices["out_of_time_stage"] = sliced(
+            oot_frame.loc[oot_matrix.X.index], oot_matrix.y.to_numpy(),
+            predicted_oot, "stage")
+
+    if compare_designs:
+        trained.stage_study = stage_study(
+            chosen, source=source, champion=model, encoding=encoding)
+
     trained.ranges = {
         name: {"min": float(train_matrix.X[name].min()),
                "max": float(train_matrix.X[name].max()),
@@ -353,4 +577,5 @@ __all__ = [
     "DEFAULT_DEVELOPMENT_THROUGH", "HYPERPARAMETERS", "LGD_BANDS", "PD_BANDS",
     "SEED", "Split", "TRAIN_SHARE", "TRAIN_VERSION", "Trained",
     "TrainingError", "fit", "load", "metrics", "plan_split", "sliced",
+    "stage_study",
 ]

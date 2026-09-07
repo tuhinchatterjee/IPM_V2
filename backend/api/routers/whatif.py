@@ -104,6 +104,7 @@ def configuration(_: Any = RequireAnalyst) -> dict[str, Any]:
             "bands": {name: list(grades) for name, grades in ms.BANDS.items()},
         },
         "sensitivity": sv.describe(),
+        "attribution": _attribution_describe(),
         "ifrs9_policy": policy.describe(),
         "scenarios": sc.catalogue(),
         "currency": wf.CURRENCY,
@@ -865,6 +866,18 @@ def delete_saved(scenario_id: int,
 # ------------------------------------------------------- model configuration
 
 
+def _attribution_describe() -> dict[str, Any]:
+    from backend.whatif import attribution as at
+
+    return at.describe()
+
+
+@router.get("/attribution")
+def attribution_method(_: Any = RequireAnalyst) -> dict[str, Any]:
+    """What the driver attribution is, and what it is not."""
+    return _attribution_describe()
+
+
 @router.get("/models/delta")
 def delta_model(_: Any = RequireAnalyst) -> dict[str, Any]:
     """The Delta Model as its configuration page explains it."""
@@ -990,6 +1003,10 @@ def explain_model(version: str = Query(default="", max_length=32),
         "sensitivity": {name: ex.sensitivity(model, matrix.X, name)
                         for name in ("pd_12m", "lgd", "ccf",
                                      "collateral_coverage_pct")},
+        # The evidence that "stage-aware" is a property of this model rather
+        # than a claim about it: the same shock, inside each Stage.
+        "stage_interaction": ex.stage_interaction(model, matrix.X, frame),
+        "stage_study": card.stage_study,
         "slices": card.slices,
         "validation": card.validation,
         "out_of_time": card.out_of_time,
