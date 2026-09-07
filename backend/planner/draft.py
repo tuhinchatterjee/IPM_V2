@@ -51,7 +51,7 @@ import copy
 import re
 import secrets
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -70,6 +70,7 @@ from backend.models.planner import (
     DRAFT_STEPS,
     ENTITY_MILESTONE,
     ENTITY_TASK,
+    MILESTONE_STATUSES,
     PRIORITIES,
     PRIORITY_MEDIUM,
     PROJECT_STATUSES,
@@ -82,16 +83,18 @@ from backend.models.planner import (
     ROLE_WORKSTREAM_LEAD,
     SOURCE_UI,
     STEP_AGENTIC,
+    STEP_DEPENDENCIES,
     STEP_GOVERNANCE,
     STEP_MILESTONES,
     STEP_OVERVIEW,
     STEP_REVIEW,
     STEP_TASKS,
+    TASK_STATUSES,
     PlannerDraft,
     PlannerProject,
 )
 from backend.planner import access as acl
-from backend.planner import control, service
+from backend.planner import control, schedule, service
 from backend.planner import policy as policy_mod
 
 DRAFT_VERSION = "1.0.0"
@@ -401,11 +404,15 @@ def link_preview(plan: dict[str, Any], predecessor: str, successor: str, *,
                         "predecessor end")
     starts = _as_date(second.get("start_date"), "successor start")
     conflict = ""
+    adjustment: dict[str, Any] = {}
     if kind == DEP_FINISH_TO_START and finishes and starts \
-            and starts < finishes:
+            and starts < finishes + timedelta(days=int(lag_days or 0)):
         conflict = (
             f"{_label(second)} is currently scheduled to begin on {starts}, "
             f"but {_label(first)} finishes on {finishes}.")
+        days = ((finishes + timedelta(days=int(lag_days or 0) + 1))
+                - starts).days
+        adjustment = _adjustment(plan, after, days, extra=(before, after))
 
     return {
         "predecessor": before, "successor": after,
@@ -413,8 +420,86 @@ def link_preview(plan: dict[str, Any], predecessor: str, successor: str, *,
         "sentence": f"This will make {_label(second)} depend on "
                     f"{_label(first)}.",
         "conflict": conflict,
+        "adjustment": adjustment,
         "predecessor_label": _label(first),
         "successor_label": _label(second),
+    }
+
+
+# The three date columns a plan row can carry, by what kind of row it is.
+_DATE_FIELDS = {
+    "MILESTONE": ("start_date", "target_date", "critical_date"),
+    "TASK": ("start_date", "due_date", "critical_date"),
+}
+
+
+def downstream(plan: dict[str, Any], code: str, *,
+               extra: tuple[str, str] | None = None) -> list[str]:
+    """`code` and everything that waits on it, in plan order.
+
+    Used to say what an adjustment would actually move. `extra` is a link that
+    does not exist yet, so the preview of a link can include the item it is
+    about to constrain.
+    """
+    edges: dict[str, list[str]] = {}
+    pairs = [_dep_key(link) for link in links_of(plan)]
+    if extra:
+        pairs.append((extra[0].upper(), extra[1].upper()))
+    for before, after in pairs:
+        edges.setdefault(before, []).append(after)
+
+    seen: set[str] = set()
+    queue = [str(code).upper()]
+    while queue:
+        current = queue.pop(0)
+        if current in seen:
+            continue
+        seen.add(current)
+        queue.extend(edges.get(current, ()))
+    return [str(row["code"]) for row in catalogue(plan)
+            if str(row["code"]).upper() in seen]
+
+
+def _adjustment(plan: dict[str, Any], code: str, days: int, *,
+                extra: tuple[str, str] | None = None) -> dict[str, Any]:
+    """Exactly which dates moving `code` by `days` would change.
+
+    Returned, never applied. §11 asks for the impact to be STATED before the
+    dependency is created, and for the person to choose between moving the
+    dates and keeping them; a function that quietly did the first would make
+    the choice meaningless.
+    """
+    if days <= 0:
+        return {}
+    moved: list[dict[str, Any]] = []
+    for item_code in downstream(plan, code, extra=extra):
+        row = item(plan, item_code)
+        if row is None:
+            continue
+        kind = kind_of(plan, item_code)
+        shift: dict[str, Any] = {
+            "code": item_code, "kind": kind, "label": _label(row)}
+        touched = False
+        for field_ in _DATE_FIELDS.get(kind, ()):
+            was = _as_date(row.get(field_), field_)
+            shift[field_] = str(was) if was else ""
+            shift[f"new_{field_}"] = (
+                str(was + timedelta(days=days)) if was else "")
+            touched = touched or bool(was)
+        if touched:
+            moved.append(shift)
+    if not moved:
+        return {}
+    names = ", ".join(str(row["label"]) for row in moved[:4])
+    if len(moved) > 4:
+        names += f" and {len(moved) - 4} more"
+    return {
+        "days": days,
+        "items": moved,
+        "sentence": (
+            f"Moving the dates would push {len(moved)} "
+            f"{'item' if len(moved) == 1 else 'items'} out by {days} "
+            f"{'day' if days == 1 else 'days'}: {names}."),
     }
 
 
@@ -581,6 +666,11 @@ def check(plan: dict[str, Any]) -> Completeness:
             blocker("link", f"{before}->{after}",
                     f"The link {before} → {after} points at something that is "
                     "no longer in the plan.")
+        # A conflict somebody chose to keep is not a mistake, but it is
+        # something the person publishing should see once more.
+        if str(link.get("notes") or "").strip():
+            warn("link", f"{before}->{after}", str(link["notes"]),
+                 "Either move the dates or publish knowing they overlap.")
     ids = _synthetic(plan)
     views = [
         control.DependencyView(
@@ -774,13 +864,23 @@ _MILESTONE_FIELDS: dict[str, str] = {
     "name": "text", "description": "text", "owner_id": "user",
     "escalation_id": "user", "start_date": "date", "target_date": "date",
     "critical_date": "date", "priority": "priority", "critical": "flag",
+    "status": "milestone_status",
 }
 
+#: Everything a task can carry in a plan. `status`, `percent_complete`,
+#: `blocked` and `blocker_reason` are here because a plan is not always
+#: written before the work starts: a programme picked up mid-flight has tasks
+#: that are already in progress, already blocked, and already carry a reason.
+#: Publishing writes them straight through, so the project opens in the state
+#: the plan described rather than pretending everything begins at zero.
 _TASK_FIELDS: dict[str, str] = {
     "title": "text", "description": "text", "owner_id": "user",
     "reviewer_id": "user", "escalation_id": "user", "start_date": "date",
     "due_date": "date", "critical_date": "date", "priority": "priority",
     "effort_days": "number", "critical": "flag", "next_step": "text",
+    "status": "task_status", "weight": "weight",
+    "percent_complete": "percent", "blocked": "flag",
+    "blocker_reason": "text",
 }
 
 
@@ -801,6 +901,33 @@ def _coerce(kind: str, key: str, value: Any) -> Any:
             return int(value)
         except (TypeError, ValueError) as exc:
             raise DraftError(f"{key} must be a number of days.") from exc
+    if kind == "percent":
+        if value in (None, ""):
+            return 0
+        try:
+            found = int(value)
+        except (TypeError, ValueError) as exc:
+            raise DraftError(f"{key} must be a whole percentage.") from exc
+        if not 0 <= found <= 100:
+            raise DraftError(f"{key} must be between 0 and 100.")
+        return found
+    if kind == "weight":
+        if value in (None, ""):
+            return 1.0
+        try:
+            found = float(value)
+        except (TypeError, ValueError) as exc:
+            raise DraftError(f"{key} must be a number.") from exc
+        if found <= 0:
+            raise DraftError(
+                "A task weight of zero would remove it from the progress "
+                "calculation without removing it from the plan.")
+        return found
+    if kind == "task_status":
+        return _one_of(value, TASK_STATUSES, "Task status", "NOT_STARTED")
+    if kind == "milestone_status":
+        return _one_of(value, MILESTONE_STATUSES, "Milestone status",
+                       "PENDING")
     return str(value or "")
 
 
@@ -822,7 +949,7 @@ def _write(row: dict[str, Any], fields: dict[str, str],
 #: reach a mutation nobody wrote a screen for.
 COMMANDS: tuple[str, ...] = (
     "set_overview", "set_governance", "set_agentic",
-    "add_milestone", "update_milestone", "remove_milestone",
+    "add_milestone", "update_milestone", "remove_milestone", "move_milestone",
     "add_task", "update_task", "remove_task",
     "add_link", "remove_link", "set_step",
 )
@@ -989,6 +1116,65 @@ def _cmd_remove_milestone(plan: dict[str, Any],
             "removed_tasks": sorted(doomed - {code})}
 
 
+def _cmd_move_milestone(plan: dict[str, Any],
+                        data: dict[str, Any]) -> dict[str, Any]:
+    """Move a milestone up or down, and renumber everything with it.
+
+    Renumbering codes is normally the wrong thing to do — a code is how a task
+    is referred to in an export and in whatever somebody has already written
+    down — and `update_task` deliberately refuses to do it. A DRAFT is the one
+    place where it is right: nothing has been published, nobody has quoted
+    M03 in an email, and a milestone list where M03 sits above M01 is a plan
+    that reads wrong to the person writing it.
+
+    So this renumbers the milestones, the tasks under them and every link, in
+    one step, and `apply` refuses to run on a published draft at all.
+    """
+    code = str(data.get("code") or "").upper()
+    rows = milestones_of(plan)
+    order = [str(r.get("code", "")).upper() for r in rows]
+    if code not in order:
+        raise DraftError(f"There is no milestone called {code} in this plan.")
+    direction = str(data.get("direction") or "").strip().lower()
+    if direction not in ("up", "down"):
+        raise DraftError("Say whether to move it up or down.")
+
+    at = order.index(code)
+    to = at - 1 if direction == "up" else at + 1
+    if not 0 <= to < len(rows):
+        return {"step": STEP_MILESTONES, "code": code, "moved": False}
+    rows[at], rows[to] = rows[to], rows[at]
+
+    # New codes, in the new order, and the map from old to new.
+    renamed: dict[str, str] = {}
+    for index, row in enumerate(rows, start=1):
+        was = str(row.get("code", "")).upper()
+        now = milestone_code(index)
+        renamed[was] = now
+        row["code"] = now
+    plan["milestones"] = rows
+
+    tasks = tasks_of(plan)
+    counts: dict[str, int] = {}
+    for task in tasks:
+        parent = renamed.get(str(task.get("milestone_code", "")).upper(), "")
+        if not parent:
+            continue
+        counts[parent] = counts.get(parent, 0) + 1
+        was = str(task.get("code", "")).upper()
+        now = task_code(parent, counts[parent])
+        renamed[was] = now
+        task["milestone_code"] = parent
+        task["code"] = now
+
+    for link in links_of(plan):
+        for end in ("predecessor", "successor"):
+            was = str(link.get(end, "")).upper()
+            link[end] = renamed.get(was, was)
+    return {"step": STEP_MILESTONES, "code": renamed.get(code, code),
+            "moved": True, "renamed": renamed}
+
+
 def _cmd_add_task(plan: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
     milestone = str(data.get("milestone_code") or "").upper()
     if not milestone or kind_of(plan, milestone) != ENTITY_MILESTONE \
@@ -1070,19 +1256,55 @@ def _cmd_remove_task(plan: dict[str, Any],
 
 
 def _cmd_add_link(plan: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
+    """Link two things, having been told what to do about the dates.
+
+    `adjust` moves the successor and everything behind it by exactly the
+    number of days the preview named. Without it the dates stay where the
+    person put them and the conflict is written onto the link, so it survives
+    into the project instead of being forgotten between the preview and the
+    publish. There is no third behaviour: this function never moves a date
+    that was not asked for.
+    """
     preview_ = link_preview(
         plan, str(data.get("predecessor") or ""),
         str(data.get("successor") or ""),
         dependency_type=str(data.get("dependency_type")
                             or DEP_FINISH_TO_START),
         lag_days=int(data.get("lag_days") or 0))
-    plan.setdefault("links", []).append({
+
+    adjustment = preview_.get("adjustment") or {}
+    moved: list[str] = []
+    if data.get("adjust"):
+        if not adjustment:
+            raise DraftError(
+                "There is no date conflict on this link, so there is nothing "
+                "to adjust.")
+        for shift in adjustment["items"]:
+            row = item(plan, str(shift["code"]))
+            if row is None:
+                continue
+            for field_ in _DATE_FIELDS.get(str(shift["kind"]), ()):
+                if shift.get(f"new_{field_}"):
+                    row[field_] = shift[f"new_{field_}"]
+            moved.append(str(shift["code"]))
+
+    notes = str(data.get("notes") or "")
+    if not notes and preview_["conflict"] and not data.get("adjust"):
+        notes = f"Date conflict kept and flagged. {preview_['conflict']}"
+
+    link: dict[str, Any] = {
         "predecessor": preview_["predecessor"],
         "successor": preview_["successor"],
         "dependency_type": preview_["dependency_type"],
-        "lag_days": preview_["lag_days"]})
-    return {"step": STEP_TASKS, "code": preview_["successor"],
-            "link": preview_}
+        "lag_days": preview_["lag_days"]}
+    # Only carried when there is something to carry. A link with an empty
+    # note is the ordinary case, and writing the key anyway would put a blank
+    # field in every plan document ever exported.
+    if notes:
+        link["notes"] = notes
+    plan.setdefault("links", []).append(link)
+    return {"step": STEP_DEPENDENCIES, "code": preview_["successor"],
+            "link": preview_, "moved": moved}
 
 
 def _cmd_remove_link(plan: dict[str, Any],
@@ -1094,7 +1316,7 @@ def _cmd_remove_link(plan: dict[str, Any],
         raise DraftError(
             f"{wanted[1]} does not currently wait on {wanted[0]}.")
     plan["links"] = kept
-    return {"step": STEP_TASKS, "code": wanted[1]}
+    return {"step": STEP_DEPENDENCIES, "code": wanted[1]}
 
 
 def _cmd_set_step(plan: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
@@ -1109,6 +1331,7 @@ _COMMANDS = {
     "add_milestone": _cmd_add_milestone,
     "update_milestone": _cmd_update_milestone,
     "remove_milestone": _cmd_remove_milestone,
+    "move_milestone": _cmd_move_milestone,
     "add_task": _cmd_add_task,
     "update_task": _cmd_update_task,
     "remove_task": _cmd_remove_task,
@@ -1170,12 +1393,86 @@ def preview(plan: dict[str, Any]) -> dict[str, Any]:
                     **policy_mod.describe(agentic)},
         "milestones": milestones,
         "links": links,
+        "schedule": timeline(plan),
         "totals": {"milestones": len(milestones_of(plan)),
                    "tasks": len(tasks_of(plan)),
                    "links": len(links_of(plan)),
                    "people": len(_people(plan))},
         "completeness": check(plan).to_dict(),
     }
+
+
+def as_engine_plan(plan: dict[str, Any]) -> control.Plan:
+    """The draft in the shape the scheduling engine reads.
+
+    Ids are synthetic and stable within the call — the engine needs integers
+    and a draft has none — but everything else is the plan as written, so the
+    critical path shown before publish is computed by the same code that
+    computes it afterwards rather than by a second implementation.
+    """
+    ids = _synthetic(plan)
+    governance = plan.get("governance") or {}
+    return control.Plan(
+        project_id=0,
+        code=str((plan.get("overview") or {}).get("code") or ""),
+        name=str((plan.get("overview") or {}).get("name") or ""),
+        status=str(governance.get("status") or "ACTIVE"),
+        target_end_date=_as_date(governance.get("target_end_date"),
+                                 "Target completion"),
+        milestones=[
+            control.MilestoneView(
+                id=ids.get(str(row.get("code", "")).upper(), 0),
+                code=str(row.get("code", "")),
+                name=str(row.get("name") or ""),
+                status=str(row.get("status") or "PENDING"),
+                target_date=_as_date(row.get("target_date"), "Milestone date"),
+                owner_id=_user(row.get("owner_id")),
+                critical=bool(row.get("critical")))
+            for row in milestones_of(plan)],
+        tasks=[
+            control.TaskView(
+                id=ids.get(str(row.get("code", "")).upper(), 0),
+                code=str(row.get("code", "")),
+                title=str(row.get("title") or ""),
+                status=str(row.get("status") or "NOT_STARTED"),
+                percent_complete=int(row.get("percent_complete") or 0),
+                weight=float(row.get("weight") or 1),
+                due_date=_as_date(row.get("due_date"), "Task due date"),
+                start_date=_as_date(row.get("start_date"), "Task start"),
+                owner_id=_user(row.get("owner_id")),
+                critical=bool(row.get("critical")),
+                blocked=bool(row.get("blocked")),
+                blocker_reason=str(row.get("blocker_reason") or ""),
+                milestone_id=ids.get(
+                    str(row.get("milestone_code", "")).upper()),
+                effort_days=(int(row["effort_days"])
+                             if row.get("effort_days") else None))
+            for row in tasks_of(plan)],
+        dependencies=[
+            control.DependencyView(
+                predecessor_type=kind_of(plan, str(link["predecessor"])),
+                predecessor_id=ids.get(str(link["predecessor"]).upper(), 0),
+                successor_type=kind_of(plan, str(link["successor"])),
+                successor_id=ids.get(str(link["successor"]).upper(), 0),
+                dependency_type=str(link.get("dependency_type")
+                                    or DEP_FINISH_TO_START),
+                lag_days=int(link.get("lag_days") or 0))
+            for link in links_of(plan)])
+
+
+def timeline(plan: dict[str, Any]) -> dict[str, Any]:
+    """The dates and the critical path this plan implies, before it exists.
+
+    §12 asks the preview to show the timeline. Returned as the engine's own
+    dictionary, including `cannot_because` when there is not enough in the
+    plan to place anything: an empty timeline that said nothing would read as
+    a project with no schedule rather than as a plan that still needs dates.
+    """
+    governance = plan.get("governance") or {}
+    return schedule.compute(
+        as_engine_plan(plan),
+        project_start=_as_date(governance.get("start_date"),
+                               "Project start")).to_dict()
 
 
 # ------------------------------------------------------------------ publish
@@ -1258,6 +1555,7 @@ def publish(session: Any, principal: Any, key: str, *,
                 critical_date=milestone.get("critical_date"),
                 priority=str(milestone.get("priority") or PRIORITY_MEDIUM),
                 critical=bool(milestone.get("critical")),
+                status=str(milestone.get("status") or "PENDING"),
                 source=source)
             milestone_ids[code.upper()] = int(row.id)
 
@@ -1282,6 +1580,13 @@ def publish(session: Any, principal: Any, key: str, *,
                 effort_days=task.get("effort_days"),
                 critical=bool(task.get("critical")),
                 next_step=str(task.get("next_step") or ""),
+                # A plan picked up mid-flight opens in the state it described
+                # rather than pretending every task begins at zero.
+                status=str(task.get("status") or "NOT_STARTED"),
+                weight=task.get("weight", 1),
+                percent_complete=task.get("percent_complete", 0),
+                blocked=bool(task.get("blocked")),
+                blocker_reason=str(task.get("blocker_reason") or ""),
                 source=source)
             task_ids[code.upper()] = int(row.id)
 
@@ -1297,6 +1602,7 @@ def publish(session: Any, principal: Any, key: str, *,
                 dependency_type=str(link.get("dependency_type")
                                     or DEP_FINISH_TO_START),
                 lag_days=int(link.get("lag_days") or 0),
+                notes=str(link.get("notes") or ""),
                 source=source)
 
         draft.status = DRAFT_PUBLISHED

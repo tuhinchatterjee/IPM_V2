@@ -138,6 +138,8 @@ class Message:
     asked: bool = False
     #: The engine's own sentence for why they were asked. Empty for a nudge.
     reason: str = ""
+    #: How far up the ladder this went. Empty for a reminder to the owner.
+    level: str = ""
 
     @property
     def action(self) -> str:
@@ -451,7 +453,8 @@ def _escalation_messages(project: Any, plan: control.Plan,
             # receiving an escalation needs to know why it reached THEM, or
             # the next one goes unread.
             f"{finding.sentence} You are seeing this because "
-            f"{finding.rung.because}."))
+            f"{finding.rung.because}.",
+            level=finding.rung.level))
     return out
 
 
@@ -602,7 +605,7 @@ def _deliver(session: Any, pending: list[Message], result: Sweep) -> None:
             trigger=message.trigger, fingerprint=message.fingerprint,
             notification_id=int(note.id),
             asked=bool(message.asked), reason=message.reason,
-            state="sent"))
+            level=message.level, state="sent"))
         result.messages.append(message)
         result.sent += 1
 

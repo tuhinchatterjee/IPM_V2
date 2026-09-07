@@ -33,10 +33,12 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.api.permissions import Principal, RequireAnalyst, RequireCommenter
 from backend.api.routers.planner import _fail, _guard, get_db
+from backend.models.planner import PlannerProject
 from backend.planner import access as acl
 from backend.planner import copilot, live
 from backend.planner import draft as dr
@@ -236,6 +238,37 @@ def discard(key: str, session: Session = Depends(get_db),
     _run(lambda: dr.discard(session, principal, key,
                             source=copilot._source()))
     return {"discarded": key}
+
+
+# =================================================================== codes
+
+
+@router.get("/code-available", summary="Is this project code free?")
+def code_available(code: str = Query(max_length=40),
+                   session: Session = Depends(get_db),
+                   _principal: Principal = RequireAnalyst) -> dict:
+    """Whether a project code can still be used, asked before publish.
+
+    §7 wants the duplicate caught while somebody is still on step one rather
+    than at the end of an eight-step form. The taken project's NAME is only
+    returned when the asker can read that project: a code check is not a way
+    to enumerate work you are not on.
+    """
+    wanted = str(code or "").strip()
+    if not wanted:
+        return {"code": "", "available": False, "used_by": ""}
+    existing = session.execute(
+        select(PlannerProject).where(
+            func.lower(PlannerProject.code) == wanted.lower())
+    ).scalar_one_or_none()
+    if existing is None:
+        return {"code": wanted, "available": True, "used_by": ""}
+    readable = acl.readable(session, int(existing.id), _principal)
+    return {
+        "code": wanted,
+        "available": False,
+        "used_by": existing.name if readable else "another project",
+    }
 
 
 # ================================================================== people

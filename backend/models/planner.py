@@ -835,6 +835,16 @@ class PlannerReminder(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     responded_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True)
+
+    #: Which rung of the ladder this reached: own | milestone | project |
+    #: manager | sponsor. Empty for a plain reminder to the person who owns
+    #: the work, which is not an escalation at all.
+    #:
+    #: Recorded rather than derived from `trigger`, because the trigger says
+    #: WHAT happened and this says HOW FAR IT WENT — and "the sponsor was
+    #: told" is the fact a governance review asks about.
+    level: Mapped[str] = mapped_column(String(16), nullable=False, default="",
+                                       server_default=text("''"))
     #: The history row the owner wrote in answer, so the manager can read the
     #: reply beside the request rather than hunting for it in the timeline.
     response_update_id: Mapped[int | None] = mapped_column(
@@ -903,9 +913,13 @@ STEP_GOVERNANCE = "GOVERNANCE"
 STEP_AGENTIC = "AGENTIC"
 STEP_MILESTONES = "MILESTONES"
 STEP_TASKS = "TASKS"
+#: Dependencies became a step of their own when the builder became a wizard.
+#: They used to be a panel somebody scrolled past, and a plan whose links are
+#: an afterthought has no critical path worth calculating.
+STEP_DEPENDENCIES = "DEPENDENCIES"
 STEP_REVIEW = "REVIEW"
 DRAFT_STEPS = (STEP_OVERVIEW, STEP_GOVERNANCE, STEP_AGENTIC, STEP_MILESTONES,
-               STEP_TASKS, STEP_REVIEW)
+               STEP_TASKS, STEP_DEPENDENCIES, STEP_REVIEW)
 
 
 class PlannerDraft(Base):
@@ -988,8 +1002,8 @@ __all__ = [
     "ENTITY_RAID",
     "DRAFT_DRAFTING", "DRAFT_PUBLISHED", "DRAFT_READY", "DRAFT_STATUSES",
     "DRAFT_STEPS", "PlannerDraft",
-    "STEP_AGENTIC", "STEP_GOVERNANCE", "STEP_MILESTONES", "STEP_OVERVIEW",
-    "STEP_REVIEW", "STEP_TASKS",
+    "STEP_AGENTIC", "STEP_DEPENDENCIES", "STEP_GOVERNANCE", "STEP_MILESTONES",
+    "STEP_OVERVIEW", "STEP_REVIEW", "STEP_TASKS",
     "AGENTIC_CRITICAL", "AGENTIC_CUSTOM", "AGENTIC_LIGHT", "AGENTIC_MODES",
     "AGENTIC_STANDARD",
     "SOURCES", "SOURCE_UI", "SOURCE_API", "SOURCE_AI", "SOURCE_AI_CHAT",

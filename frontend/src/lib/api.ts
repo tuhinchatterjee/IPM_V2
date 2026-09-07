@@ -7044,7 +7044,21 @@ export const api = {
     attention: (limit = 10) =>
       request<{ items: PlannerAttentionItem[] }>(
         `/planner/attention?limit=${limit}`),
+    /** §17. One row per issue, not one row per project. */
+    needsAttention: (limit = 25) =>
+      request<PlannerNeedsAttention>(
+        `/planner/needs-attention?limit=${limit}`),
     myWork: () => request<PlannerMyWork>("/planner/my-work"),
+    /** What the AGENT has done on one project — not what people did. */
+    agentActivity: (id: number, kind = "", limit = 100) =>
+      request<PlannerAgentActivity>(
+        `/planner/projects/${id}/agent-activity?limit=${limit}` +
+        (kind ? `&kind=${encodeURIComponent(kind)}` : "")),
+    /** Run the agent over one project now. Editor access, deduplicated. */
+    runAgent: (id: number, dryRun = false) =>
+      request<PlannerSweepResult>(
+        `/planner/projects/${id}/sweep${dryRun ? "?dry_run=true" : ""}`,
+        { method: "POST" }),
     project: (id: number) =>
       request<PlannerProjectDetail>(`/planner/projects/${id}`),
     createProject: (body: Record<string, unknown>) =>
@@ -7190,21 +7204,14 @@ export const api = {
      * the two paths quietly diverged. `publish` takes `confirm` explicitly,
      * because a POST is not a person saying yes.
      */
-    copilot: {
-      capabilities: () =>
-        request<CopilotCapabilities>("/planner/copilot/capabilities"),
-      scope: (message: string) =>
-        request<CopilotScope>("/planner/copilot/scope", {
-          method: "POST", body: JSON.stringify({ message }),
-        }),
-      chat: (body: {
-        message: string; draft?: string; project_id?: number;
-        focus?: string; confirm?: boolean;
-        answers?: Record<string, string>;
-      }) =>
-        request<CopilotTurn>("/planner/copilot/chat", {
-          method: "POST", body: JSON.stringify(body),
-        }),
+    /**
+     * The plan a project is built from, before it is a project.
+     *
+     * Named for what it is rather than for the URL prefix it lives behind:
+     * these are the draft routes, and the wizard is the only thing that calls
+     * them. The chat that used to share the prefix is gone.
+     */
+    plan: {
       drafts: (status = "") =>
         request<{ drafts: DraftRow[] }>(
           `/planner/copilot/drafts${status ? `?status=${status}` : ""}`),
@@ -7248,6 +7255,10 @@ export const api = {
         request<{ people: CopilotPerson[] }>(
           `/planner/copilot/people?search=${encodeURIComponent(search)}` +
           `&limit=${limit}`),
+      /** §7. Is this project code still free? Asked on step one, not at publish. */
+      codeAvailable: (code: string) =>
+        request<{ code: string; available: boolean; used_by: string }>(
+          `/planner/copilot/code-available?code=${encodeURIComponent(code)}`),
     },
   },
 
@@ -7851,6 +7862,36 @@ export type PlannerPortfolio = {
   count: number;
 };
 
+/** One thing that needs a person, with everything needed to act on it. §17. */
+export type PlannerAttentionRow = {
+  project: { id: number; code: string; name: string };
+  entity_type: string;
+  entity_id: number | null;
+  entity_code: string;
+  title: string;
+  rule: string;
+  /** critical | warn */
+  severity: string;
+  reason: string;
+  owner: { id: number; name: string; username?: string } | null;
+  due_date: string | null;
+  escalation: {
+    /** none | reminded | escalated | answered */
+    state: string;
+    level: string;
+    said: string;
+    person: { id: number; name: string } | null;
+    at: string | null;
+  };
+  next_action: string;
+};
+
+export type PlannerNeedsAttention = {
+  items: PlannerAttentionRow[];
+  count: number;
+  projects: number;
+};
+
 export type PlannerAttentionItem = {
   id: number;
   code: string;
@@ -8205,6 +8246,8 @@ export type DraftPlan = {
   links: {
     predecessor: string; successor: string;
     dependency_type: string; lag_days: number;
+    /** Non-empty when a date conflict was kept rather than adjusted away. */
+    notes?: string;
   }[];
 };
 
@@ -8246,6 +8289,21 @@ export type AgenticChoice = {
   sentence: string;
 };
 
+/** One item an adjustment would move, with both sets of dates. */
+export type DraftShift = {
+  code: string;
+  kind: string;
+  label: string;
+  start_date?: string;
+  new_start_date?: string;
+  target_date?: string;
+  new_target_date?: string;
+  due_date?: string;
+  new_due_date?: string;
+  critical_date?: string;
+  new_critical_date?: string;
+};
+
 /** What a link would do, stated before it is made. §17. */
 export type DraftLinkPreview = {
   predecessor: string;
@@ -8254,8 +8312,33 @@ export type DraftLinkPreview = {
   lag_days: number;
   sentence: string;
   conflict: string;
+  /**
+   * What "adjust the dates" would actually change — present only when there
+   * IS a conflict. Never applied by asking for the preview.
+   */
+  adjustment: {
+    days: number;
+    sentence: string;
+    items: DraftShift[];
+  } | Record<string, never>;
   predecessor_label: string;
   successor_label: string;
+};
+
+/** The critical-path engine's answer, run over a plan that is not a project. */
+export type DraftSchedule = {
+  computed: boolean;
+  basis: string;
+  nodes: {
+    kind: string; code: string; name: string;
+    duration_days: number | null;
+    early_start: string; early_finish: string;
+    total_float_days: number; calculated_critical: boolean;
+  }[];
+  critical_path: string[];
+  project_start: string | null;
+  project_finish: string | null;
+  cannot_because: string[];
 };
 
 /** Who a delay on this item reaches, and where that was decided. */
@@ -8277,6 +8360,7 @@ export type DraftPreview = {
     tasks: (Record<string, unknown> & { escalation: DraftEscalation })[];
   })[];
   links: (DraftPlan["links"][number] & { sentence: string })[];
+  schedule: DraftSchedule;
   totals: {
     milestones: number; tasks: number; links: number; people: number;
   };
@@ -8330,6 +8414,43 @@ export type CopilotTurn = {
    * the conversation can show what changed without a second request.
    */
   project_plan?: DraftPlan;
+};
+
+/** One line of the agent's own timeline on a project. */
+export type PlannerAgentActivityItem = {
+  at: string;
+  /** reminder | request | escalation | response | health */
+  kind: string;
+  headline: string;
+  detail: string;
+  person: { id?: number; name?: string; username?: string };
+  entity_type: string;
+  entity_code: string;
+  entity_id: number | null;
+  /** own | milestone | project | manager | sponsor. Empty for a reminder. */
+  level: string;
+  /** sent | answered | cancelled. */
+  state: string;
+};
+
+export type PlannerAgentActivity = {
+  count: number;
+  kinds: string[];
+  items: PlannerAgentActivityItem[];
+};
+
+/** What one run of the agent did. */
+export type PlannerSweepResult = {
+  at: string;
+  projects: number;
+  tasks: number;
+  sent: number;
+  suppressed: number;
+  by_trigger: Record<string, number>;
+  health_changed: { project_id: number; code: string; from: string;
+                    to: string; reason: string }[];
+  would_send?: { user_id: number; reference: string; trigger: string;
+                 body: string }[];
 };
 
 export type CopilotPerson = {
