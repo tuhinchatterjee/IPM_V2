@@ -126,7 +126,7 @@ def top_high_risk(period: str | None = None, limit: int = 20) -> list[dict]:
         return []
     cols = ["customer_id", "customer_name", "segment", "exposure", "dpd", "ifrs9_stage",
             "ews_score", "ews_band", "ta_score", "ta_band", "classifier_score", "classifier_band",
-            "dominant_driver"]
+            "dominant_driver", "signal_count_fired", "overrides_applied"]
     top = bm.sort_values("ews_score", ascending=False).head(limit)
     return top[cols].to_dict(orient="records")
 

@@ -1,0 +1,311 @@
+"""Early Warning V2 over HTTP: the consolidated product's API surface.
+
+Mounted alongside the existing `early_warning` router (which stays live
+during the migration described in the implementation plan's Section 16 —
+its fitted Forward Risk Signal and rule-based taxonomy are being
+consolidated into this surface, not deleted in the same change that
+introduces it). Route paths are deliberately distinct
+(`/early-warning/v2/...`) so nothing here collides with the 16 existing
+routes while the frontend migration (Phase 7) is completed.
+
+Every number returned here comes from the governed Parquet domain built by
+`scripts/build_early_warning_v2.py` and scored by the Phase 1 engine — never
+computed ad hoc in this router.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import asdict
+
+from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import BaseModel, Field
+
+from backend.api.permissions import (
+    Principal,
+    RequireEarlyWarningEscalate,
+    RequireEarlyWarningRecordAction,
+    RequireEarlyWarningView,
+)
+from backend.early_warning import (
+    accelerator as accel,
+    case_bridge,
+    catalog as ews_catalog,
+    classifiers_v2 as clf,
+    lineage as ews_lineage,
+    reasons,
+    triggers_v2 as trg,
+    v2_service as svc,
+)
+from backend.early_warning.v2_service import EarlyWarningDataNotBuilt
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/early-warning/v2", tags=["early warning v2"])
+
+
+def _not_built(exc: Exception) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail={"error": "early_warning_v2_not_built", "message": str(exc)},
+    )
+
+
+def _not_found(customer_id: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail={"error": "borrower_not_found", "message": f"No Early Warning data for {customer_id}"},
+    )
+
+
+# ============================================================== methodology
+
+
+@router.get("/methodology", summary="The Version 2 methodology, in full")
+def methodology() -> dict:
+    """Four layers, two dimensions, one explainable score — Tab 1-4 of the
+    workbook, transcribed exactly (spec Section AC). Never hard-codes a
+    sample number; every classifier/trigger/accelerator value here is the
+    live seed configuration the scoring engine actually runs."""
+    catalog_summary = ews_catalog.describe()
+    return {
+        "methodology_version": "ews-v2.0.0",
+        "layers": [
+            {"code": "L1", "name": "Internal Behavioural Intelligence"},
+            {"code": "L2", "name": "Credit & Financial Fundamentals"},
+            {"code": "L3", "name": "External Intelligence"},
+            {"code": "L4", "name": "Graph & Relationship Intelligence"},
+        ],
+        "signal_inventory": catalog_summary,
+        "classifiers": {
+            "count": len(clf.CLASSIFIER_DEFINITIONS),
+            "definitions": [c.to_dict() for c in clf.CLASSIFIER_DEFINITIONS],
+            "aggregation": "Weighted sum over observed classifiers (Tab 2 Section B), "
+                           "not a worst-of subcategory rollup.",
+            "verdict_bands": reasons.CLASSIFIER_VERDICT_READING,
+        },
+        "triggers": {
+            "count": len(trg.TRIGGER_DEFINITIONS),
+            "definitions": [t.to_dict() for t in trg.TRIGGER_DEFINITIONS],
+        },
+        "accelerator": {
+            "dimension_weights": accel.DIMENSION_WEIGHTS,
+            "recency_bands": [{"max_age_days": b[0], "factor": b[1], "label": b[2]}
+                              for b in accel.RECENCY_BANDS],
+            "formula": "accelerator_multiplier = recency_factor * (1 + SUM(weight_d * (mult_d - 1)))",
+        },
+        "combination": {
+            "formula": "EWS score = MIN(100, T&A score * Classifier Context Multiplier)",
+            "note": "Multiplicative, not a 5x5 anchor-matrix lookup with notch modifiers — "
+                    "see the implementation plan's Section 0 for the full reconciliation "
+                    "against an earlier design description that assumed the latter.",
+        },
+        "reason_codes": {
+            "classifier_verdict": reasons.CLASSIFIER_VERDICT_READING,
+            "ta_verdict": reasons.TA_VERDICT_READING,
+            "ews_expected_action": reasons.EWS_BAND_EXPECTED_ACTION,
+        },
+    }
+
+
+@router.get("/lineage", summary="Field-level source lineage")
+def lineage() -> dict:
+    return {"lineage_version": ews_lineage.LINEAGE_VERSION, "fields": ews_lineage.full_lineage()}
+
+
+# ================================================================ portfolio
+
+
+@router.get("", summary="Portfolio overview")
+def overview(period: str | None = Query(None),
+             principal: Principal = RequireEarlyWarningView) -> dict:
+    try:
+        return {
+            "summary": svc.portfolio_summary(period),
+            "trend": svc.portfolio_trend(),
+            "top_high_risk": svc.top_high_risk(period, limit=20),
+            "available_periods": svc.periods(),
+        }
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+
+
+@router.get("/segments", summary="Segment-level Early Warning")
+def segments(period: str | None = Query(None),
+             principal: Principal = RequireEarlyWarningView) -> dict:
+    try:
+        return {"period": period or svc.latest_period(), "segments": svc.segment_summary(period)}
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+
+
+@router.get("/diagnose", summary="Descriptive driver diagnosis over the high-risk population")
+def diagnose(period: str | None = Query(None), band: str = Query("HIGH_PLUS"),
+             principal: Principal = RequireEarlyWarningView) -> dict:
+    """Descriptive, not predictive (spec Section AO): what the current
+    high-risk population has in common. Never used as approval/decline
+    logic."""
+    try:
+        bm = svc.borrower_month(period)
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+    if bm.empty:
+        return {"population": 0, "drivers": [], "note": "descriptive only, not predictive"}
+    pop = bm[bm["ews_band"].isin(("HIGH", "VERY_HIGH"))] if band == "HIGH_PLUS" else bm
+    if pop.empty:
+        return {"population": 0, "drivers": [], "note": "descriptive only, not predictive"}
+    driver_counts = pop["dominant_driver"].dropna().value_counts().head(10)
+    return {
+        "population": int(len(pop)),
+        "total_exposure": round(float(pop["exposure"].sum()), 2),
+        "drivers": [{"signal": k, "borrower_count": int(v)} for k, v in driver_counts.items()],
+        "note": "Descriptive only: what the current high-risk population has in common. "
+                "This does not predict who deteriorates next and must not be used as "
+                "automated approval or decline logic.",
+    }
+
+
+# ================================================================= borrower
+
+
+@router.get("/borrower/{customer_id}", summary="Borrower drill-down")
+def borrower(customer_id: str, principal: Principal = RequireEarlyWarningView) -> dict:
+    try:
+        detail = svc.borrower_detail(customer_id)
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+    except KeyError:
+        raise _not_found(customer_id)
+    period = detail["latest"]["snapshot_month"]
+    try:
+        obs = svc.signal_observations(customer_id, period)
+    except EarlyWarningDataNotBuilt:
+        obs = None
+    detail["fired_signals"] = obs.to_dict(orient="records") if obs is not None and not obs.empty else []
+    return detail
+
+
+class EscalateRequest(BaseModel):
+    recipient_user_ids: list[int] = Field(default_factory=list)
+    recipient_team_ids: list[int] = Field(default_factory=list)
+    message: str = Field("", max_length=2000)
+    requested_decision: str = Field("", max_length=300)
+
+
+class InformRequest(BaseModel):
+    recipient_user_ids: list[int] = Field(default_factory=list)
+    recipient_team_ids: list[int] = Field(default_factory=list)
+    message: str = Field("", max_length=2000)
+
+
+class ActionRequest(BaseModel):
+    action: str = Field(..., max_length=300)
+    owner_user_id: int | None = None
+    due_at: str | None = None
+    closing_evidence_required: str = Field("", max_length=500)
+
+
+def _latest_row_dict(customer_id: str) -> dict:
+    try:
+        detail = svc.borrower_detail(customer_id)
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+    except KeyError:
+        raise _not_found(customer_id)
+    return detail["latest"]
+
+
+@router.post("/borrower/{customer_id}/escalate", summary="Escalate a borrower finding")
+def escalate(customer_id: str, payload: EscalateRequest,
+             principal: Principal = RequireEarlyWarningEscalate) -> dict:
+    """Creates/updates the borrower's RiskCase (about='early-warning-v2',
+    deduped on borrower+period) and sends one Message via the existing
+    Workflow service — never a parallel inbox (spec Section AG)."""
+    row = _latest_row_dict(customer_id)
+    if not payload.recipient_user_ids and not payload.recipient_team_ids:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                             detail={"error": "no_recipient",
+                                     "message": "Escalate needs at least one recipient."})
+
+    from backend.db.engine import get_session
+    from backend.services import workflow as wf
+
+    with get_session() as session:
+        case = case_bridge.upsert_case(session, row)
+        session.flush()
+        case_id = case.id
+        case_key = case.case_key
+
+    band = row.get("ews_band", "LOW")
+    title = f"Early Warning escalation: {row.get('customer_name', customer_id)} ({band})"
+    body = payload.message or (
+        f"{row.get('customer_name', customer_id)} scores {row.get('ews_score', 0):.1f} ({band}). "
+        f"Dominant driver: {row.get('dominant_driver') or 'none'}. "
+        f"Exposure SAR {row.get('exposure', 0):.1f}mn. "
+        + (f"Requested decision: {payload.requested_decision}." if payload.requested_decision else "")
+    )
+    view = wf.send(
+        object_type="risk_case", object_id=str(case_id), title=title, message=body,
+        recipients=payload.recipient_user_ids, teams=payload.recipient_team_ids,
+        action="review", priority="high" if band == "VERY_HIGH" else "normal",
+        requested_by=principal.user_id,
+    )
+    return {"case_id": case_id, "case_key": case_key, "workflow_item": asdict(view)}
+
+
+@router.post("/borrower/{customer_id}/inform", summary="Inform on a borrower finding (FYI)")
+def inform(customer_id: str, payload: InformRequest,
+           principal: Principal = RequireEarlyWarningEscalate) -> dict:
+    """FYI only — does not change case severity/state (spec Section AG)."""
+    row = _latest_row_dict(customer_id)
+    if not payload.recipient_user_ids and not payload.recipient_team_ids:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                             detail={"error": "no_recipient",
+                                     "message": "Inform needs at least one recipient."})
+
+    from backend.db.engine import get_session
+    from backend.services import workflow as wf
+
+    with get_session() as session:
+        case = case_bridge.upsert_case(session, row)
+        session.flush()
+        case_id = case.id
+
+    band = row.get("ews_band", "LOW")
+    title = f"Early Warning FYI: {row.get('customer_name', customer_id)} ({band})"
+    body = payload.message or f"{row.get('customer_name', customer_id)} is at {band} this period. For information."
+    view = wf.send(
+        object_type="risk_case", object_id=str(case_id), title=title, message=body,
+        recipients=payload.recipient_user_ids, teams=payload.recipient_team_ids,
+        action="fyi", priority="normal", requested_by=principal.user_id,
+    )
+    return {"case_id": case_id, "workflow_item": asdict(view)}
+
+
+@router.post("/borrower/{customer_id}/action", summary="Record an action against the case")
+def record_action(customer_id: str, payload: ActionRequest,
+                   principal: Principal = RequireEarlyWarningRecordAction) -> dict:
+    """Records the action as a Comment on the case (spec Section BF/AY) — no
+    parallel action-log table, and no existing escalation Workflow item is
+    required first: an analyst may record an action on a case that was
+    never formally escalated."""
+    row = _latest_row_dict(customer_id)
+    from backend.db.engine import get_session
+    from backend.services import workflow as wf
+
+    with get_session() as session:
+        case = case_bridge.upsert_case(session, row)
+        session.flush()
+        case_id = case.id
+
+    body = f"Action recorded: {payload.action}"
+    if payload.owner_user_id:
+        body += f" (owner user {payload.owner_user_id})"
+    if payload.due_at:
+        body += f", due {payload.due_at}"
+    if payload.closing_evidence_required:
+        body += f". Closing evidence required: {payload.closing_evidence_required}"
+
+    comment = wf.comment(object_type="risk_case", object_id=str(case_id), body=body,
+                          author_id=principal.user_id)
+    return {"case_id": case_id, "action": payload.action, "comment": comment}
