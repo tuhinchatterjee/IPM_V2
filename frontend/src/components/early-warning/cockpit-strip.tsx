@@ -66,7 +66,7 @@ export function EarlyWarningStrip({ period }: { period?: string }) {
           {book.data.period}
         </p>
         <Link
-          href="/early-warning/signals"
+          href="/early-warning"
           className="text-[11px] text-text-muted underline-offset-4 hover:text-accent hover:underline"
         >
           Open

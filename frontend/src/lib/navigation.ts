@@ -11,7 +11,6 @@ import {
   Gauge,
   GitBranch,
   LayoutGrid,
-  ListChecks,
   Network,
   Radar,
   Search,
@@ -200,27 +199,14 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/early-warning",
     label: "Early Warning",
     description:
-      "Forward Risk Signal: a transparent, factor-based estimate of the chance a facility moves to a worse IFRS 9 stage next quarter, for three transitions. Every score decomposes exactly into one number per factor.",
+      "Four intelligence layers, 123 governed signals, 35 classifiers and 67 dynamic triggers, scored against the CreditProbe Early Warning Framework Version 2 workbook: portfolio, segment and borrower drill-down, escalation, and Word reports, all from one governed monthly domain.",
     icon: Radar,
-    status: "partial",
-    phase: "Prototype signal, fitted on synthetic data. Not a validated model.",
-    group: "Intelligence",
-    demo: "optional",
-    demoNote:
-      "Real and honestly labelled a prototype fitted on synthetic data. Show it only if the audience asks about predictive signals, and read the label out.",
-  },
-  {
-    href: "/early-warning/signals",
-    label: "Early Warning Signals",
-    description:
-      "The governed conditions this book is watched for, borrower by borrower. Not one score: 34 named tests across eight families, each with a threshold, an owner and a version, and each traceable to the field it read. Where a test could not be run on a borrower, the screen says so on that signal rather than in a blanket list.",
-    icon: ListChecks,
     status: "live",
     phase: "",
     group: "Intelligence",
     demo: "core",
     demoNote:
-      "The transparency argument in one screen. Open a borrower and read a condition out: the value, the previous value, the threshold and who owns it.",
+      "One consolidated Early Warning product. The legacy fitted Forward Risk Signal and the rule-based taxonomy screen are both reachable from within this page while their content migrates fully onto the Version 2 engine.",
   },
   {
     href: "/playbooks",

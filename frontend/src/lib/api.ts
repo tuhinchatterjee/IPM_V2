@@ -3254,6 +3254,105 @@ export interface EarlyWarningMethodology {
   document: string;
 }
 
+// ---- early warning v2 (the consolidated workbook-based product) ----
+
+export interface EarlyWarningV2SeverityBand {
+  band: "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW" | "VERY_LOW";
+  borrower_count: number;
+  borrower_pct: number;
+  exposure: number;
+  exposure_pct: number;
+}
+
+export interface EarlyWarningV2Summary {
+  period: string;
+  portfolio_ews: number;
+  borrower_count: number;
+  total_exposure: number;
+  high_plus_count: number;
+  high_plus_exposure: number;
+  severity_distribution: EarlyWarningV2SeverityBand[];
+}
+
+export interface EarlyWarningV2TrendPoint {
+  period: string;
+  portfolio_ews: number;
+  high_plus_count: number;
+}
+
+export interface EarlyWarningV2BorrowerRow {
+  customer_id: string;
+  customer_name: string;
+  segment: string;
+  exposure: number;
+  dpd: number;
+  ifrs9_stage: number | null;
+  ews_score: number;
+  ews_band: string;
+  ta_score: number;
+  ta_band: string;
+  classifier_score: number;
+  classifier_band: string;
+  dominant_driver: string | null;
+}
+
+export interface EarlyWarningV2Overview {
+  summary: EarlyWarningV2Summary;
+  trend: EarlyWarningV2TrendPoint[];
+  top_high_risk: EarlyWarningV2BorrowerRow[];
+  available_periods: string[];
+}
+
+export interface EarlyWarningV2SegmentRow {
+  segment: string;
+  borrower_count: number;
+  exposure: number;
+  portfolio_ews: number;
+  high_plus_count: number;
+  weakest_borrower: string | null;
+}
+
+export interface EarlyWarningV2Segments {
+  period: string;
+  segments: EarlyWarningV2SegmentRow[];
+}
+
+export interface EarlyWarningV2Diagnosis {
+  population: number;
+  total_exposure: number;
+  drivers: { signal: string; borrower_count: number }[];
+  note: string;
+}
+
+export interface EarlyWarningV2BorrowerDetail {
+  latest: Record<string, unknown>;
+  history: {
+    snapshot_month: string;
+    ews_score: number;
+    ews_band: string;
+    ta_score: number;
+    classifier_score: number;
+    dpd: number;
+    utilisation_pct: number;
+  }[];
+  fired_signals: { signal_key: string; signal_score: number; causal_chain_id: string }[];
+}
+
+export interface EarlyWarningV2Methodology {
+  methodology_version: string;
+  layers: { code: string; name: string }[];
+  signal_inventory: { signal_count: number; status_counts: Record<string, number> };
+  classifiers: { count: number };
+  triggers: { count: number };
+  combination: { formula: string; note: string };
+}
+
+export interface EarlyWarningV2WorkflowResult {
+  case_id: number;
+  case_key?: string;
+  workflow_item: { id: number; state: string; action: string; recipients: unknown[] };
+}
+
 export interface SignalWeight {
   factor_id: string;
   label: string;
@@ -4285,6 +4384,71 @@ export const api = {
       }),
       timeoutMs: 180_000,
     }),
+
+  // ---- early warning v2 (the consolidated workbook-based product) ----
+  earlyWarningV2Overview: (period?: string) =>
+    request<EarlyWarningV2Overview>(
+      `/early-warning/v2${period ? `?period=${encodeURIComponent(period)}` : ""}`,
+    ),
+  earlyWarningV2Segments: (period?: string) =>
+    request<EarlyWarningV2Segments>(
+      `/early-warning/v2/segments${period ? `?period=${encodeURIComponent(period)}` : ""}`,
+    ),
+  earlyWarningV2Diagnose: (period?: string) =>
+    request<EarlyWarningV2Diagnosis>(
+      `/early-warning/v2/diagnose${period ? `?period=${encodeURIComponent(period)}` : ""}`,
+    ),
+  earlyWarningV2Borrower: (customerId: string) =>
+    request<EarlyWarningV2BorrowerDetail>(
+      `/early-warning/v2/borrower/${encodeURIComponent(customerId)}`,
+    ),
+  earlyWarningV2Methodology: () =>
+    request<EarlyWarningV2Methodology>("/early-warning/v2/methodology"),
+  earlyWarningV2Escalate: (
+    customerId: string,
+    payload: { recipientUserIds: number[]; message?: string; requestedDecision?: string },
+  ) =>
+    request<EarlyWarningV2WorkflowResult>(
+      `/early-warning/v2/borrower/${encodeURIComponent(customerId)}/escalate`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          recipient_user_ids: payload.recipientUserIds,
+          message: payload.message ?? "",
+          requested_decision: payload.requestedDecision ?? "",
+        }),
+      },
+    ),
+  earlyWarningV2Inform: (
+    customerId: string,
+    payload: { recipientUserIds: number[]; message?: string },
+  ) =>
+    request<EarlyWarningV2WorkflowResult>(
+      `/early-warning/v2/borrower/${encodeURIComponent(customerId)}/inform`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          recipient_user_ids: payload.recipientUserIds,
+          message: payload.message ?? "",
+        }),
+      },
+    ),
+  earlyWarningV2RecordAction: (
+    customerId: string,
+    payload: { action: string; ownerUserId?: number; dueAt?: string; closingEvidenceRequired?: string },
+  ) =>
+    request<{ case_id: number; action: string }>(
+      `/early-warning/v2/borrower/${encodeURIComponent(customerId)}/action`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action: payload.action,
+          owner_user_id: payload.ownerUserId ?? null,
+          due_at: payload.dueAt ?? null,
+          closing_evidence_required: payload.closingEvidenceRequired ?? "",
+        }),
+      },
+    ),
 
   // ---- projects ----
   projects: (opts: { status?: string; ownerId?: number } = {}) => {
