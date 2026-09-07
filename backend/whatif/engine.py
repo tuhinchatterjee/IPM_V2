@@ -939,6 +939,33 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
     # is the measured one, which is the only figure available and is honest.
     zero_base = work["final_ecl"] <= 0
     work.loc[zero_base, "ecl_stressed"] = measured_stress[zero_base.to_numpy()]
+    # An expected loss above the exposure is not conservatism, it is an
+    # arithmetic error, and the book applies the same bound to itself. Carrying
+    # the REPORTED figure onto a stressed basis by a ratio can breach it where
+    # the shock is extreme: a ten-thousand-per-cent PD move with a 95-point LGD
+    # uplift provisioned 1,320 borrowers above what they owe.
+    #
+    # The bound is not folded into a driver. The attribution explains the
+    # MEASUREMENT movement, and the part the cap removed is reported on its own
+    # line — a scenario that ran into a policy limit did not have the effect it
+    # asked for, and saying so is the difference between a bound and a fudge.
+    uncapped = work["ecl_stressed"].to_numpy(dtype=float, copy=True)
+    work["ecl_stressed"] = policy.bounded(uncapped, work["ead_stressed"])
+    capped = int((uncapped - work["ecl_stressed"].to_numpy() > 1e-9).sum())
+    if capped:
+        removed = float((uncapped - work["ecl_stressed"].to_numpy()).sum())
+        warnings.append(
+            f"{capped:,} borrower(s) were measured above their own exposure "
+            f"under this scenario and were bounded by it, removing "
+            f"{removed:,.1f} from the What-If figure. An expected loss larger "
+            "than the amount at risk is not a loss.")
+        steps.append({
+            "step": "Exposure cap",
+            "detail": (f"{capped:,} borrower(s) reached an expected credit "
+                       "loss above their exposure at default and were bounded "
+                       "by it, as the reported book bounds itself."),
+            "affected": capped,
+        })
     work["ecl_increase"] = work["ecl_stressed"] - work["ecl_baseline"]
     work["ecl_increase_pct"] = np.where(
         work["ecl_baseline"] > 0,

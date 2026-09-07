@@ -30,8 +30,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
+from backend.ifrs9 import policy
 from backend.whatif import attribution as at
 from backend.whatif import delta as dl
 from backend.whatif import domain as dm
@@ -258,7 +260,12 @@ def execute(state: sp.ScenarioState, *, requested: str = "",
     engine_result = wf.run(scenario, period=period, source=source,
                            staging=state.staging)
     frame = engine_result.frame
-    warnings = list(engine_result.warnings)
+    # The engine bounds its OWN measurement and says so. This function prices
+    # the reported figure afterwards and bounds that, so the engine's sentence
+    # would be a second report of the same fact about a figure the reader never
+    # sees. One statement, about the number on the screen.
+    warnings = [w for w in engine_result.warnings
+                if "bounded by it" not in w]
     warnings.extend(state.staging.unread(frame))
     notes = list(getattr(engine_result, "notes", []))
 
@@ -279,6 +286,28 @@ def execute(state: sp.ScenarioState, *, requested: str = "",
     for column in ("ecl_baseline", "ecl_stressed", "ecl_increase",
                    "ecl_increase_pct"):
         work[column] = priced[column]
+    # The bound applies to whichever methodology priced it. The engine bounds
+    # its own measurement; the Delta and ML factors are applied to the REPORTED
+    # figure afterwards and can breach it again, so the rule is re-applied at
+    # the one place both methodologies land — and what it removed is said.
+    unbounded = work["ecl_stressed"].to_numpy(dtype=float, copy=True)
+    work["ecl_stressed"] = policy.bounded(unbounded, work["ead_stressed"]
+                                          if "ead_stressed" in work.columns
+                                          else work["ead"])
+    bounded_rows = int((unbounded - work["ecl_stressed"].to_numpy() > 1e-9).sum())
+    if bounded_rows:
+        removed = float((unbounded - work["ecl_stressed"].to_numpy()).sum())
+        work["ecl_increase"] = work["ecl_stressed"] - work["ecl_baseline"]
+        work["ecl_increase_pct"] = np.where(
+            work["ecl_baseline"] > 0,
+            work["ecl_increase"] / np.where(work["ecl_baseline"] > 0,
+                                            work["ecl_baseline"], 1.0) * 100.0,
+            0.0)
+        warnings.append(
+            f"{bounded_rows:,} borrower(s) were priced above their own "
+            f"exposure under this scenario and were bounded by it, removing "
+            f"{removed:,.1f} from the What-If figure. An expected loss larger "
+            "than the amount at risk is not a loss.")
     for column in ("pd_factor", "stage_factor", "lgd_factor", "ead_factor",
                    "ecl_factor"):
         if column in delta_frame.columns:

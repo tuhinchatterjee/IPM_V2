@@ -888,10 +888,17 @@ class TestTheDriverAttribution:
         # 1e-7 is float64 accumulation over 2^n coalitions each summed across
         # the book, not a modelling residual: on a SAR 69bn movement it is
         # under two thousand riyals, and it does not grow with the scenario.
-        assert total == pytest.approx(result.summary["incremental_ecl"],
-                                      rel=1e-7), (
+        assert total == pytest.approx(body["measured_total"], rel=1e-7), (
             "an attribution that does not add up to the number it is "
             "explaining is a picture, not a decomposition")
+        # Plus anything a policy limit removed, which is NOT a driver and is
+        # reported on its own line — here, eight borrowers whose provision
+        # reached their own exposure and was bounded by it. The drivers explain
+        # the measurement; the named line explains why the reported figure is
+        # not the measurement.
+        adjustment = (body.get("model_adjustment") or {}).get("effect", 0.0)
+        assert total + adjustment == pytest.approx(
+            result.summary["incremental_ecl"], rel=1e-7)
         assert body["reconciliation"]["reconciles"]
 
     def test_it_is_order_neutral(self) -> None:

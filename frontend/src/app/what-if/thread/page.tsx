@@ -39,6 +39,7 @@ import {
   InvestigationAnswer,
   ProfileTable,
   ResultContext,
+  WhatIfError,
   ResultInterpretation,
   RiskParameterPanel,
   ScenarioSteps,
@@ -64,7 +65,7 @@ import type {
   WhatIfStagingRuleIn,
   WhatIfState,
 } from "@/lib/api";
-import { ApiError, api } from "@/lib/api";
+import { api } from "@/lib/api";
 
 type Turn =
   | { kind: "said"; text: string }
@@ -127,7 +128,15 @@ export default function WhatIfThreadPage() {
   const [gate, setGate] = React.useState<WhatIfGate | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [text, setText] = React.useState("");
-  const [error, setError] = React.useState("");
+  //: The error OBJECT, not its sentence. A screen that keeps only the message
+  //: cannot tell a refusal from an outage, and every failure reads the same.
+  const [error, setError] = React.useState<unknown>(null);
+  //: What "Try again" would repeat. The ARGUMENTS, not a closure over the
+  //: function: a ref holding a closure captures whichever `runWith` existed
+  //: when it was written, and a retry that calls a stale one runs a scenario
+  //: the thread has moved on from.
+  const retryArgs = React.useRef<
+    { state: WhatIfState; methodology: string; instruction: string } | null>(null);
   const [stagingOpen, setStagingOpen] = React.useState(false);
   const [staging, setStaging] = React.useState<WhatIfStaging | null>(null);
   // The reported-book rule set is held separately and never edited: it is what
@@ -195,7 +204,7 @@ export default function WhatIfThreadPage() {
           setState(emptyState(period, JOURNEY_TITLES[journey] ?? ""));
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof ApiError ? e.message : String(e));
+        if (!cancelled) setError(e);
       } finally {
         if (!cancelled) setBusy(false);
       }
@@ -240,7 +249,7 @@ export default function WhatIfThreadPage() {
           setParameterBody(await api.whatIfParameterProfile(parameter, period));
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof ApiError ? e.message : String(e));
+        if (!cancelled) setError(e);
       }
     })();
     return () => {
@@ -253,7 +262,11 @@ export default function WhatIfThreadPage() {
   const runWith = React.useCallback(
     async (next: WhatIfState, methodology = "", instruction = "") => {
       setBusy(true);
-      setError("");
+      setError(null);
+      // Only offered where retrying could plausibly help — a refusal will be
+      // refused the same way, and inviting a retry on one wastes the reader's
+      // time.
+      retryArgs.current = { state: next, methodology, instruction };
       try {
         const result = await api.whatIfExecute({
           state: next,
@@ -271,13 +284,20 @@ export default function WhatIfThreadPage() {
         setRunId(result.run_id ?? "");
         say({ kind: "result", result });
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : String(e));
+        setError(e);
       } finally {
         setBusy(false);
       }
     },
     [say],
   );
+
+  const retry = React.useCallback(() => {
+    const again = retryArgs.current;
+    if (!again) return;
+    setError(null);
+    void runWith(again.state, again.methodology, again.instruction);
+  }, [runWith]);
 
   const send = React.useCallback(
     async (raw?: string) => {
@@ -286,7 +306,7 @@ export default function WhatIfThreadPage() {
       setText("");
       say({ kind: "said", text: said });
       setBusy(true);
-      setError("");
+      setError(null);
       try {
         const read = await api.whatIfInterpret(said, state);
 
@@ -324,7 +344,7 @@ export default function WhatIfThreadPage() {
         for (const note of read.notes) say({ kind: "replied", text: note, tone: "note" });
         await runWith(read.state, "", said);
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : String(e));
+        setError(e);
       } finally {
         setBusy(false);
       }
@@ -398,7 +418,7 @@ export default function WhatIfThreadPage() {
         tone: "note",
       });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : String(e));
+      setError(e);
     }
   };
 
@@ -459,7 +479,7 @@ export default function WhatIfThreadPage() {
         tone: "note",
       });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : String(e));
+      setError(e);
     }
   };
 
@@ -473,7 +493,7 @@ export default function WhatIfThreadPage() {
       });
       say({ kind: "replied", text: `Saved as "${body.saved.name}".` });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : String(e));
+      setError(e);
     } finally {
       setBusy(false);
     }
@@ -508,11 +528,13 @@ export default function WhatIfThreadPage() {
         }
       />
 
-      {error ? (
-        <div className="rounded-md border border-negative/40 bg-negative-muted px-3 py-2 text-[12px] text-text-primary">
-          {error}
-        </div>
-      ) : null}
+      {/* Four different situations with four different next actions, said
+          apart rather than flattened into one red bar. */}
+      <WhatIfError
+        error={error}
+        onRetry={retry}
+        onDismiss={() => setError(null)}
+      />
 
       <div className="flex flex-wrap items-end gap-4">
         {periods.length ? (

@@ -324,15 +324,32 @@ def attribute(frame: pd.DataFrame, tracked: dict[str, dict[str, Any]], *,
     # number. Anything above this is a real difference between the two
     # methodologies and has to be shown.
     if abs(model_gap) > max(abs(actual_total), 1.0) * 1e-6:
+        # WHY the two differ decides what this line is called. A cap that
+        # bounded a provision at the exposure it provides against is not a
+        # model disagreement, and labelling it one would credit a methodology
+        # with an effect a policy limit had.
+        bounded = bool((pd.to_numeric(frame.get("ecl_stressed"),
+                                      errors="coerce").fillna(0.0)
+                        >= pd.to_numeric(frame.get("ead_stressed",
+                                                   frame.get("ead")),
+                                         errors="coerce").fillna(0.0) - 1e-6
+                        ).any()) if "ecl_stressed" in frame.columns else False
         body["model_adjustment"] = {
-            "key": "model",
-            "label": "ML model adjustment",
+            "key": "limits" if bounded and model_gap < 0 else "model",
+            "label": ("Bounded by exposure at default"
+                      if bounded and model_gap < 0 else "ML model adjustment"),
             "effect": float(model_gap),
-            "note": ("The drivers above attribute the GOVERNED measurement "
-                     "movement. The chosen ECL methodology priced the same "
-                     "shocked book differently, and the difference is shown "
-                     "here rather than attributed to a driver that did not "
-                     "cause it."),
+            "note": (
+                "The drivers above attribute the GOVERNED measurement "
+                "movement. Some borrowers reached an expected credit loss "
+                "above their own exposure and were capped at it; the part the "
+                "cap removed is shown here rather than taken off a driver "
+                "that did not cause it."
+                if bounded and model_gap < 0 else
+                "The drivers above attribute the GOVERNED measurement "
+                "movement. The chosen ECL methodology priced the same shocked "
+                "book differently, and the difference is shown here rather "
+                "than attributed to a driver that did not cause it."),
         }
 
     body["reconciliation"] = {

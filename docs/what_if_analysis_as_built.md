@@ -21,10 +21,13 @@ backend/api/routers/whatif.py        31 endpoints, all RequireAnalyst
 backend/whatif/
   domain.py       the only door into Corporate IFRS 9
   profiles.py     rating / stage / sector / PD / LGD / CCF / borrower views
-  migration.py    matched-entity rating (15x15) and Stage (4x4) migration
+  migration.py    matched-entity rating (20x20) and Stage (4x4) migration,
+                  ROW-normalised
   staging.py      configurable criteria over the governed policy
   macro.py        the ten CreditProbe V1 variables and their sensitivities
-  masterscale.py  the 14-grade scale and notch → PD ratio  (pre-existing)
+  masterscale.py  the 19-grade scale and notch → PD ratio
+  investigate.py  a thread message → EXPLAIN / VIEW / MODIFY, and the answer
+  cache.py        the result a follow-up question is answered FROM
   scenarios.py    Shock / Population / Assumptions / Scenario  (extended)
   steps.py        layered scenario state
   engine.py       shock application, re-staging, re-measurement  (extended)
@@ -35,8 +38,12 @@ backend/whatif/
   language.py     sentence → scenario  (extended)
   answers.py, trace.py, sensitivity.py  (pre-existing)
   ml/  features.py  train.py  registry.py  explain.py  predict.py
+       ensemble.py  the served design — one model, or one per Stage
+       runtime.py   whether XGBoost can run HERE, checked before it is offered
         ▼
-backend/ifrs9/policy.py              the single governed corporate staging source
+backend/ifrs9/policy.py              the single governed corporate staging
+                                     source, and ONE lifetime-PD transform
+backend/corporate/ratingscale.py     the 19-point scale and the three PDs
 backend/corporate/                   Parquet lake read through DuckDB
 ```
 
@@ -79,9 +86,80 @@ naming what the domain does carry. Facilities and collateral are aggregated
 
 ## 4. Rating, staging and ECL
 
-**14 governed grades**: `AAA, AA, A, BBB+, BBB, BBB-, BB+, BB, BB-, B+, B, CCC,
-CC, D`. Displayed as **15 rows** (grades + Total) and a **15 × 15** migration
-matrix. The universe was not regenerated and `SEED = 20260830` is untouched.
+### The nineteen-point scale, and three PDs that mean three things
+
+`backend/corporate/ratingscale.py` is the ONE definition. Nineteen ordered
+grades — `AAA, AA+, AA, AA-, A+, A, A-, BBB+, BBB, BBB-, BB+, BB, BB-, B+, B,
+B-, CCC, CC, D` — eighteen performing plus `D`, which is reached by the default
+EVENT and never by a PD band. Displayed as **20 rows** (grades + Total) and a
+**20 × 20** migration matrix. There is no fourteen-point scale underneath: the
+universe was regenerated, every grade is populated, and the through-the-cycle
+levels are nineteen distinct strictly-increasing numbers.
+
+Three PDs, each derived and each meaning something different:
+
+| PD | What it is | How it is derived |
+|---|---|---|
+| **TTC** | the central tendency of the GRADE | a property of the masterscale; grade 9 carries the same figure in the trough as at the peak |
+| **PIT 12-month** | what THIS borrower is expected to do over a year | `Φ(Φ⁻¹(TTC) − √(ρ/(1−ρ))·Z + e)` — threshold-shift, so a neutral cycle returns the TTC figure exactly; `ρ` is sector-specific |
+| **Lifetime** | cumulative over the behavioural life | mean-reverting hazard: year one is the PIT PD, each later year reverts towards the grade's TTC level by `REVERSION = 0.55` over `4.2` years |
+
+`policy.lifetime_pd(twelve, ttc=None)` is the only implementation of the third.
+With no anchor the borrower is its own through-the-cycle level, which is
+exactly the constant-hazard case the engine used before the anchor existed — so
+a caller with no grade to anchor on gets the same answer it always did.
+
+**Why that matters and is not tidiness.** The book carried a mean-reverting
+lifetime PD anchored on the grade; the engine divided by a constant-hazard one.
+A scenario's "PD effect" was therefore a difference between two DEFINITIONS
+rather than a fact about the borrower, and the driver attribution stopped
+adding up to the movement it was explaining. One transform now, on both sides,
+and a rating shock moves the anchor with the grade.
+
+### Coherence the book now holds, quarter by quarter
+
+Thirty-two invariants in `tests/corporate/test_data_quality.py`, over all
+sixteen quarters. The four that were violated when manual acceptance began:
+
+* **Default means one thing.** Ninety days past due is the presumption of
+  default and nothing in this book rebuts it, so `default_flag`, Stage 3, the
+  `D` grade and a defaulted PD all agree by construction. Twenty-seven
+  borrowers were credit-impaired by days past due, still rated `B-`, still
+  carrying a ten per cent PD — and their Stage 3 provision then moved under a
+  rating shock aimed at performing names.
+* **Every obligor is an exposure.** Seventy sat in the IFRS 9 book at zero
+  exposure — rated, staged, provisioned at nothing — because every facility
+  they held had matured. The core facility is the relationship and is renewed
+  for as long as the borrower is on book.
+* **EAD = drawn + CCF × undrawn**, with CCF a PROPORTION at both grains. It was
+  a percentage at obligor level and a proportion at facility level, so the same
+  quantity could not be reconciled between them.
+* **A provision never exceeds the exposure it provides against**, before the
+  overlay as well as after.
+
+### The staging reference is re-conditioned onto the reporting date
+
+IFRS 9 compares the risk of default now against the risk expected at initial
+recognition, using consistent forward-looking information on BOTH sides.
+Holding the origination figure at its own vintage does not do that: it makes
+the comparison a measure of the CYCLE rather than of the borrower, and the book
+showed exactly that — Stage 2 walked from 6% to **75%** and back as the credit
+cycle turned. A bank with three quarters of its book in Stage 2 is not a bank
+with a credit problem, it is a bank with a staging rule that does not work.
+
+So `pd_at_origination_pct` is the origination grade's TTC PD conditioned on the
+SAME systematic factor as the current reading. The ratio then measures
+deterioration in this borrower relative to where it started, while the cycle
+keeps its full effect on the ECL through the PIT and lifetime PDs and a real
+effect on staging through the two triggers that are levels rather than ratios.
+Stage 2 now runs 7% → **22%** → 19% across the window.
+
+The cycle amplitude came down with it. `CYCLE_TO_Z` was 5.0, putting the trough
+at Z = −2.4; combined with conditioning a grade that had already absorbed 45%
+of the cycle, the average twelve-month PD moved **twenty-three-fold** in four
+years. It is 3.0 now, and the PIT transform is conditioned on the cycle the
+grade has NOT already absorbed, so the same downturn moves the average PD from
+1.35% to 8.37% and coverage from 1.16% to 5.81%.
 
 **Staging — two rule sets, kept apart.** `backend/whatif/staging.py` layers over
 `backend/ifrs9/policy.py` and holds two policies that never meet.
@@ -131,7 +209,7 @@ is one implementation of the rule rather than two.
 ```
 ECL = PD_applicable × LGD × EAD × 1.082
 PD_applicable = pd_12m (Stage 1) | pd_lifetime (Stages 2 and 3)
-lifetime_pd(p) = clip(1 − (1−p)^4.2, p, 0.999)
+pd_lifetime    = mean-reverting hazard over 4.2y, anchored on the GRADE's TTC PD
 WEIGHTED_SCENARIO_FACTOR = 0.50×1.00 + 0.20×0.72 + 0.30×1.46 = 1.082
 ```
 
@@ -177,24 +255,44 @@ for the other seven rather than inventing a number.
 
 | | |
 |---|---|
-| Algorithm | XGBoost regressor, 400 trees, depth 5, lr 0.05, seed 20260906 |
+| Algorithm | XGBoost regressor, **one per Stage** (see §7b), 400 trees, depth 5, lr 0.05 |
 | Target | `ecl_rate` = `final_ecl / ead` |
-| Features | **31**, all structural — no client identifier, nothing ECL-derived |
-| Training | Q3 2022 – Q4 2024, 31,942 rows |
-| Validation | Q1 2025 – Q4 2025, 12,762 rows |
-| **Out-of-time (locked)** | **Q1 2026, Q2 2026**, 6,361 rows |
-| Artifact | **XGBoost native JSON**, ~1.27 MB, sha256-sealed |
+| Features | **32**, all structural — no client identifier, nothing ECL-derived |
+| Training | Q3 2022 – Q4 2024, 33,264 rows |
+| Validation | Q1 2025 – Q4 2025, 13,120 rows |
+| **Out-of-time (locked)** | **Q1 2026, Q2 2026**, 6,496 rows |
+| Artifact | **native JSON**, one document, sha256-sealed with the card |
 
-**Measured metrics** (active model `2026.09.06`):
+Retrained from scratch on the rebuilt book. The previous artifact was not
+reused: it was fitted on a fourteen-point scale, one lifetime-PD definition and
+a book whose Stage 3 was incoherent.
 
-| | R² | MAE | RMSE | WAPE |
-|---|---|---|---|---|
-| Training | 0.99930 | 0.000573 | 0.001975 | 2.09% |
-| Validation | 0.99754 | 0.001265 | 0.004595 | 3.11% |
-| **Out-of-time** | **0.99765** | 0.000970 | 0.003814 | **3.15%** |
+**Measured metrics** (active model `2026.09.07`, the served ensemble):
 
-By Stage (validation): Stage 1 R² 0.9666 / WAPE 5.95%; Stage 2 R² 0.9955 /
-WAPE 2.80%; Stage 3 R² 0.9953 / WAPE 3.22%.
+| | R² | MAE | RMSE | WAPE | Exposure-weighted MAE |
+|---|---|---|---|---|---|
+| Training | 0.997528 | 0.001796 | 0.007323 | 3.00% | 0.001432 |
+| Validation | 0.997528 | 0.001796 | 0.007323 | 3.00% | 0.001432 |
+| **Out-of-time** | **0.997889** | 0.001492 | 0.006499 | **2.80%** | **0.001134** |
+
+The grade's through-the-cycle PD is a feature now, beside the borrower's own
+point-in-time reading. The two together are what distinguish a weak name on a
+strong grade from a strong name on a weak one, and until the book published
+three separate PDs the model could not see the difference.
+
+**Portability is checked BEFORE the methodology is offered.**
+`backend/whatif/ml/runtime.py`. XGBoost is a wrapper around a compiled library
+and on macOS that library needs OpenMP, which Apple does not ship, so
+`import xgboost` raises `Library not loaded: @rpath/libomp.dylib` — and the
+product, having no answer to that, showed it. A credit officer read a dynamic
+linker path where an expected credit loss should have been.
+
+The check is cached, consulted by the methodology gate, and a failure is a
+sentence: what caused it, the command that fixes it (`brew install libomp` on
+macOS, `apt-get install -y libgomp1` on a slim Linux image, the MSVC
+redistributable on Windows), and the Delta Model named as the way to keep
+working. The linker error goes to the log. **Nothing is installed from the
+request handler** — the command is printed and a person runs it.
 
 **Anchoring**, mandatory and implemented:
 
@@ -206,61 +304,83 @@ What-If ECL = REPORTED ECL × ML factor
 Where the baseline prediction is below `FLOOR = 1e-6` the ratio is not formed
 and the **Delta factor is used for that row**, with the count reported.
 
-**Measured divergence from Delta** on the live book: PD +20% → Delta +17.66%,
-ML +16.48%; LGD +5pp → +11.57% / +11.12%; one-notch downgrade → +56.28% /
-+53.92%; collateral −20% → +25.37% / +23.11%. The two genuinely differ, which
-is the point of offering both.
+**Explainability**: exact TreeSHAP from XGBoost's own `pred_contribs`, routed
+through the model that made the prediction — explaining a Stage 2 borrower with
+the all-book fallback would attribute its provision to a model that did not
+price it. Gain importance is pooled across the members for the same reason.
+Also actual-vs-predicted calibration, per-feature sensitivity curves, error
+slices by Stage / sector / quarter / PD band / LGD band, and a local SHAP
+explanation for the worked example.
 
-**Explainability**: exact TreeSHAP from XGBoost's own `pred_contribs`, feature
-gain importance, actual-vs-predicted calibration, per-feature sensitivity
-curves, error slices by Stage / sector / quarter / PD band / LGD band, and a
-local SHAP explanation for the Client X example.
+Top predictors on the served ensemble: `pd_lifetime` 43.7%, `lgd` 30.5%,
+`pd_12m` 13.5%, `collateral_to_ead` 4.3%, `ttc_pd_pct` 3.2%. `stage` does not
+appear, correctly: within a Stage-specific model it is constant.
 
-**Retraining** genuinely retrains: builds the set, checks the split, fits,
-validates, scores out-of-time, computes SHAP, seals a new JSON artifact and
-registers a **CANDIDATE**. The active model is never replaced automatically;
-old and new metrics are shown side by side and activation is explicit. Every
-version is kept and the change log records `trained` and `activated` events.
+**Retraining** genuinely retrains: builds the set, checks the split, fits both
+designs, validates, scores out-of-time, computes SHAP, seals a new JSON
+artifact and registers a **CANDIDATE**. The active model is never replaced
+automatically; old and new metrics are shown side by side and activation is
+explicit.
 
 ## 7b. Stage-aware: the measurement that chose the design
 
 The requirement is a stage-aware model, and there are two ways to build one.
 Both are fitted and scored out of time on **every** training run
-(`train.stage_study`), so the choice is re-measured rather than asserted.
+(`train.stage_study`), so the choice is re-measured rather than asserted — and
+`backend/whatif/ml/ensemble.py` SERVES whichever won, so the verdict decides
+what runs rather than what a paragraph says.
 
-| Out of time, Q1–Q2 2026 | Single model, Stage as a feature | One model per Stage |
+**The answer has already changed once.** On the fourteen-point book the single
+stage-aware model reproduced the Stage 1 → Stage 2 measurement step more
+faithfully and was kept, and separate models over-jumped it — which mattered
+more than their marginally better fit, because moving names across that
+boundary is most of what a What-If does. On the rebuilt nineteen-point book,
+with three genuinely distinct PDs and a coherent Stage 3, that reversed.
+
+| Out of time, Q1–Q2 2026 | Single model, Stage as a feature | **One model per Stage** |
 |---|---|---|
-| R² (book) | **0.997645** | 0.997522 |
-| RMSE | **0.003814** | 0.003913 |
-| Exposure-weighted MAE | **0.000738** | 0.000771 |
-| WAPE | 3.1529 | **3.1499** |
+| R² (book) | **0.997911** | 0.997887 |
+| RMSE | **0.006464** | 0.006501 |
+| Exposure-weighted MAE | 0.001304 | **0.001134** |
+| WAPE | 3.1671 | **2.7959** |
+| **Stage 1 → 2 boundary step** (governed 4.0846×) | 4.0547× (−0.73%) | **4.0873× (+0.07%)** |
 
-The book-level metrics are what the What-If actually uses, because the
-anchoring is a ratio of two book-level predictions. Separate models win only on
-unweighted WAPE, which is dominated by tiny Stage 1 exposures.
-
-**The boundary decides it.** A What-If's job is moving names from Stage 1 to
-Stage 2. The governed measurement says that crossing is worth **4.07×** for
-these borrowers. The single model reproduces it at **4.09×** (+0.4%); separate
-models jump **4.38×** (+7.7%), because two models fitted apart do not share a
-calibration level and the gap lands on exactly the borrowers a scenario moves —
-in the Stage holding **71% of the ECL on 14% of the exposure**.
+Separate models win on the boundary — eleven times closer — and on the two
+error measures that weight by exposure, which is what a book-level provision
+is. They lose marginally on R² and RMSE. The design followed.
 
 | Stage | OOT rows | Share of ECL | Single model R² | Separate model R² |
 |---|---|---|---|---|
-| 1 | 5,016 | 9.3% | 0.9060 | 0.9821 |
-| 2 | 1,069 | 70.8% | 0.9957 | 0.9956 |
-| 3 | 276 | 19.9% | 0.9970 | 0.9952 |
+| 1 | 5,070 | 5.8% | 0.9795 | **0.9891** |
+| 2 | 1,196 | 50.5% | **0.9931** | 0.9929 |
+| 3 | 230 | 43.6% | **0.9875** | 0.9878 |
 
-Stage 1 alone is better fitted separately, and it is 9% of the provision.
-Stage 3 has 964 training rows and its own model is materially worse.
+**How the ensemble works.** A dictionary of boosters keyed by Stage, plus the
+all-book model as a fallback. A row is scored by the model for its Stage; a
+Stage with too few rows to support one of its own is scored by the fallback,
+which is why the fallback is always fitted and always stored. Predictions are
+written into a positional array rather than concatenated per Stage — a
+prediction returned in a different order than the frame it was asked about
+attributes one borrower's provision to another.
+
+When the verdict is the single design the members are empty and every row goes
+to the fallback: the same code path, serving a different answer. An artifact
+sealed before the ensemble existed still loads, as the single design with no
+members, which is exactly what it was.
+
+**The artifact is still JSON.** `brain/security.py` refuses `.pkl`, `.joblib`
+and `.pt` on import because a pickle is a program. An ensemble does not change
+that: it is one JSON document whose values are each booster's own native JSON,
+sealed with the card exactly as a single booster was.
 
 **And the model is genuinely stage-aware, not stage-labelled.** Shocking PD to
-2× *inside* each Stage moves the predicted rate **1.68× in Stage 1, 1.25× in
-Stage 2, 1.17× in Stage 3**. Nothing crosses the staging line in that test, so
-it is the model reading the rest of the borrower differently either side of it.
+2× *inside* each Stage moves the predicted rate materially differently in each.
+Nothing crosses the staging line in that test, so it is the model reading the
+rest of the borrower differently either side of it.
 `test_the_stages_respond_differently_to_the_same_shock` fails if those
-responses ever converge.
+responses ever converge, and
+`test_the_served_design_is_the_one_the_numbers_chose` fails if the card and the
+artifact ever disagree about which design is running.
 
 ## 7c. What moved the provision — exact Shapley
 
@@ -339,6 +459,96 @@ even where every scenario still prices correctly.
 used to `return` silently when its column was absent, which on screen is
 indistinguishable from a shock that moved nobody. It now raises
 `ShockUnavailable`, which the router turns into a 422 carrying the reason.
+
+## 7e. The conversational layer — three intents, and where the answer comes from
+
+`backend/whatif/investigate.py`. A thread used to have one reading of a message:
+is this a scenario? Anything that was not fell through, so "Why did Stage 3 ECL
+increase?" either did nothing or — worse — was read as another shock and quietly
+changed the answer it was asking about.
+
+Every message is now one of three things, and which one it is decides whether
+the scenario STATE may be touched at all:
+
+| Intent | Example | Touches state |
+|---|---|---|
+| **EXPLAIN** | "Why did Stage 3 ECL increase?" · "Which borrowers contributed most?" | no |
+| **VIEW** | "Show this by sector." · "Break it down by rating." | no |
+| **MODIFY** | "Now increase LGD by 5 points." · "Undo the last step." | **yes** |
+
+The order of the reading is load-bearing, and every step of it was a defect
+first:
+
+* An **interrogative is never an instruction**, unless it is a hypothetical.
+  "Was any of this the rating downgrade?" was read as a scenario and downgraded
+  the entire book. "What if I downgrade everyone two notches?" still is one.
+* **EXPLAIN before VIEW.** "Show me the borrowers responsible" contains "show",
+  but it asks who caused something, and answering it with a plain table drops
+  the question.
+* **A full scenario before VIEW.** "Stress the top 50 exposures by two notches"
+  contains "top 50" and was read as a request to see a list.
+* A **VIEW is about the RESULT only when it points at one.** "Show this by
+  sector" is a cut of the scenario; "show Stage 1 PD by sector" is a question
+  about the reported book and belongs on the profile screens, which answer it
+  without an ECL calculation and therefore without a methodology.
+
+**Where the numbers come from.** `POST /whatif/investigate` answers from the
+borrower-level frame the run already produced, held in `backend/whatif/cache.py`
+— bounded, in-process, keyed by a run id handed back to the browser, and
+readable only by the account that produced it. Nothing is estimated and nothing
+is re-run: asking why a number moved cannot move it. Where the result is no
+longer held the scenario is recomputed from its steps — the engine is
+deterministic, so the figures are identical — and the answer SAYS it was
+recomputed rather than pretending otherwise.
+
+**Stage 3 is answered by mechanism or not at all.** `_stage_three` decomposes
+any movement into names arriving, names leaving, and names already there whose
+exposure, security or loss rate the scenario changed, and those parts sum to the
+whole. When Stage 3 genuinely did not move it says so in a sentence rather than
+returning an empty table, because an empty table reads as "nothing caused this".
+
+**Another bank's book is refused, not mapped.** "Downgrade the retail mortgage
+book by two notches" resolved "retail" to the corporate *Wholesale & Retail
+Trade* SECTOR and priced a corporate scenario against it — a confident number
+about the wrong portfolio, which is worse than no answer.
+
+**What a result MEANS** is composed from the result's own figures
+(`run.interpret`): the movement and whether it is immaterial, modest, material,
+severe or extreme on this book; the largest single cause and its share; the
+stage crossings; the measurement-basis note; and four follow-up questions worth
+asking, which are buttons.
+
+**Seventy-six evaluation cases** in `tests/evals/whatif_cases.json` pin the
+whole of it — the intent, the topic, the dimension, whether a stated filter
+survived, and whether something outside the domain was refused. No case needs a
+language model: the classifier and the scenario reader are regular expressions
+over a governed vocabulary, so the same sentence always produces the same
+reading, and a change that makes one question work by breaking another is
+visible in the suite rather than in a demonstration.
+
+## 7f. When something goes wrong
+
+`frontend/src/lib/whatif-errors.ts`. Every failure used to reach the screen as
+the same red bar carrying whatever sentence the server sent. "You are not
+permitted to run a scenario", "the analytical lake has not been built", "that
+shock is not one this engine applies" and "the backend is not running" are four
+different situations with four different next actions, and flattening them meant
+a person could not tell which of them they were in — so every one read as "the
+product is broken".
+
+| Kind | HTTP | Retry offered | Because |
+|---|---|---|---|
+| `offline` | 0 | **yes** | nothing you typed was lost |
+| `not_permitted` | 401 / 403 | no | trying again will not change your role |
+| `refused` | 400 / 422 | no | the same request is refused the same way |
+| `outside_domain` | 422 | no | What-If reads the Corporate IFRS 9 book only |
+| `not_found` | 404 | no | check the period, scenario or model version |
+| `unavailable` | 503 | no | about the installation, not about your scenario |
+| `defect` | ≥500 | yes | a defect rather than something you did |
+
+The retryable flag is the load-bearing one: a refusal that invites a retry
+wastes the reader's time, and a transient failure that does not invite one loses
+their work. Free of React so the reading is asserted with `node --test`.
 
 ## 8. Persistence — no migration was required
 

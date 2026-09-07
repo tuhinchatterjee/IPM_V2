@@ -48,6 +48,7 @@ import type {
   WhatIfStepState,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { readWhatIfError } from "@/lib/whatif-errors";
 
 /* ------------------------------------------------------------ formatting */
 
@@ -779,6 +780,73 @@ export function ProfileTable({
           {total ? line(total, true) : null}
         </TableBody>
       </Table>
+    </div>
+  );
+}
+
+/* --------------------------------------------------------- going wrong */
+
+/**
+ * What went wrong, and whose problem it is.
+ *
+ * Every failure used to reach the screen as the same red bar with whatever
+ * sentence the server happened to send. "You are not permitted to run a
+ * scenario", "the analytical lake has not been built", "that shock is not one
+ * this engine applies" and "the backend is not running" are four different
+ * situations with four different next actions, and flattening them meant a
+ * person could not tell which of them they were in — so every one of them read
+ * as "the product is broken".
+ *
+ * Four things are said instead: what kind of failure it is, what happened, what
+ * to do about it, and whether trying again could possibly help. The last one
+ * matters most: a refusal that invites a retry wastes the person's time, and a
+ * transient failure that does not invite one loses their work.
+ */
+export function WhatIfError({
+  error,
+  onRetry,
+  onDismiss,
+}: {
+  error: unknown;
+  onRetry?: () => void;
+  onDismiss?: () => void;
+}) {
+  if (!error) return null;
+  const read = readWhatIfError(error);
+  return (
+    <div
+      data-testid="whatif-error"
+      data-error-kind={read.kind}
+      className={cn(
+        "rounded-md border px-3 py-2.5",
+        read.severity === "refusal"
+          ? "border-warning/40 bg-warning-muted"
+          : "border-negative/40 bg-negative-muted",
+      )}
+    >
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <span className="text-[12px] font-semibold text-text-primary">
+          {read.title}
+        </span>
+        <span className="text-[11px] text-text-muted">{read.because}</span>
+      </div>
+      <p className="mt-1 text-[12px] text-text-secondary">{read.message}</p>
+      <p className="mt-1 text-[11px] text-text-muted">{read.next}</p>
+      {(read.retryable && onRetry) || onDismiss ? (
+        <div className="mt-2 flex gap-2">
+          {read.retryable && onRetry ? (
+            <Button variant="outline" size="sm" onClick={onRetry}
+                    data-testid="whatif-error-retry">
+              Try again
+            </Button>
+          ) : null}
+          {onDismiss ? (
+            <Button variant="ghost" size="sm" onClick={onDismiss}>
+              Dismiss
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -179,6 +179,27 @@ def measured_ecl(stage: np.ndarray | pd.Series, pd_12m_pct: pd.Series,
     return applied * loss * exposure * WEIGHTED_SCENARIO_FACTOR
 
 
+def bounded(ecl: np.ndarray | pd.Series,
+            ead: np.ndarray | pd.Series) -> np.ndarray:
+    """An expected credit loss, bounded by the exposure it provides against.
+
+    Not conservatism and not a fudge: a provision larger than the amount at
+    risk is an arithmetic error, and the reported book applies this bound to
+    itself. A What-If that carries the reported figure onto a stressed basis by
+    a ratio can breach it under an extreme shock — a ten-thousand-per-cent PD
+    move with a 95-point LGD uplift provisioned 1,320 borrowers above what they
+    owed — so the same bound applies on both sides of the comparison.
+
+    Callers report what the bound REMOVED rather than absorbing it: a scenario
+    that ran into a policy limit did not have the effect it asked for, and
+    saying so is what makes this a bound and not a fudge.
+    """
+    loss = np.asarray(pd.to_numeric(ecl, errors="coerce"), dtype=float)
+    exposure = np.asarray(pd.to_numeric(ead, errors="coerce"), dtype=float)
+    return np.minimum(np.nan_to_num(loss, nan=0.0),
+                      np.nan_to_num(exposure, nan=0.0))
+
+
 def describe() -> dict[str, object]:
     """The policy as a reader can check it."""
     return {
@@ -213,6 +234,7 @@ __all__ = [
     "DEFAULT_DPD_DAYS", "LIFETIME_HORIZON_YEARS", "POLICY_OWNER",
     "POLICY_VERSION", "SCENARIO_WEIGHTS", "SICR_ABSOLUTE_PD",
     "SICR_DPD_DAYS", "SICR_PD_ABSOLUTE", "SICR_PD_RATIO", "Triggers",
-    "WEIGHTED_SCENARIO_FACTOR", "describe", "lifetime_pd", "measured_ecl",
+    "WEIGHTED_SCENARIO_FACTOR", "bounded", "describe", "lifetime_pd",
+    "measured_ecl",
     "sicr", "stage_of",
 ]
