@@ -137,7 +137,15 @@ class Step:
                 rating_bands=tuple(pop.get("rating_bands") or ()),
                 stages=tuple(int(x) for x in (pop.get("stages") or ())),
                 borrower_ids=tuple(pop.get("borrower_ids") or ()),
-                watchlist_only=bool(pop.get("watchlist_only", False)))
+                watchlist_only=bool(pop.get("watchlist_only", False)),
+                thresholds=tuple(
+                    sc.Threshold(field=str(t["field"]),
+                                 operator=str(t.get("operator") or "above"),
+                                 value=float(t.get("value") or 0.0),
+                                 unit=str(t.get("unit") or ""))
+                    for t in (pop.get("thresholds") or [])),
+                top_n=int(pop.get("top_n") or 0),
+                top_by=str(pop.get("top_by") or "ead"))
             return cls(kind=str(body["kind"]), shocks=shocks, population=population,
                        instruction=str(body.get("instruction") or ""),
                        interpreted=str(body.get("interpreted") or ""),
@@ -342,7 +350,9 @@ def _merge_populations(populations: list[sc.Population]) -> sc.Population:
     bands: list[str] = []
     stages: list[int] = []
     ids: list[str] = []
+    thresholds: list[sc.Threshold] = []
     watchlist = False
+    top_n, top_by = 0, "ead"
     for population in populations:
         for value in population.sectors:
             if value not in sectors:
@@ -357,9 +367,20 @@ def _merge_populations(populations: list[sc.Population]) -> sc.Population:
             if value not in ids:
                 ids.append(value)
         watchlist = watchlist or population.watchlist_only
+        # A numeric filter NARROWS, so every one of them is kept. Losing one
+        # here is how "exposure above SAR 100m" became the whole sector: the
+        # parser read it, the step carried it, and the merge dropped it.
+        for threshold in getattr(population, "thresholds", ()):
+            if not any(t.field == threshold.field for t in thresholds):
+                thresholds.append(threshold)
+        if getattr(population, "top_n", 0):
+            top_n = population.top_n
+            top_by = population.top_by
     return sc.Population(sectors=tuple(sectors), rating_bands=tuple(bands),
                          stages=tuple(sorted(stages)), borrower_ids=tuple(ids),
-                         watchlist_only=watchlist)
+                         watchlist_only=watchlist,
+                         thresholds=tuple(thresholds),
+                         top_n=top_n, top_by=top_by)
 
 
 __all__ = [

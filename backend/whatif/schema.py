@@ -72,6 +72,9 @@ REQUIRED: tuple[str, ...] = (
 #: to be read by somebody who is not a developer: it says which part of the
 #: product stops working, not which line of code.
 OPTIONAL: dict[str, str] = {
+    "ttc_pd_pct": "anchoring the lifetime PD on the grade's through-the-cycle "
+                  "level, so a stressed borrower is not assumed to stay "
+                  "stressed for four years",
     "display_name": "borrower names on the result table",
     "legal_name": "legal names on the result table",
     "segment": "narrowing a scenario by segment",

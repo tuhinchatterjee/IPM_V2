@@ -21,6 +21,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 
+import { BackLink } from "@/components/layout/back-link";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,8 +36,11 @@ import {
   MethodologyGate,
   MigrationMatrix,
   PeriodPicker,
+  InvestigationAnswer,
   ProfileTable,
   ResultContext,
+  ResultInterpretation,
+  RiskParameterPanel,
   ScenarioSteps,
   StagingCriteria,
   count,
@@ -47,8 +51,10 @@ import {
 import type {
   WhatIfBorrowerList,
   WhatIfGate,
+  WhatIfInvestigation,
   WhatIfMacro,
   WhatIfMigration,
+  WhatIfParameterProfile,
   WhatIfRatingProfile,
   WhatIfRunResult,
   WhatIfSectorProfile,
@@ -63,7 +69,8 @@ import { ApiError, api } from "@/lib/api";
 type Turn =
   | { kind: "said"; text: string }
   | { kind: "replied"; text: string; tone?: "note" | "warn" }
-  | { kind: "result"; result: WhatIfRunResult };
+  | { kind: "result"; result: WhatIfRunResult }
+  | { kind: "answer"; answer: WhatIfInvestigation };
 
 const JOURNEY_TITLES: Record<string, string> = {
   rating: "Rating Movement",
@@ -133,6 +140,11 @@ export default function WhatIfThreadPage() {
   const [stagingDefaultKeys, setStagingDefaultKeys] = React.useState<string[]>([]);
   const [periods, setPeriods] = React.useState<string[]>([]);
   const [migrationView, setMigrationView] = React.useState("count");
+  //: The id the last result is held under on the server. A follow-up question
+  //: is answered from THAT result rather than from a second run of the same
+  //: scenario, which is what makes "why?" a question about the number on the
+  //: screen instead of about a new one.
+  const [runId, setRunId] = React.useState("");
   const [saveName, setSaveName] = React.useState("");
   const bootstrapped = React.useRef(false);
 
@@ -143,7 +155,7 @@ export default function WhatIfThreadPage() {
   const [macro, setMacro] = React.useState<WhatIfMacro | null>(null);
   const [borrowers, setBorrowers] = React.useState<WhatIfBorrowerList | null>(null);
   const [migration, setMigration] = React.useState<WhatIfMigration | null>(null);
-  const [parameterBody, setParameterBody] = React.useState<Record<string, unknown> | null>(null);
+  const [parameterBody, setParameterBody] = React.useState<WhatIfParameterProfile | null>(null);
   const [parameter, setParameter] = React.useState("pd");
 
   const say = React.useCallback((turn: Turn) => setTurns((t) => [...t, turn]), []);
@@ -256,6 +268,7 @@ export default function WhatIfThreadPage() {
         }
         setGate(null);
         setState(result.state);
+        setRunId(result.run_id ?? "");
         say({ kind: "result", result });
       } catch (e) {
         setError(e instanceof ApiError ? e.message : String(e));
@@ -276,6 +289,20 @@ export default function WhatIfThreadPage() {
       setError("");
       try {
         const read = await api.whatIfInterpret(said, state);
+
+        // A question about the result is answered from the result. The
+        // scenario is not touched, no methodology gate appears, and nothing
+        // is recomputed — asking why a number moved cannot move it.
+        if (read.changes_state === false) {
+          const answered = await api.whatIfInvestigate(said, runId, state);
+          if (!answered.answered) {
+            say({ kind: "replied", text: answered.message ?? "", tone: "note" });
+            return;
+          }
+          say({ kind: "answer", answer: answered });
+          return;
+        }
+
         if (!read.understood) {
           setState(read.state);
           say({ kind: "replied", text: read.message ?? "", tone: "note" });
@@ -284,6 +311,16 @@ export default function WhatIfThreadPage() {
         setHistory((h) => [...h, state]);
         setState(read.state);
         say({ kind: "replied", text: read.restatement ?? "" });
+        // What the instruction was understood to mean, filter by filter,
+        // BEFORE a figure appears. A population that narrowed and a population
+        // that did not look identical in a sentence and are not.
+        if (read.filters?.length) {
+          say({
+            kind: "replied",
+            text: `What I understood — ${read.filters.join("; ")}.`,
+            tone: "note",
+          });
+        }
         for (const note of read.notes) say({ kind: "replied", text: note, tone: "note" });
         await runWith(read.state, "", said);
       } catch (e) {
@@ -292,7 +329,7 @@ export default function WhatIfThreadPage() {
         setBusy(false);
       }
     },
-    [text, state, say, runWith],
+    [text, state, say, runWith, runId],
   );
 
   // A question typed on the landing page arrives as ?q= and is asked once the
@@ -454,6 +491,12 @@ export default function WhatIfThreadPage() {
 
   return (
     <div className="space-y-5">
+      {/* Back is a control, not a browser affordance. A thread is opened from
+          the What-If index, from a saved scenario and from a link somebody
+          pasted, and in every one of those a person who wants out of it was
+          reaching for a button that was not there. */}
+      <BackLink href="/what-if" label="What-If Analysis" />
+
       <PageHeader
         eyebrow="What-If Analysis"
         title={JOURNEY_TITLES[journey] ?? "What-If"}
@@ -679,9 +722,10 @@ export default function WhatIfThreadPage() {
             />
           </CardHeader>
           <CardContent>
-            <pre className="max-h-72 overflow-auto rounded bg-surface-sunken p-3 text-[11px] text-text-secondary">
-              {JSON.stringify(parameterBody, null, 2).slice(0, 4000)}
-            </pre>
+            <RiskParameterPanel
+              profile={parameterBody}
+              currency={parameterBody.currency ?? "SAR"}
+            />
           </CardContent>
         </Card>
       ) : null}
@@ -746,6 +790,16 @@ export default function WhatIfThreadPage() {
                     </li>
                   );
                 }
+                if (turn.kind === "answer") {
+                  return (
+                    <li key={index} data-testid="whatif-answer">
+                      <InvestigationAnswer
+                        answer={turn.answer}
+                        currency={turn.answer.context?.currency ?? "SAR"}
+                      />
+                    </li>
+                  );
+                }
                 const result = turn.result;
                 const context = result.context;
                 if (!context) return null;
@@ -755,6 +809,12 @@ export default function WhatIfThreadPage() {
                     <EclHeadline context={context} currency={context.currency} />
                     {result.confirmation ? (
                       <p className="text-[12px] text-text-secondary">{result.confirmation}</p>
+                    ) : null}
+                    {result.interpretation ? (
+                      <ResultInterpretation
+                        interpretation={result.interpretation}
+                        onAsk={(question) => void send(question)}
+                      />
                     ) : null}
                     {result.factors ? (
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -868,6 +928,25 @@ export default function WhatIfThreadPage() {
                           </li>
                         ))}
                       </ul>
+                    ) : null}
+                    {/* Notes are about the INSTALLATION, not this result. An
+                        absent optional column costs exactly the capability it
+                        names; putting that in the same amber list as "this
+                        shock could not be applied" taught people to skip both,
+                        so it is folded away and it is grey. */}
+                    {result.notes?.length ? (
+                      <details data-testid="whatif-notes">
+                        <summary className="cursor-pointer text-[11px] text-text-muted">
+                          Data availability ({result.notes.length})
+                        </summary>
+                        <ul className="mt-1 space-y-1">
+                          {result.notes.map((n, i) => (
+                            <li key={i} className="text-[11px] text-text-muted">
+                              {n}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
                     ) : null}
                     {result.borrowers?.rows.length ? (
                       <details className="rounded-md border border-border p-3">

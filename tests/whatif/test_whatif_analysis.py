@@ -103,11 +103,11 @@ class TestTheRatingProfile:
     """Fourteen governed grades, and a Total that reconciles."""
 
     @needs_lake
-    def test_it_shows_the_fourteen_governed_grades(self, period) -> None:
+    def test_it_shows_the_nineteen_governed_grades(self, period) -> None:
         body = pf.rating_profile(period)
         assert body["grades"] == list(RATING_SCALE)
-        assert len(body["grades"]) == 14
-        assert len(body["rows"]) == 14
+        assert len(body["grades"]) == 19
+        assert len(body["rows"]) == 19
         assert body["default_grade"] == "D"
 
     @needs_lake
@@ -221,10 +221,10 @@ class TestTheSectorAndBorrowerViews:
 
 class TestTheRatingMigration:
     @needs_lake
-    def test_it_is_fifteen_by_fifteen_displayed(self, period) -> None:
+    def test_it_is_twenty_by_twenty_displayed(self, period) -> None:
         body = mg.rating_migration(period)
-        assert body["displayed_shape"] == "15 x 15"
-        assert len(body["labels"]) == 14
+        assert body["displayed_shape"] == "20 x 20"
+        assert len(body["labels"]) == 19
         assert body["total_label"] == "Total"
 
     @needs_lake
@@ -922,14 +922,19 @@ class TestTheDriverAttribution:
         keys = {entry["key"] for entry in at.describe()["drivers"]}
         assert {"rating", "pd", "lgd", "ead", "ccf", "stage", "macro"} <= keys
 
-    def test_the_stage_effect_is_the_change_of_measurement_basis(self) -> None:
+    def test_the_measurement_basis_is_its_own_driver(self) -> None:
         """A rating downgrade both raises PD and migrates the Stage. The two
         are separate facts and the table has to keep them apart."""
         body = rn.execute(self._state(self.RATING), requested=me.DELTA).attribution
         keys = {d["key"]: d for d in body["drivers"]}
-        assert "rating" in keys and "stage" in keys
-        assert keys["stage"]["effect"] > 0
-        assert "measurement basis" in keys["stage"]["label"]
+        assert "rating" in keys and "basis" in keys
+        assert keys["basis"]["effect"] > 0
+        assert "Measurement basis" in keys["basis"]["label"]
+        # And it says what it did, in the terms a lender asks about, rather
+        # than only as a percentage.
+        moved = body["measurement_basis"]
+        assert moved["moved"] > 0
+        assert "LIFETIME" in moved["note"]
 
     def test_the_ml_difference_is_its_own_line_not_a_driver(self) -> None:
         """SHAP explains the model; this explains the scenario. Where the two

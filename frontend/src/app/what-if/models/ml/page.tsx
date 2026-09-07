@@ -16,6 +16,7 @@
 import * as React from "react";
 
 import { CategoryBarChart, ScatterPlot } from "@/components/analytics/charts";
+import { BackLink } from "@/components/layout/back-link";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -127,6 +128,8 @@ export default function MlModelPage() {
 
   return (
     <div className="space-y-5">
+      <BackLink href="/what-if" label="What-If Analysis" />
+
       <PageHeader
         eyebrow="What-If Analysis"
         title="ML Model — XGBoost"

@@ -105,15 +105,25 @@ class AttributionError(ValueError):
     """An attribution that cannot be computed, said rather than approximated."""
 
 
-def _applicable(pd_pct: np.ndarray, stage: np.ndarray) -> np.ndarray:
+def _applicable(pd_pct: np.ndarray, stage: np.ndarray,
+                ttc_pct: np.ndarray | None = None) -> np.ndarray:
     """The PD the measurement actually uses, per borrower.
 
     Twelve-month below Stage 2, lifetime at or above it. Taking the ratio on
     THIS scale is what makes the drivers telescope: the lifetime transform is
     applied to each driver's before and after, so the products cancel instead
     of leaving a nonlinear remainder.
+
+    The anchor matters. The lifetime PD reverts towards the grade's
+    through-the-cycle level, so a driver that moves the grade moves the anchor
+    with it, and each driver's before and after must be read against the
+    anchor in force on that side of it. Without that the chain does not
+    telescope and the attribution stops adding up to the movement it claims to
+    explain.
     """
-    lifetime = np.asarray(policy.lifetime_pd(np.asarray(pd_pct) / 100.0)) * 100.0
+    anchor = np.asarray(pd_pct) if ttc_pct is None else np.asarray(ttc_pct)
+    lifetime = np.asarray(policy.lifetime_pd(
+        np.asarray(pd_pct) / 100.0, anchor / 100.0)) * 100.0
     return np.where(np.asarray(stage) <= 1, np.asarray(pd_pct), lifetime)
 
 
@@ -140,9 +150,13 @@ def driver_factors(frame: pd.DataFrame,
         if not entry:
             continue
         # Every driver's PD move is read on the basis the borrower OPENED on,
-        # so that the basis change itself stays with the stage driver.
-        pd_before = _applicable(entry["pd_before"], stage_baseline)
-        pd_after = _applicable(entry["pd_after"], stage_baseline)
+        # so that the basis change itself stays with the stage driver — and
+        # against the through-the-cycle anchor in force on each side, so a
+        # rating driver that moved the grade is read against both grades.
+        pd_before = _applicable(entry["pd_before"], stage_baseline,
+                                entry.get("ttc_before"))
+        pd_after = _applicable(entry["pd_after"], stage_baseline,
+                               entry.get("ttc_after"))
         factor = (_ratio(pd_after, pd_before)
                   * _ratio(entry["lgd_after"], entry["lgd_before"])
                   * _ratio(entry["ead_after"], entry["ead_before"]))
@@ -156,8 +170,11 @@ def driver_factors(frame: pd.DataFrame,
     stage_stressed = pd.to_numeric(frame["stage_stressed"],
                                    errors="coerce").fillna(1).to_numpy()
     final_pd = pd.to_numeric(frame["pd_stressed"], errors="coerce").fillna(0.0).to_numpy()
-    on_opening_basis = _applicable(final_pd, stage_baseline)
-    on_closing_basis = _applicable(final_pd, stage_stressed)
+    final_ttc = (pd.to_numeric(frame["ttc_stressed"], errors="coerce")
+                 .fillna(0.0).to_numpy() if "ttc_stressed" in frame.columns
+                 else None)
+    on_opening_basis = _applicable(final_pd, stage_baseline, final_ttc)
+    on_closing_basis = _applicable(final_pd, stage_stressed, final_ttc)
     factors["basis"] = _ratio(on_closing_basis, on_opening_basis)
 
     # Whatever a Stage instruction did that the change of basis does not

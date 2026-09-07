@@ -38,7 +38,7 @@ from backend.whatif import domain as dm
 
 #: The grades, strongest first, exactly as the governed scale declares them.
 GRADES: tuple[str, ...] = tuple(RATING_SCALE)
-#: The label a totals row carries. Fifteen rows for fourteen grades.
+#: The label a totals row carries. Twenty rows for nineteen grades.
 TOTAL = "Total"
 
 STAGES: tuple[int, ...] = (1, 2, 3)
@@ -230,7 +230,7 @@ def stage_profile(period: str = "", *, source: Any = None) -> dict[str, Any]:
 def sector_profile(period: str = "", *, source: Any = None) -> dict[str, Any]:
     """Every sector the book actually holds, largest exposure first.
 
-    No rating distribution here by default: a sector table with fourteen extra
+    No rating distribution here by default: a sector table with nineteen extra
     columns per row is unreadable, and the sector question is about
     concentration and coverage, not about grades.
     """

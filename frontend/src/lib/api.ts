@@ -4729,6 +4729,13 @@ export interface WhatIfInterpretResult {
   notes: string[];
   unread: string[];
   state: WhatIfState;
+  /** What kind of message this was. Only "modify" may change the scenario. */
+  intent?: WhatIfIntent;
+  changes_state?: boolean;
+  reading?: WhatIfReading;
+  /** Every filter the instruction carried, restated so a population that
+   *  narrowed is visible before an ECL figure appears. */
+  filters?: string[];
 }
 
 export interface WhatIfExecuteIn {
@@ -4807,14 +4814,96 @@ export interface WhatIfRunResult {
                             trained_range: number[] }[];
     warnings?: string[];
   };
+  /** Wrong with THIS result: a shock that could not be applied, a rule the
+   *  book cannot answer. Shown prominently. */
   warnings?: string[];
+  /** About the installation, not this result: an optional column absent, and
+   *  the one capability it costs. Shown quietly, and folded away. */
+  notes?: string[];
   borrowers?: { columns: string[]; rows: Record<string, unknown>[];
                 shown: number; total: number };
   by_sector?: Record<string, unknown>[];
   by_rating?: Record<string, unknown>[];
   by_stage?: Record<string, unknown>[];
   confirmation?: string;
+  interpretation?: WhatIfInterpretation;
   recent_id?: number | null;
+  /** The id this result is held under, so a follow-up question is answered
+   *  from THESE figures rather than from a second run. */
+  run_id?: string;
+}
+
+export interface WhatIfInterpretation {
+  materiality: string;
+  direction: string;
+  headline: string;
+  findings: string[];
+  next_questions: string[];
+  statement: string;
+}
+
+export type WhatIfIntent = "explain" | "view" | "modify";
+
+export interface WhatIfReading {
+  intent: WhatIfIntent;
+  dimension: string;
+  dimension_label: string;
+  stage: number;
+  topic: string;
+  wants_chart: boolean;
+  wants_table: boolean;
+  notes: string[];
+}
+
+export interface WhatIfBreakdown {
+  available: boolean;
+  why?: string;
+  dimension?: string;
+  rows?: Record<string, number | string>[];
+  total_change?: number;
+  groups?: number;
+}
+
+export interface WhatIfStageThree {
+  available: boolean;
+  why?: string;
+  moved?: boolean;
+  change?: number;
+  borrowers_before?: number;
+  borrowers_after?: number;
+  drivers?: { driver: string; borrowers: number; exposure: number;
+              effect: number }[];
+  note?: string;
+}
+
+export interface WhatIfInvestigation {
+  answered: boolean;
+  version?: string;
+  intent: WhatIfIntent;
+  changes_state?: boolean;
+  topic?: string;
+  question?: string;
+  state_changed?: boolean;
+  message?: string;
+  reading?: WhatIfReading;
+  notes?: string[];
+  headline?: { baseline_ecl: number; whatif_ecl: number; change: number;
+               change_pct: number; currency: string };
+  explanation?: string;
+  breakdown?: WhatIfBreakdown;
+  contributors?: { available: boolean; why?: string;
+                   rows?: Record<string, number | string>[];
+                   total_change?: number; shown?: number; of?: number };
+  stage_3?: WhatIfStageThree;
+  measurement_basis?: Record<string, unknown>;
+  stage_movement?: Record<string, unknown>;
+  drivers?: { key: string; label: string; effect: number;
+              share_pct: number; [k: string]: unknown }[];
+  pd_versus_ecl?: { available: boolean; pd_before?: number; pd_after?: number;
+                    pd_change_pct?: number; ecl_change_pct?: number };
+  methodology?: Record<string, unknown>;
+  context?: WhatIfContext;
+  run_id?: string;
 }
 
 export interface WhatIfMethodologyComparison {
@@ -4878,6 +4967,85 @@ export interface WhatIfSectorProfile {
                               avg_haircut_pct: number | null })[];
   total: WhatIfProfileRow;
   sectors: string[];
+}
+
+export interface WhatIfDistribution {
+  count: number;
+  mean: number | null;
+  median: number | null;
+  min: number | null;
+  max: number | null;
+  p10: number | null;
+  p25: number | null;
+  p75: number | null;
+  p90: number | null;
+  exposure_weighted_mean: number | null;
+}
+
+export interface WhatIfParameterGroup {
+  label: string;
+  count: number;
+  exposure: number;
+  mean: number;
+  median: number;
+  weighted_mean: number;
+  [key: string]: unknown;
+}
+
+export interface WhatIfParameterBlock {
+  stage: number;
+  measured_on: string;
+  column?: string;
+  borrowers: number;
+  exposure: number;
+  ecl: number;
+  treatment?: string;
+  distribution: WhatIfDistribution;
+  by_rating?: WhatIfParameterGroup[];
+  by_sector?: WhatIfParameterGroup[];
+  by_segment?: WhatIfParameterGroup[];
+  highest?: { borrower_id: string; name: string; sector: string;
+              value: number; exposure: number }[];
+}
+
+export interface WhatIfCollateralType {
+  collateral_type: string;
+  items: number;
+  gross_value: number;
+  haircut_pct: number;
+  post_haircut_value: number;
+  borrowers: number;
+}
+
+export interface WhatIfParameterProfile {
+  period: string;
+  currency: string;
+  parameter: string;
+  grain: string;
+  book_exposure?: number;
+  book_ecl?: number;
+  note?: string;
+  /** PD only. */
+  blocks?: Record<string, WhatIfParameterBlock>;
+  /** LGD and CCF. */
+  distribution?: WhatIfDistribution;
+  borrower_distribution?: WhatIfDistribution;
+  by_stage?: WhatIfParameterGroup[];
+  by_sector?: WhatIfParameterGroup[];
+  by_segment?: WhatIfParameterGroup[];
+  by_product?: (WhatIfParameterGroup & { facilities: number; undrawn: number;
+                                         ead: number })[];
+  secured?: { borrowers: number; exposure: number; ecl: number;
+              distribution: WhatIfDistribution };
+  unsecured?: { borrowers: number; exposure: number; ecl: number;
+                distribution: WhatIfDistribution };
+  collateral_types?: WhatIfCollateralType[];
+  collateral_value?: number;
+  collateral_coverage_pct?: number;
+  facility_count?: number;
+  drawn_exposure?: number;
+  undrawn_commitment?: number;
+  ead?: number;
 }
 
 export interface WhatIfMacroVariable {
@@ -6123,8 +6291,19 @@ export const api = {
     request<WhatIfStageProfile>(`/whatif/profile/stage${qs({ period })}`),
   whatIfSectorProfile: (period = "") =>
     request<WhatIfSectorProfile>(`/whatif/profile/sector${qs({ period })}`),
+  /** Ask a question ABOUT a result. Never changes the scenario. */
+  whatIfInvestigate: (question: string, runId: string, state: WhatIfState) =>
+    request<WhatIfInvestigation>("/whatif/investigate", {
+      method: "POST",
+      body: JSON.stringify({ question, run_id: runId, state }),
+    }),
+  whatIfIntents: () =>
+    request<{ version: string; statement: string;
+              intents: { intent: WhatIfIntent; label: string;
+                         changes_state: boolean; examples: string[] }[] }>(
+      "/whatif/investigate/intents"),
   whatIfParameterProfile: (parameter: string, period = "") =>
-    request<Record<string, unknown>>(
+    request<WhatIfParameterProfile>(
       `/whatif/profile/parameter/${encodeURIComponent(parameter)}${qs({ period })}`),
   whatIfMacroProfile: (period = "") =>
     request<WhatIfMacro>(`/whatif/profile/macro${qs({ period })}`),

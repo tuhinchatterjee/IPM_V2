@@ -69,6 +69,8 @@ class WhatIfResult:
     attribution: dict[str, Any] = field(default_factory=dict)
     ml: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
+    #: About the installation, not about this result. Shown quietly.
+    notes: list[str] = field(default_factory=list)
 
     @property
     def population(self) -> int:
@@ -122,6 +124,7 @@ class WhatIfResult:
             "attribution": dict(self.attribution),
             "ml": dict(self.ml),
             "warnings": list(self.warnings),
+            "notes": list(self.notes),
             "borrowers": {
                 "columns": list(table.columns),
                 "rows": table.to_dict(orient="records"),
@@ -257,6 +260,7 @@ def execute(state: sp.ScenarioState, *, requested: str = "",
     frame = engine_result.frame
     warnings = list(engine_result.warnings)
     warnings.extend(state.staging.unread(frame))
+    notes = list(getattr(engine_result, "notes", []))
 
     delta_frame = dl.apply(frame)
     ml_body: dict[str, Any] = {}
@@ -304,7 +308,80 @@ def execute(state: sp.ScenarioState, *, requested: str = "",
         by_stage=wf._group(work, "stage_baseline", label="Opening stage"),
         stage_movement=_movement(work), rating_movement=_rating_movement(work),
         attribution=_attribution(work, engine_result),
-        ml=ml_body, warnings=warnings)
+        ml=ml_body, warnings=warnings, notes=notes)
+
+
+def _materiality(pct: float) -> str:
+    """How large a movement is, in the words a credit committee uses."""
+    size = abs(float(pct))
+    if size < 1.0:
+        return "immaterial"
+    if size < 5.0:
+        return "modest"
+    if size < 15.0:
+        return "material"
+    if size < 40.0:
+        return "severe"
+    return "extreme"
+
+
+def interpret(result: WhatIfResult) -> dict[str, Any]:
+    """What the result MEANS, written from the result's own figures.
+
+    A number with no reading is where a scenario tool stops being useful. The
+    person on the screen is going to have to say, out loud, whether this
+    matters — so the product says what moved, by how much, what caused most of
+    it, and what would be worth asking next. Every figure here is taken from
+    the result; none is estimated and none is rounded into a different answer.
+    """
+    summary = result.summary
+    baseline = float(summary.get("baseline_ecl", 0.0) or 0.0)
+    whatif = float(summary.get("stressed_ecl", 0.0) or 0.0)
+    change = float(summary.get("incremental_ecl", 0.0) or 0.0)
+    pct = float(summary.get("incremental_ecl_pct", 0.0) or 0.0)
+    materiality = _materiality(pct)
+    direction = "increases" if change > 0 else ("decreases" if change < 0
+                                                else "does not move")
+
+    drivers = list((result.attribution or {}).get("drivers", []) or [])
+    leading = drivers[0] if drivers else None
+    movement = result.stage_movement or {}
+    deteriorated = int(movement.get("deteriorated", 0) or 0)
+
+    findings: list[str] = []
+    findings.append(
+        f"Expected credit loss {direction} from {dm.CURRENCY} {baseline:,.1f}m "
+        f"to {dm.CURRENCY} {whatif:,.1f}m — a movement of {dm.CURRENCY} "
+        f"{change:,.1f}m, or {pct:,.1f}%, which is {materiality} on this book.")
+    if leading:
+        findings.append(
+            f"The largest single cause is {leading.get('label', 'unnamed')}, "
+            f"at {float(leading.get('share_pct', 0.0)):,.1f}% of the movement.")
+    if deteriorated:
+        findings.append(
+            f"{deteriorated:,} borrowers moved to a worse stage, which changes "
+            "what their provision is measured on, not only how much it is.")
+    basis = (result.attribution or {}).get("measurement_basis") or {}
+    if basis.get("note"):
+        findings.append(str(basis["note"]))
+
+    return {
+        "materiality": materiality,
+        "direction": direction,
+        "headline": findings[0],
+        "findings": findings,
+        "next_questions": [
+            "Which borrowers contributed most to this movement?",
+            "Show this by sector.",
+            "How much of the increase is the measurement basis changing?",
+            "Why did Stage 3 move?" if (result.stage_movement or {})
+            .get("moved") else "Which sectors are most exposed to this shock?",
+        ],
+        "statement": (
+            "This reading is composed from the figures above. It states what "
+            "moved and what caused it; it does not add a view the numbers do "
+            "not carry."),
+    }
 
 
 def compare_methodologies(state: sp.ScenarioState, *, source: Any = None
@@ -357,5 +434,5 @@ def informational(question: str) -> bool:
 
 __all__ = [
     "RUN_VERSION", "RunError", "WhatIfResult", "compare_methodologies",
-    "execute", "informational",
+    "execute", "informational", "interpret",
 ]

@@ -71,15 +71,31 @@ WEIGHTED_SCENARIO_FACTOR = sum(w * m for _, w, m in SCENARIO_WEIGHTS)
 LIFETIME_HORIZON_YEARS = 4.2
 
 
-def lifetime_pd(pd_12m: np.ndarray | pd.Series) -> np.ndarray:
+def lifetime_pd(pd_12m: np.ndarray | pd.Series,
+                through_the_cycle: np.ndarray | pd.Series | None = None
+                ) -> np.ndarray:
     """Lifetime PD from a twelve-month PD, both as decimals.
 
-    A constant-hazard extension over the behavioural life, floored at the
-    twelve-month rate (a lifetime probability can never be lower) and capped
-    below one.
+    ONE transform, governed in `backend.corporate.ratingscale`, used on both
+    sides of every comparison. There were two: the book carried a mean-
+    reverting lifetime PD anchored on the grade's through-the-cycle level,
+    and this function returned a constant-hazard extension. A scenario then
+    divided a stressed figure from one curve by a reported figure from the
+    other, and the resulting "PD effect" was a difference between two
+    definitions rather than a fact about the borrower.
+
+    With no anchor the borrower is its own through-the-cycle level, which is
+    exactly the constant-hazard case — so a caller that has no grade to anchor
+    on gets the same answer it always did, and a caller that has one gets a
+    lifetime PD that reverts.
     """
+    from backend.corporate import ratingscale
+
     twelve = np.asarray(pd_12m, dtype=float)
-    return np.clip(1.0 - (1.0 - twelve) ** LIFETIME_HORIZON_YEARS, twelve, 0.999)
+    anchor = (twelve if through_the_cycle is None
+              else np.asarray(through_the_cycle, dtype=float))
+    life = ratingscale.lifetime_pd(twelve * 100.0, anchor * 100.0) / 100.0
+    return np.clip(life, twelve, 0.999)
 
 
 @dataclass(frozen=True)

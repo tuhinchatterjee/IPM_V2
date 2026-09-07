@@ -33,6 +33,7 @@ borrower's own position separately.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -116,6 +117,18 @@ class Move:
 def masterscale_pd(grade: str) -> float:
     """The twelve-month PD a grade carries, in percent."""
     return MASTERSCALE.get(str(grade or "").strip().upper(), float("nan"))
+
+
+def through_the_cycle(grades: Any) -> np.ndarray:
+    """The through-the-cycle PD each grade carries, in percent.
+
+    The lifetime PD reverts towards this, so a scenario that moves a grade has
+    to move the anchor with it. Read from the governed scale rather than from
+    the borrower, because that is the whole point of a masterscale: the level
+    belongs to the grade.
+    """
+    return ratingscale.ttc_pd(
+        pd.Series(grades).astype(str).str.strip().str.upper())
 
 
 def shift(grade: str, notches: int) -> str:

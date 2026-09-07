@@ -34,6 +34,11 @@ import {
 import type {
   WhatIfAttribution,
   WhatIfContext,
+  WhatIfDistribution,
+  WhatIfInterpretation,
+  WhatIfInvestigation,
+  WhatIfParameterGroup,
+  WhatIfParameterProfile,
   WhatIfGate,
   WhatIfMigration,
   WhatIfProfileRow,
@@ -775,9 +780,556 @@ export function ProfileTable({
   );
 }
 
+/* ------------------------------------------------------- reading a result */
+
 /**
- * A migration matrix with its Total row and column — 15 x 15 for the fourteen
+ * What the result MEANS, beside what it says.
+ *
+ * A committee does not adjourn on "ECL is up 38%". Somebody has to say
+ * whether that is large, what caused most of it, and what to look at next —
+ * and if the screen will not, the person reading it invents an answer. Every
+ * sentence here is composed from the figures above it; none is a view the
+ * numbers do not carry.
+ */
+export function ResultInterpretation({
+  interpretation,
+  onAsk,
+}: {
+  interpretation: WhatIfInterpretation;
+  onAsk?: (question: string) => void;
+}) {
+  const tone =
+    interpretation.materiality === "extreme" || interpretation.materiality === "severe"
+      ? "negative"
+      : interpretation.materiality === "immaterial"
+        ? "muted"
+        : "accent";
+  return (
+    <div className="rounded-md border border-border bg-surface-sunken p-4">
+      <div className="mb-2 flex items-center gap-2">
+        <h4 className="text-[13px] font-semibold text-text-primary">What this means</h4>
+        <Badge variant={tone === "negative" ? "negative" : tone === "muted" ? "outline" : "accent"}>
+          {interpretation.materiality}
+        </Badge>
+      </div>
+      <ul className="space-y-1.5">
+        {interpretation.findings.map((finding, i) => (
+          <li key={i} className="text-[12px] leading-relaxed text-text-secondary">
+            {finding}
+          </li>
+        ))}
+      </ul>
+      {interpretation.next_questions.length ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {interpretation.next_questions.map((question) => (
+            <Button
+              key={question}
+              variant="outline"
+              size="sm"
+              data-followup={question}
+              onClick={() => onAsk?.(question)}
+              disabled={!onAsk}
+            >
+              {question}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+      <p className="mt-3 text-[11px] text-text-muted">{interpretation.statement}</p>
+    </div>
+  );
+}
+
+function Movement({ value, currency }: { value: number | undefined; currency: string }) {
+  if (value === undefined || value === null) return <>—</>;
+  return (
+    <span className={value > 0 ? "text-negative" : value < 0 ? "text-positive" : undefined}>
+      {value > 0 ? "+" : ""}
+      {money(value, currency)}
+    </span>
+  );
+}
+
+/**
+ * The answer to a question about a result.
+ *
+ * Not a re-run and not a restatement: every figure here was computed from the
+ * borrower rows the scenario already produced, which is why asking "why did
+ * Stage 3 move?" cannot change what Stage 3 did.
+ */
+export function InvestigationAnswer({
+  answer,
+  currency = "SAR",
+}: {
+  answer: WhatIfInvestigation;
+  currency?: string;
+}) {
+  const unit = answer.headline?.currency ?? currency;
+  return (
+    <div className="space-y-3 rounded-md border border-border p-4" data-answer={answer.intent}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="outline">
+          {answer.intent === "view" ? "Breakdown" : "Explanation"}
+        </Badge>
+        <span className="text-[11px] text-text-muted">
+          Answered from the result already computed — the scenario is unchanged.
+        </span>
+      </div>
+
+      {answer.explanation ? (
+        <p className="text-[12px] leading-relaxed text-text-secondary">{answer.explanation}</p>
+      ) : null}
+
+      {answer.stage_3 && answer.stage_3.available ? (
+        <div>
+          <p className="text-[12px] text-text-secondary">
+            {count(answer.stage_3.borrowers_before)} borrowers in Stage 3 before,{" "}
+            {count(answer.stage_3.borrowers_after)} after.
+          </p>
+          {answer.stage_3.drivers?.length ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Mechanism</TableHead>
+                  <TableHead numeric>Borrowers</TableHead>
+                  <TableHead numeric>Exposure</TableHead>
+                  <TableHead numeric>Effect on ECL</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {answer.stage_3.drivers.map((driver) => (
+                  <TableRow key={driver.driver} data-row={driver.driver}>
+                    <TableCell>{driver.driver}</TableCell>
+                    <TableCell numeric>{count(driver.borrowers)}</TableCell>
+                    <TableCell numeric>{money(driver.exposure, unit)}</TableCell>
+                    <TableCell numeric>
+                      <Movement value={driver.effect} currency={unit} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : null}
+        </div>
+      ) : null}
+
+      {answer.drivers?.length ? (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Driver</TableHead>
+              <TableHead numeric>Effect on ECL</TableHead>
+              <TableHead numeric>Share of movement</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {answer.drivers.map((driver) => (
+              <TableRow key={driver.key} data-row={driver.key}>
+                <TableCell>{driver.label}</TableCell>
+                <TableCell numeric>
+                  <Movement value={driver.effect} currency={unit} />
+                </TableCell>
+                <TableCell numeric>{pct(driver.share_pct)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      ) : null}
+
+      {answer.breakdown?.available && answer.breakdown.rows?.length ? (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{answer.breakdown.dimension ?? "Group"}</TableHead>
+                <TableHead numeric>Borrowers</TableHead>
+                <TableHead numeric>Exposure</TableHead>
+                <TableHead numeric>ECL before</TableHead>
+                <TableHead numeric>ECL after</TableHead>
+                <TableHead numeric>Change</TableHead>
+                <TableHead numeric>Share</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {answer.breakdown.rows.map((row, i) => (
+                <TableRow key={i} data-row={String(row.label)}>
+                  <TableCell>{String(row.label)}</TableCell>
+                  <TableCell numeric>{count(Number(row.borrowers))}</TableCell>
+                  <TableCell numeric>{money(Number(row.exposure), unit)}</TableCell>
+                  <TableCell numeric>{money(Number(row.ecl_before), unit)}</TableCell>
+                  <TableCell numeric>{money(Number(row.ecl_after), unit)}</TableCell>
+                  <TableCell numeric>
+                    <Movement value={Number(row.change)} currency={unit} />
+                  </TableCell>
+                  <TableCell numeric>{pct(Number(row.share_pct))}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ) : null}
+
+      {answer.contributors?.available && answer.contributors.rows?.length ? (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Borrower</TableHead>
+                <TableHead>Sector</TableHead>
+                <TableHead>Rating</TableHead>
+                <TableHead numeric>Exposure</TableHead>
+                <TableHead numeric>ECL before</TableHead>
+                <TableHead numeric>ECL after</TableHead>
+                <TableHead numeric>Change</TableHead>
+                <TableHead numeric>Share</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {answer.contributors.rows.map((row, i) => (
+                <TableRow key={i} data-borrower={String(row.borrower_id)}>
+                  <TableCell>{String(row.display_name ?? row.borrower_id)}</TableCell>
+                  <TableCell>{String(row.sector ?? "—")}</TableCell>
+                  <TableCell>
+                    {String(row.opening_rating ?? "—")}
+                    {row.stressed_rating && row.stressed_rating !== row.opening_rating
+                      ? ` → ${String(row.stressed_rating)}`
+                      : ""}
+                  </TableCell>
+                  <TableCell numeric>{money(Number(row.ead), unit)}</TableCell>
+                  <TableCell numeric>{money(Number(row.ecl_baseline), unit)}</TableCell>
+                  <TableCell numeric>{money(Number(row.ecl_stressed), unit)}</TableCell>
+                  <TableCell numeric>
+                    <Movement value={Number(row.ecl_increase)} currency={unit} />
+                  </TableCell>
+                  <TableCell numeric>{pct(Number(row.share_pct))}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <p className="mt-1 text-[11px] text-text-muted">
+            {count(answer.contributors.shown)} of {count(answer.contributors.of)} borrowers.
+          </p>
+        </div>
+      ) : null}
+
+      {answer.pd_versus_ecl?.available ? (
+        <p className="text-[12px] text-text-secondary">
+          Exposure-weighted 12-month PD moved from {pct(answer.pd_versus_ecl.pd_before, 3)} to{" "}
+          {pct(answer.pd_versus_ecl.pd_after, 3)} ({pct(answer.pd_versus_ecl.pd_change_pct)}),
+          while the provision moved {pct(answer.pd_versus_ecl.ecl_change_pct)}. The two differ
+          because the provision is a product and a stage crossing changes which PD is in it.
+        </p>
+      ) : null}
+
+      {answer.notes?.length ? (
+        <p className="text-[11px] text-text-muted">{answer.notes.join(" ")}</p>
+      ) : null}
+    </div>
+  );
+}
+
+/* ------------------------------------------------- risk parameter screens */
+
+/** One distribution, as the six numbers a risk person actually asks for. */
+function Spread({
+  distribution,
+  unit = "%",
+  digits = 2,
+}: {
+  distribution: WhatIfDistribution | undefined;
+  unit?: string;
+  digits?: number;
+}) {
+  if (!distribution || !distribution.count) {
+    return <p className="text-[12px] text-text-secondary">No values to describe.</p>;
+  }
+  const show = (value: number | null | undefined) =>
+    value === null || value === undefined ? "—" : `${value.toFixed(digits)}${unit}`;
+  const cells: { label: string; value: string; strong?: boolean }[] = [
+    { label: "Exposure-weighted", value: show(distribution.exposure_weighted_mean), strong: true },
+    { label: "Mean", value: show(distribution.mean) },
+    { label: "Median", value: show(distribution.median) },
+    { label: "10th pct", value: show(distribution.p10) },
+    { label: "90th pct", value: show(distribution.p90) },
+    { label: "Range", value: `${show(distribution.min)} – ${show(distribution.max)}` },
+  ];
+  return (
+    <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
+      {cells.map((cell) => (
+        <div key={cell.label}>
+          <dt className="text-[11px] uppercase tracking-wide text-text-tertiary">
+            {cell.label}
+          </dt>
+          <dd
+            className={cn(
+              "tabular-nums text-[13px]",
+              cell.strong ? "font-semibold text-text-primary" : "text-text-secondary",
+            )}
+          >
+            {cell.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** A grouped parameter table: who holds it, how much, and at what level. */
+function GroupTable({
+  rows,
+  first,
+  currency = "SAR",
+  unit = "%",
+  digits = 2,
+  limit = 20,
+}: {
+  rows: WhatIfParameterGroup[] | undefined;
+  first: string;
+  currency?: string;
+  unit?: string;
+  digits?: number;
+  limit?: number;
+}) {
+  if (!rows || rows.length === 0) return null;
+  const show = (value: number | null | undefined) =>
+    value === null || value === undefined ? "—" : `${value.toFixed(digits)}${unit}`;
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{first}</TableHead>
+            <TableHead numeric>Accounts</TableHead>
+            <TableHead numeric>Exposure</TableHead>
+            <TableHead numeric>Exposure-weighted</TableHead>
+            <TableHead numeric>Mean</TableHead>
+            <TableHead numeric>Median</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.slice(0, limit).map((row) => (
+            <TableRow key={row.label} data-row={row.label}>
+              <TableCell>{row.label}</TableCell>
+              <TableCell numeric>{count(row.count)}</TableCell>
+              <TableCell numeric>{money(row.exposure, currency)}</TableCell>
+              <TableCell numeric>{show(row.weighted_mean)}</TableCell>
+              <TableCell numeric>{show(row.mean)}</TableCell>
+              <TableCell numeric>{show(row.median)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+/**
+ * PD, LGD or CCF for the reported book — read, never dumped.
+ *
+ * This screen showed the API response as pretty-printed JSON. Everything a
+ * credit officer needed was in it and none of it was legible: a person cannot
+ * see a distribution in a brace, and a screen that asks them to read one is
+ * telling them the product has not finished. The payload has not changed;
+ * what it says has.
+ *
+ * Each parameter gets the shape its own mechanics have. PD is reported per
+ * Stage because the Stage decides which PD is measured. LGD is reported
+ * secured against unsecured because that is the only thing that moves it.
+ * CCF is reported at facility grain with the EAD identity stated, because a
+ * CCF change moves exposure and only then moves the provision.
+ */
+export function RiskParameterPanel({
+  profile,
+  currency = "SAR",
+}: {
+  profile: WhatIfParameterProfile;
+  currency?: string;
+}) {
+  const parameter = String(profile.parameter ?? "").toUpperCase();
+  const isCcf = parameter === "CCF";
+  const unit = isCcf ? "" : "%";
+  const digits = isCcf ? 4 : parameter === "PD" ? 3 : 2;
+  const scale = (rows: WhatIfParameterGroup[] | undefined) => rows;
+
+  if (parameter === "PD" && profile.blocks) {
+    const blocks = [profile.blocks.stage_1, profile.blocks.stage_2,
+                    profile.blocks.stage_3].filter(Boolean);
+    return (
+      <div className="space-y-5">
+        <p className="text-[12px] text-text-secondary">
+          Probability of default is reported per Stage, because the Stage
+          decides which one is measured: Stage 1 on the twelve-month figure,
+          Stages 2 and 3 on the lifetime figure. The two are never averaged
+          together.
+        </p>
+        {blocks.map((block) => (
+          <div key={block!.stage} className="rounded-md border border-border p-4">
+            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+              <h4 className="text-[13px] font-semibold text-text-primary">
+                Stage {block!.stage} — measured on {block!.measured_on}
+              </h4>
+              <span className="text-[12px] text-text-secondary">
+                {count(block!.borrowers)} borrowers · {money(block!.exposure, currency)}{" "}
+                exposure · {money(block!.ecl, currency)} ECL
+              </span>
+            </div>
+            <Spread distribution={block!.distribution} unit="%" digits={3} />
+            {block!.treatment ? (
+              <p className="mt-3 text-[12px] text-text-secondary">{block!.treatment}</p>
+            ) : null}
+            {block!.by_rating && block!.by_rating.length ? (
+              <div className="mt-4 space-y-4">
+                <div>
+                  <h5 className="mb-1 text-[12px] font-medium text-text-primary">
+                    By rating
+                  </h5>
+                  <GroupTable rows={block!.by_rating} first="Rating"
+                              currency={currency} unit="%" digits={3} />
+                </div>
+                <div>
+                  <h5 className="mb-1 text-[12px] font-medium text-text-primary">
+                    By sector
+                  </h5>
+                  <GroupTable rows={block!.by_sector} first="Sector"
+                              currency={currency} unit="%" digits={3} />
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {profile.note ? (
+        <p className="text-[12px] text-text-secondary">{profile.note}</p>
+      ) : null}
+
+      <div className="rounded-md border border-border p-4">
+        <h4 className="mb-3 text-[13px] font-semibold text-text-primary">
+          {isCcf ? "Across every facility" : "Across the book"}
+        </h4>
+        <Spread distribution={profile.distribution} unit={unit} digits={digits} />
+      </div>
+
+      {isCcf ? (
+        <div className="rounded-md border border-border p-4">
+          <h4 className="mb-3 text-[13px] font-semibold text-text-primary">
+            Exposure at default = drawn + CCF × undrawn
+          </h4>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
+            {[
+              { label: "Drawn", value: money(profile.drawn_exposure, currency) },
+              { label: "Undrawn", value: money(profile.undrawn_commitment, currency) },
+              { label: "Exposure at default", value: money(profile.ead, currency) },
+              { label: "Facilities", value: count(profile.facility_count) },
+            ].map((cell) => (
+              <div key={cell.label}>
+                <dt className="text-[11px] uppercase tracking-wide text-text-tertiary">
+                  {cell.label}
+                </dt>
+                <dd className="tabular-nums text-[13px] text-text-primary">{cell.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ) : null}
+
+      {profile.secured && profile.unsecured ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {[
+            { title: "Secured", body: profile.secured },
+            { title: "Unsecured", body: profile.unsecured },
+          ].map((side) => (
+            <div key={side.title} className="rounded-md border border-border p-4">
+              <div className="mb-2 flex items-baseline justify-between gap-2">
+                <h4 className="text-[13px] font-semibold text-text-primary">
+                  {side.title}
+                </h4>
+                <span className="text-[12px] text-text-secondary">
+                  {count(side.body.borrowers)} borrowers ·{" "}
+                  {money(side.body.exposure, currency)}
+                </span>
+              </div>
+              <Spread distribution={side.body.distribution} unit="%" digits={2} />
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {profile.collateral_types && profile.collateral_types.length ? (
+        <div className="rounded-md border border-border p-4">
+          <h4 className="mb-2 text-[13px] font-semibold text-text-primary">
+            Collateral behind the secured book
+          </h4>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Type</TableHead>
+                  <TableHead numeric>Items</TableHead>
+                  <TableHead numeric>Borrowers</TableHead>
+                  <TableHead numeric>Market value</TableHead>
+                  <TableHead numeric>Haircut</TableHead>
+                  <TableHead numeric>Eligible value</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {profile.collateral_types.map((row) => (
+                  <TableRow key={row.collateral_type} data-row={row.collateral_type}>
+                    <TableCell>{row.collateral_type}</TableCell>
+                    <TableCell numeric>{count(row.items)}</TableCell>
+                    <TableCell numeric>{count(row.borrowers)}</TableCell>
+                    <TableCell numeric>{money(row.gross_value, currency)}</TableCell>
+                    <TableCell numeric>{pct(row.haircut_pct * 100, 1)}</TableCell>
+                    <TableCell numeric>{money(row.post_haircut_value, currency)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      ) : null}
+
+      {profile.by_product && profile.by_product.length ? (
+        <div>
+          <h4 className="mb-1 text-[13px] font-semibold text-text-primary">By product</h4>
+          <GroupTable rows={profile.by_product} first="Product" currency={currency}
+                      unit={unit} digits={digits} />
+        </div>
+      ) : null}
+
+      {profile.by_stage && profile.by_stage.length ? (
+        <div>
+          <h4 className="mb-1 text-[13px] font-semibold text-text-primary">By stage</h4>
+          <GroupTable rows={scale(profile.by_stage)} first="Stage" currency={currency}
+                      unit={unit} digits={digits} />
+        </div>
+      ) : null}
+
+      {profile.by_sector && profile.by_sector.length ? (
+        <div>
+          <h4 className="mb-1 text-[13px] font-semibold text-text-primary">By sector</h4>
+          <GroupTable rows={scale(profile.by_sector)} first="Sector" currency={currency}
+                      unit={unit} digits={digits} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A migration matrix with its Total row and column — 20 x 20 for the nineteen
  * governed grades, 4 x 4 for the three Stages.
+ *
+ * Percentages are ROW shares: each cell is read as "this proportion of the
+ * borrowers who started the period on THIS grade ended it on that one", so a
+ * row sums to 100%. Shares of the grand total were what the matrix showed
+ * first, and they answered a question nobody asks — every cell was a fraction
+ * of the whole book, so the diagonal read as tiny and a migration nobody would
+ * miss looked like rounding.
  */
 export function MigrationMatrix({
   migration,

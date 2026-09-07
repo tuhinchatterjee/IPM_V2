@@ -283,11 +283,17 @@ GRADE_COUNT = ratingscale.GRADE_COUNT
 #: of it, and the TTC PD takes none.
 RATING_CYCLE_PASSTHROUGH = 0.45
 
-#: The credit cycle factor is written in quality units, roughly -0.40 to +0.22
+#: The credit cycle factor is written in quality units, roughly -0.48 to +0.27
 #: over the window. The single-factor PD transform wants a standard normal, so
-#: this converts one to the other: a factor of -0.40 becomes Z = -2.0, a
-#: severe but not implausible downturn.
-CYCLE_TO_Z = 5.0
+#: this converts one to the other: the trough becomes Z = -1.4, a severe
+#: downturn on a scale where -1.0 is a bad year.
+#:
+#: It was 5.0, which put the trough at Z = -2.4. Combined with the conditioning
+#: below that produced a book whose average twelve-month PD went from 0.7% to
+#: 17% and back inside four years — a twenty-three-fold swing. Books do not do
+#: that. Neither the ECL nor the staging built on top of it could be defended,
+#: and every figure a reader saw inherited the exaggeration.
+CYCLE_TO_Z = 3.0
 
 RATING_MODELS: tuple[str, ...] = (
     "Corporate Rating Model v4", "Financial Institutions Model v2",
@@ -815,7 +821,16 @@ def build_ratings(entities: pd.DataFrame, spine_df: pd.DataFrame,
                 / np.maximum(ttc, 1e-9))
     idiosyncratic = np.clip(np.log(np.maximum(residual, 1e-6)) * 0.28,
                             -0.60, 0.60)
-    pit = ratingscale.pit_pd(ttc, cycle_z, rho, idiosyncratic)
+    # Only the cycle the GRADE has not already absorbed.
+    #
+    # `rating_quality` carries RATING_CYCLE_PASSTHROUGH of the cycle, so a
+    # downturn has already migrated the borrower down the scale and raised its
+    # through-the-cycle PD. Conditioning that migrated grade on the whole
+    # cycle again counts the same economy twice, which is precisely what made
+    # the point-in-time PD move by an order of magnitude across a downturn
+    # that moved GDP by two points.
+    residual_cycle = (1.0 - RATING_CYCLE_PASSTHROUGH) * cycle_z
+    pit = ratingscale.pit_pd(ttc, residual_cycle, rho, idiosyncratic)
     life = ratingscale.lifetime_pd(pit, ttc)
     # A defaulted name is measured on the default treatment, not on a grade.
     pit = np.where(default_flag, ratingscale.PD_CEILING_PCT, pit)
@@ -1153,6 +1168,15 @@ def build_facilities(entities: pd.DataFrame, spine_df: pd.DataFrame,
     origination_quarter = rng.integers(-40, QUARTER_COUNT - 1,
                                        total_facilities)
     tenor_quarters = rng.integers(20, 80, total_facilities)
+    # The core facility is the relationship, and it is renewed for as long as
+    # the borrower is on book; the others amortise and mature. Without this,
+    # seventy obligors reached a quarter with every facility matured and sat
+    # in the IFRS 9 book at zero exposure — rated, staged, provisioned at
+    # nothing. An obligor with no exposure is not a credit exposure, and a
+    # book that carries one cannot be reconciled against itself.
+    core = offsets[:n_entities]
+    origination_quarter[core] = -40
+    tenor_quarters[core] = 40 + QUARTER_COUNT + 4
 
     # Expand to quarters. Only facilities that exist in a quarter, for
     # borrowers that are on book in it.
@@ -1333,14 +1357,17 @@ def build_ifrs9(entities: pd.DataFrame, spine_df: pd.DataFrame,
     # rather than averaged from the facilities: this is the CCF that
     # reproduces the borrower's own EAD, which is the only one worth showing.
     undrawn = frame["undrawn_commitment"].to_numpy()
-    # Held to four decimals rather than two: it is a back-solved ratio, and
-    # rounding it is what makes the identity `EAD = drawn + CCF x undrawn`
-    # fail to reconcile on a large undrawn commitment.
+    # A PROPORTION, not a percentage, and held to four decimals rather than
+    # two: it is a back-solved ratio, and either scaling it or rounding it is
+    # what makes the identity `EAD = drawn + CCF x undrawn` fail to reconcile
+    # on a large undrawn commitment. The facility-level factor beside it is a
+    # proportion too; a book that expressed the same quantity two ways at two
+    # grains could not be reconciled between them.
     frame["credit_conversion_factor"] = _round(np.where(
         undrawn > 0,
         np.clip((frame["ead"].to_numpy() - frame["drawn_exposure"].to_numpy())
                 / np.maximum(undrawn, 1e-9), 0.0, 1.0),
-        0.0) * 100.0, 4)
+        0.0), 4)
 
     dpd = delinquency.set_index(["borrower_id", "period"])["current_dpd"]
     frame["current_dpd"] = frame.set_index(
@@ -1403,7 +1430,14 @@ def build_ifrs9(entities: pd.DataFrame, spine_df: pd.DataFrame,
     lgd = np.clip(lgd, 0.05, 0.95)
     frame["secured_lgd"] = _round(secured_lgd * 100, 2)
     frame["unsecured_lgd"] = _round(unsecured_lgd * 100, 2)
+    # Round FIRST, then measure from the rounded figure. The published LGD is
+    # the one a reader multiplies out; if the provision were computed from an
+    # unrounded value behind it, the identity on screen would fail by half a
+    # basis point of LGD times the exposure — up to fourteen million on the
+    # largest names, which is exactly the sort of gap nobody can explain in a
+    # committee.
     frame["lgd"] = _round(lgd * 100, 2)
+    lgd = frame["lgd"].to_numpy() / 100.0
 
     # ---- origination PD, and the SICR triggers read against it
     #
@@ -1418,8 +1452,35 @@ def build_ifrs9(entities: pd.DataFrame, spine_df: pd.DataFrame,
         entities["sector_quality"].to_numpy()
         + rng.normal(0.0, 0.55, len(entities)))
     origination_pd = pd_from_quality(origination_quality)
-    frame["pd_at_origination_pct"] = _round(
-        origination_pd[frame["entity_index"].to_numpy()], 4)
+
+    # The reference is RE-CONDITIONED onto the reporting date's economy.
+    #
+    # IFRS 9 compares the risk of default now against the risk expected at
+    # initial recognition, using consistent forward-looking information on
+    # both sides. Holding the origination figure at its own vintage does not
+    # do that: it makes the comparison a measure of the CYCLE rather than of
+    # the borrower, and the book showed exactly that — Stage 2 walked from 6%
+    # of the book to 75% and back as the credit cycle turned, because at the
+    # trough almost every borrower's point-in-time PD was more than double a
+    # figure fixed years earlier. A bank with three quarters of its book in
+    # Stage 2 is not a bank with a credit problem, it is a bank with a
+    # staging rule that does not work.
+    #
+    # So the origination grade's through-the-cycle PD is conditioned on the
+    # SAME systematic factor as the current reading. The ratio then measures
+    # what the trigger is for — deterioration in this borrower relative to
+    # where it started — while the cycle keeps its full effect on the ECL
+    # through the point-in-time and lifetime PDs, and keeps a real effect on
+    # staging through the two triggers that are levels rather than ratios:
+    # the absolute PD trigger and days past due.
+    row_entity = frame["entity_index"].to_numpy()
+    row_rho = ratingscale.correlation(
+        entities["sector"].to_numpy()[row_entity])
+    row_z = frame.merge(
+        spine_df[["borrower_id", "period", "cycle_z"]],
+        on=["borrower_id", "period"], how="left")["cycle_z"].fillna(0.0).to_numpy()
+    frame["pd_at_origination_pct"] = _round(ratingscale.pit_pd(
+        origination_pd[row_entity], systematic=row_z, rho=row_rho), 4)
 
     pit = frame["pit_pd_12m_pct"].to_numpy()
     ratio = pit / frame["pd_at_origination_pct"].replace(0, np.nan).to_numpy()
@@ -1445,20 +1506,25 @@ def build_ifrs9(entities: pd.DataFrame, spine_df: pd.DataFrame,
     # One line decides the basis, and it is the governed one: twelve-month in
     # Stage 1, lifetime above it. Everything else is arithmetic.
     stage = frame["stage"].to_numpy()
-    pd_12m = pit / 100.0
-    pd_life = frame["lifetime_pd_pct"].to_numpy() / 100.0
+    # Rounded first, for the same reason as the LGD above.
+    pd_12m = _round(pit, 4) / 100.0
+    pd_life = _round(frame["lifetime_pd_pct"].to_numpy(), 4) / 100.0
     applicable = ratingscale.applicable_pd(stage, pd_12m, pd_life)
 
     ecl_12m = pd_12m * lgd * ead_v * WEIGHTED_SCENARIO_FACTOR
     ecl_lifetime = pd_life * lgd * ead_v * WEIGHTED_SCENARIO_FACTOR
-    base_ecl = applicable * lgd * ead_v * WEIGHTED_SCENARIO_FACTOR
-    overlay = np.where(rng.random(n) < 0.06,
-                       base_ecl * rng.uniform(0.05, 0.25, n), 0.0)
-    final = base_ecl + overlay
     # An expected loss above the exposure is not a loss, it is an error. The
     # only way to reach it is a lifetime PD near one on a fully unsecured
-    # name, and even then the loss is bounded by what is owed.
-    final = np.minimum(final, ead_v)
+    # name, and even then the loss is bounded by what is owed. The bound
+    # applies to the measured figure as well as the final one: a provision
+    # BEFORE overlay that already exceeded the exposure was published on seven
+    # rows, and a reader who checked the arithmetic on one of them would have
+    # found the book asserting a loss larger than the amount at risk.
+    base_ecl = np.minimum(applicable * lgd * ead_v * WEIGHTED_SCENARIO_FACTOR,
+                          ead_v)
+    overlay = np.where(rng.random(n) < 0.06,
+                       base_ecl * rng.uniform(0.05, 0.25, n), 0.0)
+    final = np.minimum(base_ecl + overlay, ead_v)
 
     frame["pd_12m"] = _round(pit, 4)
     frame["pd_lifetime"] = _round(frame["lifetime_pd_pct"].to_numpy(), 4)
@@ -1530,6 +1596,15 @@ def build_delinquency(entities: pd.DataFrame, spine_df: pd.DataFrame,
     # floor is drawn instead, from the day default is recognised outwards.
     default_floor = 91.0 + rng.gamma(1.4, 55.0, n)
     dpd = np.where(default_flag, np.maximum(dpd, default_floor), dpd)
+    # Ninety days past due is the presumption of default, and a book that
+    # contradicts its own presumption is unreadable: it produced borrowers who
+    # were credit-impaired by days past due, still rated B-, still carrying a
+    # ten per cent PD, and whose Stage 3 provision then moved under a rating
+    # shock aimed at performing names. A borrower who is not in default is
+    # therefore not past due by ninety days. The presumption is not rebutted
+    # anywhere in this book, so the two agree by construction rather than by
+    # luck, and Stage 3 means one thing.
+    dpd = np.where(default_flag, dpd, np.minimum(dpd, DEFAULT_DPD_DAYS - 1))
     dpd = np.clip(dpd, 0, 640).astype(int)
 
     exposure = (facilities.groupby(["borrower_id", "period"])["drawn_exposure"]

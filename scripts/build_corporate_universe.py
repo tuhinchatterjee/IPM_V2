@@ -175,6 +175,22 @@ def main(argv: list[str] | None = None) -> int:
               f"{registered['forbidden_joins']} forbidden join(s)")
         report["catalogue"] = registered
 
+        # A dataset PUBLISHED through Data Builder overrides the file entry,
+        # so a rebuilt lake with new columns is invisible to every reader
+        # until the published entry learns about them.
+        reconciled = catalogue_mod.reconcile_published(frames)
+        report["published_reconciliation"] = reconciled
+        if reconciled.get("added"):
+            for name, columns in sorted(reconciled["added"].items()):
+                print(f"  published {name}: added {len(columns)} field(s) "
+                      f"the lake carries — {', '.join(columns)}")
+        elif reconciled.get("available"):
+            print(f"  {reconciled['checked']} published dataset(s) already "
+                  "match the lake")
+        else:
+            print(f"  published datasets not reconciled: "
+                  f"{reconciled.get('why', 'unavailable')}")
+
         # Reconcile the catalogue against what is actually on disk. A dataset
         # renamed or removed in an earlier build leaves an entry behind that
         # every reader trusts, and the failure it causes surfaces somewhere

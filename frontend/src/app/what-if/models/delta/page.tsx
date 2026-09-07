@@ -8,6 +8,7 @@
  * code the first time somebody changed a cap.
  */
 
+import { BackLink } from "@/components/layout/back-link";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Unavailable } from "@/components/ui/unavailable";
@@ -20,6 +21,8 @@ export default function DeltaModelPage() {
 
   return (
     <div className="space-y-5">
+      <BackLink href="/what-if" label="What-If Analysis" />
+
       <PageHeader
         eyebrow="What-If Analysis"
         title="Delta Model"

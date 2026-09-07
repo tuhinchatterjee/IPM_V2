@@ -390,14 +390,14 @@ class TestTheHttpSurface:
         assert body["count"] == len(dm.periods())
         assert body["latest"] == dm.latest_period()
 
-    def test_the_rating_profile_has_fourteen_grades_and_a_total(self, client) -> None:
+    def test_the_rating_profile_has_nineteen_grades_and_a_total(self, client) -> None:
         body = client.get("/api/v1/whatif/profile/rating", headers=ANALYST).json()
-        assert len(body["rows"]) == 14
+        assert len(body["rows"]) == 19
         assert body["total"]["count"] == body["borrowers"]
 
-    def test_the_rating_migration_is_fifteen_by_fifteen(self, client) -> None:
+    def test_the_rating_migration_is_twenty_by_twenty(self, client) -> None:
         body = client.get("/api/v1/whatif/migration/rating", headers=ANALYST).json()
-        assert body["displayed_shape"] == "15 x 15"
+        assert body["displayed_shape"] == "20 x 20"
 
     def test_the_macro_screen_carries_ten_variables(self, client) -> None:
         body = client.get("/api/v1/whatif/profile/macro", headers=ANALYST).json()

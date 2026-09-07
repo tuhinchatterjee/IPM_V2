@@ -21,9 +21,11 @@ from backend.api.auth import Principal
 from backend.api.permissions import RequireAnalyst
 from backend.ifrs9 import policy
 from backend.whatif import answers as wa
+from backend.whatif import cache as ch
 from backend.whatif import delta as dl
 from backend.whatif import domain as dm
 from backend.whatif import engine as wf
+from backend.whatif import investigate as iv
 from backend.whatif import language as lg
 from backend.whatif import macro as mc
 from backend.whatif import masterscale as ms
@@ -59,12 +61,29 @@ class ShockIn(BaseModel):
     target: str = Field(default="", max_length=48)
 
 
+class ThresholdIn(BaseModel):
+    """One numeric filter, carried across save and reopen.
+
+    Without these on the contract, "construction borrowers with exposure above
+    SAR 100m" reached the engine as "construction borrowers" and priced the
+    whole sector. A filter the person stated is part of the scenario.
+    """
+
+    field: str = Field(min_length=1, max_length=48)
+    operator: str = Field(default="above", max_length=16)
+    value: float = Field(ge=-1e12, le=1e12)
+    unit: str = Field(default="", max_length=12)
+
+
 class PopulationIn(BaseModel):
     sectors: list[str] = Field(default_factory=list, max_length=40)
     rating_bands: list[str] = Field(default_factory=list, max_length=20)
     stages: list[int] = Field(default_factory=list, max_length=3)
     borrower_ids: list[str] = Field(default_factory=list, max_length=2000)
     watchlist_only: bool = False
+    thresholds: list[ThresholdIn] = Field(default_factory=list, max_length=8)
+    top_n: int = Field(default=0, ge=0, le=5000)
+    top_by: str = Field(default="ead", max_length=48)
 
 
 class AssumptionsIn(BaseModel):
@@ -144,12 +163,7 @@ def _build(body: RunIn) -> sc.Scenario:
             raise _refused(f"{shock.target!r} is not a variable in the "
                            f"sensitivity matrix.")
 
-    population = sc.Population(
-        sectors=tuple(body.population.sectors),
-        rating_bands=tuple(body.population.rating_bands),
-        stages=tuple(body.population.stages),
-        borrower_ids=tuple(body.population.borrower_ids),
-        watchlist_only=body.population.watchlist_only)
+    population = _population_from(body.population)
     if base and population.is_whole_book:
         population = base.population
 
@@ -397,6 +411,26 @@ def _staging_from(body: StagingIn | None) -> stg.StagingPolicy:
     return policy_
 
 
+def _population_from(body: PopulationIn) -> sc.Population:
+    """The population as stated, filters included.
+
+    Every field on the contract is carried. A population that arrives narrower
+    than it leaves is a scenario that priced a different book from the one the
+    person described.
+    """
+    return sc.Population(
+        sectors=tuple(body.sectors),
+        rating_bands=tuple(body.rating_bands),
+        stages=tuple(body.stages),
+        borrower_ids=tuple(body.borrower_ids),
+        watchlist_only=body.watchlist_only,
+        thresholds=tuple(sc.Threshold(field=t.field, operator=t.operator,
+                                      value=float(t.value), unit=t.unit)
+                         for t in body.thresholds),
+        top_n=int(body.top_n or 0),
+        top_by=body.top_by or "ead")
+
+
 def _state_from(body: StateIn) -> sp.ScenarioState:
     steps = []
     for raw in body.steps:
@@ -405,12 +439,7 @@ def _state_from(body: StateIn) -> sp.ScenarioState:
             shocks=tuple(sc.Shock(kind=s.kind, magnitude=s.magnitude,
                                   unit=s.unit, target=s.target)
                          for s in raw.shocks),
-            population=sc.Population(
-                sectors=tuple(raw.population.sectors),
-                rating_bands=tuple(raw.population.rating_bands),
-                stages=tuple(raw.population.stages),
-                borrower_ids=tuple(raw.population.borrower_ids),
-                watchlist_only=raw.population.watchlist_only),
+            population=_population_from(raw.population),
             instruction=raw.instruction, interpreted=raw.interpreted,
             enabled=raw.enabled, detail=dict(raw.detail),
             **({"step_id": raw.step_id} if raw.step_id else {})))
@@ -504,7 +533,7 @@ JOURNEYS: list[dict[str, Any]] = [
 @router.get("/profile/rating")
 def rating_profile(period: str = Query(default="", max_length=24),
                    _: Any = RequireAnalyst) -> dict[str, Any]:
-    """The 14 governed grades plus a Total — fifteen rows."""
+    """The 19 governed grades plus a Total — twenty rows."""
     try:
         return pf.rating_profile(period)
     except dm.DomainError as e:
@@ -684,6 +713,34 @@ def interpret(body: InterpretIn, _: Any = RequireAnalyst) -> dict[str, Any]:
     except (stg.StagingError, sp.StepError) as e:
         raise _refused(str(e)) from e
 
+    # What KIND of message this is decides whether the scenario may be touched.
+    #
+    # An EXPLAIN is always about the result. A VIEW is only about the result
+    # when it POINTS at it — "show this by sector" is a cut of the scenario,
+    # while "show Stage 1 PD by sector" is a question about the reported book
+    # and belongs on the profile screens, which answer it without an ECL
+    # calculation and therefore without a methodology.
+    #
+    # Both need a result to be about. On an empty thread there is nothing to
+    # explain, so the message goes to the builder like any other.
+    intent = iv.classify(said)
+    explains = bool(state.active) and (
+        intent.intent == iv.EXPLAIN
+        or (intent.intent == iv.VIEW and intent.about_the_result))
+    if explains:
+        return {
+            "understood": True,
+            "intent": intent.intent,
+            "changes_state": False,
+            "opens_whatif": False,
+            "informational": False,
+            "reading": intent.to_dict(),
+            "message": (
+                "That is a question about the result, not a change to the "
+                "scenario. It is answered from the figures already computed."),
+            "state": state.to_dict(),
+        }
+
     reading = lg.read(said)
     informational = rn.informational(said)
 
@@ -703,6 +760,8 @@ def interpret(body: InterpretIn, _: Any = RequireAnalyst) -> dict[str, Any]:
                 "\"20%\", or \"five percentage points\"."),
             "notes": list(reading.notes),
             "unread": list(reading.unread),
+            "intent": intent.intent,
+            "changes_state": True,
             "state": state.to_dict(),
         }
 
@@ -727,6 +786,9 @@ def interpret(body: InterpretIn, _: Any = RequireAnalyst) -> dict[str, Any]:
         "notes": list(reading.notes),
         "unread": list(reading.unread),
         "objective": reading.objective,
+        "intent": intent.intent,
+        "changes_state": True,
+        "filters": scenario.population.filters(),
         "state": updated.to_dict(),
     }
 
@@ -782,7 +844,88 @@ def execute(body: ExecuteIn,
     payload["state"] = result.state.to_dict()
     payload["confirmation"] = me.confirmation(result.choice)
     payload["recent_id"] = stored.id if stored else None
+    # The borrower-level frame is held so a follow-up question is answered
+    # from THIS result rather than from a second run of the same scenario.
+    payload["run_id"] = ch.put(result, owner=owner)
+    payload["interpretation"] = rn.interpret(result)
     return payload
+
+
+class InvestigateIn(BaseModel):
+    """A follow-up question about a result that already exists."""
+
+    question: str = Field(min_length=1, max_length=1000)
+    run_id: str = Field(default="", max_length=32)
+    state: StateIn = Field(default_factory=StateIn)
+
+
+@router.post("/investigate")
+def investigate(body: InvestigateIn,
+                principal: Principal = RequireAnalyst) -> dict[str, Any]:
+    """Answer a question ABOUT a result, without changing it.
+
+    Three things can be asked in a thread, and this endpoint serves two of
+    them. An EXPLAIN or a VIEW is answered from the borrower-level figures the
+    run already produced — so "why did Stage 3 move?" is answered about the
+    number on the screen, and asking it cannot change that number.
+
+    A MODIFY is refused here and sent to the builder, because an endpoint that
+    quietly changed the scenario while claiming to explain it would be the
+    worst of the three failures available.
+
+    Where the run is no longer held in memory, the scenario is recomputed from
+    its steps. The engine is deterministic, so the figures are identical, and
+    the answer says that it was recomputed rather than pretending otherwise.
+    """
+    said = body.question.strip()
+    reading = iv.classify(said)
+    if reading.changes_state:
+        return {
+            "answered": False,
+            "intent": reading.intent,
+            "changes_state": True,
+            "reading": reading.to_dict(),
+            "message": (
+                "That changes the scenario rather than asking about it. Send "
+                "it to the builder so the step is added and the book priced "
+                "again."),
+        }
+
+    owner = _owner(principal)
+    result = ch.get(body.run_id, owner=owner)
+    notes: list[str] = []
+    if result is None:
+        try:
+            state = _state_from(body.state)
+        except (stg.StagingError, sp.StepError) as e:
+            raise _refused(str(e)) from e
+        if not state.active:
+            raise _refused(
+                "There is no result to explain yet. Run a scenario first, "
+                "then ask about it.")
+        try:
+            result = rn.execute(state, requested=state.methodology,
+                                instruction="", limit=MAX_ROWS)
+        except (rn.RunError, dm.DomainError, ValueError) as e:
+            raise _refused(str(e)) from e
+        notes.append(
+            "This result was no longer held in memory, so the scenario was "
+            "computed again from its steps. The engine is deterministic: the "
+            "figures are the same ones you were shown.")
+
+    body_out = iv.answer(reading, result)
+    body_out["answered"] = True
+    body_out["reading"] = reading.to_dict()
+    body_out["notes"] = notes
+    body_out["context"] = result.context()
+    body_out["run_id"] = body.run_id or ch.put(result, owner=owner)
+    return body_out
+
+
+@router.get("/investigate/intents")
+def investigate_intents(_: Any = RequireAnalyst) -> dict[str, Any]:
+    """What a thread does with a message, and which kind may change state."""
+    return iv.describe()
 
 
 @router.post("/compare-methodologies")

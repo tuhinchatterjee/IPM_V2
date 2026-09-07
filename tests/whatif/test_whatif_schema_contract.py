@@ -333,11 +333,18 @@ class TestAMissingOptionalFieldCostsOnlyItself:
         assert result.summary["stressed_ecl"] > result.summary["baseline_ecl"]
 
     def test_the_loss_is_named_rather_than_hidden(self, on_degraded) -> None:
+        """Named — but as a NOTE about the installation, not a warning about
+        the result. An absent optional column costs exactly the capability it
+        names, and putting that in the same amber list as "this shock could
+        not be applied" taught readers to skip both."""
         result = wf.run(sc.scenario("pd_up_25"))
-        said = " ".join(result.warnings)
+        said = " ".join(result.notes)
         assert "cash_conversion_cycle_days" in said
         assert "cash conversion cycle" in said, "it must say what was lost"
         assert "build_corporate_universe" in said, "and how to get it back"
+        assert not result.warnings, (
+            "nothing is wrong with this RESULT, so nothing belongs in the "
+            "warnings")
 
     def test_both_methodologies_price_the_degraded_book(self, on_degraded) -> None:
         state = sp.ScenarioState(period=dm.latest_period()).add(

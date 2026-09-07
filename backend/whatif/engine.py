@@ -55,6 +55,7 @@ FIELDS: tuple[str, ...] = (
     "borrower_id", "display_name", "legal_name", "sector", "segment",
     "group_id", "group_name", "period",
     "internal_rating", "internal_rating_numeric", "watchlist_flag",
+    "ttc_pd_pct",
     "stage", "pd_12m", "pd_lifetime", "lgd", "ead", "final_ecl",
     "ecl_12m", "ecl_lifetime", "management_overlay", "ecl_coverage",
     "current_dpd", "default_flag",
@@ -91,6 +92,14 @@ class Result:
     sensitivity_rows: list[dict[str, Any]] = field(default_factory=list)
     steps: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    #: Things a reader should know that are not wrong with the answer.
+    #:
+    #: An installation without an optional column loses one capability and
+    #: nothing else, so saying so in the same red bar as "this shock could not
+    #: be applied" taught people to ignore both. Notes are separated from
+    #: warnings for exactly that reason: a warning is about THIS result, and a
+    #: note is about the installation.
+    notes: list[str] = field(default_factory=list)
     #: The full working frame — every reported and stressed column, before the
     #: presentation layer narrows it. Kept so a SECOND ECL methodology can be
     #: applied to exactly the same shocked book rather than re-deriving it,
@@ -123,6 +132,7 @@ class Result:
             "steps": list(self.steps),
             "sensitivity": list(self.sensitivity_rows),
             "warnings": list(self.warnings),
+            "notes": list(self.notes),
         }
 
 
@@ -271,6 +281,10 @@ def _apply_rating(work: pd.DataFrame, notches: int,
     for column in moves.columns:
         work[column] = moves[column].to_numpy()
     work["pd_stressed"] = work["pd_stressed"] * work["rating_pd_factor"]
+    # The lifetime PD reverts towards the GRADE's through-the-cycle level, so
+    # a downgrade moves that level too. Leaving it behind would measure a
+    # downgraded borrower's lifetime loss against the grade it left.
+    work["ttc_stressed"] = ms.through_the_cycle(work["stressed_rating"])
     steps.append({
         "step": "Rating shock",
         "detail": f"{notches:+d} notch(es) applied through the governed rating "
@@ -698,9 +712,12 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
     work = select(frame, scenario.population)
     steps: list[dict[str, Any]] = []
     rows: list[dict[str, Any]] = []
-    # Anything the book does not carry is said here, once, before a figure
-    # appears — not discovered when a shock quietly fails to apply.
-    warnings: list[str] = list(schema_notes)
+    # Anything the book does not carry is said once, as a NOTE about the
+    # installation rather than a warning about this result — it is discovered
+    # before a figure appears, not when a shock quietly fails to apply, and it
+    # costs exactly the capability it names.
+    warnings: list[str] = []
+    notes: list[str] = list(schema_notes)
 
     if work.empty:
         # A different thing from a broken scenario, and it reads differently:
@@ -735,14 +752,33 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
     })
 
     # ---- baseline, on the governed measurement basis
+    #
+    # The lifetime PD reverts towards the GRADE's through-the-cycle level, so
+    # the transform needs that level as an anchor. Where the book does not
+    # publish one the borrower is its own anchor, which is the constant-hazard
+    # case — the same figure the engine produced before the anchor existed.
     work["stage_baseline"] = pd.to_numeric(work["stage"], errors="coerce").fillna(1).astype(int)
+    if "ttc_pd_pct" in work.columns:
+        anchor = pd.to_numeric(work["ttc_pd_pct"], errors="coerce")
+        work["ttc_baseline"] = anchor.where(anchor > 0).fillna(work["pd_12m"])
+    else:
+        work["ttc_baseline"] = work["pd_12m"]
+    # BOTH sides of the ratio go through the same transform. Dividing a
+    # stressed figure computed one way by a reported figure computed another
+    # produced a "PD effect" that was a difference between two definitions of
+    # lifetime PD rather than a fact about the borrower, and it did not
+    # reconcile to the movement it was explaining.
+    work["pd_lifetime_baseline"] = policy.lifetime_pd(
+        work["pd_12m"] / 100.0, work["ttc_baseline"] / 100.0) * 100.0
     measured_base = policy.measured_ecl(
-        work["stage_baseline"], work["pd_12m"], work["lgd"], work["ead"])
+        work["stage_baseline"], work["pd_12m"], work["lgd"], work["ead"],
+        lifetime_pd_pct=work["pd_lifetime_baseline"])
 
     # ---- the stressed position starts as a copy of the baseline
     work["pd_stressed"] = work["pd_12m"]
     work["lgd_stressed"] = work["lgd"]
     work["ead_stressed"] = work["ead"]
+    work["ttc_stressed"] = work["ttc_baseline"]
     for measure in _FINANCIAL_COLUMNS:
         if measure in work.columns:
             work[f"{measure}_stressed"] = work[measure]
@@ -758,19 +794,19 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
              sc.CCF, sc.COLLATERAL, sc.HAIRCUT, sc.EAD)
     tracked: dict[str, dict[str, np.ndarray]] = {}
 
+    _TRACKED_COLUMNS = {"pd": "pd_stressed", "lgd": "lgd_stressed",
+                        "ead": "ead_stressed", "ttc": "ttc_stressed"}
+
     def _snapshot() -> dict[str, np.ndarray]:
         return {name: work[column].to_numpy(dtype=float, copy=True)
-                for name, column in (("pd", "pd_stressed"),
-                                     ("lgd", "lgd_stressed"),
-                                     ("ead", "ead_stressed"))}
+                for name, column in _TRACKED_COLUMNS.items()}
 
     def _record(driver: str, before: dict[str, np.ndarray]) -> None:
         entry = tracked.setdefault(driver, {})
         for name, opening in before.items():
             entry.setdefault(f"{name}_before", opening)
             entry[f"{name}_after"] = work[
-                {"pd": "pd_stressed", "lgd": "lgd_stressed",
-                 "ead": "ead_stressed"}[name]].to_numpy(dtype=float, copy=True)
+                _TRACKED_COLUMNS[name]].to_numpy(dtype=float, copy=True)
 
     for kind in order:
         for shock in scenario.shocks_of(kind):
@@ -889,9 +925,12 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
     })
 
     # ---- re-measure, and carry onto the reported basis
+    work["pd_lifetime_stressed"] = policy.lifetime_pd(
+        work["pd_stressed"] / 100.0, work["ttc_stressed"] / 100.0) * 100.0
     measured_stress = policy.measured_ecl(
         work["stage_stressed"], work["pd_stressed"],
-        work["lgd_stressed"], work["ead_stressed"])
+        work["lgd_stressed"], work["ead_stressed"],
+        lifetime_pd_pct=work["pd_lifetime_stressed"])
     ratio = np.where(measured_base > 0, measured_stress / np.where(
         measured_base > 0, measured_base, 1.0), 1.0)
     work["ecl_baseline"] = work["final_ecl"]
@@ -917,7 +956,7 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
     work["primary_driver"] = _drivers(work, scenario)
     result = Result(scenario=scenario, period=settled,
                     borrowers=_present(work), steps=steps,
-                    sensitivity_rows=rows, warnings=warnings,
+                    sensitivity_rows=rows, warnings=warnings, notes=notes,
                     frame=work.copy(), staging=criteria, tracked=tracked)
     result.summary = _summarise(work, scenario, settled)
     result.by_sector = _group(work, "sector")
