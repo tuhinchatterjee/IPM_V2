@@ -405,8 +405,12 @@ def link_preview(plan: dict[str, Any], predecessor: str, successor: str, *,
     starts = _as_date(second.get("start_date"), "successor start")
     conflict = ""
     adjustment: dict[str, Any] = {}
+    # Finish-to-start means the successor starts the day AFTER the
+    # predecessor finishes — the same arithmetic `schedule._forward` uses. A
+    # successor starting ON the predecessor's finish date is therefore a
+    # conflict, and the earlier `<` comparison quietly said it was not.
     if kind == DEP_FINISH_TO_START and finishes and starts \
-            and starts < finishes + timedelta(days=int(lag_days or 0)):
+            and starts < finishes + timedelta(days=1 + int(lag_days or 0)):
         conflict = (
             f"{_label(second)} is currently scheduled to begin on {starts}, "
             f"but {_label(first)} finishes on {finishes}.")

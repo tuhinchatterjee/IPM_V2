@@ -141,6 +141,43 @@ class Message:
     #: How far up the ladder this went. Empty for a reminder to the owner.
     level: str = ""
 
+    # ---- context, stamped once per project after the rules have run ------
+    #
+    # §20 asks every message to carry the project's name as well as its code,
+    # the item, the owner, the due date, how far the escalation went and a
+    # link. The rules that decide WHETHER to send do not need any of that, so
+    # it is filled in afterwards rather than threaded through forty
+    # constructor calls: a rule that had to know the owner's display name in
+    # order to decide that a task is overdue would be a worse rule.
+    project_name: str = ""
+    #: Whose work it is. Resolved to a name when the message is written.
+    owner_id: int | None = None
+    #: The date the item was committed to, as text. Empty when it has none.
+    due: str = ""
+
+    @property
+    def path(self) -> str:
+        """Where this opens, as a URL a person can paste. §20's direct link."""
+        return f"/delivery/{self.project_id}"
+
+    def footer(self, owner_name: str) -> str:
+        """The facts, under the sentence, in a fixed order.
+
+        Fixed so that somebody reading their twentieth message this month
+        does not have to re-read it to find the due date.
+        """
+        lines = [
+            f"Project: {self.project_name} ({self.project_code})"
+            if self.project_name else f"Project: {self.project_code}",
+            f"Item: {self.entity_code}" if self.entity_code else "",
+            f"Owner: {owner_name}" if owner_name else "",
+            f"Due: {self.due}" if self.due else "",
+            f"Escalation: {_LADDER_SAID.get(self.level, self.level)}"
+            if self.level else "",
+            f"Open: {self.path}",
+        ]
+        return "\n".join(line for line in lines if line)
+
     @property
     def action(self) -> str:
         return _ACTIONS.get(self.trigger, "")
@@ -168,6 +205,16 @@ class Message:
         if self.entity_type == ENTITY_PROJECT:
             return str(self.project_id)
         return f"{self.project_id}:{self.entity_id}"
+
+
+#: How far a message travelled, said rather than coded. §20.
+_LADDER_SAID = {
+    "own": "the item's own escalation contact",
+    "milestone": "the milestone's escalation contact",
+    "project": "the project's escalation contact",
+    "manager": "the project manager",
+    "sponsor": "the sponsor",
+}
 
 
 @dataclass
@@ -543,6 +590,7 @@ def sweep(session: Any, *, today: date | None = None,
                            new_status=verdict.status,
                            narrative=verdict.reason)
 
+        first = len(pending)
         pending.extend(_merge_chases(
             _task_messages(project, plan, day, rules,
                            every=agentic.escalation.overdue_every_days),
@@ -558,6 +606,7 @@ def sweep(session: Any, *, today: date | None = None,
         managers = [i for i in ([project.manager_id] if project.manager_id
                                 else []) + watchers[pid] if i]
         pending.extend(_health_messages(project, verdict, was, managers))
+        _stamp(pending[first:], project, plan, milestones[pid])
 
     if send:
         _deliver(session, pending, result)
@@ -565,6 +614,43 @@ def sweep(session: Any, *, today: date | None = None,
         result.messages = pending
         result.suppressed = len(pending)
     return result
+
+
+def _names(session: Any, user_ids: set[int]) -> dict[int, str]:
+    """Display names for the owners a sweep is about to mention."""
+    if not user_ids:
+        return {}
+    from backend.db.models import User
+    rows = session.execute(select(User).where(User.id.in_(user_ids))).scalars()
+    return {int(u.id): (f"{u.first_name} {u.last_name}".strip() or u.username)
+            for u in rows}
+
+
+def _stamp(messages: list[Message], project: Any, plan: control.Plan,
+           milestones: list[Any]) -> None:
+    """Fill in the context §20 asks every message to carry.
+
+    One pass over the messages one project produced, reading the plan that
+    was already loaded. Nothing here changes whether a message is sent — by
+    the time this runs, that has been decided.
+    """
+    by_milestone = {int(row.id): row for row in milestones}
+    for message in messages:
+        message.project_name = str(project.name or "")
+        if message.entity_type == ENTITY_TASK:
+            task = plan.task(int(message.entity_id))
+            if task is not None:
+                message.owner_id = task.owner_id
+                message.due = str(task.due_date) if task.due_date else ""
+        elif message.entity_type == ENTITY_MILESTONE:
+            row = by_milestone.get(int(message.entity_id))
+            if row is not None:
+                message.owner_id = row.owner_id
+                message.due = str(row.target_date) if row.target_date else ""
+        else:
+            message.owner_id = project.manager_id
+            message.due = (str(project.target_end_date)
+                           if project.target_end_date else "")
 
 
 def _deliver(session: Any, pending: list[Message], result: Sweep) -> None:
@@ -582,6 +668,10 @@ def _deliver(session: Any, pending: list[Message], result: Sweep) -> None:
     already = {row for row in session.execute(
         select(PlannerReminder.fingerprint).where(
             PlannerReminder.fingerprint.in_(prints))).scalars()}
+    # One query for every owner named across the whole sweep, not one per
+    # message: a nightly run over a large estate would otherwise be thousands
+    # of single-row lookups for a name that repeats.
+    names = _names(session, {m.owner_id for m in pending if m.owner_id})
 
     seen: set[str] = set()
     for message in pending:
@@ -592,6 +682,7 @@ def _deliver(session: Any, pending: list[Message], result: Sweep) -> None:
         body = message.body
         if message.action:
             body = f"{body}\n\n{message.action}"
+        body = f"{body}\n\n{message.footer(names.get(message.owner_id, ''))}"
         note = Notification(
             user_id=message.user_id, kind="planner",
             title=f"{message.project_code}: {message.title}",
@@ -814,6 +905,10 @@ EVENTS: tuple[str, ...] = (
     "milestone_changed", "dependency_changed",
     "raid_severity_changed", "participant_changed",
     "project_dates_changed", "imported",
+    # A project coming into existence is the largest change of shape there
+    # is. `draft.publish` signals it, and without it here every publish
+    # logged a swallowed exception and quietly did not queue the first sweep.
+    "project_published",
 )
 
 

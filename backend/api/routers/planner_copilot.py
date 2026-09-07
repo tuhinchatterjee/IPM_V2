@@ -263,12 +263,15 @@ def code_available(code: str = Query(max_length=40),
     ).scalar_one_or_none()
     if existing is None:
         return {"code": wanted, "available": True, "used_by": ""}
-    readable = acl.readable(session, int(existing.id), _principal)
-    return {
-        "code": wanted,
-        "available": False,
-        "used_by": existing.name if readable else "another project",
-    }
+    # `readable` REFUSES rather than returning false, which is right
+    # everywhere else and is exactly what this route wants to absorb: being
+    # told a code is taken is fine, being told whose project took it is not.
+    try:
+        acl.readable(session, int(existing.id), _principal)
+        used_by = existing.name
+    except Exception:  # noqa: BLE001 - any refusal means "not yours to see"
+        used_by = "another project"
+    return {"code": wanted, "available": False, "used_by": used_by}
 
 
 # ================================================================== people
