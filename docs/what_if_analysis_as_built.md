@@ -327,7 +327,7 @@ percentage change. A saved What-If persists all of it.
 | Check | Command | Result |
 |---|---|---|
 | What-If suite | `uv run pytest tests/whatif tests/ifrs9` | **305 passed** |
-| Full backend | `uv run pytest` | **12,950 passed, 46 skipped, 6 failed** — every one of the six reproduced on the baseline `4f79566` with the same data lake; named in §11 |
+| Full backend | `uv run pytest` | **12,993 passed, 37 skipped, 6 failed** — the same six as before this work, every one reproduced on the baseline `4f79566` with the same data lake and the same database; named in §11 |
 | Backend lint | `uv run ruff check .` | clean |
 | Frontend types | `npx tsc --noEmit` | clean |
 | Frontend lint | `npm run lint` | clean |

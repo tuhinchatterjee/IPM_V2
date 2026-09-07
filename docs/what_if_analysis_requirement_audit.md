@@ -136,5 +136,5 @@ figure, never a preference.
 | 100 | Nine browser journeys | PASS | **11/11, 114/114 checks** — the nine, plus staging composition and the staging override reaching the arithmetic |
 | 101 | No fake success states | PASS | Every claim in this document is backed by a run |
 | 102 | Efficient services, no unrelated scanning | PASS | `domain._cached` per dataset-period; migration 0.5s warm |
-| 103 | Regression protection | PASS | Full backend suite **12,950 passed, 46 skipped, 6 failed** — all six reproduced on the baseline; 542 frontend tests; production build; display contract; feature matrix |
+| 103 | Regression protection | PASS | Full backend suite **12,993 passed, 37 skipped, 6 failed** — the same six as before this work, all reproduced on the baseline; 542 frontend tests; production build; display contract; feature matrix |
 | 108 | Migration graph, single head | PASS | `0041 (head)` |
