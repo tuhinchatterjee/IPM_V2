@@ -42,10 +42,15 @@ import pandas as pd
 from backend.ifrs9 import policy
 from backend.whatif import masterscale as ms
 from backend.whatif import scenarios as sc
+from backend.whatif import schema as sch
 from backend.whatif import sensitivity as sv
 from backend.whatif import staging as st
 
-#: What the engine reads. Everything else in the answer is derived from these.
+#: What the engine reads, at most. Which of these a given run actually asks
+#: for is decided by `sch.snapshot_fields`, against the columns the Parquet
+#: really has — see `backend/whatif/schema.py`. The list here is the ceiling,
+#: not the demand: a book that does not carry a working-capital statistic can
+#: still price every scenario, and loses only the shocks that need it.
 FIELDS: tuple[str, ...] = (
     "borrower_id", "display_name", "legal_name", "sector", "segment",
     "group_id", "group_name", "period",
@@ -139,8 +144,13 @@ def latest_period(source: Any = None) -> str:
     return str(periods[-1])
 
 
-def _read(period: str, source: Any = None) -> tuple[pd.DataFrame, str]:
+def _read(period: str,
+          source: Any = None) -> tuple[pd.DataFrame, str, list[str]]:
     """The book for one period, joined to the IFRS 9 origination PD.
+
+    Returns the frame, the period actually used, and one note per field the
+    book does not carry — each naming what that costs. A caller that gets no
+    notes has a complete book.
 
     The origination PD lives on the IFRS 9 dataset rather than on the snapshot,
     and without it the RELATIVE SICR trigger cannot be re-evaluated — which
@@ -153,14 +163,21 @@ def _read(period: str, source: Any = None) -> tuple[pd.DataFrame, str]:
     reader = source or DuckDBSource()
     settled = str(period or "").strip() or latest_period(reader)
     context = AnalysisContext(period=settled)
-    available = set(reader.fields(BORROWER_SNAPSHOT))
+
+    # Resolved against the PARQUET, not the catalogue. The catalogue declares
+    # what the dataset is supposed to carry; a SELECT binds against what it
+    # does. Where those disagreed, the engine used to name a column DuckDB
+    # could not find and the whole ECL calculation died on a working-capital
+    # statistic it did not need.
+    wanted = tuple(f for f in FIELDS if f not in sch.REQUIRED)
+    resolution = sch.snapshot_fields(wanted, source=reader)
     frame = reader.fetch(BORROWER_SNAPSHOT, context=context,
-                         fields=[f for f in FIELDS if f in available],
-                         period=settled)
+                         fields=list(resolution.present), period=settled)
     if frame.empty:
         raise ValueError(f"No corporate borrower data for {settled}.")
-    ifrs9_available = set(reader.fields(IFRS9_DATASET))
-    keep = [f for f in IFRS9_FIELDS if f in ifrs9_available]
+
+    measurement = sch.ifrs9_fields(source=reader)
+    keep = [f for f in measurement.present if f in set(IFRS9_FIELDS)]
     if keep:
         ifrs9 = reader.fetch(IFRS9_DATASET, context=context, fields=keep,
                              period=settled)
@@ -169,7 +186,10 @@ def _read(period: str, source: Any = None) -> tuple[pd.DataFrame, str]:
         if join_on:
             frame = frame.merge(ifrs9, on=join_on, how="left",
                                 suffixes=("", "_ifrs9"))
-    return frame, settled
+    notes = resolution.warnings() + [
+        w for w in measurement.warnings()
+        if any(f in w for f in IFRS9_FIELDS)]
+    return frame, settled, notes
 
 
 def _numeric(frame: pd.DataFrame, columns: tuple[str, ...]) -> None:
@@ -325,6 +345,10 @@ def _apply_collateral(work: pd.DataFrame, shock: sc.Shock,
     })
 
 
+class ShockUnavailable(ValueError):
+    """A shock this book cannot answer, named rather than silently skipped."""
+
+
 #: Which stressed financial column each sensitivity effect writes to.
 _FINANCIAL_COLUMNS: tuple[str, ...] = (
     "revenue", "ebitda", "ebitda_margin", "dscr", "interest_coverage",
@@ -345,7 +369,14 @@ def _apply_financial(work: pd.DataFrame, shock: sc.Shock,
     target = shock.target or "ebitda"
     column = f"{target}_stressed"
     if column not in work.columns:
-        return
+        # A shock somebody asked for that quietly does nothing is
+        # indistinguishable on screen from one that moved no borrower. Say
+        # which measure the book lacks, and what it would have taken.
+        raise ShockUnavailable(
+            f"This book does not carry '{target}', so a "
+            f"{target.replace('_', ' ')} shock cannot be applied. Every other "
+            "part of the scenario can run — remove this step, or rebuild the "
+            f"book with `{sch.REBUILD}` to restore the field.")
     factor = (1.0 + shock.magnitude / 100.0) if shock.unit == sc.RELATIVE else 1.0
     work[column] = work[column] * factor
     if target in ("ebitda", "revenue", "free_cash_flow"):
@@ -635,11 +666,13 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
     governed corporate policy, which is what produced the reported book, so an
     unmodified thread reproduces it exactly.
     """
-    frame, settled = _read(period or scenario.period, source)
+    frame, settled, schema_notes = _read(period or scenario.period, source)
     work = select(frame, scenario.population)
     steps: list[dict[str, Any]] = []
     rows: list[dict[str, Any]] = []
-    warnings: list[str] = []
+    # Anything the book does not carry is said here, once, before a figure
+    # appears — not discovered when a shock quietly fails to apply.
+    warnings: list[str] = list(schema_notes)
 
     if work.empty:
         raise ValueError(

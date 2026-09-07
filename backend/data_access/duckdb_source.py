@@ -143,7 +143,47 @@ class DuckDBSource:
         return sorted(p.name for p in self.root.iterdir() if p.is_dir() and not p.name.startswith("."))
 
     def fields(self, dataset: str) -> list[str]:
+        """What the governed CATALOGUE declares this dataset carries.
+
+        This is the contract, not the cargo. It is what the dataset is
+        *supposed* to have, and it is right for governance questions — what a
+        reader may ask for, what a definition says. It is the wrong thing to
+        build a SELECT from, because a catalogue registered by one build and a
+        Parquet written by another can disagree, and DuckDB answers that
+        disagreement with a binder error rather than a missing column. Use
+        `columns()` for that.
+        """
         return sorted(self.catalog.dataset(dataset).fields)
+
+    def columns(self, dataset: str, period: str | None = None) -> list[str]:
+        """What the PARQUET on disk actually carries.
+
+        Read from the file schema, not from the catalogue, so a caller that is
+        about to name columns in a query can find out what will bind. Reading
+        `LIMIT 0` costs a schema lookup and no rows.
+
+        Partitions can disagree with one another as well as with the
+        catalogue — a lake rebuilt in place keeps whatever old `period=`
+        directories the new build did not overwrite — so this returns the
+        INTERSECTION across the files in scope. A column that is not in every
+        partition cannot be selected from all of them, and reporting it as
+        available would move the failure one step later.
+        """
+        pattern = self._require_files(dataset, period)
+        frame = self._run(
+            f"SELECT * FROM read_parquet('{pattern}', hive_partitioning=true, "
+            "union_by_name=false) LIMIT 0", [])
+        common = list(frame.columns)
+        if period is None:
+            for one in self.periods(dataset):
+                try:
+                    part = self._run(
+                        f"SELECT * FROM read_parquet('{self._glob(dataset, one)}') "
+                        "LIMIT 0", [])
+                except DataAccessError:  # pragma: no cover - a partition that
+                    continue             # cannot be read is not a schema fact
+                common = [c for c in common if c in set(part.columns)]
+        return common
 
     def periods(self, dataset: str) -> list[str]:
         directory = self._dataset_dir(dataset)

@@ -32,7 +32,7 @@ figure, never a preference.
 | 3 | Rename Stress Testing → What-If Analysis, no user-facing umbrella | PASS | `navigation.ts` label/href; `product/knowledge.py` capability renamed; browser journey 1 asserts the page title and the absence of the old label |
 | 3 | Sector Stress / Borrower Stress retained | PASS | Journey keys `sector`, `borrower` with those titles |
 | 4 | Hard-bound to Corporate IFRS 9, no general domain search | PASS | `domain.DATASETS`; `TestTheDomainIsClosed` (4 tests) |
-| 4 | Say so when a field is absent rather than joining elsewhere | PASS | `domain.field_refusal`; `test_a_field_it_does_not_carry_is_named_not_guessed` |
+| 4 | Say so when a field is absent rather than joining elsewhere | PASS | `domain.field_refusal`; `test_a_field_it_does_not_carry_is_named_not_guessed`. Extended after a reported defect: `backend/whatif/schema.py` classifies every field REQUIRED or OPTIONAL, resolves columns from the Parquet rather than the catalogue, and names what each absent field costs — as-built §7d |
 | 5 | Preserve and extend `backend/whatif`, no second engine | PASS | Component table in as-built §2; one `engine.run()` |
 | 6 | Isolate `stress_scenario_basic` from user + LLM routing | PASS | Planner intent, analyst tool registration, Studio binding removed; contract still registered |
 | 6 | Absorb magnitude-free trigger vocabulary | PASS | `test_a_magnitude_free_stress_question_opens_a_what_if`; `_opens_whatif` orchestrator path |
@@ -132,7 +132,7 @@ figure, never a preference.
 | 85 | Graceful failure, never misleading zeros | PASS | Refusals for unknown period / borrower / field / methodology / model |
 | 86 | Access control, no cross-user leakage | PASS | `test_a_viewer_may_not_run_a_what_if`; `test_one_persons_what_if_is_not_another_persons` |
 | 87 | Auditability | PASS | as-built §9 |
-| 88–99 | Test coverage per layer | PASS | **305** What-If tests; full breakdown in as-built §10 |
+| 88–99 | Test coverage per layer | PASS | **335** What-If tests, including a schema-contract suite that rebuilds a real lake with a column removed; full breakdown in as-built §10 |
 | 100 | Nine browser journeys | PASS | **11/11, 114/114 checks** — the nine, plus staging composition and the staging override reaching the arithmetic |
 | 101 | No fake success states | PASS | Every claim in this document is backed by a run |
 | 102 | Efficient services, no unrelated scanning | PASS | `domain._cached` per dataset-period; migration 0.5s warm |

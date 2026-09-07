@@ -872,6 +872,25 @@ def _attribution_describe() -> dict[str, Any]:
     return at.describe()
 
 
+@router.get("/schema")
+def schema_contract(_: Any = RequireAnalyst) -> dict[str, Any]:
+    """The governed schema contract, and how the book on disk compares.
+
+    Served so a schema mismatch is visible as a fact about the installation
+    rather than as a failed scenario. `healthy` is false when the Parquet is
+    missing something the catalogue declares, even where every scenario still
+    prices correctly.
+    """
+    from backend.whatif import schema as sch
+
+    body = sch.describe()
+    try:
+        body["installation"] = sch.report()
+    except Exception as e:  # noqa: BLE001 - reported, never raised at a reader
+        body["installation"] = {"healthy": False, "why": str(e)[:300]}
+    return body
+
+
 @router.get("/attribution")
 def attribution_method(_: Any = RequireAnalyst) -> dict[str, Any]:
     """What the driver attribution is, and what it is not."""

@@ -542,6 +542,42 @@ class TestTheHttpSurface:
         # And the reported set on the same result is untouched by the override.
         assert context["reported_staging"]["version"].endswith("reported-book")
 
+    def test_the_schema_contract_is_served(self, client) -> None:
+        body = client.get("/api/v1/whatif/schema", headers=ANALYST).json()
+        assert body["required"] and body["optional"]
+        assert body["installation"]["healthy"], (
+            body["installation"]["datasets"]["corporate_borrower_360"])
+        assert "cash_conversion_cycle_days" in {
+            e["field"] for e in body["optional"]}, (
+            "the field the reported defect turned on must be classified as "
+            "optional, in the open, where anyone can check it")
+
+    def test_a_shock_the_book_cannot_answer_is_a_refusal_not_a_crash(
+            self, client) -> None:
+        """The reported symptom was a generic 500: "CreditProbe could not
+        complete that request". An instruction this book cannot answer must
+        come back as a specific refusal instead."""
+        state = {"period": "", "steps": [
+            {"kind": "financial", "shocks": [
+                {"kind": "financial", "magnitude": -20.0,
+                 "unit": "relative_pct", "target": "not_a_real_measure",
+                 "label": ""}],
+             "interpreted": "shock a measure the book does not carry"}],
+            "staging": None, "methodology": "delta", "model_version": None,
+            "title": None, "thread_id": None}
+        response = client.post("/api/v1/whatif/execute", headers=ANALYST,
+                               json={"state": state})
+        # 422 is this router's refusal code — a scenario it understood and
+        # cannot run. What matters is that it is a REFUSAL carrying the
+        # reason, not the 500 that produced "CreditProbe could not complete
+        # that request".
+        assert response.status_code == 422, response.status_code
+        detail = str(response.json().get("detail", ""))
+        assert "not_a_real_measure" in detail
+        assert "build_corporate_universe" in detail, "and how to fix it"
+        assert "FROM clause" not in detail, (
+            "a reader must never be shown DuckDB's binder error")
+
     def test_the_delta_model_explains_itself(self, client) -> None:
         body = client.get("/api/v1/whatif/models/delta", headers=ANALYST).json()
         assert "Official Baseline ECL" in body["formula"]
