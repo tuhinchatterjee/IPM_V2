@@ -88,11 +88,13 @@ export function Figure({
   value,
   hint,
   tone = "neutral",
+  testId,
 }: {
   label: string;
   value: React.ReactNode;
   hint?: React.ReactNode;
   tone?: "neutral" | "baseline" | "whatif" | "positive" | "negative";
+  testId?: string;
 }) {
   const tones: Record<string, string> = {
     neutral: "text-text-primary",
@@ -102,7 +104,7 @@ export function Figure({
     negative: "text-negative",
   };
   return (
-    <div className="min-w-0">
+    <div className="min-w-0" data-testid={testId}>
       <div className="text-[11px] uppercase tracking-wide text-text-muted">{label}</div>
       <div className={cn("mt-1 truncate text-[19px] font-semibold tabular-nums", tones[tone])}>
         {value}
@@ -142,7 +144,7 @@ export function ResultContext({ context }: { context: WhatIfContext }) {
         <span className="text-text-muted">Scenario: </span>
         {context.scenario}
       </div>
-      <div className="text-[12px] text-text-secondary">
+      <div className="text-[12px] text-text-secondary" data-testid="whatif-population">
         <span className="text-text-muted">Population: </span>
         {context.population} — {count(context.population_count)} borrowers
       </div>
@@ -172,6 +174,7 @@ export function EclHeadline({
         value={money(context.whatif_ecl, currency)}
         hint={context.methodology_stamp}
         tone="whatif"
+        testId="whatif-ecl"
       />
       <Figure
         label="Absolute change"
@@ -1379,6 +1382,15 @@ export function MigrationMatrix({
           {migration.displayed_shape} displayed
         </span>
       </div>
+      {/* What a percentage is OF, said on the screen rather than left to be
+          assumed. They were shares of the whole book, so the diagonal read as
+          tiny and a migration nobody would miss looked like rounding. */}
+      <p className="mb-2 text-[11px] text-text-muted" data-testid="migration-legend">
+        {view.endsWith("_pct")
+          ? (migration.reads_as
+             ?? "% of the borrowers that started the period on this origin grade")
+          : `Counts and exposure as at ${migration.closing_period}, by where each borrower started.`}
+      </p>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[11px]" data-testid="migration-matrix">
           <thead>

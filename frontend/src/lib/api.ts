@@ -5090,6 +5090,10 @@ export interface WhatIfMigration {
   labels: string[];
   displayed_shape: string;
   total_label: string;
+  /** Always "row". Declared so the screen can say what a percentage is OF. */
+  normalisation?: string;
+  reads_as?: string;
+  denominator?: string;
   views: Record<string, WhatIfMigrationView>;
   row_normalised: { label: string; cells: number[]; total: number }[];
   row_normalised_exposure: { label: string; cells: number[]; total: number }[];

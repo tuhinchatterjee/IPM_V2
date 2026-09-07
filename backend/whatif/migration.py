@@ -239,6 +239,13 @@ def rating_migration(closing_period: str = "", opening_period: str = "", *,
         "labels": labels,
         "displayed_shape": f"{len(labels) + 1} x {len(labels) + 1}",
         "total_label": TOTAL,
+        # Declared at the top level, not only inside the percentage view. A
+        # matrix whose normalisation a reader has to dig for is one whose
+        # percentages get read as shares of the whole book — which is what
+        # they were, and which made every cell look like rounding.
+        "normalisation": "row",
+        "reads_as": "% of the borrowers that STARTED the period on this grade",
+        "denominator": "the origin grade's own total",
         "views": views,
         "row_normalised": _row_normalised(views[COUNT]),
         "row_normalised_exposure": _row_normalised(views[EXPOSURE]),
@@ -304,6 +311,9 @@ def stage_migration(closing_period: str = "", opening_period: str = "", *,
         "labels": labels,
         "displayed_shape": f"{len(labels) + 1} x {len(labels) + 1}",
         "total_label": TOTAL,
+        "normalisation": "row",
+        "reads_as": "% of the borrowers that STARTED the period in this Stage",
+        "denominator": "the origin Stage's own total",
         "views": views,
         "row_normalised": _row_normalised(views[COUNT]),
         "row_normalised_exposure": _row_normalised(views[EXPOSURE]),

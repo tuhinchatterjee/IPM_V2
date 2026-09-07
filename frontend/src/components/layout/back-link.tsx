@@ -62,7 +62,7 @@ function Plain({
 }) {
   return (
     <Button variant="ghost" size="sm" asChild className={cn("-ml-2", className)}>
-      <Link href={href}>
+      <Link href={href} data-testid="back-link" data-back-to={href}>
         <ArrowLeft aria-hidden />
         {label}
       </Link>

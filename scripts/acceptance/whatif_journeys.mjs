@@ -129,9 +129,9 @@ async function main() {
     await page.click('[data-journey="rating"]');
     check("the rating profile opens", await appears(page, "table"));
     const rows = await page.locator('[data-row]').count();
-    check("the fourteen governed grades plus a Total are shown", rows >= 15,
+    check("the nineteen governed grades plus a Total are shown", rows >= 20,
       `${rows} rows`);
-    check("the 15 x 15 migration matrix is shown",
+    check("the 20 x 20 migration matrix is shown",
       await appears(page, '[data-testid="migration-matrix"]', 60_000));
 
     await page.click('[data-view="exposure"]');
@@ -237,9 +237,15 @@ async function main() {
         attributed.includes("Shapley") && attributed.includes("order-neutral"));
       check("the rating driver is on the table",
         (await page.locator('[data-driver="rating"]').count()) > 0);
+      // The measurement basis is its OWN driver, keyed `basis`. It used to be
+      // folded into a `stage` line, which is how a Stage 1 to Stage 2 result
+      // came back reading "PD effect 0.00%, Stage effect +243.97%" — true and
+      // useless. The residual `stage` driver is exactly zero on a plain
+      // migration and is not on the table.
       check("the Stage migration is kept apart from the rating move",
-        (await page.locator('[data-driver="stage"]').count()) > 0
-        && attributed.includes("measurement basis"));
+        (await page.locator('[data-driver="basis"]').count()) > 0
+        && /Measurement basis/i.test(attributed),
+        attributed.slice(0, 160));
       check("the table says whether it reconciles",
         (await page.locator('[data-testid="attribution-check"]').textContent())
           .includes("Reconciles"));
