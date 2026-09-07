@@ -4750,6 +4750,11 @@ export interface WhatIfContext {
   population_count: number;
   staging_criteria: WhatIfStaging;
   staging_version: string;
+  reported_staging?: WhatIfStaging;
+  reported_staging_version?: string;
+  whatif_staging?: WhatIfStaging;
+  whatif_staging_version?: string;
+  staging_note?: string;
   ecl_methodology: string;
   ecl_methodology_version: string;
   methodology_stamp: string;

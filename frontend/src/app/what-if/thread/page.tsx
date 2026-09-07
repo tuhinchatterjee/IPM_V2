@@ -127,6 +127,9 @@ export default function WhatIfThreadPage() {
   const [reportedStaging, setReportedStaging] = React.useState<WhatIfStaging | null>(null);
   const [stagingKinds, setStagingKinds] = React.useState<WhatIfStagingKind[]>([]);
   const [stagingCombinations, setStagingCombinations] = React.useState<string[]>([]);
+  //: The keys the DEFAULT What-If rule set carries. A rule not in here was
+  //: added by this thread, and is removed by omission rather than by a request.
+  const [stagingDefaultKeys, setStagingDefaultKeys] = React.useState<string[]>([]);
   const [periods, setPeriods] = React.useState<string[]>([]);
   const [migrationView, setMigrationView] = React.useState("count");
   const [saveName, setSaveName] = React.useState("");
@@ -163,6 +166,8 @@ export default function WhatIfThreadPage() {
         setReportedStaging(stagingBody.reported ?? null);
         setStagingKinds(stagingBody.kind_catalogue ?? []);
         setStagingCombinations(stagingBody.combinations ?? []);
+        setStagingDefaultKeys(
+          (stagingBody.whatif ?? stagingBody).rules.map((r) => r.key));
         const period = periodBody.latest ?? "";
 
         if (savedId) {
@@ -379,11 +384,23 @@ export default function WhatIfThreadPage() {
     applyStaging([...stagingEdits(), rule], undefined,
       `Added "${rule.name}" to this What-If's staging criteria. Run again to apply it.`);
 
-  const removeStagingRule = (key: string) =>
-    applyStaging(
-      [...stagingEdits().filter((r) => r.key !== key), { key, remove: true }],
-      undefined,
+  /**
+   * Removing a rule is two different requests depending on where it came from.
+   *
+   * The edit list is replayed against the DEFAULT rule set, so a rule this
+   * thread added is removed by simply not asking for it again. A rule that is
+   * in the default set has to be removed explicitly — and asking to remove a
+   * rule the default set never had is an error, not a no-op, which is why the
+   * thread remembers which keys the default carried.
+   */
+  const removeStagingRule = (key: string) => {
+    const kept = stagingEdits().filter((r) => r.key !== key);
+    const edits = stagingDefaultKeys.includes(key)
+      ? [...kept, { key, remove: true }]
+      : kept;
+    return applyStaging(edits, undefined,
       "Rule removed from this What-If's staging criteria.");
+  };
 
   const combineStaging = (how: string) =>
     applyStaging(stagingEdits(), how,

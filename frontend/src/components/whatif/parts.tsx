@@ -120,8 +120,13 @@ export function ResultContext({ context }: { context: WhatIfContext }) {
         <Badge variant="outline">{context.period}</Badge>
         <span className="text-text-muted">{context.grain}</span>
         <Badge variant="accent">{context.methodology_stamp}</Badge>
-        <span className="text-text-muted">
-          Staging {context.staging_version}
+        {/* Both rule sets, on the result, because a reader has to know which
+            one staged the baseline column and which staged the What-If one. */}
+        <span className="text-text-muted" data-testid="result-reported-staging">
+          Reported book staged {context.reported_staging_version ?? context.staging_version}
+        </span>
+        <span className="text-text-muted" data-testid="result-whatif-staging">
+          What-If staged {context.whatif_staging_version ?? context.staging_version}
         </span>
         <span className="text-text-muted">
           Macro sensitivities v{context.macro_version}

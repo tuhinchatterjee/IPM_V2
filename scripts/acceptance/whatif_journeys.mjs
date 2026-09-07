@@ -1,5 +1,5 @@
 /**
- * What-If Analysis — the nine browser journeys.
+ * What-If Analysis — the eleven browser journeys.
  *
  *     node scripts/acceptance/whatif_journeys.mjs [--json]
  *
@@ -88,8 +88,32 @@ async function chooseMethodology(page, check, method = "delta") {
   return result;
 }
 
+/**
+ * Read the endpoints the journeys use, once, before the browser starts.
+ *
+ * The first journey otherwise pays for a cold DuckDB cache — a 15x15 migration
+ * matrix over 52,880 rows, computed inside the first click — and reports it as
+ * a product failure. This measures the product, not the cache. It is NOT a
+ * skip: a warm-up that cannot reach the API leaves the journeys to fail on it.
+ */
+async function warm() {
+  const paths = ["/api/v1/whatif/staging", "/api/v1/whatif/periods",
+                 "/api/v1/whatif/profile/rating", "/api/v1/whatif/migration/rating",
+                 "/api/v1/whatif/profile/stage", "/api/v1/whatif/migration/stage",
+                 "/api/v1/whatif/profile/macro", "/api/v1/whatif/profile/borrowers",
+                 "/api/v1/whatif/models/ml"];
+  for (const path of paths) {
+    try {
+      await fetch(`${API}${path}`, { headers: { "X-IPM-Role": "ANALYST" } });
+    } catch {
+      // The journeys will say so, loudly, in a moment.
+    }
+  }
+}
+
 async function main() {
   const { chromium } = require(PW);
+  await warm();
   browser = await chromium.launch({ executablePath: CHROME });
 
   /* --------------------------------------------------- 1. Rating Movement */
@@ -121,8 +145,10 @@ async function main() {
       check("the result names the methodology", text.includes("Delta Model"));
       check("the result shows the baseline and the What-If ECL",
         text.includes("Official baseline ECL") && text.includes("What-If ECL"));
-      check("the result shows the staging criteria version",
-        text.includes("Staging"));
+      check("the result names the rule set that staged the reported book",
+        text.includes("Reported book staged"));
+      check("and the rule set that staged the What-If",
+        text.includes("What-If staged"));
     }
   });
 
@@ -283,6 +309,149 @@ async function main() {
     check("the follow-up layers onto the same scenario",
       (await page.locator("[data-step-kind]").count()) >= 2);
   });
+
+  /* ------------------------------------------------ 10. Staging criteria */
+  await journey("Journey 10 — Staging criteria, composed on screen",
+    async (page, check) => {
+      await page.goto(`${WEB}/what-if/thread?journey=rating`, { waitUntil: "networkidle" });
+      check("the staging control is on the thread",
+        await appears(page, '[data-testid="staging-toggle"]', 60_000));
+      await page.click('[data-testid="staging-toggle"]');
+
+      // Both rule sets, and only one of them editable.
+      check("the What-If rule set is shown",
+        await appears(page, '[data-testid="whatif-staging"]', 30_000));
+      check("the reported-book rule set is shown beside it",
+        await appears(page, '[data-testid="reported-staging"]', 30_000));
+      const whatif = page.locator('[data-testid="whatif-staging"]');
+      const reported = page.locator('[data-testid="reported-staging"]');
+      check("the two are labelled apart",
+        (await whatif.textContent()).includes("What-If staging policy")
+        && (await reported.textContent()).includes("Reported-book staging policy"));
+
+      // Rule A and Rule B are ON by default, and say they are assumptions.
+      const ruleA = whatif.locator('[data-rule="rating_notches"]');
+      const ruleB = whatif.locator('[data-rule="scenario_pd_ratio"]');
+      check("Rule A is on by default",
+        await ruleA.locator('input[type="checkbox"]').isChecked());
+      check("Rule B is on by default",
+        await ruleB.locator('input[type="checkbox"]').isChecked());
+      check("Rule A is described as an assumption, not a requirement",
+        (await ruleA.textContent()).includes("Assumption"));
+      check("Rule A is a two-notch rule",
+        (await ruleA.textContent()).includes("2"));
+
+      // The reported set cannot be edited from the screen.
+      await page.click('[data-testid="reported-staging-toggle"]');
+      const reportedBox = reported.locator('[data-rule="rating_notches"] input[type="checkbox"]');
+      check("the reported set's rules are not switchable",
+        await reportedBox.isDisabled());
+      check("Rule A is off in the reported set", !(await reportedBox.isChecked()));
+
+      const versionOf = async () =>
+        (await page.locator('[data-testid="whatif-staging-version"]').textContent()).trim();
+      const first = await versionOf();
+      check("the default rule set names itself", first.includes("what-if-default"),
+        first);
+
+      // Edit a threshold.
+      const threshold = ruleA.locator('input[type="number"]');
+      await threshold.fill("3");
+      await threshold.blur();
+      await page.waitForTimeout(2500);
+      const edited = await versionOf();
+      check("editing a threshold gives the rule set a new version",
+        edited !== first, `${first} -> ${edited}`);
+
+      // Disable a rule.
+      await ruleB.locator('input[type="checkbox"]').uncheck();
+      await page.waitForTimeout(2500);
+      check("a rule can be switched off",
+        !(await ruleB.locator('input[type="checkbox"]').isChecked()));
+
+      // Combine with AND.
+      await page.selectOption('[data-testid="staging-combination"]', "ALL");
+      await page.waitForTimeout(2500);
+      check("the rules can be combined with ALL as well as ANY",
+        (await page.locator('[data-testid="whatif-staging"]').textContent())
+          .includes("EVERY"));
+
+      // Add a rule, then take it away again.
+      check("a rule can be composed on screen",
+        await appears(page, '[data-testid="staging-add"]', 20_000));
+      await page.selectOption('select[aria-label="New rule kind"]', "absolute_pd");
+      await page.fill('input[aria-label="New rule threshold"]', "6");
+      await page.fill('input[aria-label="New rule name"]', "Watchlist PD");
+      await page.click('[data-testid="staging-add-submit"]');
+      await page.waitForTimeout(2500);
+      const added = await page.locator('[data-testid="whatif-staging"] tbody tr').count();
+      check("the added rule joins the set", added >= 6, `${added} rules`);
+      check("the added rule is named as the person named it",
+        (await page.locator('[data-testid="whatif-staging"]').textContent())
+          .includes("Watchlist PD"));
+
+      await page.getByRole("button", { name: "Remove Watchlist PD" }).click();
+      await page.waitForTimeout(2500);
+      check("the added rule can be removed again",
+        !(await page.locator('[data-testid="whatif-staging"]').textContent())
+          .includes("Watchlist PD"));
+
+      // A governed rule offers no Remove at all.
+      check("a governed rule cannot be removed",
+        (await page.locator('[data-rule="relative_pd"]').first().textContent())
+          .includes("kept"));
+
+      // Reset, and the thread is back on the default.
+      await page.click('[data-testid="staging-reset"]');
+      await page.waitForTimeout(2500);
+      check("reset returns the thread to the What-If default",
+        (await versionOf()).includes("what-if-default"));
+    });
+
+  /* ------------------------------------ 11. The override reaches the run */
+  await journey("Journey 11 — A staging override changes the answer",
+    async (page, check) => {
+      await page.goto(`${WEB}/what-if/thread?journey=rating`, { waitUntil: "networkidle" });
+      await appears(page, '[data-testid="whatif-composer"]', 60_000);
+      await say(page, "Downgrade everyone two notches.");
+      const ran = await chooseMethodology(page, check, "delta");
+      if (!ran) return;
+      const first = page.locator('[data-testid="whatif-result"]').first();
+      check("the result names BOTH rule sets",
+        (await first.locator('[data-testid="result-reported-staging"]').count()) > 0
+        && (await first.locator('[data-testid="result-whatif-staging"]').count()) > 0);
+      check("the reported book is staged by the reported-book policy",
+        (await first.locator('[data-testid="result-reported-staging"]').textContent())
+          .includes("reported-book"));
+      check("the What-If is staged by the What-If default",
+        (await first.locator('[data-testid="result-whatif-staging"]').textContent())
+          .includes("what-if-default"));
+
+      // Switch Rule A and Rule B off, then layer a shock so the thread runs
+      // again. The staging change alone is a setting; the next run is what
+      // applies it, and the version on that result is the proof.
+      await page.click('[data-testid="staging-toggle"]');
+      await appears(page, '[data-testid="whatif-staging"]', 30_000);
+      await page.locator('[data-rule="rating_notches"] input[type="checkbox"]').uncheck();
+      await page.waitForTimeout(2500);
+      await page.locator('[data-rule="scenario_pd_ratio"] input[type="checkbox"]').uncheck();
+      await page.waitForTimeout(2500);
+      await say(page, "Also increase LGD by two percentage points.");
+      await page.waitForTimeout(9000);
+      const results = page.locator('[data-testid="whatif-result"]');
+      const count = await results.count();
+      check("the override produced a second result", count >= 2, `${count}`);
+      if (count >= 2) {
+        const latest = results.nth(count - 1);
+        const stamped = await latest
+          .locator('[data-testid="result-whatif-staging"]').textContent();
+        check("the second result carries the overridden rule set, not the default",
+          !stamped.includes("what-if-default"), stamped.trim());
+        check("and the reported book is still staged by the reported policy",
+          (await latest.locator('[data-testid="result-reported-staging"]').textContent())
+            .includes("reported-book"));
+      }
+    });
 
   await browser.close();
 
