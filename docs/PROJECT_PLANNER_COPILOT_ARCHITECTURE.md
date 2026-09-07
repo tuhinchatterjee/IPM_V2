@@ -237,3 +237,83 @@ NOT VERIFIED rather than rounding it up.
 `planner_tasks.milestone_id` is migration 0043 and it is load-bearing: the
 draft grouped tasks under milestones and publish dropped the grouping, so the
 ladder could not walk task → milestone. The column carries it.
+
+---
+
+## 9. The UAT correction: what changed, and what did not
+
+Manual testing of the Docker application found the creation experience
+confusing. The correction was to the SHAPE of the product, not to its
+foundations. Everything in sections 1 to 8 still holds — the draft document,
+the single `apply`, the atomic publish, the deterministic monitor, the
+escalation ladder, the fingerprint — because none of that was what was wrong.
+
+What was wrong was the front of it: the Planner led with a conversation, and
+the creation screen showed every panel of the plan at once.
+
+### The form sits on the same layer the conversation did
+
+`frontend/src/components/planner/wizard.tsx` is eight steps over exactly the
+draft commands that were already there — `set_overview`, `set_governance`,
+`set_agentic`, `add_milestone`, `move_milestone`, `add_task`, `add_link`,
+`set_step`, and then `preview` and `publish`. There is no second data model
+and no "save the form" endpoint. The draft on the server is the plan; the
+form is a view of it, one step at a time.
+
+This is why §15's "the project detail is populated from the creation data, not
+a separate copy" needed no work: publish already wrote the plan into ordinary
+planner rows through `service`, and the tabs already read those rows.
+
+### Four things were added to the layer, not on top of it
+
+**`link_preview` now returns an adjustment.** The conflict sentence said two
+dates overlapped; it did not say what fixing it would cost. `_adjustment`
+walks the successor and everything downstream of it and returns each item's
+current and proposed dates. `_cmd_add_link` applies exactly that set when
+`adjust` is asked for, and otherwise writes the conflict onto the link, where
+`publish` carries it into `PlannerDependency.notes`. Nothing moves a date
+that was not asked for.
+
+While writing it, the finish-to-start comparison was found to disagree with
+`schedule._forward` by one day: the scheduler has always meant "the day
+after", and the check meant "not before". The check was wrong.
+
+**`draft.timeline`** projects the plan into `control.Plan` and runs
+`schedule.compute` over it, so the preview's dates and critical path are
+produced by the same engine that produces them after publication rather than
+by a second implementation.
+
+**`draft.check` splits `project` into `overview` and `governance`.** The form
+asks for them on different steps, and a step that cannot tell which of its
+own notes belong to it either blocks on somebody else's question or lets its
+own through.
+
+**`query.needs_attention`** returns one row per finding rather than one row
+per project, joining the engine's findings to the owner, the due date and the
+most recent `PlannerReminder` for that item — so a reader can see not only
+what is wrong but how far the agent has already chased it.
+
+### `planner/activity.py`
+
+The Agent Activity tab reads `PlannerReminder` and the health entries in
+`PlannerUpdate` and turns them into sentences: "Reminded Priya Raman",
+"Escalated to the project manager". It is a reader, not a rule: every line
+corresponds to a message that was sent.
+
+### What was removed
+
+`copilot-chat.tsx` and `draft-builder.tsx` are deleted, and with them the
+chat box on the Planner home, the conversational creation flow and the
+Copilot tab on a project. The DRAFT and CHAT routes remain and remain
+governed and tested — `language.py`, `copilot.py`, `live.py` and `scope.py`
+are untouched — but nothing in the product's interface reaches the chat any
+more. The one part of it worth keeping, `agent.project_brief`, is a read-only
+panel on the project Overview.
+
+### One change outside the Planner
+
+`useAsync` in `frontend/src/lib/hooks.ts` gained an opt-in `keepPrevious`.
+Blanking the data while refetching is right on a screen that re-reads
+something that may now be different; it is wrong on a form that saves a field
+and re-reads the document it just changed, because the form is unmounted
+between the save and the response. Off by default; on for the creation form.

@@ -1,189 +1,207 @@
-# Project Planner Copilot — Demonstration Runbook
+# Project Planner — Demonstration Runbook
 
-Twenty-five minutes, one browser, nothing typed that has not been run.
-
-Every sentence below has been executed against the built stack. If one of them
-does not do what this says, that is a defect and not a demonstration you should
-work around.
+Twenty-five minutes. A programme set up from nothing, published, and then
+run by the agent.
 
 ---
 
 ## Before the room
 
     docker compose up -d
-    ENV=development SYNTHETIC_DATA_MODE=true \
-      .venv/bin/python scripts/seed_retail_portfolio.py --reset
+    .venv/bin/python scripts/seed_planner.py            # IFRS 9 programme
+    .venv/bin/python scripts/seed_retail_portfolio.py --reset
 
-Four Retail Credit Risk programmes, one of them the Retail Application
-Scorecard Redevelopment. Sign in as **priya.raman**.
+The reset matters. The Retail portfolio's demonstration state is deliberate —
+one thing overdue, one blocked, three stale, one imminent — and a stack that
+has been running for a week has chased all of them several times. Reset it on
+the morning of the demonstration and the agent's behaviour is legible.
 
-Check it is ready:
-
-    .venv/bin/python scripts/acceptance/agentic_demo_scenario.py
-
-Nineteen checks. It fails rather than skips if the programme is missing — "the
-programme was not seeded so we skipped the demonstration" is the report that
-lets an empty demo reach a client.
-
----
-
-## Act 1 — a programme built by talking to it (10 minutes)
-
-**Delivery → Start a project → Start a plan.**
-
-> Call it the Recovery Rate Refresh.
-
-*The panel names it. Point out that nothing exists yet: this is private to
-you, nobody has been told, and the agent is not chasing anybody.*
-
-Fill in **Who is answerable** — sponsor, manager, owner, escalation contact,
-dates, priority. Press Save.
-
-*Stop on the escalation contact. This is the field people skip and the one the
-agent needs, and the plan will not publish without it.*
-
-**How do you want the Agentic AI to work?** — choose **Critical**.
-
-*Read the paragraph out loud. It is the same paragraph the project page will
-show a month from now, and the same one the preview shows before publishing.
-One function, one wording.*
-
-> Add Data Foundation, Model Build and Independent Validation as the
-> milestones.
-
-*Three milestones from one sentence — which is how somebody actually names the
-stages of a programme.*
-
-> Under Data Foundation add Data Extraction, Data Reconciliation and Data
-> Quality Review.
-
-> Rohan owns Data Foundation.
-
-*A confirmation appears. Nothing has happened yet. Press "Go ahead".*
-
-> Sameer owns Data Extraction until 20 October.
-
-> Priya is the escalation owner for Independent Validation.
-
-Then the messy one, in a single turn:
-
-> We need a Reporting milestone, Rohan owns it, it starts 15 November and
-> ends 20 December, and under it add Draft Report, Committee Review and Final
-> Sign-off. Sameer owns Draft Report until 30 November. Committee Review can
-> only start after Draft Report is finished.
-
-*Eight facts, three of them about things it is creating in the same sentence.
-Show the preview, then apply it.*
-
----
-
-## Act 2 — dependencies, three ways (4 minutes)
-
-1. **Link to previous task** on Data Reconciliation. *It states the link
-   before it exists, and offers the obvious predecessor.*
-2. **What waits for what** — pick both ends, *Show me what that would do*.
-3. Say it: *"Validation Report can only start after Replication is
-   finished."*
-
-*If any of them would make a loop, the refusal names the loop. If any creates
-a date conflict it is stated and not fixed — moving a date somebody committed
-to is a decision, not a correction.*
-
----
-
-## Act 3 — the completeness check and the publish (3 minutes)
-
-> What is still missing?
-
-*Two lists, deliberately different. Blockers stop publication and say what
-would satisfy them. Warnings do not. Clear a blocker by saying the missing
-thing.*
-
-**Show me the whole plan.** *Every milestone, every task, every dependency,
-who each escalates to, and the monitoring policy in words.*
-
-**Yes, create this project.** *One transaction. It lands on the project.*
-
-Go back to **Delivery**: it is in the list.
-
----
-
-## Act 4 — a month later (4 minutes)
-
-Open **Retail Application Scorecard Redevelopment → Copilot**.
-
-> What is overdue here?
-> What is on the critical path?
-
-Then change it:
-
-> Move S-703 to Kavita.
-
-*A confirmation. Nothing has happened. Press "Go ahead".*
-
-**Overview tab** → the change is on the project's own record, marked as having
-come from the conversation, with what it was before.
-
-*Point at "How the Agentic AI works on this project". The policy that was
-approved when the project was created, in the same words, still readable.*
-
----
-
-## Act 5 — the agent (3 minutes)
+Then check it:
 
     .venv/bin/python scripts/acceptance/agentic_demo_scenario.py
 
-*Nineteen checks on the seeded programme: something overdue, something
-blocked, something stale, something imminent. The reminder reaches the owner;
-the escalation reaches the milestone's contact; the four-day delay reaches the
-sponsor. Nobody is told twice. Running it again sends nothing new.*
+Nineteen checks. If any of them fails, do not open the room; the observed
+state is printed at the bottom and says which part of the story is missing.
 
-Or on the project, press **run the agent over this project now**, then press
-it again. *The second press sends nothing. That is the deduplication, not a
-failure.*
+Sign in as **priya.raman**. Open **Delivery → Project Planner**.
+
+**Do not** demonstrate live AI unless a provider key is configured. Nothing
+in this runbook needs one: every number, date, escalation and reminder in it
+is arithmetic.
 
 ---
 
-## Act 6 — the boundary (1 minute)
+## Act 1 — the Planner (2 minutes)
 
-In the project's Copilot:
+The page reads top to bottom in the order somebody works.
 
-> What is the gini of the application scorecard?
+> "Needs attention is not a list of projects. It is a list of things that
+> need somebody today, and each one says who, when it was due, why it is
+> here, how far the agent has already chased it, and what would resolve it."
 
-*"Not my area." It names Scorecard Validation and quotes the phrase that
-stopped it.*
+Read one row out loud. Then scroll: Current projects with the columns a
+person scans before opening anything, then Draft projects — plans somebody
+started and has not published — then Closed.
 
-Then:
+> "There is no chat box on this page. The AI here is not something you talk
+> to. It is something that watches the dates."
 
-> How is the scorecard redevelopment going?
+---
 
-*Answered. The programme is named after another module's subject and that does
-not make questions about the programme somebody else's.*
+## Act 2 — creating a project (8 minutes)
 
-Then:
+**Create new project → Start the setup.** Eight steps, and say so.
 
-> What is the population stability index?
+**Step 1.** Name it *LGD Model Redevelopment*. Type a code that already
+exists — `IFRS9-REDEV` — and press **Next**.
 
-*Refused again — because that is asking for the number, not talking about the
-work. A phrase used as a name is fine; a phrase being asked for is not.*
+> "It stops here, on step one, and tells you the code is taken and by what.
+> Not on step eight after you have filled in forty fields."
+
+Fix the code. Next.
+
+**Step 2.** Sponsor, project manager, owner, escalation contact. Type into
+the search box above a picker.
+
+> "This searches. On a bank with five thousand staff, a dropdown is a wall."
+
+Set the target completion BEFORE the start date and press Next.
+
+> "Refused, here, by the step that took it."
+
+Fix it. Next.
+
+**Step 3.** The four policies, each described in the words it will behave in.
+Choose **Critical** and read the sentence.
+
+> "Whatever you choose is stated back to you in English, here and on the
+> project page afterwards. If you cannot recognise your project in that
+> sentence, you have chosen the wrong one."
+
+**Step 4.** Add two milestones. Point at the line under each:
+
+> "Escalation: Priya Raman — inherited from the project. It tells you where
+> the answer came from, not just what it is."
+
+Press **Back**, then **Next**, to show the steps are real.
+
+**Step 5.** Add two or three tasks under the first milestone, one due in the
+past. Point at the escalation line again — now inherited from the milestone.
+
+**Step 6.** Link the first task to the second and press **Show the impact**.
+If the dates overlap:
+
+> "Before anything exists, it tells you what this link would cost: which
+> items move and by how many days. Three answers — adjust the dates, keep
+> them and flag the conflict, or cancel. Nothing here ever moves a date you
+> did not ask it to move."
+
+Take **Keep dates and flag conflict**. Then try to link them the other way
+round.
+
+> "Refused. That would be a loop, and nothing in the plan changed."
+
+**Step 7.** The whole plan read back, with the timeline and the critical
+path, and two lists that are not the same thing: what is required before
+publish, and what a careful person would fix anyway. The flagged conflict is
+in the second.
+
+**Step 8.** **Publish project.**
+
+> "One transaction. The project, the milestones, the tasks, the dependencies
+> and everybody's access — or none of it."
+
+You land on the project. Then go back to the Planner:
+
+> "And there it is, under Current projects, with its sponsor, its manager and
+> its dates."
+
+---
+
+## Act 3 — the project (4 minutes)
+
+Open the project you just made, or the Retail Application Scorecard
+Redevelopment for a fuller one.
+
+**Overview.** The health with its reason, what the schedule rules flag, the
+agentic policy in the words that were approved, and **Where this project
+stands**.
+
+> "Every line of that is computed from the plan and says which rows it came
+> from. It is a read, not a conversation — you cannot ask it a question, so
+> it can never tell you it did not understand one."
+
+**Timeline**, **Milestones**, **RAID**, **People**, **Updates** — one click
+each, no commentary.
+
+---
+
+## Act 4 — the agent (6 minutes)
+
+Open **RET-SCORECARD**. Show the state: S-507 overdue, S-705 blocked with a
+reason, S-702 due in three days.
+
+**Agent activity → Run the agent now.**
+
+> "Reminded the owner that S-507 is overdue. Escalated it above them, because
+> it has been overdue for four days and nothing has happened. Told the
+> sponsor. Reminded the owner of S-702, which is due but not late — a
+> reminder, not an escalation, because the difference is the whole point."
+
+Press **Run the agent now** a second time.
+
+> "Nothing. It has already said all of that. The same message is never sent
+> twice, and that is the difference between an assistant people read and one
+> they filter."
+
+Now open **Messages** in the sidebar and open the planner message.
+
+> "The project's name and code, the item, the owner, the due date, how far
+> the escalation went, and a link straight to it. Everything you need to act
+> without opening anything else — and the link works, because publishing
+> seated everybody the plan named."
+
+---
+
+## Act 5 — the ladder (3 minutes)
+
+Back on the project, filter Agent activity to **Escalations**.
+
+> "Task contact, then milestone contact, then project contact, then the
+> project manager, then the sponsor. One rung at a time. Nobody is told
+> because everybody was told, and every message says why it reached them."
+
+---
+
+## Act 6 — drafts (2 minutes)
+
+Back to the Planner. Start a new project, fill in only the name, press **Save
+draft**, and return.
+
+> "It is under Draft projects, not among the projects. Nothing is scheduled
+> off it and nobody is being chased about it, because it is not a project
+> yet. Continue editing, or discard."
 
 ---
 
 ## If something does not work
 
-Run the harnesses. They fail rather than skip, and they say which step.
+**The Planner is empty.** Run `scripts/seed_planner.py` and
+`scripts/seed_retail_portfolio.py`.
 
-    .venv/bin/python scripts/acceptance/copilot_journeys.py
-    .venv/bin/python scripts/acceptance/creation_flow_journey.py
-    .venv/bin/python scripts/acceptance/copilot_adversarial.py
-    .venv/bin/python scripts/acceptance/agentic_demo_scenario.py
+**The agent sends nothing.** The demonstration state has drifted with the
+calendar. `scripts/seed_retail_portfolio.py --refresh-dates` rolls it
+forward; `--reset` rebuilds it.
 
----
+**The agent sends everything, twice.** The stack has been running for days
+and you are seeing the history. `--reset`.
+
+**A person cannot be found in a picker.** Type more of the name. The pickers
+search the directory; they do not list it.
 
 ## What not to promise
 
-Live AI is **NOT VERIFIED** in the environment this was built in: no provider
-key is configured. Everything above runs on the deterministic reader, which is
-the point — the layer works offline. Do not tell a client the model has been
-exercised against a live provider until somebody has run it in an environment
-that has one.
+* Live AI, unless a key is configured. Nothing in this runbook uses one.
+* Email. Messages arrive in CreditProbe's own message centre.
+* That the agent decides what is late. It applies rules over the plan, and
+  the rules are shown to the person who approved them.

@@ -241,3 +241,55 @@ Each of the ten required sentences, through the real product.
 | K1 | No Lens, Early Warning, What-If, Scorecard or Playbook code changed | PASS | `git diff --stat` for this phase |
 | K2 | No force push, rebase or merge to main | PASS | branch history is linear and append-only |
 | K3 | No pull request opened | PASS | none was asked for |
+
+---
+
+## U. UAT remediation gates (PPC-UAT-001 … PPC-UAT-020)
+
+The twenty gates set after manual testing of the Docker application. All
+twenty are mandatory: a FAIL on any one of them means NOT READY, and none of
+them is rounded up.
+
+The evidence is named by the command that produced it. Journey references are
+to `scripts/acceptance/uat_creation_journey.py` (U1–U11), the button audit is
+`scripts/acceptance/planner_button_audit.py`, and test names are in
+`tests/planner/test_uat_flow.py`, `test_uat_http.py` and
+`test_uat_adversarial.py`.
+
+| # | Gate | Status | Evidence |
+|---|---|---|---|
+| PPC-UAT-001 | The Project Planner leads with the form, not a conversation | PASS | U1: no free-text box on `/delivery`, nothing offers to build a plan in conversation |
+| PPC-UAT-002 | No dead or confusing chat control anywhere in the Planner | PASS | `copilot-chat.tsx` and `draft-builder.tsx` deleted; `grep -rn "CopilotChat\|copilot-chat" frontend/src` finds nothing; U9 asserts no Copilot tab on a project |
+| PPC-UAT-003 | The home page shows Needs attention, Current, Draft and Closed projects | PASS | U1, all four headings asserted |
+| PPC-UAT-004 | Create New Project, Import Project and View My Tasks are present and live | PASS | U1; button audit presses all three |
+| PPC-UAT-005 | Project rows carry name, code, sponsor, manager, health, status, progress, start, target, next milestone, overdue, blocked, last updated | PASS | `ProjectTable` in `frontend/src/app/delivery/page.tsx`; U10 reads the row and opens it |
+| PPC-UAT-006 | Creating a project is a stepped form with Back, Next and Save draft | PASS | U2–U9 walk steps 1→8; U5 presses Back and returns |
+| PPC-UAT-007 | Each step validates before it lets you leave it | PASS | U2 (duplicate code refused on step 1), U3 (completion before start refused on step 2); `test_uat_adversarial.py::test_dates_that_run_backwards_are_refused_when_they_are_typed` |
+| PPC-UAT-008 | A duplicate project code is caught during creation, not at publish | PASS | U2; `test_uat_http.py::test_a_free_code_is_free_and_a_taken_one_names_its_project` |
+| PPC-UAT-009 | Escalation inheritance is shown, with where it came from | PASS | U5, U6, U8 assert "inherited from" on milestones, tasks and the preview; `test_uat_flow.py::test_the_ladder_says_where_each_escalation_was_decided` |
+| PPC-UAT-010 | A dependency states its impact before it is created, and offers Adjust / Keep and flag / Cancel | PASS | U7; `test_uat_flow.py::test_a_link_says_which_dates_it_would_move_and_by_how_many_days` |
+| PPC-UAT-011 | No date is ever moved silently | PASS | `test_uat_flow.py::test_a_preview_never_moves_a_date_by_being_asked_for` and `::test_keeping_the_dates_flags_the_conflict_and_moves_nothing`; the flag reaches the published dependency's notes |
+| PPC-UAT-012 | Circular, self-referencing and duplicate dependencies are refused and change nothing | PASS | U7 (cycle refused in the browser); `test_uat_adversarial.py` three cases |
+| PPC-UAT-013 | The preview shows the whole plan, the timeline and the critical path | PASS | U8; `test_uat_flow.py::test_the_preview_carries_a_timeline_and_a_critical_path` |
+| PPC-UAT-014 | Completeness is split into what is required and what is recommended | PASS | U8; `test_uat_flow.py::test_completeness_separates_what_stops_a_publish_from_what_does_not` |
+| PPC-UAT-015 | Publish is explicit and atomic, and a failure leaves no project | PASS | U9; `test_uat_adversarial.py::test_a_publish_that_fails_halfway_leaves_no_project`, `::test_publish_without_saying_yes_creates_nothing` |
+| PPC-UAT-016 | The published project appears immediately under Current projects, and its row opens it | PASS | U10 |
+| PPC-UAT-017 | Drafts are listed separately from projects, with resume and discard | PASS | U10 asserts the published project is not in Draft projects; button audit presses Continue editing; Discard is exercised by the journey's own clean-up through the product's DELETE |
+| PPC-UAT-018 | Needs attention names the project, the item, severity, owner, due date, reason, escalation state and next action | PASS | `test_uat_http.py::test_every_attention_row_carries_what_it_takes_to_act_on_it`; `test_uat_flow.py::test_needs_attention_says_what_to_do_about_each_thing` |
+| PPC-UAT-019 | Escalation reaches the CreditProbe message centre, with the full field set and a working link, deduplicated | PASS | U11 asserts the message in the recipient's own message centre and each field; `test_uat_flow.py::test_every_message_names_the_project_the_owner_and_the_date` and `::test_running_the_agent_twice_does_not_send_the_message_twice`; `test_uat_adversarial.py::test_a_message_never_links_somebody_to_a_project_they_cannot_open` |
+| PPC-UAT-020 | No dead buttons anywhere in the Planner | PASS | `planner_button_audit.py` — 79 controls pressed, 0 dead; the six Discard buttons are listed as skipped with the reason |
+
+### Two things this section does not claim
+
+**Live AI remains NOT VERIFIED.** No provider key is configured in this
+environment, so nothing here was produced by a model. Everything the agent
+does in these gates is deterministic: the monitoring rules, the escalation
+ladder, the critical path and the completeness check are arithmetic over the
+plan, and the project brief is composed from computed statements. That is
+what §18 asks for — the LLM does not determine deadlines — and it is also why
+these gates can be asserted at all.
+
+**The demonstration scenario asserts about a fresh demonstration.** Its
+"nobody is told twice" check counts reminder rows, and a portfolio that has
+been running for a week correctly holds the reminders of previous days. Run
+`scripts/seed_retail_portfolio.py --reset` before it, as the runbook says.

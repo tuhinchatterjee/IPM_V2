@@ -1,180 +1,184 @@
-# Project Planner Copilot — User Guide
+# Project Planner — User Guide
 
-Building and running a programme by describing it.
+Setting a programme up, and letting the agent run it.
+
+The Planner does two things. You describe the project once, in a form. After
+that the Agentic AI watches the dates and chases the people, and tells you
+when something needs you.
 
 ---
 
-## Starting a project
+## The Project Planner
 
-**Delivery → Start a project.** A plan opens with a conversation on the left
-and the plan itself on the right. Nothing exists until you publish it: the
-draft is private to you, nobody is notified, nothing is scheduled, and the
-agent does not chase anybody about it. That is what lets you think out loud.
+**Delivery → Project Planner.** In the order the page reads:
 
-You can type into the conversation, fill the panels in directly, or do both.
-They are the same plan. A change made in chat appears in the panel
-immediately; a change made in the panel is understood by the next thing you
-say.
+**Create new project · Import project · View my tasks.**
 
-### Say what it is
+**Needs attention.** The things that need somebody today, one row per issue —
+not one row per project. Each row says which project, which task or
+milestone, how serious it is, whose it is, when it was due, why it is here,
+how far the agent has already chased it, and what would resolve it.
 
-> Call it the Recovery Rate Refresh.
+**Current projects.** Everything open, with the columns you would read before
+deciding to open one: name, code, sponsor, project manager, health, status,
+progress, start date, target completion, next milestone, overdue tasks,
+blocked tasks, and when it was last updated.
 
-The name and code appear in the panel above. The code is how people will refer
-to it in exports and in chat — it is suggested from the name and you can
-change it.
+**Draft projects.** Projects you started and have not published. A draft is
+not a project — nothing is scheduled off it and nobody is chased about it —
+so it is listed here rather than mixed in above. Continue editing or discard.
 
-### Say who is answerable
+**Closed and completed projects.**
 
-Sponsor, manager, owner and escalation contact, plus the dates and the
-priority. These are the questions somebody has to ask you, so the panel asks
-them rather than expecting you to know to volunteer them.
+---
 
-The **escalation contact** is the last stop when a task's own owner has not
-resolved something. It is the one field people skip and the one the agent
+## Creating a project
+
+**Create new project**, then **Start the setup**. Eight steps, with **Back**,
+**Next** and **Save draft** on every one of them. Nothing exists until the
+last step.
+
+### Step 1 — Overview
+
+Name, code, description, objective. The code is how people refer to the
+project in exports, in messages and in reports; it has to be unique across
+the platform, and you are told here if it is taken rather than at the end.
+
+### Step 2 — People and governance
+
+Sponsor, project manager, owner, escalation contact, start date, target
+completion, priority, reporting cadence.
+
+The person-pickers search. Type part of a name; the people already on the
+plan are offered without typing.
+
+The **escalation contact** is the last stop when a milestone's own contact
+has not resolved something. It is the field people skip and the one the agent
 needs, so the plan will not publish without it.
 
-### Choose how hard the agent chases
+Everybody you name here is put on the project when it is published, so the
+person the agent chases can open what they are being chased about.
 
-Four answers, each described in the words it will actually behave in:
+### Step 3 — Agentic AI policy
 
-* **Light** — minimal reminders. For a project whose owners already talk
-  every day and would find a reminder seven days out an interruption.
+Four answers, each described in the words it will behave in:
+
+* **Light** — minimal reminders. For a project whose owners talk every day
+  and would find a reminder a week out an interruption.
 * **Standard** — the recommendation. Reminders before the date, a daily chase
   afterwards, and escalation when that stops working.
 * **Critical** — for dated commitments: a regulatory submission, a committee,
   a go-live. Earlier warning, closer follow-up, faster escalation.
 * **Custom** — set the thresholds yourself.
 
-Whatever you choose is stated back to you as a paragraph, before you publish
-and afterwards on the project page. If you cannot recognise your project in
-that paragraph, choose a different mode.
+Whatever you choose is stated back as a paragraph, here and on the project
+page afterwards. If you cannot recognise your project in that paragraph, you
+have picked the wrong one.
 
-### Say what has to happen
+### Step 4 — Major milestones
 
-> Add Data Foundation, Model Build and Independent Validation as the
-> milestones.
+Name, owner, start, target date, and — behind **Edit** — a critical date and
+an escalation contact of its own. Move milestones up and down; codes and the
+tasks under them are renumbered with them.
 
-> Under Data Foundation add Data Extraction, Data Reconciliation and Data
-> Quality Review.
+Each milestone says who a delay reaches:
 
-> Rohan owns Data Foundation.
+    Escalation: Priya Raman — inherited from the project
 
-> It starts 1 October and ends 15 November.
+### Step 5 — Tasks
 
-> Sameer owns Data Extraction until 20 October.
+The work under each milestone: title, description, owner, start, due date,
+and an escalation contact if this task needs one of its own. Each task says
+what it inherits:
 
-> Priya is the escalation owner for Independent Validation.
+    Escalation: Omar Haddad — inherited from milestone Data Foundation
 
-You can also say the whole lot in one paragraph. The Copilot reads it, shows
-you what it is about to do, and waits.
+A task without an owner will not publish. The agent reminds the owner; a task
+with none is a task nobody is asked about.
 
-### Say what waits for what
+### Step 6 — Dependencies
 
-Three ways, all of which state the link before making it:
+Choose what has to finish first and what waits for it, then **Show the
+impact**. Before anything is created you are told what the link would do and,
+if the dates overlap, exactly which items would move and by how many days.
 
-* **Link to previous task** on any task row — offers the obvious predecessor.
-* **What waits for what** — pick both ends from the plan's own catalogue and
-  press *Show me what that would do*.
-* Say it: *"Validation Report can only start after Replication is finished."*
+    [Adjust dates]   [Keep dates and flag conflict]   [Cancel]
 
-A link that would make a loop is refused, and the refusal names the loop. A
-link that creates a date conflict is **stated and not fixed** — moving a date
-somebody committed to is your decision, not the plan's.
+**Adjust dates** moves the successor and everything behind it by the number
+of days named. **Keep dates and flag conflict** moves nothing and records the
+conflict on the link, where it stays: it comes back on the preview and it is
+on the dependency in the published project. Nothing here ever moves a date
+you did not ask to move.
 
-### Check what is missing, then publish
+A link that would make a loop, one that points at itself and one that already
+exists are each refused, and nothing changes.
 
-**What this plan still needs** separates two things that are not the same:
+### Step 7 — Preview
 
-* **Has to be settled before publishing** — blockers. Each says what would
-  satisfy it. You can clear them by saying the missing thing.
-* **Worth a look, but will not stop you** — warnings. A plan where every gap
-  stopped publication is a plan nobody ever finishes drafting.
+The whole plan read back: the project and its dates, who is answerable, the
+agentic policy in words, every milestone with its tasks and the escalation
+each one carries, every dependency, and a timeline with the critical path —
+computed by the same engine that computes it after publication.
 
-Then *Show me the whole plan*: every milestone, every task, every dependency,
-who each one escalates to, and the monitoring policy in words. Read it once.
-Then *Yes, create this project* — which is your act, not the assistant's.
+Then two lists, which are not the same thing:
 
-Everything is created in one go, or nothing is.
+* **Required before publish** — what stops you.
+* **Recommended improvements** — what a careful person would fix anyway.
 
----
+### Step 8 — Publish
 
-## Running a project
+One button. The project, its milestones, its tasks, its dependencies and
+everybody's access are created in one transaction: if any part fails, none of
+it is created. You land on the new project, and it is on the Planner under
+Current projects.
 
-Open it from **Delivery**. The **Copilot** tab is the same conversation, told
-which project it is looking at.
+### Saving and coming back
 
-It answers questions:
+**Save draft** at any step. The draft appears under **Draft projects** on the
+Planner with **Continue editing** and **Discard**. It stays private, and the
+agent does not chase anybody about it.
 
-> What is overdue here?
-> Who has not given me an update?
-> What is on the critical path?
-> What changed since last week?
+### Importing instead
 
-And it changes things:
-
-> Move M03-T02 to Daniel.
-> M01-T01 is due 20 November.
-> Change this project's monitoring to Critical.
-> Under Data Foundation add Data Quality Review.
-
-**Every change to a running project is shown to you first and waits for you to
-say go ahead** — including additions. On a plan nobody has published, adding a
-task promises nothing. On a running project it always does.
-
-Every change the Copilot makes is on the project's own record, marked as
-having come from the conversation, with what it was before and who asked for
-it. An update you typed and an update you asked the agent to make are
-different events, and the audit trail can tell them apart forever.
-
-It will not do anything you could not do yourself. If you have viewer access,
-asking politely is refused exactly as the form would refuse you.
-
-### What it will not do
-
-* Delete a milestone off a running project — the work under it would be
-  orphaned. Move the tasks first, then remove it on the Milestones tab.
-* Answer a question that belongs to another part of CreditProbe. Ask it for a
-  Gini, a PSI or an ECL and it will say so and name where the answer lives —
-  even when your own project is named after that subject.
+If the plan is already in a spreadsheet, **Import project** takes the
+workbook. You still see everything before it is created.
 
 ---
 
-## When it asks you something
+## One project
 
-Two colleagues called Sameer, or two tasks whose names both start "Data
-Review", produce a short question with the candidates as buttons. Nothing is
-applied while a question is open. A turn that half-understood and acted anyway
-would be worse than one that asked.
+Eight tabs: **Overview, Plan, Timeline, Milestones, RAID, People, Updates,
+Agent activity.**
 
-If it did not follow something, it says which words it did not follow rather
-than guessing.
+Everything is populated from what you entered when you created it. There is
+nothing to re-enter and no second copy.
+
+**Overview** carries the health with its reason, the schedule findings, the
+agentic policy in the words you approved, and **Where this project stands** —
+a read of the project in which every statement is computed from the plan and
+says which rows it came from. It is read, not asked: there is no chat box.
+
+**Agent activity** is what the agent has actually done, in the words a
+project manager would use — "Reminded Priya Raman that S-702 is due on
+Friday", "Escalated to the project manager because the data extraction has
+been overdue for four days" — filtered by reminders, escalations, update
+requests, replies or health changes. **Run the agent now** runs it against
+this project; it will not repeat a message it has already sent.
 
 ---
 
-## Running the agent yourself
+## What the agent does, and what it does not
 
-On the project, *run the agent over this project now* sends whatever is due
-right now rather than waiting for tonight. It is safe to press twice: the same
-reminder is never sent to the same person about the same thing twice, so a
-second run sends nothing new.
+It watches the dates deterministically. It reminds the owner before a date
+and chases them after it. When that stops working it escalates, one rung at a
+time: the task's own escalation contact, then the milestone's, then the
+project's, then the project manager, then the sponsor. It does not notify
+everybody at once.
 
-You need editor access on the project.
+Every message it sends carries the project's name and code, the item, the
+owner, the due date, how far the escalation went, and a link straight to the
+project. Messages arrive in your CreditProbe message centre, and the same
+message is never sent twice.
 
----
-
-## What the agent does on its own
-
-On the cadence your mode chose, for every project:
-
-* reminds task owners before the date;
-* chases them after it, at your mode's interval;
-* asks for an update when something near-term has gone quiet;
-* escalates to the task's escalation owner, then the milestone's, then the
-  project's, then the manager, then the sponsor;
-* tells the manager when the calculated critical path is at risk;
-* raises a milestone with its escalation owner when the work under it will
-  not land.
-
-Nobody is told the same thing twice, and nobody is told about their own task
-as an escalation — that is a reminder, and it goes to them as one.
+It does not decide what is late. The rules do, and those rules are
+arithmetic over the plan you published.

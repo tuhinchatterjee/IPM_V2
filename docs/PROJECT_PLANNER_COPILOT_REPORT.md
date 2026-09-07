@@ -302,3 +302,162 @@ long tail rather than that the feature works at all.
 The messaging-directory limit noted in §7 should be looked at by whoever owns
 that module. It is the same defect this phase fixed in the Copilot's lookup,
 and it is not fixed there.
+
+---
+
+# Addendum — the UAT remediation
+
+Everything above describes the Copilot as it was built. This addendum
+describes what manual testing of the Docker application then found, what was
+changed, and what the recommendation is now. Where the two disagree, this
+addendum is current.
+
+## A1. What was reported, and what was true
+
+The report was that the Planner's user experience was confusing and that
+several flows were incomplete or ineffective. It was reproduced in the
+running application before anything was written.
+
+`/delivery` opened with a chat box and offered, as its primary action,
+"Start a new project — Build the plan in conversation". `/delivery/new` put a
+conversation beside every panel of the plan at once. Two ways to create one
+thing, and the one the product led with was a text field that might or might
+not understand the sentence typed into it.
+
+That is a fair finding and it is not a matter of taste. A person opening the
+Planner for the first time was told nothing about which fields were required,
+in what order, or what would happen when they finished.
+
+## A2. What was done
+
+The product is now **form-first project creation with agentic AI project
+monitoring**. `docs/PROJECT_PLANNER_UAT_REMEDIATION.md` describes the whole
+of it; the short version is:
+
+* creation is eight steps with Back, Next and Save draft, and each step
+  validates before it lets you leave it;
+* a dependency states what it would cost in items and days, and offers
+  Adjust dates, Keep dates and flag conflict, or Cancel — and nothing moves
+  a date that was not asked for;
+* the preview shows the whole plan with a real timeline and critical path,
+  and splits what remains into required and recommended;
+* the Planner home is Needs attention, Current projects, Draft projects,
+  Closed projects, with the full column set on every row;
+* Needs attention is one row per issue with an owner, a date, a reason, the
+  chase state and a next action;
+* the project detail has eight tabs, no Copilot tab, and an Agent activity
+  tab that reads like project management;
+* every message carries the project name and code, the item, the owner, the
+  due date, the escalation level and a working link, and is never sent twice;
+* `copilot-chat.tsx` and `draft-builder.tsx` are deleted. There is no chat
+  control anywhere in the Planner.
+
+## A3. Eight defects, and how each was found
+
+None of these were found by reading the code.
+
+1. **The person-pickers could not reach most of the directory.**
+   `copilot.people` capped at fifty rows however many were asked for, and the
+   form asked for two hundred. On this installation the person signing in was
+   not in the first five hundred names alphabetically, so the form could not
+   name them at all. Found by the browser journey timing out on a select that
+   did not contain the option. Fixed by making the pickers search rather than
+   by raising the cap.
+
+2. **The creation form lost its place after every saved field.** `useAsync`
+   blanks its data while refetching, so the page replaced the wizard with a
+   loading message after each step, remounted it, and reset it to the step
+   the server had stored. Invisible on steps one to six because those match;
+   fatal between seven and eight, where the form simply would not advance.
+   Found by the journey failing to reach Publish.
+
+3. **A finish-to-start dependency disagreed with the scheduler by one day.**
+   `schedule._forward` has always meant "the successor starts the day after";
+   `link_preview` meant "not before". A successor starting on its
+   predecessor's finish date was declared fine and then pushed out anyway.
+   Found while writing the impact statement.
+
+4. **`draft.publish` signalled an event the monitor rejected.**
+   `project_published` was not in `monitor.EVENTS`, so `on_event` raised,
+   `service.signal` swallowed it, and every publish logged an exception and
+   queued nothing. The comment claiming the first Needs Attention list would
+   not wait for a sweep had been wrong since it was written. Found by a test
+   asserting the published state.
+
+5. **Overview and governance shared one completeness scope**, so step one
+   demanded a sponsor before the sponsor had been asked for.
+
+6. **The code-availability check returned 500 for the case it existed for.**
+   `acl.readable` refuses rather than returning false. Found by the
+   permission test for a stranger.
+
+7. **The journeys had been signing in and then making anonymous requests.**
+   The session cookie is host-scoped; the scripts read the API on
+   `127.0.0.1` while the browser had signed in on `localhost`. Every
+   assertion after sign-in was reading an unauthenticated response. Found by
+   a 401 that the harness had been quietly rendering as an empty list.
+
+8. **The frontend image had been built against an absolute API origin.**
+   `docker-compose.yml` sets `NEXT_PUBLIC_API_URL` empty on purpose so the
+   browser calls the application's own origin; building it with
+   `http://localhost:8000` pins the session to one host. This is what made
+   (7) possible.
+
+## A4. What was run, on the final images
+
+Docker images rebuilt from the final executable HEAD; all four containers
+healthy.
+
+| What | Result |
+|---|---|
+| `pytest tests/planner tests/agentic` | 797 passed |
+| `uat_creation_journey.py` — the form, end to end, in Chromium | 77 passed, 0 failed |
+| `planner_button_audit.py` — every Planner control pressed | 79 live, 0 dead |
+| `planner_journeys.py` — journeys A–F | 43 passed, 0 failed |
+| `agentic_demo_scenario.py` — after a demo reset | 19 passed, 0 failed |
+| `copilot_adversarial.py` — the boundary over HTTP | 14 passed, 0 failed |
+| `ruff check backend/ tests/ scripts/` | clean |
+| `npx tsc --noEmit` | clean |
+| `npx eslint` on the changed frontend | clean |
+| PPC-UAT-001 … PPC-UAT-020 | 20 PASS, 0 FAIL |
+
+Two acceptance scripts were **deleted**: `copilot_journeys.py` and
+`creation_flow_journey.py` drove the chat box and the conversational creation
+flow, and §22 removed both. A journey whose subject no longer exists cannot
+be adapted honestly; the claims it made are covered by the form journey, by
+`test_copilot_http.py` for the routes that remain, and by
+`copilot_adversarial.py` for the boundary.
+
+## A5. Live AI
+
+**NOT VERIFIED.** No provider key is configured in this environment. This is
+not a caveat on the gates above: everything the agent does in them is
+deterministic. The monitoring rules, the escalation ladder, the critical path
+and the completeness check are arithmetic over the plan; the project brief is
+composed from computed statements that each name the rows they came from.
+That is what the correction asked for — the model does not determine
+deadlines — and it is why these gates can be asserted at all.
+
+The chat routes remain, governed and tested, and are not reachable from the
+product's interface.
+
+## A6. Recommendation
+
+The twenty UAT gates pass. The reported failure is reproduced, understood and
+fixed at the level of the product's shape rather than its wording. Eight
+further defects were found in the course of proving it, all fixed, and each
+of the eight was found by driving the running application.
+
+**READY FOR INTEGRATION REHEARSAL**
+
+with the same three conditions as before, unchanged:
+
+* live AI is unverified and must be verified in an environment with a
+  provider key before anything is promised about the model path;
+* the messaging-directory limit noted in §7 is still not fixed in the module
+  that owns it;
+* the demonstration state must be reset before it is shown, or the agent's
+  behaviour is illegible under a week of accumulated reminders.
+
+None of the three blocks a rehearsal. The first two are outside this work,
+and the third is in the runbook.
