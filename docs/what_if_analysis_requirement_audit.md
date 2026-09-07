@@ -163,7 +163,7 @@ test, a browser journey or a measured figure.
 | I | Stage 3 ECL moved unexplainably | PASS | Root cause was a book holding borrowers credit-impaired by days past due, still rated `B-`; the presumption of default is not rebutted anywhere now. `TestStageThreeIsIsolated` (5 tests) and `_stage_three` name every mechanism or say there is none |
 | J | Optional schema warnings too prominent | PASS | Separated into `notes` about the INSTALLATION from `warnings` about the RESULT; folded away and grey; `test_the_loss_is_named_rather_than_hidden` asserts the split |
 | K | Stage migration showed PD 0.00% / Stage +243.97% | PASS | `basis` is its own driver labelled "Measurement basis: 12-month PD to lifetime PD", with the borrowers, the exposure and both PDs; journey **G** asserts it is not collapsed into a Stage effect |
-| L | AI must let users decode ECL impact conversationally | PASS | Three intents, 27 follow-up question shapes, `run.interpret` composing what the result MEANS with the next questions as buttons; **76** evaluation cases |
+| L | AI must let users decode ECL impact conversationally | PASS | Three intents, 36 explanatory question shapes, `run.interpret` composing what the result MEANS with the next questions as buttons; **81** evaluation cases |
 | M | Mandatory model-selection gate before the first ECL simulation | PASS | `methodology.needs_gate`; every browser journey that computes asserts the gate appears and that no figure is shown while it is open |
 | N | Chat box usable, supports layering | PASS | The composer is never replaced by chips; journeys 1–11 layer shocks and assert the step list |
 
@@ -177,7 +177,7 @@ test, a browser journey or a measured figure.
 | 9 | Full reconciliation across stage / sector / segment / rating | PASS | `scripts/whatif_reconciliation_report.py` — **16/16 quarters, all four partitions** |
 | 10 | EAD = drawn + CCF × undrawn | PASS | `test_exposure_is_drawn_plus_the_conversion_factor_times_undrawn`; CCF is a proportion at both grains |
 | 11 | LGD from collateral and haircut | PASS | `test_loss_given_default_sits_between_its_secured_and_unsecured_legs` plus the documented defaulted workout uplift |
-| 12–14 | Three intent classes, explicit and tested | PASS | `investigate.classify`; `TestTheThreeIntents` (10 tests); 76 evaluation cases |
+| 12–14 | Three intent classes, explicit and tested | PASS | `investigate.classify`; `TestTheThreeIntents` (10 tests); 81 evaluation cases |
 | 15 | Stage 3 isolation with hard invariants | PASS | `TestStageThreeIsIsolated`; a shock that cannot reach a defaulted borrower does not move its provision, and any movement carries a named mechanism summing to the whole |
 | 16–17 | Measurement basis separate from Stage effect; defined attribution language | PASS | `attribution.LABELS`; `basis_movement` writes the sentence a lender uses |
 | 18 | Delta revalidation after the rebuild | PASS | Factors reproduce the ECL to within 0.02 on a SAR 60bn book across rating, PD and LGD shocks |
@@ -195,9 +195,9 @@ test, a browser journey or a measured figure.
 | 31 | Model gate confirmation | PASS | `me.confirmation`; asserted in every computing journey |
 | 32 | Result interpretation panel | PASS | `run.interpret` + `ResultInterpretation`, with follow-up questions as buttons |
 | 33 | Do not re-run the scenario to answer a question | PASS | `backend/whatif/cache.py`; journey **C** asserts no new result and an unmoved figure |
-| 34 | AI eval set ≥ 75 questions | PASS | **76** in `tests/evals/whatif_cases.json`, all passing |
+| 34 | AI eval set ≥ 75 questions | PASS | **81** in `tests/evals/whatif_cases.json`, all passing |
 | 35 | Browser journeys reproducing the manual failures | PASS | `scripts/acceptance/whatif_manual_failures.mjs` — **7/7, 64/64 checks** |
-| 36 | Three readiness cycles | PASS | Recorded in as-built §10 |
+| 36 | Three readiness cycles | PASS | as-built §10 — cycles 2 and 3 identical in every figure; 14,129 backend tests passing, the same six pre-existing failures, 19 browser journeys and 185 checks green each time |
 | 37 | Red-teaming | PASS | `tests/whatif/test_whatif_red_team.py` — 32 attacks; one got through and is fixed (`policy.bounded`) |
 | 38 | Spot-check ≥ 10 borrowers over 8+ quarters | PASS | Reconciliation report — 10 borrowers, 8 quarters, every row ties to within 0.0001, stratified on a fixed seed rather than chosen |
 | 39 | Portfolio reconciliation over 16 quarters | PASS | Reconciliation report |

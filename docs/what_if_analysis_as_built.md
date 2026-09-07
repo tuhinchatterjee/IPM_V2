@@ -520,7 +520,7 @@ severe or extreme on this book; the largest single cause and its share; the
 stage crossings; the measurement-basis note; and four follow-up questions worth
 asking, which are buttons.
 
-**Seventy-six evaluation cases** in `tests/evals/whatif_cases.json` pin the
+**Eighty-one evaluation cases** in `tests/evals/whatif_cases.json` pin the
 whole of it — the intent, the topic, the dimension, whether a stated filter
 survived, and whether something outside the domain was refused. No case needs a
 language model: the classifier and the scenario reader are regular expressions
@@ -575,20 +575,66 @@ percentage change. A saved What-If persists all of it.
 
 ## 10. Verification actually run
 
+### Three readiness cycles
+
+Everything below, three times, in the order a build server would run it, on the
+committed branch with the rebuilt lake and the retrained model. Cycles 2 and 3
+are identical in every figure; cycle 1's browser journeys were run against a
+stale front-end build while a rebuild was in flight and are reported as they
+came out rather than quietly re-run.
+
+| | Cycle 1 | Cycle 2 | Cycle 3 |
+|---|---|---|---|
+| Backend lint (`ruff check .`) | clean | clean | clean |
+| Backend suite | 6 failed, **14,129 passed**, 42 skipped | 6 failed, **14,129 passed**, 42 skipped | 6 failed, **14,129 passed**, 42 skipped |
+| The six failures | identical | identical | identical |
+| Frontend tests (`npm test`) | **551 passed** | **551 passed** | **551 passed** |
+| Frontend types (`tsc --noEmit`) | clean | clean | clean |
+| Frontend lint (`eslint --max-warnings=0`) | clean | clean | clean |
+| Display contract | 0 unexplained sites | 0 unexplained sites | 0 unexplained sites |
+| Reconciliation report | all pass | all pass | all pass |
+| Browser journeys 1–11 | stale build | **11/11, 114/114** | **11/11, 114/114** |
+| Manual-failure journeys A–H | **8/8, 71/71** | **8/8, 71/71** | **8/8, 71/71** |
+
+**The six failures, every cycle, and every one of them reproduced on the
+baseline `4f79566` with the same lake and the same database:**
+
+| Test | What it is |
+|---|---|
+| `evals/test_properties.py::test_a_share_is_of_the_population_asked_about` | "total EAD by sector" is answered by a ranking rather than an aggregation, so the share's denominator is wrong |
+| `evals/test_properties.py::test_customer_level_exposure_reconciles_with_the_facility_book` | the same routing defect, seen from the other end |
+| `evals/test_multi_analysis_response.py::…exposure_block_reconciles_with_an_independent_read` | the same, inside a multi-analysis package |
+| `exports/test_workbooks.py::test_it_writes_real_excel_formulas` | workbook formula reconstruction |
+| `exports/test_workbooks.py::test_the_formulas_reconcile_against_the_runtime_values` | the same workbook |
+| `proof/test_fresh_clone_acceptance.py::test_the_only_live_domains_are_the_seven` | test-order pollution: another test leaves a "Test Domain" row behind, and this one counts live domains |
+
+None is in What-If, and none is new. They were 6 before this work and are 6
+after it, on a suite that has grown by more than eleven hundred tests.
+
+### The suites this work added
+
+| Suite | Tests | What it holds |
+|---|---|---|
+| `tests/corporate/test_data_quality.py` | 32 | the book agrees with itself, over all 16 quarters |
+| `tests/corporate/test_reconciliation_report.py` | 12 | the three reports are invariants, not documents |
+| `tests/whatif/test_whatif_investigation.py` | 41 | three intents, answers from the held result, Stage 3 isolation |
+| `tests/whatif/test_whatif_ml_runtime.py` | 18 | the portability preflight and the served ensemble |
+| `tests/whatif/test_whatif_red_team.py` | 32 | six shapes of attack |
+| `tests/evals/test_whatif_evaluation.py` | 81 cases | what the product must do with 81 things a person says |
+| `frontend/src/components/whatif/__tests__/error-reading.test.ts` | 9 | seven kinds of failure, told apart |
+| `scripts/acceptance/whatif_manual_failures.mjs` | 8 journeys | every manual finding, in a browser |
+
+### One-off verifications
+
 | Check | Command | Result |
 |---|---|---|
-| What-If suite | `uv run pytest tests/whatif tests/ifrs9` | **335 passed** |
-| Full backend | `uv run pytest` | **13,023 passed, 37 skipped, 6 failed** — the same six throughout, every one reproduced on the baseline `4f79566` with the same data lake and the same database; named in §11 |
-| Backend lint | `uv run ruff check .` | clean |
-| Frontend types | `npx tsc --noEmit` | clean |
-| Frontend lint | `npm run lint` | clean |
-| Frontend tests | `npm test` | **542 passed** |
-| Production build | `npm run build` | all routes built |
-| Migrations | `uv run alembic upgrade head` + `heads` | **single head 0041** |
-| Browser journeys | `node scripts/acceptance/whatif_journeys.mjs` | **11/11, 114/114 checks** |
-| Schema contract | `uv run pytest tests/whatif/test_whatif_schema_contract.py` | **28 passed**, including the reported defect reproduced on a real lake |
-| Display contract | `uv run python scripts/check_decimals.py` | **0 unexplained sites** |
-| Feature matrix | `uv run python scripts/feature_matrix.py --write` | every page judged |
+| Migrations | `alembic upgrade head` + `heads` | single head **0041** |
+| Production build | `npm run build` | all 51 routes built |
+| Clean lake rebuild | `scripts/build_corporate_universe.py` | 52,880 obligor-quarters; catalogue reconciles with the lake |
+| Model retraining | from scratch, previous artifacts deleted | `2026.09.07`, OOT R² 0.997889 |
+| Portfolio reconciliation | `scripts/whatif_reconciliation_report.py` | 16/16 quarters, four partitions each |
+| Rating distribution | the same report | 19 of 19 grades populated, TTC monotone |
+| Borrower spot check | the same report | 10 borrowers × 8 quarters, worst unexplained residual **0.0001** |
 
 ## 11. Defects found and fixed
 

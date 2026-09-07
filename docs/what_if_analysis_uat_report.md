@@ -76,13 +76,25 @@ only one of the three classes may touch the scenario:
 * **MODIFY** — "Now increase LGD by 5 points." · "Undo the last step."
 
 An explanation is computed from the borrower rows the run already produced, so
-asking why a number moved cannot move it. Seventy-six evaluation cases pin the
+asking why a number moved cannot move it. Eighty-one evaluation cases pin the
 reading, and none of them needs a language model.
 
 ## 4. Verification
 
-See `docs/what_if_analysis_as_built.md` §10 for the full table and the three
-readiness cycles.
+Three readiness cycles, everything each time, in the order a build server would
+run it. Cycles 2 and 3 are identical in every figure.
+
+| | Result |
+|---|---|
+| Backend suite | **14,129 passed**, 42 skipped, 6 failed |
+| The six failures | identical every cycle, and every one reproduced on the baseline `4f79566` with the same lake and the same database. None is in What-If, and none is new — there were six before this work on a suite eleven hundred tests smaller. |
+| Frontend tests | **551 passed** |
+| Types, lint, display contract | clean |
+| Browser journeys | **11/11** original · **8/8** manual-failure · **185 checks** |
+| Reconciliation report | 16/16 quarters, 19/19 grades, 10 borrowers × 8 quarters |
+
+The full table, the six failures named individually, and the suites this work
+added are in `docs/what_if_analysis_as_built.md` §10.
 
 ## 5. What is NOT claimed
 
@@ -100,3 +112,33 @@ readiness cycles.
   discounting.
 * Covenants are reported under stress, not re-evaluated.
 * The data is synthetic and says so on every row.
+
+---
+
+## 6. Status
+
+**READY FOR UAT.**
+
+Against the directive's own bar — *do not claim ready with any FAIL, any
+unresolved calculation bug, any unreconciled dataset, an ML loader traceback,
+lost filter logic, an inability to answer follow-up questions, a raw JSON
+screen, missing Back navigation, incorrect migration percentages, unexplained
+Stage 3 movement, or zero PD and measurement-basis attribution on a Stage 1→2
+movement*:
+
+| Blocker | State |
+|---|---|
+| Any FAIL | None in What-If. Six pre-existing failures elsewhere, each reproduced on the baseline, each named in as-built §10 |
+| Unresolved calculation bug | The exposure bound was the last one, found by red-teaming and fixed at source |
+| Unreconciled dataset | 16 of 16 quarters reconcile across four partitions |
+| ML loader traceback | Refused in a sentence; journey D asserts no `@rpath` reaches a screen |
+| Lost filter logic | 207 borrowers, not 3,244, and the screen restates both filters first |
+| Cannot answer follow-up questions | Five asked and answered in a browser, none of them moving the figure |
+| Raw JSON screen | None; journey E asserts it |
+| Missing Back navigation | On all three screens; journey B clicks each |
+| Incorrect migration percentages | Row-normalised, declared, and every populated row sums to 100% of its own origin grade |
+| Unexplained Stage 3 movement | Every movement carries a named mechanism, and the mechanisms sum to the whole |
+| Zero PD / basis attribution on a Stage 1→2 movement | The measurement basis is a driver of its own, with the borrowers, the exposure and both PDs |
+
+Not merged. No pull request opened. The branch is
+`claude/what-if-analysis-rebuild`.
