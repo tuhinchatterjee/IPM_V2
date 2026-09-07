@@ -84,7 +84,20 @@ CORPORATE_GRAPH_QUALITY = "corporate_graph_quality"
 # snapshot is a fast denormalised READ and is authoritative for nothing, so a
 # purpose naming it would be a purpose no dataset can honestly serve.
 
+#: Early Warning V2. The signal-observation fact table IS the system of
+#: record for a fired signal's severity/accelerator/decay detail — unlike the
+#: Borrower 360 snapshot above, nothing else computes this, so it earns a
+#: purpose. The wide borrower-month view is deliberately NOT given one: it is
+#: a denormalised read over the signal observations, same reasoning as B2.
+EARLY_WARNING_SIGNAL_STANDING = "early_warning_signal_standing"
+
 GOVERNED_PURPOSES: dict[str, str] = {
+    EARLY_WARNING_SIGNAL_STANDING: (
+        "Every Early Warning V2 signal's monthly observation: raw value, "
+        "baseline, trigger severity, accelerator components, decay, causal "
+        "chain and effective score — the fact table the classifier, T&A and "
+        "network engines are computed from."
+    ),
     FACILITY_POSITION: (
         "The position of every credit facility at a reporting date: exposure, "
         "limits, collateral, rating, IFRS 9 staging, PD, LGD and ECL."
