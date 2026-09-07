@@ -61,16 +61,29 @@ def importance(model: Any, feature_names: tuple[str, ...] | list[str],
     which flatters features with many distinct values. Gain measures how much
     those splits actually improved the objective.
     """
-    booster = model.get_booster() if hasattr(model, "get_booster") else model
-    scores = booster.get_score(importance_type="gain")
-    named = {}
-    for key, value in scores.items():
-        if key.startswith("f") and key[1:].isdigit():
-            at = int(key[1:])
-            name = feature_names[at] if at < len(feature_names) else key
-        else:
-            name = key
-        named[name] = float(value)
+    def _gain(inner: Any) -> dict[str, float]:
+        booster = inner.get_booster() if hasattr(inner, "get_booster") else inner
+        out: dict[str, float] = {}
+        for key, value in booster.get_score(importance_type="gain").items():
+            if key.startswith("f") and key[1:].isdigit():
+                at = int(key[1:])
+                name = feature_names[at] if at < len(feature_names) else key
+            else:
+                name = key
+            out[name] = float(value)
+        return out
+
+    # Where the served design is one model per Stage, importance is POOLED
+    # across the members. Reporting only the fallback's gains would describe a
+    # model the product does not score with, and a feature that matters only in
+    # Stage 2 would read as unimportant.
+    if getattr(model, "routes", False):
+        named: dict[str, float] = {}
+        for inner in model.members.values():
+            for name, value in _gain(inner).items():
+                named[name] = named.get(name, 0.0) + value
+    else:
+        named = _gain(model)
     total = sum(named.values()) or 1.0
     rows = [{"feature": name, "gain": round(value, 6),
              "share_pct": round(value / total * 100.0, 4)}
@@ -89,11 +102,29 @@ def contributions(model: Any, rows: pd.DataFrame) -> tuple[np.ndarray, float]:
     row's prediction, which is the property that makes the numbers worth
     showing at all.
     """
+    from backend.whatif.ml import runtime as rt
+
+    rt.require()
     import xgboost as xgb
 
-    booster = model.get_booster() if hasattr(model, "get_booster") else model
-    matrix = xgb.DMatrix(rows, feature_names=list(rows.columns))
-    values = np.asarray(booster.predict(matrix, pred_contribs=True))
+    def _shap(inner: Any, frame: pd.DataFrame) -> np.ndarray:
+        booster = inner.get_booster() if hasattr(inner, "get_booster") else inner
+        matrix = xgb.DMatrix(frame, feature_names=list(frame.columns))
+        return np.asarray(booster.predict(matrix, pred_contribs=True))
+
+    # An explanation has to come from the model that made the PREDICTION. Where
+    # the served design is one model per Stage, explaining every row with the
+    # all-book fallback would attribute a Stage 2 borrower's provision to a
+    # model that did not price it — numbers that look like an explanation and
+    # are not.
+    if getattr(model, "routes", False) and "stage" in rows.columns:
+        stage = pd.to_numeric(rows["stage"], errors="coerce").fillna(1).astype(int)
+        values = np.zeros((len(rows), len(rows.columns) + 1), dtype=float)
+        for number in sorted(set(stage.unique())):
+            mask = (stage == number).to_numpy()
+            values[mask] = _shap(model.model_for(number), rows.loc[mask])
+    else:
+        values = _shap(model, rows)
     base = float(values[:, -1].mean()) if values.shape[1] else 0.0
     return values[:, :-1], base
 

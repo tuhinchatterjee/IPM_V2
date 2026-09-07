@@ -161,17 +161,64 @@ class TestItIsGenuinelyStageAware:
 
     def test_the_boundary_is_where_the_designs_part(self) -> None:
         """A What-If's job is moving names from Stage 1 to Stage 2, so what a
-        crossing is WORTH decides the headline number."""
+        crossing is WORTH decides the headline number.
+
+        Both designs have to reproduce the governed step; the test does not
+        say which one wins. It said so once — the single model was better on
+        the fourteen-point book — and asserting that conclusion rather than
+        the property meant a test failure was the only way to discover that
+        the numbers had changed. The property is what is asserted now, and
+        `test_the_served_design_is_the_one_the_numbers_chose` checks that the
+        product followed them.
+        """
         boundary = rg.active().stage_study["boundary"]
         assert boundary["available"]
         assert boundary["governed_step"] > 1.0
-        assert abs(boundary["champion_step_error_pct"]) < 2.0, (
-            "the model must reproduce the governed Stage 1 to Stage 2 step")
-        if "challenger_step_error_pct" in boundary:
-            assert (abs(boundary["champion_step_error_pct"])
-                    < abs(boundary["challenger_step_error_pct"])), (
-                "this is the reason the single model was kept; if it stops "
-                "being true the design should change")
+        for key in ("champion_step_error_pct", "challenger_step_error_pct"):
+            if key in boundary:
+                assert abs(boundary[key]) < 2.0, (
+                    f"{key}: a design that misprices the Stage 1 to Stage 2 "
+                    "crossing by more than two per cent is manufacturing "
+                    "provision at the boundary")
+
+    def test_the_served_design_is_the_one_the_numbers_chose(self) -> None:
+        """The verdict is not a paragraph. It decides what runs.
+
+        A card that reported "one model per Stage" while the product scored
+        every row on one model would be describing something it does not do,
+        and the study would be decoration.
+        """
+        card = rg.active()
+        study = card.stage_study
+        assert card.design == study["design"], (
+            "the served design and the design the study chose have to be the "
+            "same thing")
+        served = rg.load_booster(card.version)
+        if card.design == "per_stage":
+            assert served.routes
+            assert set(served.members) >= {1, 2}
+            assert "one per Stage" in card.algorithm
+        else:
+            assert not served.routes
+
+    def test_the_served_model_is_the_one_the_card_reports(self) -> None:
+        """Metrics on the card describe the model the product runs.
+
+        Reporting the single model's out-of-time error beside an ensemble's
+        predictions would be a card about a different model.
+        """
+        card = rg.active()
+        served = rg.load_booster(card.version)
+        split = tr.Split.from_dict(card.split)
+        frame = tr.load(split.out_of_time)
+        matrix = ft.build(frame, encoding=ft.Encoding.from_dict(card.encoding))
+        weights = pd.to_numeric(
+            frame.loc[matrix.X.index, "ead"], errors="coerce").fillna(0.0)
+        recomputed = tr.metrics(matrix.y, served.predict(matrix.X),
+                                weights=weights)
+        for measure in ("r2", "rmse", "exposure_weighted_mae", "wape"):
+            assert recomputed[measure] == pytest.approx(
+                card.out_of_time[measure], rel=1e-6), measure
 
     def test_the_per_stage_error_is_reported_out_of_time_not_only_in_sample(
             self) -> None:

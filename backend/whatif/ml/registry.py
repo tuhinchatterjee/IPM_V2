@@ -128,6 +128,10 @@ class Card:
     artifact_sha256: str = ""
     artifact_bytes: int = 0
     artifact_format: str = "xgboost-native-json"
+    #: Which of the two stage-aware designs this artifact actually serves.
+    #: Reported on the card because it is chosen from the figures beside it and
+    #: has already changed once.
+    design: str = "single_stage_aware"
     built_at: str = ""
     built_by: str = ""
     predecessor: str = ""
@@ -229,6 +233,10 @@ def save(trained: Any, *, version: str = "", built_by: str = "",
         out_of_time=dict(trained.out_of_time),
         slices=dict(trained.slices), ranges=dict(trained.ranges),
         stage_study=dict(trained.stage_study),
+        design=str(getattr(trained, "design", "single_stage_aware")),
+        algorithm=("XGBoost regressor, one per Stage (gradient-boosted trees)"
+                   if getattr(trained, "design", "") == "per_stage"
+                   else "XGBoost regressor (gradient-boosted trees)"),
         encoding=trained.encoding.to_dict(),
         importance=list(importance or []), shap=dict(shap or {}),
         artifact_bytes=len(artifact),
@@ -329,7 +337,17 @@ def load_booster(version: str = "") -> Any:
     sealed is refused rather than loaded, because a model that scored one way
     and predicts another is worse than no model.
     """
+    # Checked BEFORE the import, so a machine without OpenMP gets a sentence
+    # about its installation instead of a dynamic-linker path where an
+    # expected credit loss should be.
+    from backend.whatif.ml import runtime as rt
+
+    found = rt.check()
+    if not found.available:
+        raise RegistryError(found.message())
     from xgboost import XGBRegressor
+
+    from backend.whatif.ml import ensemble as en
 
     chosen = version or active_version()
     if not chosen:
@@ -348,9 +366,8 @@ def load_booster(version: str = "") -> Any:
         raise RegistryError(
             f"Model {chosen} does not match the hash it was sealed with. It "
             "will not be loaded.")
-    model = XGBRegressor()
-    model.load_model(bytearray(artifact))
-    return model
+    del XGBRegressor  # loaded by the ensemble reader, which knows the shape
+    return en.load(artifact)
 
 
 def _log(entry: dict[str, Any]) -> None:

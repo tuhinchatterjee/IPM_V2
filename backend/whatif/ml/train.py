@@ -45,6 +45,7 @@ import numpy as np
 import pandas as pd
 
 from backend.whatif import domain as dm
+from backend.whatif.ml import ensemble as en
 from backend.whatif.ml import features as ft
 
 TRAIN_VERSION = "1.0.0"
@@ -237,6 +238,11 @@ LGD_BANDS: list[tuple[str, Any, Any]] = [
     ("45 to 60%", 45.0, 60.0), ("60% and above", 60.0, 1e9)]
 
 
+#: Where `stage_study` hands the fitted per-Stage models back. Private to the
+#: training run: it never reaches the card, which stores figures, not objects.
+MEMBERS = "_members"
+
+
 def stage_study(split: Split, *, source: Any = None,
                 champion: Any = None, encoding: ft.Encoding | None = None,
                 ) -> dict[str, Any]:
@@ -259,6 +265,9 @@ def stage_study(split: Split, *, source: Any = None,
         (12-month PD against lifetime PD, same LGD, same EAD), and a design
         that does not reproduce it is manufacturing provision at the boundary.
     """
+    from backend.whatif.ml import runtime as rt
+
+    rt.require()
     from xgboost import XGBRegressor
 
     from backend.ifrs9 import policy
@@ -266,8 +275,18 @@ def stage_study(split: Split, *, source: Any = None,
     def _stage(frame: pd.DataFrame, stage: int) -> pd.DataFrame:
         return frame[pd.to_numeric(frame.get("stage"), errors="coerce") == stage]
 
-    def _fit(frame: pd.DataFrame, validation: pd.DataFrame):
-        built = ft.build(frame)
+    def _fit(frame: pd.DataFrame, validation: pd.DataFrame,
+             shared: ft.Encoding | None = None):
+        """Fit one model. `shared` pins the categorical codes.
+
+        The per-Stage challengers are fitted on the CHAMPION's encoding rather
+        than learning their own, for two reasons. It makes the comparison a
+        comparison of designs rather than of code maps. And it is what lets the
+        winning challengers be SERVED as an ensemble: a card carries one
+        encoding, and three models that disagreed about which integer means
+        Contracting could not share it.
+        """
+        built = ft.build(frame, encoding=shared)
         checked = (ft.build(validation, encoding=built.encoding)
                    if not validation.empty else None)
         model = XGBRegressor(**HYPERPARAMETERS)
@@ -325,7 +344,8 @@ def stage_study(split: Split, *, source: Any = None,
                 "why": f"{len(training_rows):,} training row(s) is too few to "
                        "fit a model of its own."}
             continue
-        model, own_encoding = _fit(training_rows, _stage(validation_frame, stage))
+        model, own_encoding = _fit(training_rows, _stage(validation_frame, stage),
+                                   shared=encoding)
         fitted[stage] = (model, own_encoding)
         scored = ft.build(out_rows, encoding=own_encoding)
         if not scored.rows:
@@ -392,6 +412,11 @@ def stage_study(split: Split, *, source: Any = None,
             "challenger_by_stage": challengers,
             "challenger_book": combined,
             "boundary": boundary,
+            # The live per-Stage models, so the design the numbers chose can
+            # actually be SERVED rather than only reported. `fit` takes them
+            # out before the study reaches the model card, which holds figures
+            # and not objects.
+            MEMBERS: {stage: model for stage, (model, _) in fitted.items()},
             **verdict}
 
 
@@ -463,14 +488,33 @@ class Trained:
     ranges: dict[str, dict[str, float]] = field(default_factory=dict)
     #: The single-model-versus-per-Stage comparison, re-measured on every fit.
     stage_study: dict[str, Any] = field(default_factory=dict)
+    #: The per-Stage models, where the study fitted them. Empty when the study
+    #: did not run; kept whether or not they won, because the card reports both
+    #: designs and the served one is decided from the figures.
+    members: dict[int, Any] = field(default_factory=dict)
+
+    @property
+    def design(self) -> str:
+        """Which design the numbers chose, defaulting to the single model."""
+        chosen = str(self.stage_study.get("design") or en.SINGLE)
+        return chosen if chosen in en.DESIGNS else en.SINGLE
+
+    def served(self) -> en.StageEnsemble:
+        """The model the product actually scores with."""
+        return en.StageEnsemble(
+            fallback=self.booster,
+            members=self.members if self.design == en.PER_STAGE else {},
+            design=self.design)
 
     def artifact(self) -> bytes:
-        """The model as XGBoost's native JSON. Never a pickle.
+        """The model as native JSON. Never a pickle.
 
-        `save_raw(raw_format="json")` returns the same bytes `save_model` would
-        write to a .json file, without going through the filesystem.
+        One document either way: the all-book model as a fallback, and the
+        per-Stage members beside it when the study chose that design. Both
+        designs are always fitted, so a card written under one can be read
+        under the other.
         """
-        return bytes(self.booster.get_booster().save_raw(raw_format="json"))
+        return self.served().artifact()
 
 
 def fit(*, split: Split | None = None, source: Any = None,
@@ -482,6 +526,9 @@ def fit(*, split: Split | None = None, source: Any = None,
     design the numbers chose. It costs three small extra fits and is what
     makes "stage-aware" an answer rather than an assertion.
     """
+    from backend.whatif.ml import runtime as rt
+
+    rt.require()
     from xgboost import XGBRegressor
 
     chosen = split or plan_split(source=source)
@@ -561,8 +608,36 @@ def fit(*, split: Split | None = None, source: Any = None,
             predicted_oot, "stage")
 
     if compare_designs:
-        trained.stage_study = stage_study(
-            chosen, source=source, champion=model, encoding=encoding)
+        study = stage_study(chosen, source=source, champion=model,
+                            encoding=encoding)
+        trained.members = study.pop(MEMBERS, {})
+        trained.stage_study = study
+        if trained.design == en.PER_STAGE:
+            # The design changed, so the METRICS on the card have to be the
+            # served model's. A card reporting the single model's validation
+            # beside an ensemble's predictions would be describing something
+            # the product does not run.
+            served = trained.served()
+            if validation_matrix is not None:
+                weights = pd.to_numeric(
+                    validation_frame.loc[validation_matrix.X.index, "ead"],
+                    errors="coerce").fillna(0.0)
+                trained.validation = metrics(
+                    validation_matrix.y, served.predict(validation_matrix.X),
+                    weights=weights)
+            if oot_matrix is not None:
+                weights = pd.to_numeric(
+                    oot_frame.loc[oot_matrix.X.index, "ead"],
+                    errors="coerce").fillna(0.0)
+                predicted_oot = served.predict(oot_matrix.X)
+                trained.out_of_time = metrics(oot_matrix.y, predicted_oot,
+                                              weights=weights)
+            trained.training = metrics(train_matrix.y,
+                                       served.predict(train_matrix.X))
+            trained.warnings.append(
+                "Served as one model per Stage. Both designs were fitted and "
+                "scored on the same out-of-time quarters; the per-Stage design "
+                "won, and the figures that decided it are on the card.")
 
     trained.ranges = {
         name: {"min": float(train_matrix.X[name].min()),

@@ -2,14 +2,8 @@
   "active": "2026.09.07",
   "models": [
     {
-      "built_at": "2026-09-06T19:51:11+00:00",
+      "built_at": "2026-09-07T19:52:53+00:00",
       "predecessor": "",
-      "state": "RETIRED",
-      "version": "2026.09.06"
-    },
-    {
-      "built_at": "2026-09-07T03:58:27+00:00",
-      "predecessor": "2026.09.06",
       "state": "ACTIVE",
       "version": "2026.09.07"
     }

@@ -1,12 +1,13 @@
 {
-  "activated_at": "2026-09-07T03:58:34+00:00",
+  "activated_at": "2026-09-07T19:52:53+00:00",
   "activated_by": "system",
-  "algorithm": "XGBoost regressor (gradient-boosted trees)",
-  "artifact_bytes": 1274951,
+  "algorithm": "XGBoost regressor, one per Stage (gradient-boosted trees)",
+  "artifact_bytes": 4363500,
   "artifact_format": "xgboost-native-json",
-  "artifact_sha256": "cc60fa944d80ca3c5dbe849581983529cc81b0a33365bef1034dfa5b9c7e20c9",
-  "built_at": "2026-09-07T03:58:27+00:00",
+  "artifact_sha256": "d963d9a25eed1851ad89e2fccf4e4d062ea31d1f97b49cd59ff30db213c55949",
+  "built_at": "2026-09-07T19:52:53+00:00",
   "built_by": "system",
+  "design": "per_stage",
   "encoding": {
     "maps": {
       "sector": {
@@ -37,12 +38,13 @@
       }
     }
   },
-  "feature_count": 31,
+  "feature_count": 32,
   "features": [
     "pd_12m",
     "pd_lifetime",
     "pd_at_origination_pct",
     "lgd",
+    "ttc_pd_pct",
     "stage",
     "current_dpd",
     "max_dpd_12m",
@@ -87,128 +89,128 @@
   "importance": [
     {
       "feature": "pd_lifetime",
-      "gain": 0.62513,
-      "share_pct": 42.8942
-    },
-    {
-      "feature": "pd_12m",
-      "gain": 0.385407,
-      "share_pct": 26.4453
-    },
-    {
-      "feature": "internal_rating_numeric",
-      "gain": 0.21217,
-      "share_pct": 14.5584
-    },
-    {
-      "feature": "stage",
-      "gain": 0.105699,
-      "share_pct": 7.2527
-    },
-    {
-      "feature": "watchlist_flag",
-      "gain": 0.048968,
-      "share_pct": 3.36
+      "gain": 0.376843,
+      "share_pct": 39.0299
     },
     {
       "feature": "lgd",
-      "gain": 0.043971,
-      "share_pct": 3.0171
+      "gain": 0.217301,
+      "share_pct": 22.506
     },
     {
-      "feature": "undrawn_share",
-      "gain": 0.009603,
-      "share_pct": 0.6589
+      "feature": "ttc_pd_pct",
+      "gain": 0.119492,
+      "share_pct": 12.3758
     },
     {
-      "feature": "pd_at_origination_pct",
-      "gain": 0.007798,
-      "share_pct": 0.5351
+      "feature": "collateral_to_ead",
+      "gain": 0.109962,
+      "share_pct": 11.3889
     },
     {
-      "feature": "rating_change_notches",
-      "gain": 0.004887,
-      "share_pct": 0.3354
+      "feature": "pd_12m",
+      "gain": 0.065305,
+      "share_pct": 6.7636
     },
     {
-      "feature": "current_dpd",
-      "gain": 0.002986,
-      "share_pct": 0.2049
-    },
-    {
-      "feature": "drawn_share",
-      "gain": 0.001081,
-      "share_pct": 0.0742
-    },
-    {
-      "feature": "revenue_growth",
-      "gain": 0.000852,
-      "share_pct": 0.0585
-    },
-    {
-      "feature": "default_flag",
-      "gain": 0.000821,
-      "share_pct": 0.0563
-    },
-    {
-      "feature": "max_dpd_12m",
-      "gain": 0.000735,
-      "share_pct": 0.0504
-    },
-    {
-      "feature": "dscr",
-      "gain": 0.00065,
-      "share_pct": 0.0446
-    },
-    {
-      "feature": "interest_coverage",
-      "gain": 0.000614,
-      "share_pct": 0.0422
+      "feature": "internal_rating_numeric",
+      "gain": 0.021731,
+      "share_pct": 2.2507
     },
     {
       "feature": "collateral_coverage_pct",
-      "gain": 0.000593,
-      "share_pct": 0.0407
-    },
-    {
-      "feature": "secured_share",
-      "gain": 0.000546,
-      "share_pct": 0.0374
-    },
-    {
-      "feature": "facility_count",
-      "gain": 0.000511,
-      "share_pct": 0.035
-    },
-    {
-      "feature": "log_ead",
-      "gain": 0.000498,
-      "share_pct": 0.0342
-    },
-    {
-      "feature": "segment_code",
-      "gain": 0.00048,
-      "share_pct": 0.0329
-    },
-    {
-      "feature": "ebitda_margin",
-      "gain": 0.000477,
-      "share_pct": 0.0327
-    },
-    {
-      "feature": "ccf",
-      "gain": 0.000466,
-      "share_pct": 0.032
-    },
-    {
-      "feature": "minimum_headroom_pct",
-      "gain": 0.000401,
-      "share_pct": 0.0275
+      "gain": 0.018828,
+      "share_pct": 1.9501
     },
     {
       "feature": "sector_code",
-      "gain": 0.000356,
-      "share_pct": 0.0244
+      "gain": 0.005438,
+      "share_pct": 0.5632
+    },
+    {
+      "feature": "ebitda_margin",
+      "gain": 0.005422,
+      "share_pct": 0.5616
+    },
+    {
+      "feature": "secured_share",
+      "gain": 0.003962,
+      "share_pct": 0.4103
+    },
+    {
+      "feature": "facility_count",
+      "gain": 0.002277,
+      "share_pct": 0.2359
+    },
+    {
+      "feature": "minimum_headroom_pct",
+      "gain": 0.001457,
+      "share_pct": 0.1509
+    },
+    {
+      "feature": "segment_code",
+      "gain": 0.001423,
+      "share_pct": 0.1473
+    },
+    {
+      "feature": "dscr",
+      "gain": 0.001407,
+      "share_pct": 0.1458
+    },
+    {
+      "feature": "interest_coverage",
+      "gain": 0.001372,
+      "share_pct": 0.1421
+    },
+    {
+      "feature": "undrawn_share",
+      "gain": 0.001282,
+      "share_pct": 0.1328
+    },
+    {
+      "feature": "leverage",
+      "gain": 0.001173,
+      "share_pct": 0.1215
+    },
+    {
+      "feature": "current_dpd",
+      "gain": 0.001148,
+      "share_pct": 0.1189
+    },
+    {
+      "feature": "pd_at_origination_pct",
+      "gain": 0.001145,
+      "share_pct": 0.1186
+    },
+    {
+      "feature": "revenue_growth",
+      "gain": 0.00112,
+      "share_pct": 0.116
+    },
+    {
+      "feature": "ccf",
+      "gain": 0.001111,
+      "share_pct": 0.115
+    },
+    {
+      "feature": "drawn_share",
+      "gain": 0.001103,
+      "share_pct": 0.1142
+    },
+    {
+      "feature": "max_dpd_12m",
+      "gain": 0.001,
+      "share_pct": 0.1035
+    },
+    {
+      "feature": "net_leverage",
+      "gain": 0.000977,
+      "share_pct": 0.1012
+    },
+    {
+      "feature": "rating_change_notches",
+      "gain": 0.000975,
+      "share_pct": 0.101
     }
   ],
   "limitations": [
@@ -218,34 +220,34 @@
     "It is anchored to the reported ECL and can only move it. It never restates the book."
   ],
   "out_of_time": {
-    "count": 6361,
-    "exposure_weighted_mae": 0.00073832,
-    "mae": 0.00097035,
-    "mean_actual": 0.03077625,
-    "mean_predicted": 0.03094591,
-    "r2": 0.997645,
-    "rmse": 0.00381396,
-    "wape": 3.1529
+    "count": 6496,
+    "exposure_weighted_mae": 0.00113362,
+    "mae": 0.00149191,
+    "mean_actual": 0.05337823,
+    "mean_predicted": 0.0533642,
+    "r2": 0.997889,
+    "rmse": 0.00649928,
+    "wape": 2.795
   },
-  "predecessor": "2026.09.06",
+  "predecessor": "",
   "ranges": {
     "ccf": {
-      "max": 0.41025641025641,
+      "max": 0.5000000000000111,
       "min": 0.0,
-      "p01": 0.0,
-      "p99": 0.40041192787500834
+      "p01": 0.1927301868022542,
+      "p99": 0.40031061363471704
     },
     "collateral_coverage_pct": {
-      "max": 364.93,
+      "max": 359.6,
       "min": 0.0,
       "p01": 0.0,
-      "p99": 225.08180000000002
+      "p99": 221.7448000000001
     },
     "collateral_to_ead": {
-      "max": 4.418918918918918,
+      "max": 3.7795698924731185,
       "min": 0.0,
       "p01": 0.0,
-      "p99": 2.347676594430547
+      "p99": 2.283188217184672
     },
     "covenants_breached": {
       "max": 4.0,
@@ -254,10 +256,10 @@
       "p99": 1.0
     },
     "current_dpd": {
-      "max": 615.0,
+      "max": 632.0,
       "min": 0.0,
       "p01": 0.0,
-      "p99": 162.0
+      "p99": 153.0
     },
     "default_flag": {
       "max": 1.0,
@@ -267,21 +269,21 @@
     },
     "drawn_share": {
       "max": 1.0000000000000002,
-      "min": 0.04815133276010318,
-      "p01": 0.4142345264302391,
-      "p99": 1.0
+      "min": 0.04852941176470588,
+      "p01": 0.42165326441153866,
+      "p99": 0.9991436086984984
     },
     "dscr": {
       "max": 44.9,
       "min": 0.0,
       "p01": 0.5,
-      "p99": 4.785900000000002
+      "p99": 4.75
     },
     "ebitda_margin": {
       "max": 50.37,
       "min": 0.0,
-      "p01": 2.67,
-      "p99": 42.7
+      "p01": 2.6489,
+      "p99": 42.61
     },
     "facility_count": {
       "max": 9.0,
@@ -297,75 +299,75 @@
     },
     "interest_coverage": {
       "max": 75.04,
-      "min": -10.78,
-      "p01": -0.26,
-      "p99": 9.99
+      "min": -13.88,
+      "p01": -0.22,
+      "p99": 9.97
     },
     "internal_rating_numeric": {
-      "max": 14.0,
+      "max": 19.0,
       "min": 1.0,
-      "p01": 1.0,
-      "p99": 14.0
+      "p01": 2.0,
+      "p99": 19.0
     },
     "leverage": {
       "max": 8.61,
       "min": 0.0,
-      "p01": 1.42,
+      "p01": 1.43,
       "p99": 6.78
     },
     "lgd": {
-      "max": 77.82,
-      "min": 8.0,
-      "p01": 21.2723,
-      "p99": 62.15
+      "max": 95.0,
+      "min": 6.78,
+      "p01": 17.23,
+      "p99": 81.85
     },
     "log_ead": {
-      "max": 9.222898191463326,
-      "min": 0.1988508587451652,
-      "p01": 2.1046338496398005,
-      "p99": 7.93228128074359
+      "max": 9.183769471507038,
+      "min": 0.8197798314933114,
+      "p01": 2.3890009005719386,
+      "p99": 8.000278431238204
     },
     "max_dpd_12m": {
-      "max": 615.0,
+      "max": 632.0,
       "min": 0.0,
       "p01": 0.0,
-      "p99": 207.0
+      "p99": 197.37000000000262
     },
     "minimum_headroom_pct": {
-      "max": 2072.41,
-      "min": -2423.31,
-      "p01": -119.28,
-      "p99": 464.76
+      "max": 2476.0,
+      "min": -2290.48,
+      "p01": -113.13,
+      "p99": 551.64
     },
     "net_leverage": {
-      "max": 8.09,
+      "max": 8.25,
       "min": 0.0,
-      "p01": 1.02,
-      "p99": 6.3759000000000015
+      "p01": 1.03,
+      "p99": 6.37
     },
     "pd_12m": {
-      "max": 94.3007,
-      "min": 0.02,
-      "p01": 0.02,
-      "p99": 36.75559100000001
+      "max": 99.0,
+      "min": 0.0075,
+      "p01": 0.0162,
+      "p99": 99.0
     },
     "pd_at_origination_pct": {
-      "max": 33.4271,
-      "min": 0.02,
-      "p01": 0.02,
-      "p99": 12.4083
+      "max": 62.8482,
+      "min": 0.004,
+      "p01": 0.0142,
+      "p99": 15.184966000000005
     },
     "pd_lifetime": {
       "max": 99.9,
-      "min": 0.084,
-      "p01": 0.084,
-      "p99": 85.40195700000001
+      "min": 0.0419,
+      "p01": 0.0808,
+      "p99": 99.9
     },
     "rating_change_notches": {
-      "max": 11.0,
-      "min": -6.0,
-      "p01": -3.0,
-      "p99": 4.0
+      "max": 12.0,
+      "min": -9.0,
+      "p01": -4.0,
+      "p99": 5.0
     },
     "restructure_flag": {
       "max": 1.0,
@@ -376,8 +378,8 @@
     "revenue_growth": {
       "max": 26.16,
       "min": -12.97,
-      "p01": -5.88,
-      "p99": 20.04
+      "p01": -5.85,
+      "p99": 19.93
     },
     "sector_code": {
       "max": 16.0,
@@ -389,7 +391,7 @@
       "max": 1.0,
       "min": 0.0,
       "p01": 0.0,
-      "p99": 0.9970364202534409
+      "p99": 0.9953230944171912
     },
     "segment_code": {
       "max": 4.0,
@@ -403,11 +405,17 @@
       "p01": 1.0,
       "p99": 3.0
     },
+    "ttc_pd_pct": {
+      "max": 100.0,
+      "min": 0.01,
+      "p01": 0.02,
+      "p99": 100.0
+    },
     "undrawn_share": {
-      "max": 2.3791917454858127,
+      "max": 2.378702731092437,
       "min": 0.0,
-      "p01": 0.0,
-      "p99": 1.4644550729815395
+      "p01": 0.004261508819202013,
+      "p99": 1.445360014768956
     },
     "watchlist_flag": {
       "max": 1.0,
@@ -416,679 +424,685 @@
       "p99": 1.0
     }
   },
-  "reason": "Carries the stage-design study and the out-of-time per-Stage metrics",
+  "reason": "The only model fitted on the current book.",
   "rows": {
-    "out_of_time": 6361,
-    "train": 31942,
-    "validation": 12762
+    "out_of_time": 6496,
+    "train": 33264,
+    "validation": 13120
   },
   "seed": 20260906,
   "shap": {
-    "base_value": 0.02731922,
+    "base_value": 0.05198934,
     "features": [
       {
         "feature": "pd_lifetime",
-        "mean_abs_shap": 0.0236785,
-        "mean_value": 10.572997,
-        "share_pct": 39.8032
-      },
-      {
-        "feature": "pd_12m",
-        "mean_abs_shap": 0.01852908,
-        "mean_value": 3.536228,
-        "share_pct": 31.1471
-      },
-      {
-        "feature": "stage",
-        "mean_abs_shap": 0.00834806,
-        "mean_value": 1.309,
-        "share_pct": 14.0329
+        "mean_abs_shap": 0.01772673,
+        "mean_value": 12.034616,
+        "share_pct": 43.7416
       },
       {
         "feature": "lgd",
-        "mean_abs_shap": 0.00582858,
-        "mean_value": 41.86096,
-        "share_pct": 9.7977
+        "mean_abs_shap": 0.01236699,
+        "mean_value": 48.7014,
+        "share_pct": 30.5162
       },
       {
-        "feature": "internal_rating_numeric",
-        "mean_abs_shap": 0.0013615,
-        "mean_value": 6.4685,
-        "share_pct": 2.2887
-      },
-      {
-        "feature": "pd_at_origination_pct",
-        "mean_abs_shap": 0.0003258,
-        "mean_value": 1.365488,
-        "share_pct": 0.5477
-      },
-      {
-        "feature": "current_dpd",
-        "mean_abs_shap": 0.00023957,
-        "mean_value": 12.503,
-        "share_pct": 0.4027
-      },
-      {
-        "feature": "watchlist_flag",
-        "mean_abs_shap": 0.00015843,
-        "mean_value": 0.2255,
-        "share_pct": 0.2663
-      },
-      {
-        "feature": "undrawn_share",
-        "mean_abs_shap": 0.00010235,
-        "mean_value": 0.4042,
-        "share_pct": 0.172
-      },
-      {
-        "feature": "rating_change_notches",
-        "mean_abs_shap": 8.077e-05,
-        "mean_value": -0.0915,
-        "share_pct": 0.1358
-      },
-      {
-        "feature": "drawn_share",
-        "mean_abs_shap": 7.564e-05,
-        "mean_value": 0.844326,
-        "share_pct": 0.1272
-      },
-      {
-        "feature": "dscr",
-        "mean_abs_shap": 7.439e-05,
-        "mean_value": 1.46394,
-        "share_pct": 0.125
-      },
-      {
-        "feature": "ebitda_margin",
-        "mean_abs_shap": 6.646e-05,
-        "mean_value": 20.55062,
-        "share_pct": 0.1117
-      },
-      {
-        "feature": "interest_coverage",
-        "mean_abs_shap": 6.551e-05,
-        "mean_value": 3.141555,
-        "share_pct": 0.1101
-      },
-      {
-        "feature": "max_dpd_12m",
-        "mean_abs_shap": 5.82e-05,
-        "mean_value": 26.1595,
-        "share_pct": 0.0978
-      },
-      {
-        "feature": "leverage",
-        "mean_abs_shap": 5.273e-05,
-        "mean_value": 4.37116,
-        "share_pct": 0.0886
-      },
-      {
-        "feature": "revenue_growth",
-        "mean_abs_shap": 5.094e-05,
-        "mean_value": 6.062955,
-        "share_pct": 0.0856
-      },
-      {
-        "feature": "ccf",
-        "mean_abs_shap": 5.006e-05,
-        "mean_value": 0.353006,
-        "share_pct": 0.0842
-      },
-      {
-        "feature": "log_ead",
-        "mean_abs_shap": 4.72e-05,
-        "mean_value": 5.309182,
-        "share_pct": 0.0793
-      },
-      {
-        "feature": "net_leverage",
-        "mean_abs_shap": 4.719e-05,
-        "mean_value": 3.70619,
-        "share_pct": 0.0793
-      },
-      {
-        "feature": "minimum_headroom_pct",
-        "mean_abs_shap": 4.169e-05,
-        "mean_value": 31.686405,
-        "share_pct": 0.0701
-      },
-      {
-        "feature": "collateral_coverage_pct",
-        "mean_abs_shap": 3.832e-05,
-        "mean_value": 73.456965,
-        "share_pct": 0.0644
-      },
-      {
-        "feature": "default_flag",
-        "mean_abs_shap": 3.829e-05,
-        "mean_value": 0.0465,
-        "share_pct": 0.0644
-      },
-      {
-        "feature": "secured_share",
-        "mean_abs_shap": 3.418e-05,
-        "mean_value": 0.477714,
-        "share_pct": 0.0575
-      },
-      {
-        "feature": "facility_count",
-        "mean_abs_shap": 1.974e-05,
-        "mean_value": 2.925,
-        "share_pct": 0.0332
+        "feature": "pd_12m",
+        "mean_abs_shap": 0.00545113,
+        "mean_value": 6.497688,
+        "share_pct": 13.4509
       },
       {
         "feature": "collateral_to_ead",
-        "mean_abs_shap": 1.614e-05,
-        "mean_value": 0.613359,
-        "share_pct": 0.0271
+        "mean_abs_shap": 0.0017238,
+        "mean_value": 0.623413,
+        "share_pct": 4.2536
       },
       {
-        "feature": "forbearance_flag",
-        "mean_abs_shap": 1.57e-05,
-        "mean_value": 0.037,
-        "share_pct": 0.0264
+        "feature": "ttc_pd_pct",
+        "mean_abs_shap": 0.00129688,
+        "mean_value": 5.486795,
+        "share_pct": 3.2001
       },
       {
-        "feature": "segment_code",
-        "mean_abs_shap": 1.472e-05,
-        "mean_value": 1.818,
-        "share_pct": 0.0248
+        "feature": "collateral_coverage_pct",
+        "mean_abs_shap": 0.00040227,
+        "mean_value": 74.438565,
+        "share_pct": 0.9926
+      },
+      {
+        "feature": "ebitda_margin",
+        "mean_abs_shap": 0.0001727,
+        "mean_value": 20.58766,
+        "share_pct": 0.4261
       },
       {
         "feature": "sector_code",
-        "mean_abs_shap": 1.298e-05,
-        "mean_value": 8.201,
-        "share_pct": 0.0218
+        "mean_abs_shap": 0.00014161,
+        "mean_value": 8.295,
+        "share_pct": 0.3494
       },
       {
-        "feature": "covenants_breached",
-        "mean_abs_shap": 1.073e-05,
-        "mean_value": 0.201,
-        "share_pct": 0.018
+        "feature": "pd_at_origination_pct",
+        "mean_abs_shap": 0.00011782,
+        "mean_value": 2.754617,
+        "share_pct": 0.2907
+      },
+      {
+        "feature": "ccf",
+        "mean_abs_shap": 0.00010982,
+        "mean_value": 0.354804,
+        "share_pct": 0.271
+      },
+      {
+        "feature": "secured_share",
+        "mean_abs_shap": 0.00010626,
+        "mean_value": 0.4885,
+        "share_pct": 0.2622
+      },
+      {
+        "feature": "drawn_share",
+        "mean_abs_shap": 9.99e-05,
+        "mean_value": 0.84852,
+        "share_pct": 0.2465
+      },
+      {
+        "feature": "revenue_growth",
+        "mean_abs_shap": 8.165e-05,
+        "mean_value": 6.13384,
+        "share_pct": 0.2015
+      },
+      {
+        "feature": "minimum_headroom_pct",
+        "mean_abs_shap": 7.066e-05,
+        "mean_value": 38.27309,
+        "share_pct": 0.1744
+      },
+      {
+        "feature": "interest_coverage",
+        "mean_abs_shap": 6.458e-05,
+        "mean_value": 3.130305,
+        "share_pct": 0.1594
+      },
+      {
+        "feature": "undrawn_share",
+        "mean_abs_shap": 6.24e-05,
+        "mean_value": 0.39337,
+        "share_pct": 0.154
+      },
+      {
+        "feature": "log_ead",
+        "mean_abs_shap": 6.118e-05,
+        "mean_value": 5.336675,
+        "share_pct": 0.151
+      },
+      {
+        "feature": "dscr",
+        "mean_abs_shap": 6.067e-05,
+        "mean_value": 1.46342,
+        "share_pct": 0.1497
+      },
+      {
+        "feature": "net_leverage",
+        "mean_abs_shap": 5.738e-05,
+        "mean_value": 3.69642,
+        "share_pct": 0.1416
+      },
+      {
+        "feature": "leverage",
+        "mean_abs_shap": 5.729e-05,
+        "mean_value": 4.357285,
+        "share_pct": 0.1414
+      },
+      {
+        "feature": "max_dpd_12m",
+        "mean_abs_shap": 5.696e-05,
+        "mean_value": 22.1775,
+        "share_pct": 0.1406
+      },
+      {
+        "feature": "current_dpd",
+        "mean_abs_shap": 5.004e-05,
+        "mean_value": 9.549,
+        "share_pct": 0.1235
+      },
+      {
+        "feature": "rating_change_notches",
+        "mean_abs_shap": 4.817e-05,
+        "mean_value": -0.011,
+        "share_pct": 0.1189
+      },
+      {
+        "feature": "segment_code",
+        "mean_abs_shap": 4.306e-05,
+        "mean_value": 1.784,
+        "share_pct": 0.1063
+      },
+      {
+        "feature": "facility_count",
+        "mean_abs_shap": 3.953e-05,
+        "mean_value": 3.102,
+        "share_pct": 0.0975
+      },
+      {
+        "feature": "internal_rating_numeric",
+        "mean_abs_shap": 3.392e-05,
+        "mean_value": 10.4605,
+        "share_pct": 0.0837
       },
       {
         "feature": "restructure_flag",
-        "mean_abs_shap": 5.56e-06,
-        "mean_value": 0.0405,
-        "share_pct": 0.0093
+        "mean_abs_shap": 1.392e-05,
+        "mean_value": 0.0345,
+        "share_pct": 0.0344
+      },
+      {
+        "feature": "covenants_breached",
+        "mean_abs_shap": 4.95e-06,
+        "mean_value": 0.2045,
+        "share_pct": 0.0122
+      },
+      {
+        "feature": "forbearance_flag",
+        "mean_abs_shap": 3.72e-06,
+        "mean_value": 0.0285,
+        "share_pct": 0.0092
+      },
+      {
+        "feature": "stage",
+        "mean_abs_shap": 0.0,
+        "mean_value": 1.2605,
+        "share_pct": 0.0
+      },
+      {
+        "feature": "watchlist_flag",
+        "mean_abs_shap": 0.0,
+        "mean_value": 0.5395,
+        "share_pct": 0.0
+      },
+      {
+        "feature": "default_flag",
+        "mean_abs_shap": 0.0,
+        "mean_value": 0.0345,
+        "share_pct": 0.0
       }
     ],
     "kind": "ml_shap",
     "method": "XGBoost native TreeSHAP (pred_contribs)",
     "note": "SHAP attributes this MODEL'S prediction to its inputs. It is not the exact Shapley decomposition of an ECL movement, which is a fact about the book rather than about the model.",
-    "rows_available": 12762,
+    "rows_available": 13120,
     "rows_sampled": 2000,
     "version": "1.0.0"
   },
   "slices": {
     "lgd_band": [
       {
-        "count": 1281,
-        "exposure": 518438.14,
-        "exposure_weighted_mae": 0.00093912,
+        "count": 1694,
+        "exposure": 742969.7100000001,
+        "exposure_weighted_mae": 0.00099251,
         "label": "under 30%",
-        "mae": 0.00109225,
-        "mean_actual": 0.02066606,
-        "mean_predicted": 0.02091667,
-        "r2": 0.993326,
-        "rmse": 0.00376172,
-        "wape": 5.2852
+        "mae": 0.00123744,
+        "mean_actual": 0.0216056,
+        "mean_predicted": 0.02191097,
+        "r2": 0.993746,
+        "rmse": 0.00412459,
+        "wape": 5.7274
       },
       {
-        "count": 6987,
-        "exposure": 2874302.5300000003,
-        "exposure_weighted_mae": 0.00078872,
+        "count": 3572,
+        "exposure": 1910039.0499999998,
+        "exposure_weighted_mae": 0.00135226,
         "label": "30 to 45%",
-        "mae": 0.00104637,
-        "mean_actual": 0.03473209,
-        "mean_predicted": 0.03482575,
-        "r2": 0.997562,
-        "rmse": 0.00378392,
-        "wape": 3.0127
+        "mae": 0.00139097,
+        "mean_actual": 0.03237717,
+        "mean_predicted": 0.03227807,
+        "r2": 0.996245,
+        "rmse": 0.00512532,
+        "wape": 4.2961
       },
       {
-        "count": 4213,
-        "exposure": 1728729.13,
-        "exposure_weighted_mae": 0.00114338,
+        "count": 4527,
+        "exposure": 1962560.52,
+        "exposure_weighted_mae": 0.00162252,
         "label": "45 to 60%",
-        "mae": 0.00156734,
-        "mean_actual": 0.05400976,
-        "mean_predicted": 0.05424391,
-        "r2": 0.997667,
-        "rmse": 0.00561899,
-        "wape": 2.902
+        "mae": 0.00193566,
+        "mean_actual": 0.05591411,
+        "mean_predicted": 0.05562615,
+        "r2": 0.997598,
+        "rmse": 0.00636834,
+        "wape": 3.4618
       },
       {
-        "count": 281,
-        "exposure": 105075.8,
-        "exposure_weighted_mae": 0.00298948,
+        "count": 3327,
+        "exposure": 1056833.7399999998,
+        "exposure_weighted_mae": 0.00296652,
         "label": "60% and above",
-        "mae": 0.00294653,
-        "mean_actual": 0.07826236,
-        "mean_predicted": 0.07794757,
-        "r2": 0.997338,
-        "rmse": 0.00807553,
-        "wape": 3.7649
+        "mae": 0.00343787,
+        "mean_actual": 0.11408834,
+        "mean_predicted": 0.1130876,
+        "r2": 0.997343,
+        "rmse": 0.01143008,
+        "wape": 3.0133
       }
     ],
     "out_of_time_period": [
       {
-        "count": 3187,
-        "exposure": 1313829.6600000001,
-        "exposure_weighted_mae": 0.00059557,
+        "count": 3252,
+        "exposure": 1414613.2000000002,
+        "exposure_weighted_mae": 0.00126658,
         "label": "Q1 2026",
-        "mae": 0.00085346,
-        "mean_actual": 0.02772872,
-        "mean_predicted": 0.02798221,
-        "r2": 0.998115,
-        "rmse": 0.0031557,
-        "wape": 3.0779
+        "mae": 0.00164471,
+        "mean_actual": 0.05002487,
+        "mean_predicted": 0.05004254,
+        "r2": 0.997689,
+        "rmse": 0.00656751,
+        "wape": 3.2878
       },
       {
-        "count": 3174,
-        "exposure": 1289599.4100000001,
-        "exposure_weighted_mae": 0.00088376,
+        "count": 3244,
+        "exposure": 1395030.7200000002,
+        "exposure_weighted_mae": 0.00134239,
         "label": "Q2 2026",
-        "mae": 0.00108773,
-        "mean_actual": 0.03383626,
-        "mean_predicted": 0.03392175,
-        "r2": 0.997286,
-        "rmse": 0.00437641,
-        "wape": 3.2147
+        "mae": 0.0017365,
+        "mean_actual": 0.05673986,
+        "mean_predicted": 0.05683057,
+        "r2": 0.998104,
+        "rmse": 0.00635907,
+        "wape": 3.0605
       }
     ],
     "out_of_time_stage": [
       {
-        "count": 5016,
-        "exposure": 2149033.31,
-        "exposure_weighted_mae": 0.00017893,
+        "count": 5070,
+        "exposure": 2314410.19,
+        "exposure_weighted_mae": 0.00021309,
         "label": "1",
-        "mae": 0.00022303,
-        "mean_actual": 0.00311095,
-        "mean_predicted": 0.00319396,
-        "r2": 0.90598,
-        "rmse": 0.00150742,
-        "wape": 7.1692
+        "mae": 0.00027368,
+        "mean_actual": 0.00360964,
+        "mean_predicted": 0.00369643,
+        "r2": 0.979503,
+        "rmse": 0.00078602,
+        "wape": 7.582
       },
       {
-        "count": 1069,
-        "exposure": 355011.79000000004,
-        "exposure_weighted_mae": 0.00309272,
+        "count": 1196,
+        "exposure": 411170.38,
+        "exposure_weighted_mae": 0.0050645,
         "label": "2",
-        "mae": 0.00341694,
-        "mean_actual": 0.12964051,
-        "mean_predicted": 0.1298103,
-        "r2": 0.995666,
-        "rmse": 0.00747913,
-        "wape": 2.6357
+        "mae": 0.00558541,
+        "mean_actual": 0.15742211,
+        "mean_predicted": 0.15682853,
+        "r2": 0.993134,
+        "rmse": 0.01222023,
+        "wape": 3.548
       },
       {
-        "count": 276,
-        "exposure": 99383.97,
-        "exposure_weighted_mae": 0.00442425,
+        "count": 230,
+        "exposure": 84063.35,
+        "exposure_weighted_mae": 0.01295257,
         "label": "3",
-        "mae": 0.00507607,
-        "mean_actual": 0.15064308,
-        "mean_predicted": 0.152387,
-        "r2": 0.997004,
-        "rmse": 0.00879191,
-        "wape": 3.3696
+        "mae": 0.01266993,
+        "mean_actual": 0.60942284,
+        "mean_predicted": 0.61212556,
+        "r2": 0.98749,
+        "rmse": 0.01974955,
+        "wape": 2.079
       }
     ],
     "pd_band": [
       {
-        "count": 5408,
-        "exposure": 2654067.1799999997,
-        "exposure_weighted_mae": 0.00011831,
+        "count": 4660,
+        "exposure": 2431880.46,
+        "exposure_weighted_mae": 0.00013249,
         "label": "0 to 0.5%",
-        "mae": 0.0001072,
-        "mean_actual": 0.00103185,
-        "mean_predicted": 0.0010678,
-        "r2": 0.864073,
-        "rmse": 0.00038622,
-        "wape": 10.3888
+        "mae": 0.0001517,
+        "mean_actual": 0.00124232,
+        "mean_predicted": 0.00118973,
+        "r2": 0.906841,
+        "rmse": 0.0003189,
+        "wape": 12.2108
       },
       {
-        "count": 3676,
-        "exposure": 1375676.01,
-        "exposure_weighted_mae": 0.0002819,
+        "count": 4028,
+        "exposure": 1671805.5500000003,
+        "exposure_weighted_mae": 0.00037576,
         "label": "0.5 to 2%",
-        "mae": 0.0002872,
-        "mean_actual": 0.00621572,
-        "mean_predicted": 0.00620991,
-        "r2": 0.988072,
-        "rmse": 0.00064185,
-        "wape": 4.6205
+        "mae": 0.00041439,
+        "mean_actual": 0.00661319,
+        "mean_predicted": 0.00647422,
+        "r2": 0.980398,
+        "rmse": 0.00075165,
+        "wape": 6.2661
       },
       {
-        "count": 1699,
-        "exposure": 582137.27,
-        "exposure_weighted_mae": 0.00144245,
+        "count": 2026,
+        "exposure": 756930.46,
+        "exposure_weighted_mae": 0.00177494,
         "label": "2 to 5%",
-        "mae": 0.00141338,
-        "mean_actual": 0.04026427,
-        "mean_predicted": 0.04033645,
-        "r2": 0.992114,
-        "rmse": 0.0025329,
-        "wape": 3.5103
+        "mae": 0.00168022,
+        "mean_actual": 0.03327661,
+        "mean_predicted": 0.03328798,
+        "r2": 0.991697,
+        "rmse": 0.0025872,
+        "wape": 5.0492
       },
       {
-        "count": 1116,
-        "exposure": 363941.94,
-        "exposure_weighted_mae": 0.00410089,
+        "count": 1200,
+        "exposure": 414037.77,
+        "exposure_weighted_mae": 0.00432664,
         "label": "5 to 13%",
-        "mae": 0.00376959,
-        "mean_actual": 0.1226455,
-        "mean_predicted": 0.12286898,
-        "r2": 0.98289,
-        "rmse": 0.00692037,
-        "wape": 3.0736
+        "mae": 0.0045816,
+        "mean_actual": 0.11083648,
+        "mean_predicted": 0.10951779,
+        "r2": 0.98867,
+        "rmse": 0.00750896,
+        "wape": 4.1337
       },
       {
-        "count": 863,
-        "exposure": 250723.19999999998,
-        "exposure_weighted_mae": 0.00801927,
+        "count": 1206,
+        "exposure": 397748.78,
+        "exposure_weighted_mae": 0.0139646,
         "label": "13% and above",
-        "mae": 0.0091514,
-        "mean_actual": 0.33020923,
-        "mean_predicted": 0.33174843,
-        "r2": 0.98337,
-        "rmse": 0.0153311,
-        "wape": 2.7714
+        "mae": 0.01325637,
+        "mean_actual": 0.45779174,
+        "mean_predicted": 0.45604589,
+        "r2": 0.987829,
+        "rmse": 0.02333931,
+        "wape": 2.8957
       }
     ],
     "period": [
       {
-        "count": 3204,
-        "exposure": 1316135.15,
-        "exposure_weighted_mae": 0.00139175,
+        "count": 3310,
+        "exposure": 1435306.35,
+        "exposure_weighted_mae": 0.00241335,
         "label": "Q1 2025",
-        "mae": 0.00174448,
-        "mean_actual": 0.05676898,
-        "mean_predicted": 0.05698268,
-        "r2": 0.997125,
-        "rmse": 0.00595801,
-        "wape": 3.0729
+        "mae": 0.00291259,
+        "mean_actual": 0.07227657,
+        "mean_predicted": 0.0712901,
+        "r2": 0.996784,
+        "rmse": 0.00893002,
+        "wape": 4.0298
       },
       {
-        "count": 3192,
-        "exposure": 1305928.78,
-        "exposure_weighted_mae": 0.00095602,
+        "count": 3285,
+        "exposure": 1418534.0499999998,
+        "exposure_weighted_mae": 0.00167325,
         "label": "Q2 2025",
-        "mae": 0.00122353,
-        "mean_actual": 0.04131139,
-        "mean_predicted": 0.04155527,
-        "r2": 0.998153,
-        "rmse": 0.00404908,
-        "wape": 2.9617
+        "mae": 0.00183345,
+        "mean_actual": 0.05922659,
+        "mean_predicted": 0.0589799,
+        "r2": 0.998006,
+        "rmse": 0.00651504,
+        "wape": 3.0957
       },
       {
-        "count": 3188,
-        "exposure": 1300909.05,
-        "exposure_weighted_mae": 0.00069036,
+        "count": 3271,
+        "exposure": 1410319.23,
+        "exposure_weighted_mae": 0.00142824,
         "label": "Q3 2025",
-        "mae": 0.00104859,
-        "mean_actual": 0.03229006,
-        "mean_predicted": 0.0322975,
-        "r2": 0.997353,
-        "rmse": 0.00406533,
-        "wape": 3.2474
+        "mae": 0.0019516,
+        "mean_actual": 0.05385952,
+        "mean_predicted": 0.05373123,
+        "r2": 0.996516,
+        "rmse": 0.00842151,
+        "wape": 3.6235
       },
       {
-        "count": 3178,
-        "exposure": 1303572.62,
-        "exposure_weighted_mae": 0.00081798,
+        "count": 3254,
+        "exposure": 1408243.3900000001,
+        "exposure_weighted_mae": 0.00126964,
         "label": "Q4 2025",
-        "mae": 0.00103952,
-        "mean_actual": 0.03209148,
-        "mean_predicted": 0.0322131,
-        "r2": 0.997519,
-        "rmse": 0.00399629,
-        "wape": 3.2393
+        "mae": 0.00160358,
+        "mean_actual": 0.05377287,
+        "mean_predicted": 0.0537807,
+        "r2": 0.998385,
+        "rmse": 0.00569488,
+        "wape": 2.9821
       }
     ],
     "sector": [
       {
-        "count": 510,
-        "exposure": 92796.76,
-        "exposure_weighted_mae": 0.00074292,
+        "count": 524,
+        "exposure": 98387.02,
+        "exposure_weighted_mae": 0.00146488,
         "label": "Agriculture & Food",
-        "mae": 0.0005648,
-        "mean_actual": 0.0200649,
-        "mean_predicted": 0.02015301,
-        "r2": 0.998482,
-        "rmse": 0.00158504,
-        "wape": 2.8149
+        "mae": 0.00144521,
+        "mean_actual": 0.03485622,
+        "mean_predicted": 0.03509546,
+        "r2": 0.998018,
+        "rmse": 0.00432853,
+        "wape": 4.1462
       },
       {
-        "count": 1257,
-        "exposure": 312847.9,
-        "exposure_weighted_mae": 0.00367402,
+        "count": 1289,
+        "exposure": 338044.48,
+        "exposure_weighted_mae": 0.00552317,
         "label": "Contracting",
-        "mae": 0.00354325,
-        "mean_actual": 0.12125139,
-        "mean_predicted": 0.12165274,
-        "r2": 0.996985,
-        "rmse": 0.00867738,
-        "wape": 2.9222
+        "mae": 0.00559449,
+        "mean_actual": 0.16942466,
+        "mean_predicted": 0.16793667,
+        "r2": 0.996267,
+        "rmse": 0.01447408,
+        "wape": 3.3021
       },
       {
-        "count": 251,
-        "exposure": 23818.43,
-        "exposure_weighted_mae": 0.0002373,
+        "count": 255,
+        "exposure": 25033.85,
+        "exposure_weighted_mae": 0.00035082,
         "label": "Education",
-        "mae": 0.00016904,
-        "mean_actual": 0.00385255,
-        "mean_predicted": 0.00381882,
-        "r2": 0.996084,
-        "rmse": 0.00053553,
-        "wape": 4.3877
+        "mae": 0.00052761,
+        "mean_actual": 0.01398077,
+        "mean_predicted": 0.01398463,
+        "r2": 0.999284,
+        "rmse": 0.00178003,
+        "wape": 3.7738
       },
       {
-        "count": 901,
-        "exposure": 301121.12,
-        "exposure_weighted_mae": 0.00024279,
+        "count": 938,
+        "exposure": 336264.12,
+        "exposure_weighted_mae": 0.00093871,
         "label": "Financial Services",
-        "mae": 0.0002729,
-        "mean_actual": 0.00560642,
-        "mean_predicted": 0.00566025,
-        "r2": 0.99603,
-        "rmse": 0.00093939,
-        "wape": 4.8677
+        "mae": 0.00100972,
+        "mean_actual": 0.01894474,
+        "mean_predicted": 0.01833413,
+        "r2": 0.993972,
+        "rmse": 0.00714403,
+        "wape": 5.3298
       },
       {
-        "count": 735,
-        "exposure": 661552.22,
-        "exposure_weighted_mae": 0.00014272,
+        "count": 749,
+        "exposure": 710729.53,
+        "exposure_weighted_mae": 0.00114238,
         "label": "Government-Related Entities",
-        "mae": 8.321e-05,
-        "mean_actual": 0.00044712,
-        "mean_predicted": 0.00047055,
-        "r2": 0.57618,
-        "rmse": 0.00025607,
-        "wape": 18.6094
+        "mae": 0.00027186,
+        "mean_actual": 0.00296966,
+        "mean_predicted": 0.00281179,
+        "r2": 0.989246,
+        "rmse": 0.0032579,
+        "wape": 9.1547
       },
       {
-        "count": 579,
-        "exposure": 93048.19,
-        "exposure_weighted_mae": 0.00023451,
+        "count": 605,
+        "exposure": 103863.87000000001,
+        "exposure_weighted_mae": 0.00089104,
         "label": "Healthcare",
-        "mae": 0.00015421,
-        "mean_actual": 0.00376704,
-        "mean_predicted": 0.00374837,
-        "r2": 0.996871,
-        "rmse": 0.00047799,
-        "wape": 4.0938
+        "mae": 0.0004975,
+        "mean_actual": 0.00791208,
+        "mean_predicted": 0.00765101,
+        "r2": 0.98789,
+        "rmse": 0.00399492,
+        "wape": 6.2878
       },
       {
-        "count": 421,
-        "exposure": 44934.310000000005,
-        "exposure_weighted_mae": 0.00284167,
+        "count": 432,
+        "exposure": 49260.76,
+        "exposure_weighted_mae": 0.0046836,
         "label": "Hospitality & Tourism",
-        "mae": 0.00292218,
-        "mean_actual": 0.08966942,
-        "mean_predicted": 0.08981513,
-        "r2": 0.995046,
-        "rmse": 0.00940136,
-        "wape": 3.2588
+        "mae": 0.00400839,
+        "mean_actual": 0.14922273,
+        "mean_predicted": 0.14864947,
+        "r2": 0.998279,
+        "rmse": 0.00937663,
+        "wape": 2.6862
       },
       {
-        "count": 1120,
-        "exposure": 392587.27,
-        "exposure_weighted_mae": 0.00094055,
+        "count": 1157,
+        "exposure": 429531.9,
+        "exposure_weighted_mae": 0.00175999,
         "label": "Manufacturing",
-        "mae": 0.00100505,
-        "mean_actual": 0.03347618,
-        "mean_predicted": 0.03358606,
-        "r2": 0.997618,
-        "rmse": 0.00280948,
-        "wape": 3.0023
+        "mae": 0.00178524,
+        "mean_actual": 0.05206059,
+        "mean_predicted": 0.05219211,
+        "r2": 0.998363,
+        "rmse": 0.00492828,
+        "wape": 3.4292
       },
       {
-        "count": 576,
-        "exposure": 257707.5,
-        "exposure_weighted_mae": 0.00156869,
+        "count": 591,
+        "exposure": 271800.5,
+        "exposure_weighted_mae": 0.00296626,
         "label": "Mining & Metals",
-        "mae": 0.00130731,
-        "mean_actual": 0.04897327,
-        "mean_predicted": 0.04919368,
-        "r2": 0.998271,
-        "rmse": 0.00389387,
-        "wape": 2.6694
+        "mae": 0.00230862,
+        "mean_actual": 0.06584896,
+        "mean_predicted": 0.0653894,
+        "r2": 0.996976,
+        "rmse": 0.00770312,
+        "wape": 3.5059
       },
       {
-        "count": 771,
-        "exposure": 763687.56,
-        "exposure_weighted_mae": 0.00061431,
+        "count": 800,
+        "exposure": 828907.76,
+        "exposure_weighted_mae": 0.00091775,
         "label": "Oil & Gas",
-        "mae": 0.00051824,
-        "mean_actual": 0.01463898,
-        "mean_predicted": 0.0146758,
-        "r2": 0.9969,
-        "rmse": 0.00206952,
-        "wape": 3.5401
+        "mae": 0.00110875,
+        "mean_actual": 0.0262472,
+        "mean_predicted": 0.02605861,
+        "r2": 0.995101,
+        "rmse": 0.00620367,
+        "wape": 4.2242
       },
       {
-        "count": 894,
-        "exposure": 760271.95,
-        "exposure_weighted_mae": 0.00066641,
+        "count": 924,
+        "exposure": 849881.26,
+        "exposure_weighted_mae": 0.00086378,
         "label": "Petrochemicals",
-        "mae": 0.00046032,
-        "mean_actual": 0.01475305,
-        "mean_predicted": 0.01484023,
-        "r2": 0.997758,
-        "rmse": 0.00187255,
-        "wape": 3.1202
+        "mae": 0.00083885,
+        "mean_actual": 0.01783574,
+        "mean_predicted": 0.01786998,
+        "r2": 0.997875,
+        "rmse": 0.0025789,
+        "wape": 4.7032
       },
       {
-        "count": 1369,
-        "exposure": 336991.63,
-        "exposure_weighted_mae": 0.00231252,
+        "count": 1409,
+        "exposure": 366218.30000000005,
+        "exposure_weighted_mae": 0.00349608,
         "label": "Real Estate",
-        "mae": 0.00223392,
-        "mean_actual": 0.0708857,
-        "mean_predicted": 0.07109717,
-        "r2": 0.997298,
-        "rmse": 0.00596369,
-        "wape": 3.1514
+        "mae": 0.00333697,
+        "mean_actual": 0.09508689,
+        "mean_predicted": 0.09458168,
+        "r2": 0.997505,
+        "rmse": 0.0085791,
+        "wape": 3.5094
       },
       {
-        "count": 466,
-        "exposure": 111641.9,
-        "exposure_weighted_mae": 0.0028468,
+        "count": 476,
+        "exposure": 123082.78,
+        "exposure_weighted_mae": 0.00357082,
         "label": "Shipping",
-        "mae": 0.00345698,
-        "mean_actual": 0.10683921,
-        "mean_predicted": 0.10723882,
-        "r2": 0.996356,
-        "rmse": 0.00900543,
-        "wape": 3.2357
+        "mae": 0.00378274,
+        "mean_actual": 0.12627013,
+        "mean_predicted": 0.12496026,
+        "r2": 0.996444,
+        "rmse": 0.01230251,
+        "wape": 2.9958
       },
       {
-        "count": 359,
-        "exposure": 257384.09000000003,
-        "exposure_weighted_mae": 9.37e-05,
+        "count": 363,
+        "exposure": 264929.18000000005,
+        "exposure_weighted_mae": 0.0003448,
         "label": "Telecommunications",
-        "mae": 0.00012397,
-        "mean_actual": 0.00247811,
-        "mean_predicted": 0.00242567,
-        "r2": 0.994475,
-        "rmse": 0.0004252,
-        "wape": 5.0027
+        "mae": 0.00027305,
+        "mean_actual": 0.00414423,
+        "mean_predicted": 0.00412194,
+        "r2": 0.996048,
+        "rmse": 0.0005825,
+        "wape": 6.5888
       },
       {
-        "count": 757,
-        "exposure": 146486.72,
-        "exposure_weighted_mae": 0.0010003,
+        "count": 769,
+        "exposure": 157392.93,
+        "exposure_weighted_mae": 0.00135404,
         "label": "Transport & Logistics",
-        "mae": 0.00105413,
-        "mean_actual": 0.03072181,
-        "mean_predicted": 0.03069066,
-        "r2": 0.996682,
-        "rmse": 0.00362153,
-        "wape": 3.4312
+        "mae": 0.00164953,
+        "mean_actual": 0.04602037,
+        "mean_predicted": 0.04605444,
+        "r2": 0.998498,
+        "rmse": 0.00419816,
+        "wape": 3.5844
       },
       {
-        "count": 654,
-        "exposure": 338285.1,
-        "exposure_weighted_mae": 7.944e-05,
+        "count": 671,
+        "exposure": 357852.82,
+        "exposure_weighted_mae": 0.00017615,
         "label": "Utilities",
-        "mae": 8.554e-05,
-        "mean_actual": 0.00096573,
-        "mean_predicted": 0.00098724,
-        "r2": 0.935216,
-        "rmse": 0.00028174,
-        "wape": 8.8579
+        "mae": 0.00023875,
+        "mean_actual": 0.00354679,
+        "mean_predicted": 0.00358828,
+        "r2": 0.996177,
+        "rmse": 0.00200667,
+        "wape": 6.7313
       },
       {
-        "count": 1142,
-        "exposure": 331382.94999999995,
-        "exposure_weighted_mae": 0.00138696,
+        "count": 1168,
+        "exposure": 361221.95999999996,
+        "exposure_weighted_mae": 0.00283616,
         "label": "Wholesale & Retail Trade",
-        "mae": 0.00128988,
-        "mean_actual": 0.04200622,
-        "mean_predicted": 0.04236738,
-        "r2": 0.998141,
-        "rmse": 0.00359821,
-        "wape": 3.0707
+        "mae": 0.00244573,
+        "mean_actual": 0.07320022,
+        "mean_predicted": 0.07315446,
+        "r2": 0.997823,
+        "rmse": 0.00743407,
+        "wape": 3.3412
       }
     ],
     "stage": [
       {
-        "count": 9493,
-        "exposure": 4102392.1799999997,
-        "exposure_weighted_mae": 0.00018008,
+        "count": 10068,
+        "exposure": 4556977.73,
+        "exposure_weighted_mae": 0.00036385,
         "label": "1",
-        "mae": 0.00021661,
-        "mean_actual": 0.00363777,
-        "mean_predicted": 0.00368285,
-        "r2": 0.966564,
-        "rmse": 0.00096632,
-        "wape": 5.9545
+        "mae": 0.00045293,
+        "mean_actual": 0.00638345,
+        "mean_predicted": 0.00618416,
+        "r2": 0.985907,
+        "rmse": 0.00116483,
+        "wape": 7.0955
       },
       {
-        "count": 2639,
-        "exposure": 906119.14,
-        "exposure_weighted_mae": 0.00350624,
+        "count": 2549,
+        "exposure": 928306.11,
+        "exposure_weighted_mae": 0.00500457,
         "label": "2",
-        "mae": 0.00385885,
-        "mean_actual": 0.13759687,
-        "mean_predicted": 0.13788195,
-        "r2": 0.995501,
-        "rmse": 0.00789446,
-        "wape": 2.8045
+        "mae": 0.00565507,
+        "mean_actual": 0.15998312,
+        "mean_predicted": 0.15968357,
+        "r2": 0.995078,
+        "rmse": 0.01032578,
+        "wape": 3.5348
       },
       {
-        "count": 630,
-        "exposure": 218034.27999999997,
-        "exposure_weighted_mae": 0.00517699,
+        "count": 503,
+        "exposure": 187119.18,
+        "exposure_weighted_mae": 0.01782754,
         "label": "3",
-        "mae": 0.00619288,
-        "mean_actual": 0.19211059,
-        "mean_predicted": 0.1932108,
-        "r2": 0.995301,
-        "rmse": 0.01235562,
-        "wape": 3.2236
+        "mae": 0.01648189,
+        "mean_actual": 0.62202916,
+        "mean_predicted": 0.61864987,
+        "r2": 0.969945,
+        "rmse": 0.03009162,
+        "wape": 2.6497
       }
     ]
   },
@@ -1122,151 +1136,151 @@
   "stage_study": {
     "available": true,
     "because": [
-      "A Stage 1 to Stage 2 crossing is worth 4.07x on the governed measurement. The single stage-aware model reproduces it at 4.09x (+0.4%); separate models jump 4.38x (+7.7%), because two models fitted apart do not share a calibration level and the difference lands on exactly the borrowers a scenario moves.",
-      "Book level, out of time: r2 0.997645 vs 0.997522 (single); rmse 0.00381396 vs 0.00391252 (single); exposure_weighted_mae 0.00073832 vs 0.00077104 (single); wape 3.1529 vs 3.1499 (separate)."
+      "A Stage 1 to Stage 2 crossing is worth 4.08x on the governed measurement. The single stage-aware model reproduces it at 4.05x (+0.7%); separate models jump 4.09x (+0.1%), because two models fitted apart do not share a calibration level and the difference lands on exactly the borrowers a scenario moves.",
+      "Book level, out of time: r2 0.997911 vs 0.997889 (single); rmse 0.00646426 vs 0.00649928 (single); exposure_weighted_mae 0.00130422 vs 0.00113362 (separate); wape 3.1671 vs 2.795 (separate)."
     ],
     "boundary": {
       "available": true,
-      "challenger_step": 4.383255481719971,
-      "challenger_step_error_pct": 7.695442365651162,
-      "champion_step": 4.085192680358887,
-      "champion_step_error_pct": 0.3721171843566351,
-      "governed_step": 4.070047334814593,
-      "rows": 5016
+      "challenger_step": 4.087299823760986,
+      "challenger_step_error_pct": 0.06620843240121577,
+      "champion_step": 4.0547027587890625,
+      "champion_step_error_pct": -0.7318403622584291,
+      "governed_step": 4.08459547712565,
+      "rows": 5070
     },
     "challenger_book": {
-      "count": 6361,
-      "exposure_weighted_mae": 0.00077104,
-      "mae": 0.00096942,
-      "mean_actual": 0.03077625,
-      "mean_predicted": 0.03098867,
-      "r2": 0.997522,
-      "rmse": 0.00391252,
-      "wape": 3.1499
+      "count": 6496,
+      "exposure_weighted_mae": 0.00113362,
+      "mae": 0.00149191,
+      "mean_actual": 0.05337823,
+      "mean_predicted": 0.0533642,
+      "r2": 0.997889,
+      "rmse": 0.00649928,
+      "wape": 2.795
     },
     "challenger_by_stage": {
       "1": {
-        "count": 5016,
-        "exposure_weighted_mae": 9.026e-05,
+        "count": 5070,
+        "exposure_weighted_mae": 0.00010214,
         "fitted": true,
-        "mae": 0.00011724,
-        "mean_actual": 0.00311095,
-        "mean_predicted": 0.00311181,
-        "r2": 0.982132,
-        "rmse": 0.00065715,
-        "training_rows": 27065,
-        "wape": 3.7686
+        "mae": 0.00013096,
+        "mean_actual": 0.00360964,
+        "mean_predicted": 0.00364783,
+        "r2": 0.989124,
+        "rmse": 0.00057256,
+        "training_rows": 27354,
+        "wape": 3.6281
       },
       "2": {
-        "count": 1069,
-        "exposure_weighted_mae": 0.00315691,
+        "count": 1196,
+        "exposure_weighted_mae": 0.00454377,
         "fitted": true,
-        "mae": 0.00329909,
-        "mean_actual": 0.12964051,
-        "mean_predicted": 0.13003221,
-        "r2": 0.995584,
-        "rmse": 0.00754945,
-        "training_rows": 5235,
-        "wape": 2.5448
+        "mae": 0.00512669,
+        "mean_actual": 0.15742211,
+        "mean_predicted": 0.15662775,
+        "r2": 0.992871,
+        "rmse": 0.0124525,
+        "training_rows": 5251,
+        "wape": 3.2567
       },
       "3": {
-        "count": 276,
-        "exposure_weighted_mae": 0.00696911,
+        "count": 230,
+        "exposure_weighted_mae": 0.01285248,
         "fitted": true,
-        "mae": 0.00743361,
-        "mean_actual": 0.15064308,
-        "mean_predicted": 0.15400607,
-        "r2": 0.995186,
-        "rmse": 0.01114462,
-        "training_rows": 964,
-        "wape": 4.9346
+        "mae": 0.01259106,
+        "mean_actual": 0.60942284,
+        "mean_predicted": 0.61231552,
+        "r2": 0.98783,
+        "rmse": 0.01947972,
+        "training_rows": 659,
+        "wape": 2.0661
       }
     },
     "champion_book": {
-      "count": 6361,
-      "exposure_weighted_mae": 0.00073832,
-      "mae": 0.00097035,
-      "mean_actual": 0.03077625,
-      "mean_predicted": 0.03094591,
-      "r2": 0.997645,
-      "rmse": 0.00381396,
-      "wape": 3.1529
+      "count": 6496,
+      "exposure_weighted_mae": 0.00130422,
+      "mae": 0.00169055,
+      "mean_actual": 0.05337823,
+      "mean_predicted": 0.05343238,
+      "r2": 0.997911,
+      "rmse": 0.00646426,
+      "wape": 3.1671
     },
     "champion_by_stage": {
       "1": {
         "champion": {
-          "count": 5016,
-          "exposure_weighted_mae": 0.00017893,
-          "mae": 0.00022303,
-          "mean_actual": 0.00311095,
-          "mean_predicted": 0.00319396,
-          "r2": 0.90598,
-          "rmse": 0.00150742,
-          "wape": 7.1692
+          "count": 5070,
+          "exposure_weighted_mae": 0.00021309,
+          "mae": 0.00027368,
+          "mean_actual": 0.00360964,
+          "mean_predicted": 0.00369643,
+          "r2": 0.979503,
+          "rmse": 0.00078602,
+          "wape": 7.582
         },
-        "ecl": 5364.267,
-        "exposure": 2149033.31,
-        "rows": 5016
+        "ecl": 6633.087399999999,
+        "exposure": 2314410.19,
+        "rows": 5070
       },
       "2": {
         "champion": {
-          "count": 1069,
-          "exposure_weighted_mae": 0.00309272,
-          "mae": 0.00341694,
-          "mean_actual": 0.12964051,
-          "mean_predicted": 0.1298103,
-          "r2": 0.995666,
-          "rmse": 0.00747913,
-          "wape": 2.6357
+          "count": 1196,
+          "exposure_weighted_mae": 0.0050645,
+          "mae": 0.00558541,
+          "mean_actual": 0.15742211,
+          "mean_predicted": 0.15682853,
+          "r2": 0.993134,
+          "rmse": 0.01222023,
+          "wape": 3.548
         },
-        "ecl": 40644.0306,
-        "exposure": 355011.79000000004,
-        "rows": 1069
+        "ecl": 56868.3297,
+        "exposure": 411170.38,
+        "rows": 1196
       },
       "3": {
         "champion": {
-          "count": 276,
-          "exposure_weighted_mae": 0.00442425,
-          "mae": 0.00507607,
-          "mean_actual": 0.15064308,
-          "mean_predicted": 0.152387,
-          "r2": 0.997004,
-          "rmse": 0.00879191,
-          "wape": 3.3696
+          "count": 230,
+          "exposure_weighted_mae": 0.01295257,
+          "mae": 0.01266993,
+          "mean_actual": 0.60942284,
+          "mean_predicted": 0.61212556,
+          "r2": 0.98749,
+          "rmse": 0.01974955,
+          "wape": 2.079
         },
-        "ecl": 11425.2365,
-        "exposure": 99383.97,
-        "rows": 276
+        "ecl": 49053.0558,
+        "exposure": 84063.35,
+        "rows": 230
       }
     },
-    "chosen": "One model with Stage as a feature.",
-    "design": "single_stage_aware"
+    "chosen": "One model per Stage.",
+    "design": "per_stage"
   },
   "state": "ACTIVE",
   "target": "ecl_rate",
   "target_definition": "final_ecl / ead \u2014 the reported ECL over the exposure it is held against. This is the ratio the book itself reports as ecl_coverage, expressed as a fraction.",
   "training": {
-    "count": 31942,
+    "count": 33264,
     "exposure_weighted_mae": null,
-    "mae": 0.00057298,
-    "mean_actual": 0.02736647,
-    "mean_predicted": 0.02736524,
-    "r2": 0.999303,
-    "rmse": 0.00197522,
-    "wape": 2.0937
+    "mae": 0.00047549,
+    "mean_actual": 0.0383698,
+    "mean_predicted": 0.03836893,
+    "r2": 0.999783,
+    "rmse": 0.00167193,
+    "wape": 1.2392
   },
   "validation": {
-    "count": 12762,
-    "exposure_weighted_mae": 0.00096519,
-    "mae": 0.0012648,
-    "mean_actual": 0.04064262,
-    "mean_predicted": 0.04078942,
-    "r2": 0.99754,
-    "rmse": 0.00459545,
-    "wape": 3.112
+    "count": 13120,
+    "exposure_weighted_mae": 0.00143222,
+    "mae": 0.00179632,
+    "mean_actual": 0.05982822,
+    "mean_predicted": 0.05963371,
+    "r2": 0.997528,
+    "rmse": 0.00732297,
+    "wape": 3.0025
   },
   "version": "2026.09.07",
   "warnings": [
-    "1,322 training row(s) had no exposure and therefore no ECL rate. They were dropped."
+    "Served as one model per Stage. Both designs were fitted and scored on the same out-of-time quarters; the per-Stage design won, and the figures that decided it are on the card."
   ]
 }

@@ -175,8 +175,15 @@ def _instructs(text: str, pattern: re.Pattern[str]) -> bool:
 #: Verbs that can only mean a credit move. "Downgrade the BBB names" is a
 #: scenario with or without a notch count, so these open a What-If on their own
 #: and the product asks how far.
+#: "worsen" and "deteriorate" sit here rather than in `_OPENS_WHATIF`, and the
+#: difference is the participle. "Worsen the macro outlook" is an instruction;
+#: "show me the top ten DETERIORATING borrowers" is a screening question about
+#: what the book already did, and putting the word in the unconditional list
+#: turned that question into a scenario. `_instructs` is what tells them apart,
+#: so the verbs belong where it is consulted.
 _CREDIT_MOVE = re.compile(
-    r"\b(?:downgrade[sd]?|upgrade[sd]?|cure[sd]?|migrate[sd]?)\b",
+    r"\b(?:downgrade[sd]?|upgrade[sd]?|cure[sd]?|migrate[sd]?"
+    r"|worsen(?:s|ed)?|deteriorate[sd]?)\b",
     re.IGNORECASE)
 
 #: Verbs that move SOMETHING, but not necessarily a risk parameter. "Add their
@@ -532,6 +539,30 @@ def _population(text: str) -> tuple[sc.Population, list[str]]:
                          top_n=top_n, top_by=top_by), notes
 
 
+#: Words that name a DIFFERENT BOOK. This engine reads Corporate IFRS 9 and
+#: nothing else, and the corporate sector names share words with the retail and
+#: SME books: "downgrade the retail mortgage book by two notches" resolved
+#: "retail" to the Wholesale & Retail Trade SECTOR and priced a corporate
+#: scenario, which is a wrong answer wearing the shape of a right one.
+#:
+#: Matched before any sector is read, so a question about another book is
+#: refused rather than mapped.
+_ANOTHER_BOOK = re.compile(
+    r"\bretail\s+(?:mortgage|loan|book|portfolio|customer|lending|banking)"
+    r"|\bmortgage\b|\bcredit\s+card\b|\bcards?\s+book\b"
+    r"|\bpersonal\s+loan|\bauto\s+loan|\bconsumer\s+(?:loan|book|lending)"
+    r"|\bsme\s+(?:book|portfolio|scorecard|customer)|\bmicrofinance\b"
+    r"|\bapplication\s+scorecard|\bbehavioural?\s+scorecard",
+    re.IGNORECASE)
+
+OTHER_BOOK_NOTE = (
+    "That names a different book. What-If Analysis reads the Corporate IFRS 9 "
+    "domain only, and the retail, SME and card books are measured on their own "
+    "scales, their own staging rules and their own models. Answering from the "
+    "corporate book because the words overlap would give you a confident "
+    "number about the wrong portfolio.")
+
+
 #: "Move half the Stage 1 borrowers to Stage 2", "Stage 2 to Stage 3",
 #: "move 30% of Stage 2 back to Stage 1".
 _STAGE_MOVE = re.compile(
@@ -813,6 +844,8 @@ def read(question: str) -> Reading:
     if reports:
         return Reading(notes=["Read as a question about what the book already "
                               "did, not as a What-If."])
+    if _ANOTHER_BOOK.search(said):
+        return Reading(notes=[OTHER_BOOK_NOTE], unread=[said])
     reading = Reading(is_scenario_question=is_scenario or continues or opens,
                       continues_previous=continues and not is_scenario,
                       opens_whatif=opens)

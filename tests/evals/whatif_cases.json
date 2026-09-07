@@ -1,0 +1,505 @@
+{
+ "version": 1,
+ "note": "What-If evaluation cases. `intent` is what the thread must READ the message as, and it decides whether the scenario state may be touched at all. Everything else is what the deterministic readers must extract. No case here needs a language model: the whole point of the classifier and the scenario reader is that the same sentence always produces the same reading.",
+ "cases": [
+  {
+   "question": "Why did the ECL increase?",
+   "intent": "explain",
+   "topic": "",
+   "changes_state": false
+  },
+  {
+   "question": "Why did expected credit loss go up so much?",
+   "intent": "explain",
+   "topic": "",
+   "changes_state": false
+  },
+  {
+   "question": "What caused the provision to rise?",
+   "intent": "explain",
+   "topic": "",
+   "changes_state": false
+  },
+  {
+   "question": "What drove the change in ECL?",
+   "intent": "explain",
+   "topic": "",
+   "changes_state": false
+  },
+  {
+   "question": "Explain the increase in provisions.",
+   "intent": "explain",
+   "topic": "",
+   "changes_state": false
+  },
+  {
+   "question": "Why is the ECL up more than the PD?",
+   "intent": "explain",
+   "topic": "pd",
+   "changes_state": false
+  },
+  {
+   "question": "Why did Stage 3 ECL increase?",
+   "intent": "explain",
+   "topic": "stage3",
+   "changes_state": false
+  },
+  {
+   "question": "Why did Stage 3 move at all?",
+   "intent": "explain",
+   "topic": "stage3",
+   "changes_state": false
+  },
+  {
+   "question": "What happened to Stage 3 under this scenario?",
+   "intent": "explain",
+   "topic": "stage3",
+   "changes_state": false
+  },
+  {
+   "question": "How much of the increase is due to stage migration?",
+   "intent": "explain",
+   "topic": "stage_migration",
+   "changes_state": false
+  },
+  {
+   "question": "How much of this is the measurement basis changing?",
+   "intent": "explain",
+   "topic": "basis",
+   "changes_state": false
+  },
+  {
+   "question": "Why does moving to Stage 2 cost so much?",
+   "intent": "explain",
+   "topic": "basis",
+   "changes_state": false
+  },
+  {
+   "question": "Why is lifetime PD used instead of the 12-month one?",
+   "intent": "explain",
+   "topic": "basis",
+   "changes_state": false
+  },
+  {
+   "question": "Explain the Stage 1 to Stage 2 movement.",
+   "intent": "explain",
+   "topic": "stage_migration",
+   "changes_state": false
+  },
+  {
+   "question": "Which borrowers contributed most to the movement?",
+   "intent": "explain",
+   "topic": "borrowers",
+   "changes_state": false
+  },
+  {
+   "question": "Who is responsible for most of the increase?",
+   "intent": "explain",
+   "topic": "borrowers",
+   "changes_state": false
+  },
+  {
+   "question": "Show me the borrowers responsible for this.",
+   "intent": "explain",
+   "topic": "borrowers",
+   "changes_state": false
+  },
+  {
+   "question": "Which names drove the change?",
+   "intent": "explain",
+   "topic": "borrowers",
+   "changes_state": false
+  },
+  {
+   "question": "Which sector contributed most?",
+   "intent": "explain",
+   "topic": "sector",
+   "changes_state": false
+  },
+  {
+   "question": "How much of the movement is LGD?",
+   "intent": "explain",
+   "topic": "lgd",
+   "changes_state": false
+  },
+  {
+   "question": "How much is exposure at default?",
+   "intent": "explain",
+   "topic": "ead",
+   "changes_state": false
+  },
+  {
+   "question": "Was any of this the rating downgrade?",
+   "intent": "explain",
+   "topic": "rating",
+   "changes_state": false
+  },
+  {
+   "question": "Why is the ML answer different from the Delta answer?",
+   "intent": "explain",
+   "topic": "methodology",
+   "changes_state": false
+  },
+  {
+   "question": "Compare the two methodologies for me.",
+   "intent": "explain",
+   "topic": "methodology",
+   "changes_state": false
+  },
+  {
+   "question": "Reconcile the drivers to the total.",
+   "intent": "explain",
+   "topic": "",
+   "changes_state": false
+  },
+  {
+   "question": "What makes up the increase?",
+   "intent": "explain",
+   "topic": "",
+   "changes_state": false
+  },
+  {
+   "question": "Why did coverage worsen?",
+   "intent": "explain",
+   "topic": "",
+   "changes_state": false
+  },
+  {
+   "question": "How many borrowers moved stage?",
+   "intent": "explain",
+   "topic": "",
+   "changes_state": false
+  },
+  {
+   "question": "Show this by sector.",
+   "intent": "view",
+   "dimension": "sector",
+   "changes_state": false,
+   "about_the_result": true
+  },
+  {
+   "question": "Break it down by sector.",
+   "intent": "view",
+   "dimension": "sector",
+   "changes_state": false,
+   "about_the_result": true
+  },
+  {
+   "question": "Break this down by rating.",
+   "intent": "view",
+   "dimension": "opening_rating",
+   "changes_state": false,
+   "about_the_result": true
+  },
+  {
+   "question": "Show me that by segment.",
+   "intent": "view",
+   "dimension": "segment",
+   "changes_state": false,
+   "about_the_result": true
+  },
+  {
+   "question": "Give me this as a table.",
+   "intent": "view",
+   "dimension": "",
+   "changes_state": false,
+   "about_the_result": true
+  },
+  {
+   "question": "Chart it by stage.",
+   "intent": "view",
+   "dimension": "stage_baseline",
+   "changes_state": false,
+   "about_the_result": true
+  },
+  {
+   "question": "Show the top 20 of these.",
+   "intent": "view",
+   "dimension": "",
+   "changes_state": false,
+   "about_the_result": true
+  },
+  {
+   "question": "List them by borrower.",
+   "intent": "view",
+   "dimension": "display_name",
+   "changes_state": false,
+   "about_the_result": true
+  },
+  {
+   "question": "Display this by grade.",
+   "intent": "view",
+   "dimension": "opening_rating",
+   "changes_state": false,
+   "about_the_result": true
+  },
+  {
+   "question": "Show me the result by sector as a chart.",
+   "intent": "view",
+   "dimension": "sector",
+   "changes_state": false,
+   "about_the_result": true
+  },
+  {
+   "question": "Downgrade everyone one notch.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true
+  },
+  {
+   "question": "Downgrade all borrowers by two notches.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true
+  },
+  {
+   "question": "Downgrade BBB borrowers two notches.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true
+  },
+  {
+   "question": "Increase Stage 1 PD by 20%.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true
+  },
+  {
+   "question": "Add 100 bps to BBB Stage 1 PD.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true
+  },
+  {
+   "question": "Increase LGD by five percentage points.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true
+  },
+  {
+   "question": "Now increase LGD by 5 percentage points.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true
+  },
+  {
+   "question": "Also raise PD by 10%.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true
+  },
+  {
+   "question": "Increase CCF by 20%.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true
+  },
+  {
+   "question": "Cut collateral values by 20%.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true
+  },
+  {
+   "question": "Move 50% of Stage 1 clients in Transport & Logistics to Stage 2.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true
+  },
+  {
+   "question": "Move half the Stage 1 borrowers to Stage 2.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true
+  },
+  {
+   "question": "Shock GDP growth down 2 percentage points.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true
+  },
+  {
+   "question": "Apply a 200bp rate rise.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true
+  },
+  {
+   "question": "Stress the top 50 exposures by two notches.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true
+  },
+  {
+   "question": "Undo the last step.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": false
+  },
+  {
+   "question": "Reset the scenario.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": false
+  },
+  {
+   "question": "Remove the macro shock.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": false
+  },
+  {
+   "question": "Start again.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": false
+  },
+  {
+   "question": "Stress the real estate portfolio.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": false,
+   "must_ask_magnitude": true
+  },
+  {
+   "question": "Worsen the macro outlook.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": false,
+   "must_ask_magnitude": true
+  },
+  {
+   "question": "Apply a severe scenario to Stage 2.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": false,
+   "must_ask_magnitude": true
+  },
+  {
+   "question": "Show Stage 1 PD by sector.",
+   "intent": "view",
+   "informational": true,
+   "changes_state": false,
+   "about_the_result": false
+  },
+  {
+   "question": "Show me the LGD profile.",
+   "intent": "view",
+   "informational": true,
+   "changes_state": false,
+   "about_the_result": false
+  },
+  {
+   "question": "Show the rating migration matrix.",
+   "intent": "view",
+   "informational": true,
+   "changes_state": false,
+   "about_the_result": false
+  },
+  {
+   "question": "List the ten largest Stage 2 exposures.",
+   "intent": "view",
+   "informational": true,
+   "changes_state": false,
+   "about_the_result": false
+  },
+  {
+   "question": "What is the rating distribution?",
+   "intent": "explain",
+   "informational": true,
+   "changes_state": false,
+   "about_the_result": false
+  },
+  {
+   "question": "How many borrowers are in Stage 2?",
+   "intent": "explain",
+   "informational": true,
+   "changes_state": false,
+   "about_the_result": false
+  },
+  {
+   "question": "What is the CCF by product?",
+   "intent": "explain",
+   "informational": true,
+   "changes_state": false,
+   "about_the_result": false
+  },
+  {
+   "question": "What does the macro screen show?",
+   "intent": "explain",
+   "informational": true,
+   "changes_state": false,
+   "about_the_result": false
+  },
+  {
+   "question": "Downgrade construction borrowers with exposure above SAR 100m by two notches.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true,
+   "expect_sectors": [
+    "Contracting"
+   ],
+   "expect_thresholds": 1,
+   "expect_top_n": 0,
+   "must_not_be_whole_book": true
+  },
+  {
+   "question": "Increase PD by 20% for real estate names with exposure above SAR 50m.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true,
+   "expect_sectors": [
+    "Real Estate"
+   ],
+   "expect_thresholds": 1,
+   "expect_top_n": 0,
+   "must_not_be_whole_book": true
+  },
+  {
+   "question": "Downgrade the top 25 exposures by one notch.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true,
+   "expect_sectors": [],
+   "expect_thresholds": 0,
+   "expect_top_n": 25,
+   "must_not_be_whole_book": true
+  },
+  {
+   "question": "Raise LGD by 5 points for Stage 2 borrowers in Contracting.",
+   "intent": "modify",
+   "changes_state": true,
+   "reads_as_scenario": true,
+   "expect_sectors": [
+    "Contracting"
+   ],
+   "expect_thresholds": 0,
+   "expect_top_n": 0,
+   "must_not_be_whole_book": true
+  },
+  {
+   "question": "Downgrade the retail mortgage book by two notches.",
+   "intent": "explain",
+   "outside_domain": true,
+   "reads_as_scenario": false
+  },
+  {
+   "question": "Stress the SME scorecard portfolio.",
+   "intent": "explain",
+   "outside_domain": true,
+   "reads_as_scenario": false
+  },
+  {
+   "question": "Increase PD by 20% on the credit card book.",
+   "intent": "explain",
+   "outside_domain": true,
+   "reads_as_scenario": false
+  },
+  {
+   "question": "What is the ECL on the personal loan book?",
+   "intent": "explain",
+   "outside_domain": true,
+   "reads_as_scenario": false
+  }
+ ]
+}

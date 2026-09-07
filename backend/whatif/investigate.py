@@ -128,9 +128,23 @@ class Reading:
                 "notes": list(self.notes)}
 
 
+#: A sentence that OPENS with one of these is a question about something,
+#: never an instruction to do it.
+_INTERROGATIVE = re.compile(
+    r"\s*(?:why|what|which|who|whom|whose|how|was|were|is|are|am|did|does|do|"
+    r"can|could|would|should|has|have|had|will)\b",
+    re.IGNORECASE)
+
+#: Except when the question IS the scenario. "What if I downgrade everyone two
+#: notches?" opens with an interrogative and is an instruction.
+_HYPOTHETICAL = re.compile(
+    r"\bwhat\s*[- ]?\s*if\b|\bwhat\s+happens?\s+(?:if|when)\b"
+    r"|\bwhat\s+would\s+happen\b|\bsuppose\b|\bassume\b",
+    re.IGNORECASE)
+
 #: Pointing at the result rather than at the book.
 _DEICTIC = re.compile(
-    r"\bthis\b|\bthat\b|\bit\b|\bthese\b|\bthose\b"
+    r"\bthis\b|\bthat\b|\bit\b|\bthem\b|\bthese\b|\bthose\b"
     r"|\bthe\s+(?:result|scenario|movement|increase|decrease|change|rise|"
     r"fall|impact|effect|shock|what[- ]if)\b",
     re.IGNORECASE)
@@ -139,12 +153,20 @@ _DEICTIC = re.compile(
 _TOPIC: tuple[tuple[str, str], ...] = (
     (r"\bmeasurement\s+basis\b|\blifetime\s+pd\s+replac\w+|\b12[- ]?m(?:onth)?\s+"
      r"pd\s+(?:to|into|replaced|became)\b|\bbasis\s+change\b"
-     r"|\blifetime\s+pd\s+instead\b|\bbecause\s+lifetime\b", "basis"),
+     r"|\blifetime\s+pd\b.{0,30}\binstead\b|\bbecause\s+lifetime\b"
+     # The question people actually ask, which never uses the words
+     # "measurement basis": why does crossing into Stage 2 cost anything at
+     # all when nothing about the borrower changed?
+     r"|\bmov\w+\s+(?:in)?to\s+stage\s*2\b.{0,30}\b(?:cost|worth|expensive)"
+     r"|\bwhy\s+does\s+stage\s*2\s+cost\b"
+     r"|\blifetime\s+pd\b.{0,40}\b(?:used|applied|apply|instead|rather)\b",
+     "basis"),
     (r"\bstage\s*3\b|\bstage\s+three\b", "stage3"),
     (r"\bstage\s+migration\b|\bstage\s+movement\b|\bmoved?\s+from\s+stage\b"
      r"|\bstage\s*1\s*(?:to|->)\s*stage\s*2\b", "stage_migration"),
     (r"\bml\b|\bxgboost\b|\bmodel\s+differ\w*|\bdelta\s+vs\b|\bvs\.?\s+delta\b"
-     r"|\bcompare\s+delta\b", "methodology"),
+     r"|\bcompare\s+delta\b|\bmethodolog\w+|\bboth\s+models?\b"
+     r"|\bdelta\s+model\b", "methodology"),
     (r"\blgd\b|\bloss\s+given\s+default\b", "lgd"),
     (r"\bead\b|\bexposure\s+at\s+default\b|\bccf\b", "ead"),
     (r"\brating\b|\bnotch\w*\b|\bdowngrade\b", "rating"),
@@ -159,23 +181,40 @@ _TOPIC: tuple[tuple[str, str], ...] = (
 def classify(question: str) -> Reading:
     """Which of the three things this message is.
 
-    MODIFY has to be checked FIRST and EXPLAIN before VIEW. "Show me the
-    borrowers responsible" contains "show", but it is asking who caused
-    something, and answering it with a plain table would drop the question.
+    Order matters, and every step of it was a defect first.
+
+    An INTERROGATIVE is never an instruction. "Was any of this the rating
+    downgrade?" was read as a scenario and downgraded the entire book — a
+    question about a result became the thing it was asking about. So a sentence
+    that opens with an interrogative and is not a hypothetical is a question,
+    whatever verbs it contains.
+
+    EXPLAIN before VIEW. "Show me the borrowers responsible" contains "show",
+    but it asks who caused something, and answering it with a plain table
+    would drop the question.
+
+    A FULL SCENARIO before VIEW. "Stress the top 50 exposures by two notches"
+    contains "top 50" and was read as a request to see a list; it states a
+    magnitude and a direction, so it is an instruction.
     """
     said = str(question or "").strip()
     reading = Reading(question=said)
     if not said:
         return reading
 
-    if _MODIFY.search(said):
+    from backend.whatif import language as lang
+
+    asked = bool(_INTERROGATIVE.match(said)) and not _HYPOTHETICAL.search(said)
+    if _MODIFY.search(said) and not asked:
         reading.intent = MODIFY
         return reading
 
     explains = bool(_EXPLAIN.search(said))
     views = bool(_VIEW.search(said))
-    if explains:
+    if explains or asked:
         reading.intent = EXPLAIN
+    elif lang.read(said).scenario is not None:
+        reading.intent = MODIFY
     elif views:
         reading.intent = VIEW
     else:
@@ -185,12 +224,9 @@ def classify(question: str) -> Reading:
         # as though it were a question about a result. Everything else is a
         # question, which is the safer of the two readings because it cannot
         # silently change a number.
-        from backend.whatif import language as lang
-
-        said_reading = lang.read(said)
-        opens = bool(said_reading.scenario
-                     or getattr(said_reading, "opens_whatif", False))
-        reading.intent = MODIFY if opens else EXPLAIN
+        reading.intent = (MODIFY
+                          if getattr(lang.read(said), "opens_whatif", False)
+                          else EXPLAIN)
 
     for pattern, column, label in _DIMENSION:
         if re.search(pattern, said, re.IGNORECASE):

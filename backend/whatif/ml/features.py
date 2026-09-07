@@ -66,6 +66,11 @@ LEAKING: frozenset[str] = frozenset({
 #: Numeric features, in a fixed order so a model's inputs are reproducible.
 NUMERIC: tuple[str, ...] = (
     "pd_12m", "pd_lifetime", "pd_at_origination_pct", "lgd",
+    # The GRADE's through-the-cycle level, beside the borrower's own
+    # point-in-time reading. The two together are what distinguish a weak name
+    # on a strong grade from a strong name on a weak one, and until the book
+    # published three separate PDs the model could not see the difference.
+    "ttc_pd_pct",
     "stage", "current_dpd", "max_dpd_12m", "internal_rating_numeric",
     "rating_change_notches", "collateral_coverage_pct",
     "secured_share", "collateral_to_ead", "drawn_share", "undrawn_share",

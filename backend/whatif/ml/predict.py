@@ -102,9 +102,16 @@ def _shocked_frame(work: pd.DataFrame) -> pd.DataFrame:
     if "pd_stressed" in moved.columns:
         from backend.ifrs9 import policy
 
+        anchor = ("ttc_stressed" if "ttc_stressed" in moved.columns
+                  else "ttc_pd_pct")
         moved["pd_lifetime"] = policy.lifetime_pd(
-            pd.to_numeric(moved["pd_stressed"], errors="coerce").fillna(0.0) / 100.0
+            pd.to_numeric(moved["pd_stressed"], errors="coerce").fillna(0.0) / 100.0,
+            pd.to_numeric(moved.get(anchor), errors="coerce").fillna(0.0) / 100.0
+            if anchor in moved.columns else None,
         ) * 100.0
+        # The grade's own level moves with a downgrade, and the model reads it.
+        if "ttc_stressed" in moved.columns:
+            moved["ttc_pd_pct"] = moved["ttc_stressed"]
     if "notches_moved" in moved.columns:
         moved["rating_change_notches"] = moved["notches_moved"]
     return moved

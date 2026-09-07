@@ -39,6 +39,7 @@ from backend.whatif import staging as stg
 from backend.whatif import steps as sp
 from backend.whatif import threads as th
 from backend.whatif import trace as wt
+from backend.whatif.ml import runtime as mlrt
 
 logger = logging.getLogger(__name__)
 
@@ -681,8 +682,11 @@ def methodology_gate(active: str = Query(default="", max_length=16),
     from backend.whatif.ml import registry as rg
 
     current = rg.active()
-    return me.question(active=active, ml_available=bool(current),
-                       ml_note="No ML model has been activated yet.")
+    runnable = mlrt.check()
+    return me.question(
+        active=active, ml_available=bool(current) and runnable.available,
+        ml_note=(runnable.message() if not runnable.available
+                 else "No ML model has been activated yet."))
 
 
 class InterpretIn(BaseModel):
@@ -812,12 +816,15 @@ def execute(body: ExecuteIn,
         raise _refused(str(e)) from e
 
     current = rg.active()
+    runnable = mlrt.check()
     if me.needs_gate(calculates_ecl=True, requested=body.methodology,
                      instruction=body.instruction, active=state.methodology):
         return {"needs_methodology": True,
-                "gate": me.question(active=state.methodology,
-                                    ml_available=bool(current),
-                                    ml_note="No ML model has been activated yet."),
+                "gate": me.question(
+                    active=state.methodology,
+                    ml_available=bool(current) and runnable.available,
+                    ml_note=(runnable.message() if not runnable.available
+                             else "No ML model has been activated yet.")),
                 "state": state.to_dict()}
     try:
         result = rn.execute(state, requested=body.methodology,
@@ -1086,6 +1093,9 @@ def ml_model(_: Any = RequireAnalyst) -> dict[str, Any]:
         "defaults": {"development_through": tr.DEFAULT_DEVELOPMENT_THROUGH,
                      "train_share": tr.TRAIN_SHARE, "seed": tr.SEED},
         "features": None,
+        # Whether this installation can run the thing at all, said before
+        # anybody composes a scenario on it.
+        "environment": mlrt.describe(),
     }
 
 
@@ -1093,6 +1103,8 @@ def ml_model(_: Any = RequireAnalyst) -> dict[str, Any]:
 def train_model(body: TrainIn,
                 principal: Principal = RequireAnalyst) -> dict[str, Any]:
     """Actually retrain. A candidate is produced; nothing is activated."""
+    if not mlrt.available():
+        raise _unavailable(mlrt.check().message())
     from backend.whatif.ml import explain as ex
     from backend.whatif.ml import features as ft
     from backend.whatif.ml import registry as rg
@@ -1109,8 +1121,12 @@ def train_model(body: TrainIn,
 
     X = ft.build(tr.load(split.validation or split.train),
                  encoding=trained.encoding).X
-    importance = ex.importance(trained.booster, trained.feature_names, limit=25)
-    summary = ex.summary(trained.booster, X)
+    # Explained through the SERVED model. Where the design is one model per
+    # Stage, explaining the fallback would describe something the product does
+    # not score with.
+    served = trained.served()
+    importance = ex.importance(served, trained.feature_names, limit=25)
+    summary = ex.summary(served, X)
     card = rg.save(trained, built_by=str(principal.user_id or "system"),
                    reason=body.reason or body.instruction,
                    importance=importance, shap=summary)
