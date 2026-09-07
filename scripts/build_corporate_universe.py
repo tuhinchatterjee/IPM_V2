@@ -175,6 +175,24 @@ def main(argv: list[str] | None = None) -> int:
               f"{registered['forbidden_joins']} forbidden join(s)")
         report["catalogue"] = registered
 
+        # Reconcile the catalogue against what is actually on disk. A dataset
+        # renamed or removed in an earlier build leaves an entry behind that
+        # every reader trusts, and the failure it causes surfaces somewhere
+        # else. Doing it here means build order stops mattering.
+        from backend.data_access import catalogue_io
+
+        drift = catalogue_io.reconcile(settings.metadata_dir,
+                                       settings.analytics_dir,
+                                       curated_dir=settings.curated_dir)
+        report["catalogue_reconciliation"] = drift
+        if drift["orphaned"]:
+            print(f"  removed {len(drift['orphaned'])} orphaned entr(ies): "
+                  f"{', '.join(drift['orphaned'][:6])}")
+        if drift["unregistered"]:
+            print(f"  {len(drift['unregistered'])} dataset(s) on disk are not "
+                  f"catalogued: {', '.join(drift['unregistered'][:6])}")
+        print(f"  catalogue reconciles with the lake: {drift['healthy']}")
+
     out = ROOT / args.out
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2, default=str),

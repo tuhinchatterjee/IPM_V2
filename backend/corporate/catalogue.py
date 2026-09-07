@@ -22,7 +22,6 @@ where the resolver reads it, not only in a docstring.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -288,24 +287,13 @@ def merge_into_catalogue(frames: dict[str, pd.DataFrame],
                          path: Path | None = None) -> dict[str, Any]:
     """Add the corporate datasets to the governed catalogue, in place."""
     from backend.config import settings
+    from backend.data_access import catalogue_io
 
-    target = path or (settings.metadata_dir / "catalog.json")
-    catalogue: dict[str, Any] = (
-        json.loads(target.read_text("utf-8")) if target.exists()
-        else {"version": "1.0.0", "datasets": []})
-
+    target = path or catalogue_io.path_for(settings.metadata_dir)
     ours = datasets(frames)
     names = {d["name"] for d in ours}
-    kept = [d for d in catalogue.get("datasets", [])
-            if d.get("name") not in names]
-    catalogue["datasets"] = kept + ours
-
-    relationships = [r for r in catalogue.get("relationships", [])
-                     if r.get("from_dataset") not in names]
-    catalogue["relationships"] = relationships + list(RELATIONSHIPS)
-
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(catalogue, indent=2), encoding="utf-8")
+    catalogue = catalogue_io.merge(target.parent, datasets=ours,
+                                   relationships=list(RELATIONSHIPS))
     return {
         "catalogue_version": CATALOGUE_VERSION,
         "path": str(target),

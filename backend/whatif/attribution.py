@@ -68,21 +68,31 @@ ATTRIBUTION_METHOD = "Exact Shapley (order-neutral, sums to the total)"
 MOVED = 1e-9
 
 #: Reader-facing names, in the order a credit officer would read them.
+#:
+#: `basis` and `stage` are deliberately two different drivers. A Stage 1 name
+#: moving to Stage 2 is measured on its LIFETIME PD instead of its twelve-month
+#: one, and that change of measurement basis is usually the whole of the
+#: movement. Collapsing it into an opaque "Stage effect" is what produced a
+#: result reading "PD EFFECT 0.00%, STAGE EFFECT +243.97%", which is
+#: arithmetically true and analytically useless: the reader cannot see that the
+#: applicable PD went from 1.2% to 4.9% because the basis changed, not because
+#: any PD moved.
 LABELS: dict[str, str] = {
     "rating": "Rating migration",
     "macro": "Macroeconomic shock",
     "financial": "Financial deterioration",
-    "pd": "Probability of default",
+    "pd": "Probability of default (same measurement basis)",
     "lgd": "Loss given default",
     "collateral": "Collateral and security",
     "ccf": "Credit conversion factor",
     "ead": "Exposure at default",
-    "stage": "Stage migration (change of measurement basis)",
+    "basis": "Measurement basis: 12-month PD to lifetime PD",
+    "stage": "Stage migration, residual mechanics",
     "limits": "Clamped to policy limits",
 }
 ORDER: tuple[str, ...] = (
-    "rating", "macro", "financial", "pd", "stage", "lgd", "collateral",
-    "ccf", "ead", "limits",
+    "rating", "macro", "financial", "pd", "basis", "stage", "lgd",
+    "collateral", "ccf", "ead", "limits",
 )
 
 #: More than this many moving drivers and the exact game stops being cheap:
@@ -138,16 +148,71 @@ def driver_factors(frame: pd.DataFrame,
                   * _ratio(entry["ead_after"], entry["ead_before"]))
         factors[driver] = factor
 
-    # The change of measurement basis, from the staging that the scenario
-    # produced. Isolated exactly as the Delta Model isolates it.
+    # The change of MEASUREMENT BASIS. When a borrower crosses from Stage 1 to
+    # Stage 2 the same PD is read off a different curve — twelve-month becomes
+    # lifetime — and on this book that is worth roughly four times. It is its
+    # own driver because it is its own fact: nothing about the borrower's
+    # riskiness changed, only what the standard says to measure.
     stage_stressed = pd.to_numeric(frame["stage_stressed"],
                                    errors="coerce").fillna(1).to_numpy()
     final_pd = pd.to_numeric(frame["pd_stressed"], errors="coerce").fillna(0.0).to_numpy()
     on_opening_basis = _applicable(final_pd, stage_baseline)
     on_closing_basis = _applicable(final_pd, stage_stressed)
-    stage_factor = _ratio(on_closing_basis, on_opening_basis)
-    factors["stage"] = factors.get("stage", np.ones(len(frame))) * stage_factor
+    factors["basis"] = _ratio(on_closing_basis, on_opening_basis)
+
+    # Whatever a Stage instruction did that the change of basis does not
+    # already explain. On a plain Stage 1 to Stage 2 migration this is exactly
+    # one and gets an effect of zero, which is the honest answer: the
+    # migration's cost IS the basis change.
+    factors["stage"] = factors.get("stage", np.ones(len(frame)))
     return factors
+
+
+def basis_movement(frame: pd.DataFrame) -> dict[str, Any]:
+    """What the change of measurement basis did, in the terms a lender uses.
+
+    Answers "how much of this is because lifetime PD replaced twelve-month
+    PD?" with the borrowers, the exposure and the two PDs, rather than only
+    with a percentage.
+    """
+    stage_before = pd.to_numeric(frame.get("stage_baseline"),
+                                 errors="coerce").fillna(1).to_numpy()
+    stage_after = pd.to_numeric(frame.get("stage_stressed"),
+                                errors="coerce").fillna(1).to_numpy()
+    crossed = (stage_before <= 1) & (stage_after >= 2)
+    if not crossed.any():
+        return {"moved": 0,
+                "note": "No borrower changed measurement basis in this "
+                        "scenario, so the applicable PD is read off the same "
+                        "curve before and after."}
+    twelve = pd.to_numeric(frame.get("pd_stressed"),
+                           errors="coerce").fillna(0.0).to_numpy()[crossed]
+    lifetime = _applicable(
+        pd.to_numeric(frame.get("pd_stressed"),
+                      errors="coerce").fillna(0.0).to_numpy(),
+        np.full(len(frame), 2))[crossed]
+    exposure = pd.to_numeric(frame.get("ead"),
+                             errors="coerce").fillna(0.0).to_numpy()[crossed]
+    weight = exposure if exposure.sum() > 0 else np.ones(len(exposure))
+    before = float(np.average(twelve, weights=weight))
+    after = float(np.average(lifetime, weights=weight))
+    return {
+        "moved": int(crossed.sum()),
+        "exposure": float(exposure.sum()),
+        "average_12m_pd_before": round(before, 4),
+        "average_lifetime_pd_after": round(after, 4),
+        "applicable_pd_ratio": round(after / before, 4) if before else None,
+        "note": (
+            f"{int(crossed.sum()):,} borrower(s) carrying "
+            f"{exposure.sum():,.0f} of exposure moved from Stage 1 to "
+            f"Stage 2. Their expected credit loss is now measured on the "
+            f"LIFETIME probability of default rather than the twelve-month "
+            f"one: on exposure-weighted average {before:.2f}% becomes "
+            f"{after:.2f}%, a factor of "
+            f"{(after / before) if before else float('nan'):.2f}. Nothing "
+            "about the borrowers' riskiness changed — the standard changed "
+            "what is measured."),
+    }
 
 
 def attribute(frame: pd.DataFrame, tracked: dict[str, dict[str, Any]], *,
@@ -219,6 +284,10 @@ def attribute(frame: pd.DataFrame, tracked: dict[str, dict[str, Any]], *,
         "measured_total": measured_total,
         "attributed_total": float(sum(effects)),
         "unmoved": [LABELS.get(name, name) for name in still],
+        # The measurement-basis change, spelled out in the terms a lender
+        # asks about: how many names, how much exposure, and what the
+        # applicable PD became.
+        "measurement_basis": basis_movement(frame),
         "note": ("Every driver's effect is its average marginal contribution "
                  "across every order in which the drivers could have moved. "
                  "That is the only attribution that is order-neutral, sums to "

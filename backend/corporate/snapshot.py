@@ -124,6 +124,7 @@ def _check_contract(frame: pd.DataFrame, ordered: list[str]) -> None:
 def _join_ratings(frame: pd.DataFrame, universe: Universe) -> pd.DataFrame:
     ratings = universe["corporate_ratings"][[
         "borrower_id", "period", "internal_rating", "internal_rating_numeric",
+        "ttc_pd_pct", "pit_pd_12m_pct", "lifetime_pd_pct",
         "previous_rating", "rating_change_notches", "rating_direction",
         "rating_date", "rating_model", "rating_override_flag",
         "watchlist_flag", "external_rating", "rating_outlook"]]
@@ -204,9 +205,12 @@ def _join_exposure(frame: pd.DataFrame, universe: Universe) -> pd.DataFrame:
 def _join_ifrs9(frame: pd.DataFrame, universe: Universe) -> pd.DataFrame:
     ifrs9 = universe["corporate_ifrs9"].rename(
         columns={"scenario_weight_base": "scenario_weight"})
-    columns = ["stage", "sicr_flag", "pd_12m", "pd_lifetime", "lgd", "ead",
-               "ecl_12m", "ecl_lifetime", "final_ecl", "ecl_coverage",
-               "management_overlay", "default_flag", "scenario_weight"]
+    columns = ["stage", "sicr_flag", "pd_12m", "pd_lifetime",
+               "pd_applicable", "pd_measurement_basis",
+               "lgd", "secured_lgd", "unsecured_lgd", "ead",
+               "ecl_12m", "ecl_lifetime", "ecl_before_overlay", "final_ecl",
+               "ecl_coverage", "management_overlay", "default_flag",
+               "scenario_weight", "credit_conversion_factor"]
     frame = frame.merge(ifrs9[["borrower_id", "period", *columns]],
                         on=["borrower_id", "period"], how="left")
 

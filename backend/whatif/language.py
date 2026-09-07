@@ -321,6 +321,140 @@ def _direction(text: str, at: int, window: int = 60) -> int:
     return 1
 
 
+#: Amounts a person writes: "SAR 100m", "100 million", "1.5bn", "50m".
+_AMOUNT = re.compile(
+    r"(?:sar\s*)?(\d+(?:\.\d+)?)\s*(m|mn|million|bn|billion|k|thousand)?\b",
+    re.IGNORECASE)
+_MULTIPLIER = {"m": 1.0, "mn": 1.0, "million": 1.0,
+               "bn": 1000.0, "billion": 1000.0,
+               "k": 0.001, "thousand": 0.001}
+
+#: The fields a person filters on by name, and the column each one is.
+_FILTER_FIELD: tuple[tuple[str, str, str], ...] = (
+    (r"\bexposure(?:\s+at\s+default)?\b|\bead\b", "ead", "SAR mn"),
+    (r"\bdrawn(?:\s+exposure)?\b|\boutstanding\b", "drawn_exposure", "SAR mn"),
+    (r"\bundrawn\b|\bheadroom\b", "undrawn_commitment", "SAR mn"),
+    (r"\breported\s+ecl\b|\bprovision\b|\becl\b", "final_ecl", "SAR mn"),
+    (r"\blifetime\s+pd\b", "pd_lifetime", "%"),
+    (r"\b(?:12|twelve)[- ]month\s+pd\b|\bpd\b", "pd_12m", "%"),
+    (r"\blgd\b|\bloss\s+given\s+default\b", "lgd", "%"),
+    (r"\bcoverage\b", "ecl_coverage", "%"),
+    (r"\bcollateral\s+coverage\b", "collateral_coverage_pct", "%"),
+    (r"\bleverage\b", "leverage", ""),
+    (r"\bdscr\b", "dscr", ""),
+)
+
+#: How a comparison is written. Ordered so "at least" beats "least".
+_COMPARISON: tuple[tuple[str, str], ...] = (
+    (r"\bat\s+least\b|\bno\s+less\s+than\b|\bor\s+more\b|\b>=\b", "at least"),
+    (r"\bat\s+most\b|\bno\s+more\s+than\b|\bor\s+less\b|\b<=\b", "at most"),
+    (r"\babove\b|\bover\b|\bgreater\s+than\b|\bmore\s+than\b|\bexceed\w*\b|\b>\b", "above"),
+    (r"\bbelow\b|\bunder\b|\bless\s+than\b|\bsmaller\s+than\b|\b<\b", "below"),
+)
+
+#: "top 20 borrowers by EAD", "largest 50 by exposure".
+_TOP_N = re.compile(
+    r"\b(?:top|largest|biggest|highest)\s+(\d{1,4})\b", re.IGNORECASE)
+
+#: What people call a sector when it is not what the book calls it. The book's
+#: own names win; this only rescues a question that would otherwise silently
+#: match nothing and widen to the whole book.
+_SECTOR_SYNONYM: dict[str, str] = {
+    "construction": "Contracting",
+    "builders": "Contracting",
+    "building": "Contracting",
+    "infrastructure": "Contracting",
+    "property": "Real Estate",
+    "realty": "Real Estate",
+    "retail": "Wholesale & Retail Trade",
+    "wholesale": "Wholesale & Retail Trade",
+    "trade": "Wholesale & Retail Trade",
+    "logistics": "Transport & Logistics",
+    "transport": "Transport & Logistics",
+    "transportation": "Transport & Logistics",
+    "shipping": "Shipping",
+    "marine": "Shipping",
+    "petchem": "Petrochemicals",
+    "chemicals": "Petrochemicals",
+    "oil": "Oil & Gas",
+    "gas": "Oil & Gas",
+    "energy": "Oil & Gas",
+    "power": "Utilities",
+    "utility": "Utilities",
+    "telecom": "Telecommunications",
+    "telco": "Telecommunications",
+    "banks": "Financial Services",
+    "financials": "Financial Services",
+    "hotels": "Hospitality & Tourism",
+    "hospitality": "Hospitality & Tourism",
+    "tourism": "Hospitality & Tourism",
+    "mining": "Mining & Metals",
+    "metals": "Mining & Metals",
+    "agriculture": "Agriculture & Food",
+    "food": "Agriculture & Food",
+    "farming": "Agriculture & Food",
+    "health": "Healthcare",
+    "hospitals": "Healthcare",
+    "schools": "Education",
+    "government": "Government-Related Entities",
+    "public sector": "Government-Related Entities",
+    "gre": "Government-Related Entities",
+    "manufacturers": "Manufacturing",
+    "industrial": "Manufacturing",
+}
+
+
+def _amount(said: str, unit: str) -> float | None:
+    """The number a filter names, in the book's own units.
+
+    The book is denominated in SAR MILLIONS, so "SAR 100m" is 100 and
+    "1.5 billion" is 1,500. A percentage is itself.
+    """
+    found = _AMOUNT.search(said)
+    if not found:
+        return None
+    value = float(found.group(1))
+    scale = (found.group(2) or "").lower()
+    if unit == "SAR mn":
+        return value * _MULTIPLIER.get(scale, 1.0)
+    return value
+
+
+def _thresholds(text: str) -> tuple[list[sc.Threshold], list[str]]:
+    """Every numeric filter the sentence states, and anything it could not read.
+
+    Read from CLAUSES rather than from the whole sentence, because "exposure
+    above SAR 100m by two notches" contains two numbers and only one of them
+    is the filter. A clause is the run of words around a comparison word, and
+    the field and the amount both have to be inside it.
+    """
+    out: list[sc.Threshold] = []
+    unread: list[str] = []
+    for pattern, operator in _COMPARISON:
+        for found in re.finditer(pattern, text, re.IGNORECASE):
+            # 48 characters either side: enough for "exposure at default of
+            # more than SAR 100 million", short enough not to reach the shock.
+            before = text[max(0, found.start() - 48): found.start()]
+            after = text[found.end(): found.end() + 48]
+            field, unit = "", ""
+            for field_pattern, name, field_unit in _FILTER_FIELD:
+                if re.search(field_pattern, before, re.IGNORECASE):
+                    field, unit = name, field_unit
+                    break
+            if not field:
+                continue
+            value = _amount(after, unit)
+            if value is None:
+                unread.append(
+                    f"a filter on {sc.LABELS.get(field, field)} "
+                    f"{operator} an amount that was not given")
+                continue
+            if not any(t.field == field for t in out):
+                out.append(sc.Threshold(field=field, operator=operator,
+                                        value=value, unit=unit))
+    return out, unread
+
+
 def _population(text: str) -> tuple[sc.Population, list[str]]:
     """Who the scenario applies to, from the governed vocabulary."""
     notes: list[str] = []
@@ -364,13 +498,38 @@ def _population(text: str) -> tuple[sc.Population, list[str]]:
         notes.append("The second Stage named is the outcome asked about, not a "
                      "filter on the population.")
 
+    # A sector the book calls something else. Only consulted when the book's
+    # own names matched nothing, so "Real Estate" always beats "property".
+    if not sectors:
+        for word, name in sorted(_SECTOR_SYNONYM.items(),
+                                 key=lambda kv: len(kv[0]), reverse=True):
+            if re.search(rf"\b{re.escape(word)}\b", text, re.IGNORECASE):
+                sectors.append(name)
+                notes.append(f"Read '{word}' as the {name} sector.")
+                break
+
     ids = [m.group(0).upper()
            for m in re.finditer(r"\b(?:CORP|SA)-\d+\b", text, re.IGNORECASE)]
     watchlist = bool(re.search(r"\bwatchlist\b", text, re.IGNORECASE))
 
+    thresholds, unread = _thresholds(text)
+    notes.extend(f"Could not read {u}." for u in unread)
+
+    top_n, top_by = 0, "ead"
+    found = _TOP_N.search(text)
+    if found:
+        top_n = int(found.group(1))
+        after = text[found.end(): found.end() + 60]
+        for field_pattern, name, _unit in _FILTER_FIELD:
+            if re.search(field_pattern, after, re.IGNORECASE):
+                top_by = name
+                break
+
     return sc.Population(sectors=tuple(sectors), rating_bands=tuple(bands),
                          stages=tuple(stages), borrower_ids=tuple(ids),
-                         watchlist_only=watchlist), notes
+                         watchlist_only=watchlist,
+                         thresholds=tuple(thresholds),
+                         top_n=top_n, top_by=top_by), notes
 
 
 #: "Move half the Stage 1 borrowers to Stage 2", "Stage 2 to Stage 3",

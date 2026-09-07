@@ -126,6 +126,46 @@ def _with_totals(grid: list[list[float]], labels: list[str]) -> dict[str, Any]:
             "grand_total": round(float(sum(columns)), 4)}
 
 
+def _as_row_shares(body: dict[str, Any],
+                   labels: list[str]) -> dict[str, Any]:
+    """A percentage view, normalised ALONG EACH ROW.
+
+    This is the only normalisation a migration matrix should offer, and it was
+    the defect: dividing every cell by the GRAND total answers "what share of
+    the whole book made this particular move", which is a number nobody reads
+    and which makes a small origin grade look like nothing happened in it.
+
+    The question a credit officer actually asks is "of the BBB names we had,
+    where did they end up?" — so the denominator is the ORIGIN row's own
+    population, every populated row sums to 100%, and the column totals are a
+    share of the whole because a column has no single origin to divide by.
+
+    A row whose opening population was empty is all zeros rather than a
+    division by nothing.
+    """
+    rows = []
+    for row in body["rows"]:
+        total = row["total"]
+        rows.append({
+            "label": row["label"],
+            "cells": [round(v / total * 100.0, 4) if total else 0.0
+                      for v in row["cells"]],
+            "total": 100.0 if total else 0.0,
+            "population": total,
+        })
+    grand = body["grand_total"]
+    return {
+        "labels": labels,
+        "rows": rows,
+        "column_totals": [round(v / grand * 100.0, 4) if grand else 0.0
+                          for v in body["column_totals"]],
+        "grand_total": 100.0 if grand else 0.0,
+        "normalisation": "row",
+        "denominator": "the origin grade's own matched population",
+        "reads_as": "% of origin rating",
+    }
+
+
 def _row_normalised(body: dict[str, Any]) -> list[dict[str, Any]]:
     """Each row as percentages of its own opening population.
 
@@ -177,20 +217,13 @@ def rating_migration(closing_period: str = "", opening_period: str = "", *,
     views = {
         COUNT: _with_totals(_matrix(both, "_open", "_close", labels, ""), labels),
         EXPOSURE: _with_totals(
-            _matrix(both, "_open", "_close", labels, "ead_closing"), labels),
+            # Weighted by the OPENING exposure: the row denominator has to be
+            # "the exposure that STARTED in this grade", or a row of shares
+            # does not sum to the exposure that migrated out of it.
+            _matrix(both, "_open", "_close", labels, "ead_opening"), labels),
     }
     for base, share in ((COUNT, COUNT_PCT), (EXPOSURE, EXPOSURE_PCT)):
-        grand = views[base]["grand_total"]
-        views[share] = {
-            "labels": labels,
-            "rows": [{"label": r["label"],
-                      "cells": [round(v / grand * 100.0, 4) if grand else 0.0
-                                for v in r["cells"]],
-                      "total": round(r["total"] / grand * 100.0, 4) if grand else 0.0}
-                     for r in views[base]["rows"]],
-            "column_totals": [round(v / grand * 100.0, 4) if grand else 0.0
-                              for v in views[base]["column_totals"]],
-            "grand_total": 100.0 if grand else 0.0}
+        views[share] = _as_row_shares(views[base], labels)
 
     moved = int((both["_open"] != both["_close"]).sum()) if not both.empty else 0
     numeric_open = pd.to_numeric(both.get("internal_rating_numeric_opening"),
@@ -250,20 +283,13 @@ def stage_migration(closing_period: str = "", opening_period: str = "", *,
     views = {
         COUNT: _with_totals(_matrix(both, "_open", "_close", labels, ""), labels),
         EXPOSURE: _with_totals(
-            _matrix(both, "_open", "_close", labels, "ead_closing"), labels),
+            # Weighted by the OPENING exposure: the row denominator has to be
+            # "the exposure that STARTED in this grade", or a row of shares
+            # does not sum to the exposure that migrated out of it.
+            _matrix(both, "_open", "_close", labels, "ead_opening"), labels),
     }
     for base, share in ((COUNT, COUNT_PCT), (EXPOSURE, EXPOSURE_PCT)):
-        grand = views[base]["grand_total"]
-        views[share] = {
-            "labels": labels,
-            "rows": [{"label": r["label"],
-                      "cells": [round(v / grand * 100.0, 4) if grand else 0.0
-                                for v in r["cells"]],
-                      "total": round(r["total"] / grand * 100.0, 4) if grand else 0.0}
-                     for r in views[base]["rows"]],
-            "column_totals": [round(v / grand * 100.0, 4) if grand else 0.0
-                              for v in views[base]["column_totals"]],
-            "grand_total": 100.0 if grand else 0.0}
+        views[share] = _as_row_shares(views[base], labels)
 
     def cell(start: int, end: int) -> int:
         if both.empty:

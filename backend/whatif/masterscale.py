@@ -37,7 +37,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from backend.corporate.universe import (
+from backend.corporate import ratingscale
+from backend.corporate.ratingscale import (
     DEFAULT_GRADE,
     DEFAULT_INDEX,
     RATING_BOUNDS,
@@ -45,35 +46,25 @@ from backend.corporate.universe import (
 )
 
 MASTERSCALE_OWNER = "Credit Risk Analytics"
-MASTERSCALE_VERSION = "1.0.0"
+#: 2.0.0 is the nineteen-point governed scale. The fourteen-point scale it
+#: replaced is gone rather than hidden underneath: there is no second
+#: computational grade set, and a figure produced on the old one is not
+#: comparable with a figure produced on this.
+MASTERSCALE_VERSION = "2.0.0"
 
-#: The strongest grade has no lower band edge, and a PD of exactly zero is not
-#: a thing any rating system publishes. This is the floor the generator uses.
-PD_FLOOR_PCT = 0.02
-#: The weakest performing grade has no upper edge either. Twice the last edge
-#: is the representative the band's own width implies.
-PD_CEILING_PCT = RATING_BOUNDS[-1] * 2.0
+PD_FLOOR_PCT = ratingscale.PD_FLOOR_PCT
+PD_CEILING_PCT = ratingscale.PD_CEILING_PCT
 
-
-def _representative(index: int) -> float:
-    """The PD a grade carries, in percent.
-
-    The geometric mid-point of the grade's band. Geometric rather than
-    arithmetic because the bands widen multiplicatively — the gap from AAA to
-    AA is four basis points and the gap from CCC to CC is thirteen points, and
-    an arithmetic mid-point would put almost every investment-grade name at the
-    top of its band.
-    """
-    lower = PD_FLOOR_PCT if index == 0 else RATING_BOUNDS[index - 1]
-    upper = PD_CEILING_PCT if index >= len(RATING_BOUNDS) else RATING_BOUNDS[index]
-    return float(np.sqrt(max(lower, PD_FLOOR_PCT) * upper))
-
-
-#: Grade -> the twelve-month PD that grade carries, in percent. D is the default
-#: grade and carries no forward PD: a defaulted borrower has already defaulted.
+#: Grade -> the THROUGH-THE-CYCLE twelve-month PD that grade carries, in
+#: percent. Read straight from the governed master table rather than
+#: reconstructed from the band edges: the masterscale is the definition, and a
+#: geometric midpoint of its own bands would be a second opinion about it.
+#:
+#: D is in the table at 100% because a defaulted name has defaulted; it is
+#: never used to measure a performing exposure, and `PERFORMING` excludes it.
 MASTERSCALE: dict[str, float] = {
-    grade: _representative(index)
-    for index, grade in enumerate(RATING_SCALE[:DEFAULT_INDEX])
+    grade: ratingscale.TTC_PD_PCT[grade]
+    for grade in RATING_SCALE[:DEFAULT_INDEX]
 }
 
 GRADE_INDEX: dict[str, int] = {grade: i for i, grade in enumerate(RATING_SCALE)}
@@ -82,19 +73,21 @@ GRADE_INDEX: dict[str, int] = {grade: i for i, grade in enumerate(RATING_SCALE)}
 #: borrower INTO default: default is an event, not a grade a shock produces.
 PERFORMING: tuple[str, ...] = tuple(RATING_SCALE[:DEFAULT_INDEX])
 
-#: Broad bands, for questions phrased "all BBB borrowers" or "investment grade".
+#: Broad bands, for questions phrased "all BBB borrowers" or "investment
+#: grade". The governed table owns them; this is a view of it.
 BANDS: dict[str, tuple[str, ...]] = {
-    "AAA": ("AAA",),
-    "AA": ("AA",),
-    "A": ("A",),
-    "BBB": ("BBB+", "BBB", "BBB-"),
-    "BB": ("BB+", "BB", "BB-"),
-    "B": ("B+", "B"),
-    "CCC": ("CCC",),
-    "CC": ("CC",),
-    "investment grade": ("AAA", "AA", "A", "BBB+", "BBB", "BBB-"),
-    "sub-investment grade": ("BB+", "BB", "BB-", "B+", "B", "CCC", "CC"),
-    "speculative grade": ("BB+", "BB", "BB-", "B+", "B", "CCC", "CC"),
+    "AAA": ratingscale.BANDS["aaa"],
+    "AA": ratingscale.BANDS["aa"],
+    "A": ratingscale.BANDS["a"],
+    "BBB": ratingscale.BANDS["bbb"],
+    "BB": ratingscale.BANDS["bb"],
+    "B": ratingscale.BANDS["b"],
+    "CCC": ratingscale.BANDS["ccc"],
+    "CC": ratingscale.BANDS["cc"],
+    "investment grade": ratingscale.INVESTMENT_GRADE,
+    "sub-investment grade": ratingscale.SPECULATIVE_GRADE,
+    "speculative grade": ratingscale.SPECULATIVE_GRADE,
+    "high yield": ratingscale.SPECULATIVE_GRADE,
 }
 
 

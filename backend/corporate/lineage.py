@@ -167,6 +167,12 @@ FIELDS: tuple[Field, ...] = (
     # ---- rating ----------------------------------------------------------
     _rating("internal_rating"),
     _rating("internal_rating_numeric"),
+    # The three PDs, each meaning a different thing. Carried on the RATINGS
+    # domain because all three are properties of the grade in this quarter,
+    # and copied nowhere: the IFRS 9 measurement reads them from here.
+    _rating("ttc_pd_pct", unit="%"),
+    _rating("pit_pd_12m_pct", unit="%"),
+    _rating("lifetime_pd_pct", unit="%"),
     _rating("previous_rating"),
     _rating("rating_change_notches", unit="notches"),
     _rating("rating_direction"),
@@ -257,7 +263,16 @@ FIELDS: tuple[Field, ...] = (
     _ifrs9("sicr_flag"),
     _ifrs9("pd_12m", unit="%"),
     _ifrs9("pd_lifetime", unit="%"),
+    #: Which of the two the measurement actually used, and which basis that
+    #: is. Published so a reader can see the change of basis rather than infer
+    #: it from the Stage.
+    _ifrs9("pd_applicable", unit="%"),
+    _ifrs9("pd_measurement_basis"),
     _ifrs9("lgd", unit="%"),
+    _ifrs9("secured_lgd", unit="%"),
+    _ifrs9("unsecured_lgd", unit="%"),
+    _ifrs9("ecl_before_overlay", unit="SAR millions"),
+    _ifrs9("credit_conversion_factor", unit="%"),
     _ifrs9("ead", unit="SAR millions"),
     _ifrs9("ecl_12m", unit="SAR millions"),
     _ifrs9("ecl_lifetime", unit="SAR millions"),

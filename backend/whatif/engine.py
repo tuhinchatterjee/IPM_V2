@@ -213,6 +213,26 @@ def select(frame: pd.DataFrame, population: sc.Population) -> pd.DataFrame:
     if population.stages:
         work = work[pd.to_numeric(work["stage"], errors="coerce").isin(
             list(population.stages))]
+    # Numeric filters. A threshold the book cannot answer is REFUSED, not
+    # dropped: silently widening "exposure above SAR 100m" to the whole book
+    # is how a scenario aimed at twelve names priced three thousand.
+    for threshold in getattr(population, "thresholds", ()):
+        if threshold.field not in work.columns:
+            raise PopulationUnavailable(
+                f"This book does not carry "
+                f"'{sc.LABELS.get(threshold.field, threshold.field)}', so the "
+                f"filter \"{threshold.describe()}\" cannot be applied. The "
+                "scenario has not been run, because running it without that "
+                "filter would answer a different question.")
+        values = pd.to_numeric(work[threshold.field], errors="coerce")
+        work = work[threshold.apply(values).fillna(False)]
+
+    if getattr(population, "top_n", 0):
+        column = population.top_by if population.top_by in work.columns else "ead"
+        work = work.nlargest(int(population.top_n),
+                             pd.to_numeric(work[column], errors="coerce").name
+                             if column in work.columns else "ead")
+
     if population.borrower_ids:
         wanted_ids = {str(b).strip().upper() for b in population.borrower_ids}
         work = work[work["borrower_id"].astype(str).str.upper().isin(wanted_ids)]
@@ -347,6 +367,14 @@ def _apply_collateral(work: pd.DataFrame, shock: sc.Shock,
 
 class ShockUnavailable(ValueError):
     """A shock this book cannot answer, named rather than silently skipped."""
+
+
+class PopulationUnavailable(ValueError):
+    """A filter this book cannot apply. Refused rather than widened away."""
+
+
+class EmptyPopulation(ValueError):
+    """A filter that is answerable and matches nobody. A finding, not a fault."""
 
 
 #: Which stressed financial column each sensitivity effect writes to.
@@ -675,8 +703,12 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
     warnings: list[str] = list(schema_notes)
 
     if work.empty:
-        raise ValueError(
-            f"No borrowers match {scenario.population.describe()} in {settled}.")
+        # A different thing from a broken scenario, and it reads differently:
+        # the filter was understood and applied, and nobody met it.
+        raise EmptyPopulation(
+            f"No borrowers match {scenario.population.describe()} in "
+            f"{settled}. The filter was applied as stated — widen it, or "
+            "check the period.")
 
     _numeric(work, ("pd_12m", "pd_lifetime", "lgd", "ead", "final_ecl",
                     "management_overlay", "current_dpd", "stage",
