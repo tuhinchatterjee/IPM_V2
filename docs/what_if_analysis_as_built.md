@@ -223,8 +223,8 @@ percentage change. A saved What-If persists all of it.
 
 | Check | Command | Result |
 |---|---|---|
-| What-If suite | `uv run pytest tests/whatif tests/ifrs9` | **241 passed** |
-| Full backend | `uv run pytest` | see §12 |
+| What-If suite | `uv run pytest tests/whatif tests/ifrs9` | **271 passed** |
+| Full backend | `uv run pytest` | **12,950 passed, 46 skipped, 6 failed** — every one of the six reproduced on the baseline `4f79566` with the same data lake; named in §11 |
 | Backend lint | `uv run ruff check .` | clean |
 | Frontend types | `npx tsc --noEmit` | clean |
 | Frontend lint | `npm run lint` | clean |
@@ -304,7 +304,20 @@ percentage change. A saved What-If persists all of it.
 
 ### Pre-existing, found and not fixed
 
-- **`tests/proof/test_fresh_clone_acceptance.py::test_the_only_live_domains_are_the_seven`
+The full suite leaves six failures. Each was reproduced on the baseline
+`4f79566`, in a worktree pointed at this installation's data lake, so none of
+them is this work's:
+
+| Test | What it is about |
+|---|---|
+| `evals/test_multi_analysis_response::test_the_exposure_block_reconciles_with_an_independent_read` | reconciliation |
+| `evals/test_properties::test_a_share_is_of_the_population_asked_about` | reconciliation |
+| `evals/test_properties::test_customer_level_exposure_reconciles_with_the_facility_book` | reconciliation |
+| `exports/test_workbooks::test_it_writes_real_excel_formulas` | workbook formulas |
+| `exports/test_workbooks::test_the_formulas_reconcile_against_the_runtime_values` | workbook formulas |
+| `proof/test_fresh_clone_acceptance::test_the_only_live_domains_are_the_seven` | test-order pollution |
+
+- **`test_the_only_live_domains_are_the_seven`
   fails when the whole suite runs**: a `Test Domain` registered by an earlier
   test module is still in the registry. Reproduced on the **baseline**
   `4f79566` with the same data lake, so it is not this work's. Left alone

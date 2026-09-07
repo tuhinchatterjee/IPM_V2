@@ -127,9 +127,9 @@ Legend: **PASS** · **PARTIAL** (built, with a stated shortfall) · **FAIL** ·
 | 85 | Graceful failure, never misleading zeros | PASS | Refusals for unknown period / borrower / field / methodology / model |
 | 86 | Access control, no cross-user leakage | PASS | `test_a_viewer_may_not_run_a_what_if`; `test_one_persons_what_if_is_not_another_persons` |
 | 87 | Auditability | PASS | as-built §9 |
-| 88–99 | Test coverage per layer | PASS | 241 What-If tests; full breakdown in as-built §10 |
+| 88–99 | Test coverage per layer | PASS | **271** What-If tests; full breakdown in as-built §10 |
 | 100 | Nine browser journeys | PASS | **9/9, 72/72 checks** |
 | 101 | No fake success states | PASS | Every claim in this document is backed by a run |
 | 102 | Efficient services, no unrelated scanning | PASS | `domain._cached` per dataset-period; migration 0.5s warm |
-| 103 | Regression protection | PASS | Full backend suite; 542 frontend tests; production build |
+| 103 | Regression protection | PASS | Full backend suite **12,950 passed, 46 skipped, 6 failed** — all six reproduced on the baseline; 542 frontend tests; production build; display contract; feature matrix |
 | 108 | Migration graph, single head | PASS | `0041 (head)` |
