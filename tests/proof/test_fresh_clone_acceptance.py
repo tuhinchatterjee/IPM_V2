@@ -207,17 +207,21 @@ class TestTheBootstrapPlan:
 class TestTheBusinessDomains:
     """§6 and §7: the seven headings, and what is filed under them."""
 
-    def test_there_are_nine_and_they_are_the_named_nine(self):
+    def test_there_are_ten_and_they_are_the_named_ten(self):
         """Seven became nine when liquidity and external intelligence
         arrived — the two domains the Early Warning screen used to list in a
-        box headed "what this deployment cannot watch for"."""
-        assert len(dd.DOMAINS) == 9
+        box headed "what this deployment cannot watch for". Nine became ten
+        when Early Warning V2 became a first-class, governed Data Builder
+        domain in its own right rather than a live computation over
+        Borrower 360."""
+        assert len(dd.DOMAINS) == 10
         for expected in ("Core Portfolio / Facility",
                          "Liquidity and Cash Flow", "External Intelligence",
                          "IFRS 9 / ECL", "Corporate Ratings",
                          "Retail / SME Scorecards", "Documents",
                          "Policies / Knowledge",
-                         "CreditProbe Operational Metadata"):
+                         "CreditProbe Operational Metadata",
+                         "Early Warning"):
             assert expected in dd.NAMES
 
     def test_every_domain_describes_itself(self):

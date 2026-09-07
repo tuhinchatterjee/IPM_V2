@@ -146,6 +146,8 @@ build_if_missing retail_application_scorecard_monthly_validation \
   "Retail scorecards" scripts/build_retail_scorecards.py
 build_if_missing corporate_borrower_360 "Corporate Borrower 360" \
   scripts/build_corporate_universe.py
+build_if_missing early_warning_borrower_month "Early Warning V2 monthly snapshots" \
+  scripts/build_early_warning_v2.py
 ok "Analytical layer ready ($(find "$DATA_DIR" -name '*.parquet' | wc -l | tr -d ' ') Parquet files)"
 
 # -------------------------------------------------------------- 4. backend

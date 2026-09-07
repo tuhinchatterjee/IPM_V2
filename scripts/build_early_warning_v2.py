@@ -328,11 +328,11 @@ def score_borrower_month(curr: pd.Series, prev: pd.Series | None,
     }, fired, bands
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--borrowers", type=int, default=DEFAULT_BORROWER_COUNT)
     parser.add_argument("--out-dir", type=Path, default=settings.analytics_dir)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     print("> Loading corporate_borrower_360")
     universe = load_universe()
@@ -422,7 +422,8 @@ def main() -> None:
 
     print(f"> Wrote {bm_df['snapshot_month'].nunique()} monthly partitions to "
           f"{args.out_dir / 'early_warning_borrower_month'}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

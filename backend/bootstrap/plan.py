@@ -389,6 +389,27 @@ def _seed_workspace() -> str:
         or "workspace objects"
 
 
+def _early_warning_needed() -> bool:
+    if not _lake_has(*readiness.EARLY_WARNING_DATASETS):
+        return True
+    try:
+        from backend.data_access import get_data_source
+
+        months = len(get_data_source().periods("early_warning_borrower_month") or [])
+    except Exception:  # noqa: BLE001 - an unreadable dataset is one to rebuild
+        return True
+    return months < readiness.MINIMUM_EARLY_WARNING_MONTHS
+
+
+def _build_early_warning() -> str:
+    import scripts.build_early_warning_v2 as builder
+
+    if builder.main([]) != 0:
+        raise RuntimeError("the Early Warning V2 monthly build reported failure")
+    _refresh_data_access()
+    return f"{readiness.MINIMUM_EARLY_WARNING_MONTHS}+ Early Warning monthly snapshot(s)"
+
+
 def _review_needed() -> bool:
     """Needed whenever the readiness gate would not pass, not merely when no
     run row exists.
@@ -455,7 +476,13 @@ def steps() -> tuple[Step, ...]:
              _relationships_needed, _seed_relationships, needs_database=True),
         Step("workspace", "K", "Seed the workspace",
              _workspace_needed, _seed_workspace, needs_database=True),
-        Step("review", "L", f"Run the {readiness.PERIOD} portfolio review",
+        # L does not touch metadata/catalog.json - it writes Parquet directly
+        # under its own dataset names - so it carries none of C/D/E's ordering
+        # constraint against catalogue/domains. It still runs before the
+        # review (M) so a re-run of just "review" always sees a built book.
+        Step("early_warning", "L", "Generate Early Warning V2 monthly snapshots",
+             _early_warning_needed, _build_early_warning),
+        Step("review", "M", f"Run the {readiness.PERIOD} portfolio review",
              _review_needed, _run_review, needs_database=True),
     )
 
@@ -465,7 +492,7 @@ def run(*, only: str = "", force: bool = False,
     """Perform whatever this deployment is missing, then verify.
 
     `only` runs one step by key. `force` runs a step whose probe says it is
-    already done — for a rebuild. `skip_builders` leaves the three data
+    already done — for a rebuild. `skip_builders` leaves the four data
     universes alone, which is what a test wants when the lake is already
     there and only the database half is in question.
     """
@@ -478,7 +505,8 @@ def run(*, only: str = "", force: bool = False,
     for step in steps():
         if only and step.key != only:
             continue
-        if skip_builders and step.key in ("portfolio", "corporate", "retail"):
+        if skip_builders and step.key in ("portfolio", "corporate", "retail",
+                                          "early_warning"):
             continue
         if step.needs_database and not has_db:
             result.outcomes.append(Outcome(

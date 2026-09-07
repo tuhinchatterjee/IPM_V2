@@ -88,6 +88,7 @@ step "Building the analytical data"
 "$VENV_PY" scripts/generate_saudi_universe.py
 "$VENV_PY" scripts/build_retail_scorecards.py
 "$VENV_PY" scripts/build_corporate_universe.py
+"$VENV_PY" scripts/build_early_warning_v2.py
 
 # ------------------------------------------------------------------- docker
 
