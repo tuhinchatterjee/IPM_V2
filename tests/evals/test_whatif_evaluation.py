@@ -106,6 +106,21 @@ class TestEveryCase:
             "but it IS a What-If, so the product must ask how big rather than "
             "route it to a profile screen")
 
+    def test_a_report_does_not_open_a_what_if_at_all(self, case) -> None:
+        """A statement about what the book already did is not an instruction.
+
+        "Shipping has deteriorated. Show me everything." is a request for a
+        segment review — a named set of ten analyses — and reading the perfect
+        tense as an imperative answered it with one What-If instead.
+        """
+        if not case.get("must_not_open_whatif"):
+            return
+        read = lg.read(case["question"])
+        assert read.scenario is None
+        assert not getattr(read, "opens_whatif", False), (
+            "the product would route this to the scenario engine and take the "
+            "question away from the analysis that owns it")
+
     def test_an_informational_question_needs_no_methodology(self, case) -> None:
         if not case.get("informational"):
             return

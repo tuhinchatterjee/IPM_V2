@@ -376,6 +376,46 @@
    "must_ask_magnitude": true
   },
   {
+   "question": "Shipping has deteriorated. Show me everything.",
+   "intent": "view",
+   "reads_as_scenario": false,
+   "must_not_open_whatif": true,
+   "changes_state": false,
+   "about_the_result": false
+  },
+  {
+   "question": "Show me the top ten deteriorating borrowers.",
+   "intent": "view",
+   "reads_as_scenario": false,
+   "must_not_open_whatif": true,
+   "changes_state": false,
+   "about_the_result": false
+  },
+  {
+   "question": "Real Estate has worsened. What should I look at?",
+   "intent": "explain",
+   "reads_as_scenario": false,
+   "must_not_open_whatif": true,
+   "changes_state": false,
+   "about_the_result": false
+  },
+  {
+   "question": "Which sectors deteriorated the most?",
+   "intent": "explain",
+   "reads_as_scenario": false,
+   "must_not_open_whatif": true,
+   "changes_state": false,
+   "about_the_result": false
+  },
+  {
+   "question": "Which customers were downgraded last quarter?",
+   "intent": "explain",
+   "reads_as_scenario": false,
+   "must_not_open_whatif": true,
+   "changes_state": false,
+   "about_the_result": false
+  },
+  {
    "question": "Show Stage 1 PD by sector.",
    "intent": "view",
    "informational": true,

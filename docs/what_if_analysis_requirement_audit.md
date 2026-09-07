@@ -10,7 +10,7 @@ repository-specific implementation that the evidence shows is better than the
 literal reading; the evidence is named on the row and is a test or a measured
 figure, never a preference.
 
-**Totals: 78 PASS (2 of them qualified), 0 PARTIAL, 0 FAIL.**
+**Totals: 78 PASS (2 of them qualified), 0 PARTIAL, 0 FAIL** on the approved specification. The final correction directive is audited separately at the end of this document.
 
 ---
 
@@ -36,8 +36,8 @@ figure, never a preference.
 | 5 | Preserve and extend `backend/whatif`, no second engine | PASS | Component table in as-built §2; one `engine.run()` |
 | 6 | Isolate `stress_scenario_basic` from user + LLM routing | PASS | Planner intent, analyst tool registration, Studio binding removed; contract still registered |
 | 6 | Absorb magnitude-free trigger vocabulary | PASS | `test_a_magnitude_free_stress_question_opens_a_what_if`; `_opens_whatif` orchestrator path |
-| 7 | 14-grade governed scale, no regeneration, configured hierarchy | PASS | `test_it_shows_the_fourteen_governed_grades`; seed untouched |
-| 7 | 19-grade → 14, 20×20 → 15×15 | PASS | `test_it_is_fifteen_by_fifteen_displayed`; adaptation recorded in spec §A |
+| 7 | **19**-grade governed scale, configured hierarchy | PASS | `backend/corporate/ratingscale.py`; `test_it_shows_the_nineteen_governed_grades`; `test_the_scale_is_nineteen_points_and_not_a_relabelled_fourteen` asserts nineteen distinct TTC levels, so there is no fourteen-point scale underneath |
+| 7 | 20 × 20 migration display | PASS | `test_it_is_twenty_by_twenty_displayed`; browser journey A |
 
 ## Landing and interaction
 
@@ -138,3 +138,69 @@ figure, never a preference.
 | 102 | Efficient services, no unrelated scanning | PASS | `domain._cached` per dataset-period; migration 0.5s warm |
 | 103 | Regression protection | PASS | Full backend suite **13,023 passed, 37 skipped, 6 failed** — the same six as before this work, all reproduced on the baseline; 542 frontend tests; production build; display contract; feature matrix |
 | 108 | Migration graph, single head | PASS | `0041 (head)` |
+
+---
+
+# The final correction directive
+
+Manual acceptance found fourteen things the automated suite had passed over,
+and asked for a rebuild of the Corporate IFRS 9 domain underneath them. This
+part is audited on the same terms: a **PASS** requires implemented code AND a
+test, a browser journey or a measured figure.
+
+## A–N — what manual acceptance found
+
+| | Finding | Verdict | Evidence |
+|---|---|---|---|
+| A | Rating migration percentages must be ROW normalised | PASS | `migration._as_row_shares`; the payload declares `normalisation`, `reads_as` and `denominator` at the top level and the screen prints the legend; browser journey **A** checks every populated row sums to 100% of its own origin grade |
+| B | No Back navigation | PASS | `BackLink` on the thread and both model pages; browser journey **B** clicks it on all three and asserts the destination |
+| C | Follow-up questions not answered | PASS | `backend/whatif/investigate.py` + `POST /whatif/investigate`; journey **C** asks five and asserts each is answered, says the scenario is unchanged, produces no new result, and does not move the figure it is about |
+| D | XGBoost fails on macOS (libomp) | PASS | `backend/whatif/ml/runtime.py` — checked before the methodology is offered, refused in a sentence with the fixing command and the Delta Model named; 18 tests; journey **D** asserts no `@rpath` reaches the screen |
+| E | Raw JSON on the risk-parameter screen | PASS | `RiskParameterPanel`; journey **E** asserts no braces on the PD, LGD or CCF screens and that a distribution is shown |
+| F | Insufficient business coherence | PASS | 32 data-quality invariants over all 16 quarters (`tests/corporate/test_data_quality.py`); portfolio reconciliation report; four incoherences fixed at source — as-built §4 |
+| G | Must use a governed 19-point scale | PASS | `backend/corporate/ratingscale.py`; nineteen distinct TTC levels, all nineteen grades populated, no fourteen-point scale underneath |
+| H | Filters lost — a targeted scenario became whole-book | PASS | `Threshold` carried through the language reader, the step, the state contract and the engine; journey **F** measures **207 borrowers of 3,244**, and the screen restates both filters before calculating |
+| I | Stage 3 ECL moved unexplainably | PASS | Root cause was a book holding borrowers credit-impaired by days past due, still rated `B-`; the presumption of default is not rebutted anywhere now. `TestStageThreeIsIsolated` (5 tests) and `_stage_three` name every mechanism or say there is none |
+| J | Optional schema warnings too prominent | PASS | Separated into `notes` about the INSTALLATION from `warnings` about the RESULT; folded away and grey; `test_the_loss_is_named_rather_than_hidden` asserts the split |
+| K | Stage migration showed PD 0.00% / Stage +243.97% | PASS | `basis` is its own driver labelled "Measurement basis: 12-month PD to lifetime PD", with the borrowers, the exposure and both PDs; journey **G** asserts it is not collapsed into a Stage effect |
+| L | AI must let users decode ECL impact conversationally | PASS | Three intents, 27 follow-up question shapes, `run.interpret` composing what the result MEANS with the next questions as buttons; **76** evaluation cases |
+| M | Mandatory model-selection gate before the first ECL simulation | PASS | `methodology.needs_gate`; every browser journey that computes asserts the gate appears and that no figure is shown while it is open |
+| N | Chat box usable, supports layering | PASS | The composer is never replaced by chips; journeys 1–11 layer shocks and assert the step list |
+
+## §2–§42 — the directive's own sections
+
+| § | Requirement | Verdict | Evidence |
+|---|---|---|---|
+| 2–4 | A real 19-point scale, not a relabelling; 20 × 20 display | PASS | `test_the_scale_is_nineteen_points_and_not_a_relabelled_fourteen`; `test_it_is_twenty_by_twenty_displayed` |
+| 5–7 | Rebuild the Corporate IFRS 9 domain, coherent longitudinal data | PASS | Clean rebuild; 52,880 rows over 16 quarters; `TestTheBookHoldsTogetherOverTime` |
+| 8 | Distinct TTC / PIT / lifetime PD with documented formulas | PASS | `ratingscale.ttc_pd`, `pit_pd`, `lifetime_pd`; as-built §4; `TestTheThreePdsAreThreeThings` |
+| 9 | Full reconciliation across stage / sector / segment / rating | PASS | `scripts/whatif_reconciliation_report.py` — **16/16 quarters, all four partitions** |
+| 10 | EAD = drawn + CCF × undrawn | PASS | `test_exposure_is_drawn_plus_the_conversion_factor_times_undrawn`; CCF is a proportion at both grains |
+| 11 | LGD from collateral and haircut | PASS | `test_loss_given_default_sits_between_its_secured_and_unsecured_legs` plus the documented defaulted workout uplift |
+| 12–14 | Three intent classes, explicit and tested | PASS | `investigate.classify`; `TestTheThreeIntents` (10 tests); 76 evaluation cases |
+| 15 | Stage 3 isolation with hard invariants | PASS | `TestStageThreeIsIsolated`; a shock that cannot reach a defaulted borrower does not move its provision, and any movement carries a named mechanism summing to the whole |
+| 16–17 | Measurement basis separate from Stage effect; defined attribution language | PASS | `attribution.LABELS`; `basis_movement` writes the sentence a lender uses |
+| 18 | Delta revalidation after the rebuild | PASS | Factors reproduce the ECL to within 0.02 on a SAR 60bn book across rating, PD and LGD shocks |
+| 19 | XGBoost portability preflight | PASS | `ml/runtime.py`; `TestThePortabilityPreflight` |
+| 20–21 | Retrain from scratch, new version, SHAP, stage study, model card | PASS | Model `2026.09.07`, previous artifacts deleted; OOT R² 0.9979; the study CHOSE the per-Stage design and the product serves it |
+| 22 | No raw JSON | PASS | Journey **E** |
+| 23 | Back navigation | PASS | Journey **B** |
+| 24 | Demote optional-data warnings | PASS | `notes` vs `warnings` |
+| 25 | Differentiated error handling | PASS | `lib/whatif-errors.ts`, seven kinds; 9 node tests |
+| 26 | Generator / catalogue reconciliation, idempotent | PASS | `catalogue_io.merge` + `reconcile`, and `catalogue.reconcile_published` — which found **31 fields across 4 datasets** that a stale published entry was hiding from every reader |
+| 27 | Clean lake rebuild | PASS | `scripts/build_corporate_universe.py` run from empty; catalogue reconciles with the lake |
+| 28 | Data quality tests | PASS | 32 invariants over 16 quarters |
+| 29 | Longitudinal reasonableness | PASS | `TestTheBookHoldsTogetherOverTime` — no quarter halves or doubles, Stage 2 between 2% and 30%, coverage 0.5%–20% |
+| 30 | Macro coherence | PASS | `test_the_provision_moves_with_the_cycle` — coverage and the credit cycle correlate below −0.30 |
+| 31 | Model gate confirmation | PASS | `me.confirmation`; asserted in every computing journey |
+| 32 | Result interpretation panel | PASS | `run.interpret` + `ResultInterpretation`, with follow-up questions as buttons |
+| 33 | Do not re-run the scenario to answer a question | PASS | `backend/whatif/cache.py`; journey **C** asserts no new result and an unmoved figure |
+| 34 | AI eval set ≥ 75 questions | PASS | **76** in `tests/evals/whatif_cases.json`, all passing |
+| 35 | Browser journeys reproducing the manual failures | PASS | `scripts/acceptance/whatif_manual_failures.mjs` — **7/7, 64/64 checks** |
+| 36 | Three readiness cycles | PASS | Recorded in as-built §10 |
+| 37 | Red-teaming | PASS | `tests/whatif/test_whatif_red_team.py` — 32 attacks; one got through and is fixed (`policy.bounded`) |
+| 38 | Spot-check ≥ 10 borrowers over 8+ quarters | PASS | Reconciliation report — 10 borrowers, 8 quarters, every row ties to within 0.0001, stratified on a fixed seed rather than chosen |
+| 39 | Portfolio reconciliation over 16 quarters | PASS | Reconciliation report |
+| 40 | Rating distribution for all 19 grades | PASS | Reconciliation report — 19 of 19 populated, TTC monotone, coverage 0.01% at AAA to 60% at D |
+| 41 | Update as-built and requirement audit | PASS | This document and `docs/what_if_analysis_as_built.md` |
+| 42 | Do not merge, do not open a PR | PASS | Neither done; the branch is pushed |

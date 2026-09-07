@@ -162,11 +162,26 @@ _NOMINAL_BEFORE = re.compile(
     r"by|in|of|for|with|on|from|per|about)\s+)$", re.IGNORECASE)
 
 
+#: An auxiliary turns a movement verb into a REPORT of something that already
+#: happened. "Shipping has deteriorated" states a fact about the book;
+#: "deteriorate the Shipping book" instructs one. Without this, adding
+#: "deteriorate" to the credit moves routed a segment-review question — "Shipping
+#: has deteriorated. Show me everything." — into the scenario engine, which
+#: answered it with one What-If instead of the named set of ten analyses that
+#: review is.
+_AUXILIARY_BEFORE = re.compile(
+    r"\b(?:has|have|had|is|are|was|were|been|being|already|recently|"
+    r"materially|significantly|further|which|that|who|since|after|when)\s+"
+    r"(?:\w+\s+){0,2}$", re.IGNORECASE)
+
+
 def _instructs(text: str, pattern: re.Pattern[str]) -> bool:
-    """True when the verb is used as a verb, not as a noun."""
+    """True when the verb is used as a verb, not as a noun or a report."""
     for found in pattern.finditer(text):
-        if not _NOMINAL_BEFORE.search(text[:found.start()]):
-            return True
+        before = text[:found.start()]
+        if _NOMINAL_BEFORE.search(before) or _AUXILIARY_BEFORE.search(before):
+            continue
+        return True
     return False
 
 #: A plain instruction. "Increase Stage 1 PD by 20%" is a What-If — it just
