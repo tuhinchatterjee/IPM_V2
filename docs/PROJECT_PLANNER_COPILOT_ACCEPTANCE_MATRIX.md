@@ -231,7 +231,7 @@ Each of the ten required sentences, through the real product.
 | J6 | ruff clean across backend, tests and scripts | PASS | `ruff check backend/ tests/ scripts/` |
 | J7 | TypeScript compiles | PASS | `npx tsc --noEmit` |
 | J8 | ESLint clean on the changed frontend files | PASS | `npx eslint "src/app/delivery/**/*.tsx" "src/components/planner/*.tsx" src/lib/api.ts` |
-| J9 | Definitive full regression on final HEAD | PASS | `pytest tests` — 12,982 passed, 2 failed, 53 skipped. Both failures traced outside this phase and verified: one passes on a fresh database, one fails identically at the branch base. See the final report §7. |
+| J9 | Definitive full regression on final HEAD | PASS | `pytest tests` — 13,033 passed, 2 failed, 38 skipped, re-run after the UAT remediation on the final images. Both failures traced outside this work and proved: one is a domain row another module's test leaves in the shared database, one is the messaging directory limit. See the report addendum A4. |
 | J10 | Nothing outside the Planner was changed | PASS | `git diff --name-only` for this phase: 25 non-test files, all under `backend/planner`, the two planner routers, `backend/models/planner.py`, the delivery frontend, `backend/agentic/tools.py` (registry entries only), `backend/api/main.py` (one router include) and two Alembic revisions |
 
 ## K. Scope discipline

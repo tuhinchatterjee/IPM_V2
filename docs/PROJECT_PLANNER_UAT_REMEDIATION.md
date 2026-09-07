@@ -196,7 +196,7 @@ containers healthy.
 | The planner journeys A–F | `scripts/acceptance/planner_journeys.py` | 43 passed, 0 failed |
 | The agentic demonstration | `scripts/acceptance/agentic_demo_scenario.py` | 19 passed, 0 failed |
 | The Copilot boundary over HTTP | `scripts/acceptance/copilot_adversarial.py` | 14 passed, 0 failed |
-| Full regression | `pytest tests` | see the final report |
+| Full regression | `pytest tests` | 13,033 passed, 2 failed, 38 skipped — both failures traced outside this work; see the final report |
 
 The demonstration scenario asserts that nobody is told twice about one thing,
 which is a claim about a *fresh* demonstration. Run it after

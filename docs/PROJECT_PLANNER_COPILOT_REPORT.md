@@ -420,6 +420,31 @@ healthy.
 | `npx tsc --noEmit` | clean |
 | `npx eslint` on the changed frontend | clean |
 | PPC-UAT-001 … PPC-UAT-020 | 20 PASS, 0 FAIL |
+| `pytest tests` — the definitive full regression | **13,033 passed, 2 failed, 38 skipped** in 35m47s |
+
+### The two regression failures, each traced
+
+Neither is in the Planner, and neither is a product defect. Both were
+investigated rather than asserted.
+
+**`tests/proof/test_fresh_clone_acceptance.py::test_the_only_live_domains_are_the_seven`.**
+It found ten live data domains where seven were expected, the extra one being
+called `Test Domain`. `tests/api/test_data_builder.py` creates a domain by
+that name through the API and does not remove it, and this repository's
+suites share one development database. Proved both ways: deleting the row
+makes the proof suite pass 23 of 23, and re-running the data-builder suite
+re-creates it. It is a cleanup missing from a test in another module, and it
+appears once the full suite has been run twice against the same database.
+
+**`tests/api/test_messaging_corrections.py::…[role]`.** The same failure this
+branch's earlier report already recorded and attributed: the messaging
+directory returns a bounded page and the test's own fixture account is no
+longer inside it, among the accumulated fixture users of a long-lived
+development database. It passes on a fresh database. It is the same
+directory-limit defect the Planner's own person lookup had, fixed here and
+still unfixed in the module that owns it.
+
+Neither was touched, because neither is in this work's scope.
 
 Two acceptance scripts were **deleted**: `copilot_journeys.py` and
 `creation_flow_journey.py` drove the chat box and the conversational creation
