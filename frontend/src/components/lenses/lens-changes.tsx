@@ -495,14 +495,24 @@ function format(
  * Collapsed by default. A Lens is opened to read figures; the reasoning is
  * there when it is wanted and not in the way when it is not.
  */
-export function LensDesignPanel({ design }: { design: LensDesign }) {
+export function LensDesignPanel({ design }: { design?: LensDesign | null }) {
   const [open, setOpen] = React.useState(false);
+  // A Lens served by an older backend has no `design` at all, and a Lens
+  // whose rationale was never written has an empty one. Neither is a reason
+  // to take the figures off the screen, so this reads defensively rather
+  // than trusting the shape: the panel is the least important thing on the
+  // page and must never be the thing that stops it rendering.
+  const questions = design?.risk_questions ?? [];
   const anything =
-    design.objective ||
-    design.rationale ||
-    design.why_these_domains ||
-    design.risk_questions.length > 0;
-  if (!anything) return null;
+    design != null &&
+    Boolean(
+      design.objective ||
+        design.rationale ||
+        design.why_these_domains ||
+        design.why_these_comparisons ||
+        questions.length > 0,
+    );
+  if (!anything || !design) return null;
 
   return (
     <div data-testid="lens-design">
@@ -535,13 +545,13 @@ export function LensDesignPanel({ design }: { design: LensDesign }) {
               body={design.why_these_comparisons}
             />
           )}
-          {design.risk_questions.length > 0 && (
+          {questions.length > 0 && (
             <div>
               <h4 className="text-[10px] uppercase tracking-wide text-text-muted">
                 The risk questions this Lens answers
               </h4>
               <ul className="mt-1 list-disc space-y-0.5 pl-4 text-text-secondary">
-                {design.risk_questions.map((question, i) => (
+                {questions.map((question, i) => (
                   <li key={i}>{question}</li>
                 ))}
               </ul>

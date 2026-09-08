@@ -146,13 +146,42 @@ def _open(page: Any, path: str = "/") -> None:
     page.wait_for_timeout(2000)
 
 
+def _whoami(page: Any) -> str:
+    """Who the browser's session actually belongs to, asked of the API.
+
+    The presence or absence of a form on screen is a guess about the session;
+    this is the session. A suite that guessed wrong would run every journey
+    against 401s and report the failures as product defects.
+    """
+    try:
+        answer = _api(page, "/api/v1/auth/me")
+    except Exception:  # noqa: BLE001 - before any page is loaded
+        return ""
+    if answer.get("status") != 200 or not isinstance(answer.get("body"), dict):
+        return ""
+    user = answer["body"].get("user")
+    if not isinstance(user, dict):
+        return ""
+    return str(user.get("username") or "")
+
+
 def _sign_in(page: Any, report: Report, username: str = ANALYST) -> bool:
     from backend.services.demo_users import DEMO_PASSWORD
 
     _open(page, "/")
-    if page.locator("input[name=password], #password").count() == 0:
-        return report.check("sign in", f"reached the product as {username}",
-                            True, "no sign-in was required")
+    if _whoami(page) == username:
+        return report.check("sign in", f"signed in as {username}", True,
+                            "the session was already open")
+
+    try:
+        page.wait_for_selector("input[name=password], #password",
+                               timeout=30_000)
+    except Exception:  # noqa: BLE001
+        return report.check(
+            "sign in", f"signed in as {username}", False,
+            "no sign-in form appeared and no session was open — the app did "
+            "not reach a state this suite can run against")
+
     page.fill("input[name=username], #username", username)
     page.fill("input[name=password], #password", DEMO_PASSWORD)
     page.get_by_role("button", name="Sign in").click()
@@ -163,7 +192,11 @@ def _sign_in(page: Any, report: Report, username: str = ANALYST) -> bool:
         return report.check("sign in", f"signed in as {username}", False,
                             "the sign-in form is still on screen")
     page.wait_for_timeout(1500)
-    return report.check("sign in", f"signed in as {username}", True)
+
+    who = _whoami(page)
+    return report.check("sign in", f"signed in as {username}",
+                        who == username,
+                        f"the session belongs to {who!r}")
 
 
 def _lens_id(slug: str = LENS_SLUG) -> int | None:
@@ -685,8 +718,41 @@ def journey_e_and_i(page: Any, report: Report, lens_id: int) -> None:
         return
     report.check(tag, "the demonstration data moved", True)
 
-    body = _api(page, f"/api/v1/lenses/{lens_id}/refresh", method="POST",
-                body={"trigger": "manual"})["body"]
+    # The PAGE performs the refresh that has to notice the change, and this
+    # captures that exact response.
+    #
+    # Calling the API first and loading the Lens afterwards was the earlier
+    # shape and it was wrong: the API call is a refresh, so it consumes the
+    # change, and the page's own refresh then correctly reports that nothing
+    # has moved since. The screen and the payload have to be two readings of
+    # ONE refresh or neither is evidence about the other.
+    seen: dict[str, Any] = {}
+
+    def _catch(response: Any) -> None:
+        if seen or response.request.method != "POST":
+            return
+        if "/refresh" not in response.url:
+            return
+        try:
+            seen["body"] = response.json()
+        except Exception:  # noqa: BLE001 - a body that is not JSON is not ours
+            pass
+
+    page.on("response", _catch)
+    try:
+        _open(page, f"/lenses/{lens_id}")
+        page.wait_for_selector("[data-testid=lens-changes]", timeout=180_000)
+        page.wait_for_timeout(2000)
+    finally:
+        page.remove_listener("response", _catch)
+
+    body = seen.get("body") or {}
+    if not body:
+        report.check(tag, "the Lens refreshed itself when it was opened",
+                     False, "no POST /refresh was observed from the page")
+        _restore_demo_data()
+        return
+    report.check(tag, "the Lens refreshed itself when it was opened", True)
     report.check(tag, "the source change is detected from the data itself",
                  bool(body["data_changes"]["datasets"]),
                  f"datasets reported changed: "
@@ -728,10 +794,14 @@ def journey_e_and_i(page: Any, report: Report, lens_id: int) -> None:
     ews = [c for c in material
            if c.get("belongs_to") == "Early Warning"
            or "ews" == (c.get("primary_domain") or "")]
+    def _named(changes: list[dict[str, Any]]) -> list[str]:
+        return [str(c.get("title") or c.get("metric_id") or c.get("panel_key"))
+                for c in changes]
+
     report.check(tag_i, "both domains moved, and are reported separately",
                  bool(cockpit) and bool(ews),
-                 f"cockpit movements: {[c['metric'] for c in cockpit]}, "
-                 f"early warning movements: {[c['metric'] for c in ews]}")
+                 f"cockpit movements: {_named(cockpit)}, "
+                 f"early warning movements: {_named(ews)}")
     report.check(tag_i, "no claim asserts causation the data does not show",
                  all(claim.get("basis") != "CONFIRMED_DRIVER"
                      or claim.get("downgraded_from")
@@ -739,9 +809,6 @@ def journey_e_and_i(page: Any, report: Report, lens_id: int) -> None:
                      for claim in section),
                  "an unsupported confirmed-driver claim survived")
 
-    _open(page, f"/lenses/{lens_id}")
-    page.wait_for_selector("[data-testid=lens-changes]", timeout=180_000)
-    page.wait_for_timeout(1500)
     report.check(tag, "the Lens reports the movement",
                  "No material changes" not in page.inner_text(
                      "[data-testid=change-headline]"),
@@ -895,6 +962,43 @@ JOURNEYS = {
 }
 
 
+#: The metric names this suite creates. Locking one twice is refused — the
+#: product will not let two of a person's metrics share a name — so a run
+#: killed before its cleanup would poison every later run with a 422 that
+#: looks like a product failure and is not.
+SWEPT = (
+    "QoQ Exposure Change",
+    "High EWS Exposure / Total Corporate Exposure",
+    "Previous Quarter Exposure / Current Quarter Exposure",
+)
+
+
+def _sweep() -> None:
+    """Remove anything a previous run of THIS suite left behind.
+
+    Only user metrics, and only the exact names this suite creates: a sweep
+    that took a governed catalogue metric with it would be a far worse bug
+    than the one it is here to prevent.
+    """
+    from sqlalchemy import delete, select
+
+    from backend.db.engine import get_session
+    from backend.models.platform import UserMetric
+
+    wanted = {name.strip().lower() for name in SWEPT}
+    try:
+        with get_session() as session:
+            rows = session.execute(select(UserMetric)).scalars().all()
+            doomed = [r.id for r in rows
+                      if (r.name or "").strip().lower() in wanted]
+            if doomed:
+                session.execute(
+                    delete(UserMetric).where(UserMetric.id.in_(doomed)))
+                session.commit()
+    except Exception:  # noqa: BLE001 - a sweep failure is not a test failure
+        pass
+
+
 def _cleanup() -> None:
     from backend.metrics import service
 
@@ -903,6 +1007,7 @@ def _cleanup() -> None:
             service.delete(metric_id)
         except Exception:  # noqa: BLE001
             pass
+    _sweep()
     _restore_demo_data()
 
 
@@ -930,6 +1035,8 @@ def main() -> int:
                         "database. Run scripts/bootstrap_demo.py first.")
         print(json.dumps(report.to_dict()) if args.json else report.error)
         return EXIT_CANNOT_RUN
+
+    _sweep()
 
     from playwright.sync_api import sync_playwright
 
