@@ -55,8 +55,17 @@ class Held:
     at: str
 
     def readable_by(self, owner: int | None) -> bool:
-        """A run with no owner was produced without a signed-in account."""
-        return self.owner is None or self.owner == owner
+        """Exactly the account that produced it, and no other.
+
+        An ownerless run is readable only by an ownerless caller. That reads
+        like a technicality and is not: with no login configured, nobody has
+        an id and every reader matches, which is the intended single-account
+        behaviour. But `self.owner is None or ...` ALSO made an ownerless run
+        readable by every signed-in analyst, so any result cached through a
+        path that did not resolve an account became everybody's — and the
+        frame it holds is the book at borrower grain.
+        """
+        return self.owner == owner
 
 
 _LOCK = threading.Lock()

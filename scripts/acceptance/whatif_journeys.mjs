@@ -1,5 +1,5 @@
 /**
- * What-If Analysis — the eleven browser journeys.
+ * What-If Analysis — the fifteen browser journeys.
  *
  *     node scripts/acceptance/whatif_journeys.mjs [--json]
  *
@@ -496,6 +496,150 @@ async function main() {
         check("and the reported book is still staged by the reported policy",
           (await latest.locator('[data-testid="result-reported-staging"]').textContent())
             .includes("reported-book"));
+      }
+    });
+
+  /* -------------------------------------------- 12. The macro lab */
+  await journey("Journey 12 — A macro variable, checked and overridden",
+    async (page, check) => {
+      await page.goto(`${WEB}/what-if/thread?journey=macro`, { waitUntil: "networkidle" });
+      const lab = await appears(page, '[data-testid="whatif-macro-lab"]', 60_000);
+      check("the macro lab is on the macro journey", lab);
+      if (!lab) return;
+
+      const cards = await page.locator("[data-macro]").count();
+      check("all ten governed variables have a card", cards === 10, `${cards}`);
+
+      // Opening a variable measures it against the book. The estimate must
+      // appear BESIDE the configured sensitivity, never instead of it.
+      await page.click('[data-macro="gdp_growth"]');
+      const analysed = await appears(page, '[data-testid="whatif-macro-analysis"]', 90_000);
+      check("selecting a variable measures it against the book", analysed);
+      if (!analysed) return;
+
+      const detail = page.locator('[data-testid="whatif-macro-detail"]');
+      const said = await detail.textContent();
+      check("the configured multiplier is shown beside the estimated one",
+        said.includes("Configured") && said.includes("Implied multiplier"));
+      check("the small sample is stated rather than hidden",
+        (await page.locator('[data-testid="whatif-macro-small-sample"]').count()) > 0);
+      check("the recommendation is keeping the configured sensitivity",
+        said.includes("keep the configured sensitivity"), said.slice(0, 0));
+      check("all three choices are offered",
+        (await detail.locator("[data-macro-choice]").count()) === 3);
+
+      // Define an assumption of one's own, and check it is labelled as one.
+      await page.click('[data-macro-tab="own"]');
+      const own = await appears(page, '[data-testid="whatif-macro-own"]', 30_000);
+      check("a person may define their own relationship", own);
+      if (!own) return;
+      await page.fill("[data-macro-pd]", "1.45");
+      await page.click("[data-macro-define]");
+      const inForce = await appears(page, '[data-testid="whatif-macro-in-force"]', 30_000);
+      check("the override is put in force for the thread", inForce);
+      if (inForce) {
+        const note = await page.locator('[data-testid="whatif-macro-in-force"]').textContent();
+        check("and the governed reference is said to be unchanged",
+          note.includes("reference sensitivity is unchanged"), note.trim().slice(0, 90));
+        check("it is labelled user-defined, never empirical or approved",
+          note.includes("User-Defined")
+          && !/required|regulatory|approved|empirical/i.test(note));
+      }
+
+      // The override has to reach the FIGURE, not only the panel.
+      await say(page, "Reduce GDP growth by 1 percentage point.");
+      const ran = await chooseMethodology(page, check, "delta");
+      if (!ran) return;
+      const stamped = page.locator('[data-testid="whatif-sensitivity-override"]');
+      check("the result's provenance line names the override",
+        (await stamped.count()) > 0);
+      if ((await stamped.count()) > 0) {
+        check("and says the governed matrix still applies elsewhere",
+          (await stamped.textContent()).includes("overridden for this thread"));
+      }
+    });
+
+  /* ------------------------------------- 13. The written interpretation */
+  await journey("Journey 13 — The reading, and the figures behind it",
+    async (page, check) => {
+      await page.goto(`${WEB}/what-if/thread?journey=parameters`, { waitUntil: "networkidle" });
+      await appears(page, '[data-testid="whatif-composer"]', 60_000);
+      await say(page, "Increase PD by 20%.");
+      const ran = await chooseMethodology(page, check, "delta");
+      if (!ran) return;
+
+      const result = page.locator('[data-testid="whatif-result"]').first();
+      const said = await result.textContent();
+      check("the result carries a reading, not only a number",
+        said.includes("What this means"));
+
+      // Whether the model wrote it or the product composed it, the figures it
+      // was written from must be reachable from the same panel.
+      const written = await result.locator('[data-testid="whatif-written-reading"]').count();
+      const author = await result.locator('[data-testid="whatif-reading-author"]').count();
+      check("the reading says who wrote it", author > 0 || written === 0);
+      check("the reading states it does not add a view the numbers do not carry",
+        said.includes("composed from the figures")
+        || said.includes("written from those figures"));
+      check("a follow-up the result makes worth asking is offered",
+        (await result.locator("[data-followup]").count()) > 0);
+    });
+
+  /* --------------------------------------- 14. Both methodologies */
+  await journey("Journey 14 — The other methodology, from either side",
+    async (page, check) => {
+      await page.goto(`${WEB}/what-if/thread?journey=parameters`, { waitUntil: "networkidle" });
+      await appears(page, '[data-testid="whatif-composer"]', 60_000);
+      await say(page, "Increase PD by 20%.");
+      const ran = await chooseMethodology(page, check, "delta");
+      if (!ran) return;
+
+      await say(page, "What would the ML model say?");
+      const compared = await appears(page, '[data-testid="whatif-methodology-comparison"]', 180_000);
+      check("asking for the other model prices the scenario both ways", compared);
+      if (!compared) return;
+
+      const panel = page.locator('[data-testid="whatif-methodology-comparison"]');
+      const said = await panel.textContent();
+      check("both methodologies are shown with their versions",
+        (await panel.locator("[data-comparison-method]").count()) === 2);
+      check("the direction the reader arrived from is named",
+        said.includes("Delta Model") && said.includes("ML Model"));
+      check("it says neither figure is the right one",
+        said.includes("governance decision"));
+      check("it does not recommend one",
+        !/we recommend|you should use|the better model|more accurate/i.test(said));
+
+      // A spread on its own is not an answer.
+      const agreed = said.includes("within") && said.includes("agreement");
+      const located = (await panel.locator("table").count()) > 0;
+      check("where the difference sits is shown, or the two are said to agree",
+        located || agreed);
+    });
+
+  /* --------------------------------------- 15. The detailed workbook */
+  await journey("Journey 15 — The audit workbook comes down",
+    async (page, check) => {
+      await page.goto(`${WEB}/what-if/thread?journey=parameters`, { waitUntil: "networkidle" });
+      await appears(page, '[data-testid="whatif-composer"]', 60_000);
+      await say(page, "Increase PD by 20%.");
+      const ran = await chooseMethodology(page, check, "delta");
+      if (!ran) return;
+
+      const button = page.locator('[data-testid="whatif-download-detail"]');
+      check("the detailed workbook is offered on the result",
+        (await button.count()) > 0);
+      if ((await button.count()) === 0) return;
+
+      const waiting = page.waitForEvent("download", { timeout: 180_000 })
+        .catch(() => null);
+      await button.first().click();
+      const file = await waiting;
+      check("clicking it produces a file", Boolean(file));
+      if (file) {
+        const name = file.suggestedFilename();
+        check("named as a workbook", name.endsWith(".xlsx"), name);
+        check("and the name carries no path", !/[\\/:]|\.\./.test(name), name);
       }
     });
 

@@ -313,7 +313,11 @@ export default function WhatIfThreadPage() {
       setBusy(true);
       setError(null);
       try {
-        const read = await api.whatIfInterpret(said, state);
+        // Whether a result is on screen decides what the same sentence
+        // means, so the thread has to say. Without it "what would the ML
+        // model say?" reads as a question about the methodology rather than
+        // a request to price the scenario the other way.
+        const read = await api.whatIfInterpret(said, state, Boolean(runId));
 
         // "What would the other model say?" is answered by pricing the same
         // scenario both ways rather than by reading the result on screen —

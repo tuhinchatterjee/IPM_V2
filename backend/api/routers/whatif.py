@@ -1046,7 +1046,12 @@ def investigate(body: InvestigateIn,
     the answer says that it was recomputed rather than pretending otherwise.
     """
     said = body.question.strip()
-    reading = iv.classify(said)
+    # This endpoint exists to answer a question ABOUT a result, so a result is
+    # what it is being asked in the presence of. Classifying without saying so
+    # made every intent that only exists after a result degrade to the one it
+    # falls back to when a thread is empty.
+    reading = iv.classify(said, has_result=True,
+                          has_steps=bool(body.state.steps))
     if reading.changes_state:
         return {
             "answered": False,

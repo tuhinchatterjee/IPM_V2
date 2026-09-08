@@ -6578,9 +6578,19 @@ export const api = {
       { method: "POST", body: JSON.stringify(body) }),
   whatIfMethodology: (active = "") =>
     request<WhatIfGate>(`/whatif/methodology${qs({ active })}`),
-  whatIfInterpret: (instruction: string, state: WhatIfState) =>
+  /** Read a message in the thread.
+   *
+   *  `hasResult` is not optional in spirit: the same sentence is a different
+   *  intent depending on what is on screen. "What would the ML model say?"
+   *  with a result behind it is a comparison; without one it is a question
+   *  about the methodology. A thread that does not say which silently
+   *  degrades every intent that only exists after a result. */
+  whatIfInterpret: (instruction: string, state: WhatIfState,
+                    hasResult = false) =>
     request<WhatIfInterpretResult>("/whatif/interpret",
-      { method: "POST", body: JSON.stringify({ instruction, state }) }),
+      { method: "POST",
+        body: JSON.stringify({ instruction, state,
+                               has_result: hasResult }) }),
   whatIfExecute: (body: WhatIfExecuteIn) =>
     request<WhatIfRunResult>("/whatif/execute",
       { method: "POST", body: JSON.stringify(body), timeoutMs: 120_000 }),
