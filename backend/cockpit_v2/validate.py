@@ -596,13 +596,13 @@ def check_stories_landed(build: Build) -> list[Check]:
                 | {s.line: s.amount for s in found.structural})
 
     expectations: dict[str, tuple[str, str]] = {
-        "WEIGHTS_ONLY": (attr.FACTOR_WEIGHTS,
+        "STORY_WEIGHTS_ONLY": (attr.FACTOR_WEIGHTS,
                          "the weights are the largest factor"),
-        "COLLATERAL_WEAKENING": (attr.FACTOR_LGD,
+        "STORY_COLLATERAL_WEAKENING": (attr.FACTOR_LGD,
                                  "recovery is the largest factor"),
-        "CASH_DETERIORATION": (attr.FACTOR_PD,
+        "STORY_CASH_DETERIORATION": (attr.FACTOR_PD,
                                "the PD curves are the largest factor"),
-        "OVERLAY_CHANGE": (attr.LINE_OVERLAY,
+        "STORY_OVERLAY_CHANGE": (attr.LINE_OVERLAY,
                            "the overlay is the largest line"),
     }
     for story_id, (expected, description) in expectations.items():
@@ -623,7 +623,7 @@ def check_stories_landed(build: Build) -> list[Check]:
                          f"the largest was {largest} "
                          f"({found[largest]:.8f}), not {expected}"))
 
-    stage_borrower = by_story.get("STAGE_1_TO_2")
+    stage_borrower = by_story.get("STORY_STAGE_1_TO_2")
     if stage_borrower:
         o = build.per_quarter[opening]
         c = build.per_quarter[closing]

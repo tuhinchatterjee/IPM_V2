@@ -787,6 +787,106 @@ export interface Narrative {
   why_multiple?: string;
   /** What the figures cover: population, window, measures. */
   scope?: string;
+  /**
+   * WHICH PATH wrote the sentence above. Before this field the response
+   * carried two narratives — the deterministic one and the analyst's — and
+   * nothing said which had been rendered. "deterministic" is the historical
+   * default, so a build without Cockpit V2 reads exactly as it always did.
+   */
+  prose_source?: "analyst" | "deterministic_v2" | "interpretation" | "deterministic";
+  /** Why the shown path was chosen when it was not the preferred one. */
+  prose_fallback_reason?: string;
+}
+
+/** One requested output of a Cockpit V2 answer, answered or explicitly not. */
+export interface CockpitV2Section {
+  output: string;
+  heading: string;
+  paragraphs: string[];
+  findings: string[];
+  table: CockpitV2Table | null;
+  chart: CockpitV2Chart | null;
+  limitations: string[];
+  answered: boolean;
+  unanswered_reason: string;
+}
+
+export interface CockpitV2Table {
+  title: string;
+  columns: string[];
+  rows: Record<string, string | number | boolean | null>[];
+  unit: string;
+  footer: string;
+}
+
+export interface CockpitV2Chart {
+  type: string;
+  title: string;
+  unit: string;
+  steps?: { label: string; value: number; kind: string }[];
+  series?: { label: string; value: number | null }[];
+  reconciled?: boolean;
+  residual?: number;
+}
+
+/** The Cockpit Intelligence V2 answer. Absent when the switch is off. */
+export interface CockpitV2Answer {
+  version: string;
+  prose_source: string;
+  fallback_reason: string;
+  direct_answer: string;
+  narrative: string;
+  sections: CockpitV2Section[];
+  findings: string[];
+  limitations: string[];
+  unanswered: { output: string; reason: string }[];
+  tables: CockpitV2Table[];
+  charts: CockpitV2Chart[];
+  clarification: {
+    question: string;
+    choices: { label: string; output: string }[];
+    free_text: boolean;
+  } | null;
+  recommendations: Record<string, string>[];
+  evidence: { observations: Record<string, unknown>[]; count: number; tools: string[] };
+  coverage: Record<string, unknown>;
+  validation: { ok: boolean; issues: { sentence: string; problem: string; detail: string }[] } | null;
+  trace: Record<string, unknown>;
+  budget: Record<string, unknown>;
+  model_calls: number;
+  duration_ms: number;
+  synthetic: string;
+  understood: {
+    requested_outputs: string[];
+    subquestions: string[];
+    filters: Record<string, unknown>;
+  };
+}
+
+/** What the Cockpit V2 diagnostic badge shows. */
+export interface CockpitV2Diagnostics {
+  cockpit_intelligence_v2: boolean;
+  available: boolean;
+  answer_version?: string;
+  data_version?: string;
+  model_version?: string;
+  policy_version?: string;
+  branch?: string;
+  commit?: string;
+  published_quarters?: string[];
+  selected_quarter_default?: string | null;
+  dataset_checksums?: Record<string, string>;
+  reporting_currency?: string;
+  amount_unit?: string;
+  coverage?: { quarters?: number; borrowers?: number; facilities?: number };
+  isolation?: {
+    analytics_dir: string[];
+    metadata_dir: string[];
+    database_name: string;
+    namespace: string;
+  };
+  synthetic?: string;
+  reason?: string;
 }
 
 export interface Stage {
@@ -1360,6 +1460,12 @@ export interface InvestigationResponse {
    * the screen can mark it as a reading rather than as a measurement.
    */
   analyst?: AnalystInvestigation;
+  /**
+   * The Cockpit Intelligence V2 answer, when the switch is on and the demo
+   * datasets are published. Absent otherwise, and every consumer treats its
+   * absence as the ordinary case.
+   */
+  cockpit_v2?: CockpitV2Answer;
 }
 
 /** What the governed investigation loop produced. R2 §9, §23. */
@@ -3892,6 +3998,13 @@ export const api = {
       /** Set after the user answers a period clarification. */
       fromPeriod?: string;
       toPeriod?: string;
+      /**
+       * The conversation so far, oldest first. The browser holds the
+       * transcript and passes it back, which is what lets a follow-up like
+       * "only Construction" keep the intent of the turn before it instead of
+       * being read as a fresh question.
+       */
+      turns?: { question: string; answer: string }[];
     } = {},
   ) =>
     request<InvestigationResponse>("/ask", {
@@ -3903,10 +4016,15 @@ export const api = {
         persist: true,
         from_period: options.fromPeriod ?? null,
         to_period: options.toPeriod ?? null,
+        turns: options.turns ?? null,
       }),
       // An investigation can run up to five analyses over two periods each.
       timeoutMs: 120_000,
     }),
+
+  /** The Cockpit V2 diagnostic badge. Empty payload when the switch is off. */
+  cockpitV2Diagnostics: () =>
+    request<CockpitV2Diagnostics>("/ask/cockpit-v2/diagnostics"),
 
   // ---- trace versions and modification ----
   investigation: (runId: number, version?: number) =>

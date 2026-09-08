@@ -1,0 +1,798 @@
+{
+  "schema_version": "1.0.0",
+  "data_version": "2.0.0",
+  "model_version": "1.0.0",
+  "policy_version": "1.0.0",
+  "domain": "Cockpit Demo",
+  "reporting_currency": "INR",
+  "amount_unit": "INR crore",
+  "quarter_semantics": "Calendar quarters. 2026Q2 means the three months ending 30 June 2026, and the snapshot is as at that date. Every published quarter is a COMPLETED reporting period; no partial quarter is published as an actual.",
+  "published_quarters": [
+    "2024Q3",
+    "2024Q4",
+    "2025Q1",
+    "2025Q2",
+    "2025Q3",
+    "2025Q4",
+    "2026Q1",
+    "2026Q2"
+  ],
+  "measures": [
+    {
+      "name": "exposure",
+      "label": "Exposure",
+      "definition": "Drawn balance plus the whole undrawn commitment. Distinct from EAD, which converts only part of the undrawn amount.",
+      "unit": "INR crore",
+      "currency": "INR",
+      "aggregation": "additive",
+      "direction": "neutral",
+      "formula": "drawn_amount + undrawn_commitment",
+      "approved_denominator": "",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": null,
+      "valid_max": null,
+      "null_means": "the facility was not on the book at this date",
+      "aliases": [
+        "outstanding",
+        "total exposure",
+        "limit utilisation base"
+      ],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "ead",
+      "label": "Exposure at default",
+      "definition": "Drawn balance plus the credit conversion factor applied to the undrawn commitment. NOT the same number as exposure.",
+      "unit": "INR crore",
+      "currency": "INR",
+      "aggregation": "additive",
+      "direction": "neutral",
+      "formula": "drawn_amount + ccf * undrawn_commitment",
+      "approved_denominator": "",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": null,
+      "valid_max": null,
+      "null_means": "",
+      "aliases": [
+        "exposure at default"
+      ],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "drawn_amount",
+      "label": "Drawn amount",
+      "definition": "The balance actually outstanding.",
+      "unit": "INR crore",
+      "currency": "INR",
+      "aggregation": "additive",
+      "direction": "neutral",
+      "formula": "",
+      "approved_denominator": "",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": null,
+      "valid_max": null,
+      "null_means": "",
+      "aliases": [],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "undrawn_commitment",
+      "label": "Undrawn commitment",
+      "definition": "Committed but not drawn.",
+      "unit": "INR crore",
+      "currency": "INR",
+      "aggregation": "additive",
+      "direction": "neutral",
+      "formula": "",
+      "approved_denominator": "",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": null,
+      "valid_max": null,
+      "null_means": "",
+      "aliases": [],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "gross_carrying_amount",
+      "label": "Gross carrying amount",
+      "definition": "The carrying amount before impairment allowance.",
+      "unit": "INR crore",
+      "currency": "INR",
+      "aggregation": "additive",
+      "direction": "neutral",
+      "formula": "",
+      "approved_denominator": "",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": null,
+      "valid_max": null,
+      "null_means": "",
+      "aliases": [],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "limit",
+      "label": "Limit",
+      "definition": "The approved facility limit.",
+      "unit": "INR crore",
+      "currency": "INR",
+      "aggregation": "additive",
+      "direction": "neutral",
+      "formula": "",
+      "approved_denominator": "",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": null,
+      "valid_max": null,
+      "null_means": "",
+      "aliases": [],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "weighted_model_ecl",
+      "label": "Modelled ECL",
+      "definition": "Scenario-probability-weighted expected credit loss from the governed calculator, BEFORE any management overlay.",
+      "unit": "INR crore",
+      "currency": "INR",
+      "aggregation": "additive",
+      "direction": "higher_is_worse",
+      "formula": "sum over scenarios of scenario_weight * scenario_ecl",
+      "approved_denominator": "",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": null,
+      "valid_max": null,
+      "null_means": "",
+      "aliases": [],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "overlay",
+      "label": "Management overlay",
+      "definition": "Separately identified management overlay. Never blended into a parameter and never inferred from the modelled result.",
+      "unit": "INR crore",
+      "currency": "INR",
+      "aggregation": "additive",
+      "direction": "higher_is_worse",
+      "formula": "",
+      "approved_denominator": "",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": null,
+      "valid_max": null,
+      "null_means": "",
+      "aliases": [],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "reported_ecl",
+      "label": "Reported ECL",
+      "definition": "Modelled ECL plus the separately identified overlay. This is the impairment allowance the Cockpit reports.",
+      "unit": "INR crore",
+      "currency": "INR",
+      "aggregation": "additive",
+      "direction": "higher_is_worse",
+      "formula": "weighted_model_ecl + overlay",
+      "approved_denominator": "",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": null,
+      "valid_max": null,
+      "null_means": "",
+      "aliases": [
+        "ECL",
+        "provision",
+        "impairment allowance",
+        "allowance"
+      ],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "weighted_twelve_month_pd",
+      "label": "Weighted 12-month PD",
+      "definition": "Scenario-weighted probability of default within twelve months. A DESCRIPTIVE summary: multiplying it by weighted LGD and EAD does not reproduce the weighted ECL.",
+      "unit": "probability",
+      "currency": "",
+      "aggregation": "not_additive",
+      "direction": "higher_is_worse",
+      "formula": "",
+      "approved_denominator": "ead",
+      "approved_weight": "ead",
+      "horizon": "12 months",
+      "valid_min": 0.0,
+      "valid_max": 1.0,
+      "null_means": "not measured for this facility at this date",
+      "aliases": [
+        "PD",
+        "12m PD",
+        "one-year PD"
+      ],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "weighted_lifetime_pd",
+      "label": "Weighted lifetime PD",
+      "definition": "Scenario-weighted cumulative probability of default over the remaining measurement window. The sum of marginal default probabilities, never an annual PD multiplied by a number of years.",
+      "unit": "probability",
+      "currency": "",
+      "aggregation": "not_additive",
+      "direction": "higher_is_worse",
+      "formula": "",
+      "approved_denominator": "ead",
+      "approved_weight": "ead",
+      "horizon": "remaining life",
+      "valid_min": 0.0,
+      "valid_max": 1.0,
+      "null_means": "",
+      "aliases": [
+        "lifetime PD"
+      ],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "weighted_lgd",
+      "label": "Weighted LGD",
+      "definition": "Scenario-weighted effective loss severity, weighted within each scenario by where default mass actually falls.",
+      "unit": "probability",
+      "currency": "",
+      "aggregation": "not_additive",
+      "direction": "higher_is_worse",
+      "formula": "",
+      "approved_denominator": "ead",
+      "approved_weight": "ead",
+      "horizon": "",
+      "valid_min": 0.0,
+      "valid_max": 1.0,
+      "null_means": "",
+      "aliases": [
+        "LGD",
+        "loss given default"
+      ],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "coverage_ratio",
+      "label": "ECL coverage",
+      "definition": "Reported ECL as a proportion of exposure.",
+      "unit": "ratio",
+      "currency": "",
+      "aggregation": "not_additive",
+      "direction": "higher_is_worse",
+      "formula": "reported_ecl / exposure",
+      "approved_denominator": "exposure",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": null,
+      "valid_max": null,
+      "null_means": "",
+      "aliases": [
+        "provision coverage",
+        "ECL coverage ratio"
+      ],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "collateral_coverage_ratio",
+      "label": "Collateral coverage",
+      "definition": "Allocated recognised collateral as a proportion of exposure, capped at one. Allocation is pro rata to exposure across the facilities that share an asset, so a shared property is counted once.",
+      "unit": "ratio",
+      "currency": "",
+      "aggregation": "not_additive",
+      "direction": "higher_is_better",
+      "formula": "",
+      "approved_denominator": "exposure",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": 0.0,
+      "valid_max": 1.0,
+      "null_means": "",
+      "aliases": [],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "utilisation",
+      "label": "Utilisation",
+      "definition": "Drawn balance over limit.",
+      "unit": "ratio",
+      "currency": "",
+      "aggregation": "not_additive",
+      "direction": "neutral",
+      "formula": "drawn_amount / limit",
+      "approved_denominator": "limit",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": 0.0,
+      "valid_max": 1.0,
+      "null_means": "",
+      "aliases": [],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "rating_rank",
+      "label": "Rating rank",
+      "definition": "Ordinal position on the demo master scale; higher is weaker. The numeric partner of the grade label, so a portfolio movement can be expressed in notches without averaging letters.",
+      "unit": "notches",
+      "currency": "",
+      "aggregation": "ordinal",
+      "direction": "higher_is_worse",
+      "formula": "",
+      "approved_denominator": "",
+      "approved_weight": "exposure",
+      "horizon": "",
+      "valid_min": 1.0,
+      "valid_max": 13.0,
+      "null_means": "",
+      "aliases": [],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "stage",
+      "label": "IFRS 9 stage",
+      "definition": "1, 2 or 3 under the stated demo SICR policy.",
+      "unit": "stage",
+      "currency": "",
+      "aggregation": "ordinal",
+      "direction": "higher_is_worse",
+      "formula": "",
+      "approved_denominator": "",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": 1.0,
+      "valid_max": 3.0,
+      "null_means": "",
+      "aliases": [],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "days_past_due",
+      "label": "Days past due",
+      "definition": "Days past due at the date.",
+      "unit": "days",
+      "currency": "",
+      "aggregation": "not_additive",
+      "direction": "higher_is_worse",
+      "formula": "",
+      "approved_denominator": "",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": 0.0,
+      "valid_max": null,
+      "null_means": "",
+      "aliases": [],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "ratio_dscr",
+      "label": "DSCR",
+      "definition": "Cash available for debt service over scheduled principal plus cash interest, on a twelve-month basis.",
+      "unit": "times",
+      "currency": "",
+      "aggregation": "not_additive",
+      "direction": "higher_is_better",
+      "formula": "cash_available_for_debt_service / (scheduled_principal + cash_interest)",
+      "approved_denominator": "scheduled_principal + cash_interest",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": null,
+      "valid_max": null,
+      "null_means": "the denominator is zero or negative, or no statement is available; not a DSCR of nought",
+      "aliases": [
+        "debt service coverage",
+        "debt service cover"
+      ],
+      "period_basis": "annualised from the latest available statement",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "ratio_net_debt_to_ebitda",
+      "label": "Net debt / EBITDA",
+      "definition": "Total debt less cash over annualised EBITDA. Debt, not total liabilities.",
+      "unit": "times",
+      "currency": "",
+      "aggregation": "not_additive",
+      "direction": "higher_is_worse",
+      "formula": "(total_debt - cash) / ebitda",
+      "approved_denominator": "",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": null,
+      "valid_max": null,
+      "null_means": "EBITDA is zero or negative, so the multiple is not meaningful",
+      "aliases": [],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "ratio_interest_coverage",
+      "label": "Interest coverage",
+      "definition": "EBIT over interest expense, annualised.",
+      "unit": "times",
+      "currency": "",
+      "aggregation": "not_additive",
+      "direction": "higher_is_better",
+      "formula": "",
+      "approved_denominator": "",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": null,
+      "valid_max": null,
+      "null_means": "",
+      "aliases": [],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "ratio_current_ratio",
+      "label": "Current ratio",
+      "definition": "Total current assets over current liabilities.",
+      "unit": "times",
+      "currency": "",
+      "aggregation": "not_additive",
+      "direction": "higher_is_better",
+      "formula": "",
+      "approved_denominator": "",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": null,
+      "valid_max": null,
+      "null_means": "",
+      "aliases": [],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "ratio_quick_ratio",
+      "label": "Quick ratio",
+      "definition": "Current assets less inventory over current liabilities.",
+      "unit": "times",
+      "currency": "",
+      "aggregation": "not_additive",
+      "direction": "higher_is_better",
+      "formula": "",
+      "approved_denominator": "",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": null,
+      "valid_max": null,
+      "null_means": "",
+      "aliases": [],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "covenants_breached",
+      "label": "Covenants breached",
+      "definition": "Count of covenant tests breached at this date.",
+      "unit": "count",
+      "currency": "",
+      "aggregation": "additive",
+      "direction": "higher_is_worse",
+      "formula": "",
+      "approved_denominator": "",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": null,
+      "valid_max": null,
+      "null_means": "",
+      "aliases": [],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    },
+    {
+      "name": "covenant_worst_headroom",
+      "label": "Worst covenant headroom",
+      "definition": "The smallest headroom across this borrower's tests, in the metric's own units. Negative means breached.",
+      "unit": "metric units",
+      "currency": "",
+      "aggregation": "not_additive",
+      "direction": "higher_is_better",
+      "formula": "",
+      "approved_denominator": "",
+      "approved_weight": "",
+      "horizon": "",
+      "valid_min": null,
+      "valid_max": null,
+      "null_means": "",
+      "aliases": [],
+      "period_basis": "point in time",
+      "entity_grain": "facility x reporting date"
+    }
+  ],
+  "dimensions": [
+    {
+      "name": "sector",
+      "label": "Sector",
+      "kind": "categorical"
+    },
+    {
+      "name": "subsector",
+      "label": "Subsector",
+      "kind": "categorical"
+    },
+    {
+      "name": "geography",
+      "label": "Geography",
+      "kind": "categorical"
+    },
+    {
+      "name": "segment",
+      "label": "Segment",
+      "kind": "categorical"
+    },
+    {
+      "name": "borrower_type",
+      "label": "Borrower type",
+      "kind": "categorical"
+    },
+    {
+      "name": "product",
+      "label": "Product",
+      "kind": "categorical"
+    },
+    {
+      "name": "business_unit",
+      "label": "Business unit",
+      "kind": "categorical"
+    },
+    {
+      "name": "stage",
+      "label": "IFRS 9 stage",
+      "kind": "ordinal"
+    },
+    {
+      "name": "rating_approved_grade",
+      "label": "Approved rating",
+      "kind": "ordinal",
+      "note": "A label. Never averaged; use rating_rank for arithmetic."
+    },
+    {
+      "name": "borrower_id",
+      "label": "Borrower",
+      "kind": "entity"
+    },
+    {
+      "name": "group_id",
+      "label": "Connected group",
+      "kind": "entity",
+      "note": "Aggregate to the group by summing facility rows once. A borrower with three facilities is one borrower."
+    },
+    {
+      "name": "facility_id",
+      "label": "Facility",
+      "kind": "entity"
+    }
+  ],
+  "grain": {
+    "cockpit_quarter": {
+      "grain": "One row per facility per reporting date.",
+      "primary_keys": [
+        "dataset_version",
+        "facility_id",
+        "reporting_date"
+      ],
+      "linkage_keys": [
+        "borrower_id",
+        "group_id"
+      ],
+      "period_field": "period"
+    },
+    "cockpit_credit_history": {
+      "grain": "One row per facility per reporting date, across every published quarter.",
+      "primary_keys": [
+        "dataset_version",
+        "facility_id",
+        "reporting_date"
+      ],
+      "linkage_keys": [
+        "borrower_id",
+        "group_id"
+      ],
+      "period_field": "period"
+    },
+    "cockpit_borrower_financials": {
+      "grain": "One row per borrower per statement, as at each reporting date the statement was the latest available one.",
+      "primary_keys": [
+        "borrower_id",
+        "statement_id",
+        "reporting_date"
+      ],
+      "linkage_keys": [
+        "borrower_id"
+      ],
+      "period_field": "period",
+      "note": "Statements repeat across reporting dates because the same statement stays the latest available one for several quarters. Summing a financial across facility rows is therefore double counting, and the semantic rules forbid it."
+    },
+    "cockpit_collateral_assets": {
+      "grain": "One row per collateral asset per valuation version per reporting date.",
+      "primary_keys": [
+        "collateral_id",
+        "reporting_date"
+      ],
+      "linkage_keys": [
+        "borrower_id"
+      ],
+      "period_field": "period"
+    },
+    "cockpit_collateral_allocation": {
+      "grain": "One row per collateral asset per facility per reporting date.",
+      "primary_keys": [
+        "collateral_id",
+        "facility_id",
+        "reporting_date"
+      ],
+      "linkage_keys": [
+        "borrower_id"
+      ],
+      "period_field": "period"
+    },
+    "cockpit_covenant_tests": {
+      "grain": "One row per covenant obligation per test date.",
+      "primary_keys": [
+        "obligation_id",
+        "test_date"
+      ],
+      "linkage_keys": [
+        "borrower_id",
+        "facility_id"
+      ],
+      "period_field": "period"
+    },
+    "cockpit_scenario_parameters": {
+      "grain": "One row per facility per scenario per reporting date.",
+      "primary_keys": [
+        "facility_id",
+        "scenario_id",
+        "reporting_date"
+      ],
+      "linkage_keys": [
+        "borrower_id"
+      ],
+      "period_field": "period"
+    },
+    "cockpit_risk_curves": {
+      "grain": "One row per facility per scenario per future period.",
+      "primary_keys": [
+        "facility_id",
+        "scenario_id",
+        "future_period",
+        "reporting_date"
+      ],
+      "linkage_keys": [
+        "borrower_id"
+      ],
+      "period_field": "period"
+    },
+    "cockpit_macro_paths": {
+      "grain": "One row per geography per predictor per forecast vintage per scenario per forecast period.",
+      "primary_keys": [
+        "geography",
+        "predictor",
+        "forecast_vintage",
+        "scenario_id",
+        "forecast_period"
+      ],
+      "linkage_keys": [
+        "geography"
+      ],
+      "period_field": "forecast_period"
+    },
+    "cockpit_movements": {
+      "grain": "One row per facility per reporting date, against its matched prior period.",
+      "primary_keys": [
+        "facility_id",
+        "reporting_date"
+      ],
+      "linkage_keys": [
+        "borrower_id"
+      ],
+      "period_field": "period",
+      "note": "A versioned cached derivative of the snapshots, not an independent source of truth. It carries the data version it was computed from and is regenerated with the book."
+    }
+  },
+  "portfolio_summaries": [
+    {
+      "name": "portfolio_twelve_month_pd",
+      "label": "Portfolio 12-month PD (EAD-weighted)",
+      "measure": "weighted_twelve_month_pd",
+      "horizon": "12 months",
+      "weight": "ead",
+      "formula": "sum(weighted_twelve_month_pd * ead) / sum(ead)",
+      "note": "An EAD-weighted average, not a mean of the column. The weight is shown in the Trace because an equally weighted PD and an exposure-weighted PD are different numbers."
+    },
+    {
+      "name": "portfolio_lifetime_pd",
+      "label": "Portfolio lifetime PD (EAD-weighted)",
+      "measure": "weighted_lifetime_pd",
+      "horizon": "remaining life",
+      "weight": "ead",
+      "formula": "sum(weighted_lifetime_pd * ead) / sum(ead)"
+    },
+    {
+      "name": "portfolio_lgd",
+      "label": "Portfolio LGD (EAD-weighted)",
+      "measure": "weighted_lgd",
+      "weight": "ead",
+      "formula": "sum(weighted_lgd * ead) / sum(ead)"
+    },
+    {
+      "name": "portfolio_coverage",
+      "label": "Portfolio ECL coverage",
+      "measure": "coverage_ratio",
+      "weight": "",
+      "formula": "sum(reported_ecl) / sum(exposure)",
+      "note": "A ratio of components. It is NOT the average of the facility coverage ratios, and the two differ whenever exposure is not evenly spread."
+    },
+    {
+      "name": "portfolio_dscr_components",
+      "label": "Portfolio DSCR (ratio of components)",
+      "measure": "ratio_dscr",
+      "weight": "",
+      "formula": "sum(cash_available_for_debt_service) / sum(scheduled_principal + cash_interest)",
+      "note": "A ratio of summed components. Distinct from the distribution of borrower DSCRs and from their exposure-weighted average; the Cockpit says which one it is reporting."
+    },
+    {
+      "name": "portfolio_dscr_weighted",
+      "label": "Portfolio DSCR (exposure-weighted average of borrower ratios)",
+      "measure": "ratio_dscr",
+      "weight": "exposure",
+      "formula": "sum(ratio_dscr * exposure) / sum(exposure) over borrowers with an available DSCR",
+      "note": "Borrowers with no available DSCR are excluded and counted, rather than treated as zero."
+    },
+    {
+      "name": "concentration_top_group_share",
+      "label": "Largest connected group share of exposure",
+      "measure": "exposure",
+      "weight": "",
+      "formula": "max over group_id of sum(exposure) / total sum(exposure)",
+      "note": "Facility rows are summed once per group. A borrower with three facilities is one borrower and is not counted three times."
+    }
+  ],
+  "forbidden": [
+    {
+      "rule": "no_sum_of_ratios",
+      "detail": "A measure declared not_additive may not be summed. Ask for its approved weighted form instead."
+    },
+    {
+      "rule": "no_average_of_grades",
+      "detail": "A rating grade is a label. Aggregate rating_rank, and report the result in notches."
+    },
+    {
+      "rule": "no_pd_without_horizon",
+      "detail": "A PD reported without its horizon is two different measures wearing one name."
+    },
+    {
+      "rule": "no_financial_sum_across_facilities",
+      "detail": "Borrower financials repeat across a borrower's facility rows. Deduplicate to borrower grain before summing."
+    },
+    {
+      "rule": "no_weighted_parameter_product",
+      "detail": "weighted PD x weighted LGD x weighted EAD is not the weighted ECL and may not be presented as a way of computing it."
+    },
+    {
+      "rule": "no_basis_points_on_currency",
+      "detail": "A currency movement has no basis-point form. Report it in the reporting currency."
+    }
+  ]
+}

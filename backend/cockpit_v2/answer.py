@@ -129,8 +129,21 @@ class Answer:
 
     @property
     def direct_answer(self) -> str:
+        """The lead sentence — INCLUDING when the lead is a stated gap.
+
+        An answer whose every section is unanswered still has something to
+        say, and it is the most important thing it could say: which quarter is
+        not loaded, or which scope is not readable. Returning "" there made the
+        integration hand the turn back to the base path, which then answered a
+        DIFFERENT question — comparing two loaded quarters as though the
+        unloaded one had been asked for. The browser UAT caught it; the API
+        never would have.
+        """
         for section in self.sections:
             if section.answered and section.paragraphs:
+                return section.paragraphs[0]
+        for section in self.sections:
+            if section.paragraphs:
                 return section.paragraphs[0]
         return ""
 

@@ -185,22 +185,22 @@ def build_population(*, borrowers: int, facilities_target: int,
             assignments[bid] = story
 
         # A story that is about a sector needs that sector.
-        if story == "COLLATERAL_WEAKENING":
+        if story == "STORY_COLLATERAL_WEAKENING":
             sector = "Real Estate"
-        elif story in ("OFFSETTING_SEGMENTS", "BREACH_WITH_WAIVER"):
+        elif story in ("STORY_OFFSETTING_SEGMENTS", "STORY_BREACH_WITH_WAIVER"):
             sector = "Construction"
-        elif story == "OFFSETTING_SEGMENTS_MIRROR":
+        elif story == "STORY_OFFSETTING_SEGMENTS_MIRROR":
             sector = "Information Technology"
         else:
             sector = _pick(rng, SECTORS)
 
         head = _NAME_HEAD[int(rng.integers(0, len(_NAME_HEAD)))]
         tail = _NAME_TAIL[int(rng.integers(0, len(_NAME_TAIL)))]
-        segment = ("Large Corporate" if story == "GROUP_CONCENTRATION"
+        segment = ("Large Corporate" if story == "STORY_GROUP_CONCENTRATION"
                    else _pick(rng, SEGMENTS))
         # A handful of borrowers sit in one connected group, which is what
         # makes "which groups dominate" a real question rather than a formality.
-        group_index = 1 if story == "GROUP_CONCENTRATION" or (i % 37 == 0) else (i // 7) + 2
+        group_index = 1 if story == "STORY_GROUP_CONCENTRATION" or (i % 37 == 0) else (i // 7) + 2
         out.append(Borrower(
             borrower_id=bid,
             borrower_name=f"{head} {tail} {i + 1:04d} (synthetic)",
@@ -226,9 +226,9 @@ def build_population(*, borrowers: int, facilities_target: int,
     for b in out:
         rng = _rng("facilities", b.borrower_id)
         count = per_borrower
-        if b.story_id == "SHARED_COLLATERAL":
+        if b.story_id == "STORY_SHARED_COLLATERAL":
             count = max(count, 3)
-        elif b.story_id in ("NEW_LENDING", "REPAYMENT"):
+        elif b.story_id in ("STORY_NEW_LENDING", "STORY_REPAYMENT"):
             count = max(count, 2)
         elif count > 1 and rng.random() < 0.35:
             count -= 1
@@ -248,11 +248,11 @@ def build_population(*, borrowers: int, facilities_target: int,
             # Stories that need a population change get one, deterministically,
             # on their last facility so the borrower does not vanish entirely.
             if j == count - 1 and n_quarters > 1:
-                if b.story_id == "NEW_LENDING":
+                if b.story_id == "STORY_NEW_LENDING":
                     enters = n_quarters - 1
-                elif b.story_id == "REPAYMENT":
+                elif b.story_id == "STORY_REPAYMENT":
                     exits = n_quarters - 2
-                elif b.story_id == "WRITE_OFF":
+                elif b.story_id == "STORY_WRITE_OFF":
                     written = n_quarters - 1
             facs.append(Facility(
                 facility_id=fid, borrower_id=b.borrower_id, product=product,
@@ -274,18 +274,18 @@ def build_population(*, borrowers: int, facilities_target: int,
         if not mine:
             continue
         n_assets = 1 if rng.random() < 0.45 else 2
-        if b.story_id == "SHARED_COLLATERAL":
+        if b.story_id == "STORY_SHARED_COLLATERAL":
             n_assets = 1
-        elif b.story_id == "COLLATERAL_WEAKENING":
+        elif b.story_id == "STORY_COLLATERAL_WEAKENING":
             n_assets = 2
         for k in range(n_assets):
             cid = f"{b.borrower_id}-C{k + 1}"
             crng = _rng("asset", cid)
             asset_type = _pick(crng, tuple(policy.COLLATERAL_POLICY))
-            if b.story_id in ("COLLATERAL_WEAKENING", "SHARED_COLLATERAL"):
+            if b.story_id in ("STORY_COLLATERAL_WEAKENING", "STORY_SHARED_COLLATERAL"):
                 asset_type = "Commercial property"
             secured = ([f.facility_id for f in mine]
-                       if b.story_id == "SHARED_COLLATERAL"
+                       if b.story_id == "STORY_SHARED_COLLATERAL"
                        else [mine[k % len(mine)].facility_id])
             total_limit = sum(f.limit for f in mine
                               if f.facility_id in secured)

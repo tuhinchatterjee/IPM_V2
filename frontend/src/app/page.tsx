@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
+import { CockpitV2Badge } from "@/components/ask/cockpit-v2";
 import { Composer, useGreeting } from "@/components/ask/composer";
 import { PendingOfficer } from "@/components/agentic/pending";
 import { RequiresAttention } from "@/components/attention/requires-attention";
@@ -14,6 +15,7 @@ import { Card } from "@/components/ui/card";
 import { InfoPopover } from "@/components/ui/info-popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, api } from "@/lib/api";
+import type { CockpitV2Diagnostics } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import { fromCockpit, linkBack, useReturnTo } from "@/lib/return-to";
 
@@ -114,6 +116,31 @@ function Cockpit() {
   // comes from it — Risk Cases do.
   const period = briefing.data?.period ?? "";
 
+  // The Cockpit V2 diagnostic badge. Brief §1.3 asks for something that makes
+  // it possible to PROVE which backend and which data the browser is using,
+  // and a demonstration where nobody can tell which build answered is a
+  // demonstration of nothing. Fetched once; the badge renders nothing at all
+  // when the switch is off, which is every other deployment.
+  const [cockpitV2, setCockpitV2] =
+    React.useState<CockpitV2Diagnostics | null>(null);
+  const [cockpitV2Quarter, setCockpitV2Quarter] = React.useState<string>("");
+  React.useEffect(() => {
+    let live = true;
+    api
+      .cockpitV2Diagnostics()
+      .then((found) => {
+        if (live) setCockpitV2(found);
+      })
+      .catch(() => {
+        // A deployment without Cockpit V2 has no such endpoint. That is the
+        // ordinary case and it is not an error the reader needs to see.
+        if (live) setCockpitV2(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
   return (
     <div className="space-y-10">
       {/* A Back control only where there is somewhere to go back to. The
@@ -138,6 +165,12 @@ function Cockpit() {
         <p className="mt-1.5 text-[15px] text-text-secondary">
           What&rsquo;s on your mind?
         </p>
+
+        <CockpitV2Badge
+          diagnostics={cockpitV2}
+          selectedQuarter={cockpitV2Quarter}
+          onSelectQuarter={setCockpitV2Quarter}
+        />
 
         <div className="mt-5">
           <Composer

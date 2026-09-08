@@ -52,6 +52,7 @@ import { byUnit } from "@/lib/format";
 import { isRegisteredMethod, stepHref } from "@/lib/analysis-links";
 import { withReturnTo } from "@/lib/return-to";
 import { cn } from "@/lib/utils";
+import { CockpitV2Answer } from "@/components/ask/cockpit-v2";
 
 /**
  * ONE response architecture, used everywhere CreditProbe answers.
@@ -1060,15 +1061,28 @@ export function AnswerBlock({
         {/* ---------------------------------------------------- 3. BOTTOM LINE */}
         <DirectAnswer answer={answer} scope={narrative.scope} />
 
-        {/* ----------------------------------------------------- 3. KEY INSIGHT */}
-        <KeyInsight insight={insight} />
+        {/* ------------------------------------- 3b. COCKPIT INTELLIGENCE V2
+          When the V2 switch is on and V2 answered, ITS structure is the
+          answer: each requested output as its own section, the outputs it
+          could not answer stated rather than dropped, the reconciled bridge
+          and the waterfall. The deterministic table, plan and Trace below are
+          untouched — they are what the prose describes. Renders nothing when
+          the switch is off, which is every other deployment. */}
+        {run.cockpit_v2 ? (
+          <CockpitV2Answer answer={run.cockpit_v2} onAsk={onAsk} />
+        ) : (
+          <>
+            {/* ------------------------------------------------- 3. KEY INSIGHT */}
+            <KeyInsight insight={insight} />
 
-        {/* ------------------------------------------------ 4. ANALYST'S READING */}
-        <AnalystReading
-          interpretation={interpretation}
-          points={reading}
-          whyMultiple={narrative.why_multiple}
-        />
+            {/* -------------------------------------------- 4. ANALYST'S READING */}
+            <AnalystReading
+              interpretation={interpretation}
+              points={reading}
+              whyMultiple={narrative.why_multiple}
+            />
+          </>
+        )}
 
         {/* ------------------------------- 4b. A READING, NOT A MEASUREMENT
           R2 §9 and §23. Below the grounded reading and above the figures,

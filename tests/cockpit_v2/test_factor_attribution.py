@@ -106,7 +106,7 @@ def test_a_factor_that_did_not_move_contributes_exactly_zero(pilot):
     """
     opening, closing = pilot.published
     borrower = next((b for b, s in pilot.assignments.items()
-                     if s == "WEIGHTS_ONLY"), "")
+                     if s == "STORY_WEIGHTS_ONLY"), "")
     assert borrower, "the pilot must carry the scenario-weight story"
 
     o = [m for k, m in pilot.measurements[opening].items()

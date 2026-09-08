@@ -330,12 +330,21 @@ def _ask(payload: AskIn, principal: Principal) -> dict[str, Any]:
     body = investigation.to_dict()
 
     # Cockpit Intelligence V2. Off by default and inert when off: with the
-    # switch unset `_cockpit_v2_view` returns None on its first line and the
-    # rest of this function is exactly what it was on the base commit.
-    v2 = _cockpit_v2_view(payload, principal)
-    if v2 is not None:
-        body["cockpit_v2"] = v2
-        _apply_cockpit_v2(body, v2)
+    # switch unset `answer_for` returns None on its first line and the rest of
+    # this function is exactly what it was on the base commit.
+    from backend.cockpit_v2 import integration as cockpit_v2
+
+    v2 = cockpit_v2.answer_for(
+        payload.question, principal,
+        turns=[dict(t) for t in (payload.turns or [])],
+        clarification=payload.clarification or "",
+        to_period=payload.to_period or "",
+        from_period=payload.from_period or "")
+    answered_by_v2 = bool(v2 and v2.get("direct_answer"))
+    if answered_by_v2:
+        cockpit_v2.apply(investigation, v2)
+        body = investigation.to_dict()
+        cockpit_v2.attach(body, v2)
 
     # Belt and braces, and both are load-bearing. `_analyst_view` catches what
     # the analyst can throw; this catches what `_analyst_view` itself can —
@@ -343,90 +352,14 @@ def _ask(payload: AskIn, principal: Principal) -> dict[str, Any]:
     # failure in one path is not a failure of the product, and the
     # deterministic answer above is already computed and correct.
     try:
-        body["analyst"] = _analyst_view(payload, principal, skip=v2 is not None)
+        body["analyst"] = _analyst_view(payload, principal, skip=answered_by_v2)
     except Exception as e:  # noqa: BLE001 - the deterministic answer stands
         logger.warning("The analyst view could not be built: %s", e)
         body["analyst"] = {"path": "deterministic", "analyst_available": False,
                            "why": "the governed semantic reader answered"}
 
-    _record_prose_source(body)
+    cockpit_v2.record_prose_source(body)
     return body
-
-
-def _cockpit_v2_view(payload: AskIn,
-                     principal: Principal) -> dict[str, Any] | None:
-    """The Cockpit Intelligence V2 answer, when the switch is on.
-
-    Returns None — and changes nothing — when the switch is off, when the demo
-    datasets are not published in this runtime, or when the V2 composer cannot
-    answer. The base path then stands exactly as it did before this branch.
-    """
-    try:
-        from backend.cockpit_v2 import service as cockpit_v2_service
-    except Exception:  # noqa: BLE001 - a partial deployment is not an error
-        return None
-    try:
-        return cockpit_v2_service.answer(
-            payload.question, principal,
-            turns=[dict(t) for t in (payload.turns or [])],
-            clarification=payload.clarification or "",
-            to_period=payload.to_period or "",
-            from_period=payload.from_period or "")
-    except Exception as e:  # noqa: BLE001 - the base path still answers
-        logger.warning("Cockpit V2 could not answer: %s", e)
-        return None
-
-
-def _apply_cockpit_v2(body: dict[str, Any], v2: dict[str, Any]) -> None:
-    """Make the V2 answer the canonical visible narrative.
-
-    The deterministic table, plan and Trace from `answer_investigation` are
-    left exactly as they are — they are what the prose describes. What changes
-    is which prose the reader sees, and `prose_source` records it, so nobody
-    has to guess which path wrote the sentence in front of them.
-    """
-    narrative = body.get("narrative")
-    if not isinstance(narrative, dict) or not v2.get("direct_answer"):
-        return
-    narrative["direct_answer"] = v2["direct_answer"]
-    narrative["summary"] = v2["direct_answer"]
-    narrative["interpretation"] = v2.get("narrative", "")
-    narrative["interpretation_points"] = list(v2.get("findings", []))
-    narrative["caveats"] = list(narrative.get("caveats", [])) + [
-        limitation for limitation in v2.get("limitations", [])
-        if limitation not in (narrative.get("caveats") or [])]
-    narrative["prose_source"] = v2.get("prose_source", "deterministic_v2")
-    narrative["prose_fallback_reason"] = v2.get("fallback_reason", "")
-
-
-def _record_prose_source(body: dict[str, Any]) -> None:
-    """Stamp which path wrote the visible prose, for the Trace and the screen.
-
-    Runs on every response, including the flag-off one, so the field is always
-    present and always honest rather than appearing only when V2 is on.
-    """
-    narrative = body.get("narrative")
-    if not isinstance(narrative, dict):
-        return
-    if narrative.get("prose_source") and narrative["prose_source"] != "deterministic":
-        return
-    analyst = body.get("analyst") or {}
-    from backend.analyst import route as analyst_route
-    from backend.analyst import session as analyst_session
-
-    if (analyst.get("path") == analyst_route.ANALYST
-            and analyst.get("outcome") == analyst_session.ANSWER
-            and analyst.get("answer")):
-        # The analyst answered and its prose is what the screen renders.
-        narrative["direct_answer"] = analyst["answer"]
-        narrative["summary"] = analyst["answer"]
-        narrative["interpretation_points"] = list(analyst.get("findings") or [])
-        narrative["prose_source"] = "analyst"
-        narrative["prose_fallback_reason"] = ""
-        return
-    narrative["prose_source"] = narrative.get("prose_source") or "deterministic"
-    narrative["prose_fallback_reason"] = (
-        analyst.get("why") or analyst.get("why_fallback") or "")
 
 
 def _analyst_view(payload: AskIn, principal: Principal, *,

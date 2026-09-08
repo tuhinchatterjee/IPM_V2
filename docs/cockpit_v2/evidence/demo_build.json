@@ -108,7 +108,7 @@
     "history_dataset": "cockpit_credit_history",
     "datasets_registered": 17,
     "datasets_preserved": 73,
-    "datasets_before": 84,
+    "datasets_before": 90,
     "total_datasets": 90,
     "relationships_declared": 64,
     "all_synthetic": true,
@@ -1295,7 +1295,7 @@
       },
       {
         "id": "story",
-        "description": "WEIGHTS_ONLY: the weights are the largest factor",
+        "description": "STORY_WEIGHTS_ONLY: the weights are the largest factor",
         "passed": true,
         "detail": "",
         "observed": {
@@ -1305,7 +1305,7 @@
       },
       {
         "id": "story",
-        "description": "COLLATERAL_WEAKENING: recovery is the largest factor",
+        "description": "STORY_COLLATERAL_WEAKENING: recovery is the largest factor",
         "passed": true,
         "detail": "",
         "observed": {
@@ -1315,7 +1315,7 @@
       },
       {
         "id": "story",
-        "description": "CASH_DETERIORATION: the PD curves are the largest factor",
+        "description": "STORY_CASH_DETERIORATION: the PD curves are the largest factor",
         "passed": true,
         "detail": "",
         "observed": {
@@ -1325,7 +1325,7 @@
       },
       {
         "id": "story",
-        "description": "OVERLAY_CHANGE: the overlay is the largest line",
+        "description": "STORY_OVERLAY_CHANGE: the overlay is the largest line",
         "passed": true,
         "detail": "",
         "observed": {
@@ -1353,7 +1353,7 @@
         "passed": true,
         "detail": "",
         "observed": {
-          "residual": 8.526512829121202e-14,
+          "residual": 5.684341886080802e-14,
           "net_change": 156.985943
         }
       },
@@ -1373,7 +1373,7 @@
         "passed": true,
         "detail": "",
         "observed": {
-          "residual": 3.552713678800501e-14,
+          "residual": 4.973799150320701e-14,
           "net_change": 8.515076
         }
       },
@@ -1383,7 +1383,7 @@
         "passed": true,
         "detail": "",
         "observed": {
-          "residual": -1.2079226507921703e-13,
+          "residual": -9.947598300641403e-14,
           "net_change": -36.64863
         }
       },
@@ -1393,7 +1393,7 @@
         "passed": true,
         "detail": "",
         "observed": {
-          "residual": 2.1316282072803006e-14,
+          "residual": 3.552713678800501e-14,
           "net_change": -18.800128
         }
       },
@@ -1403,7 +1403,7 @@
         "passed": true,
         "detail": "",
         "observed": {
-          "residual": -1.7053025658242404e-13,
+          "residual": -1.4210854715202004e-13,
           "net_change": -178.166028
         }
       },
