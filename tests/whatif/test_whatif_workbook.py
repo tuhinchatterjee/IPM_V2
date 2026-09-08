@@ -60,10 +60,43 @@ def book(result):
     return load_workbook(io.BytesIO(wb.build(result, requested_by="ANALYST")))
 
 
+#: The sheets the product specification names, in the reader's own words.
+#: Asserted by NAME rather than by count, because a file with ten tabs and the
+#: wrong ten is not the file that was asked for.
+REQUIRED_SHEETS: tuple[str, ...] = (
+    "Executive Summary",
+    "Scenario Definition",
+    "Portfolio Before vs After",
+    "Account & Facility Detail",
+    "Borrower Detail",
+    "Stage Migration",
+    "Rating Migration",
+    "ECL Attribution",
+    "Model & Methodology",
+    "Data Dictionary",
+)
+
+
 @needs_lake
 class TestTheWorkbookIsComplete:
     def test_every_sheet_an_auditor_needs_is_present(self, book) -> None:
         assert book.sheetnames == list(wb.SHEETS)
+
+    @pytest.mark.parametrize("name", REQUIRED_SHEETS)
+    def test_every_sheet_the_specification_names_is_there(self, book, name) -> None:
+        assert name in book.sheetnames, (
+            f"the file has {book.sheetnames}, which does not include {name!r}")
+
+    def test_the_tabs_are_named_for_a_reader_and_not_for_the_code(self, book) -> None:
+        """An audit file lands on a committee's desk, not in a repository."""
+        for name in book.sheetnames:
+            assert name == name.strip()
+            assert name != name.upper(), (
+                f"{name!r} is a code constant, not a tab a credit person reads")
+            # Excel refuses these outright, so a name carrying one would mean
+            # the file could not be written at all.
+            assert not set(name) & set("/\\?*[]:"), name
+            assert len(name) <= 31, name
 
     def test_no_sheet_is_empty(self, book) -> None:
         for name in book.sheetnames:
@@ -266,3 +299,48 @@ def _headers(sheet) -> list[str]:
     top = _header_row(sheet)
     return [str(sheet.cell(row=top, column=c).value or "")
             for c in range(1, sheet.max_column + 1)]
+
+
+@needs_lake
+class TestTheDataDictionary:
+    """The sheet that makes the rest of the file readable by a stranger.
+
+    Three months after the run, "pd_stressed" is opaque to the reviewer
+    deciding whether the provision was reasonable, and a column they cannot
+    interpret is one they either ignore or have to ask about.
+    """
+
+    def test_it_explains_every_family_of_column_on_the_detail_sheets(self, book) -> None:
+        said = _text(book[wb.DICTIONARY]).lower()
+        for term in ("borrower id", "rating", "stage", "ttc pd",
+                     "lifetime pd", "applicable pd", "lgd", "ccf", "ead",
+                     "collateral", "reported ecl", "what-if ecl",
+                     "primary driver"):
+            assert term in said, f"the dictionary does not explain {term!r}"
+
+    def test_it_states_the_governed_scale_and_that_default_is_separate(self, book) -> None:
+        said = _text(book[wb.DICTIONARY])
+        assert "AAA" in said and "C (19)" in said
+        assert "nineteen-point" in said.lower()
+        assert "separate state" in said.lower()
+
+    def test_it_says_a_pd_of_one_hundred_is_not_a_loss_of_one_hundred(self, book) -> None:
+        said = _text(book[wb.DICTIONARY]).lower()
+        assert "100% in stage 3" in said
+        assert "not a loss of 100%" in said
+        assert "severity stays with lgd" in said
+
+    def test_it_states_the_grain_and_that_facility_figures_are_allocated(self, book) -> None:
+        said = _text(book[wb.DICTIONARY]).lower()
+        assert "obligor level" in said
+        assert "allocat" in said
+
+    def test_it_names_where_each_figure_came_from(self, book) -> None:
+        said = _text(book[wb.DICTIONARY])
+        for source in ("corporate_ifrs9", "corporate_ratings",
+                       "corporate_facilities", "corporate_collateral"):
+            assert source in said
+
+    def test_it_points_at_the_calibration_document_rather_than_restating_it(self, book) -> None:
+        assert "docs/corporate_rating_pd_calibration.md" in _text(
+            book[wb.DICTIONARY])

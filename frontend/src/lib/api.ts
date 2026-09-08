@@ -5201,7 +5201,10 @@ export interface WhatIfRatingProfile {
   period: string;
   currency: string;
   grain: string;
+  /** The nineteen PERFORMING grades, AAA to C, in the governed order. */
   grades: string[];
+  /** Those nineteen followed by the default state, which is the row order. */
+  states?: string[];
   performing_grades: string[];
   default_grade: string;
   rows: WhatIfProfileRow[];

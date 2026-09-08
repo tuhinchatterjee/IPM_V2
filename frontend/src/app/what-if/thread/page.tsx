@@ -627,7 +627,9 @@ export default function WhatIfThreadPage() {
               Rating profile — {ratingProfile.period}
             </CardTitle>
             <p className="mt-0.5 text-[11px] text-text-muted">
-              {ratingProfile.grades.length} governed grades plus a Total.{" "}
+              {ratingProfile.grades.length} governed performing grades, AAA to
+              C, then default and a Total. Default is a state reached by the
+              default event, not the twentieth grade of the scale.{" "}
               {ratingProfile.grain}
             </p>
           </CardHeader>

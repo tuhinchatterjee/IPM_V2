@@ -76,20 +76,29 @@ TOLERANCE_PCT = 0.01
 #: count beside it, because a silently short table is a wrong table.
 MAX_DETAIL_ROWS = 100_000
 
-COVER = "COVER"
-SCENARIO = "SCENARIO"
-SUMMARY = "RESULT SUMMARY"
-BORROWERS = "BORROWER DETAIL"
-FACILITIES = "FACILITY DETAIL"
-ATTRIBUTION = "ATTRIBUTION"
-STAGES = "STAGE MIGRATION"
-RATINGS = "RATING MIGRATION"
-RECONCILIATION = "RECONCILIATION"
-METHOD = "METHOD & ASSUMPTIONS"
-REPRODUCE = "REPRODUCE"
+#: The sheet names, and they are the reader's names for these things rather
+#: than the code's. "COVER" and "RESULT SUMMARY" are what a developer calls
+#: them; an audit file lands on a credit committee's desk and its tabs have to
+#: read as what a credit person would look for.
+#:
+#: One departure from the specification, and it is Excel's rather than a
+#: choice: a worksheet name may not contain "/", so "Account / Facility Detail"
+#: is written with an ampersand. Every other name is verbatim.
+COVER = "Executive Summary"
+SCENARIO = "Scenario Definition"
+SUMMARY = "Portfolio Before vs After"
+BORROWERS = "Borrower Detail"
+FACILITIES = "Account & Facility Detail"
+ATTRIBUTION = "ECL Attribution"
+STAGES = "Stage Migration"
+RATINGS = "Rating Migration"
+RECONCILIATION = "Reconciliation"
+METHOD = "Model & Methodology"
+DICTIONARY = "Data Dictionary"
+REPRODUCE = "Reproduce"
 
-SHEETS = (COVER, SCENARIO, SUMMARY, BORROWERS, FACILITIES, ATTRIBUTION,
-          STAGES, RATINGS, RECONCILIATION, METHOD, REPRODUCE)
+SHEETS = (COVER, SCENARIO, SUMMARY, FACILITIES, BORROWERS, STAGES, RATINGS,
+          ATTRIBUTION, METHOD, DICTIONARY, RECONCILIATION, REPRODUCE)
 
 
 class WorkbookError(RuntimeError):
@@ -181,6 +190,7 @@ def build(result: Any, *, owner: Any = None, requested_by: str = "",
     _ratings(sheets[RATINGS], result, context)
     _reconciliation(sheets[RECONCILIATION], checks, context)
     _method(sheets[METHOD], result, context)
+    _dictionary(sheets[DICTIONARY], context)
     _reproduce(sheets[REPRODUCE], result, context)
 
     for sheet in sheets.values():
@@ -883,6 +893,119 @@ def _method(ws: Worksheet, result: Any, context: dict[str, Any]) -> None:
         row = sy.section(ws, "Limitations of this installation's data", row)
         for text in notes:
             row = sy.note(ws, str(text), row)
+
+# ------------------------------------------------------- DATA DICTIONARY
+
+
+#: What every column on the detail sheets means, in the reader's terms rather
+#: than the schema's, with its unit and where the number came from.
+#:
+#: This exists because an audit file is read by somebody who was not in the
+#: room. "pd_stressed" is obvious to whoever built the scenario and opaque
+#: three months later to a reviewer deciding whether the provision was
+#: reasonable — and a column they cannot interpret is a column they have to
+#: either ignore or ask about, both of which cost more than a page of prose.
+DICTIONARY_ROWS: tuple[tuple[str, str, str, str], ...] = (
+    ("Borrower ID", "", "The obligor's identifier in the Corporate IFRS 9 "
+     "book. Stable across quarters.", "corporate_borrower_360"),
+    ("Borrower", "", "The obligor's display name.", "corporate_customer_master"),
+    ("Sector", "", "The economic sector the obligor is classified in. Drives "
+     "the asset correlation used in the point-in-time PD.", "corporate_customer_master"),
+    ("Group", "", "The connected counterparty group the obligor sits in.",
+     "corporate_connected_groups"),
+    ("Facility ID", "", "One credit facility of the obligor. IFRS 9 staging "
+     "is assessed at OBLIGOR level, so facility figures on this file are the "
+     "borrower's movement ALLOCATED by EAD share and are labelled as such.",
+     "corporate_facilities"),
+    ("Rating before / after", "ordinal 1-19",
+     "The CreditProbe internal grade on the governed nineteen-point "
+     "performing scale, AAA (1) through C (19). Default is a separate state "
+     "at ordinal 20, reached by the default event and never by a PD band. "
+     "A downgrade is a positive notch move.", "corporate_ratings"),
+    ("Stage before / after", "1, 2 or 3",
+     "The IFRS 9 stage. 1 is performing, 2 has suffered a significant "
+     "increase in credit risk, 3 is credit-impaired.", "governed staging rules"),
+    ("SICR trigger", "",
+     "Which governed test moved the obligor to Stage 2: a relative PD test, "
+     "an absolute PD test, or days past due.", "backend/ifrs9/policy.py"),
+    ("TTC PD", "%",
+     "Through-the-cycle twelve-month PD. A property of the GRADE and not of "
+     "the quarter, calibrated on public corporate default evidence. See "
+     "docs/corporate_rating_pd_calibration.md.", "governed rating masterscale"),
+    ("12m PD / PIT PD", "%",
+     "Point-in-time twelve-month PD: the grade's central tendency with its "
+     "single-factor default threshold shifted by the state of the cycle and "
+     "by the obligor's own condition.", "corporate_ifrs9"),
+    ("Lifetime PD", "%",
+     "Cumulative PD over the 4.2-year behavioural life, on a hazard that "
+     "reverts towards the grade's through-the-cycle level rather than "
+     "assuming today's stress persists.", "corporate_ifrs9"),
+    ("Applicable PD", "%",
+     "The PD the measurement uses: twelve-month in Stage 1, lifetime in "
+     "Stage 2, and 100% in Stage 3 because the default has already happened. "
+     "A PD of 100% is NOT a loss of 100% — the severity stays with LGD.",
+     "backend/corporate/ratingscale.py"),
+    ("LGD before / after", "%",
+     "Loss given default: the share of exposure expected to be lost once "
+     "default occurs, after recovery and collateral.", "corporate_ifrs9"),
+    ("CCF before / after", "%",
+     "Credit conversion factor: the share of the undrawn commitment assumed "
+     "to be drawn by the time of default. EAD = drawn + CCF x undrawn, so a "
+     "20% rise in CCF is a much smaller rise in EAD.", "corporate_facilities"),
+    ("EAD before / after", "currency",
+     "Exposure at default: drawn balance plus the converted undrawn "
+     "commitment.", "corporate_ifrs9"),
+    ("Collateral / haircut", "currency, %",
+     "The security held against the exposure and the discount applied to its "
+     "market value. Collateral reaches ECL through LGD on the secured share "
+     "only.", "corporate_collateral"),
+    ("Reported ECL", "currency",
+     "The obligor's provision as the book reports it, before any scenario. "
+     "The What-If baseline column ties to this exactly; that tie is what "
+     "makes the comparison worth anything.", "corporate_ifrs9"),
+    ("What-If ECL", "currency",
+     "The provision under the scenario, on the chosen methodology.",
+     "this run"),
+    ("Change / Change %", "currency, %",
+     "What-If ECL less reported ECL, and that difference as a share of the "
+     "reported figure.", "this run"),
+    ("Primary driver", "",
+     "The single largest contributor to this obligor's movement. The full "
+     "order-neutral attribution is on the ECL Attribution sheet.", "this run"),
+)
+
+
+def _dictionary(ws: Worksheet, context: dict[str, Any]) -> None:
+    """Every field on this file, in the terms a reviewer reads them in."""
+    row = sy.crumb(ws)
+    row = sy.title(
+        ws, "Data dictionary",
+        "What each column on this file means, what it is measured in, and "
+        "where the figure came from.", row=row)
+    row = sy.table(
+        ws, ["Field", "Unit", "What it means", "Source"],
+        [[name, unit, meaning, source]
+         for name, unit, meaning, source in DICTIONARY_ROWS],
+        row=row,
+        formats=[sy.TEXT, sy.TEXT, sy.TEXT, sy.TEXT],
+        widths=[28, 14, 92, 34], autofilter=False)
+    row = sy.section(ws, "Conventions this file follows", row)
+    for text in (
+        f"Amounts are in {context.get('currency', 'SAR')} unless a column "
+        "says otherwise. Percentages are written as percentages, not as "
+        "fractions.",
+        "IFRS 9 staging is assessed at OBLIGOR level, not facility level: a "
+        "book that staged one facility of a borrower differently from another "
+        "would be describing a bank that does not exist. Facility figures are "
+        "an allocation of the obligor's movement and are labelled as one.",
+        "A rate is exposure-weighted where it says so and a simple mean "
+        "otherwise; a coverage ratio is always summed over summed and never "
+        "an average of ratios.",
+        "Nothing on this file was estimated by a model that could not be "
+        "reproduced. The Reproduce sheet carries everything needed to "
+        "recalculate every figure.",
+    ):
+        row = sy.note(ws, text, row)
 
 
 # ---------------------------------------------------------------- REPRODUCE
