@@ -17,6 +17,10 @@ import { money } from "@/lib/format";
 import { useAsync } from "@/lib/hooks";
 import { BorrowerDrilldown } from "@/components/early-warning/borrower-drilldown";
 import { InterpretationPanel } from "@/components/early-warning/interpretation-panel";
+import { EarlyWarningChat } from "@/components/early-warning/ews-chat";
+import { PortfolioInsight } from "@/components/early-warning/portfolio-insight";
+import { LevelView } from "@/components/early-warning/level-view";
+import { TrendChart } from "@/components/analytics/charts";
 
 /**
  * Early Warning V2 — the consolidated portfolio view.
@@ -63,14 +67,16 @@ function useUrlSelection() {
     band: query.get("band"),
     segment: query.get("segment"),
     customer: query.get("customer"),
+    level: query.get("level"),
   }));
 
   const patch = React.useCallback(
-    (next: Partial<{ band: string | null; segment: string | null; customer: string | null }>) => {
+    (next: Partial<{ band: string | null; segment: string | null;
+                     customer: string | null; level: string | null }>) => {
       setState((current) => {
         const merged = { ...current, ...next };
         const url = new URL(window.location.href);
-        (["band", "segment", "customer"] as const).forEach((key) => {
+        (["band", "segment", "customer", "level"] as const).forEach((key) => {
           if (merged[key]) url.searchParams.set(key, merged[key]!);
           else url.searchParams.delete(key);
         });
@@ -115,6 +121,13 @@ export function EarlyWarningV2Portfolio() {
 
   return (
     <div className="space-y-5">
+      <EarlyWarningChat
+        customerId={selection.customer}
+        onOpenBorrower={(id) => selection.patch({ customer: id })}
+      />
+
+      <PortfolioInsight />
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-1">
@@ -177,6 +190,30 @@ export function EarlyWarningV2Portfolio() {
           </button>
         ))}
       </div>
+
+      {overview.data.trend.length >= 3 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Portfolio Early Warning score by month</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TrendChart
+              data={overview.data.trend.map((t) => ({
+                period: t.period,
+                ews: t.portfolio_ews,
+                high: t.high_plus_count,
+              }))}
+              xKey="period"
+              series={[
+                { key: "ews", label: "Portfolio EWS", slot: 0 },
+                { key: "high", label: "Obligors at high or above", slot: 1 },
+              ]}
+              height={220}
+              area
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {filterBand && (
         <InterpretationPanel band={filterBand} label={`${BAND_LABEL[filterBand]} risk`} />
@@ -252,6 +289,14 @@ export function EarlyWarningV2Portfolio() {
           onClose={() => selection.patch({ customer: null })}
         />
       )}
+
+      <LevelView
+        field={selection.level ?? "segment"}
+        onChangeField={(field) => selection.patch({ level: field })}
+        onOpenGroup={(field, value) =>
+          selection.patch({ segment: field === "segment" ? value : null })
+        }
+      />
 
       {segments.data && (
         <Card>

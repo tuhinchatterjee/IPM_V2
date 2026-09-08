@@ -442,6 +442,101 @@ def report_portfolio(period: str | None = Query(None),
                      headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
+class AskRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=500)
+    period: str | None = None
+    customer_id: str | None = Field(None, max_length=64)
+
+
+@router.post("/ask", summary="Ask the Early Warning domain a question")
+def ask_early_warning(payload: AskRequest,
+                      principal: Principal = RequireEarlyWarningView) -> dict:
+    """The screen's own chat, answered from this domain and no other.
+
+    Deliberately narrower than the general `/ask`: it reads only the Early
+    Warning domain, so it cannot reach another book by construction rather
+    than by a lock that has to be enforced. A question this domain does not
+    answer comes back saying so, rather than being met with a portfolio
+    summary it did not ask for.
+    """
+    from backend.early_warning import ask as ews_ask
+
+    try:
+        found = ews_ask.answer(payload.question, period=payload.period,
+                               customer_id=payload.customer_id)
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+    if found is None:
+        return {
+            "answered": False, "scope": "",
+            "direct": ("That is not a question the Early Warning domain can "
+                       "answer. It reads early warning scores, their drivers "
+                       "and the evidence behind them — ask about the "
+                       "portfolio, a segment, a grade band or an obligor."),
+            "follow_ups": [s["question"] for s in ews_ask.suggestions()[:3]],
+        }
+    return {"answered": True, **found.to_dict()}
+
+
+@router.get("/suggestions", summary="Starting questions for the Early Warning chat")
+def ask_suggestions(principal: Principal = RequireEarlyWarningView) -> dict:
+    """Questions this domain can genuinely answer, not a wish list."""
+    from backend.early_warning import ask as ews_ask
+
+    return {"questions": ews_ask.suggestions()}
+
+
+@router.get("/levels", summary="The fields the book can be grouped by")
+def levels(principal: Principal = RequireEarlyWarningView) -> dict:
+    """The grouping is not fixed to segment: any attribute that partitions
+    the book can become the level the screen renders at."""
+    from backend.early_warning import facts as ff
+
+    return {"levels": [{"field": k, "label": v}
+                       for k, v in ff.LEVEL_FIELDS.items()]}
+
+
+@router.get("/level/{field_name}", summary="The book grouped by one field")
+def level(field_name: str, period: str | None = Query(None),
+          principal: Principal = RequireEarlyWarningView) -> dict:
+    from backend.early_warning import compose as cp
+    from backend.early_warning import facts as ff
+
+    try:
+        pack = ff.level(field_name, period)
+    except KeyError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                             detail={"error": "unknown_level", "message": field_name})
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+    written = cp.compose(pack)
+    return {"level": field_name, "label": pack.figures["level_label"],
+            "period": pack.period, "rows": pack.rows,
+            "reading": {"direct": written.direct,
+                        "interpretation": written.interpretation,
+                        "points": written.points,
+                        "follow_ups": written.follow_ups},
+            "caveats": pack.caveats}
+
+
+@router.get("/insight", summary="The portfolio reading, in prose")
+def insight(period: str | None = Query(None),
+            principal: Principal = RequireEarlyWarningView) -> dict:
+    """What the portfolio figures mean, rather than a restatement of them."""
+    from backend.early_warning import compose as cp
+    from backend.early_warning import facts as ff
+
+    try:
+        pack = ff.portfolio(period)
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+    written = cp.compose(pack)
+    return {"period": pack.period, "direct": written.direct,
+            "interpretation": written.interpretation,
+            "points": written.points, "follow_ups": written.follow_ups,
+            "caveats": written.caveats}
+
+
 @router.get("/reports/segments", summary="All-segment Word report")
 def report_all_segments(period: str | None = Query(None),
                         principal: Principal = RequireEarlyWarningReport) -> Response:

@@ -3338,6 +3338,43 @@ export interface EarlyWarningV2BorrowerDetail {
   fired_signals: { signal_key: string; signal_score: number; causal_chain_id: string }[];
 }
 
+export interface EarlyWarningV2Reading {
+  direct: string;
+  interpretation: string;
+  points: string[];
+  follow_ups: string[];
+  caveats?: string[];
+}
+
+export interface EarlyWarningV2Answer extends EarlyWarningV2Reading {
+  answered: boolean;
+  scope: string;
+  refused?: boolean;
+  drivers?: { code: string; name: string; score: number; band: string; reason: string }[];
+  chart?: { kind?: string; reason?: string };
+  facts?: { rows?: Record<string, unknown>[]; caveats?: string[] };
+}
+
+export interface EarlyWarningV2LevelRow {
+  obligors: number;
+  exposure: number;
+  portfolio_ews: number;
+  band: string;
+  high_plus_count: number;
+  weakest_obligor: string;
+  weakest_customer_id: string;
+  [key: string]: unknown;
+}
+
+export interface EarlyWarningV2Level {
+  level: string;
+  label: string;
+  period: string;
+  rows: EarlyWarningV2LevelRow[];
+  reading: EarlyWarningV2Reading;
+  caveats: string[];
+}
+
 export interface EarlyWarningV2SignalRow {
   signal_key: string;
   signal_score: number;
@@ -4446,6 +4483,39 @@ export const api = {
   earlyWarningV2BorrowerTree: (customerId: string) =>
     request<EarlyWarningV2BorrowerTree>(
       `/early-warning/v2/borrower/${encodeURIComponent(customerId)}/tree`,
+    ),
+  /** The screen's own chat. Reads the Early Warning domain and no other. */
+  earlyWarningV2Ask: (payload: {
+    question: string;
+    period?: string;
+    customerId?: string;
+  }) =>
+    request<EarlyWarningV2Answer>("/early-warning/v2/ask", {
+      method: "POST",
+      body: JSON.stringify({
+        question: payload.question,
+        period: payload.period ?? null,
+        customer_id: payload.customerId ?? null,
+      }),
+      timeoutMs: 60_000,
+    }),
+  earlyWarningV2Suggestions: () =>
+    request<{ questions: { question: string; note: string }[] }>(
+      "/early-warning/v2/suggestions",
+    ),
+  earlyWarningV2Insight: (period?: string) =>
+    request<EarlyWarningV2Reading & { period: string }>(
+      `/early-warning/v2/insight${period ? `?period=${encodeURIComponent(period)}` : ""}`,
+    ),
+  earlyWarningV2Levels: () =>
+    request<{ levels: { field: string; label: string }[] }>(
+      "/early-warning/v2/levels",
+    ),
+  earlyWarningV2Level: (field: string, period?: string) =>
+    request<EarlyWarningV2Level>(
+      `/early-warning/v2/level/${encodeURIComponent(field)}${
+        period ? `?period=${encodeURIComponent(period)}` : ""
+      }`,
     ),
   earlyWarningV2Methodology: () =>
     request<EarlyWarningV2Methodology>("/early-warning/v2/methodology"),
