@@ -127,6 +127,11 @@ TIER_BY_ROLE: dict[str, str] = {
     "interpretation": STANDARD,
     "critic": STANDARD,
     "analyst": DEEP,
+    # Playbook writes twenty pages, holds a document across many turns and
+    # drives the document tools. Whatever it costs, it is not a light job,
+    # and pricing it as one would make the cost report understate the
+    # single most expensive thing the product does.
+    "author": DEEP,
     "complex_planner": DEEP,
     "judgement": DEEP,
 }

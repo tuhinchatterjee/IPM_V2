@@ -65,15 +65,25 @@ TRANSLATION = "translation"
 INVESTIGATOR = "investigator"
 ANALYST = "analyst"
 
+#: Playbook's authoring role. Separate from ANALYST because it is a different
+#: job with a different failure mode: the analyst forms a judgement on evidence
+#: and states it in a paragraph, while the author writes twenty pages of
+#: committee prose, holds a document's structure in mind across many turns, and
+#: drives the document tools that render it. A model that is excellent at the
+#: first is not automatically the one an administrator wants paying for the
+#: second, and before this variable existed there was nowhere to say so.
+AUTHOR = "author"
+
 ROLES: tuple[str, ...] = (ROUTER, PLANNER, COMPLEX_PLANNER, INVESTIGATOR,
-                          ANALYST, INTERPRETATION, CRITIC, TRANSLATION)
+                          ANALYST, AUTHOR, INTERPRETATION, CRITIC,
+                          TRANSLATION)
 
 #: Roles the product calls today. TRANSLATION is declared but unused, and a
 #: report that counted it as unconfigured would be reporting a gap that is not
 #: one.
 ACTIVE_ROLES: tuple[str, ...] = (ROUTER, PLANNER, COMPLEX_PLANNER,
-                                 INVESTIGATOR, ANALYST, INTERPRETATION,
-                                 CRITIC)
+                                 INVESTIGATOR, ANALYST, AUTHOR,
+                                 INTERPRETATION, CRITIC)
 
 #: Which environment variable names each role's model, and how hard it should
 #: think. Effort is passed through only where the provider supports it.
@@ -86,6 +96,7 @@ _ENV: dict[str, tuple[str, str]] = {
     CRITIC: ("AI_CRITIC_MODEL", "AI_CRITIC_EFFORT"),
     INVESTIGATOR: ("AI_INVESTIGATOR_MODEL", "AI_INVESTIGATOR_EFFORT"),
     ANALYST: ("AI_ANALYST_MODEL", "AI_ANALYST_EFFORT"),
+    AUTHOR: ("AI_AUTHOR_MODEL", "AI_AUTHOR_EFFORT"),
     TRANSLATION: ("AI_TRANSLATION_MODEL", "AI_TRANSLATION_EFFORT"),
 }
 
@@ -104,6 +115,11 @@ _FALLBACK_ROLE: dict[str, str] = {
     # shared default and the routing would be a claim rather than a fact.
     INVESTIGATOR: PLANNER,
     ANALYST: COMPLEX_PLANNER,
+    # A deployment that has not configured an authoring model gets the one
+    # already trusted with credit judgement rather than the shared default,
+    # because writing a committee paper is closer to that job than to
+    # routing. Recorded as inherited, so Settings shows it was not chosen.
+    AUTHOR: ANALYST,
 }
 
 #: What each role is for, shown in Settings so an administrator configuring
@@ -123,6 +139,9 @@ PURPOSE: dict[str, str] = {
                   "whose answer is in the data. Orchestration, not judgement.",
     ANALYST: "Forms a credit judgement on gathered evidence — cause, "
              "materiality, what to do about it. The job worth paying for.",
+    AUTHOR: "Writes and revises Playbook's reports and presentations from "
+            "chosen evidence, and drives the document tools that render them. "
+            "It supplies the words, never the figures.",
 }
 
 #: Effort levels a provider may be asked for. Ordered.
