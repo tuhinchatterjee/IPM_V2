@@ -33,12 +33,20 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from backend.corporate.universe import DEFAULT_GRADE, RATING_SCALE
+from backend.corporate import ratingscale
+from backend.corporate.ratingscale import ALL_STATES, DEFAULT_GRADE, PERFORMING
 from backend.whatif import domain as dm
 
-#: The grades, strongest first, exactly as the governed scale declares them.
-GRADES: tuple[str, ...] = tuple(RATING_SCALE)
-#: The label a totals row carries. Twenty rows for nineteen grades.
+#: The nineteen PERFORMING grades, strongest first, exactly as the governed
+#: scale declares them: AAA through C. This is the order every rating table,
+#: chart axis and migration matrix uses, and nothing derives it by sorting.
+GRADES: tuple[str, ...] = PERFORMING
+#: The nineteen grades followed by the default state. A rating profile of the
+#: whole book shows all twenty, because a borrower in default is still on the
+#: book and dropping it would make the profile's Total disagree with every
+#: other screen.
+STATES: tuple[str, ...] = ALL_STATES
+#: The label a totals row carries.
 TOTAL = "Total"
 
 STAGES: tuple[int, ...] = (1, 2, 3)
@@ -65,15 +73,18 @@ def _weighted(values: pd.Series, weights: pd.Series) -> float:
 def stage_appropriate_pd(frame: pd.DataFrame) -> pd.Series:
     """The PD each borrower is actually measured on.
 
-    Stage 1 is measured on the twelve-month PD and Stages 2 and 3 on the
-    lifetime PD. Averaging the two columns together produces a number that
+    Stage 1 on the twelve-month PD, Stage 2 on the lifetime PD, Stage 3 on
+    100%. Averaging the two PD columns together produces a number that
     describes no borrower in the book, which is why this exists rather than a
-    caller picking a column.
+    caller picking a column — and the choice is made by the governed function
+    in `ratingscale` rather than repeated here, so a screen and the ECL
+    underneath it cannot disagree about what a Stage 3 borrower is measured on.
     """
-    twelve = _num(frame, "pd_12m")
-    lifetime = _num(frame, "pd_lifetime")
-    stage = _num(frame, "stage")
-    return pd.Series(np.where(stage <= 1, twelve, lifetime), index=frame.index)
+    return pd.Series(
+        ratingscale.applicable_pd(_num(frame, "stage").to_numpy(),
+                                  _num(frame, "pd_12m").to_numpy(),
+                                  _num(frame, "pd_lifetime").to_numpy()),
+        index=frame.index)
 
 
 def distribution(values: pd.Series, weights: pd.Series | None = None) -> dict[str, Any]:
@@ -160,12 +171,16 @@ def _row(label: str, part: pd.DataFrame, whole: pd.DataFrame) -> dict[str, Any]:
 
 
 def rating_profile(period: str = "", *, source: Any = None) -> dict[str, Any]:
-    """The current rating profile, one row per governed grade plus a Total.
+    """The current rating profile: nineteen grades, then default, then Total.
 
     Every grade appears even when the book holds none of it. A rating table
     that silently omits AAA because nothing is rated AAA reads as though the
     scale stops at AA, and the next question — "downgrade everything one
     notch" — needs the whole scale to be visible to make sense.
+
+    The nineteen performing grades come first, in governed order, and `D`
+    follows as a clearly marked state rather than a twentieth grade: it is not
+    reachable by a downgrade, and its row exists so the Total ties to the book.
     """
     frame, settled = dm.book(period, source=source)
     work = _enrich(frame, settled, source)
@@ -173,19 +188,25 @@ def rating_profile(period: str = "", *, source: Any = None) -> dict[str, Any]:
         if "internal_rating" in work.columns else pd.Series([""] * len(work))
     work = work.assign(_grade=said)
 
-    rows = [_row(grade, work[work["_grade"] == grade], work) for grade in GRADES]
+    rows = []
+    for state in STATES:
+        row = _row(state, work[work["_grade"] == state], work)
+        row["performing"] = state != DEFAULT_GRADE
+        row["ordinal"] = STATES.index(state) + 1
+        rows.append(row)
     total = _row(TOTAL, work, work)
     total["count_pct"] = 100.0 if len(work) else 0.0
     total["exposure_pct"] = 100.0 if len(work) else 0.0
     total["ecl_pct"] = 100.0 if len(work) else 0.0
 
-    unknown = work[~work["_grade"].isin(GRADES)]
+    unknown = work[~work["_grade"].isin(STATES)]
     return {
         "period": settled,
         "currency": dm.CURRENCY,
         "grain": dm.GRAIN,
         "grades": list(GRADES),
-        "performing_grades": list(GRADES[:-1]),
+        "states": list(STATES),
+        "performing_grades": list(GRADES),
         "default_grade": DEFAULT_GRADE,
         "rows": rows,
         "total": total,
@@ -213,7 +234,8 @@ def stage_profile(period: str = "", *, source: Any = None) -> dict[str, Any]:
         row = _row(f"Stage {number}", part, work)
         row["stage"] = number
         row["measured_on"] = ("12-month PD" if number == 1
-                              else "Lifetime PD")
+                              else "Lifetime PD" if number == 2
+                              else "100% - the default has already happened")
         rows.append(row)
     total = _row(TOTAL, work, work)
     total["stage"] = None

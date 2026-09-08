@@ -48,6 +48,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from backend.corporate import ratingscale
 from backend.ifrs9 import policy
 
 DELTA_MODEL = "delta"
@@ -66,11 +67,23 @@ def _series(values: Any, index: pd.Index) -> pd.Series:
 
 def applicable_pd(stage: Any, pd_12m: Any, pd_lifetime: Any,
                   index: pd.Index) -> pd.Series:
-    """The PD a borrower is measured on, given its Stage."""
-    staged = _series(stage, index)
-    twelve = _series(pd_12m, index)
-    life = _series(pd_lifetime, index)
-    return pd.Series(np.where(staged <= 1, twelve, life), index=index)
+    """The PD a borrower is measured on, given its Stage.
+
+    Twelve-month in Stage 1, lifetime in Stage 2, 100% in Stage 3. The choice
+    is the governed one in `ratingscale`, not a second copy of the rule: a
+    Delta run that measured a defaulted borrower on its lifetime PD while the
+    reported book measured it at 100% would produce a baseline column that did
+    not tie, which is the one thing this methodology exists to guarantee.
+
+    It also means a PD shock leaves a Stage 3 borrower's ECL unmoved, which is
+    correct: the default has happened, and what is left to argue about is the
+    recovery, which lives in LGD.
+    """
+    return pd.Series(
+        ratingscale.applicable_pd(_series(stage, index).to_numpy(),
+                                  _series(pd_12m, index).to_numpy(),
+                                  _series(pd_lifetime, index).to_numpy()),
+        index=index)
 
 
 def ead_from_ccf(drawn: Any, undrawn: Any, ccf: Any, index: pd.Index) -> pd.Series:
@@ -147,13 +160,15 @@ def factors(frame: pd.DataFrame, *,
                    else pd.Series(
                        policy.lifetime_pd(stress_twelve / 100.0) * 100.0, index=index))
 
-    base_applicable = pd.Series(
-        np.where(base_stage <= 1, base_twelve, base_life), index=index)
-    stressed_applicable = pd.Series(
-        np.where(stressed_stage <= 1, stress_twelve, stress_life), index=index)
+    # The governed basis on both sides, so a defaulted borrower is measured at
+    # 100% here exactly as the reported book measures it. On such a borrower
+    # every one of these three is 100, the PD and stage factors are both one,
+    # and the scenario reaches its ECL through LGD and EAD alone.
+    base_applicable = applicable_pd(base_stage, base_twelve, base_life, index)
+    stressed_applicable = applicable_pd(
+        stressed_stage, stress_twelve, stress_life, index)
     #: What the PD factor would have been on the OPENING basis.
-    same_basis = pd.Series(
-        np.where(base_stage <= 1, stress_twelve, stress_life), index=index)
+    same_basis = applicable_pd(base_stage, stress_twelve, stress_life, index)
 
     pd_only = _ratio(same_basis, base_applicable)
     total_pd = _ratio(stressed_applicable, base_applicable)

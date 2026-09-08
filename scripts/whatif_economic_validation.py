@@ -43,14 +43,14 @@ import pandas as pd
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from backend.corporate.universe import RATING_SCALE  # noqa: E402
+from backend.corporate.ratingscale import ALL_STATES, PERFORMING  # noqa: E402
 from backend.ifrs9 import policy  # noqa: E402
 from backend.whatif import domain as dm  # noqa: E402
 
 PASS, PARTIAL, FAIL = "PASS", "PARTIAL", "FAIL"
 
-GRADE_INDEX = {g: i for i, g in enumerate(RATING_SCALE)}
-PERFORMING = [g for g in RATING_SCALE if g != "D"]
+GRADE_INDEX = {g: i for i, g in enumerate(ALL_STATES)}
+
 
 # ---------------------------------------------------------------- the bounds
 #
@@ -177,7 +177,7 @@ def rating_economics(review: Review, latest: pd.DataFrame,
         "stage_3_pct": g["stage"].apply(lambda s: (s == 3).mean() * 100),
         "ecl_rate_pct": g.apply(_rate, include_groups=False),
         "default_pct": g["default_flag"].mean() * 100,
-    }).reindex([r for r in RATING_SCALE if r in g.groups])
+    }).reindex([r for r in ALL_STATES if r in g.groups])
     review.tables["rating"] = table.round(4).reset_index().to_dict("records")
 
     performing = table.reindex([r for r in PERFORMING if r in table.index])
@@ -996,9 +996,9 @@ def random_borrowers(review: Review, books: dict[str, pd.DataFrame], *,
     rng = np.random.default_rng(seed)
 
     strata = {
-        "strong (AAA-A-)": latest["internal_rating"].isin(RATING_SCALE[:7]),
-        "medium (BBB+-BB-)": latest["internal_rating"].isin(RATING_SCALE[7:13]),
-        "weak (B+-CC)": latest["internal_rating"].isin(RATING_SCALE[13:18]),
+        "strong (AAA-A-)": latest["internal_rating"].isin(PERFORMING[:7]),
+        "medium (BBB+-BB-)": latest["internal_rating"].isin(PERFORMING[7:13]),
+        "weak (B+-C)": latest["internal_rating"].isin(PERFORMING[13:19]),
         "defaulted (D)": latest["internal_rating"] == "D",
         "stage 2": latest["stage"] == 2,
         "large exposure": latest["ead"] >= latest["ead"].quantile(0.90),

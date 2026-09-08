@@ -181,10 +181,19 @@ def measured_ecl(stage: np.ndarray | pd.Series, pd_12m_pct: pd.Series,
                  *, lifetime_pd_pct: pd.Series | None = None) -> np.ndarray:
     """ECL on the governed measurement basis, before any overlay.
 
-    Stage 1 is measured on the twelve-month PD; Stages 2 and 3 on the lifetime
-    PD. That single line is why a Stage 1 to Stage 2 migration increases the
-    provision even when nothing else about the borrower moved, and it is the
-    mechanism a scenario answer has to get right to be worth anything.
+    Stage 1 is measured on the twelve-month PD, Stage 2 on the lifetime PD,
+    and Stage 3 on a PD of 100%. The Stage 1 to Stage 2 line is why a migration
+    increases the provision even when nothing else about the borrower moved,
+    and it is the mechanism a scenario answer has to get right to be worth
+    anything. The Stage 3 line is not a modelling choice: the default has
+    happened, so the probability of it happening is one.
+
+    The scenario weighting is applied to the PERFORMING legs only. Its
+    multipliers (upside 0.72, base 1.00, downside 1.46) scale a PROBABILITY
+    that has not yet resolved; multiplying a certainty by 1.082 would assert a
+    loss rate above the borrower's own LGD, which is not a provision but an
+    arithmetic error. On a defaulted exposure the whole of the severity
+    question is LGD and EAD, and that is where it stays.
     """
     twelve = pd.to_numeric(pd_12m_pct, errors="coerce").fillna(0.0) / 100.0
     if lifetime_pd_pct is None:
@@ -194,8 +203,10 @@ def measured_ecl(stage: np.ndarray | pd.Series, pd_12m_pct: pd.Series,
     loss = pd.to_numeric(lgd_pct, errors="coerce").fillna(0.0) / 100.0
     exposure = pd.to_numeric(ead, errors="coerce").fillna(0.0)
     staged = np.asarray(stage, dtype=float)
-    applied = np.where(staged <= 1, twelve, life)
-    return applied * loss * exposure * WEIGHTED_SCENARIO_FACTOR
+    defaulted = staged >= 3
+    applied = np.where(defaulted, 1.0, np.where(staged <= 1, twelve, life))
+    weighting = np.where(defaulted, 1.0, WEIGHTED_SCENARIO_FACTOR)
+    return applied * loss * exposure * weighting
 
 
 def bounded(ecl: np.ndarray | pd.Series,

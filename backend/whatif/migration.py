@@ -29,9 +29,18 @@ counts would silently inflate, so duplicates are collapsed and reported.
 
 Shape
 -----
-Fourteen governed grades plus a Total row and a Total column — a 15 x 15
-displayed matrix. Stages are 1, 2, 3 plus Total, so 4 x 4 displayed for a 3 x 3
-of substance.
+The nineteen governed PERFORMING grades plus a Total row and a Total column —
+a 20 x 20 displayed matrix, in the scale's own order, AAA through C. Stages
+are 1, 2, 3 plus Total, so 4 x 4 displayed for a 3 x 3 of substance.
+
+Default is not a grade of the scale, so it is not a row or a column of the
+performing transition matrix. It is also not dropped: a name that defaulted
+during the period is the single most important thing a migration table can
+tell you, so the matrix reports `to_default`, `from_default` and
+`default_at_both_ends` alongside itself, broken down by opening grade. Keeping
+them out of the grid is what lets every row sum to 100% of the population that
+STARTED performing on that grade; reporting them beside it is what stops the
+table quietly losing them.
 """
 
 from __future__ import annotations
@@ -41,6 +50,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from backend.corporate.ratingscale import DEFAULT_GRADE
 from backend.whatif import domain as dm
 from backend.whatif.profiles import GRADES, STAGES, TOTAL
 
@@ -115,7 +125,7 @@ def _matrix(both: pd.DataFrame, opening_key: str, closing_key: str,
 
 
 def _with_totals(grid: list[list[float]], labels: list[str]) -> dict[str, Any]:
-    """The grid plus its margins — the fifteenth row and column."""
+    """The grid plus its margins — the twentieth row and column."""
     rows = []
     for label, line in zip(labels, grid, strict=False):
         rows.append({"label": label, "cells": [round(v, 4) for v in line],
@@ -190,11 +200,15 @@ def _population(part: pd.DataFrame, ead_column: str) -> dict[str, Any]:
 
 def rating_migration(closing_period: str = "", opening_period: str = "", *,
                      source: Any = None) -> dict[str, Any]:
-    """One year of rating migration, as a 15 x 15 displayed matrix.
+    """One year of rating migration, as a 20 x 20 displayed matrix.
 
-    Fourteen governed grades plus a Total row and column. The opening quarter
-    defaults to the same quarter one year earlier, which is what "prior-year
-    migration" means on this screen.
+    The nineteen governed performing grades, in scale order, plus a Total row
+    and column. The opening quarter defaults to the same quarter one year
+    earlier, which is what "prior-year migration" means on this screen.
+
+    Borrowers that defaulted, cured out of default, or were in default at both
+    ends are reported beside the matrix rather than inside it, because default
+    is a state and not a grade of the performing scale.
     """
     closing = dm.resolve_period(closing_period, source)
     opening = opening_period or dm.prior_year(closing, source)
@@ -226,6 +240,20 @@ def rating_migration(closing_period: str = "", opening_period: str = "", *,
         views[share] = _as_row_shares(views[base], labels)
 
     moved = int((both["_open"] != both["_close"]).sum()) if not both.empty else 0
+
+    # Default is a state, not a grade, so these three populations sit beside
+    # the grid rather than in it. Reporting them is what makes the exclusion
+    # honest: a defaulted name is the most important row of any migration
+    # table, and a matrix that simply lost it would read as though nothing
+    # happened to the grade it left.
+    if both.empty:
+        into = out_of = staying = both
+    else:
+        opened_bad = both["_open"] == DEFAULT_GRADE
+        closed_bad = both["_close"] == DEFAULT_GRADE
+        into = both[~opened_bad & closed_bad]
+        out_of = both[opened_bad & ~closed_bad]
+        staying = both[opened_bad & closed_bad]
     numeric_open = pd.to_numeric(both.get("internal_rating_numeric_opening"),
                                  errors="coerce") if not both.empty else pd.Series(dtype=float)
     numeric_close = pd.to_numeric(both.get("internal_rating_numeric_closing"),
@@ -250,6 +278,14 @@ def rating_migration(closing_period: str = "", opening_period: str = "", *,
         "row_normalised": _row_normalised(views[COUNT]),
         "row_normalised_exposure": _row_normalised(views[EXPOSURE]),
         "continuing": _population(both, "ead_closing"),
+        "to_default": {
+            **_population(into, "ead_closing"),
+            "by_opening_grade": (
+                {} if into.empty else
+                {str(g): int(n) for g, n in into["_open"].value_counts().items()}),
+        },
+        "from_default": _population(out_of, "ead_closing"),
+        "default_at_both_ends": _population(staying, "ead_closing"),
         "exited": _population(found["exited"], "ead"),
         "new": _population(found["new"], "ead"),
         "duplicates_collapsed": found["duplicates_collapsed"],
@@ -260,7 +296,11 @@ def rating_migration(closing_period: str = "", opening_period: str = "", *,
         "currency": dm.CURRENCY,
         "note": ("Only borrowers present in both quarters appear in the "
                  "matrix. Exits and arrivals are reported separately and are "
-                 "never folded into a cell."),
+                 "never folded into a cell. Default is a state rather than a "
+                 "grade of the nineteen-point performing scale, so borrowers "
+                 "that entered, left or stayed in default are reported beside "
+                 "the matrix as to_default, from_default and "
+                 "default_at_both_ends rather than as a row or column of it."),
     }
 
 

@@ -34,13 +34,21 @@ test("an unreachable backend is not the reader's fault and is worth retrying", (
 });
 
 test("a permission refusal does not invite a retry", () => {
-  for (const status of [401, 403]) {
-    const read = readWhatIfError(fail(status, "Not permitted."));
-    assert.equal(read.kind, "not_permitted");
-    assert.equal(read.retryable, false, `HTTP ${status}`);
-    assert.equal(read.severity, "refusal");
-    assert.match(read.next, /administrator/i);
-  }
+  const read = readWhatIfError(fail(403, "Not permitted."));
+  assert.equal(read.kind, "not_permitted");
+  assert.equal(read.retryable, false);
+  assert.equal(read.severity, "refusal");
+  assert.match(read.next, /administrator/i);
+});
+
+test("being signed out is not the same refusal as lacking the role", () => {
+  // 401 and 403 used to read identically, so an expired session told the
+  // reader to ask an administrator for a permission they already had.
+  const read = readWhatIfError(fail(401, "Not authenticated."));
+  assert.equal(read.kind, "signed_out");
+  assert.equal(read.retryable, false);
+  assert.equal(read.severity, "refusal");
+  assert.match(read.next, /sign in again/i);
 });
 
 test("a refused scenario says the same request will be refused again", () => {
@@ -61,10 +69,17 @@ test("another bank's book is its own kind of refusal", () => {
 });
 
 test("something missing from the installation is not about the scenario", () => {
-  const read = readWhatIfError(fail(503, "The ML methodology cannot run here."));
+  const read = readWhatIfError(fail(503, "The analytical lake is not built here."));
   assert.equal(read.kind, "unavailable");
   assert.equal(read.retryable, false);
   assert.match(read.next, /about the installation/i);
+});
+
+test("a missing ML model still leaves the reader a way to run the scenario", () => {
+  const read = readWhatIfError(fail(503, "The ML methodology cannot run here."));
+  assert.equal(read.kind, "model_unavailable");
+  assert.equal(read.retryable, false);
+  assert.match(read.next, /Delta Model/);
 });
 
 test("a server defect says so rather than blaming the reader", () => {

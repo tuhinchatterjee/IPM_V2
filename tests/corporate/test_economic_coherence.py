@@ -19,12 +19,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.corporate.universe import RATING_SCALE
+from backend.corporate.ratingscale import ALL_STATES, PERFORMING
 from backend.ifrs9 import policy
 from backend.whatif import domain as dm
 
-GRADE_INDEX = {g: i for i, g in enumerate(RATING_SCALE)}
-PERFORMING = [g for g in RATING_SCALE if g != "D"]
+GRADE_INDEX = {g: i for i, g in enumerate(ALL_STATES)}
+
 
 
 def _lake() -> bool:
@@ -172,7 +172,7 @@ class TestTheThreePdsAreThreeDifferentThings:
     def test_ttc_rises_strictly_through_the_scale(self, books) -> None:
         latest = list(books.values())[-1]
         levels = (latest.groupby("internal_rating")["ttc_pd_pct"].first()
-                  .reindex([g for g in RATING_SCALE
+                  .reindex([g for g in ALL_STATES
                             if g in set(latest["internal_rating"])]))
         assert levels.is_monotonic_increasing, levels.to_dict()
 

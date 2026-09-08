@@ -132,16 +132,17 @@ def rating_distribution(period: str) -> dict[str, Any]:
     grade = frame["internal_rating"].astype(str)
 
     rows: list[dict[str, Any]] = []
-    for name in rs.RATING_SCALE:
+    for name in rs.ALL_STATES:
         mask = (grade == name).to_numpy()
         count = int(mask.sum())
         part_ead = float(ead[mask].sum())
         part_ecl = float(ecl[mask].sum())
         rows.append({
             "grade": name,
-            "ordinal": rs.RATING_SCALE.index(name) + 1,
+            "ordinal": rs.ORDINAL[name],
             "performing": name != rs.DEFAULT_GRADE,
-            "ttc_pd_pct": round(float(rs.TTC_PD_PCT[name]), 4),
+            "ttc_pd_pct": round(float(rs.DEFAULT_PD_PCT if name == rs.DEFAULT_GRADE
+                                      else rs.TTC_PD_PCT[name]), 5),
             "borrowers": count,
             "borrowers_pct": round(count / max(total_count, 1) * 100, 4),
             "exposure": round(part_ead, 4),
@@ -273,8 +274,8 @@ def build() -> dict[str, Any]:
         "report_version": "1.0.0",
         "periods": periods,
         "latest": periods[-1],
-        "masterscale": {"grades": len(rs.RATING_SCALE),
-                        "scale": list(rs.RATING_SCALE),
+        "masterscale": {"grades": rs.PERFORMING_COUNT,
+                        "scale": list(rs.PERFORMING),
                         "version": rs.SCALE_VERSION},
         "portfolio_reconciliation": portfolio_reconciliation(periods),
         "rating_distribution": rating_distribution(periods[-1]),

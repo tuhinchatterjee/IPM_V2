@@ -166,6 +166,10 @@ FIELDS: tuple[Field, ...] = (
 
     # ---- rating ----------------------------------------------------------
     _rating("internal_rating"),
+    # The governed ordinal, 1 for AAA through 19 for C and 20 for default.
+    # `internal_rating_numeric` is the historical name for the same number and
+    # is written from the same index, so the two can never disagree.
+    _rating("internal_rating_ordinal"),
     _rating("internal_rating_numeric"),
     # The three PDs, each meaning a different thing. Carried on the RATINGS
     # domain because all three are properties of the grade in this quarter,

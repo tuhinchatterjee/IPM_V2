@@ -63,7 +63,7 @@ IFRS9 = "corporate_ifrs9"
 #: together. A book missing any of them is not a Corporate IFRS 9 book.
 REQUIRED: tuple[str, ...] = (
     "borrower_id", "period", "sector",
-    "internal_rating", "internal_rating_numeric",
+    "internal_rating", "internal_rating_ordinal", "internal_rating_numeric",
     "stage", "pd_12m", "pd_lifetime", "lgd", "ead", "final_ecl",
     "current_dpd", "default_flag",
 )

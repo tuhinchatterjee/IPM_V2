@@ -141,7 +141,7 @@ class TestTheThreePdsAreThreeThings:
 
     def test_the_through_the_cycle_scale_is_strictly_ordered(self, book):
         seen = (book.groupby("internal_rating")["ttc_pd_pct"].first()
-                .reindex(rs.RATING_SCALE).dropna())
+                .reindex(rs.PERFORMING).dropna())
         assert list(seen.values) == sorted(seen.values)
 
     def test_the_point_in_time_pd_is_ordered_by_grade_on_average(self, book):
@@ -155,7 +155,7 @@ class TestTheThreePdsAreThreeThings:
         performing = book[book["internal_rating"] != rs.DEFAULT_GRADE]
         grouped = performing.groupby("internal_rating")["pit_pd_12m_pct"]
         means = grouped.mean()[grouped.size() >= 200].reindex(
-            rs.RATING_SCALE).dropna()
+            rs.PERFORMING).dropna()
         assert len(means) >= 12
         assert list(means.values) == sorted(means.values)
 
@@ -268,12 +268,14 @@ class TestTheBookHoldsTogetherOverTime:
 
 class TestEveryGradeIsUsed:
     def test_all_nineteen_grades_appear_somewhere_in_the_book(self, ratings):
-        assert set(ratings["internal_rating"].unique()) == set(rs.RATING_SCALE)
+        assert set(ratings["internal_rating"].unique()) == set(rs.ALL_STATES)
 
-    def test_the_scale_is_nineteen_points_and_not_a_relabelled_fourteen(self):
-        assert len(rs.RATING_SCALE) == 19
+    def test_the_scale_is_nineteen_performing_points_ending_in_C(self):
+        assert len(rs.PERFORMING) == 19
+        assert rs.PERFORMING[-1] == "C"
         assert len(set(rs.TTC_PD_PCT)) == 19
         assert len(set(rs.TTC_PD_PCT.values())) == 19
+        assert rs.DEFAULT_GRADE not in rs.TTC_PD_PCT
 
     def test_the_distribution_is_not_concentrated_on_one_grade(self, ratings):
         share = ratings["internal_rating"].value_counts(normalize=True)

@@ -56,6 +56,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from backend.corporate import ratingscale
 from backend.ifrs9 import policy
 from backend.orchestration import decomposition as dc
 
@@ -120,10 +121,10 @@ def _applicable(pd_pct: np.ndarray, stage: np.ndarray,
                 ttc_pct: np.ndarray | None = None) -> np.ndarray:
     """The PD the measurement actually uses, per borrower.
 
-    Twelve-month below Stage 2, lifetime at or above it. Taking the ratio on
-    THIS scale is what makes the drivers telescope: the lifetime transform is
-    applied to each driver's before and after, so the products cancel instead
-    of leaving a nonlinear remainder.
+    Twelve-month in Stage 1, lifetime in Stage 2, and 100% in Stage 3. Taking
+    the ratio on THIS scale is what makes the drivers telescope: the lifetime
+    transform is applied to each driver's before and after, so the products
+    cancel instead of leaving a nonlinear remainder.
 
     The anchor matters. The lifetime PD reverts towards the grade's
     through-the-cycle level, so a driver that moves the grade moves the anchor
@@ -131,11 +132,19 @@ def _applicable(pd_pct: np.ndarray, stage: np.ndarray,
     anchor in force on that side of it. Without that the chain does not
     telescope and the attribution stops adding up to the movement it claims to
     explain.
+
+    The Stage 3 line makes a PD driver attribute exactly nothing on a defaulted
+    borrower, before and after alike, so its ratio is one. That is the right
+    answer rather than a special case: the default has already happened, and
+    what a scenario can still change about that exposure is its recovery,
+    which arrives through LGD and EAD.
     """
     anchor = np.asarray(pd_pct) if ttc_pct is None else np.asarray(ttc_pct)
     lifetime = np.asarray(policy.lifetime_pd(
         np.asarray(pd_pct) / 100.0, anchor / 100.0)) * 100.0
-    return np.where(np.asarray(stage) <= 1, np.asarray(pd_pct), lifetime)
+    staged = np.asarray(stage)
+    performing = np.where(staged <= 1, np.asarray(pd_pct), lifetime)
+    return np.where(staged >= 3, ratingscale.DEFAULT_PD_PCT, performing)
 
 
 def _ratio(after: np.ndarray, before: np.ndarray) -> np.ndarray:

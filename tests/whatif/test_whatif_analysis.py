@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.corporate.universe import RATING_SCALE
+from backend.corporate.ratingscale import ALL_STATES, PERFORMING
 from backend.ifrs9 import policy
 from backend.orchestration import decomposition as dc
 from backend.whatif import attribution as at
@@ -100,21 +100,26 @@ class TestTheDomainIsClosed:
 
 
 class TestTheRatingProfile:
-    """Fourteen governed grades, and a Total that reconciles."""
+    """Nineteen governed grades then default, and a Total that reconciles."""
 
     @needs_lake
-    def test_it_shows_the_nineteen_governed_grades(self, period) -> None:
+    def test_it_shows_the_nineteen_governed_grades_in_scale_order(self, period) -> None:
         body = pf.rating_profile(period)
-        assert body["grades"] == list(RATING_SCALE)
+        assert body["grades"] == list(PERFORMING)
+        assert body["grades"][0] == "AAA" and body["grades"][-1] == "C"
         assert len(body["grades"]) == 19
-        assert len(body["rows"]) == 19
         assert body["default_grade"] == "D"
+        assert "D" not in body["grades"], (
+            "default is a state, not the twentieth grade of the scale")
 
     @needs_lake
     def test_every_grade_appears_even_when_the_book_holds_none(self, period) -> None:
         body = pf.rating_profile(period)
-        assert [r["label"] for r in body["rows"]] == list(RATING_SCALE), (
+        assert [r["label"] for r in body["rows"]] == list(ALL_STATES), (
             "a table that omits an empty grade reads as though the scale stops")
+        assert [r["label"] for r in body["rows"][:19]] == list(PERFORMING)
+        assert body["rows"][19]["label"] == "D"
+        assert body["rows"][19]["performing"] is False
 
     @needs_lake
     def test_the_total_reconciles_to_the_rows(self, period) -> None:

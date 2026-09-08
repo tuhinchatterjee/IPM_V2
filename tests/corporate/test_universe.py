@@ -177,7 +177,7 @@ class TestCreditCoherence:
         by_grade = grouped.median()
         populated = grouped.size() >= 200
         performing = by_grade.loc[
-            (by_grade.index < ratingscale.DEFAULT_INDEX + 1) & populated]
+            (by_grade.index <= ratingscale.PERFORMING_COUNT) & populated]
         assert len(performing) >= 12
         assert performing.is_monotonic_increasing, performing.to_dict()
 
@@ -190,10 +190,10 @@ class TestCreditCoherence:
         """
         ratings = universe["corporate_ratings"]
         levels = (ratings.groupby("internal_rating")["ttc_pd_pct"].first()
-                  .reindex(ratingscale.RATING_SCALE))
+                  .reindex(ratingscale.PERFORMING))
         assert levels.notna().all(), "every grade must appear in the book"
         assert list(levels.values) == sorted(levels.values)
-        assert len(set(levels.values)) == len(ratingscale.RATING_SCALE)
+        assert len(set(levels.values)) == ratingscale.PERFORMING_COUNT
 
     def test_the_cycle_is_visible_in_the_stage_mix(self, universe):
         ifrs9 = universe["corporate_ifrs9"]

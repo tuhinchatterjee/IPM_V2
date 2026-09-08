@@ -11,7 +11,7 @@ moving a borrower down a notch moves it onto the PD the bank has assigned to
 that grade.
 
 So a notch is worth what the masterscale says it is worth, and the masterscale
-here is the same one the book was graded on: `RATING_SCALE` with `RATING_BOUNDS`
+here is the same one the book was graded on: `PERFORMING` with `RATING_BOUNDS`
 as the PD band edges. This module reads that authority rather than restating it.
 
 Within-grade calibration is preserved
@@ -40,18 +40,19 @@ import pandas as pd
 
 from backend.corporate import ratingscale
 from backend.corporate.ratingscale import (
+    ALL_STATES,
     DEFAULT_GRADE,
-    DEFAULT_INDEX,
+    PERFORMING_COUNT,
     RATING_BOUNDS,
-    RATING_SCALE,
 )
 
 MASTERSCALE_OWNER = "Credit Risk Analytics"
-#: 2.0.0 is the nineteen-point governed scale. The fourteen-point scale it
-#: replaced is gone rather than hidden underneath: there is no second
-#: computational grade set, and a figure produced on the old one is not
-#: comparable with a figure produced on this.
-MASTERSCALE_VERSION = "2.0.0"
+#: 3.0.0 is the governed nineteen-point PERFORMING scale, AAA to C, with
+#: default a separate state rather than the scale's last grade, and a TTC PD
+#: master calibrated on public corporate default evidence. Earlier scales are
+#: gone rather than hidden underneath: there is no second computational grade
+#: set, and a figure produced on an older one is not comparable with this.
+MASTERSCALE_VERSION = "3.0.0"
 
 PD_FLOOR_PCT = ratingscale.PD_FLOOR_PCT
 PD_CEILING_PCT = ratingscale.PD_CEILING_PCT
@@ -61,18 +62,17 @@ PD_CEILING_PCT = ratingscale.PD_CEILING_PCT
 #: reconstructed from the band edges: the masterscale is the definition, and a
 #: geometric midpoint of its own bands would be a second opinion about it.
 #:
-#: D is in the table at 100% because a defaulted name has defaulted; it is
-#: never used to measure a performing exposure, and `PERFORMING` excludes it.
-MASTERSCALE: dict[str, float] = {
-    grade: ratingscale.TTC_PD_PCT[grade]
-    for grade in RATING_SCALE[:DEFAULT_INDEX]
-}
+#: D is NOT in this table. The masterscale is the table of performing grades,
+#: and a defaulted exposure is measured at 100% by `ratingscale.applicable_pd`
+#: rather than by looking a grade up here.
+MASTERSCALE: dict[str, float] = dict(ratingscale.TTC_PD_PCT)
 
-GRADE_INDEX: dict[str, int] = {grade: i for i, grade in enumerate(RATING_SCALE)}
+#: Index within `ALL_STATES`, so a defaulted name can still be located.
+GRADE_INDEX: dict[str, int] = {grade: i for i, grade in enumerate(ALL_STATES)}
 
 #: The performing grades, strongest first. A scenario never downgrades a
 #: borrower INTO default: default is an event, not a grade a shock produces.
-PERFORMING: tuple[str, ...] = tuple(RATING_SCALE[:DEFAULT_INDEX])
+PERFORMING: tuple[str, ...] = ratingscale.PERFORMING
 
 #: Broad bands, for questions phrased "all BBB borrowers" or "investment
 #: grade". The governed table owns them; this is a view of it.
@@ -85,6 +85,7 @@ BANDS: dict[str, tuple[str, ...]] = {
     "B": ratingscale.BANDS["b"],
     "CCC": ratingscale.BANDS["ccc"],
     "CC": ratingscale.BANDS["cc"],
+    "C": ratingscale.BANDS["c"],
     "investment grade": ratingscale.INVESTMENT_GRADE,
     "sub-investment grade": ratingscale.SPECULATIVE_GRADE,
     "speculative grade": ratingscale.SPECULATIVE_GRADE,
@@ -145,7 +146,7 @@ def shift(grade: str, notches: int) -> str:
     if said == DEFAULT_GRADE:
         return said
     landed = GRADE_INDEX[said] + int(notches)
-    return RATING_SCALE[int(np.clip(landed, 0, DEFAULT_INDEX - 1))]
+    return ALL_STATES[int(np.clip(landed, 0, PERFORMING_COUNT - 1))]
 
 
 def move(grade: str, notches: int) -> Move:

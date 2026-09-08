@@ -123,7 +123,8 @@ def _check_contract(frame: pd.DataFrame, ordered: list[str]) -> None:
 
 def _join_ratings(frame: pd.DataFrame, universe: Universe) -> pd.DataFrame:
     ratings = universe["corporate_ratings"][[
-        "borrower_id", "period", "internal_rating", "internal_rating_numeric",
+        "borrower_id", "period", "internal_rating",
+        "internal_rating_ordinal", "internal_rating_numeric",
         "ttc_pd_pct", "pit_pd_12m_pct", "lifetime_pd_pct",
         "previous_rating", "rating_change_notches", "rating_direction",
         "rating_date", "rating_model", "rating_override_flag",

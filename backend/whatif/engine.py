@@ -54,7 +54,8 @@ from backend.whatif import staging as st
 FIELDS: tuple[str, ...] = (
     "borrower_id", "display_name", "legal_name", "sector", "segment",
     "group_id", "group_name", "period",
-    "internal_rating", "internal_rating_numeric", "watchlist_flag",
+    "internal_rating", "internal_rating_ordinal", "internal_rating_numeric",
+    "watchlist_flag",
     "ttc_pd_pct",
     "stage", "pd_12m", "pd_lifetime", "lgd", "ead", "final_ecl",
     "ecl_12m", "ecl_lifetime", "management_overlay", "ecl_coverage",

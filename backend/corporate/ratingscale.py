@@ -1,22 +1,33 @@
 """
-The governed 19-point corporate internal rating master scale.
+The governed CreditProbe 19-point corporate internal rating master scale.
 
 This module is the ONE definition of the corporate rating scale and of the
 three probabilities of default the IFRS 9 book is measured on. The universe
 generator, the Borrower 360 snapshot, What-If, the Delta Model, the ML feature
 set, the migration matrix and every chart read it from here. There is no second
-scale underneath: a grade is an ordinal on this table and nothing else.
+scale underneath: a grade is an ordinal on this table and nothing else, and
+nothing anywhere sorts a rating alphabetically — `AA-` sorts before `AA+`
+lexicographically and after it in credit, which is the whole reason the order
+is governed in one place instead of being derived at each screen.
 
 The scale
 ---------
-Nineteen ordered grades, ordinal 1 (strongest) to 19 (default). Eighteen are
-PERFORMING; grade 19, `D`, is reached by the default EVENT and never by a PD
-band — a name can carry a forty per cent twelve-month PD and still be paying,
-and a scale that grades it `D` makes the default rate unmeasurable because the
-grade and the outcome stop being separate facts.
+Nineteen ordered PERFORMING grades, ordinal 1 (strongest) to 19 (weakest):
+
+    AAA AA+ AA AA- A+ A A- BBB+ BBB BBB- BB+ BB BB- B+ B B- CCC CC C
+
+The scale ends at `C`. Default is NOT a twentieth grade of it. `D` is a
+separate STATE, carried at ordinal 20 so a defaulted borrower still sorts last
+on a screen, and it is reached by the default EVENT and never by a PD band —
+a name can carry a sixty per cent twelve-month PD and still be paying, and a
+scale that grades it `D` makes the default rate of its own weakest grade
+unmeasurable, because the grade and the outcome stop being separate facts.
 
 Ordinals ascend with risk, so a downgrade is a positive notch move and
 `notches(a, b)` is a subtraction. That is the whole of the notch arithmetic.
+
+Every borrower record carries `internal_rating` and `internal_rating_ordinal`,
+and they agree by construction because both are written from this table.
 
 The three PDs, and why there are three
 --------------------------------------
@@ -62,10 +73,18 @@ internally incoherent, so each is derived and each means something different:
 
 Stage and the applicable PD
 ---------------------------
-Stage 1 is measured on the twelve-month PD, Stage 2 and Stage 3 on the
-lifetime PD. `applicable_pd` is the only function that decides which, so the
-measurement basis is one line and What-If can attribute a change of basis
+Stage 1 is measured on the twelve-month PD, Stage 2 on the lifetime PD, and
+Stage 3 on 100%. `applicable_pd` is the only function that decides which, so
+the measurement basis is one line and What-If can attribute a change of basis
 separately from a change of level.
+
+Stage 3 is 100% because the default has already happened; a measurement that
+used 99.9% would be asserting a one-in-a-thousand chance that an observed
+event did not occur. PD = 100% is not LGD = 100%: a defaulted borrower with
+collateral still recovers, so the loss is `1.00 x LGD x EAD` and the whole of
+the severity question stays with LGD. The modelled TTC, PIT and lifetime PDs
+remain on the row as INFORMATION — they are what a cure or recovery analysis
+reads — but they are not the measurement basis.
 """
 
 from __future__ import annotations
@@ -74,37 +93,57 @@ from typing import Any
 
 import numpy as np
 
-SCALE_VERSION = "2.0.0"
+SCALE_VERSION = "3.0.0"
 SCALE_OWNER = "Credit Risk Analytics"
 SCALE_EFFECTIVE = "2026-01-01"
 
 # --------------------------------------------------------------- the grades
 
-#: Nineteen grades, strongest first. The ordinal of a grade is its index + 1.
-RATING_SCALE: tuple[str, ...] = (
+#: THE CreditProbe internal corporate rating scale: nineteen PERFORMING
+#: grades, strongest first, ordinal 1 to 19. The scale ends at `C`.
+#:
+#: `C` is the weakest grade a paying borrower can hold. Default is NOT the
+#: twentieth grade of this scale — it is an EVENT, and a scale that ends in
+#: `D` makes the grade and the outcome the same fact, so the default rate of
+#: the weakest grade becomes unmeasurable: every name in it has defaulted by
+#: definition. Keeping them apart is what lets the book say "4% of C-rated
+#: exposure defaulted this year" instead of "100%, trivially".
+PERFORMING: tuple[str, ...] = (
     "AAA", "AA+", "AA", "AA-",
     "A+", "A", "A-",
     "BBB+", "BBB", "BBB-",
     "BB+", "BB", "BB-",
     "B+", "B", "B-",
-    "CCC", "CC",
-    "D",
+    "CCC", "CC", "C",
 )
-GRADE_COUNT = len(RATING_SCALE)
-#: Index of the default grade. Everything before it is performing.
-DEFAULT_INDEX = GRADE_COUNT - 1
-DEFAULT_GRADE = RATING_SCALE[DEFAULT_INDEX]
+PERFORMING_COUNT = len(PERFORMING)
+
+#: The default state. It carries an ordinal so that a borrower that has
+#: defaulted still sorts after every performing grade on a screen, and it is
+#: never reachable from a PD band — only from the default event.
+DEFAULT_GRADE = "D"
+DEFAULT_ORDINAL = PERFORMING_COUNT + 1
+
+#: The nineteen grades followed by the default state, for the places that must
+#: show both: a rating distribution of the whole book, a stage-3 breakdown, a
+#: chart axis. Anything measuring PERFORMING credit uses `PERFORMING`, and the
+#: two names are kept distinct so a caller cannot silently get twenty grades
+#: where the scale has nineteen.
+ALL_STATES: tuple[str, ...] = (*PERFORMING, DEFAULT_GRADE)
+STATE_COUNT = len(ALL_STATES)
+#: Index of the default state inside `ALL_STATES`, for array indexing.
+DEFAULT_STATE_INDEX = PERFORMING_COUNT
+
 #: The weakest grade a scenario may downgrade INTO. A scenario never
 #: manufactures a default: default is an event, not an arithmetic consequence.
-WEAKEST_PERFORMING = RATING_SCALE[DEFAULT_INDEX - 1]
-PERFORMING: tuple[str, ...] = RATING_SCALE[:DEFAULT_INDEX]
+WEAKEST_PERFORMING = PERFORMING[-1]
 
-ORDINAL: dict[str, int] = {g: i + 1 for i, g in enumerate(RATING_SCALE)}
-BY_ORDINAL: dict[int, str] = {i + 1: g for i, g in enumerate(RATING_SCALE)}
+ORDINAL: dict[str, int] = {g: i + 1 for i, g in enumerate(ALL_STATES)}
+BY_ORDINAL: dict[int, str] = {i + 1: g for i, g in enumerate(ALL_STATES)}
 
 #: Investment grade ends at BBB-. Named because people ask for it by name.
-INVESTMENT_GRADE: tuple[str, ...] = RATING_SCALE[:ORDINAL["BBB-"]]
-SPECULATIVE_GRADE: tuple[str, ...] = RATING_SCALE[ORDINAL["BBB-"]:DEFAULT_INDEX]
+INVESTMENT_GRADE: tuple[str, ...] = PERFORMING[:ORDINAL["BBB-"]]
+SPECULATIVE_GRADE: tuple[str, ...] = PERFORMING[ORDINAL["BBB-"]:]
 
 #: Colloquial bands, so "BBB" or "investment grade" resolves to real grades.
 BANDS: dict[str, tuple[str, ...]] = {
@@ -116,7 +155,9 @@ BANDS: dict[str, tuple[str, ...]] = {
     "b": ("B+", "B", "B-"),
     "ccc": ("CCC",),
     "cc": ("CC",),
-    "d": ("D",),
+    "c": ("C",),
+    "d": (DEFAULT_GRADE,),
+    "default": (DEFAULT_GRADE,),
     "investment grade": INVESTMENT_GRADE,
     "investment-grade": INVESTMENT_GRADE,
     "sub-investment grade": SPECULATIVE_GRADE,
@@ -128,24 +169,71 @@ BANDS: dict[str, tuple[str, ...]] = {
 }
 
 # ------------------------------------------------------------ the TTC master
+#
+# How this curve was built, in one paragraph
+# ------------------------------------------
+# The nineteen TTC PDs are a PIECEWISE-LINEAR CURVE IN LOG-ODDS of the annual
+# default probability, anchored on published corporate default evidence. Three
+# properties made log-odds the right space rather than percent or plain log:
+# it is strictly monotonic by construction, so no inversion can be introduced
+# by a rounding; the per-notch step is a single interpretable number (the
+# log-odds distance between adjacent grades); and it saturates below 100%, so
+# the weakest performing grade approaches but never reaches the default
+# convention. Linear interpolation in PERCENT space was rejected outright: it
+# puts equal absolute distance between AAA and AA+ as between CC and C, which
+# is not how credit risk is spaced.
+#
+# The per-notch log-odds step is not constant — it widens down the scale,
+# which is the shape the agency evidence shows:
+#
+#     AAA .. BBB-   0.37 per notch   (~1.45x PD per notch)
+#     BBB- .. B-    0.60 per notch   (~1.8x PD per notch)
+#     B- .. C       0.95 per notch   (~2x PD per notch, decelerating in
+#                                     percent as it approaches saturation)
+#
+# The single anchor is BBB = 0.18%; everything else follows from the step
+# schedule. `docs/corporate_rating_pd_calibration.md` records the external
+# evidence consulted, what each anchor is worth, and the limitations of the
+# exercise. The scale is an INTERNAL CreditProbe scale calibrated using public
+# corporate default evidence as an external reference; it is not the S&P scale
+# and it is not the Moody's scale, and no borrower here carries an
+# agency-assigned rating.
 
-#: Through-the-cycle twelve-month PD, in PERCENT, per grade. A property of the
-#: GRADE and not of the quarter. The shape is the one a corporate masterscale
-#: has: roughly a 1.5x to 1.7x step between adjacent grades in the middle of
-#: the scale, widening towards the bottom where the difference between CCC and
-#: CC is a different kind of difference.
-#:
-#: `D` carries 100%: a defaulted name has defaulted. It is held here so the
-#: table is total, and it is never used to measure a performing exposure.
+#: The log-odds anchor the curve is built from: grade, ordinal, PD in percent.
+TTC_ANCHOR_GRADE = "BBB"
+TTC_ANCHOR_PD_PCT = 0.18
+#: (from_ordinal, to_ordinal, log-odds step per notch) over the whole scale.
+TTC_LOG_ODDS_STEPS: tuple[tuple[int, int, float], ...] = (
+    (1, 10, 0.37), (10, 16, 0.60), (16, 19, 0.95),
+)
+
+#: Through-the-cycle twelve-month PD, in PERCENT, per PERFORMING grade. A
+#: property of the GRADE and not of the quarter: grade 9 has the same TTC PD
+#: in the trough as at the peak, which is what makes a rating migration
+#: readable. Generated by the log-odds construction above and written out here
+#: so the master is a table a reader can check rather than a function they
+#: have to run.
 TTC_PD_PCT: dict[str, float] = {
-    "AAA": 0.010, "AA+": 0.020, "AA": 0.030, "AA-": 0.045,
-    "A+": 0.060, "A": 0.085, "A-": 0.120,
-    "BBB+": 0.180, "BBB": 0.280, "BBB-": 0.450,
-    "BB+": 0.750, "BB": 1.200, "BB-": 2.000,
-    "B+": 3.300, "B": 5.500, "B-": 9.000,
-    "CCC": 16.000, "CC": 28.000,
-    "D": 100.000,
+    "AAA": 0.00934, "AA+": 0.01353, "AA": 0.01958, "AA-": 0.02835,
+    "A+": 0.04103, "A": 0.05939, "A-": 0.08596,
+    "BBB+": 0.12440, "BBB": 0.18000, "BBB-": 0.26038,
+    "BB+": 0.47343, "BB": 0.85931, "BB-": 1.55478,
+    "B+": 2.79724, "B": 4.98232, "B-": 8.72116,
+    "CCC": 19.81071, "CC": 38.97967, "C": 62.28900,
 }
+
+#: The PD of a defaulted exposure, for IFRS 9 measurement. Default has already
+#: happened, so the probability that it happens is one. It is deliberately NOT
+#: an entry in `TTC_PD_PCT`: that table is the masterscale of PERFORMING
+#: grades, and putting 100% in it would let a performing calculation pick the
+#: default convention up by accident.
+#:
+#: PD = 100% is not LGD = 100%. A defaulted borrower with collateral still
+#: recovers, so the loss is `1.00 x LGD x EAD` and the LGD is the whole of the
+#: severity question. `stage_three_pd()` is the one place the convention is
+#: applied.
+DEFAULT_PD_PCT = 100.0
+
 
 #: The upper PD bound of each performing grade, used to read a grade FROM a
 #: modelled PD. Derived as the geometric midpoint between adjacent TTC PDs, so
@@ -247,9 +335,16 @@ def _phi_inverse(p: np.ndarray | float) -> np.ndarray:
 
 
 def ttc_pd(grades: np.ndarray | list[str]) -> np.ndarray:
-    """The masterscale's central PD for each grade, in percent."""
-    return np.array([TTC_PD_PCT.get(str(g), TTC_PD_PCT["BB"]) for g in grades],
-                    dtype=float)
+    """The masterscale's central PD for each grade, in percent.
+
+    `D` returns the default convention rather than a masterscale entry, so a
+    caller that hands the whole book in gets a total answer without the
+    default state having to live in the performing table.
+    """
+    return np.array(
+        [DEFAULT_PD_PCT if str(g) == DEFAULT_GRADE
+         else TTC_PD_PCT.get(str(g), TTC_PD_PCT["BB"]) for g in grades],
+        dtype=float)
 
 
 def correlation(sectors: np.ndarray | list[str]) -> np.ndarray:
@@ -303,16 +398,37 @@ def lifetime_pd(pit_pct: np.ndarray, ttc_pct: np.ndarray, *,
     return np.clip((1.0 - survival) * 100.0, PD_FLOOR_PCT, 99.9)
 
 
+def stage_three_pd(shape: Any = None) -> float:
+    """The measurement PD of a credit-impaired exposure: 100%.
+
+    Not 99.9%, and not the borrower's modelled PD. Stage 3 means the default
+    has already happened, so the probability of it happening is one; a
+    measurement that used 99.9% would be asserting a one-in-a-thousand chance
+    that an event already observed did not occur.
+
+    The modelled TTC, PIT and lifetime PDs are still carried on the row as
+    INFORMATION — they say what the borrower looked like and are what a
+    recovery or cure analysis reads — but they are not the measurement basis.
+    """
+    return DEFAULT_PD_PCT
+
+
 def applicable_pd(stage: np.ndarray, twelve_month: np.ndarray,
                   lifetime: np.ndarray) -> np.ndarray:
-    """The PD the measurement uses: twelve-month in Stage 1, lifetime above it.
+    """The PD the measurement uses, by Stage.
+
+    Stage 1 is measured on the twelve-month PD, Stage 2 on the lifetime PD,
+    and Stage 3 on 100% — the exposure has defaulted, so the probability of
+    default is one and the loss is decided entirely by LGD and EAD.
 
     The ONE place the measurement basis is decided, so a change of basis is a
     single fact What-If can attribute separately from a change of level.
     """
-    return np.where(np.asarray(stage) <= 1,
-                    np.asarray(twelve_month, dtype=float),
-                    np.asarray(lifetime, dtype=float))
+    staged = np.asarray(stage)
+    performing = np.where(staged <= 1,
+                          np.asarray(twelve_month, dtype=float),
+                          np.asarray(lifetime, dtype=float))
+    return np.where(staged >= 3, DEFAULT_PD_PCT, performing)
 
 
 # ------------------------------------------------------------- grade moves
@@ -326,11 +442,11 @@ def grade_from_pd(pd_pct: np.ndarray) -> np.ndarray:
     index = np.zeros(np.shape(pd_pct), dtype=int)
     for edge in RATING_BOUNDS:
         index = index + (np.asarray(pd_pct) > edge).astype(int)
-    return np.clip(index, 0, DEFAULT_INDEX - 1)
+    return np.clip(index, 0, PERFORMING_COUNT - 1)
 
 
 def ordinal(grades: np.ndarray | list[str]) -> np.ndarray:
-    """1 for the strongest grade, 19 for default. Risk ascends with the number."""
+    """1 for AAA through 19 for C, and 20 for default. Risk ascends."""
     return np.array([ORDINAL.get(str(g), ORDINAL["BB"]) for g in grades],
                     dtype=int)
 
@@ -348,7 +464,7 @@ def shift(grades: np.ndarray | list[str], notches: int) -> np.ndarray:
             out.append(DEFAULT_GRADE)
             continue
         moved = ORDINAL.get(name, ORDINAL["BB"]) + int(notches)
-        moved = int(np.clip(moved, 1, DEFAULT_INDEX))
+        moved = int(np.clip(moved, 1, PERFORMING_COUNT))
         out.append(BY_ORDINAL[moved])
     return np.array(out, dtype=object)
 
@@ -374,14 +490,14 @@ def table() -> list[dict[str, Any]]:
     return [{
         "grade": grade,
         "ordinal": ORDINAL[grade],
-        "performing": grade != DEFAULT_GRADE,
+        "performing": True,
         "ttc_pd_pct": TTC_PD_PCT[grade],
         "upper_pd_bound_pct": (RATING_BOUNDS[i] if i < len(RATING_BOUNDS)
                                else None),
         "band": next((b for b, g in BANDS.items()
                       if grade in g and len(b) <= 4), ""),
         "investment_grade": grade in INVESTMENT_GRADE,
-    } for i, grade in enumerate(RATING_SCALE)]
+    } for i, grade in enumerate(PERFORMING)]
 
 
 def describe() -> dict[str, Any]:
@@ -389,14 +505,34 @@ def describe() -> dict[str, Any]:
         "version": SCALE_VERSION,
         "owner": SCALE_OWNER,
         "effective": SCALE_EFFECTIVE,
-        "grades": list(RATING_SCALE),
-        "grade_count": GRADE_COUNT,
-        "performing_count": len(PERFORMING),
+        "grades": list(PERFORMING),
+        "grade_count": PERFORMING_COUNT,
+        "performing_count": PERFORMING_COUNT,
+        "states": list(ALL_STATES),
         "default_grade": DEFAULT_GRADE,
+        "default_ordinal": DEFAULT_ORDINAL,
+        "default_pd_pct": DEFAULT_PD_PCT,
         "weakest_performing": WEAKEST_PERFORMING,
-        "direction": "Ordinal 1 is the strongest grade and 19 is default; "
-                     "risk ascends with the ordinal, so a downgrade is a "
-                     "positive notch move.",
+        "name": "CreditProbe internal corporate rating scale",
+        "basis": ("CreditProbe internal rating scale calibrated using public "
+                  "corporate default evidence as an external reference. It is "
+                  "not the S&P scale and it is not the Moody\u2019s scale, and "
+                  "no borrower here carries an agency-assigned rating."),
+        "direction": "Ordinal 1 is AAA and 19 is C, the weakest performing "
+                     "grade; risk ascends with the ordinal, so a downgrade is "
+                     "a positive notch move. Default is a separate state at "
+                     "ordinal 20, reached by the default event and never by a "
+                     "PD band.",
+        "calibration": {
+            "method": "Piecewise-linear in the log-odds of the annual default "
+                      "probability, anchored on published corporate default "
+                      "evidence.",
+            "anchor": {"grade": TTC_ANCHOR_GRADE, "ttc_pd_pct": TTC_ANCHOR_PD_PCT},
+            "log_odds_steps": [
+                {"from_ordinal": a, "to_ordinal": b, "per_notch": s}
+                for a, b, s in TTC_LOG_ODDS_STEPS],
+            "document": "docs/corporate_rating_pd_calibration.md",
+        },
         "table": table(),
         "pd": {
             "ttc": "A property of the GRADE, not the quarter. Read from the "
@@ -411,8 +547,11 @@ def describe() -> dict[str, Any]:
                         "hazard that reverts towards the grade's TTC level by "
                         f"{REVERSION:.0%} a year — not a naive extrapolation "
                         "of today's twelve-month PD.",
-            "applicable": "Twelve-month in Stage 1; lifetime in Stages 2 "
-                          "and 3.",
+            "applicable": "Twelve-month in Stage 1; lifetime in Stage 2; "
+                          "100% in Stage 3, because the default has already "
+                          "happened. PD of 100% is not LGD of 100% \u2014 a "
+                          "defaulted borrower with collateral still recovers, "
+                          "and the severity stays with LGD and EAD.",
         },
         "correlations": dict(SECTOR_CORRELATION),
         "lifetime_horizon_years": LIFETIME_HORIZON_YEARS,
@@ -421,12 +560,15 @@ def describe() -> dict[str, Any]:
 
 
 __all__ = [
-    "BANDS", "BY_ORDINAL", "DEFAULT_CORRELATION", "DEFAULT_GRADE",
-    "DEFAULT_INDEX", "GRADE_COUNT", "INVESTMENT_GRADE",
-    "LIFETIME_HORIZON_YEARS", "ORDINAL", "PD_CEILING_PCT", "PD_FLOOR_PCT",
-    "PERFORMING", "RATING_BOUNDS", "RATING_SCALE", "REVERSION",
-    "SCALE_EFFECTIVE", "SCALE_OWNER", "SCALE_VERSION", "SECTOR_CORRELATION",
-    "SPECULATIVE_GRADE", "TTC_PD_PCT", "WEAKEST_PERFORMING", "applicable_pd",
+    "ALL_STATES", "BANDS", "BY_ORDINAL", "DEFAULT_CORRELATION",
+    "DEFAULT_GRADE", "DEFAULT_ORDINAL", "DEFAULT_PD_PCT",
+    "DEFAULT_STATE_INDEX", "INVESTMENT_GRADE", "LIFETIME_HORIZON_YEARS",
+    "ORDINAL", "PD_CEILING_PCT", "PD_FLOOR_PCT", "PERFORMING",
+    "PERFORMING_COUNT", "RATING_BOUNDS", "REVERSION", "SCALE_EFFECTIVE",
+    "SCALE_OWNER", "SCALE_VERSION", "SECTOR_CORRELATION", "SPECULATIVE_GRADE",
+    "STATE_COUNT", "TTC_ANCHOR_GRADE", "TTC_ANCHOR_PD_PCT",
+    "TTC_LOG_ODDS_STEPS", "TTC_PD_PCT", "WEAKEST_PERFORMING", "applicable_pd",
     "correlation", "describe", "grade_from_pd", "grades_in", "lifetime_pd",
-    "notches", "ordinal", "pit_pd", "shift", "table", "ttc_pd",
+    "notches", "ordinal", "pit_pd", "shift", "stage_three_pd", "table",
+    "ttc_pd",
 ]

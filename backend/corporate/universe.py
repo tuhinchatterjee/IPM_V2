@@ -270,10 +270,14 @@ RELATIONSHIP_MANAGERS: tuple[str, ...] = (
 #: They are re-exported here under their historical names so that every reader
 #: of this module sees the same table the generator writes — there is one
 #: scale, and this is not a copy of it.
-RATING_SCALE = ratingscale.RATING_SCALE
-DEFAULT_INDEX = ratingscale.DEFAULT_INDEX
+#: The nineteen PERFORMING grades, AAA to C, in governed order.
+PERFORMING = ratingscale.PERFORMING
+PERFORMING_COUNT = ratingscale.PERFORMING_COUNT
+#: The nineteen grades followed by the default state, for array indexing:
+#: `ALL_STATES[DEFAULT_STATE_INDEX]` is "D".
+ALL_STATES = ratingscale.ALL_STATES
+DEFAULT_STATE_INDEX = ratingscale.DEFAULT_STATE_INDEX
 RATING_BOUNDS = ratingscale.RATING_BOUNDS
-GRADE_COUNT = ratingscale.GRADE_COUNT
 
 #: How much of the cycle a RATING absorbs. A pure through-the-cycle grade
 #: never migrates and makes a migration matrix a table of zeros off the
@@ -339,7 +343,7 @@ def pd_from_quality(z: np.ndarray) -> np.ndarray:
 
 
 def grade_from_pd(pd_pct: np.ndarray) -> np.ndarray:
-    """Index into RATING_SCALE from a twelve-month PD, on the master bands.
+    """Index into the performing grades from a twelve-month PD.
 
     Returns a PERFORMING grade only. D is never reached from a PD; it is set
     by the default event.
@@ -914,8 +918,8 @@ def _rating_with_inertia(candidate: np.ndarray, entity: np.ndarray,
 
         moved = np.where(opening, want,
                          np.where(acts, standing + travel, standing))
-        moved = np.clip(moved, 0, DEFAULT_INDEX - 1)
-        moved = np.where(default_flag[rows], DEFAULT_INDEX, moved)
+        moved = np.clip(moved, 0, PERFORMING_COUNT - 1)
+        moved = np.where(default_flag[rows], DEFAULT_STATE_INDEX, moved)
         settled[rows] = moved
         held[here] = moved
     return settled
@@ -959,7 +963,7 @@ def build_ratings(entities: pd.DataFrame, spine_df: pd.DataFrame,
     override = override_entity[index]
     direction = direction_entity[index]
     candidate = np.clip(model_grade + override * direction,
-                        0, DEFAULT_INDEX - 1)
+                        0, PERFORMING_COUNT - 1)
 
     # The candidate is what the model and the committee SAY this quarter. The
     # grade is what the bank is carrying, and those are not the same thing.
@@ -976,7 +980,7 @@ def build_ratings(entities: pd.DataFrame, spine_df: pd.DataFrame,
         np.where(segment == "Public Sector", RATING_MODELS[2], RATING_MODELS[0]))
 
     # ---- the three PDs, derived once, here, and joined everywhere else.
-    grades = np.array(RATING_SCALE)[grade_index]
+    grades = np.array(ALL_STATES)[grade_index]
     sectors = entities["sector"].to_numpy()[index]
     ttc = ratingscale.ttc_pd(grades)
     rho = ratingscale.correlation(sectors)
@@ -1002,15 +1006,25 @@ def build_ratings(entities: pd.DataFrame, spine_df: pd.DataFrame,
     pit = ratingscale.pit_pd(ttc, residual_cycle, rho, idiosyncratic)
     life = ratingscale.lifetime_pd(pit, ttc)
     # A defaulted name is measured on the default treatment, not on a grade.
-    pit = np.where(default_flag, ratingscale.PD_CEILING_PCT, pit)
-    life = np.where(default_flag, 99.9, life)
-    ttc = np.where(default_flag, 100.0, ttc)
+    # A defaulted borrower has defaulted. All three PDs read 100% on those
+    # rows, so no screen, export or model can pick up a 99.0 or 99.9
+    # near-default convention and present it as the measurement basis. PD of
+    # 100% is not LGD of 100%: the severity stays entirely with LGD and EAD.
+    pit = np.where(default_flag, ratingscale.DEFAULT_PD_PCT, pit)
+    life = np.where(default_flag, ratingscale.DEFAULT_PD_PCT, life)
+    ttc = np.where(default_flag, ratingscale.DEFAULT_PD_PCT, ttc)
 
     frame = pd.DataFrame({
         "borrower_id": spine_df["borrower_id"].to_numpy(),
         "period": spine_df["period"].to_numpy(),
         "period_end_date": spine_df["period_end_date"].to_numpy(),
-        "internal_rating": np.array(RATING_SCALE)[grade_index],
+        "internal_rating": np.array(ALL_STATES)[grade_index],
+        # The governed ordinal: 1 for AAA through 19 for C, 20 for default.
+        # Written from the same index as the grade itself, so the two agree
+        # by construction rather than by a later reconciliation.
+        "internal_rating_ordinal": grade_index + 1,
+        # The historical name for the same number, carried so readers written
+        # against it keep working. It is an ALIAS, never a second opinion.
         "internal_rating_numeric": grade_index + 1,
         # The three PDs, each meaning a different thing and none copied from
         # another. TTC is a property of the GRADE; PIT is that grade read in
@@ -1019,7 +1033,7 @@ def build_ratings(entities: pd.DataFrame, spine_df: pd.DataFrame,
         "ttc_pd_pct": _round(ttc, 4),
         "pit_pd_12m_pct": _round(pit, 4),
         "lifetime_pd_pct": _round(life, 4),
-        "model_grade": np.array(RATING_SCALE)[model_grade],
+        "model_grade": np.array(ALL_STATES)[model_grade],
         "rating_model": model,
         "rating_override_flag": override & ~default_flag,
         "rating_override_reason": np.where(
@@ -1039,11 +1053,11 @@ def build_ratings(entities: pd.DataFrame, spine_df: pd.DataFrame,
     # quarter a borrower joins - there is no previous assessment, and a zero
     # there would be read as "no change".
     frame = frame.sort_values(["borrower_id", "_quarter_index"])
-    previous = frame.groupby("borrower_id")["internal_rating_numeric"].shift(1)
+    previous = frame.groupby("borrower_id")["internal_rating_ordinal"].shift(1)
     frame["previous_rating"] = np.where(
         previous.isna(), "",
-        np.array(RATING_SCALE)[previous.fillna(1).astype(int) - 1])
-    notches = frame["internal_rating_numeric"] - previous
+        np.array(ALL_STATES)[previous.fillna(1).astype(int) - 1])
+    notches = frame["internal_rating_ordinal"] - previous
     frame["rating_change_notches"] = notches.fillna(0).astype(int)
     frame["rating_direction"] = np.select(
         [previous.isna(), notches > 0, notches < 0],
@@ -1053,12 +1067,12 @@ def build_ratings(entities: pd.DataFrame, spine_df: pd.DataFrame,
     has_external = (
         np.isin(entities["segment"].to_numpy()[frame["_entity_index"]],
                 ["Large Corporate", "Public Sector", "Financial Institution"])
-        & (frame["internal_rating_numeric"] <= 9))
+        & (frame["internal_rating_ordinal"] <= 9))
     external_index = np.clip(
-        frame["internal_rating_numeric"].to_numpy() - 1
-        + rng.integers(-1, 2, len(frame)), 0, DEFAULT_INDEX - 1)
+        frame["internal_rating_ordinal"].to_numpy() - 1
+        + rng.integers(-1, 2, len(frame)), 0, PERFORMING_COUNT - 1)
     frame["external_rating"] = np.where(
-        has_external, np.array(RATING_SCALE)[external_index], "")
+        has_external, np.array(ALL_STATES)[external_index], "")
     frame["rating_outlook"] = np.where(
         has_external,
         np.array(RATING_OUTLOOKS)[np.clip(
@@ -1066,7 +1080,7 @@ def build_ratings(entities: pd.DataFrame, spine_df: pd.DataFrame,
         "")
 
     frame["watchlist_flag"] = (
-        (frame["internal_rating_numeric"] >= 11)
+        (frame["internal_rating_ordinal"] >= 11)
         | (frame["rating_change_notches"] >= 2))
     frame["origin"] = ORIGIN
     return frame.drop(columns=["_entity_index", "_quarter_index"]).reset_index(
@@ -1600,7 +1614,7 @@ def build_ifrs9(entities: pd.DataFrame, spine_df: pd.DataFrame,
 
     # ---- the three PDs, joined from the ratings dataset
     pds = ratings[["borrower_id", "period", "internal_rating",
-                   "internal_rating_numeric", "ttc_pd_pct",
+                   "internal_rating_ordinal", "ttc_pd_pct",
                    "pit_pd_12m_pct", "lifetime_pd_pct"]]
     frame = frame.merge(pds, on=["borrower_id", "period"], how="left")
     for column, fallback in (("ttc_pd_pct", 1.2), ("pit_pd_12m_pct", 1.2),
@@ -1749,7 +1763,10 @@ def build_ifrs9(entities: pd.DataFrame, spine_df: pd.DataFrame,
     # Rounded first, for the same reason as the LGD above.
     pd_12m = _round(pit, 4) / 100.0
     pd_life = _round(frame["lifetime_pd_pct"].to_numpy(), 4) / 100.0
-    applicable = ratingscale.applicable_pd(stage, pd_12m, pd_life)
+    # The governed basis, in percent, then carried down as a fraction: Stage 1
+    # twelve-month, Stage 2 lifetime, Stage 3 one hundred per cent.
+    applicable = ratingscale.applicable_pd(
+        stage, pd_12m * 100.0, pd_life * 100.0) / 100.0
 
     ecl_12m = pd_12m * lgd * ead_v * WEIGHTED_SCENARIO_FACTOR
     ecl_lifetime = pd_life * lgd * ead_v * WEIGHTED_SCENARIO_FACTOR
@@ -1760,8 +1777,12 @@ def build_ifrs9(entities: pd.DataFrame, spine_df: pd.DataFrame,
     # BEFORE overlay that already exceeded the exposure was published on seven
     # rows, and a reader who checked the arithmetic on one of them would have
     # found the book asserting a loss larger than the amount at risk.
-    base_ecl = np.minimum(applicable * lgd * ead_v * WEIGHTED_SCENARIO_FACTOR,
-                          ead_v)
+    # The scenario weighting scales a PD that has not yet resolved. A defaulted
+    # exposure has resolved, so it is measured at 1.00 x LGD x EAD and the
+    # whole of the severity question stays with LGD - multiplying a certainty
+    # by 1.082 would assert a loss rate above the borrower's own LGD.
+    weighting = np.where(stage >= 3, 1.0, WEIGHTED_SCENARIO_FACTOR)
+    base_ecl = np.minimum(applicable * lgd * ead_v * weighting, ead_v)
     overlay = np.where(rng.random(n) < 0.06,
                        base_ecl * rng.uniform(0.05, 0.25, n), 0.0)
     final = np.minimum(base_ecl + overlay, ead_v)
@@ -1769,8 +1790,9 @@ def build_ifrs9(entities: pd.DataFrame, spine_df: pd.DataFrame,
     frame["pd_12m"] = _round(pit, 4)
     frame["pd_lifetime"] = _round(frame["lifetime_pd_pct"].to_numpy(), 4)
     frame["pd_applicable"] = _round(applicable * 100.0, 4)
-    frame["pd_measurement_basis"] = np.where(
-        stage <= 1, "12-month PD", "Lifetime PD")
+    frame["pd_measurement_basis"] = np.select(
+        [stage >= 3, stage <= 1],
+        ["Defaulted - PD 100%", "12-month PD"], default="Lifetime PD")
     frame["ecl_12m"] = _round(ecl_12m, 4)
     frame["ecl_lifetime"] = _round(ecl_lifetime, 4)
     frame["ecl_before_overlay"] = _round(base_ecl, 4)
@@ -1786,7 +1808,7 @@ def build_ifrs9(entities: pd.DataFrame, spine_df: pd.DataFrame,
     frame["origin"] = ORIGIN
 
     return frame.drop(columns=["entity_index", "quarter_index",
-                               "internal_rating", "internal_rating_numeric"]
+                               "internal_rating", "internal_rating_ordinal"]
                       ).reset_index(drop=True)
 
 

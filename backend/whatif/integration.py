@@ -293,7 +293,7 @@ def _check_ratings(body: Readiness, frame: pd.DataFrame, period: str) -> None:
 
     if "internal_rating" not in frame.columns:
         return
-    governed = set(ms.RATING_SCALE) if hasattr(ms, "RATING_SCALE") else set()
+    governed = set(ms.PERFORMING) | {ms.DEFAULT_GRADE}
     if not governed:
         return
     found = {str(v) for v in frame["internal_rating"].dropna().unique()}

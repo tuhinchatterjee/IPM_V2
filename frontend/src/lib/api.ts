@@ -31,6 +31,37 @@ const API_PREFIX = "/api/v1";
 const DEFAULT_TIMEOUT_MS = 20_000;
 
 /**
+ * How long a call is allowed to take, by what it actually does.
+ *
+ * The default above is twenty seconds, which is right for an endpoint that
+ * reads a row and returns it. It was wrong for two whole classes of What-If
+ * call, and being wrong about it produced the worst error message in the
+ * product: the client aborted, `fetch` threw an `AbortError`, and the reading
+ * became "The CreditProbe backend did not answer" — while the backend was
+ * answering, several minutes later, to nobody.
+ *
+ * That failure is intermittent by nature. `/api/v1/health` returns in
+ * milliseconds and stays green throughout, so every check a person makes says
+ * the backend is fine, which is exactly what a UAT tester reported.
+ *
+ * `LAKE_TIMEOUT_MS` covers a read that scans the analytical lake — a rating
+ * profile, a migration matrix, a parameter distribution over 3,241 borrowers
+ * across sixteen quarters. Warm these return in under a second; cold, with
+ * DuckDB opening the Parquet partitions for the first time after a restart,
+ * they do not.
+ *
+ * `MODEL_TIMEOUT_MS` covers a call that may consult the language model. It is
+ * derived from the server's own budget rather than guessed: the provider
+ * allows `TIMEOUT_SECONDS = 60` per attempt and `MAX_ATTEMPTS = 3`, with a
+ * 0.4s and 0.8s backoff between them, so a single structured() call can
+ * legitimately take 181 seconds. A client budget below the server's does not
+ * protect anyone — it just guarantees that the slowest requests are reported
+ * as an outage.
+ */
+const LAKE_TIMEOUT_MS = 60_000;
+const MODEL_TIMEOUT_MS = 190_000;
+
+/**
  * The caller's role, sent on every request.
  *
  * The backend has no login yet and reads the role from this header (see
@@ -2863,15 +2894,21 @@ async function download(
 
   if (!response.ok) {
     let code = "http_error";
-    let message = `The workbook could not be generated (status ${response.status}).`;
-    let detail: Record<string, unknown> = {};
+    // The status code names how the message travelled, not what went wrong.
+    // A credit officer reading "(status 422)" learns nothing they can act on,
+    // and the server writes a sentence for every status it returns — this is
+    // only what stands when even that could not be read.
+    let message =
+      "The detailed workbook could not be generated. Nothing was downloaded, "
+      + "and the result on screen is unchanged.";
+    let detail: Record<string, unknown> = { status: response.status };
     try {
       const body = await response.json();
       const payload =
         body.detail && typeof body.detail === "object" ? body.detail : body;
       code = payload.error ?? code;
       message = payload.message ?? message;
-      detail = payload;
+      detail = { status: response.status, ...payload };
     } catch {
       /* a non-JSON error body: keep the fallback message */
     }
@@ -6472,9 +6509,11 @@ export const api = {
 
   // ---- What-If / scenarios ----
   whatIfConfiguration: () =>
-    request<WhatIfConfiguration>("/whatif/configuration"),
+    request<WhatIfConfiguration>("/whatif/configuration",
+      { timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfScenarios: () =>
-    request<{ scenarios: WhatIfScenario[]; count: number }>("/whatif/scenarios"),
+    request<{ scenarios: WhatIfScenario[]; count: number }>("/whatif/scenarios",
+      { timeoutMs: LAKE_TIMEOUT_MS }),
   runWhatIf: (payload: {
     scenario?: string;
     name?: string;
@@ -6498,11 +6537,13 @@ export const api = {
     request<WhatIfRun>("/whatif/run", {
       method: "POST",
       body: JSON.stringify(payload),
+      timeoutMs: LAKE_TIMEOUT_MS,
     }),
   askWhatIf: (question: string, limit = 100) =>
     request<WhatIfRun & { is_scenario: boolean; message?: string; unread?: string[] }>(
       "/whatif/ask",
-      { method: "POST", body: JSON.stringify({ question, limit }) },
+      { method: "POST", body: JSON.stringify({ question, limit }),
+        timeoutMs: MODEL_TIMEOUT_MS },
     ),
   compareWhatIf: (keys: string[]) =>
     request<{
@@ -6510,7 +6551,8 @@ export const api = {
       rows: (string | number)[][];
       currency: string;
       scenarios: WhatIfScenario[];
-    }>("/whatif/compare", { method: "POST", body: JSON.stringify(keys) }),
+    }>("/whatif/compare", { method: "POST", body: JSON.stringify(keys),
+                            timeoutMs: LAKE_TIMEOUT_MS }),
 
   // ---- What-If Analysis ----
   //
@@ -6519,20 +6561,24 @@ export const api = {
   // client owns can be edited, undone and replayed without a round trip per
   // keystroke. Only saving and the Recent list touch the database.
   whatIfPeriods: () =>
-    request<WhatIfPeriods>("/whatif/periods"),
+    request<WhatIfPeriods>("/whatif/periods", { timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfLanding: () =>
-    request<WhatIfLanding>("/whatif/landing"),
+    request<WhatIfLanding>("/whatif/landing", { timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfRatingProfile: (period = "") =>
-    request<WhatIfRatingProfile>(`/whatif/profile/rating${qs({ period })}`),
+    request<WhatIfRatingProfile>(`/whatif/profile/rating${qs({ period })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfStageProfile: (period = "") =>
-    request<WhatIfStageProfile>(`/whatif/profile/stage${qs({ period })}`),
+    request<WhatIfStageProfile>(`/whatif/profile/stage${qs({ period })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfSectorProfile: (period = "") =>
-    request<WhatIfSectorProfile>(`/whatif/profile/sector${qs({ period })}`),
+    request<WhatIfSectorProfile>(`/whatif/profile/sector${qs({ period })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
   /** Ask a question ABOUT a result. Never changes the scenario. */
   whatIfInvestigate: (question: string, runId: string, state: WhatIfState) =>
     request<WhatIfInvestigation>("/whatif/investigate", {
       method: "POST",
       body: JSON.stringify({ question, run_id: runId, state }),
+      timeoutMs: MODEL_TIMEOUT_MS,
     }),
   whatIfIntents: () =>
     request<{ version: string; statement: string;
@@ -6541,9 +6587,11 @@ export const api = {
       "/whatif/investigate/intents"),
   whatIfParameterProfile: (parameter: string, period = "") =>
     request<WhatIfParameterProfile>(
-      `/whatif/profile/parameter/${encodeURIComponent(parameter)}${qs({ period })}`),
+      `/whatif/profile/parameter/${encodeURIComponent(parameter)}${qs({ period })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfMacroProfile: (period = "") =>
-    request<WhatIfMacro>(`/whatif/profile/macro${qs({ period })}`),
+    request<WhatIfMacro>(`/whatif/profile/macro${qs({ period })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
   /** The audit-grade workbook for a What-If.
    *
    *  Prefers the held result, so the file carries exactly the figures that
@@ -6560,7 +6608,8 @@ export const api = {
   /** Measure this variable against the book. Reads; changes nothing. */
   whatIfMacroAnalyse: (variable: string, state: WhatIfState) =>
     request<WhatIfMacroAnalysis>("/whatif/macro/analyse", {
-      method: "POST", body: JSON.stringify({ variable, state }) }),
+      method: "POST", body: JSON.stringify({ variable, state }),
+      timeoutMs: MODEL_TIMEOUT_MS }),
   /** Put a relationship in force FOR THIS THREAD. The governed reference
    *  matrix is never edited by this. */
   whatIfMacroConfigure: (sensitivity: Partial<WhatIfSensitivity>,
@@ -6569,19 +6618,24 @@ export const api = {
       method: "POST", body: JSON.stringify({ sensitivity, state }) }),
   whatIfBorrowers: (period = "", limit = 10) =>
     request<WhatIfBorrowerList>(
-      `/whatif/profile/borrowers${qs({ period, limit: String(limit) })}`),
+      `/whatif/profile/borrowers${qs({ period, limit: String(limit) })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfBorrowerHistory: (borrowerId: string, quarters = 8) =>
     request<WhatIfBorrowerHistory>(
-      `/whatif/borrower/${encodeURIComponent(borrowerId)}${qs({ quarters: String(quarters) })}`),
+      `/whatif/borrower/${encodeURIComponent(borrowerId)}${qs({ quarters: String(quarters) })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfRatingMigration: (period = "", opening = "") =>
-    request<WhatIfMigration>(`/whatif/migration/rating${qs({ period, opening })}`),
+    request<WhatIfMigration>(`/whatif/migration/rating${qs({ period, opening })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfStageMigration: (period = "", opening = "") =>
-    request<WhatIfMigration>(`/whatif/migration/stage${qs({ period, opening })}`),
+    request<WhatIfMigration>(`/whatif/migration/stage${qs({ period, opening })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfStaging: () =>
-    request<WhatIfStaging>("/whatif/staging"),
+    request<WhatIfStaging>("/whatif/staging", { timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfStagingPreview: (body: WhatIfStagingIn) =>
     request<WhatIfStaging>("/whatif/staging",
-      { method: "POST", body: JSON.stringify(body) }),
+      { method: "POST", body: JSON.stringify(body),
+        timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfMethodology: (active = "") =>
     request<WhatIfGate>(`/whatif/methodology${qs({ active })}`),
   /** Read a message in the thread.
@@ -6596,10 +6650,12 @@ export const api = {
     request<WhatIfInterpretResult>("/whatif/interpret",
       { method: "POST",
         body: JSON.stringify({ instruction, state,
-                               has_result: hasResult }) }),
+                               has_result: hasResult }),
+        timeoutMs: MODEL_TIMEOUT_MS }),
   whatIfExecute: (body: WhatIfExecuteIn) =>
     request<WhatIfRunResult>("/whatif/execute",
-      { method: "POST", body: JSON.stringify(body), timeoutMs: 120_000 }),
+      { method: "POST", body: JSON.stringify(body),
+        timeoutMs: MODEL_TIMEOUT_MS }),
   /** Price one scenario both ways.
    *
    *  `ran` is the methodology the reader arrived on, so the answer is phrased
@@ -6608,7 +6664,7 @@ export const api = {
   whatIfCompareMethodologies: (state: WhatIfState, ran = "", explain = true) =>
     request<WhatIfMethodologyComparison>("/whatif/compare-methodologies",
       { method: "POST", body: JSON.stringify({ state, ran, explain }),
-        timeoutMs: 180_000 }),
+        timeoutMs: MODEL_TIMEOUT_MS }),
   whatIfComparisonMethod: () =>
     request<WhatIfComparisonMethod>("/whatif/compare-methodologies/method"),
   whatIfSaved: (limit = 24) =>
@@ -6619,18 +6675,21 @@ export const api = {
       `/whatif/recent${qs({ limit: String(limit) })}`),
   whatIfSave: (body: WhatIfExecuteIn & { name: string }) =>
     request<{ saved: WhatIfCard; id: number }>("/whatif/save",
-      { method: "POST", body: JSON.stringify(body), timeoutMs: 120_000 }),
+      { method: "POST", body: JSON.stringify(body),
+        timeoutMs: MODEL_TIMEOUT_MS }),
   whatIfOpenSaved: (id: number) =>
     request<{ card: WhatIfCard; state: WhatIfState; stored: Record<string, unknown> }>(
-      `/whatif/saved/${id}`),
+      `/whatif/saved/${id}`, { timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfDeleteSaved: (id: number) =>
     request<{ deleted: number }>(`/whatif/saved/${id}`, { method: "DELETE" }),
   whatIfDeltaModel: () =>
-    request<WhatIfDeltaModel>("/whatif/models/delta"),
+    request<WhatIfDeltaModel>("/whatif/models/delta",
+      { timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfMlModel: () =>
-    request<WhatIfMlModel>("/whatif/models/ml"),
+    request<WhatIfMlModel>("/whatif/models/ml", { timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfMlExplain: (version = "") =>
-    request<WhatIfMlExplain>(`/whatif/models/ml/explain${qs({ version })}`),
+    request<WhatIfMlExplain>(`/whatif/models/ml/explain${qs({ version })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfMlTrain: (body: {
     development_through?: string;
     excluded?: string[];
