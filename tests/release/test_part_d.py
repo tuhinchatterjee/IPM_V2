@@ -338,7 +338,12 @@ def test_no_gate_spends_a_credit():
     from scripts import quality_gates as qg
 
     for gate in qg.GATES:
-        blob = " ".join(gate.command).lower()
+        # The ARGUMENTS, not the interpreter. Element 0 is an absolute path to
+        # a binary inside the checkout, so scanning the whole command asks
+        # whether the directory somebody cloned into contains the word "live"
+        # — which it does whenever the branch is named for a live feature, and
+        # which says nothing about whether the gate spends a credit.
+        blob = " ".join(gate.command[1:]).lower()
         for forbidden in ("certify", "verify-live", "--confirm", "live"):
             assert forbidden not in blob, (gate.name, forbidden)
 

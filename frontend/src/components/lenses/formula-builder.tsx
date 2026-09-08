@@ -25,6 +25,7 @@ import {
   type FormulaPreview,
   type MetricCode,
 } from "@/lib/api";
+import { byUnit } from "@/lib/format";
 
 /**
  * Writing a metric by typing the formula for it. §4–§13.
@@ -719,7 +720,7 @@ function PreviewPanel({ preview }: { preview: FormulaPreview }) {
               {preview.numerator.period ? ` · ${preview.numerator.period}` : ""}
             </dt>
             <dd className="font-mono text-text-primary" data-testid="preview-numerator">
-              {formatNumber(preview.numerator.value)}
+              {formatNumber(preview.numerator.value, preview.numerator.unit)}
             </dd>
           </div>
         )}
@@ -735,7 +736,7 @@ function PreviewPanel({ preview }: { preview: FormulaPreview }) {
               className="font-mono text-text-primary"
               data-testid="preview-denominator"
             >
-              {formatNumber(preview.denominator.value)}
+              {formatNumber(preview.denominator.value, preview.denominator.unit)}
             </dd>
           </div>
         )}
@@ -801,7 +802,19 @@ function Pair({
   );
 }
 
-function formatNumber(value: number | null | undefined): string {
+/**
+ * One side of the preview, written the way the rest of the product writes it.
+ *
+ * Through the display contract rather than around it. This card exists to be
+ * checked against a tile and against the quarterly pack, and a side that read
+ * 74,017.555 here and 74,017.56 on the tile would be the same number twice
+ * with two answers — which is exactly the reading that makes somebody stop
+ * trusting the screen.
+ */
+function formatNumber(
+  value: number | null | undefined,
+  unit?: string | null,
+): string {
   if (value === null || value === undefined) return "—";
-  return value.toLocaleString(undefined, { maximumFractionDigits: 3 });
+  return byUnit(value, unit);
 }
