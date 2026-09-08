@@ -18,19 +18,26 @@ The bar this is written against:
 
 **READY FOR UAT.**
 
-Three readiness cycles were run, each one exercising the whole feature: lint,
+**ECONOMIC VALIDATION: PASS** — 44 of 44 book checks and 50 of 50 What-If
+scenario checks. The shipped Corporate IFRS 9 book has been validated not only
+for schema, ranges and arithmetic reconciliation, but also for longitudinal
+credit-risk and IFRS 9 economic coherence.
+
+Six readiness cycles were run, each exercising the whole feature: lint,
 typecheck, the unit and invariant suites, the evaluation corpus, the red team,
 the API surface, fifteen browser journeys against a real Chromium, the
-manual-failure journeys, the performance budgets, and both contracts against
-the book on disk.
+manual-failure journeys, the performance budgets, **the book's economic
+coherence, the What-If scenario economics**, and both contracts against the
+book on disk.
 
 | Cycle | Result |
 |---|---|
-| 1 | 13 of 14 steps passed. One failure, diagnosed and fixed. |
-| 2 | Every step passed. |
-| 3 | Every step passed. |
+| 1 | 13 of 14 steps. One failure, in the harness, fixed. |
+| 2–3 | Every step passed. |
+| — | *Economic validation found four defects in the book. Fixed; book rebuilt; model retrained.* |
+| 4–6 | Every step passed, with both economic harnesses added to the cycle. |
 
-Logs and machine-readable results: `docs/readiness/cycle-{1,2,3}.{log,json}`.
+Logs and machine-readable results: `docs/readiness/cycle-{1..6}.{log,json}`.
 
 Cycle 1's failure was in the cycle harness rather than the product: it read
 `healthy` from the top level of the schema endpoint, which serves the contract
@@ -38,6 +45,30 @@ with the installation's comparison nested inside it, so a healthy book was
 reported as a failure. That is worth recording rather than quietly correcting —
 a readiness harness that reports a false failure is a harness that will
 eventually be ignored.
+
+## 1b. The economics, which the previous pass did not validate
+
+The previous report said, correctly, that none of its verification validated
+the shipped book's economics. Asking fourteen ordinal and distributional
+questions about the book found **six defects**, none of which any schema check,
+range check or reconciliation could have seen. All six are fixed in the
+generator rather than absorbed into a test.
+
+| Found | Was | Now |
+|---|---|---|
+| The rating was re-binned from a score each quarter, not carried | 25.8% quarterly stability, 1.31 notches average movement, every AAA name downgraded the next quarter | **86.5%**, 0.34 notches, both ends of the scale stable |
+| Stage 2 cured on PD noise | 36% of Stage 2 exposure per quarter, peaking at 49.8% | **20.9%**, via a two-quarter cure probation |
+| The ML methodology ignored exposure | "EAD +20%" priced at **0.05×** the Delta answer | **1.06×** |
+| The committee override was a per-row coin toss | 7% of the book flipped a notch every quarter | drawn per borrower |
+| The governed rule set stopped reproducing the book *(caused by the probation fix)* | 90–211 borrowers disagreed per quarter | **zero**, in all 16 quarters |
+| The model smooths the stage boundary | undisclosed | disclosed on the reader's own scenario |
+
+The fifth is the one that mattered most: the baseline column of every What-If
+is the reported book staged by that rule set, so a disagreement means every
+scenario measures a movement from the wrong starting point.
+
+Full detail, every table, and how each bound was derived:
+`docs/what_if_ifrs9_economic_validation.md`.
 
 ---
 
@@ -139,12 +170,15 @@ Performance, median seconds, all inside budget:
 | Red team | **54 attacks**, eleven shapes |
 | Browser journeys | **15/15**, 153/153 checks, real Chromium against a real backend |
 | Manual-failure journeys | **8/8**, 71/71 checks |
-| Regression | **5,833 passed** across whatif, api, evals, orchestration, exports |
-| Readiness cycles | **3**, the last two clean |
+| Book economics | **44/44** ordinal and distributional checks |
+| Scenario economics | **50/50** across six scenarios |
+| Regression | **15,811 passed** across the whole suite |
+| Readiness cycles | **6**, the last three clean and including both economic harnesses |
 
-The five regression failures are pre-existing: two in `tests/evals/test_properties.py`,
-one multi-analysis reconciliation, and two workbook-formula tests. Each was
-reproduced on baseline `4f79566` with this same lake and database using a
+The six regression failures are pre-existing: two in
+`tests/evals/test_properties.py`, one multi-analysis reconciliation, two
+workbook-formula tests, and one that fails only on test-order pollution. Each
+was reproduced on baseline `4f79566` with this same lake and database using a
 `git worktree` with `DATA_*_DIR` overrides. **None is in What-If.**
 
 Timing is measured, not asserted. A timing assertion in a test suite fails on a
@@ -157,10 +191,21 @@ row over budget is reported.
 
 Stated here rather than left for UAT to discover.
 
-**The economics of the shipped book are not validated by any of this.** The
-integration report establishes that a column called `pd_12m` exists, is numeric
-and lies between 0 and 100. It cannot establish that it is the twelve-month
-probability of default, and it says so in its own output.
+**That the book's parameters are calibrated to any real portfolio.** Its
+economics are now validated for internal coherence — the pieces agree with each
+other and behave the way credit risk behaves — but a synthetic book cannot be
+validated against a market it does not come from. The integration report
+establishes that a column called `pd_12m` exists, is numeric and lies between 0
+and 100; the economic validation establishes that it rises with the grade,
+tracks the cycle, sits below its own lifetime measure and drives the staging
+and the provision the way a PD would. Neither establishes that it *is* a
+twelve-month probability of default, and both say so in their own output.
+
+**The ML model reproduces the stage boundary.** It under-prices a Stage 1 → 2
+crossing by 3.6% against the governed step, structurally: the step is a change
+of measurement basis, and a model fitting a continuous surface cannot reproduce
+a discontinuity. Giving it the measured stage and the probation served did not
+close the gap. It is disclosed on the comparison, on the reader's own scenario.
 
 **The empirical macro relationships are directional evidence, not
 calibrations.** `corporate_macro` is generated from a single latent cycle
@@ -213,6 +258,9 @@ Ordered by how likely each is to find something.
 8. **Change a staging rule and re-run.** The version stamped on the second
    result must not be the default, and the reported book must still be staged
    by the reported policy.
+9. **Read `docs/what_if_ifrs9_economic_validation.md` before trusting any
+   figure.** It says what the book's economics were validated for, and — in
+   its last section — what they were not.
 
 ---
 

@@ -119,6 +119,21 @@ IFRS9_OPTIONAL: dict[str, str] = {
     "sicr_trigger_pd": "naming which SICR trigger fired",
     "sicr_trigger_dpd": "naming which SICR trigger fired",
     "sicr_trigger_watchlist": "naming which SICR trigger fired",
+    "stage_measured": "reproducing the reported book's staging exactly. The "
+                      "book's staging has a MEMORY — a borrower whose trigger "
+                      "stops firing serves a cure probation before it returns "
+                      "to Stage 1 — so a row has to say what its triggers "
+                      "measured as well as what stage it is carried at. "
+                      "Without it the governed rule set falls back to the "
+                      "measured stage, and the baseline column of a What-If "
+                      "can differ from the book by the borrowers currently "
+                      "serving probation.",
+    "sicr_clear_quarters": "the other half of that: how many consecutive "
+                           "quarters the borrower has been clear, which is "
+                           "what decides whether the probation is served. It "
+                           "is also what lets the ML model tell a carried "
+                           "Stage 2 borrower from a Stage 1 one with the same "
+                           "features.",
 }
 
 ALL_SNAPSHOT: tuple[str, ...] = (*REQUIRED, *OPTIONAL)

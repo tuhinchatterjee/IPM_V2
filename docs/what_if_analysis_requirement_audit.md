@@ -105,6 +105,37 @@ Verification keys used below:
 | — | The grain is the thing that must not be got wrong | Blocked rather than warned: a facility-grain book read as obligor-grain multiplies every figure and looks plausible | DONE | `T` `test_a_finer_grain_book_is_blocked_not_warned` |
 | — | The report does not overclaim | It states that it does not check whether the numbers are right | DONE | `T` `test_it_says_what_it_does_not_check` |
 
+## 8b. Economic coherence of the book
+
+The section this audit did not have, and the reason the previous pass could not
+claim READY FOR UAT: schema, ranges and reconciliation say nothing about
+whether the book behaves like a credit portfolio.
+
+| # | Requirement | Satisfied by | Status | Verified |
+|---|---|---|---|---|
+| E1 | 19-point rating economics: monotonic risk, no inversions | `scripts/whatif_economic_validation.py` §1 | DONE | `M` every measure rises; ordinal tolerance = 2 standard errors |
+| E2 | TTC / PIT / lifetime are genuinely different concepts | §2 | DONE | `T` TTC constant per grade in all 16 quarters; PIT tracks the cycle at −0.85 against TTC's −0.77 |
+| E3 | Stage economics plausible; Stage 3 genuinely impaired | §3 | DONE | `T` 0.29% / 6.59% / 61.03%; Stage 3 audited in every quarter |
+| E4 | Stage migration economics | §4 | DONE | `T` S2→S1 cure 20.9%, was 36% |
+| E5 | Rating migration economics, QoQ and YoY | §5 | DONE | `T` 86.5% stable, was 25.8% |
+| E6 | ECL economics; Downside ≥ Base ≥ Upside | §6 | DONE | `M` by construction from the governed weights; weighted rebuild ties to machine precision |
+| E7 | LGD / collateral economics | §7 | DONE | `M` Spearman −0.66; 62.4% → 35.0% across coverage bands |
+| E8 | CCF / EAD economics | §8 | DONE | `M` identity holds; flat CCF by stage reported as methodology |
+| E9 | Quarter-to-quarter continuity | §9 | DONE | `M` percentiles reported; median notch movement 0 |
+| E10 | ≥20 random borrowers reviewed | §10 | DONE | `M` 20 stratified-random, 8 quarters each, no incoherent trajectory |
+| E11 | Sector economics, differential cyclicality | §11 | DONE | `M` 172× ECL spread; cycle correlation −0.97 to −0.75 |
+| E12 | Segment economics | §12 | DONE | `M` 1.6× spread, held to its own documented bound |
+| E13 | Macro / PIT relationship, cycle not double-counted | §13 | DONE | `M` PIT tracks the cycle harder than TTC |
+| E14 | Default / Stage 3 logic audited both directions | §14 | DONE | `T` every quarter |
+| E15 | What-If economic sanity, six scenarios | `scripts/whatif_scenario_economics.py` | DONE | **50/50**, each against an expectation written first |
+| E16 | Delta vs XGB economic comparison | same | DONE | direction, amplification, boundary and training support |
+| E17 | Bounds derived, not imported | §7 of the report | DONE | 3 external bounds named as such; everything else ordinal or an identity |
+| E18 | Generator fixed rather than tests loosened | six findings, six fixes | DONE | `T` `tests/corporate/test_economic_coherence.py` |
+| E19 | Economic validation report | `docs/what_if_ifrs9_economic_validation.md` + 2 JSON artifacts | DONE | — |
+| E20 | The gate | ECONOMIC VALIDATION: **PASS** | DONE | re-run every readiness cycle |
+
+---
+
 ## 9. Verification
 
 | # | Requirement | Satisfied by | Status | Verified |
@@ -112,9 +143,9 @@ Verification keys used below:
 | 108 | ≥100 AI eval cases | **179**, across all fourteen intents, each carrying the thread state it is read in | DONE | `T` 2,513 assertions |
 | 109 | The manual-failure journeys still hold | `scripts/acceptance/whatif_manual_failures.mjs` | DONE | `J` 8/8 journeys, 71/71 checks |
 | 110 | Performance measured | `scripts/whatif_performance.py` → `docs/whatif_performance.json` | DONE | `M` every interaction inside budget |
-| 111 | Three readiness cycles | `scripts/whatif_readiness_cycle.sh` → `docs/readiness/` | DONE | See the UAT report |
+| 111 | Three readiness cycles | `scripts/whatif_readiness_cycle.sh` → `docs/readiness/` | DONE | Six run; the last three clean, each including both economic harnesses |
 | 112 | Red-teamed | `tests/whatif/test_whatif_red_team.py` — eleven shapes of attack | DONE | `T` 54 tests |
-| 113 | Full regression | whatif, api, evals, orchestration, exports | DONE | 5,833 passed; 5 pre-existing failures, none in What-If |
+| 113 | Full regression | the whole suite | DONE | 15,811 passed; 6 pre-existing failures, none in What-If |
 | 114 | Documentation | `docs/WHATIF.md`, rewritten against what the feature now is | DONE | Every figure in it measured while writing |
 | 116 | Final UAT report | `docs/what_if_analysis_uat_report.md` | DONE | — |
 | 117 | The READY FOR UAT gate | Only after every row above | DONE | See the UAT report |

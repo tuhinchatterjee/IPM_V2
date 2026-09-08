@@ -1,0 +1,17 @@
+What-If readiness cycle 6 — 2026-09-08 10:42 UTC
+API http://127.0.0.1:8000 · WEB http://127.0.0.1:3000
+
+=== the API is reachable
+    PASS (0s)
+
+=== the web app is reachable
+    PASS (0s)
+
+=== ruff
+All checks passed!
+    PASS (0s)
+
+=== typecheck
+    PASS (2s)
+
+=== eslint

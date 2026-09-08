@@ -39,6 +39,7 @@ describing a bank that does not exist.
 | Periods | **16 quarters, Q3 2022 → Q2 2026** |
 | Borrowers, Q2 2026 | 3,241 |
 | Rating scale | **19 grades** — AAA, AA+, AA, AA−, A+, A, A−, BBB+, BBB, BBB−, BB+, BB, BB−, B+, B, B−, CCC, CC, D |
+| Rating stability | **86.5%** quarterly; the average name moves 0.34 notches |
 | Currency | SAR millions |
 | Datasets | `corporate_borrower_360`, `corporate_ifrs9`, `corporate_facilities`, `corporate_collateral`, `corporate_macro` |
 
@@ -66,6 +67,23 @@ else about the borrower moved. The 1.082 is the scenario-weighted factor
 `policy.bounded()` caps a provision at the exposure it provides against: an
 expected loss larger than the amount at risk is not a loss.
 
+### The rating is carried, not recomputed
+
+A grade is a considered assessment, so it moves only when a committee would
+move it: the name is up for its **annual review** (or has drifted far enough to
+be brought forward), the model grade sits at least **3 notches** from the grade
+being carried, and then it travels **one notch** — two when the drift brought it
+forward out of cycle.
+
+Every threshold is read off the book's own drift distribution rather than
+chosen: the model grade wanders a median of 1 notch in a quarter but 2 in a
+year, p75 3 and p90 5, so the review buffer is the annual p75 and the
+out-of-cycle trigger the p90.
+
+Without this the grade was re-binned from a continuous score every quarter, the
+average name moved 1.31 notches, and every AAA borrower was downgraded the
+following quarter because noise at the top of the scale has nowhere else to go.
+
 ---
 
 ## Staging: two rule sets, never confused
@@ -81,6 +99,18 @@ rules produced which column. No What-If rule ever changes the reported book.
 | Absolute PD level | 12-month PD at or above **13%** |
 | Days past due | **30** or more |
 | Default presumption | **90** days past due, or a recorded default event |
+
+**Improvement is not immediate.** A borrower whose SICR trigger stops firing
+serves a **two-quarter cure probation** before returning to Stage 1;
+deterioration lands at once. That is the curing rule an IFRS 9 book operates,
+and without it a third of Stage 2 exposure cured every quarter on PD movements
+of a hundredth of a point.
+
+Because the staging therefore has a memory, the book carries the probation
+state — the stage its triggers measured, and how many consecutive quarters it
+has been clear — so the governed rule set reproduces it from a single row. It
+does, in every one of the sixteen quarters, and the baseline column of every
+What-If rests on that.
 
 The What-If default adds two rules a scenario needs and the reported book does
 not: a rating deteriorating by 2 or more notches, and a scenario PD at least
@@ -149,9 +179,9 @@ and returns one of six controlled labels.
 
 | Proposed | Verdict | Because |
 |---|---|---|
-| PD +20% | Consistent with recent experience | 43.8% of borrower-quarters saw a move at least this size |
-| PD +200% | Historically plausible | 9.7% did |
-| PD +2000% | Plausible for selected pockets | 0.31% did |
+| PD +20% | Consistent with recent experience | 42.6% of borrower-quarters saw a move at least this size |
+| PD +200% | Historically plausible | 6.2% did, across 15 of the 16 quarters |
+| PD +2000% | Plausible for selected pockets | 0.23% did, on 0.27% of exposure |
 
 It is a comparison against observed movement, **not a forecast and not a
 probability**. The prompt that writes about it is forbidden from stating a
@@ -224,6 +254,13 @@ A spread is where the useful part starts. The comparison carries **where** the
 two disagree — by sector, by rating, by stage, and the borrowers furthest apart
 — and a borrower outside the range the model was trained on reaches the reader
 as a limit on the figure rather than a footnote.
+
+It also reports what the model does at the **stage boundary**, on the reader's
+own scenario. The Stage 1 → Stage 2 step is a change of measurement basis — a
+discontinuity in the arithmetic, not something a borrower's features cause — so
+a model fitting a continuous surface smooths across it and under-prices a
+crossing. That is structural rather than a defect, and it is stated rather than
+tuned away.
 
 It never recommends one. The Delta Model is the governed arithmetic carried
 onto the reported book; the ML model is a fitted estimate anchored to it. Which
@@ -308,11 +345,11 @@ Delta Model, whole book, 3,241 borrowers:
 
 | Scenario | Incremental ECL | Change | Borrowers moving to a worse stage |
 |---|---|---|---|
-| One-notch downgrade | 19,241.8 | +30.5% | 229 |
-| LGD +5pp | 6,203.2 | +9.8% | 0 |
-| PD +20% | 4,169.3 | +6.6% | 85 |
-| GDP −1pp | 3,263.2 | +5.2% | 49 |
-| Rates +200bp | 2,531.9 | +4.0% | 40 |
+| One-notch downgrade | 14,878.2 | +29.8% | 195 |
+| LGD +5pp | 4,752.7 | +9.5% | 0 |
+| PD +20% | 3,252.0 | +6.5% | 55 |
+| GDP −1pp | 2,518.7 | +5.0% | 24 |
+| Rates +200bp | 1,934.1 | +3.9% | 19 |
 
 The LGD scenario producing **zero** migrations is the engine being right: a
 loss-given-default shock changes what is recovered, not the likelihood of
@@ -337,6 +374,23 @@ Measured by `scripts/whatif_performance.py`, written to
 A budget is the point at which an interaction stops feeling like an answer, not
 a machine limit. A row over it is reported rather than failed: a timing
 assertion in a test suite is a flake generator.
+
+---
+
+## Is the book credible?
+
+Schema, ranges and reconciliation do not answer that: a book can pass all three
+while a rating moves 1.3 notches a quarter. `docs/what_if_ifrs9_economic_validation.md`
+asks fourteen ordinal and distributional questions instead — rating economics,
+the three PDs through the cycle, staging and both migration matrices, ECL,
+LGD and collateral, EAD, quarter-to-quarter continuity, twenty randomly drawn
+borrowers read over eight quarters, sectors, segments, the macro relationship
+and the default population — plus six What-If scenarios each carrying an
+expectation written before the number was read.
+
+**ECONOMIC VALIDATION: PASS**, 44 of 44 and 50 of 50. It is re-run as a step of
+every readiness cycle, and the properties that would otherwise regress silently
+are asserted in `tests/corporate/test_economic_coherence.py`.
 
 ---
 
