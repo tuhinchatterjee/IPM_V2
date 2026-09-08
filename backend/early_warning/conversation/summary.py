@@ -125,14 +125,22 @@ def update(previous: RollingSummary | None, *, question: str,
 
     # The obligor the thread is about. Carried forward rather than replaced,
     # so "escalate it" two turns later still knows what "it" is.
-    for key, attr in (("customer_id", "customer_id"),
-                      ("customer_name", "customer_name"),
-                      ("segment", "segment"), ("band", "band"),
-                      ("layer", "layer"), ("sub_category", "sub_category"),
-                      ("signal", "signal")):
+    for key in ("customer_id", "customer_name", "layer", "sub_category",
+                "signal"):
         value = (figures.get(key) or inherited.get(key) or ui.get(key))
         if value:
-            setattr(out, attr, str(value))
+            setattr(out, key, str(value))
+
+    # `band` and `segment` are the SLICE the thread is looking at, not a
+    # measurement of it. The packet also carries a `band` — the portfolio's
+    # own computed severity — and reading that here overwrote the reader's
+    # band filter with the answer to a different question. Two things with
+    # one name is exactly how a thread starts describing the wrong scope, so
+    # these come from the selection only.
+    for key in ("segment", "band"):
+        value = inherited.get(key) or ui.get(key)
+        if value:
+            setattr(out, key, str(value))
 
     direct = str(answer.get("direct") or "").strip()
     if direct:

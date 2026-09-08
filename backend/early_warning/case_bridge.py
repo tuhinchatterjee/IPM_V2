@@ -19,10 +19,39 @@ from backend.agentic import severity as sv
 ABOUT = "early-warning-v2"
 
 
+def _present(value: Any) -> list[str]:
+    """The value as a one-item list, or nothing.
+
+    NaN is TRUTHY in Python, so `[x] if x else []` happily passes a float
+    NaN through — and a NaN reaching a JSON column is a database error, not
+    a missing value. Most obligors have no dominant driver in a given month
+    because no signal fired, so this is the ordinary case rather than an
+    edge one.
+    """
+    if value is None:
+        return []
+    if isinstance(value, float) and value != value:
+        return []
+    text = str(value).strip()
+    return [text] if text and text.lower() != "nan" else []
+
+
+def _clean(value: Any) -> Any:
+    """A value safe to store in a JSON column."""
+    if isinstance(value, float) and value != value:
+        return None
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except Exception:  # noqa: BLE001
+            return str(value)
+    return value
+
+
 def draft_for(row: dict[str, Any]) -> agentic_cases.Draft:
     """Build a case Draft from one `early_warning_borrower_month` row."""
     score = sv.compute(
-        exposure=row.get("exposure"),
+        exposure=_clean(row.get("exposure")),
         movement=None,  # month-over-month movement is available via history; omitted for the single-row case
         adverse_signals=int(row.get("signal_count_fired") or 0),
         total_signals=123,
@@ -49,17 +78,19 @@ def draft_for(row: dict[str, Any]) -> agentic_cases.Draft:
         conclusion=conclusion,
         why=why,
         about=ABOUT,
-        exposure=row.get("exposure"),
+        exposure=_clean(row.get("exposure")),
         exposure_unit="SAR mn",
         metrics=[
-            {"name": "ews_score", "value": row.get("ews_score")},
-            {"name": "classifier_score", "value": row.get("classifier_score")},
-            {"name": "ta_score", "value": row.get("ta_score")},
+            {"name": "ews_score", "value": _clean(row.get("ews_score"))},
+            {"name": "classifier_score",
+             "value": _clean(row.get("classifier_score"))},
+            {"name": "ta_score", "value": _clean(row.get("ta_score"))},
         ],
-        signals=[row.get("dominant_driver")] if row.get("dominant_driver") else [],
-        evidence={"methodology_version": row.get("methodology_version"),
-                   "ews_band": band, "classifier_band": row.get("classifier_band"),
-                   "ta_band": row.get("ta_band")},
+        signals=_present(row.get("dominant_driver")),
+        evidence={"methodology_version": _clean(row.get("methodology_version")),
+                   "ews_band": _clean(band),
+                   "classifier_band": _clean(row.get("classifier_band")),
+                   "ta_band": _clean(row.get("ta_band"))},
         score=score,
         evidence_coverage=1.0 if row.get("signal_count_fired") else 0.5,
     )

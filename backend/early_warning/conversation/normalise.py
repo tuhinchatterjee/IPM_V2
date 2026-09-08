@@ -252,6 +252,35 @@ _PERIOD_PHRASES: tuple[tuple[str, int], ...] = (
 )
 
 
+def _named_obligor(text: str) -> dict[str, str] | None:
+    """The obligor the question names, if it names exactly one.
+
+    Delegated to the domain's own resolver rather than reimplemented: it
+    already knows how a reader refers to an obligor — by full name, by a
+    distinctive part of one, or by position ("the weakest borrower") — and
+    two resolvers that disagree would be worse than one that is imperfect.
+
+    Several matches resolve to nothing here on purpose. The ambiguity is a
+    question for the answer layer to put back to the reader, not something
+    to settle silently inside a normalisation pass.
+    """
+    try:
+        from backend.early_warning import ask as ask_mod
+        from backend.early_warning import v2_service as svc
+
+        found = ask_mod.resolve_borrower(text)
+        if not found:
+            return None
+        frame = svc.borrower_month()
+        row = frame[frame["customer_id"] == found]
+        if row.empty:
+            return None
+        return {"customer_id": str(found),
+                "customer_name": str(row.iloc[0]["customer_name"])}
+    except Exception:  # noqa: BLE001 - a resolver failure must not lose the turn
+        return None
+
+
 def _subquestions(text: str) -> list[str]:
     """Every question the utterance contains, not just the first.
 
@@ -311,6 +340,17 @@ def read(cleaned: Cleaned, *, ui_state: dict[str, Any] | None = None,
     entities = list(cleaned.detected_entities)
     if referential and inherited.get("customer_name"):
         entities.append(str(inherited["customer_name"]))
+
+    # An obligor NAMED in the question outranks one carried from the screen:
+    # a reader who typed a name is asking about that name, whatever they were
+    # looking at. Resolved against this domain's own obligors, which is the
+    # only place that knows which names exist.
+    named = _named_obligor(text)
+    if named:
+        inherited["customer_id"] = named["customer_id"]
+        inherited["customer_name"] = named["customer_name"]
+        if named["customer_name"] not in entities:
+            entities.append(named["customer_name"])
 
     ambiguities: list[str] = []
     if referential and not inherited:

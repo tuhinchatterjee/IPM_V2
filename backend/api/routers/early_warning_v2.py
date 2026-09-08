@@ -16,6 +16,7 @@ computed ad hoc in this router.
 from __future__ import annotations
 
 import logging
+from typing import Any
 from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
@@ -446,36 +447,113 @@ class AskRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=500)
     period: str | None = None
     customer_id: str | None = Field(None, max_length=64)
+    #: The screen the question was asked from — the band filter, the level,
+    #: the selected segment. Navigation context, kept apart from the
+    #: analytical summary because a screen rebuilt from prose is sometimes
+    #: wrong and the client already knows exactly where it is.
+    ui_state: dict[str, Any] | None = None
+    #: The thread's analytical context, returned by the previous turn.
+    rolling_summary: dict[str, Any] | None = None
+    thread_id: str | None = Field(None, max_length=64)
+    mode: str = Field("standard", pattern="^(standard|deep)$")
 
 
 @router.post("/ask", summary="Ask the Early Warning domain a question")
 def ask_early_warning(payload: AskRequest,
                       principal: Principal = RequireEarlyWarningView) -> dict:
-    """The screen's own chat, answered from this domain and no other.
+    """The screen's own chat, through the governed conversational pipeline.
 
-    Deliberately narrower than the general `/ask`: it reads only the Early
-    Warning domain, so it cannot reach another book by construction rather
-    than by a lock that has to be enforced. A question this domain does not
-    answer comes back saying so, rather than being met with a portfolio
-    summary it did not ask for.
+    The pipeline decides WHO OWNS the question before it plans anything, so
+    a question another CreditProbe functionality owns is redirected with
+    alternatives rather than approximated from whichever Early Warning
+    fields happen to fit. That gate is the reason this endpoint cannot
+    quietly answer a portfolio question with the three hundred obligors it
+    scores.
+
+    The response keeps the shape the screen already renders. What is new is
+    additive: the routing decision, the stages that ran, the budget spent,
+    and the rolling summary to hand back on the next turn.
     """
-    from backend.early_warning import ask as ews_ask
+    from backend.early_warning.conversation import pipeline as ews_pipeline
+
+    ui_state = dict(payload.ui_state or {})
+    if payload.customer_id:
+        ui_state.setdefault("customer_id", payload.customer_id)
+    if payload.period:
+        ui_state.setdefault("period", payload.period)
 
     try:
-        found = ews_ask.answer(payload.question, period=payload.period,
-                               customer_id=payload.customer_id)
+        turn = ews_pipeline.answer(
+            payload.question,
+            thread_id=payload.thread_id or "",
+            ui_state=ui_state,
+            rolling_summary=payload.rolling_summary,
+            mode=payload.mode,
+            permissions={"can_read": True, "role": principal.role},
+        )
     except EarlyWarningDataNotBuilt as exc:
         raise _not_built(exc)
-    if found is None:
-        return {
-            "answered": False, "scope": "",
-            "direct": ("That is not a question the Early Warning domain can "
-                       "answer. It reads early warning scores, their drivers "
-                       "and the evidence behind them — ask about the "
-                       "portfolio, a segment, a grade band or an obligor."),
-            "follow_ups": [s["question"] for s in ews_ask.suggestions()[:3]],
-        }
-    return {"answered": True, **found.to_dict()}
+
+    answer = dict(turn.answer)
+    packet = turn.packet
+    return {
+        **answer,
+        "facts": (packet.primary.to_dict()
+                  if packet is not None and packet.primary else {}),
+        # What the turn actually did, so the Trace can show it rather than
+        # describe it.
+        "routing": turn.selection,
+        "stages": turn.stages,
+        "budget": turn.budget,
+        "rolling_summary": (turn.rolling_summary.to_dict()
+                             if turn.rolling_summary else {}),
+        "request_id": turn.request_id,
+        "result_packet": (
+            {"diagnostics": packet.diagnostics,
+             "provenance": packet.provenance,
+             "coverage": packet.coverage,
+             "governed_actions": packet.governed_actions,
+             "escalation": packet.escalation}
+            if packet is not None else {}),
+    }
+
+
+@router.get("/grain", summary="The Early Warning data-grain package")
+def ews_grain(question: str = "",
+              principal: Principal = RequireEarlyWarningView) -> dict:
+    """What a planner is given instead of the data.
+
+    The grain, the published periods, every field with its definition and
+    its MEASURED coverage, the groupings, and a bounded permission-scoped
+    sample. Not the rows: twenty months of three hundred obligors across
+    seventy-three columns is a bill rather than a context, and the values
+    come back through validated execution where they can be checked.
+    """
+    from backend.early_warning import grain as ews_grain_mod
+
+    try:
+        package = ews_grain_mod.build(
+            question, permissions={"role": principal.role})
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+    return package.to_dict()
+
+
+@router.get("/functionality", summary="Which CreditProbe functionality owns what")
+def ews_functionality(question: str = "",
+                      principal: Principal = RequireEarlyWarningView) -> dict:
+    """The catalogue, and — when a question is supplied — who owns it.
+
+    Capability metadata only. No other functionality's data travels with it,
+    and the selection this returns is the same one the pipeline gates on.
+    """
+    from backend.early_warning import functionality as ews_fn
+
+    del principal
+    out: dict[str, Any] = {"catalogue": ews_fn.describe_all()}
+    if question:
+        out["selection"] = ews_fn.select(question).to_dict()
+    return out
 
 
 @router.get("/suggestions", summary="Starting questions for the Early Warning chat")

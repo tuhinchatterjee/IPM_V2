@@ -107,18 +107,28 @@ def _customer_fields() -> list[Field]:
               "identifier the credit book uses; Early Warning holds no "
               "separate customer universe.", CUSTOMER, dtype="string"),
         Field("customer_name", "Customer name",
-              "The obligor's registered name.", CUSTOMER, dtype="string"),
+              "The obligor's registered name. Several obligors may share a "
+              "family name without being one exposure — they are scored "
+              "separately.", CUSTOMER, dtype="string"),
         Field("snapshot_month", "Snapshot month",
               "The month-end this row describes, as YYYY-MM. With customer_id "
               "it is the primary key of the domain.", CUSTOMER, dtype="string"),
         Field("segment", "Segment",
-              "The obligor's corporate segment.", CUSTOMER, dtype="category"),
+              "The obligor's corporate segment — the bank's own size and "
+              "relationship classification, not an industry.", CUSTOMER,
+              dtype="category"),
         Field("sector", "Sector",
-              "The obligor's economic sector.", CUSTOMER, dtype="category"),
+              "The obligor's economic sector. Distinct from segment: a Mid "
+              "Corporate and a Large Corporate can both be Contracting.",
+              CUSTOMER, dtype="category"),
         Field("region", "Region",
-              "The booking region.", CUSTOMER, dtype="category"),
+              "The region the exposure is booked in, which is where the "
+              "relationship is managed rather than where the obligor "
+              "operates.", CUSTOMER, dtype="category"),
         Field("relationship_manager", "Relationship manager",
-              "The RM who owns the relationship.", CUSTOMER, dtype="category"),
+              "The relationship manager who owns this obligor and is the "
+              "first named owner in most governed actions.", CUSTOMER,
+              dtype="category"),
         Field("methodology_version", "Methodology version",
               "Which version of the Early Warning framework produced this "
               "row. A row scored under one version is never read against "
@@ -128,10 +138,16 @@ def _customer_fields() -> list[Field]:
 
 def _core_credit_fields() -> list[Field]:
     return [
-        Field("exposure", "Exposure", "Total exposure at the month-end.",
+        Field("exposure", "Exposure",
+              "Total exposure at the month-end. Sum it only within one "
+              "month: an obligor has one row per published month, so an "
+              "unperiodised sum counts the same exposure twenty times.",
               CORE_CREDIT, unit="SAR mn", higher_is_worse=False,
               source="corporate_borrower_360 (materialised into Early Warning)"),
-        Field("limit", "Approved limit", "The approved facility limit.",
+        Field("limit", "Approved limit",
+              "The approved facility limit. Exposure against it is what "
+              "utilisation measures, and unused headroom is what a limit "
+              "freeze removes.",
               CORE_CREDIT, unit="SAR mn",
               source="corporate_borrower_360 (materialised into Early Warning)"),
         Field("utilisation_pct", "Utilisation",
@@ -139,7 +155,9 @@ def _core_credit_fields() -> list[Field]:
               unit="%", higher_is_worse=True,
               source="corporate_borrower_360 (materialised into Early Warning)"),
         Field("dpd", "Days past due",
-              "Days past due at the month-end.", CORE_CREDIT, unit="days",
+              "Days past due at the month-end. Ninety or more forces the "
+              "very high band by override, whatever the roll-up produced.",
+              CORE_CREDIT, unit="days",
               higher_is_worse=True,
               source="facility_delinquency (materialised into Early Warning)"),
         Field("internal_rating", "Internal grade",
@@ -154,7 +172,9 @@ def _core_credit_fields() -> list[Field]:
               CORE_CREDIT, unit="%", higher_is_worse=True,
               source="customer_ratings (materialised into Early Warning)"),
         Field("ifrs9_stage", "IFRS 9 stage",
-              "The impairment stage, 1 to 3.", CORE_CREDIT, unit="stage",
+              "The IFRS 9 impairment stage, 1 to 3. Stage 3 forces the very "
+              "high band by override rather than contributing to it.",
+              CORE_CREDIT, unit="stage",
               higher_is_worse=True, allowed_values=("1", "2", "3"),
               source="ifrs9_staging (materialised into Early Warning)"),
     ]
@@ -200,7 +220,9 @@ def _layer_fields() -> list[Field]:
               "the obligor's own baseline, scaled by the accelerator and "
               "decayed by signal class.", LAYER, unit="score",
               higher_is_worse=True, dimension="T&A"),
-        Field("ta_band", "T&A band", "The T&A score's severity band.",
+        Field("ta_band", "T&A band",
+              "The T&A score's severity band. One of the two inputs to the "
+              "published five-by-five matrix that sets the anchor.",
               LAYER, dtype="category", allowed_values=BANDS, dimension="T&A"),
         Field("classifier_score", "Classifier score",
               "How vulnerable the obligor is: structural credit quality, "
@@ -208,8 +230,10 @@ def _layer_fields() -> list[Field]:
               LAYER, unit="score", higher_is_worse=True,
               dimension="Classifier"),
         Field("classifier_band", "Classifier band",
-              "The classifier score's severity band.", LAYER,
-              dtype="category", allowed_values=BANDS, dimension="Classifier"),
+              "The classifier score's severity band. The other input to the "
+              "matrix, read against the T&A band rather than added to it.",
+              LAYER, dtype="category", allowed_values=BANDS,
+              dimension="Classifier"),
         Field("ta_minus_classifier", "T&A less Classifier",
               "The gap between the live reading and the structural one. "
               "Strongly negative means standing weakness with nothing moving "
@@ -263,8 +287,9 @@ def _final_fields() -> list[Field]:
               "obligors; it is not a probability of anything.",
               FINAL, unit="score", higher_is_worse=True),
         Field("ews_band", "Early Warning band",
-              "The final severity band.", FINAL, dtype="category",
-              allowed_values=BANDS),
+              "The final severity band, after the notches and any override. "
+              "This is what the watchlist and the escalation matrix both "
+              "read.", FINAL, dtype="category", allowed_values=BANDS),
         Field("high_plus", "At high or above",
               "Whether the obligor is at HIGH or VERY_HIGH. The population "
               "the watchlist is drawn from.", FINAL, dtype="boolean",
@@ -278,7 +303,9 @@ def _final_fields() -> list[Field]:
               "The sub-category node driving this obligor's score.",
               FINAL, dtype="category"),
         Field("dominant_subcategory_name", "Dominant sub-category name",
-              "The dominant node's business name.", FINAL, dtype="string",
+              "The dominant node's business name, so a reader need not look "
+              "the code up. Empty where no node scored for this obligor.",
+              FINAL, dtype="string",
               derived=True),
         Field("dominant_driver", "Dominant driver",
               "The single highest-scoring signal behind the score.",
@@ -292,10 +319,14 @@ def _final_fields() -> list[Field]:
               "do not sum to the score, and the rule is the thing to read.",
               FINAL, dtype="boolean", derived=True),
         Field("override_count", "Overrides applied",
-              "How many overrides are in force.", FINAL, unit="count",
+              "How many overrides are in force. More than zero means the "
+              "anchor and the notches will not sum to the score.",
+              FINAL, unit="count",
               derived=True),
         Field("override_types", "Override types",
-              "Which overrides are in force, named.", FINAL, dtype="string",
+              "Which overrides are in force, named. The rule is the thing to "
+              "read, and the thing that has to stop applying before the "
+              "score can move.", FINAL, dtype="string",
               derived=True),
     ]
 
