@@ -1517,6 +1517,190 @@ class LensRevision(Base):
     __table_args__ = (UniqueConstraint("lens_id", "version", name="uq_lens_revision"),)
 
 
+class LensRefresh(Base):
+    """One execution of a Lens, and everything needed to compare it with another.
+
+    §18's distinction is the whole reason this table exists, and it is carried
+    in two columns that are never conflated:
+
+    ``refreshed_at``
+        WHEN the Lens was calculated. Wall-clock. Two refreshes on the same
+        morning have two of these and the same reporting period.
+
+    ``reporting_period``
+        WHICH BUSINESS PERIOD the figures describe. "Q2 2026". It changes when
+        the book publishes a new quarter, not when somebody opens a page.
+
+    A movement between two refreshes with the same reporting period is a
+    RESTATEMENT or a definition change; a movement between two different
+    reporting periods is the book moving. Presenting either as the other is
+    the failure §21 and §24 exist to prevent, and a schema that stored one
+    timestamp would make it unavoidable.
+
+    What makes two refreshes comparable
+    ------------------------------------
+    `filter_hash`, `lens_definition_version` and `data_versions` together.
+    §24 says the previous snapshot must be COMPARABLE rather than merely
+    previous: a refresh taken under a different filter, or after a metric's
+    formula changed, is not a measurement of the same thing. Each is stored so
+    the comparison can say WHY two refreshes are not comparable rather than
+    silently comparing them anyway.
+    """
+
+    __tablename__ = "lens_refreshes"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    lens_id: Mapped[int] = mapped_column(
+        ForeignKey("lenses.id", ondelete="CASCADE"), nullable=False)
+    #: §18A. When it was calculated.
+    refreshed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now())
+    #: §18B. Which business period the figures describe.
+    reporting_period: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                  default="")
+    #: A digest of the scope and filters this refresh ran under. Two refreshes
+    #: with different hashes measured different populations, and §40 requires
+    #: that to be said rather than shown as movement.
+    filter_hash: Mapped[str] = mapped_column(String(32), nullable=False,
+                                             default="")
+    #: The Lens definition version this ran against.
+    lens_definition_version: Mapped[int] = mapped_column(Integer,
+                                                         nullable=False,
+                                                         default=1)
+    #: Every dataset read, at the version it was read at. The deterministic
+    #: answer to "did the source data change?", which §21 needs and which no
+    #: amount of comparing values can supply: identical values over changed
+    #: source is a different fact from identical values over identical source.
+    data_versions: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                default=dict)
+    #: lens_opened | manual | scheduled. §19: one pipeline, three doors.
+    trigger: Mapped[str] = mapped_column(String(24), nullable=False,
+                                         default="lens_opened")
+    #: succeeded | partial | failed
+    status: Mapped[str] = mapped_column(String(24), nullable=False,
+                                        default="succeeded")
+    #: §21's classification, as a list of the codes that apply. A refresh can
+    #: be several at once — the period advanced AND a definition changed — and
+    #: a single-valued column would force a lie about which mattered.
+    classification: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                 default=dict)
+    #: The refresh this one was compared with, chosen by §24's rules. Null on
+    #: a baseline refresh, which is a fact about it rather than a gap.
+    compared_with_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("lens_refreshes.id", ondelete="SET NULL"),
+        nullable=True)
+    #: The written "what changed" reading, once it has been produced and its
+    #: figures verified. Cached here rather than recomputed, because the data
+    #: it was written from is frozen in this row's snapshots.
+    interpretation: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                 default=dict)
+    #: How long the whole pipeline took, and what it spent.
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False,
+                                             default=0)
+    budget: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    triggered_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    snapshots: Mapped[list[LensMetricSnapshot]] = relationship(
+        back_populates="refresh", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        # The two questions this table is asked: "the most recent refreshes of
+        # this Lens" (the history strip) and "the most recent COMPARABLE one"
+        # (§24's selection). Both start from lens_id and order by time.
+        Index("ix_lens_refreshes_lens", "lens_id", "refreshed_at"),
+        Index("ix_lens_refreshes_comparable", "lens_id", "filter_hash",
+              "reporting_period", "refreshed_at"),
+    )
+
+
+class LensMetricSnapshot(Base):
+    """What one element of a Lens was worth at one refresh.
+
+    Every tile and every chart on the Lens gets a row, including the ones that
+    produced no figure: a metric that was unavailable this refresh and
+    available last is a change worth reporting, and a schema that stored only
+    successes would present it as no change at all.
+
+    Charts are stored as a compact structured series rather than as the whole
+    result. §20 asks for "a practical structured representation, not gigantic
+    redundant blobs", and §45 needs the package sent to a model to be bounded —
+    a twelve-quarter trend of twenty sectors is 240 points, which is a
+    reasonable row and an unreasonable prompt, so the series is stored whole
+    here and summarised on the way out.
+    """
+
+    __tablename__ = "lens_metric_snapshots"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    refresh_id: Mapped[int] = mapped_column(
+        ForeignKey("lens_refreshes.id", ondelete="CASCADE"), nullable=False)
+    #: Which tile on the Lens. A Lens may show one metric twice — a figure and
+    #: a chart of it — so the panel's position is part of the identity and the
+    #: metric id alone is not.
+    panel_key: Mapped[str] = mapped_column(String(160), nullable=False,
+                                           default="")
+    metric_id: Mapped[str] = mapped_column(String(160), nullable=False,
+                                           default="")
+    #: metric | chart | analysis
+    kind: Mapped[str] = mapped_column(String(24), nullable=False,
+                                      default="metric")
+    title: Mapped[str] = mapped_column(String(240), nullable=False, default="")
+    #: The metric definition's own version at the moment it was computed. §39:
+    #: a value that moved because the FORMULA changed must not be reported as
+    #: the book moving, and this is what makes the two distinguishable after
+    #: the fact rather than only at the time.
+    metric_definition_version: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="")
+    #: A digest of the definition itself, so a formula edited without its
+    #: version being bumped is still detected.
+    definition_hash: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                 default="")
+    value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    #: The metric's own comparison figure at this refresh, where it has one —
+    #: the prior REPORTING PERIOD's value. Distinct from the previous
+    #: refresh's value, which is a different question and lives in a different
+    #: row.
+    comparison_value: Mapped[float | None] = mapped_column(Float,
+                                                           nullable=True)
+    unit: Mapped[str] = mapped_column(String(24), nullable=False,
+                                      default="number")
+    decimals: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
+    grain: Mapped[str] = mapped_column(String(240), nullable=False, default="")
+    #: How much of the book this figure covered: rows considered, and the
+    #: period it was actually computed for.
+    coverage: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    reporting_period: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                  default="")
+    #: The Lens domains this element reads: cockpit, ews, or both.
+    domains: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: A compact series for a chart element. Empty for a metric tile.
+    series: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: The engine version that computed it and the data it read.
+    query_version: Mapped[str] = mapped_column(String(32), nullable=False,
+                                               default="")
+    data_version: Mapped[str] = mapped_column(String(64), nullable=False,
+                                              default="")
+    #: succeeded | unavailable | failed
+    status: Mapped[str] = mapped_column(String(24), nullable=False,
+                                        default="succeeded")
+    diagnostics: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                              default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    refresh: Mapped[LensRefresh] = relationship(back_populates="snapshots")
+
+    __table_args__ = (
+        UniqueConstraint("refresh_id", "panel_key",
+                         name="uq_lens_snapshot_panel"),
+        # "The history of THIS metric on THIS Lens", which is §32's screen.
+        Index("ix_lens_snapshots_metric", "metric_id", "refresh_id"),
+    )
+
+
 # ============================================================= early warning
 
 
@@ -5483,6 +5667,28 @@ class UserMetric(Base):
     #: What that person wrote when they accepted it.
     verification_note: Mapped[str] = mapped_column(Text, nullable=False,
                                                    default="")
+    #: §13. The whole code artefact a person approved before this metric was
+    #: locked: their formula as typed, the interpreted formula, the
+    #: plain-English steps, the generated SQL, the statement CreditProbe
+    #: compiled from it, the validation report, the domains, the datasets, the
+    #: grain and who wrote it.
+    #:
+    #: One column rather than fifteen because it is written whole, read whole
+    #: and shown whole, and because the artefact's shape is expected to grow —
+    #: a new §6 field should not be a migration. What must be QUERYABLE is
+    #: pulled out beside it: `user_formula`, so "which metrics did somebody
+    #: write by hand" is a WHERE clause rather than a JSON scan.
+    #:
+    #: Also holds `composite` for a metric the term tree cannot express — a
+    #: quarter-on-quarter change, or a ratio across two datasets. `definition`
+    #: is then an empty formula, and `service.value` reads the composite.
+    code: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict,
+                                       server_default=text("'{}'::jsonb"))
+    #: §5. Byte-for-byte what the person typed, kept where it can be searched
+    #: and compared. Empty for a metric built through the field-picker rather
+    #: than by writing a formula.
+    user_formula: Mapped[str] = mapped_column(Text, nullable=False, default="",
+                                              server_default="")
     #: A metric nobody may see but its author until it is shared.
     shared: Mapped[bool] = mapped_column(Boolean, nullable=False,
                                          server_default=text("false"))

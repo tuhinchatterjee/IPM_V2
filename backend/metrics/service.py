@@ -142,6 +142,8 @@ def _from_row(row: Any) -> MetricDefinition:
         origin=ORIGIN_USER,
         status=row.status,
         version=row.version or "1.0.0",
+        composite=(dict(row.code or {}).get("composite") or None),
+        code=(dict(row.code) or None) if getattr(row, "code", None) else None,
         created_by=row.created_by,
         verified_by=row.verified_by,
         verified_at=row.verified_at.isoformat() if row.verified_at else "",
@@ -388,6 +390,9 @@ def value(metric_id: str, *, period: str = "", user_id: int | None = None,
     recalculate by hand.
     """
     metric = resolve(metric_id, user_id=user_id, readable=readable)
+    if metric.is_composite:
+        return composite_value(metric, period=period, user_id=user_id,
+                               readable=readable)
     try:
         # Inside the guard, not before it: resolving which period a metric
         # means is itself a read of the lake, and it fails the same way the
@@ -408,6 +413,54 @@ def value(metric_id: str, *, period: str = "", user_id: int | None = None,
         calculation.unavailable = str(e)
 
     return _shape(metric, calculation)
+
+
+def composite_value(metric: MetricDefinition, *, period: str = "",
+                    user_id: int | None = None,
+                    readable: Iterable[str] | None = None,
+                    cache: dict[Any, Any] | None = None) -> dict[str, Any]:
+    """One composite metric's answer, in the shape every other metric returns.
+
+    The same shape deliberately: a tile drawing a locked formula metric and a
+    tile drawing a governed one must not branch on which they are holding.
+    What differs is inside `calculation` — a composite's working is two legs
+    and the arithmetic between them, where a formula's is terms and sides —
+    and the preview and the info panel read whichever is there.
+    """
+    from backend.metrics import composite as composite_mod
+
+    spec = composite_mod.Composite.from_dict(metric.composite or {})
+    try:
+        period = period or default_period(metric)
+    except DataAccessError as e:
+        return {"metric": metric.panel(catalog=_catalog()), "calculation": None,
+                "value": None, "unit": metric.unit,
+                "decimals": metric.decimals, "period": period,
+                "available": False, "unavailable": str(e)}
+
+    def resolver(metric_id: str) -> MetricDefinition:
+        return resolve(metric_id, user_id=user_id, readable=readable)
+
+    try:
+        calculation = composite_mod.run(
+            spec, period=period, scope=metric.scope, user_id=user_id,
+            resolver=resolver, cache=cache)
+    except DataAccessError as e:
+        return {"metric": metric.panel(catalog=_catalog()), "calculation": None,
+                "value": None, "unit": metric.unit,
+                "decimals": metric.decimals, "period": period,
+                "available": False, "unavailable": str(e)}
+
+    return {
+        "metric": metric.panel(catalog=_catalog()),
+        "calculation": calculation.to_dict(),
+        "value": calculation.value,
+        "unit": metric.unit,
+        "decimals": metric.decimals,
+        "period": calculation.period or period,
+        "available": calculation.value is not None,
+        "unavailable": calculation.unavailable,
+    }
 
 
 def _shape(metric: MetricDefinition,
@@ -484,7 +537,15 @@ def values(metric_ids: Sequence[str], *, period: str = "",
 
     groups: dict[tuple[Any, ...], dict[str, Any]] = {}
     alone: list[str] = []
+    composites: list[str] = []
     for metric_id, metric in resolved.items():
+        if metric.is_composite:
+            # A composite is two reads at two periods or over two datasets, so
+            # it cannot join a batch keyed on one dataset at one period. It
+            # shares the LEG cache below instead, which is where its saving is:
+            # four composites over `corporate.exposure` read it once.
+            composites.append(metric_id)
+            continue
         key = execution.batch_key(metric.formula, at[metric_id], metric.scope)
         if key is None:
             alone.append(metric_id)
@@ -519,6 +580,13 @@ def values(metric_ids: Sequence[str], *, period: str = "",
         scans += 1
         answers[metric_id] = value(metric_id, period=at[metric_id],
                                    user_id=user_id, readable=readable)
+
+    leg_cache: dict[Any, Any] = {}
+    for metric_id in composites:
+        scans += 1
+        answers[metric_id] = composite_value(
+            resolved[metric_id], period=at[metric_id], user_id=user_id,
+            readable=readable, cache=leg_cache)
 
     return {
         "metrics": answers,
@@ -591,7 +659,8 @@ def create(*, name: str, formula: Formula, definition: str = "",
            unit: str = "number", domain: str = "", portfolio: str = "",
            presentation: dict[str, Any] | None = None,
            user_id: int | None = None, owner: str = "",
-           shared: bool = False) -> MetricDefinition:
+           shared: bool = False,
+           code: dict[str, Any] | None = None) -> MetricDefinition:
     """Store a metric somebody built. It arrives DRAFT and stays there.
 
     Nothing here promotes a metric. A definition becomes CALCULATION_READY
@@ -603,7 +672,12 @@ def create(*, name: str, formula: Formula, definition: str = "",
     _require_db()
     if not (name or "").strip():
         raise MetricRefused("A metric needs a name people will recognise.")
-    _reject_if_broken(formula)
+    # A composite has no term tree to check — its legs were each checked on
+    # their own, and `codeguard` checked the whole of it before it reached
+    # here. Running the term-tree checker over an empty formula would refuse
+    # every composite for having no terms.
+    if not (code or {}).get("composite"):
+        _reject_if_broken(formula)
 
     from backend.db.engine import get_session
     from backend.models.platform import UserMetric
@@ -619,6 +693,8 @@ def create(*, name: str, formula: Formula, definition: str = "",
         row = UserMetric(
             metric_id=metric_id, name=name.strip()[:200],
             definition_text=definition, definition=formula.to_dict(),
+            code=dict(code or {}),
+            user_formula=str((code or {}).get("user_formula") or "")[:2000],
             presentation=dict(presentation or {}), unit=unit,
             domain=domain, portfolio=portfolio, status=STATUS_DRAFT,
             owner=owner or "", created_by=user_id, shared=bool(shared))

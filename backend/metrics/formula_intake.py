@@ -696,16 +696,82 @@ def _guess_unit(intake: FormulaIntake) -> str:
     return "number"
 
 
+#: Words a metric name should not start with, stripped from a label somebody
+#: wrote in front of their formula.
+_LABEL_VERBS = re.compile(
+    r"^\s*(please\s+)?(add|show|show me|build|make|create|give me|include|"
+    r"put|draw|chart|plot|take|compute|calculate|work out)\s+"
+    r"(a\s+|an\s+|the\s+|me\s+)?(new\s+)?(metric\s+(for|called)\s+)?",
+    re.IGNORECASE)
+
+
+def _label_name(said: str) -> str:
+    """The name somebody wrote in front of their own formula, where they did.
+
+    "Add quarter-on-quarter exposure change: (Current / Previous) - 1" names
+    the metric in its first six words. Using them beats assembling a name out
+    of the formula's operands, which produced "Current Quarter Exposure
+    Previous Quarter Exposure" — a name nobody would put on a dashboard and a
+    metric id nobody could read.
+    """
+    labelled = _LABELLED.match((said or "").strip())
+    if not labelled:
+        return ""
+    label = _LABEL_VERBS.sub("", labelled.group("label"), count=1).strip(" ,.;:")
+    if not label or len(label) > 70 or has_arithmetic(label):
+        return ""
+    words = label.split()
+    if not 1 <= len(words) <= 9:
+        return ""
+    return " ".join(w if w.isupper() or any(c.isdigit() for c in w)
+                    else w[:1].upper() + w[1:] for w in words)
+
+
 def _guess_name(intake: FormulaIntake) -> str:
     """A name from the person's own words, for when no model is configured."""
-    source = intake.formula_text or intake.said
-    words = re.findall(r"[A-Za-z][A-Za-z0-9_]*", source)
-    skip = {"the", "a", "an", "of", "by", "and", "divided", "divide", "over",
-            "plus", "minus", "times", "per", "share", "take", "add", "show"}
-    kept = [w for w in words if w.lower() not in skip][:6]
-    if not kept:
-        return "New metric"
-    return " ".join(w[:1].upper() + w[1:] for w in kept)
+    labelled = _label_name(intake.said)
+    if labelled:
+        return labelled
+    # A ratio names itself from its own two sides. "Stage 2 Exposure / Total
+    # Exposure" is what a risk officer would write on a slide; the same words
+    # run together are not.
+    if intake.numerator_text and intake.denominator_text:
+        top = _titled(intake.numerator_text)
+        bottom = _titled(intake.denominator_text)
+        if top and bottom:
+            joined = f"{top} / {bottom}"
+            if len(joined) <= 70:
+                return joined
+
+    kept = _significant(intake.formula_text or intake.said)[:6]
+    return _titled(" ".join(kept)) or "New metric"
+
+
+#: Words that carry no meaning in a metric's name.
+_NAME_NOISE = frozenset({
+    "the", "a", "an", "of", "by", "and", "then", "divided", "divide", "over",
+    "plus", "minus", "times", "per", "take", "add", "show", "build", "make",
+    "create", "give", "me", "please", "include", "put", "draw", "chart",
+    "plot", "compute", "calculate",
+})
+
+
+def _significant(text: str) -> list[str]:
+    """The words in a phrase that say what it measures.
+
+    Digits are kept — dropping them turned "Stage 2 Exposure" into "Stage
+    Exposure", which names a different thing and does so silently.
+    """
+    words = re.findall(r"[A-Za-z0-9][A-Za-z0-9_%]*", text or "")
+    return [w for w in words if w.lower() not in _NAME_NOISE]
+
+
+def _titled(text: str) -> str:
+    words = _significant(text)
+    if not words:
+        return ""
+    return " ".join(w if (w.isupper() or any(c.isdigit() for c in w))
+                    else w[:1].upper() + w[1:] for w in words)
 
 
 def read_intent(intake: FormulaIntake, *, model: str = "", effort: str = "",

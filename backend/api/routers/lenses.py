@@ -411,6 +411,117 @@ def lens_interpretation(lens_id: int, period: str | None = None,
     return li.interpret(lens, rendered, prior_rendered).to_dict()
 
 
+# ==================================================== live refresh (V3 §18-§32)
+
+
+class RefreshIn(BaseModel):
+    """§19's three doors, and §46's two modes, in one shape."""
+
+    period: str | None = None
+    #: lens_opened | manual | scheduled. What started this refresh; recorded on
+    #: the snapshot so a history strip can say why each row is there.
+    trigger: str = Field(default="manual", max_length=24)
+    #: standard | deep. A wider ceiling, not a wider surface — the domain
+    #: boundary is the same in both.
+    mode: str = Field(default="standard", max_length=16)
+    #: False stores the snapshot and computes the deterministic change without
+    #: asking a model to write about it. Used by the browser suite, and by any
+    #: caller that wants the figures without the reading.
+    interpret: bool = True
+
+
+@router.post("/{lens_id}/refresh", summary="Refresh this Lens and record what it said")
+def refresh_lens(lens_id: int, payload: RefreshIn,
+                 principal: Principal = RequireAnalyst) -> dict:
+    """§19 and §23. Execute, store the snapshot, compare, interpret, render.
+
+    The same pipeline a Lens open goes through, reached deliberately. Opening
+    a Lens and pressing Refresh differ in the `trigger` recorded on the
+    snapshot and in nothing else, which is what §19 asks for and the reason
+    there is one function behind both.
+    """
+    from backend.metrics import refresh_pipeline
+
+    try:
+        outcome = refresh_pipeline.run(
+            lens_id, period=payload.period, trigger=payload.trigger,
+            user_id=principal.user_id, mode=payload.mode,
+            interpret=payload.interpret)
+    except ln.LensNotFound as e:
+        raise _not_found(e) from e
+    except ln.StorageUnavailable as e:
+        raise _unavailable(e) from e
+    body = refresh_pipeline.present(outcome)
+    body["rendered"] = outcome.rendered
+    return body
+
+
+@router.get("/{lens_id}/changes",
+            summary="CreditProbe View — what changed since the last refresh")
+def lens_changes(lens_id: int, period: str | None = None,
+                 mode: str = Query(default="standard", max_length=16),
+                 principal: Principal = RequireAnalyst) -> dict:
+    """§31's panel and everything its header needs.
+
+    Distinct from `/interpretation`, which reads what the Lens SHOWS. This
+    reads what CHANGED, and the two answer different questions for different
+    readers — a committee asks the first once and the second every quarter.
+    """
+    from backend.metrics import refresh_pipeline
+
+    try:
+        return refresh_pipeline.changes(lens_id, period=period,
+                                        user_id=principal.user_id, mode=mode)
+    except ln.LensNotFound as e:
+        raise _not_found(e) from e
+    except ln.StorageUnavailable as e:
+        raise _unavailable(e) from e
+
+
+@router.get("/{lens_id}/refreshes", summary="This Lens's refresh history")
+def lens_refreshes(lens_id: int,
+                   limit: int = Query(default=12, ge=1, le=100),
+                   principal: Principal = RequireAnalyst) -> dict:
+    """§22A. One row per refresh, newest first, with what kind each one was."""
+    from backend.metrics import refresh_pipeline, refresh_store
+
+    if not refresh_store.available():
+        return {"lens_id": lens_id, "refreshes": [], "remembered": False,
+                "note": "This deployment has no database, so a Lens cannot "
+                        "record what it showed."}
+    history = refresh_store.history(lens_id, limit=limit,
+                                    user_id=principal.user_id)
+    return {
+        "lens_id": lens_id, "remembered": True,
+        "refreshes": [refresh_pipeline._summary(r) for r in history],
+        "count": len(history),
+    }
+
+
+@router.get("/{lens_id}/metrics/{metric_id}/history",
+            summary="One metric's two histories on this Lens")
+def lens_metric_history(lens_id: int, metric_id: str,
+                        limit: int = Query(default=12, ge=1, le=60),
+                        principal: Principal = RequireAnalyst) -> dict:
+    """§32. Refresh history and reporting-period history, labelled apart.
+
+    They are different questions — "what did this say each time the Lens ran"
+    and "what did this say for each business period" — and a screen that showed
+    one under the other's heading would be read with complete confidence and
+    be wrong.
+    """
+    from backend.metrics import refresh_store
+
+    if not refresh_store.available():
+        return {"lens_id": lens_id, "metric_id": metric_id,
+                "refresh_history": [], "reporting_period_history": [],
+                "remembered": False}
+    body = refresh_store.series(lens_id, metric_id, limit=limit,
+                                user_id=principal.user_id)
+    body["remembered"] = True
+    return body
+
+
 @router.post("/{lens_id}/ask", summary="Change a lens by asking")
 def ask_lens(lens_id: int, payload: AskIn,
              principal: Principal = RequireAnalyst) -> dict:
