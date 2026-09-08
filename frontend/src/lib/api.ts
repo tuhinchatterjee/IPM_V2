@@ -4347,6 +4347,15 @@ export interface LensScope {
   visibility: string;
 }
 
+/** §17. The reasoning behind a Lens's shape, stored with it. */
+export interface LensDesign {
+  objective: string;
+  rationale: string;
+  risk_questions: string[];
+  why_these_domains: string;
+  why_these_comparisons: string;
+}
+
 export interface Lens {
   id: number;
   slug: string;
@@ -4357,6 +4366,10 @@ export interface Lens {
   sections: LensSection[];
   notes: LensNote[];
   scope: LensScope;
+  /** §17. Why this Lens is laid out this way — kept, not thrown away when the
+   *  proposal screen closed. Empty on a Lens built tile by tile, which is
+   *  honest: nobody wrote a rationale for it. */
+  design: LensDesign;
   status: string;
   version: number;
   origin: string;
@@ -5715,6 +5728,7 @@ export const api = {
     description?: string;
     audience?: string;
     scope?: Partial<LensScope>;
+    design?: Partial<LensDesign>;
     panels?: Partial<LensPanel>[];
   }) =>
     request<Lens>("/lenses", {

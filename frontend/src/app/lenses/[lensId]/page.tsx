@@ -42,6 +42,7 @@ import {
 import { LayoutEditor } from "@/components/lenses/layout-editor";
 import {
   LensChangesPanel,
+  LensDesignPanel,
   MetricHistoryPanel,
 } from "@/components/lenses/lens-changes";
 import { LensInterpretationPanel } from "@/components/lenses/lens-interpretation";
@@ -93,12 +94,28 @@ function LensView({ id }: { id: number }) {
   // with it. The metric builder was losing its locked step to a reload it had
   // itself asked for. The previous render is still true until the new one
   // arrives, so it stays up until then.
-  const rendered = useAsync(
-    () => api.renderLens(id, period ?? undefined),
+  //
+  // ONE call, not two. §19 and §44: opening a Lens IS a refresh, so the same
+  // pipeline that renders the panels records the snapshot, chooses the
+  // previous comparable one and works out what changed — and returns all of
+  // it together. Calling `renderLens` and then `lensChanges` executed every
+  // panel twice on every page load, which is a second full pass over the book
+  // for a result the first pass already had.
+  const opened = useAsync(
+    () => api.refreshLens(id, {
+      period: period ?? undefined,
+      trigger: "lens_opened",
+    }),
     [id, nonce, period],
     { keepPrevious: true },
   );
+  const rendered = {
+    ...opened,
+    data: opened.data?.rendered,
+  } as { data: RenderedLens | undefined; loading: boolean;
+         error: string | null };
   const view = rendered.data;
+  const changes = opened.data ?? null;
 
   const [request, setRequest] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -360,11 +377,10 @@ function LensView({ id }: { id: number }) {
               reader arriving at a dashboard they saw last quarter is asking
               the first question and the tiles answer the second. */}
           <LensChangesPanel
-            lensId={id}
-            period={view.period}
-            version={lens.version}
+            changes={changes}
             onRefreshed={() => setNonce((n) => n + 1)}
           />
+          <LensDesignPanel design={lens.design} />
           <LensInterpretationPanel
             lensId={id}
             period={view.period}

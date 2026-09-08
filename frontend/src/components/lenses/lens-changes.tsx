@@ -19,6 +19,7 @@ import {
   api,
   type ChangeClaim,
   type LensChanges,
+  type LensDesign,
 } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 
@@ -47,50 +48,32 @@ import { useAsync } from "@/lib/hooks";
  * report.
  */
 export function LensChangesPanel({
-  lensId,
-  period,
-  version,
+  changes,
   onRefreshed,
 }: {
-  lensId: number;
-  period: string | null;
-  version: number;
+  /** The refresh the page already performed when it opened. Passed in rather
+   *  than fetched: opening a Lens IS a refresh, and fetching again here would
+   *  execute every panel a second time for a result the page already holds. */
+  changes: LensChanges | null;
   onRefreshed?: () => void;
 }) {
-  const [nonce, setNonce] = React.useState(0);
   const [refreshing, setRefreshing] = React.useState(false);
-  const changes = useAsync(
-    () => api.lensChanges(lensId, period ?? undefined),
-    [lensId, period, version, nonce],
-    { keepPrevious: true },
-  );
 
   async function refreshNow() {
     if (refreshing) return;
     setRefreshing(true);
     try {
-      await api.refreshLens(lensId, {
-        period: period ?? undefined,
-        trigger: "manual",
-      });
-      setNonce((n) => n + 1);
+      // The page re-opens the Lens, which re-runs the pipeline once. Doing it
+      // here as well would run it twice for one click.
       onRefreshed?.();
     } finally {
       setRefreshing(false);
     }
   }
 
-  if (changes.loading && !changes.data) {
-    return <Skeleton className="h-28 w-full" />;
-  }
-
-  const data = changes.data;
+  const data = changes;
   if (!data) {
-    return (
-      <p className="text-[11px] text-text-muted" data-testid="lens-changes-error">
-        {changes.error ?? "CreditProbe could not read this Lens's history."}
-      </p>
-    );
+    return <Skeleton className="h-28 w-full" />;
   }
 
   if (!data.remembered) {
@@ -498,4 +481,87 @@ function format(
     maximumFractionDigits: unit === "count" ? 0 : decimals,
   });
   return unit === "percent" ? `${shown}%` : shown;
+}
+
+
+/**
+ * §17. Why CreditProbe designed this Lens.
+ *
+ * Kept with the Lens rather than shown once on the proposal screen and
+ * discarded. Six months later somebody asks why rating migration is on the
+ * CRO screen and concentration is not, and the answer used to live in a
+ * browser tab that closed.
+ *
+ * Collapsed by default. A Lens is opened to read figures; the reasoning is
+ * there when it is wanted and not in the way when it is not.
+ */
+export function LensDesignPanel({ design }: { design: LensDesign }) {
+  const [open, setOpen] = React.useState(false);
+  const anything =
+    design.objective ||
+    design.rationale ||
+    design.why_these_domains ||
+    design.risk_questions.length > 0;
+  if (!anything) return null;
+
+  return (
+    <div data-testid="lens-design">
+      <button
+        type="button"
+        className="flex items-center gap-1 text-[11px] text-text-muted hover:text-text-secondary"
+        onClick={() => setOpen((v) => !v)}
+        data-testid="toggle-lens-design"
+      >
+        <Info className="size-3" aria-hidden />
+        Why CreditProbe designed this Lens
+      </button>
+      {open && (
+        <Card className="mt-2 space-y-2 p-4 text-xs" data-testid="lens-design-body">
+          {design.objective && (
+            <Section title="Monitoring objective" body={design.objective} />
+          )}
+          {design.rationale && (
+            <Section title="Why these metrics" body={design.rationale} />
+          )}
+          {design.why_these_domains && (
+            <Section
+              title="Why these domains"
+              body={design.why_these_domains}
+            />
+          )}
+          {design.why_these_comparisons && (
+            <Section
+              title="Why these comparisons"
+              body={design.why_these_comparisons}
+            />
+          )}
+          {design.risk_questions.length > 0 && (
+            <div>
+              <h4 className="text-[10px] uppercase tracking-wide text-text-muted">
+                The risk questions this Lens answers
+              </h4>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-text-secondary">
+                {design.risk_questions.map((question, i) => (
+                  <li key={i}>{question}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function Section({ title, body }: { title: string; body: string }) {
+  return (
+    <div>
+      <h4 className="text-[10px] uppercase tracking-wide text-text-muted">
+        {title}
+      </h4>
+      <p className="mt-0.5 whitespace-pre-line leading-relaxed text-text-secondary">
+        {body}
+      </p>
+    </div>
+  );
 }

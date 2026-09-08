@@ -253,3 +253,60 @@ def test_a_shared_leg_is_computed_once():
         denominator=comp.Leg(id="b", formula=EXPOSURE))
     comp.run(spec, period="Q2 2026", cache=cache)
     assert len(cache) == 1
+
+
+# ------------------------------------------------------- §15: charts
+
+
+def test_a_composite_can_be_drawn_across_a_dimension():
+    """§15. Each side is broken out on its own and the two are combined group
+    by group, with the same arithmetic the single figure uses."""
+    stage2 = Formula(
+        kind="sum",
+        numerator=Side(terms=(Term(
+            id="s2", label="Stage 2 EAD", dataset="portfolio_facility",
+            aggregate="sum", field="exposure",
+            where=(Condition(field="ifrs9_stage", op="=", value=2),)),)))
+    spec = comp.Composite(
+        operation="ratio",
+        numerator=comp.Leg(id="s2", label="Stage 2", formula=stage2),
+        denominator=comp.Leg(id="all", label="Total", formula=EXPOSURE),
+        scale=100.0)
+    drawn = comp.breakdown(spec, dimension="sector", period="Q2 2026",
+                           limit=6)
+    assert not drawn["unavailable"], drawn["unavailable"]
+    assert drawn["points"]
+    assert all(p["value"] is not None for p in drawn["points"])
+    # Every bar is a percentage of its own group, so none may exceed 100.
+    assert all(0 <= p["value"] <= 100 for p in drawn["points"]), drawn["points"]
+
+
+def test_a_two_period_composite_charts_each_group_across_its_own_periods():
+    drawn = comp.breakdown(growth(), dimension="sector", period="Q2 2026",
+                           limit=5)
+    assert not drawn["unavailable"], drawn["unavailable"]
+    assert drawn["points"]
+
+
+def test_a_dimension_one_side_does_not_have_is_refused():
+    spec = comp.Composite(
+        operation="ratio",
+        numerator=comp.Leg(id="w", formula=WATCHLIST),
+        denominator=comp.Leg(id="t", formula=EXPOSURE))
+    drawn = comp.breakdown(spec, dimension="ifrs9_stage", period="Q2 2026")
+    assert drawn["unavailable"]
+    assert "ifrs9_stage" in drawn["unavailable"]
+
+
+def test_groups_present_on_one_side_only_are_reported_rather_than_dropped():
+    """Dropping them silently would shrink the population the chart claims to
+    cover."""
+    spec = comp.Composite(
+        operation="ratio",
+        numerator=comp.Leg(id="w", formula=WATCHLIST),
+        denominator=comp.Leg(id="t", formula=EXPOSURE),
+        scale=100.0)
+    drawn = comp.breakdown(spec, dimension="sector", period="Q2 2026",
+                           limit=30)
+    # Either every sector matched, or the ones that did not are named.
+    assert drawn["note"] == "" or "appear on one side" in drawn["note"]

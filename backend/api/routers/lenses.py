@@ -108,11 +108,29 @@ class ScopeIn(BaseModel):
     visibility: str = Field(default="shared", max_length=16)
 
 
+class DesignIn(BaseModel):
+    """§17. Why this Lens is laid out this way.
+
+    Taken at creation and kept, because it was previously shown on the
+    proposal screen and thrown away when the Lens was built — the reasoning
+    survived exactly as long as the browser tab did, and "why is rating
+    migration on the CRO screen and not concentration?" is asked six months
+    later by somebody who was not there.
+    """
+
+    objective: str = Field(default="", max_length=2000)
+    rationale: str = Field(default="", max_length=2000)
+    risk_questions: list[str] = Field(default_factory=list, max_length=8)
+    why_these_domains: str = Field(default="", max_length=2000)
+    why_these_comparisons: str = Field(default="", max_length=2000)
+
+
 class LensIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=MAX_TEXT)
     audience: str = Field(default="", max_length=120)
     scope: ScopeIn | None = None
+    design: DesignIn | None = None
     # `TileIn`, not a panel shape requiring an analysis id: a lens made
     # through this route could otherwise hold no metric tiles at all,
     # which is most of what a lens is for now. A tile naming neither an
@@ -271,6 +289,7 @@ def create_lens(payload: LensIn, principal: Principal = RequireAnalyst) -> dict:
             description=payload.description, audience=payload.audience,
             project_id=payload.project_id, user_id=principal.user_id,
             scope=(payload.scope.model_dump() if payload.scope else None),
+            design=(payload.design.model_dump() if payload.design else None),
         ).to_dict()
     except ln.InvalidLens as e:
         raise _refused(e) from e

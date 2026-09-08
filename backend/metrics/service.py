@@ -1135,6 +1135,17 @@ def dimension_fields(metric: MetricDefinition) -> list[dict[str, Any]]:
         entry = catalog.dataset(metric.datasets[0])
     except Exception:  # noqa: BLE001 - a dataset that has gone
         return []
+    # A composite is only breakable out by a field EVERY side has. A dimension
+    # on one side and not the other would draw a chart whose denominators are
+    # missing for half its bars, which renders as a plausible picture.
+    shared: set[str] | None = None
+    if metric.is_composite and len(metric.datasets) > 1:
+        for dataset in metric.datasets:
+            try:
+                fields = set(catalog.dataset(dataset).fields)
+            except Exception:  # noqa: BLE001
+                return []
+            shared = fields if shared is None else (shared & fields)
 
     keys = {str(k) for k in (entry.primary_keys or [])}
     period_field = str(entry.period_field or "")
@@ -1155,6 +1166,8 @@ def dimension_fields(metric: MetricDefinition) -> list[dict[str, Any]]:
                        or str(field_def.data_type) in ("string", "boolean")
                        or lowered.endswith(("_bin", "_band", "_bucket")))
         if not (categorical or name == period_field):
+            continue
+        if shared is not None and name not in shared:
             continue
         out.append({
             "name": name,
@@ -1343,6 +1356,74 @@ def _shift_period(period: str, *, months: int) -> str:
     return ""
 
 
+def _composite_series(metric: MetricDefinition, *, dimension: str,
+                      period: str, filters: dict[str, Any] | None,
+                      sort: str, direction: str, limit: int,
+                      dimension_label: str, over_time: bool,
+                      user_id: int | None,
+                      readable: Iterable[str] | None) -> dict[str, Any]:
+    """§15. A locked formula metric, drawn across a dimension.
+
+    The same shape every other chart returns, because a tile drawing a
+    composite and a tile drawing a governed metric must not branch on which
+    they are holding. What differs is inside: each side is broken out on its
+    own, at its own period, and the two are combined group by group.
+
+    `aggregate` is not offered. A composite's arithmetic IS its definition —
+    recomputing "average of the numerator per row over average of the
+    denominator per row" is a different metric wearing this one's name.
+    """
+    from backend.metrics import composite as composite_mod
+
+    spec = composite_mod.Composite.from_dict(metric.composite or {})
+    where = _chart_filters(metric, filters)
+
+    def resolver(metric_id: str) -> MetricDefinition:
+        return resolve(metric_id, user_id=user_id, readable=readable)
+
+    notes: list[str] = []
+    if over_time:
+        notes.append(
+            "Every period the dataset holds, in order. The period selection "
+            "does not apply to a chart whose dimension IS the period.")
+    if spec.crosses_periods:
+        notes.append(
+            "Each side of this metric reads its own period, so every point "
+            "compares the two periods within that group.")
+
+    wanted = "" if over_time else (period or default_period(metric))
+    drawn = composite_mod.breakdown(
+        spec, dimension=dimension, period=wanted, scope=metric.scope,
+        where=where, sort=("period" if over_time else sort),
+        direction=("asc" if over_time else direction), limit=limit,
+        user_id=user_id, resolver=resolver)
+    if drawn.get("note"):
+        notes.append(drawn["note"])
+
+    return {
+        "metric": metric.panel(catalog=_catalog()),
+        "series_label": metric.name,
+        "dimension": dimension,
+        "dimension_label": dimension_label,
+        "over_time": over_time,
+        "aggregate": "metric",
+        "sort": sort, "direction": direction, "compare": "",
+        "filters": {c.field: c.value for c in where},
+        "unit": metric.unit, "decimals": metric.decimals,
+        "higher_is_better": metric.higher_is_better,
+        "period": drawn.get("period") or wanted,
+        "points": drawn["points"],
+        "comparison": None,
+        "dataset": drawn.get("dataset", ""),
+        "sql": drawn.get("sql", ""),
+        "run_id": drawn.get("run_id", ""),
+        "groups_found": drawn.get("groups_found", 0),
+        "truncated": drawn.get("truncated", False),
+        "notes": notes,
+        "unavailable": drawn.get("unavailable", ""),
+    }
+
+
 def series(metric_id: str, *, dimension: str, period: str = "",
            filters: dict[str, Any] | None = None,
            aggregate: str = "metric", sort: str = "value",
@@ -1375,6 +1456,14 @@ def series(metric_id: str, *, dimension: str, period: str = "",
         raise MetricRefused(
             f"'{compare}' is not a comparison a chart may draw. "
             f"Available: {', '.join(k or 'none' for k in COMPARISONS)}.")
+
+    if metric.is_composite:
+        return _composite_series(
+            metric, dimension=dimension, period=period, filters=filters,
+            sort=sort, direction=direction, limit=limit,
+            dimension_label=offerable[dimension]["business_name"],
+            over_time=bool(offerable[dimension]["over_time"]),
+            user_id=user_id, readable=readable)
 
     formula, series_label = _chart_formula(metric, aggregate)
     where = _chart_filters(metric, filters)

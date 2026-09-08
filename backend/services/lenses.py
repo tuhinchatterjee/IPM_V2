@@ -430,6 +430,11 @@ class LensView:
     #: whose scope is decided after its tiles is a lens whose tiles decided
     #: its scope.
     scope: dict[str, Any]
+    #: §17. Why the Lens is laid out this way: the monitoring objective, why
+    #: each domain was chosen, why these comparisons, and the risk questions
+    #: each element answers. Empty on a Lens built tile by tile, which is
+    #: honest — nobody wrote a rationale for it.
+    design: dict[str, Any]
     status: str
     version: int
     origin: str
@@ -449,6 +454,7 @@ class LensView:
             "sections": self.sections,
             "notes": self.notes,
             "scope": self.scope,
+            "design": self.design,
             "status": self.status,
             "version": self.version,
             "origin": self.origin,
@@ -490,6 +496,7 @@ def _view(session: Any, row: Any, *, with_revisions: bool = False) -> LensView:
         sections=list(definition.get("sections") or []),
         notes=list(definition.get("notes") or []),
         scope=default_scope(definition.get("scope")),
+        design=validate_design(definition.get("design")),
         status=row.status,
         version=row.version,
         origin=row.origin,
@@ -569,7 +576,8 @@ def validate_scope(scope: dict[str, Any] | None) -> dict[str, Any]:
 def _definition(panels: list[Panel],
                 sections: list[dict[str, Any]] | None,
                 notes: list[dict[str, Any]] | None,
-                scope: dict[str, Any] | None = None) -> dict[str, Any]:
+                scope: dict[str, Any] | None = None,
+                design: dict[str, Any] | None = None) -> dict[str, Any]:
     definition: dict[str, Any] = {"panels": [p.to_dict() for p in panels]}
     if sections:
         definition["sections"] = [dict(s) for s in sections]
@@ -577,7 +585,40 @@ def _definition(panels: list[Panel],
         definition["notes"] = [dict(n) for n in notes]
     if scope:
         definition["scope"] = dict(scope)
+    if design:
+        definition["design"] = validate_design(design)
     return definition
+
+
+#: §17. Why this Lens looks the way it does. Written when it is designed and
+#: kept, because "why is rating migration on the CRO screen and not
+#: concentration?" is asked six months later by somebody who was not there.
+#:
+#: It was previously shown on the proposal screen and then thrown away when
+#: the Lens was created, so the reasoning survived exactly as long as the
+#: browser tab did.
+DESIGN_FIELDS = ("objective", "rationale", "risk_questions",
+                 "why_these_domains", "why_these_comparisons")
+
+#: Long enough for a paragraph per field and no longer. §17: "Do not generate
+#: a giant essay. Make it useful to a senior risk user."
+MAX_DESIGN_TEXT = 2000
+MAX_RISK_QUESTIONS = 8
+
+
+def validate_design(design: dict[str, Any] | None) -> dict[str, Any]:
+    """The design rationale, bounded and with nothing else in it."""
+    design = dict(design or {})
+    out: dict[str, Any] = {}
+    for field_name in DESIGN_FIELDS:
+        value = design.get(field_name)
+        if field_name == "risk_questions":
+            out[field_name] = [str(q).strip()[:300]
+                               for q in (value or [])
+                               if str(q).strip()][:MAX_RISK_QUESTIONS]
+            continue
+        out[field_name] = str(value or "").strip()[:MAX_DESIGN_TEXT]
+    return out
 
 
 # ------------------------------------------------------------------ writing
@@ -589,7 +630,8 @@ def create(*, name: str, panels: list[Panel], description: str = "",
            user_id: int | None = None, slug: str = "",
            sections: list[dict[str, Any]] | None = None,
            notes: list[dict[str, Any]] | None = None,
-           scope: dict[str, Any] | None = None) -> LensView:
+           scope: dict[str, Any] | None = None,
+           design: dict[str, Any] | None = None) -> LensView:
     """Store a new lens.
 
     `slug` is normally derived from the name. A caller installing a lens the
@@ -604,7 +646,7 @@ def create(*, name: str, panels: list[Panel], description: str = "",
     from backend.db.engine import get_session
     from backend.models.platform import Lens, LensRevision
 
-    definition = _definition(panels, sections, notes, scope)
+    definition = _definition(panels, sections, notes, scope, design)
     with get_session() as session:
         slug = slugify(slug) if slug else slugify(name)
         existing = {s for (s,) in session.query(Lens.slug).all()}
@@ -637,6 +679,7 @@ def revise(lens_id: int, panels: list[Panel], *, request: str = "",
            sections: list[dict[str, Any]] | None = None,
            notes: list[dict[str, Any]] | None = None,
            scope: dict[str, Any] | None = None,
+           design: dict[str, Any] | None = None,
            name: str = "", description: str = "",
            audience: str = "") -> LensView:
     """Store a new revision. The previous one is kept, so it can be put back.
@@ -655,12 +698,18 @@ def revise(lens_id: int, panels: list[Panel], *, request: str = "",
     """
     _require_db()
     validate(panels, user_id=user_id)
-    kept = get(lens_id).scope if scope is None else validate_scope(scope)
+    current = get(lens_id)
+    kept = current.scope if scope is None else validate_scope(scope)
+    # §17. The design rationale travels forward unless it is being replaced.
+    # A revision that dropped it would lose the reasoning the first time
+    # somebody added a tile, which is exactly when it starts being worth
+    # having.
+    kept_design = current.design if design is None else validate_design(design)
 
     from backend.db.engine import get_session
     from backend.models.platform import Lens, LensRevision
 
-    definition = _definition(panels, sections, notes, kept)
+    definition = _definition(panels, sections, notes, kept, kept_design)
     with get_session() as session:
         row = session.get(Lens, lens_id)
         if row is None:
@@ -713,11 +762,13 @@ def restore(lens_id: int, version: int, *, user_id: int | None = None) -> LensVi
         # tiles of one lens under the description of another, and the
         # revision history would say it had restored something it had not.
         scope = default_scope(stored.get("scope"))
+        design = validate_design(stored.get("design"))
 
     return revise(
         lens_id, panels, request=f"Restore version {version}",
         change_summary=f"Restored the definition from version {version}.",
         user_id=user_id, sections=sections, notes=notes, scope=scope,
+        design=design,
     )
 
 

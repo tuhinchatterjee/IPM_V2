@@ -688,6 +688,153 @@ def _run_leg(leg: Leg, *, period: str, scope: tuple[Any, ...],
     return value
 
 
+# ---------------------------------------------------------------------------
+# §15: the same composite, across a dimension
+# ---------------------------------------------------------------------------
+
+
+def breakdown(composite: Composite, *, dimension: str, period: str = "",
+              scope: tuple[Any, ...] = (), where: tuple[Any, ...] = (),
+              sort: str = "value", direction: str = "desc",
+              limit: int = 20, user_id: int | None = None,
+              resolver: Any = None) -> dict[str, Any]:
+    """A composite metric across one dimension. §15.
+
+    Each leg is broken out on its own, at its own period, and the two are
+    combined GROUP BY GROUP with the same arithmetic the single figure uses.
+    That is what makes a bar comparable to the KPI above it: not a similar
+    calculation, the same one applied per group.
+
+    A label present on one side and not the other produces no point rather
+    than a point computed against a missing denominator. Dropping it silently
+    would shrink the population the chart claims to cover, so the count of
+    what was dropped travels with the result and the chart says so.
+    """
+    from backend.metrics import execution
+    from backend.metrics import service as metrics
+
+    resolver = resolver or (lambda mid: metrics.resolve(mid, user_id=user_id))
+
+    sides: dict[str, dict[str, Any]] = {}
+    datasets: list[str] = []
+    for leg, name in ((composite.numerator, "numerator"),
+                      (composite.denominator, "denominator")):
+        if leg is None:
+            continue
+        formula = leg.formula
+        leg_scope = scope
+        if leg.metric_id:
+            try:
+                metric = resolver(leg.metric_id)
+            except Exception as e:  # noqa: BLE001 - reported, not raised
+                return _no_chart(dimension, period, f"{name}: {e}")
+            formula = metric.formula
+            leg_scope = scope or tuple(getattr(metric, "scope", ()) or ())
+        if formula is None:
+            return _no_chart(dimension, period,
+                             f"The {name} has no definition to break out.")
+        at = shift(period, back=leg.period_offset) if period else period
+        if leg.period_offset and period and not at:
+            return _no_chart(
+                dimension, period,
+                f"CreditProbe could not work out the period "
+                f"{leg.period_offset} before '{period}', so the {name} has no "
+                "period to read.")
+        if dimension not in (formula.datasets and
+                             _dimension_fields(formula.datasets[0]) or set()):
+            return _no_chart(
+                dimension, period,
+                f"'{dimension}' is not a field of "
+                f"{formula.datasets[0] if formula.datasets else 'this side'}, "
+                f"so the {name} cannot be broken out by it.")
+        try:
+            drawn = execution.breakdown(
+                formula, dimension=dimension, period=at, scope=leg_scope,
+                where=where, sort="label", direction="asc",
+                limit=execution.MAX_GROUPS,
+                question=f"{leg.label or name} by {dimension}")
+        except Exception as e:  # noqa: BLE001 - reported on the chart
+            return _no_chart(dimension, period, str(e))
+        sides[name] = drawn
+        datasets.extend(formula.datasets)
+
+    top = sides.get("numerator")
+    if top is None:
+        return _no_chart(dimension, period, "There is no numerator to draw.")
+    bottom = sides.get("denominator")
+
+    by_label_top = {p["label"]: p for p in top["points"]}
+    by_label_bottom = ({p["label"]: p for p in bottom["points"]}
+                       if bottom else {})
+
+    points: list[dict[str, Any]] = []
+    dropped: list[str] = []
+    for label, point in by_label_top.items():
+        other = by_label_bottom.get(label) if bottom is not None else None
+        if bottom is not None and other is None:
+            dropped.append(label)
+            continue
+        value, why = _combine(
+            point.get("value"),
+            other.get("value") if other else None,
+            operation=composite.operation, scale=composite.scale)
+        points.append({
+            "label": label, "value": value,
+            "rows": int(point.get("rows") or 0),
+            "unavailable": why if value is None else "",
+        })
+
+    if sort == "period":
+        from backend.metrics.service import _period_order
+
+        points.sort(key=lambda p: _period_order(p["label"]),
+                    reverse=(direction == "desc"))
+    elif sort == "label":
+        points.sort(key=lambda p: p["label"], reverse=(direction == "desc"))
+    else:
+        with_value = [p for p in points if p["value"] is not None]
+        without = [p for p in points if p["value"] is None]
+        with_value.sort(key=lambda p: p["value"],
+                        reverse=(direction == "desc"))
+        points = [*with_value, *without]
+
+    found = len(points)
+    shown = points[:max(1, int(limit))]
+    note = ""
+    if dropped:
+        note = (f"{len(dropped)} group(s) appear on one side of this ratio and "
+                f"not the other, so no point is drawn for them: "
+                f"{', '.join(sorted(dropped)[:5])}"
+                + ("…" if len(dropped) > 5 else "") + ".")
+    return {
+        "dimension": dimension,
+        "points": shown,
+        "period": top.get("period") or period,
+        "dataset": ", ".join(dict.fromkeys(datasets)),
+        "sql": top.get("sql", ""),
+        "run_id": top.get("run_id", ""),
+        "groups_found": found,
+        "truncated": found > len(shown),
+        "unavailable": "",
+        "note": note,
+    }
+
+
+def _no_chart(dimension: str, period: str, why: str) -> dict[str, Any]:
+    return {"dimension": dimension, "points": [], "period": period,
+            "dataset": "", "sql": "", "run_id": "", "groups_found": 0,
+            "truncated": False, "unavailable": why, "note": ""}
+
+
+def _dimension_fields(dataset: str) -> set[str]:
+    try:
+        from backend.data_access.catalog import get_catalog
+
+        return set(get_catalog().dataset(dataset).fields)
+    except Exception:  # noqa: BLE001
+        return set()
+
+
 def domains_of(composite: Composite, *, resolver: Any = None) -> tuple[str, ...]:
     """Which Lens domains a composite reads, across both sides."""
     found: list[str] = []
@@ -711,5 +858,6 @@ __all__ = [
     "COMPOSITE_VERSION", "MAX_DEPTH", "MAX_PERIOD_OFFSET", "NEEDS_TWO",
     "OPERATIONS", "CircularDependency", "Composite", "CompositeCalculation",
     "CompositeError", "Graph", "Leg", "LegValue", "Node",
-    "check", "domains_of", "problems", "resolve", "run", "shift",
+    "breakdown", "check", "domains_of", "problems", "resolve", "run",
+    "shift",
 ]

@@ -158,3 +158,78 @@ def test_a_lens_is_rendered_live_with_a_trace_per_panel(lens):
     # A panel on a dashboard is as much of a claim as an answer, so it carries
     # the same lineage.
     assert panel["analysis_run_id"] is not None
+
+
+# ================================================ §17: the design rationale
+#
+# It was shown on the proposal screen and thrown away when the Lens was
+# created, so the reasoning survived exactly as long as the browser tab did.
+
+
+def test_a_lens_keeps_why_it_was_designed():
+    from backend.services import lenses as service
+
+    made = service.create(
+        name="Design rationale test",
+        panels=[service.Panel.metric("corporate.exposure")],
+        design={
+            "objective": "Watch corporate deterioration ahead of committee.",
+            "rationale": "Exposure sizes the book; the early-warning rates "
+                         "say which way it is going.",
+            "risk_questions": ["Is quality deteriorating faster than the "
+                               "book is growing?"],
+            "why_these_domains": "Corporate book, both domains.",
+            "why_these_comparisons": "Quarter on quarter.",
+        })
+    try:
+        read = service.get(made.id)
+        assert read.design["objective"].startswith("Watch corporate")
+        assert read.design["risk_questions"] == [
+            "Is quality deteriorating faster than the book is growing?"]
+    finally:
+        service.delete(made.id)
+
+
+def test_the_rationale_survives_a_revision():
+    """It starts being worth having exactly when somebody edits the Lens."""
+    from backend.services import lenses as service
+
+    made = service.create(
+        name="Design rationale survives",
+        panels=[service.Panel.metric("corporate.exposure")],
+        design={"objective": "The original objective."})
+    try:
+        revised = service.revise(
+            made.id,
+            [service.Panel.metric("corporate.exposure"),
+             service.Panel.metric("corporate.customers")],
+            change_summary="Added a tile.")
+        assert revised.design["objective"] == "The original objective."
+    finally:
+        service.delete(made.id)
+
+
+def test_the_rationale_is_bounded():
+    from backend.services import lenses as service
+
+    checked = service.validate_design({
+        "objective": "x" * 9000,
+        "risk_questions": [f"q{i}" for i in range(50)],
+        "something_else": "not a design field",
+    })
+    assert len(checked["objective"]) == service.MAX_DESIGN_TEXT
+    assert len(checked["risk_questions"]) == service.MAX_RISK_QUESTIONS
+    assert "something_else" not in checked
+
+
+def test_a_lens_built_by_hand_has_no_rationale_rather_than_a_made_up_one():
+    from backend.services import lenses as service
+
+    made = service.create(
+        name="No rationale here",
+        panels=[service.Panel.metric("corporate.exposure")])
+    try:
+        assert service.get(made.id).design["objective"] == ""
+        assert service.get(made.id).design["risk_questions"] == []
+    finally:
+        service.delete(made.id)
