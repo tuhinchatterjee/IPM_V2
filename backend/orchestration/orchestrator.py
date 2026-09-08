@@ -1027,7 +1027,41 @@ def _from_domain(answered: Answered, question: str, domain: str,
                          else "Governed refusal"),
     )
     answered.domain_answer = found.scope
+    _offer_to_the_model(answered, question, found)
     return answered
+
+
+def _offer_to_the_model(answered: Answered, question: str, found: Any) -> None:
+    """Let a live model rewrite the reading, if one is configured and it can
+    do it without inventing anything.
+
+    The deterministic reading is already written and already correct; this
+    is the seam, not the source. The fact pack becomes the grounding
+    result, so the same check that discards an ungrounded sentence on the
+    ordinary path applies here — and when there is no provider, or the
+    model declines, or what it writes quotes a figure the pack does not
+    carry, the deterministic text is what stands. That ordering is what
+    makes adding a provider an improvement rather than a risk.
+    """
+    if found.pack is None or found.refused:
+        return
+    try:
+        from backend.early_warning import facts as ff
+
+        runtime = ff.PackRuntime(found.pack)
+        written = interpretation.write(
+            question, found.composed.direct, runtime,
+            plan_note="Answered from the Early Warning domain, which computed "
+                      "every figure quoted.",
+            **_role_call("interpretation"))
+    except Exception as e:  # noqa: BLE001 - the seam must never lose an answer
+        logger.warning("The Early Warning interpretation seam failed: %s", e)
+        return
+    answered.written = written
+    if written.interpretation:
+        answered.result.interpretation = written.interpretation
+        if written.notable:
+            answered.result.interpretation_points = list(written.notable)
 
 
 def _analyse(answered: Answered, question: str, reading: cap.Reading,

@@ -785,10 +785,49 @@ _LAYER_4_EDGES = (
     "relying on a network driver.")
 
 
+
+class PackRuntime:
+    """A fact pack in the shape the interpretation seam already reads.
+
+    The seam that offers a result to a live model, checks the prose it gets
+    back against what the result establishes, and discards anything
+    ungrounded is not specific to a query engine — it wants rows, columns
+    and a summary. A pack has all three under different names, so it is
+    adapted here rather than the seam being taught a second shape.
+
+    Nothing here changes what a deployment without a provider sees: the
+    deterministic reading is written first and stands unless the model
+    returns prose that clears the same grounding check.
+    """
+
+    def __init__(self, pack: FactPack) -> None:
+        self._pack = pack
+        self.rows = list(pack.rows)
+        self.row_count = len(self.rows)
+        names: list[str] = []
+        for row in self.rows[:20]:
+            for key in row:
+                if key not in names:
+                    names.append(str(key))
+        self.columns = [{"name": n} for n in names]
+        # The pack's own figures, which is what most of an Early Warning
+        # reading actually quotes — a portfolio answer has no rows at all.
+        self.summary = {k: v for k, v in pack.figures.items()
+                        if isinstance(v, (int, float, str))
+                        and not isinstance(v, bool)}
+        self.truncated = 0
+        self.warnings = list(pack.caveats)
+
+    @property
+    def pack(self) -> FactPack:
+        return self._pack
+
+
 __all__ = [
-    "HIGH_PLUS", "BAND_ORDER", "LEVEL_FIELDS", "LAYER_NAMES", "FactPack",
+    "HIGH_PLUS", "BAND_ORDER", "LEVEL_FIELDS", "LAYER_NAMES",
+    "METHODOLOGY_ASPECTS", "FactPack", "PackRuntime",
     "contribution_by_layer", "concentration", "live_versus_structural",
     "movement_attribution", "rating_divergence",
     "portfolio", "level", "group", "borrower", "layer", "signal_evidence",
-    "movement", "comparison",
+    "movement", "comparison", "methodology", "diagnosis",
 ]
