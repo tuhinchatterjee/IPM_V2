@@ -68,14 +68,17 @@ import type {
   WhatIfStagingKind,
   WhatIfStagingRuleIn,
   WhatIfState,
+  WhatIfAnalysis,
 } from "@/lib/api";
 import { api } from "@/lib/api";
+import { AnalysisAnswer } from "@/components/whatif/analysis-table";
 
 type Turn =
   | { kind: "said"; text: string }
   | { kind: "replied"; text: string; tone?: "note" | "warn" }
   | { kind: "result"; result: WhatIfRunResult }
   | { kind: "answer"; answer: WhatIfInvestigation }
+  | { kind: "analysis"; analysis: WhatIfAnalysis }
   | { kind: "comparison"; comparison: WhatIfMethodologyComparison };
 
 const JOURNEY_TITLES: Record<string, string> = {
@@ -297,6 +300,13 @@ export default function WhatIfThreadPage() {
     [say],
   );
 
+  /** The quick analysis this thread last computed.
+   *
+   *  A ref rather than state on purpose: it is read inside `send` and never
+   *  rendered, so putting it in state would re-render the whole thread every
+   *  time somebody asked a question about the book. */
+  const lastAnalysis = React.useRef<Record<string, unknown> | null>(null);
+
   const retry = React.useCallback(() => {
     const again = retryArgs.current;
     if (!again) return;
@@ -317,7 +327,12 @@ export default function WhatIfThreadPage() {
         // means, so the thread has to say. Without it "what would the ML
         // model say?" reads as a question about the methodology rather than
         // a request to price the scenario the other way.
-        const read = await api.whatIfInterpret(said, state, Boolean(runId));
+        // The last quick analysis travels with the message so a follow-up
+        // like "only show BBB- and weaker" has something to narrow. Without
+        // it every follow-up is a whole question again, and "show exposure
+        // too" means nothing at all.
+        const read = await api.whatIfInterpret(
+          said, state, Boolean(runId), lastAnalysis.current);
 
         // "What would the other model say?" is answered by pricing the same
         // scenario both ways rather than by reading the result on screen —
@@ -329,6 +344,17 @@ export default function WhatIfThreadPage() {
             state.methodology ?? "",
           );
           say({ kind: "comparison", comparison: both });
+          return;
+        }
+
+        // A question about the BOOK is answered with the table it asked for.
+        // This has to come before the branch below: a quick analysis also
+        // changes no state, and routing it to the result investigator would
+        // throw the computed table away and answer from a result that may not
+        // even exist yet.
+        if (read.analysis) {
+          lastAnalysis.current = read.analysis.request ?? null;
+          say({ kind: "analysis", analysis: read.analysis });
           return;
         }
 
@@ -818,6 +844,16 @@ export default function WhatIfThreadPage() {
                       <InvestigationAnswer
                         answer={turn.answer}
                         currency={turn.answer.context?.currency ?? "SAR"}
+                      />
+                    </li>
+                  );
+                }
+                if (turn.kind === "analysis") {
+                  return (
+                    <li key={index} data-testid="whatif-analysis">
+                      <AnalysisAnswer
+                        body={turn.analysis}
+                        onUse={(instruction) => void send(instruction)}
                       />
                     </li>
                   );

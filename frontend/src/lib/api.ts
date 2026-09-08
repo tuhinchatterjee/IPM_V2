@@ -4762,6 +4762,103 @@ export interface WhatIfState {
   can_undo?: boolean;
 }
 
+/** One measure over one group of a quick analysis. */
+export interface WhatIfAnalysisCell {
+  value: number | null;
+  /** Present on a rate: the exposure-weighted mean beside the plain one. */
+  weighted?: number | null;
+  share_pct?: number;
+  note?: string;
+}
+
+export interface WhatIfAnalysisRow {
+  label: string;
+  cells: Record<string, WhatIfAnalysisCell>;
+  ordinal?: number;
+  performing?: boolean;
+  by_stage?: { label: string; cells: Record<string, WhatIfAnalysisCell> }[];
+}
+
+export interface WhatIfAnalysisBorrower {
+  borrower_id: string;
+  name: string;
+  sector: string;
+  segment: string;
+  rating: string;
+  rating_ordinal: number;
+  stage: number;
+  exposure: number;
+  ecl: number;
+  applicable_pd: number;
+  lgd: number;
+  value: number;
+}
+
+export interface WhatIfAnalysisOption {
+  severity: string;
+  magnitude: number;
+  unit: string;
+  basis: string;
+  because: string;
+  /** The sentence that would configure this shock, ready to be sent back. */
+  instruction: string;
+}
+
+/**
+ * A table CreditProbe computed from the reported book, inside a thread, before
+ * anything was shocked — or, for a "what would be a sensible shock?" question,
+ * the magnitudes the book's own history supports.
+ *
+ * `request` travels back on the next message so a follow-up like "only show
+ * BBB- and weaker" has something to narrow. Without it every follow-up is a
+ * whole question again.
+ */
+export interface WhatIfAnalysis {
+  kind: "breakdown" | "borrowers" | "suggestion";
+  version: string;
+  period: string;
+  currency: string;
+  grain?: string;
+  dimension?: string;
+  dimension_label?: string;
+  columns?: { key: string; label: string; unit: string; kind: string }[];
+  rows?: WhatIfAnalysisRow[] & WhatIfAnalysisBorrower[];
+  total?: WhatIfAnalysisRow;
+  by_stage?: boolean;
+  borrowers: number;
+  population: string;
+  request: Record<string, unknown>;
+  notes: string[];
+  measurement?: string;
+  answer?: {
+    label: string;
+    metric_label: string;
+    value: number | null;
+    unit: string;
+    basis: string;
+    sentence: string;
+  };
+  distribution?: Record<string, Record<string, number | null>>;
+  ordered_by?: { key: string; label: string; unit: string; descending: boolean };
+  shown?: number;
+  concentration_pct?: number;
+  /** Suggestion only. */
+  measure?: string;
+  measure_label?: string;
+  exposure?: number;
+  current?: WhatIfAnalysisCell;
+  history?: {
+    observations: number;
+    quarters: number;
+    quarter_on_quarter: Record<string, number>;
+    year_on_year: Record<string, number>;
+  };
+  options?: WhatIfAnalysisOption[];
+  question?: string;
+  measured_not_chosen?: string;
+  interpretation?: WhatIfInterpretation;
+}
+
 export interface WhatIfInterpretResult {
   understood: boolean;
   opens_whatif: boolean;
@@ -4781,6 +4878,10 @@ export interface WhatIfInterpretResult {
   /** Every filter the instruction carried, restated so a population that
    *  narrowed is visible before an ECL figure appears. */
   filters?: string[];
+  /** The table this question asked for, computed rather than redirected to.
+   *  Present when the message was a question about the book. */
+  analysis?: WhatIfAnalysis;
+  answers_directly?: boolean;
 }
 
 export interface WhatIfExecuteIn {
@@ -6646,11 +6747,25 @@ export const api = {
    *  about the methodology. A thread that does not say which silently
    *  degrades every intent that only exists after a result. */
   whatIfInterpret: (instruction: string, state: WhatIfState,
-                    hasResult = false) =>
+                    hasResult = false,
+                    /** The quick analysis this thread last computed, so a
+                     *  follow-up has something to narrow. */
+                    analysis?: Record<string, unknown> | null) =>
     request<WhatIfInterpretResult>("/whatif/interpret",
       { method: "POST",
         body: JSON.stringify({ instruction, state,
-                               has_result: hasResult }),
+                               has_result: hasResult,
+                               analysis: analysis ?? null }),
+        timeoutMs: MODEL_TIMEOUT_MS }),
+  /** Answer an analytical question about the book. Changes nothing. */
+  whatIfAnalyse: (question: string,
+                  previous?: Record<string, unknown> | null,
+                  period = "", interpret = true) =>
+    request<WhatIfAnalysis & { understood: boolean; changes_state: boolean }>(
+      "/whatif/analyse",
+      { method: "POST",
+        body: JSON.stringify({ question, previous: previous ?? null, period,
+                               interpret }),
         timeoutMs: MODEL_TIMEOUT_MS }),
   whatIfExecute: (body: WhatIfExecuteIn) =>
     request<WhatIfRunResult>("/whatif/execute",

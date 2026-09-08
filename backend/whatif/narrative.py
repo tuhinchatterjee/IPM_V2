@@ -385,6 +385,232 @@ def interpret(result: Any) -> dict[str, Any]:
     return body
 
 
+# ------------------------------------------- interpreting a quick analysis
+
+_ANALYSIS_SYSTEM = (
+    "You are a senior IFRS 9 credit-risk analyst reading a table CreditProbe "
+    "has just computed from the reported Corporate IFRS 9 book, inside a "
+    "What-If thread, BEFORE any scenario has been applied.\n\n"
+    "Your reader is deciding what to stress. So the useful interpretation is "
+    "not a description of the table — they can see the table. It is what the "
+    "shape of it means and what it implies for a scenario: where the risk "
+    "actually sits, where the concentration is, where the numbers behave "
+    "differently from what a credit professional would expect, and which "
+    "population is worth shocking.\n\n"
+    "THE EVIDENCE PACKET BELOW IS THE ONLY THING YOU KNOW.\n\n"
+    "Every number you write must appear in that packet. You may round a figure "
+    "it gives you and you may state a difference between two figures it gives "
+    "you. You may NOT estimate, infer, extrapolate or recall any other number. "
+    "Say anything the packet does not support qualitatively or not at all.\n\n"
+    "Nothing has been shocked. Do not describe an impact, a stressed figure or "
+    "an ECL movement — there is none. Three to five sentences, in flowing "
+    "prose, no headings, no bullets, no restating the question."
+)
+
+_ANALYSIS_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "paragraphs": {
+            "type": "array", "minItems": 1, "maxItems": 3,
+            "items": {"type": "string"},
+            "description": "One to three short paragraphs. Every figure must "
+                           "come from the evidence packet.",
+        },
+        "headline": {"type": "string",
+                     "description": "One sentence a reader could quote."},
+        "next_questions": {
+            "type": "array", "maxItems": 5, "items": {"type": "string"},
+            "description": "What this table makes worth asking next, phrased "
+                           "as the reader would type it. Specific to what is "
+                           "in the table.",
+        },
+    },
+    "required": ["paragraphs", "headline"],
+}
+
+
+def analysis_packet(body: dict[str, Any]) -> dict[str, Any]:
+    """The evidence a reading of a quick analysis may use, and nothing else.
+
+    Deliberately the table itself rather than the book behind it. An
+    interpretation that could reach past the table would be able to state a
+    figure the reader cannot check against what is on their screen, which is
+    the whole failure mode this design exists to prevent.
+    """
+    if body.get("kind") == "borrowers":
+        rows = body.get("rows", [])[:25]
+        return {
+            "kind": "borrowers",
+            "period": body.get("period"),
+            "currency": body.get("currency"),
+            "population": body.get("population"),
+            "ordered_by": body.get("ordered_by"),
+            "borrowers_in_population": body.get("borrowers"),
+            "rows_shown": body.get("shown"),
+            "rows_in_this_packet": len(rows),
+            "concentration_pct": body.get("concentration_pct"),
+            "rows": rows,
+        }
+    populated = [r for r in body.get("rows", [])
+                 if (r.get("cells", {}).get("borrowers", {}).get("value") or 0) > 0]
+    return {
+        "kind": "breakdown",
+        "period": body.get("period"),
+        "currency": body.get("currency"),
+        "dimension": body.get("dimension_label"),
+        "population": body.get("population"),
+        "columns": body.get("columns"),
+        "borrowers_in_population": body.get("borrowers"),
+        # The counts the composed reading states. A number a reading uses and
+        # the packet does not carry is indistinguishable from an invented one
+        # to `check()`, which is the correct behaviour — so the packet carries
+        # it rather than the check being loosened.
+        "rows_in_the_table": len(body.get("rows", [])),
+        "populated_rows": len(populated),
+        "rows": populated,
+        "total": body.get("total"),
+        "answer": body.get("answer"),
+        "distribution": body.get("distribution"),
+        "measurement": body.get("measurement"),
+    }
+
+
+def interpret_analysis(body: dict[str, Any]) -> dict[str, Any]:
+    """What a quick-analysis table means, written from the table alone.
+
+    Same discipline as the scenario interpretation: the model is given the
+    packet, no tools and no access to the book, and the finished prose is
+    re-read against the packet for any number it did not contain. A paragraph
+    carrying an unaccounted figure is DROPPED rather than shown.
+
+    When no model is available the reading is composed deterministically. It is
+    flatter, and it is still true, which is the right trade.
+    """
+    evidence = analysis_packet(body)
+    composed = compose_analysis(body)
+    out: dict[str, Any] = {
+        "version": NARRATIVE_VERSION,
+        "evidence": evidence,
+        "statement": (
+            "CreditProbe calculated every figure in the table above from the "
+            "reported book. This reading was written from those figures and "
+            "from nothing else, and was checked back against them for any "
+            "number they do not contain. Nothing has been shocked."),
+        **composed,
+    }
+    try:
+        from backend.llm import get_provider
+        from backend.llm import roles as rl
+
+        chosen = rl.role(rl.INTERPRETATION)
+        outcome = get_provider().structured(
+            system=_ANALYSIS_SYSTEM,
+            prompt=("Interpret this table for a reader deciding what to "
+                    "stress.\n\nEVIDENCE PACKET:\n"
+                    + json.dumps(evidence, indent=2, default=str)),
+            schema=_ANALYSIS_SCHEMA,
+            tool_name="interpret_the_analysis",
+            tool_description="Interpret a computed Corporate IFRS 9 breakdown "
+                             "using only the evidence packet supplied.",
+            max_tokens=1200, purpose="quick_analysis_interpretation",
+            role=rl.INTERPRETATION, model=chosen.model, effort=chosen.effort)
+        paragraphs = [str(p).strip() for p in outcome.data.get("paragraphs", [])
+                      if str(p).strip()]
+        headline = str(outcome.data.get("headline") or "").strip()
+        invented = check([*paragraphs, headline], evidence)
+        if paragraphs and not invented:
+            out.update({
+                "paragraphs": paragraphs,
+                "headline": headline or composed["headline"],
+                "next_questions": [str(q) for q in
+                                   (outcome.data.get("next_questions") or [])][:5]
+                or composed["next_questions"],
+                "written_by": outcome.model,
+                "verified": True,
+            })
+            return out
+        if invented:
+            logger.warning(
+                "The analysis reading stated figures the table does not "
+                "contain (%s); using the composed reading instead.",
+                ", ".join(invented[:8]))
+            out["rejected_because"] = (
+                "The written reading stated figures the table did not "
+                "contain: " + ", ".join(invented[:8]) + ". It was discarded "
+                "rather than shown.")
+    except Exception as e:  # noqa: BLE001 - a reading must never cost the table
+        logger.info("Composing the analysis reading without a model: %s", e)
+    return out
+
+
+def compose_analysis(body: dict[str, Any]) -> dict[str, Any]:
+    """The reading, without a model. The same claims, flatter.
+
+    Every sentence here is a fact read straight off the table, which is why it
+    can be shown when the model is unavailable or when its prose failed the
+    number check.
+    """
+    if body.get("kind") == "borrowers":
+        rows = body.get("rows", [])
+        order = body.get("ordered_by", {})
+        first = rows[0] if rows else {}
+        sentence = (
+            f"{len(rows)} borrower(s) shown, ordered by "
+            f"{str(order.get('label', 'ECL')).lower()}. They account for "
+            f"{body.get('concentration_pct', 0):.1f}% of the population's "
+            f"total." if rows else "No borrower matches that.")
+        return {
+            "headline": (f"{first.get('name') or first.get('borrower_id')} is "
+                         f"the largest by {str(order.get('label', 'ECL')).lower()}."
+                         if rows else "Nothing matches that."),
+            "paragraphs": [sentence],
+            "next_questions": ["Show these by sector.",
+                               "Which of these are Stage 2?"],
+            "written_by": "composed from the table",
+            "verified": True,
+        }
+
+    rows = [r for r in body.get("rows", [])
+            if (r.get("cells", {}).get("borrowers", {}).get("value") or 0) > 0]
+    dimension = str(body.get("dimension_label", "")).lower()
+    said: list[str] = []
+    if rows:
+        said.append(
+            f"{body.get('borrowers', 0):,} borrower(s) across "
+            f"{len(rows)} populated {dimension} value(s) at "
+            f"{body.get('period', '')}.")
+        largest = max(rows, key=lambda r: r["cells"].get("exposure", {}).get("value") or 0)
+        share = largest["cells"].get("exposure", {}).get("share_pct")
+        if share is not None:
+            said.append(f"{largest['label']} carries the largest exposure at "
+                        f"{share:.1f}% of the total.")
+        for key in ("applicable_pd", "pit_pd_12m", "lifetime_pd", "lgd"):
+            if key not in {c["key"] for c in body.get("columns", [])}:
+                continue
+            weakest = max(rows, key=lambda r: r["cells"].get(key, {}).get("weighted") or -1)
+            value = weakest["cells"].get(key, {}).get("weighted")
+            label = next(c["label"] for c in body["columns"] if c["key"] == key)
+            if value is not None:
+                said.append(f"{weakest['label']} carries the highest "
+                            f"exposure-weighted {label} at {value:.2f}%.")
+            break
+    else:
+        said.append("No borrower in the book matches that.")
+    if body.get("answer"):
+        said.append(str(body["answer"]["sentence"]))
+    return {
+        "headline": said[0],
+        "paragraphs": [" ".join(said)],
+        "next_questions": [
+            "Split this by Stage.",
+            "Show the same table for the previous quarter.",
+            "What would be a sensible shock for the weakest of these?",
+        ],
+        "written_by": "composed from the table",
+        "verified": True,
+    }
+
+
 def describe() -> dict[str, Any]:
     """How the interpretation is produced, for the configuration screen."""
     return {

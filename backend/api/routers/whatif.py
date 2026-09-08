@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 from backend.api.auth import Principal
 from backend.api.permissions import RequireAnalyst
 from backend.ifrs9 import policy
+from backend.whatif import analysis as ay
 from backend.whatif import answers as wa
 from backend.whatif import cache as ch
 from backend.whatif import comparison as cmp_
@@ -745,6 +746,111 @@ class InterpretIn(BaseModel):
     #: reading: "download the detailed Excel" on an empty thread is somebody
     #: finding out that exports exist, not an export.
     has_result: bool = False
+    #: The quick analysis this thread last computed, so a follow-up like
+    #: "only show BBB- and weaker" has something to narrow. Without it every
+    #: follow-up is a whole question again, and "show exposure too" means
+    #: nothing at all.
+    analysis: dict[str, Any] | None = None
+
+
+class AnalyseIn(BaseModel):
+    """A question about the reported book, asked inside a What-If thread."""
+
+    question: str = Field(min_length=1, max_length=1000)
+    #: The previous request, for a follow-up. Same shape `run` returns.
+    previous: dict[str, Any] | None = None
+    period: str = Field(default="", max_length=32)
+    #: Whether to write a reading over the table. Off for a caller that only
+    #: wants the figures, so a table never waits on a model it does not need.
+    interpret: bool = True
+
+
+@router.post("/analyse")
+def analyse(body: AnalyseIn, _: Any = RequireAnalyst) -> dict[str, Any]:
+    """Answer an analytical question about the book. Changes nothing.
+
+    This is the quick analysis a reader does BEFORE deciding what to stress,
+    and it is a first-class part of configuring a scenario rather than a
+    diversion from it: "increase BBB PD by 20%" is a different instruction
+    depending on whether BBB PD is 0.18% or 1.8%, so the question has to be
+    answerable where the scenario is being built.
+
+    Two shapes come back. A question with a magnitude in it — "what would be a
+    sensible PD shock for BBB?" — returns evidence-based magnitudes drawn from
+    the book's own historical movements. Everything else returns a computed
+    table with a reading written over it.
+    """
+    from backend.whatif import analysis as an
+    from backend.whatif import narrative as nr
+
+    previous = an.Request.from_dict(body.previous)
+    try:
+        if an.wants_a_suggestion(body.question):
+            return {"understood": True, "changes_state": False,
+                    **an.suggest(body.question, previous=previous,
+                                 period=body.period)}
+        request = an.read(body.question, previous=previous, period=body.period)
+        if request is None:
+            raise _refused(
+                "That does not name anything to break the book down by. Ask "
+                "for a measure and a dimension \u2014 for example \"show "
+                "lifetime PD by rating\" or \"LGD by sector\" \u2014 or "
+                "describe the shock you want to apply instead.")
+        table = an.run(request, source=None)
+    except an.AnalysisError as e:
+        raise _refused(str(e)) from e
+    except dm.DomainError as e:
+        raise _refused(str(e)) from e
+    if body.interpret:
+        table["interpretation"] = nr.interpret_analysis(table)
+    table["understood"] = True
+    table["changes_state"] = False
+    return table
+
+
+def _quick_analysis(said: str, state: Any, previous: Any) -> dict[str, Any] | None:
+    """The answer to an analytical question, or None when it is not one.
+
+    Returning None is the whole point of putting this in one place: a sentence
+    that is a SCENARIO must not be answered as a table, and a sentence that is
+    a table must not be handed back with a request for a magnitude. The
+    decision is made once and both callers get the same one.
+    """
+    if ay.wants_a_suggestion(said):
+        suggested = ay.suggest(said, previous=previous, period=state.period)
+        return {
+            "understood": True,
+            "opens_whatif": False,
+            "informational": True,
+            "answers_directly": True,
+            "intent": iv.VIEW,
+            "changes_state": False,
+            "analysis": suggested,
+            "message": (
+                f"Here is what this book has actually done to "
+                f"{suggested['measure_label']} for {suggested['population']}, "
+                f"so you can size the shock against it rather than guess."),
+            "state": state.to_dict(),
+        }
+    wanted = ay.read(said, previous=previous, period=state.period)
+    if wanted is None:
+        return None
+    try:
+        table = ay.run(wanted)
+    except (ay.AnalysisError, dm.DomainError) as e:
+        raise _refused(str(e)) from e
+    table["interpretation"] = nr.interpret_analysis(table)
+    return {
+        "understood": True,
+        "opens_whatif": False,
+        "informational": True,
+        "answers_directly": True,
+        "intent": iv.VIEW,
+        "changes_state": False,
+        "analysis": table,
+        "message": table["interpretation"]["headline"],
+        "state": state.to_dict(),
+    }
 
 
 @router.post("/interpret")
@@ -799,6 +905,16 @@ def interpret(body: InterpretIn, _: Any = RequireAnalyst) -> dict[str, Any]:
     # because "show Stage 1 PD by sector" is a question about the reported book
     # and belongs on the profile screens, which answer it without an ECL
     # calculation and therefore without a methodology.
+    # A VIEW that does not point at the result on screen is a question about
+    # the BOOK, and the product now answers those. It has to be tried before
+    # the branch below, which would otherwise reply "that is a question about
+    # the result" to a question that is not about the result at all.
+    previous_analysis = ay.Request.from_dict(body.analysis)
+    if intent.intent == iv.VIEW and not intent.about_the_result:
+        answered = _quick_analysis(said, state, previous_analysis)
+        if answered is not None:
+            return answered
+
     reads = intent.family == iv.READS and (
         intent.intent != iv.VIEW or intent.about_the_result
         or not intent.needs_a_result)
@@ -820,15 +936,26 @@ def interpret(body: InterpretIn, _: Any = RequireAnalyst) -> dict[str, Any]:
     informational = rn.informational(said)
 
     if reading.scenario is None:
+        # A question about the book is ANSWERED, not redirected. "Can you give
+        # me the rating-wise PDs, getting rid of stages?" names a dimension, a
+        # metric and what to do about the Stage split; replying "the profile
+        # views answer it" points at a different screen and hands the question
+        # back. It is also the wrong moment to do that: nobody asks for
+        # rating-wise PDs in a scenario builder out of curiosity — they are
+        # deciding what to shock, and the answer is part of that decision.
+        answered = _quick_analysis(said, state, previous_analysis)
+        if answered is not None:
+            return answered
         return {
             "understood": False,
             "opens_whatif": bool(getattr(reading, "opens_whatif", False)),
             "informational": informational,
             "severity": getattr(reading, "severity", ""),
             "message": (
-                "That asks about the book rather than changing it. The profile "
-                "views answer it without an ECL calculation, so no methodology "
-                "is needed."
+                "That reads as a question about the book, but it does not name "
+                "a measure and a dimension I can put in a table. Try naming "
+                "both — for example \"lifetime PD by rating\" or \"LGD by "
+                "sector\"."
                 if informational else
                 "That is a What-If, but it does not say how big the movement "
                 "is yet. Tell me the size — for example \"two notches\", "

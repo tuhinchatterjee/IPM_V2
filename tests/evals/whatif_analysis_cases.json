@@ -1,0 +1,389 @@
+{
+  "statement": "What a person asks a What-If thread BEFORE any shock is configured, and the table each question must actually produce. Every case here failed in manual UAT as a redirect to a profile screen; the corpus exists so that answering one of them by pointing at a tab is a test failure rather than a product decision. The last group is the other half of the contract: a sentence that is a SCENARIO must not be answered as a table.",
+  "cases": [
+    {
+      "q": "Can you give me the rating-wise PDs, getting rid of stages?",
+      "dim": "rating",
+      "has": [
+        "ttc_pd",
+        "pit_pd_12m",
+        "lifetime_pd",
+        "applicable_pd"
+      ],
+      "by_stage": false
+    },
+    {
+      "q": "Show rating-wise PDs.",
+      "dim": "rating",
+      "has": [
+        "ttc_pd",
+        "pit_pd_12m",
+        "lifetime_pd",
+        "applicable_pd"
+      ]
+    },
+    {
+      "q": "Show rating-wise PDs without splitting by Stage.",
+      "dim": "rating",
+      "has": [
+        "applicable_pd"
+      ],
+      "by_stage": false
+    },
+    {
+      "q": "Give me PDs by rating and split by Stage.",
+      "dim": "rating",
+      "has": [
+        "applicable_pd"
+      ],
+      "by_stage": true
+    },
+    {
+      "q": "Remove the stage split.",
+      "dim": "rating",
+      "by_stage": false,
+      "follows": "Give me PDs by rating and split by Stage."
+    },
+    {
+      "q": "Give TTC PD by rating.",
+      "dim": "rating",
+      "has": [
+        "ttc_pd"
+      ],
+      "hasnt": [
+        "lifetime_pd"
+      ]
+    },
+    {
+      "q": "Give PIT PD by rating.",
+      "dim": "rating",
+      "has": [
+        "pit_pd_12m"
+      ],
+      "hasnt": [
+        "ttc_pd"
+      ]
+    },
+    {
+      "q": "Show lifetime PD by rating.",
+      "dim": "rating",
+      "has": [
+        "lifetime_pd"
+      ]
+    },
+    {
+      "q": "Show lifetime PD by sector.",
+      "dim": "sector",
+      "has": [
+        "lifetime_pd"
+      ]
+    },
+    {
+      "q": "Show PD by sector.",
+      "dim": "sector",
+      "has": [
+        "applicable_pd"
+      ]
+    },
+    {
+      "q": "Show LGD by sector.",
+      "dim": "sector",
+      "has": [
+        "lgd"
+      ]
+    },
+    {
+      "q": "Show LGD by segment.",
+      "dim": "segment",
+      "has": [
+        "lgd"
+      ]
+    },
+    {
+      "q": "Show ECL by sector.",
+      "dim": "sector",
+      "has": [
+        "ecl"
+      ]
+    },
+    {
+      "q": "Show ECL coverage by rating.",
+      "dim": "rating",
+      "has": [
+        "ecl_coverage"
+      ]
+    },
+    {
+      "q": "Show exposure by segment.",
+      "dim": "segment",
+      "has": [
+        "exposure"
+      ]
+    },
+    {
+      "q": "Show days past due by rating.",
+      "dim": "rating",
+      "has": [
+        "dpd"
+      ]
+    },
+    {
+      "q": "Show CCF by sector.",
+      "dim": "sector",
+      "has": [
+        "ccf"
+      ]
+    },
+    {
+      "q": "Break down the book by rating band.",
+      "dim": "rating_band"
+    },
+    {
+      "q": "Show LGD for secured versus unsecured borrowers.",
+      "dim": "secured",
+      "has": [
+        "lgd"
+      ]
+    },
+    {
+      "q": "Show Stage 1 PD by rating.",
+      "dim": "rating",
+      "stages": [
+        1
+      ]
+    },
+    {
+      "q": "Show Stage 1 vs Stage 2 exposure.",
+      "dim": "stage",
+      "stages": [
+        1,
+        2
+      ],
+      "has": [
+        "exposure"
+      ]
+    },
+    {
+      "q": "Show ECL by stage.",
+      "dim": "stage",
+      "has": [
+        "ecl"
+      ]
+    },
+    {
+      "q": "Show Stage 3 LGD by sector.",
+      "dim": "sector",
+      "stages": [
+        3
+      ],
+      "has": [
+        "lgd"
+      ]
+    },
+    {
+      "q": "What is the applicable PD for Stage 3?",
+      "dim": "rating",
+      "stages": [
+        3
+      ],
+      "has": [
+        "applicable_pd"
+      ]
+    },
+    {
+      "q": "Show collateral coverage for BBB borrowers.",
+      "dim": "rating",
+      "grades": [
+        "BBB+",
+        "BBB",
+        "BBB-"
+      ],
+      "has": [
+        "collateral_coverage"
+      ]
+    },
+    {
+      "q": "Show BBB exposure.",
+      "dim": "rating",
+      "grades": [
+        "BBB+",
+        "BBB",
+        "BBB-"
+      ],
+      "has": [
+        "exposure"
+      ]
+    },
+    {
+      "q": "How many Stage 2 borrowers have lifetime PD above 15%?",
+      "dim": "rating",
+      "stages": [
+        2
+      ],
+      "threshold": [
+        "lifetime_pd",
+        ">",
+        15.0
+      ]
+    },
+    {
+      "q": "Show Stage 2 borrowers with PD above 10%.",
+      "dim": "rating",
+      "stages": [
+        2
+      ],
+      "threshold": [
+        "pit_pd_12m",
+        ">",
+        10.0
+      ]
+    },
+    {
+      "q": "Only show BBB- and weaker.",
+      "dim": "rating",
+      "grades": [
+        "BBB-",
+        "BB+",
+        "BB",
+        "BB-",
+        "B+",
+        "B",
+        "B-",
+        "CCC",
+        "CC",
+        "C"
+      ],
+      "follows": "Show rating-wise PDs."
+    },
+    {
+      "q": "Show PD by sector for Real Estate.",
+      "dim": "sector",
+      "sectors": [
+        "Real Estate"
+      ],
+      "has": [
+        "applicable_pd"
+      ]
+    },
+    {
+      "q": "Show top 20 borrowers by ECL.",
+      "dim": "borrower",
+      "limit": 20,
+      "has": [
+        "ecl"
+      ]
+    },
+    {
+      "q": "Show top 10 ECL borrowers.",
+      "dim": "borrower",
+      "limit": 10,
+      "has": [
+        "ecl"
+      ]
+    },
+    {
+      "q": "Give CCF distribution.",
+      "dim": "none",
+      "has": [
+        "ccf"
+      ]
+    },
+    {
+      "q": "What is the distribution of LGD?",
+      "dim": "none",
+      "has": [
+        "lgd"
+      ]
+    },
+    {
+      "q": "Which sector has the highest PD?",
+      "dim": "sector",
+      "superlative": "highest"
+    },
+    {
+      "q": "Which segment has the lowest LGD?",
+      "dim": "segment",
+      "superlative": "lowest",
+      "has": [
+        "lgd"
+      ]
+    },
+    {
+      "q": "Which sector has the highest PD within BB?",
+      "dim": "sector",
+      "grades": [
+        "BB+",
+        "BB",
+        "BB-"
+      ],
+      "superlative": "highest",
+      "follows": "Show rating-wise PDs."
+    },
+    {
+      "q": "Show exposure too.",
+      "dim": "rating",
+      "has": [
+        "exposure"
+      ],
+      "follows": "Give TTC PD by rating."
+    },
+    {
+      "q": "I want to stress BBB borrowers but what would be a sensible PD shock?",
+      "suggests": true,
+      "measure": "pd",
+      "grades": [
+        "BBB+",
+        "BBB",
+        "BBB-"
+      ]
+    },
+    {
+      "q": "What would be a sensible LGD shock for Real Estate?",
+      "suggests": true,
+      "measure": "lgd",
+      "sectors": [
+        "Real Estate"
+      ]
+    },
+    {
+      "q": "How big a PD shock should I use for Stage 2?",
+      "suggests": true,
+      "measure": "pd",
+      "stages": [
+        2
+      ]
+    },
+    {
+      "q": "Suggest a shock magnitude for CCC borrowers.",
+      "suggests": true,
+      "measure": "pd",
+      "grades": [
+        "CCC"
+      ]
+    },
+    {
+      "q": "Increase PD for Stage 1 BB rating by 10%",
+      "none": true
+    },
+    {
+      "q": "Downgrade Real Estate by two notches.",
+      "none": true
+    },
+    {
+      "q": "Raise LGD by 5 percentage points.",
+      "none": true
+    },
+    {
+      "q": "Cut collateral values by 20%.",
+      "none": true
+    },
+    {
+      "q": "Run this on the ML model.",
+      "none": true
+    },
+    {
+      "q": "Download the detailed workbook.",
+      "none": true
+    }
+  ]
+}
