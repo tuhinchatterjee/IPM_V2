@@ -53,6 +53,28 @@ from backend.early_warning import classifiers_v2 as clf
 from backend.early_warning import reasons
 from backend.early_warning import v2_service as svc
 
+def json_safe(value: Any) -> Any:
+    """The value with every NaN replaced by null, all the way down.
+
+    NaN is a float, it is TRUTHY, and `json.dumps` emits it as the bare
+    token `NaN` — which is valid JavaScript, invalid JSON, and rejected by a
+    Postgres JSONB column. Every one of those three facts has to be wrong at
+    once for the bug to be obvious, which is why it has surfaced twice.
+    """
+    if isinstance(value, float):
+        return None if value != value else value
+    if isinstance(value, dict):
+        return {k: json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_safe(v) for v in value]
+    if hasattr(value, "item") and not isinstance(value, (str, bytes)):
+        try:
+            return json_safe(value.item())
+        except Exception:  # noqa: BLE001
+            return str(value)
+    return value
+
+
 #: A numeral as it is written anywhere in the pack, including inside a label.
 _NUMERAL = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
 
@@ -107,10 +129,34 @@ class FactPack:
     #: What the reader must be told about the limits of these figures.
     caveats: list[str] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        """Every pack is JSON-safe by construction.
+
+        Sanitising in `to_dict` was not enough: callers read `pack.figures`
+        and `pack.rows` directly — the orchestrator does, the API does, the
+        investigation payload does — and each of them would have to remember
+        on its own. Doing it once, here, means a NaN cannot leave this
+        module at all.
+        """
+        self.figures = json_safe(self.figures)
+        self.rows = json_safe(self.rows)
+        self.caveats = json_safe(self.caveats)
+
     def to_dict(self) -> dict[str, Any]:
-        return {"scope": self.scope, "label": self.label, "period": self.period,
-                "figures": self.figures, "rows": self.rows,
-                "provenance": self.provenance, "caveats": self.caveats}
+        """The pack as JSON, with no NaN in it.
+
+        A pack becomes JSON in three places — an API response, an
+        investigation message payload, a case's evidence — and two of them
+        write to a JSONB column that rejects NaN outright. Most obligors have
+        no dominant driver in a given month because no signal fired, so a
+        NaN here is the ordinary case rather than an exotic one, and
+        sanitising at the boundary means every consumer gets the same
+        treatment rather than each discovering it separately.
+        """
+        return json_safe({
+            "scope": self.scope, "label": self.label, "period": self.period,
+            "figures": self.figures, "rows": self.rows,
+            "provenance": self.provenance, "caveats": self.caveats})
 
     def numbers(self) -> list[float]:
         """Every numeric value the pack carries, for grounding checks.
@@ -824,7 +870,7 @@ class PackRuntime:
 
 
 __all__ = [
-    "HIGH_PLUS", "BAND_ORDER", "LEVEL_FIELDS", "LAYER_NAMES",
+    "json_safe", "HIGH_PLUS", "BAND_ORDER", "LEVEL_FIELDS", "LAYER_NAMES",
     "METHODOLOGY_ASPECTS", "FactPack", "PackRuntime",
     "contribution_by_layer", "concentration", "live_versus_structural",
     "movement_attribution", "rating_divergence",

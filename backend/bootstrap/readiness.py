@@ -70,8 +70,18 @@ EARLY_WARNING_DATASETS: tuple[str, ...] = (
     "early_warning_borrower_month", "early_warning_signal_observation",
 )
 
-#: The workbook's own precedent: 15 monthly snapshots, April 2025 to June 2026.
-MINIMUM_EARLY_WARNING_MONTHS = 15
+#: Twenty published month-ends, November 2024 to June 2026.
+#:
+#: Twenty rather than fifteen because a twelve-month comparison needs
+#: thirteen months to exist before it means anything, and the movement
+#: reading, the recurrence counter and the rating-migration view all read
+#: back a year. Fifteen left a twelve-month question answerable for only
+#: three of the published months.
+#:
+#: The build computes twelve further months BEFORE the first published one
+#: and discards them, so the earliest visible month is scored against a full
+#: trailing baseline rather than against itself.
+MINIMUM_EARLY_WARNING_MONTHS = 20
 
 #: Below this the corporate book is a fixture, not a demonstration. The
 #: builder makes 3,800; a deployment holding forty has been quietly truncated
@@ -262,8 +272,8 @@ def _early_warning_months(present: set[str], why: str) -> Check:
             key=key, title=title, status=MISSING,
             detail=(f"{months} month(s) built — at least "
                     f"{MINIMUM_EARLY_WARNING_MONTHS} are needed for the "
-                    "portfolio trend and rating-migration views to have "
-                    "anything to show."),
+                    "portfolio trend, the twelve-month movement and the "
+                    "rating-migration views to have anything to show."),
             remedy=remedy, data=data)
     return Check(key=key, title=title, status=OK,
                  detail=f"{months} monthly snapshot(s) built.", data=data)

@@ -306,3 +306,72 @@ def test_the_sample_respects_permission_scope():
     package = grain_mod.build("x", allowed_customers=set())
     assert package.sample_rows == [], (
         "a caller permitted no obligors was still shown some")
+
+
+# ------------------------------------------------------- JSON safety
+
+
+def test_no_fact_pack_carries_a_nan():
+    """A NaN in a pack is a database error waiting for a JSONB column.
+
+    NaN is a float, it is TRUTHY, and `json.dumps` emits it as the bare
+    token `NaN` — valid JavaScript, invalid JSON, rejected by Postgres.
+    Every one of those three has to be wrong at once for the bug to be
+    obvious, which is why it surfaced twice: once writing a case's evidence,
+    once writing an investigation message payload.
+
+    Most obligors have no dominant driver in a given month because no signal
+    fired, so this is the ordinary row rather than an exotic one.
+    """
+    import json
+
+    from backend.early_warning import facts as ff
+
+    worst = svc.borrower_month().sort_values(
+        "ews_score", ascending=False).iloc[0]["customer_id"]
+    packs = {
+        "portfolio": ff.portfolio(),
+        "level": ff.level("segment"),
+        "borrower": ff.borrower(worst),
+        "diagnosis": ff.diagnosis(),
+        "methodology": ff.methodology(),
+    }
+    for name, pack in packs.items():
+        for part in ("figures", "rows", "caveats"):
+            blob = json.dumps(getattr(pack, part))
+            assert "NaN" not in blob, f"{name}.{part} carries a NaN"
+        assert "NaN" not in json.dumps(pack.to_dict()), name
+
+
+def test_json_safe_replaces_nan_all_the_way_down():
+    import json
+
+    from backend.early_warning.facts import json_safe
+
+    nested = {"a": float("nan"),
+              "b": [1.0, float("nan"), {"c": float("nan")}],
+              "d": {"e": {"f": float("nan")}}}
+    cleaned = json_safe(nested)
+    assert "NaN" not in json.dumps(cleaned)
+    assert cleaned["a"] is None
+    assert cleaned["b"][2]["c"] is None
+    assert cleaned["d"]["e"]["f"] is None
+    # And a real number survives untouched.
+    assert cleaned["b"][0] == 1.0
+
+
+def test_a_case_draft_never_carries_a_nan():
+    import json
+
+    from backend.early_warning import case_bridge
+
+    frame = svc.borrower_month()
+    # An obligor with no dominant driver is the case that used to break.
+    without = frame[frame["dominant_driver"].isna()]
+    if without.empty:
+        pytest.skip("every obligor has a dominant driver this month")
+    row = svc.borrower_detail(str(without.iloc[0]["customer_id"]))["latest"]
+    draft = case_bridge.draft_for(row)
+    assert draft.signals == [], "a NaN driver became a signal"
+    for part in (draft.metrics, draft.evidence):
+        assert "NaN" not in json.dumps(part)

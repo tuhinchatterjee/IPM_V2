@@ -192,16 +192,23 @@ DOMAINS: tuple[BusinessDomain, ...] = (
     BusinessDomain(
         name="Early Warning",
         description=(
-            "The governed Early Warning V2 analytical domain: monthly "
-            "point-in-time scores for the 123-signal workbook methodology "
-            "(23 classifiers, 67 dynamic triggers, the accelerator and "
-            "network propagation), the classifier/trigger/accelerator/ "
-            "network-derived T&A and final EWS scores, and the field-level "
-            "lineage back to Ratings, IFRS 9, Facilities, Collateral, "
-            "Covenants, External Intelligence and the corporate graph "
-            "domains it is built from. A derived domain, not a source one: "
-            "every non-behavioural field here is a governed copy, never the "
-            "system of record."),
+            "The governed Early Warning analytical domain, and the only one "
+            "Early Warning chat reads. One row is one customer at one "
+            "month-end, across twenty contiguous published months, carrying "
+            "the complete model surface rather than only the final score: "
+            "the 123-signal inventory of which 105 are scored, 23 "
+            "classifiers, 67 dynamic triggers, the five accelerator "
+            "dimensions with their separate class-specific decay, all 22 "
+            "sub-category nodes, the six layer and dimension outputs, the "
+            "trigger-and-accelerator and classifier scores, the anchor read "
+            "off the published five-by-five matrix, all five notches, the "
+            "caps and overrides, and the field-level lineage back to "
+            "Ratings, IFRS 9, Facilities, Collateral, Covenants, External "
+            "Intelligence and the corporate graph. A derived domain, not a "
+            "source one: every non-behavioural field here is a governed "
+            "copy, never the system of record — which is why Early Warning "
+            "answers from these snapshots rather than reading those systems "
+            "again at answer time."),
         owner="Credit Risk Analytics",
         catalogue_domains=("Early Warning",),
         datasets=(
