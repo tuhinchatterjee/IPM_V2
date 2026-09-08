@@ -39,6 +39,17 @@ def _int(name: str, default: int) -> int:
         return default
 
 
+def _float(name: str, default: float) -> float:
+    """A configured decimal, or the default. A malformed price must not become
+    a silently different price: an unparseable value falls back to the default,
+    and the default for every price is 0.0, which the ledger reads as "not
+    configured" rather than "free"."""
+    try:
+        return float(_get(name, str(default)))
+    except ValueError:
+        return default
+
+
 def _resolve_dir(value: str) -> Path:
     """Resolve a configured directory relative to the project root unless it is
     already absolute. The directory is created if missing."""
@@ -75,6 +86,28 @@ class Settings:
     #: The namespace every V2 dataset name, seed target and cache key carries.
     #: The startup guard refuses to write anywhere that does not contain it.
     cockpit_v2_namespace: str
+    #: Cockpit Agentic V3. Cockpit-scoped and OFF unless explicitly set, for
+    #: exactly the reason the V2 switch is: Early Warning, Stress Testing,
+    #: Scorecard Validation, Lenses, Playbooks and the Planner must behave
+    #: identically whether this is on or off, and the flag-off path is tested
+    #: rather than assumed. Nothing outside `backend/cockpit_agentic/` and the
+    #: guarded call sites listed in docs/cockpit_agentic_v3/INTEGRATION.md
+    #: reads it.
+    cockpit_agentic_v3: bool
+    #: The namespace every V3 dataset name, release directory and cache key
+    #: carries. The startup guard refuses to write anywhere without it.
+    cockpit_agentic_v3_namespace: str
+    #: Standard or Deep. The mode a request runs under when the caller does not
+    #: choose one. Never silently upgraded (spec 9.6).
+    cockpit_agentic_v3_default_mode: str
+    #: USD per million input/output tokens for the two Cockpit roles. Spending
+    #: ceilings are only meaningful against configured prices; when these are
+    #: zero the ledger reports cost as UNKNOWN and refuses to claim the cost
+    #: limit is reliable (spec 9.1).
+    cockpit_agentic_v3_sonnet_input_usd_per_mtok: float
+    cockpit_agentic_v3_sonnet_output_usd_per_mtok: float
+    cockpit_agentic_v3_opus_input_usd_per_mtok: float
+    cockpit_agentic_v3_opus_output_usd_per_mtok: float
     # Populated in later phases; empty until then.
     database_url: str
     secret_key: str
@@ -133,6 +166,20 @@ def _load() -> Settings:
         cockpit_intelligence_v2=_get("COCKPIT_INTELLIGENCE_V2", "false")
         .strip().lower() in ("1", "true", "yes", "on"),
         cockpit_v2_namespace=_get("COCKPIT_V2_NAMESPACE", "cockpit_v2"),
+        cockpit_agentic_v3=_get("COCKPIT_AGENTIC_V3", "false").strip().lower()
+        in ("1", "true", "yes", "on"),
+        cockpit_agentic_v3_namespace=_get("COCKPIT_AGENTIC_V3_NAMESPACE",
+                                          "cockpit_agentic_v3"),
+        cockpit_agentic_v3_default_mode=_get("COCKPIT_AGENTIC_V3_DEFAULT_MODE",
+                                             "standard"),
+        cockpit_agentic_v3_sonnet_input_usd_per_mtok=_float(
+            "COCKPIT_AGENTIC_V3_SONNET_INPUT_USD_PER_MTOK", 0.0),
+        cockpit_agentic_v3_sonnet_output_usd_per_mtok=_float(
+            "COCKPIT_AGENTIC_V3_SONNET_OUTPUT_USD_PER_MTOK", 0.0),
+        cockpit_agentic_v3_opus_input_usd_per_mtok=_float(
+            "COCKPIT_AGENTIC_V3_OPUS_INPUT_USD_PER_MTOK", 0.0),
+        cockpit_agentic_v3_opus_output_usd_per_mtok=_float(
+            "COCKPIT_AGENTIC_V3_OPUS_OUTPUT_USD_PER_MTOK", 0.0),
         database_url=_get("DATABASE_URL", ""),
         secret_key=_get("SECRET_KEY", ""),
         # Signing in is compulsory by default. A credit-risk product where
