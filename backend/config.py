@@ -100,6 +100,11 @@ class Settings:
     #: Standard or Deep. The mode a request runs under when the caller does not
     #: choose one. Never silently upgraded (spec 9.6).
     cockpit_agentic_v3_default_mode: str
+    #: The tenant a principal resolves to when the deployment is single-tenant
+    #: and carries no tenant on its principals. Named explicitly rather than
+    #: defaulted to a magic string, because artifact keys, cache keys and the
+    #: release's own rows all carry it and a mismatch must be visible.
+    cockpit_agentic_v3_default_tenant: str
     #: USD per million input/output tokens for the two Cockpit roles. Spending
     #: ceilings are only meaningful against configured prices; when these are
     #: zero the ledger reports cost as UNKNOWN and refuses to claim the cost
@@ -172,6 +177,8 @@ def _load() -> Settings:
                                           "cockpit_agentic_v3"),
         cockpit_agentic_v3_default_mode=_get("COCKPIT_AGENTIC_V3_DEFAULT_MODE",
                                              "standard"),
+        cockpit_agentic_v3_default_tenant=_get(
+            "COCKPIT_AGENTIC_V3_DEFAULT_TENANT", "demo-tenant"),
         cockpit_agentic_v3_sonnet_input_usd_per_mtok=_float(
             "COCKPIT_AGENTIC_V3_SONNET_INPUT_USD_PER_MTOK", 0.0),
         cockpit_agentic_v3_sonnet_output_usd_per_mtok=_float(

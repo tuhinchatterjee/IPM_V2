@@ -110,6 +110,12 @@ def write(release: Release, *, require_flag: bool = True,
         "data_version": DATA_VERSION,
         "catalog_version": CATALOG_VERSION,
         "namespace": namespace(),
+        # Recorded so a principal whose tenant does not appear here is TOLD so,
+        # rather than being handed an empty result. A zero-row answer is not
+        # proof that the portfolio is empty (section 7.7).
+        "tenants": sorted(
+            str(t) for t in release.frames[
+                "cockpit_facility_quarter"]["tenant_id"].dropna().unique()),
         "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "calendar": release.calendar.to_dict(),
         "relations": written,

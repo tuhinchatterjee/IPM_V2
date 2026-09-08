@@ -1,7 +1,7 @@
 {
   "dataset_release_id": "demo-20q-v1",
   "computed_from": "the full authorized release, not the sample rows",
-  "computed_at": "2026-09-08T19:05:23+00:00",
+  "computed_at": "2026-09-08T19:16:08+00:00",
   "row_counts": {
     "cockpit_reporting_calendar": 20,
     "cockpit_facility_quarter": 6758,
