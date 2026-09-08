@@ -27,6 +27,7 @@ from backend.whatif import comparison as cmp_
 from backend.whatif import delta as dl
 from backend.whatif import domain as dm
 from backend.whatif import engine as wf
+from backend.whatif import integration as itg
 from backend.whatif import investigate as iv
 from backend.whatif import language as lg
 from backend.whatif import macro as mc
@@ -1388,6 +1389,33 @@ def _attribution_describe() -> dict[str, Any]:
     from backend.whatif import attribution as at
 
     return at.describe()
+
+
+@router.get("/integration/contract")
+def integration_contract(_: Any = RequireAnalyst) -> dict[str, Any]:
+    """What a Corporate IFRS 9 book must provide for What-If to run on it.
+
+    The document somebody wiring a canonical IFRS 9 domain reads BEFORE
+    pointing it at this feature: the datasets, the required and optional
+    columns with what each optional one buys, and the assumptions that are not
+    columns at all — the grain above everything else.
+    """
+    return itg.contract()
+
+
+@router.get("/integration/readiness")
+def integration_readiness(
+        _: Any = RequireAnalyst,
+        snapshot: str = Query(default="", max_length=120),
+        measurement: str = Query(default="", max_length=120)) -> dict[str, Any]:
+    """Whether What-If can run on a book, and exactly what it will not do.
+
+    Defaults to the book this installation carries, so the same call is both
+    an integration check for a candidate domain and a health check for the
+    current one. It never raises on a bad book: an unreadable dataset is a
+    finding, because the whole point is to say what is wrong.
+    """
+    return itg.assess(snapshot=snapshot, measurement=measurement).to_dict()
 
 
 @router.get("/schema")

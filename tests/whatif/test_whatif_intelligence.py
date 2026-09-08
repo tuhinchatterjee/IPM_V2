@@ -10,10 +10,12 @@ what each layer declines to claim, and what it says instead.
 
 from __future__ import annotations
 
+import pandas as pd
 import pytest
 
 from backend.whatif import comparison as cp
 from backend.whatif import domain as dm
+from backend.whatif import integration as ig
 from backend.whatif import macro as mc
 from backend.whatif import macrolab as ml
 from backend.whatif import narrative as nr
@@ -394,3 +396,139 @@ class TestTheComparisonAgainstTheBook:
         if body["out_of_distribution"]:
             said = " ".join(cp.compose(body)["paragraphs"])
             assert "outside the range" in said
+
+
+# ==================================================== integration readiness
+
+
+class TestTheIntegrationContract:
+    """What a canonical IFRS 9 domain must provide, written down before
+    anybody wires one."""
+
+    def test_it_names_the_datasets_and_what_each_is_for(self) -> None:
+        body = ig.contract()
+        assert set(body["datasets"]) == {
+            "snapshot", "measurement", "facilities", "collateral", "macro"}
+        for name, spec in body["datasets"].items():
+            assert spec["name"] and spec["role"], name
+
+    def test_every_assumption_says_what_happens_if_it_is_violated(
+            self) -> None:
+        for assumption in ig.contract()["assumptions"]:
+            assert assumption["value"], assumption
+            assert assumption["if_violated"], assumption
+
+    def test_every_optional_column_names_the_capability_it_buys(self) -> None:
+        for entry in ig.contract()["optional"]:
+            assert entry["enables"], entry["field"]
+
+    def test_it_says_what_it_does_not_check(self) -> None:
+        """A readiness report that implied it had validated the economics
+        would be worse than no report."""
+        said = ig.assess().to_dict()["what_this_does_not_check"]
+        assert "That the numbers are right" in said
+        assert "does not claim to" in said
+
+    def test_the_contract_is_a_contract_not_this_installation(self) -> None:
+        assert "not to this installation's" in ig.contract()["statement"]
+
+
+@pytest.mark.usefixtures("data_loaded")
+class TestReadinessAgainstTheShippedBook:
+    def test_the_book_this_branch_ships_passes(self) -> None:
+        body = ig.assess()
+        assert body.ready, [f.to_dict() for f in body.blocked]
+
+    def test_it_reports_the_shape_it_found(self) -> None:
+        body = ig.assess()
+        assert body.periods
+        assert body.borrowers > 0
+        assert body.rows == body.borrowers, (
+            "the shipped book is one row per borrower per period")
+
+    def test_a_finding_always_says_what_it_costs(self) -> None:
+        for finding in ig.assess().findings:
+            if finding.severity in (ig.BLOCKS, ig.DEGRADES):
+                assert finding.costs, finding.subject
+
+
+class TestReadinessCatchesABrokenBook:
+    """The assessment is only worth having if it fails on the things that
+    actually go wrong. Each of these is a book somebody could really hand it."""
+
+    @staticmethod
+    def _findings(body: ig.Readiness, subject: str) -> list[ig.Finding]:
+        return [f for f in body.findings if f.subject.endswith(subject)]
+
+    def test_a_dataset_that_cannot_be_read_blocks_everything(self) -> None:
+        body = ig.assess(snapshot="no_such_dataset_at_all")
+        assert not body.ready
+        assert body.blocked[0].costs
+
+    def test_a_facility_grain_book_is_refused_by_name(self) -> None:
+        """The single most damaging thing a replacement can get wrong: every
+        figure is multiplied by the facility count and looks plausible."""
+        body = ig.Readiness(domain="test", snapshot="s", measurement="m")
+        facility_grain = pd.DataFrame({
+            "borrower_id": ["B1", "B1", "B2"], "ead": [10.0, 20.0, 30.0]})
+        assert ig._check_grain(body, facility_grain, "Q2 2026") == 2
+        assert body.blocked
+        assert "NOT one row per borrower" in body.blocked[0].detail
+        assert "looks entirely plausible" in body.blocked[0].costs
+
+    def test_an_obligor_grain_book_passes_the_grain_check(self) -> None:
+        body = ig.Readiness(domain="test", snapshot="s", measurement="m")
+        obligor = pd.DataFrame({"borrower_id": ["B1", "B2"],
+                                "ead": [10.0, 30.0]})
+        assert ig._check_grain(body, obligor, "Q2 2026") == 2
+        assert not body.blocked
+
+    def test_a_pd_in_fractions_rather_than_percent_is_caught(self) -> None:
+        """The unit mistake that quietly divides every provision by a hundred
+        is a value outside the range a percentage occupies — except when it is
+        not, which is why the range check is stated as what it can prove."""
+        body = ig.Readiness(domain="test", snapshot="s", measurement="m")
+        frame = pd.DataFrame({"pd_12m": [1.0, 2.0, 150.0], "lgd": [45.0] * 3,
+                              "ead": [10.0] * 3, "final_ecl": [1.0] * 3,
+                              "stage": [1, 1, 1], "current_dpd": [0, 0, 0]})
+        ig._check_ranges(body, frame)
+        found = self._findings(body, "pd_12m")
+        assert found and found[0].severity == ig.BLOCKS
+        assert "measured in something else" in found[0].costs
+
+    def test_a_negative_exposure_is_caught(self) -> None:
+        body = ig.Readiness(domain="test", snapshot="s", measurement="m")
+        ig._check_ranges(body, pd.DataFrame({"ead": [10.0, -5.0]}))
+        found = self._findings(body, "ead")
+        assert found and found[0].severity == ig.BLOCKS
+
+    def test_a_missing_required_column_blocks_and_names_it(self) -> None:
+        body = ig.Readiness(domain="test", snapshot="s", measurement="m")
+        ig._check_columns(body, "s", ("borrower_id", "period"),
+                          ("borrower_id", "period", "ead"), {})
+        assert body.blocked
+        assert "ead" in body.blocked[0].detail
+
+    def test_a_missing_optional_column_degrades_and_says_what_it_costs(
+            self) -> None:
+        body = ig.Readiness(domain="test", snapshot="s", measurement="m")
+        ig._check_columns(body, "s", ("borrower_id",), ("borrower_id",),
+                          {"dscr": "carrying an earnings shock into debt "
+                                   "service"})
+        assert not body.blocked
+        assert body.degraded
+        assert "debt service" in body.degraded[0].costs
+
+    def test_a_verdict_distinguishes_cannot_run_from_runs_with_less(
+            self) -> None:
+        blocked = ig.Readiness(domain="t", snapshot="s", measurement="m")
+        blocked.add(ig.BLOCKS, "x", "gone", "everything")
+        assert "cannot run" in blocked.verdict()
+
+        reduced = ig.Readiness(domain="t", snapshot="s", measurement="m")
+        reduced.add(ig.DEGRADES, "x", "absent", "one thing")
+        assert "can run" in reduced.verdict()
+        assert "unavailable" in reduced.verdict()
+
+        whole = ig.Readiness(domain="t", snapshot="s", measurement="m")
+        assert "nothing missing" in whole.verdict()
