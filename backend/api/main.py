@@ -46,6 +46,7 @@ from backend.api.routers import intelligence as intelligence_router
 from backend.api.routers import learning as learning_router
 from backend.api.routers import lenses as lenses_router
 from backend.api.routers import metadata as metadata_router
+from backend.api.routers import playbook as playbook_router
 from backend.api.routers import playbooks as playbooks_router
 from backend.api.routers import regulatory as regulatory_router
 from backend.api.routers import (
@@ -329,6 +330,7 @@ def create_app() -> FastAPI:
     app.include_router(hierarchy_router.analyses_router, prefix=API_PREFIX)
     app.include_router(lenses_router.router, prefix=API_PREFIX)
     app.include_router(playbooks_router.router, prefix=API_PREFIX)
+    app.include_router(playbook_router.router, prefix=API_PREFIX)
     app.include_router(studio_router.router, prefix=API_PREFIX)
     # The AI Intelligence Studio, on /intelligence. Distinct from the four
     # borrower-level domain readings on /domain-intelligence above: this one
