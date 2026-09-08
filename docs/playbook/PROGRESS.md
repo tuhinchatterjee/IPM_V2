@@ -56,8 +56,8 @@ These are pre-existing facts about the base commit, not defects introduced here.
 
 | Milestone | State |
 |---|---|
-| M0 — safe foundation | in progress |
-| M1 — live vertical slice | not started |
+| M0 — safe foundation | complete |
+| M1 — live vertical slice | implemented; live run BLOCKED on a credential |
 | M2 — home and thread UX | not started |
 | M3 — exported-analysis flow | not started |
 | M4 — intelligent reporting | not started |
@@ -65,8 +65,42 @@ These are pre-existing facts about the base commit, not defects introduced here.
 | M6 — verification and hardening | not started |
 | M7 — handoff | not started |
 
+## Baseline test run
+
+Run on the isolated test database with all three data universes built, after the
+additive migrations and before any behavioural Playbook code:
+
+    DATABASE_URL=…creditprobe_playbook_test .venv/bin/python -m pytest -q --tb=no
+
+**One failure, and it was ours, not the baseline's:**
+`tests/scripts/test_powershell_script.py::test_the_cost_table_matches_the_python_side`.
+Adding the AUTHOR model role moved quick live verification from 15 provider
+calls to 16, and `scripts/verify-live-ai.ps1` mirrors that number so it is
+visible before a run spends credit. The script was updated and the test passes.
+That test did its job.
+
+The two `tests/exports` failures seen earlier were an artefact of running that
+suite before the corporate universe had finished building. They do not occur
+once the lake is complete.
+
+## Anthropic SDK decision
+
+**No SDK change.** The pinned `anthropic==0.112.0` already carries everything
+Playbook's runtime needs, through the beta namespace:
+
+* `BetaContainerParams.skills` and `BetaSkillParams` — `{skill_id, type, version}`,
+  matching the current published shape;
+* all four code-execution tool types, including `code_execution_20260120`;
+* `client.beta.files` for upload, metadata, download and delete.
+
+Only the GA namespaces (`client.files`, `client.skills`) need ≥1.2.0, and
+Playbook does not require them. Leaving the pin alone means CreditProbe's
+analytical runtime is untouched by this work, which is worth more than a tidier
+import path. Verified against the installed SDK rather than from memory, and
+re-checked against the provider's current documentation.
+
 ## Next action
 
-Complete M0: record the baseline test run, decide the Anthropic SDK version
-against current official documentation, add `python-pptx`, and write migrations
-`0032` and `0033`.
+M2 and M3: the API surface, the Playbook home and thread UI, and the Export to
+Playbook hooks on the four modules that have a producing surface on this
+baseline.

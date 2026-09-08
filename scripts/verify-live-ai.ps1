@@ -173,9 +173,11 @@ Push-Location -Path $RepoRoot
 $EstimatedCalls = @{
     'dryrun'             = 0
     # One call per configured role plus the smoke thread. The investigation
-    # loop is now two roles - orchestration and judgement - so the quick
-    # check proves seven roles rather than five.
-    'quick'              = 15
+    # loop is two roles - orchestration and judgement - and Playbook's author
+    # is an eighth, so the quick check proves eight roles rather than five.
+    # Every one of them is called in production, and a role nothing reaches
+    # before a run calls itself verified is a role nobody has verified.
+    'quick'              = 16
     'critical'           = 30
     'fullrouting'        = 14
     'fullcertification'  = 120

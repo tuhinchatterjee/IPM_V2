@@ -165,10 +165,25 @@ def db():
 
     if not database_available():
         pytest.skip("Playbook persistence needs the platform database")
-    from backend.db.engine import get_session
 
-    with get_session() as session:
+    from sqlalchemy.orm import sessionmaker
+
+    from backend.db.engine import engine
+
+    # Each test runs inside a transaction that is rolled back afterwards, so
+    # one test's workspaces cannot become another's search results. The
+    # alternative — committing and cleaning up — is what filled this
+    # repository's development database with 2,079 identically named Projects
+    # (see backend/demo/workspace.py).
+    connection = engine.connect()
+    transaction = connection.begin()
+    session = sessionmaker(bind=connection, expire_on_commit=False)()
+    try:
         yield session
+    finally:
+        session.close()
+        transaction.rollback()
+        connection.close()
 
 
 @pytest.fixture
