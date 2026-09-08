@@ -251,6 +251,25 @@ _JUDGEMENTS: dict[str, Judgement] = {
         role="Administrator"),
     "/stress": Judgement("Scenario definitions and their impact.",
                          role="Administrator, Analyst"),
+    "/playbook": Judgement(
+        "Create and refine reports, presentations and workbooks by describing "
+        "what you want, from uploaded documents and from analyses explicitly "
+        "exported here. Composer, quick prompts, recent workspaces, then the "
+        "exported-analysis library.",
+        status=PARTIAL,
+        limitation="Generation needs a configured provider. Without one the "
+                   "seeded workspaces, their sources and their Word, PDF and "
+                   "PowerPoint files stay readable and the composer says so "
+                   "rather than offering a control that fails."),
+    "/playbook/[id]": Judgement(
+        "One workspace: its conversation, its parsed sources with what was and "
+        "was not read of each, and every artifact version with its files.",
+        status=PARTIAL,
+        limitation="New generation needs a configured provider; the history "
+                   "and every generated file reopen without one."),
+    "/playbook/library": Judgement(
+        "Every analysis explicitly exported to Playbook, searchable and "
+        "previewable in full. Nothing appears here that was not exported."),
     "/playbooks": Judgement(
         "Saved sequences of governed analyses.",
         status=PARTIAL,

@@ -134,7 +134,7 @@ Two additive migrations, `0032` and `0033`, on top of head `0031`. They create
 thirteen tables and alter nothing existing, so `alembic upgrade head` is safe on
 a populated database and `downgrade` drops only what they created.
 
-Seeding is bootstrap step **M** (`scripts/bootstrap_demo.py --step playbook`),
+Seeding is bootstrap step **L** (`scripts/bootstrap_demo.py --step playbook`),
 idempotent, and makes no provider call. The Playbook tables are on the WORKSPACE
 side of `backend/demo/workspace.py`'s reset boundary, so a demo reset rebuilds
 them and never touches the governed platform.

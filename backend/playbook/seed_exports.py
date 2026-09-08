@@ -39,12 +39,13 @@ CURRENT = ecl.CURRENT_PERIOD      # Q2 2026
 #: The caveat every What If fixture carries. Not decoration — it is the whole
 #: difference between a demonstration and a false claim of integration.
 WHAT_IF_CAVEAT = (
-    "Carried through the What If adapter contract as a demonstration fixture. "
+    "Carried through the What If adapter contract as a prepared example. "
     "This baseline has no What If module, so this is not the output of a live "
     "scenario engine."
 )
 
-DEMO_CAVEAT = "Demonstration data. Synthetic portfolio, not a real book."
+DEMO_CAVEAT = ("Synthetic data. This describes a generated portfolio, not a "
+               "real book, and no real borrower.")
 
 
 def _t(id_: str, title: str, columns: list[str], rows: list[list[str]],
@@ -430,8 +431,8 @@ def _scorecard_validation() -> list[contract.Snapshot]:
             question="Does the behavioural scorecard still separate good from bad?",
             narrative=(
                 f"Gini on the recent sample is {stats['recent_gini']} against "
-                f"{stats['development_gini']} at development, a fall of "
-                f"{float(stats['development_gini']) - float(stats['recent_gini']):.4f}. "
+                f"{stats['development_gini']} at development, a change of "
+                f"{stats['gini_change']}. "
                 f"AUC is {stats['recent_auc']} and KS is {stats['recent_ks']}. "
                 "Discrimination remains comfortably above the approved floor of "
                 "0.45 Gini, and the deterioration is gradual rather than a step "

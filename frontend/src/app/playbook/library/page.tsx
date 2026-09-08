@@ -125,7 +125,7 @@ export default function PlaybookLibraryPage() {
                 <div className="mb-2 flex flex-wrap items-center gap-1.5">
                   <Badge variant="outline">{moduleLabel(a.source_module)}</Badge>
                   {a.reporting_period && <Badge>{a.reporting_period}</Badge>}
-                  {a.demo && <Badge variant="warning">Demo</Badge>}
+                  {a.demo && <Badge variant="warning">Synthetic data</Badge>}
                 </div>
                 <h3 className="text-sm font-medium text-text-primary">
                   {a.title}

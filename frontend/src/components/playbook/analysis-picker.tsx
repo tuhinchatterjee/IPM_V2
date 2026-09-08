@@ -267,7 +267,7 @@ export function AnalysisPicker({
                         {card.reporting_period && (
                           <Badge variant="default">{card.reporting_period}</Badge>
                         )}
-                        {card.demo && <Badge variant="warning">Demo</Badge>}
+                        {card.demo && <Badge variant="warning">Synthetic data</Badge>}
                         {attached && <Badge variant="info">Already attached</Badge>}
                       </div>
                       {card.insight && (

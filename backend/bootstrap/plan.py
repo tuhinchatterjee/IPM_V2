@@ -490,13 +490,16 @@ def steps() -> tuple[Step, ...]:
              _relationships_needed, _seed_relationships, needs_database=True),
         Step("workspace", "K", "Seed the workspace",
              _workspace_needed, _seed_workspace, needs_database=True),
-        Step("review", "L", f"Run the {readiness.PERIOD} portfolio review",
-             _review_needed, _run_review, needs_database=True),
-        # M last: the Playbook demonstration attaches exported analyses and
-        # reads the workspace it sits beside, and it makes no provider call, so
-        # it is safe to run on every start.
-        Step("playbook", "M", "Seed the Playbook demonstration",
+        # L before M: the Playbook seed attaches its own exported analyses and
+        # makes no provider call, so it does not need the review — while the
+        # review must stay LAST so that it reviews a fully built book. That
+        # invariant is asserted by tests/proof/test_fresh_clone_acceptance.py
+        # and is the reason these two are in this order rather than the order
+        # they were written in.
+        Step("playbook", "L", "Seed the Playbook workspaces",
              _playbook_needed, _seed_playbook, needs_database=True),
+        Step("review", "M", f"Run the {readiness.PERIOD} portfolio review",
+             _review_needed, _run_review, needs_database=True),
     )
 
 

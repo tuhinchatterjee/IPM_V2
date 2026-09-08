@@ -196,6 +196,9 @@ def headline() -> dict[str, str]:
         "recent_gini": f"{gini(now):.4f}",
         "recent_ks": f"{ks(now):.4f}",
         "psi": f"{psi(dev, now):.4f}",
+        # The fall in discrimination, computed here rather than in the prose
+        # that quotes it, so there is one place this arithmetic happens.
+        "gini_change": f"{gini(now) - gini(dev):.4f}",
         "development_bad_rate": f"{dev.bad_rate * 100:.2f}",
         "recent_bad_rate": f"{now.bad_rate * 100:.2f}",
     }

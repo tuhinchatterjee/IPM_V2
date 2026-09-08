@@ -190,7 +190,7 @@ export default function PlaybookHomePage() {
                 <Card className="flex h-full flex-col p-4 transition-colors hover:bg-surface-hover">
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <FileText className="size-4 shrink-0 text-text-muted" aria-hidden />
-                    {w.demo && <Badge variant="warning">Demo</Badge>}
+                    {w.demo && <Badge variant="warning">Synthetic data</Badge>}
                   </div>
                   <h3 className="text-sm font-semibold text-text-primary">
                     {w.title}
@@ -244,7 +244,7 @@ export default function PlaybookHomePage() {
                 <div className="mb-2 flex flex-wrap items-center gap-1.5">
                   <Badge variant="outline">{moduleLabel(a.source_module)}</Badge>
                   {a.reporting_period && <Badge>{a.reporting_period}</Badge>}
-                  {a.demo && <Badge variant="warning">Demo</Badge>}
+                  {a.demo && <Badge variant="warning">Synthetic data</Badge>}
                 </div>
                 <h3 className="text-sm font-medium text-text-primary">
                   {a.title}

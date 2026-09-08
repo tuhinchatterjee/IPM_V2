@@ -344,7 +344,7 @@ def _playbook(session: Any) -> Check:
     first click of the demonstration lands on an empty screen. The check asks
     the same question the bootstrap step asks, so the two cannot drift.
     """
-    key, title = "playbook_demo", "Playbook demonstration is seeded"
+    key, title = "playbook_demo", "Playbook workspaces are seeded"
     remedy = "scripts/bootstrap_demo.py --step playbook"
     try:
         from backend.agentic.principals import tenant_of
@@ -361,7 +361,7 @@ def _playbook(session: Any) -> Check:
     exports = state["exports_total"]
     if state["ready"]:
         return Check(key=key, title=title, status=OK,
-                     detail=(f"{workspaces} demonstration workspace(s) and "
+                     detail=(f"{workspaces} seeded workspace(s) and "
                              f"{exports} exported analyses."),
                      data={"workspaces": workspaces, "exports": exports})
     return Check(
