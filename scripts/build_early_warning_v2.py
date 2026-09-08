@@ -89,6 +89,7 @@ from backend.early_warning import (
     aggregation as agg,
     classifiers_v2 as clf,
     combination as comb,
+    lineage as lin,
     matrix,
     notches as nt,
     thresholds as th,
@@ -361,6 +362,58 @@ def severity_band_from_adverse_pct(pct: float) -> int | None:
     return 1 if pct < 25 else 2 if pct < 40 else 3 if pct < 55 else 4 if pct < 70 else 5
 
 
+def signal_explanation(trigger, *, severity_band: int, trigger_score: float,
+                        accel_input: accel.AcceleratorInput,
+                        accel_result: accel.AcceleratorResult,
+                        decay: accel.DecayResult, state: TriggerDecayState,
+                        month_idx: int, source_tier: int | None = None) -> dict:
+    """How one signal's score was reached, in flat, writable fields.
+
+    Every value here is already computed to produce the score; without this
+    the build threw them away and the score arrived at the reader as a bare
+    number. The workbook asks each signal to be able to show its trigger
+    severity, its five accelerator dimension bands and its decay; the
+    customer report's lineage table asks it for its source system, signal
+    class, half-life and applied decay factor. Both are answered from here.
+    """
+    decay_class = accel.SUBCATEGORY_DECAY_CLASS.get(trigger.sub_category)
+    first_seen = state._first_seen_idx.get(trigger.key, month_idx)
+    cured_idx = state._cured_idx.get(trigger.key)
+    layer = trigger.sub_category.split(".")[0]
+    return {
+        "layer": layer,
+        "trigger_severity_band": severity_band,
+        "trigger_severity_score": round(float(trigger_score), 4),
+        "magnitude_band": accel_input.magnitude_band,
+        "velocity_band": accel_input.velocity_band,
+        "persistence_band": accel_input.persistence_band,
+        "repetition_band": accel_input.repetition_band,
+        "corroboration_band": accel_input.corroboration_band,
+        "magnitude_multiplier": accel_result.dimension_multipliers.get("magnitude"),
+        "velocity_multiplier": accel_result.dimension_multipliers.get("velocity"),
+        "persistence_multiplier": accel_result.dimension_multipliers.get("persistence"),
+        "repetition_multiplier": accel_result.dimension_multipliers.get("repetition"),
+        "corroboration_multiplier": accel_result.dimension_multipliers.get("corroboration"),
+        "accelerator_multiplier": round(float(accel_result.accelerator_multiplier), 6),
+        "decay_factor": round(float(decay.decay_factor), 6),
+        "decay_class": decay.decay_class,
+        "half_life_days": decay_class.half_life_days if decay_class else None,
+        "decay_floor": decay_class.floor if decay_class else None,
+        # The persistence hold, made legible: a condition that is still live
+        # carries full weight however old it is, and the decay clock only
+        # starts once it cures.
+        "cured": cured_idx is not None,
+        "days_since_cure": ((month_idx - cured_idx) * DAYS_PER_MONTH
+                            if cured_idx is not None else 0),
+        "age_days": (month_idx - first_seen) * DAYS_PER_MONTH,
+        "occurrences": state._occurrences.get(trigger.key, 1),
+        "source_domain": lin.SOURCE_DOMAIN_BY_LAYER.get(layer, ""),
+        "source_dataset": lin.SOURCE_DATASET_BY_LAYER.get(layer, ""),
+        "source_tier": source_tier,
+        "is_synthetic": layer in lin.SYNTHETIC_LAYERS,
+    }
+
+
 def l1_signal_scores(borrower_series: dict[str, dict[pd.Timestamp, float]], month: pd.Timestamp,
                       months: list[pd.Timestamp], state: TriggerDecayState) -> list[agg.FiredSignal]:
     """The four L1 triggers with a real monthly anchor, using a genuine
@@ -391,13 +444,20 @@ def l1_signal_scores(borrower_series: dict[str, dict[pd.Timestamp, float]], mont
         decay = state.decay_for(trigger_key, t.sub_category, month_idx)
         if not decay.in_scope:
             return
-        result = accel.compute_accelerator(accel.AcceleratorInput(
+        accel_input = accel.AcceleratorInput(
             magnitude_band=mag_band, velocity_band=mag_band, persistence_band=3,
             repetition_band=state.repetition_band(trigger_key), corroboration_band=1,
             decay_factor=decay.decay_factor,
-        ))
+        )
+        result = accel.compute_accelerator(accel_input)
         score = accel.signal_score(trigger_score, result.accelerator_multiplier)
-        fired.append(agg.FiredSignal(trigger_key, score, trigger_key, t.sub_category))
+        fired.append(agg.FiredSignal(
+            trigger_key, score, trigger_key, t.sub_category,
+            explanation=signal_explanation(
+                t, severity_band=band, trigger_score=trigger_score,
+                accel_input=accel_input, accel_result=result, decay=decay,
+                state=state, month_idx=month_idx),
+        ))
 
     utilisation_change = pct_change("utilisation")
     if utilisation_change is not None:
@@ -440,11 +500,18 @@ def l2_event_signals(curr: pd.Series, prev: pd.Series | None, month_idx: int,
         decay = state.decay_for(trigger_key, t.sub_category, month_idx)
         if not decay.in_scope:
             return
-        result = accel.compute_accelerator(accel.AcceleratorInput(
+        accel_input = accel.AcceleratorInput(
             3, 3, 2, state.repetition_band(trigger_key), 1, decay_factor=decay.decay_factor,
-        ))
+        )
+        result = accel.compute_accelerator(accel_input)
         score = accel.signal_score(trigger_score, result.accelerator_multiplier)
-        fired.append(agg.FiredSignal(trigger_key, score, trigger_key, t.sub_category))
+        fired.append(agg.FiredSignal(
+            trigger_key, score, trigger_key, t.sub_category,
+            explanation=signal_explanation(
+                t, severity_band=band, trigger_score=trigger_score,
+                accel_input=accel_input, accel_result=result, decay=decay,
+                state=state, month_idx=month_idx),
+        ))
 
     rating_move = curr["internal_rating_numeric"] - prev["internal_rating_numeric"]
     if rating_move >= 1:
@@ -496,9 +563,16 @@ def l4_event_signals(curr: pd.Series, prev: pd.Series | None, month_idx: int,
         state.observe("guarantor_deterioration", month_idx, continuous_active=False)
         decay = state.decay_for("guarantor_deterioration", t.sub_category, month_idx)
         if decay.in_scope:
-            result = accel.compute_accelerator(accel.AcceleratorInput(3, 3, 2, 1, 1, decay_factor=decay.decay_factor))
+            accel_input = accel.AcceleratorInput(3, 3, 2, 1, 1, decay_factor=decay.decay_factor)
+            result = accel.compute_accelerator(accel_input)
             score = accel.signal_score(trigger_score, result.accelerator_multiplier)
-            fired.append(agg.FiredSignal("guarantor_deterioration", score, "guarantor_deterioration", t.sub_category))
+            fired.append(agg.FiredSignal(
+                "guarantor_deterioration", score, "guarantor_deterioration", t.sub_category,
+                explanation=signal_explanation(
+                    t, severity_band=band, trigger_score=trigger_score,
+                    accel_input=accel_input, accel_result=result, decay=decay,
+                    state=state, month_idx=month_idx),
+            ))
 
     return fired
 
@@ -515,11 +589,19 @@ def l3_event_signals(events_this_month: pd.DataFrame, month_idx: int,
         if not decay.in_scope:
             continue
         corroboration_band = 1 if ev["source_tier"] >= 2 else 3
-        result = accel.compute_accelerator(accel.AcceleratorInput(
+        accel_input = accel.AcceleratorInput(
             3, 3, 2, state.repetition_band(trigger_key), corroboration_band, decay_factor=decay.decay_factor,
-        ))
+        )
+        result = accel.compute_accelerator(accel_input)
         score = accel.signal_score(trigger_score, result.accelerator_multiplier)
-        fired.append(agg.FiredSignal(trigger_key, score, f"{trigger_key}_{ev['snapshot_month']}", t.sub_category))
+        fired.append(agg.FiredSignal(
+            trigger_key, score, f"{trigger_key}_{ev['snapshot_month']}", t.sub_category,
+            explanation=signal_explanation(
+                t, severity_band=int(ev["severity_band"]), trigger_score=trigger_score,
+                accel_input=accel_input, accel_result=result, decay=decay,
+                state=state, month_idx=month_idx,
+                source_tier=int(ev["source_tier"])),
+        ))
     return fired
 
 
@@ -737,10 +819,16 @@ def main(argv: list[str] | None = None) -> int:
             ews_history.append(row["ews_score"])
 
             for f in fired:
+                # The explanation is flattened alongside the score rather than
+                # nested: a reader asking "why is this signal at 80?" is
+                # answered by reading one row, and the report's lineage table
+                # is a projection of these columns rather than a second
+                # derivation of them.
                 signal_obs_rows.append({
                     "snapshot_month": month_str, "customer_id": borrower_id,
                     "signal_key": f.signal_key, "signal_score": f.signal_score,
                     "sub_category": f.sub_category, "causal_chain_id": f.causal_chain_id,
+                    **f.explanation,
                 })
 
             if is_first_month_of_quarter:

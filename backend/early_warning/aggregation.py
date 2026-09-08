@@ -42,7 +42,8 @@ L1 T&A 69.2, L2 T&A 81, L3 T&A 78, L4 T&A 65.65 -> T&A 73.0775, HIGH.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 from backend.early_warning import subcategory as sc
 
@@ -81,12 +82,27 @@ for _layer in ("L1", "L2", "L3", "L4"):
 
 @dataclass(frozen=True)
 class FiredSignal:
-    """One trigger that fired this period, before chain dedup."""
+    """One trigger that fired this period, before chain dedup.
+
+    `explanation` carries how the score was reached — trigger severity, the
+    five accelerator dimension bands, the decay state and where the reading
+    came from. It is optional and never read by the aggregation itself; the
+    roll-up only needs `signal_score`. It exists because a score a reader
+    cannot take apart is a score nobody should act on: the workbook asks
+    every signal to be able to show its own severity, accelerator bands and
+    decay factor, and the customer report's lineage table asks each node for
+    its source system, signal class, half-life and applied decay. Computing
+    those at build time and discarding them meant neither could be answered
+    from the data, only re-derived — and a re-derivation is not evidence.
+    """
 
     signal_key: str
     signal_score: float
     causal_chain_id: str  # signals with the same id belong to one deterioration
     sub_category: str  # one of TA_SUBCATEGORIES' keys
+    #: How this score was reached. Keys are stable and flat, so the build
+    #: writes them straight into the signal-observation dataset.
+    explanation: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

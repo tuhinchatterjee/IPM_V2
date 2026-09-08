@@ -83,6 +83,32 @@ def signal_observations(customer_id: str, period: str | None = None) -> pd.DataF
     return df[(df["customer_id"] == customer_id) & (df["snapshot_month"] == period)].copy()
 
 
+def signal_evidence(customer_id: str, signal_key: str,
+                     period: str | None = None) -> dict | None:
+    """One signal's full explanation: how its score was reached and where it
+    came from.
+
+    This is what answers "show me the evidence behind that node" without
+    re-deriving anything. The build persists the trigger severity, the five
+    accelerator dimension bands, the decay state and the source system at the
+    moment the score was computed, so what a reader is shown is the reading
+    that produced the score rather than a reconstruction of it.
+
+    Returns None when the signal did not fire for this borrower in this
+    period — an absence, said plainly, rather than an empty shape that reads
+    like a zero.
+    """
+    obs = signal_observations(customer_id, period)
+    if obs.empty:
+        return None
+    match = obs[obs["signal_key"] == signal_key]
+    if match.empty:
+        return None
+    row = match.iloc[0].to_dict()
+    return {k: (None if pd.isna(v) else v) if not isinstance(v, (list, dict)) else v
+            for k, v in row.items()}
+
+
 def portfolio_summary(period: str | None = None) -> dict:
     bm = borrower_month(period)
     if bm.empty:
