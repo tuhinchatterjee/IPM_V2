@@ -13,6 +13,8 @@ import {
 
 import { ResultView } from "@/components/analytics/result-view";
 import { DownloadResults } from "@/components/exports/download";
+import { ExportToPlaybook } from "@/components/exports/export-to-playbook";
+import { fromLensPanel } from "@/lib/playbook-export";
 import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/layout/back-link";
 import { Button } from "@/components/ui/button";
@@ -126,6 +128,8 @@ function LensView({ id }: { id: number }) {
             key={`${panel.analysis_id}-${index}`}
             panel={panel}
             from={fromLens(String(lens.id), lens.name)}
+            lensId={lens.id}
+            lensName={lens.name}
           />
         ))}
       </div>
@@ -250,10 +254,14 @@ function Header({ lens, rendered }: { lens: Lens; rendered: RenderedLens }) {
 function PanelView({
   panel,
   from,
+  lensId,
+  lensName,
 }: {
   panel: RenderedPanel;
   /** §5: Lens → Analysis → Trace → Back to Lens. */
   from: ReturnContext;
+  lensId: number | string;
+  lensName: string;
 }) {
   if (panel.status !== "succeeded" || !panel.result) {
     return (
@@ -324,6 +332,11 @@ function PanelView({
               compact
             />
           ) : null}
+          {/* §5: a completed panel is evidence a report can be built on. */}
+          <ExportToPlaybook
+            compact
+            build={() => fromLensPanel(panel, { id: lensId, name: lensName })}
+          />
           {panel.analysis_run_id ? (
             <Button variant="ghost" size="sm" asChild>
               <Link href={linkBack(`/trace/${panel.analysis_run_id}`, from)}>

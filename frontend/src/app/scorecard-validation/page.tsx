@@ -6,6 +6,8 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
+import { ExportToPlaybook } from "@/components/exports/export-to-playbook";
+import { fromScorecardReport } from "@/lib/playbook-export";
 import type {
   ScorecardAssessment,
   ScorecardDashboard,
@@ -1539,7 +1541,15 @@ function Reports({
         <Card className="p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="text-sm font-medium">{built.title}</h3>
-            <Status status={built.opinion} />
+            <div className="flex items-center gap-2">
+              <Status status={built.opinion} />
+              {/* §5: a generated validation report is evidence a Playbook
+                  report can be built on, coverage gaps and all. */}
+              <ExportToPlaybook
+                compact
+                build={() => fromScorecardReport(built)}
+              />
+            </div>
           </div>
           <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-4">
             <Pair label="Report" value={built.report_id} />
