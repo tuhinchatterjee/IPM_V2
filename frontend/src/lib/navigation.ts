@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
   Bot,
+  BookOpen,
   Boxes,
   Brain,
   ClipboardCheck,
@@ -223,8 +224,22 @@ export const NAV_ITEMS: NavItem[] = [
       "The transparency argument in one screen. Open a borrower and read a condition out: the value, the previous value, the threshold and who owns it.",
   },
   {
+    href: "/playbook",
+    label: "Playbook",
+    description:
+      "Create and refine reports, presentations and workbooks by describing what you want, from your own documents and from analyses explicitly exported here. A chat-first document workspace, not a standing instruction.",
+    icon: BookOpen,
+    status: "partial",
+    phase:
+      "Generation needs a configured provider; seeded workspaces and their files are readable without one",
+    group: "Work",
+    demo: "core",
+    demoNote:
+      "Open a seeded playbook and download the Word, PDF and PowerPoint it produced. Say plainly that seeded history is synthetic.",
+  },
+  {
     href: "/playbooks",
-    label: "Playbooks",
+    label: "Monitoring Playbooks",
     description:
       "A standing instruction: run these certified analyses over this scope, test these thresholds, and act when one is crossed. A run that finds nothing says so.",
     icon: ClipboardCheck,

@@ -57,7 +57,7 @@ export default function PlaybooksPage() {
   return (
     <div className="space-y-7">
       <PageHeader
-        title="Playbooks"
+        title="Monitoring Playbooks"
         description="A standing instruction: run these certified analyses over this scope, test these thresholds, and act when one is crossed. Every figure a playbook reports carries a Trace, exactly as it would if you had asked for it by hand."
         status="partial"
         phase="Manual and on-publication triggers run; scheduling is not yet wired to a scheduler"

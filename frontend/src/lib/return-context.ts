@@ -80,7 +80,7 @@ export const INDEX_OF: Record<SourceType, ReturnTo> = {
   borrower: { href: "/early-warning", label: "Early Warning" },
   dataset: { href: "/data-builder/browse", label: "Data Builder" },
   trace: { href: "/trace", label: "Trace & Lineage" },
-  playbook: { href: "/playbooks", label: "Playbooks" },
+  playbook: { href: "/playbooks", label: "Monitoring Playbooks" },
   workflow: { href: "/workflow", label: "Workflow" },
   studio: { href: "/studio", label: "Analysis Studio" },
   unknown: { href: "/", label: "Back" },

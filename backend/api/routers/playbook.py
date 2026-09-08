@@ -118,6 +118,18 @@ class ExportIn(BaseModel):
     insight: str = Field(default="", max_length=MAX_TEXT)
 
 
+class MessageIn(BaseModel):
+    text: str = Field(min_length=1, max_length=20_000)
+    source_ids: list[int] = Field(default_factory=list)
+    export_revision_ids: list[int] = Field(default_factory=list)
+    formats: list[str] = Field(default_factory=list)
+    artifact_id: int | None = None
+    base_version_id: int | None = None
+    #: Supplied by the client so a refresh or a double-click resolves to the
+    #: same job rather than to a second billable generation.
+    idempotency_key: str = Field(default="", max_length=120)
+
+
 # --------------------------------------------------------------------------
 # Home and capabilities
 # --------------------------------------------------------------------------
@@ -228,6 +240,11 @@ def get_workspace(workspace_id: int,
                     "id": artifact.id, "kind": artifact.kind,
                     "title": artifact.title,
                     "current_version_id": artifact.current_version_id,
+                    # Lineage, so the interface can tell a deck that is current
+                    # from one built before the report was revised — and not
+                    # offer to make one that already exists.
+                    "derived_from_artifact_id": artifact.derived_from_artifact_id,
+                    "derived_from_version_id": artifact.derived_from_version_id,
                     "versions": versions,
                 })
             return {
@@ -306,6 +323,64 @@ async def upload_source(workspace_id: int,
         raise _refused(exc, "rejected_upload") from exc
     except repo.NotFound as exc:
         raise _not_found(exc) from exc
+    except repo.StorageUnavailable as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/messages",
+             status_code=status.HTTP_201_CREATED)
+def send_message(workspace_id: int, body: MessageIn,
+                 principal: Principal = RequireAnalyst) -> dict:
+    """Send one message and run the work it asks for.
+
+    Synchronous, and the reason is the one `backend/exports/service.py` gives
+    for the same choice: a job API with no worker behind it is a status endpoint
+    that lies. The job row, its idempotency key and its milestones are all
+    written, so moving this onto the existing agent queue later is a change of
+    caller rather than a change of contract.
+    """
+    from backend.playbook import provider
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            return service.send_message(
+                session, scope, workspace_id,
+                text=body.text,
+                source_ids=body.source_ids or None,
+                export_revision_ids=body.export_revision_ids or None,
+                formats=body.formats or None,
+                artifact_id=body.artifact_id,
+                base_version_id=body.base_version_id,
+                idempotency_key=body.idempotency_key,
+            )
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except repo.StaleBaseVersion as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": "stale_base_version", "message": str(exc)},
+        ) from exc
+    except provider.ProviderNotConfigured as exc:
+        # Not an error in the product: a deployment without a key still browses
+        # its history and its files. Reported as configuration, never as a crash
+        # and never as a canned answer.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": "provider_not_configured", "message": str(exc)},
+        ) from exc
+    except provider.Cancelled as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": "cancelled", "message": str(exc)}) from exc
+    except capabilities.UnsupportedFormat as exc:
+        raise _refused(exc, "unsupported_format") from exc
+    except provider.AuthoringError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"error": "authoring_failed", "message": str(exc),
+                    "category": getattr(exc, "category", "")},
+        ) from exc
     except repo.StorageUnavailable as exc:
         raise _unavailable(exc) from exc
 

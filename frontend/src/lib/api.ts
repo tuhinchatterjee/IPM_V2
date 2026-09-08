@@ -3707,6 +3707,203 @@ export interface RoleDescription {
   can: string;
 }
 
+// ---------------------------------------------------------------------------
+// Playbook — the chat-first document workspace.
+//
+// A DIFFERENT feature from the Playbook above, which is a standing instruction
+// that runs certified analyses on a trigger (docs/PRODUCT_SPEC.md §9). The two
+// share a word and nothing else; these types are prefixed `Pb` so a call site
+// cannot reach for the wrong one by autocomplete.
+// ---------------------------------------------------------------------------
+
+export interface PbWorkspaceCard {
+  id: number;
+  title: string;
+  document_family: string;
+  state_summary: string;
+  demo: boolean;
+  last_activity: string;
+}
+
+export interface PbAnalysisCard {
+  export_id: number;
+  revision_id: number;
+  revision: number;
+  title: string;
+  source_module: string;
+  reporting_period: string;
+  insight: string;
+  tags: string[];
+  demo: boolean;
+  exported_at: string;
+  revisions: number;
+}
+
+export interface PbHome {
+  recent_playbooks: PbWorkspaceCard[];
+  recent_exports: PbAnalysisCard[];
+  export_total: number;
+}
+
+export interface PbLibrary {
+  analyses: PbAnalysisCard[];
+  total: number;
+  counts: Record<string, number>;
+  modules: string[];
+  implemented_modules: string[];
+}
+
+export interface PbTable {
+  id: string;
+  title: string;
+  columns: string[];
+  rows: unknown[][];
+  units: Record<string, string>;
+  precision: Record<string, number>;
+}
+
+/** The full contents of one exported analysis. Not a summary — §4 is explicit. */
+export interface PbAnalysisPreview {
+  export_id: number;
+  revision_id: number;
+  revision: number;
+  title: string;
+  question: string;
+  narrative: string;
+  tables: PbTable[];
+  charts: { id: string; kind: string; title: string; categories: string[];
+    series: Record<string, unknown[]> }[];
+  scope: Record<string, unknown>;
+  assumptions: string[];
+  limitations: string[];
+  caveats: string[];
+  data_quality: string[];
+  provenance: Record<string, unknown>;
+  source_module: string;
+  reporting_period: string;
+  content_hash: string;
+  demo: boolean;
+  /** Set when a later snapshot exists. Surfaced, never substituted. */
+  newer_revision_available: number | null;
+}
+
+export interface PbSource {
+  id: number;
+  filename: string;
+  role: string;
+  status: "uploaded" | "parsing" | "parsed" | "partial" | "failed";
+  size_bytes: number;
+  manifest: {
+    format?: string;
+    read?: string[];
+    skipped?: { what: string; why: string }[];
+    warnings?: string[];
+    complete?: boolean;
+  };
+  failure_reason: string;
+}
+
+export interface PbArtifactFile {
+  id: number;
+  format: "docx" | "pdf" | "pptx" | "xlsx";
+  filename: string;
+  size_bytes: number;
+  renderer: string;
+  validated: boolean;
+}
+
+export interface PbArtifactVersion {
+  id: number;
+  version: number;
+  change_summary: string;
+  origin: string;
+  created_at: string;
+  files: PbArtifactFile[];
+}
+
+export interface PbArtifact {
+  id: number;
+  kind: string;
+  title: string;
+  current_version_id: number | null;
+  /** A deck records the report version it was built from; a report has none. */
+  derived_from_artifact_id: number | null;
+  derived_from_version_id: number | null;
+  versions: PbArtifactVersion[];
+}
+
+export interface PbMessage {
+  id: number;
+  sequence: number;
+  role: string;
+  content: Record<string, unknown>;
+  /** `seed_fixture` is never presented as something a model wrote. */
+  origin: "user" | "assistant_live" | "seed_fixture" | "system";
+  model: string;
+  created_at: string;
+}
+
+export interface PbWorkspace {
+  id: number;
+  title: string;
+  document_family: string;
+  state_summary: string;
+  demo: boolean;
+  messages: PbMessage[];
+  sources: PbSource[];
+  artifacts: PbArtifact[];
+}
+
+export interface PbCapabilities {
+  formats: { format: string; mime: string; routes: string[];
+    description: string }[];
+  provider: {
+    configured: boolean;
+    reason: string;
+    provider: string;
+    model: string;
+    model_inherited: boolean;
+  };
+}
+
+export interface PbSendResult {
+  job_id: number;
+  state: string;
+  duplicate: boolean;
+  message_id?: number;
+  artifact_id?: number | null;
+  version?: number;
+  notes?: string[];
+  message?: string;
+}
+
+export interface PbExportRequest {
+  source_module: string;
+  title: string;
+  question?: string;
+  narrative?: string;
+  tables?: Partial<PbTable>[];
+  scope?: Record<string, unknown>;
+  assumptions?: string[];
+  limitations?: string[];
+  caveats?: string[];
+  source_ref?: Record<string, unknown>;
+  source_revision?: string;
+  scope_kind?: string;
+  report_family?: string;
+  tags?: string[];
+  reporting_period?: string;
+  insight?: string;
+}
+
+export interface PbExportResult {
+  export_id: number;
+  revision_id: number;
+  revision: number;
+  duplicate: boolean;
+  message: string;
+}
+
 export const api = {
   // ---- authentication ----
   /**
@@ -4187,6 +4384,92 @@ export const api = {
     request<{ runs: PlaybookRun[] }>(`/playbooks/${id}/runs`),
   deletePlaybook: (id: number) =>
     request<void>(`/playbooks/${id}`, { method: "DELETE" }),
+
+  // ---- playbook (the document workspace, not the standing instruction) ----
+  playbookHome: (limit = 6) =>
+    request<PbHome>(`/playbook/home?limit=${limit}`),
+  playbookCapabilities: () =>
+    request<PbCapabilities>("/playbook/capabilities"),
+  playbookWorkspaces: (limit = 24) =>
+    request<{ workspaces: PbWorkspaceCard[] }>(
+      `/playbook/workspaces?limit=${limit}`,
+    ),
+  playbookWorkspace: (id: number) =>
+    request<PbWorkspace>(`/playbook/workspaces/${id}`),
+  createPlaybookWorkspace: (payload: {
+    title: string;
+    document_family?: string;
+  }) =>
+    request<{ id: number; title: string }>("/playbook/workspaces", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  renamePlaybookWorkspace: (id: number, title: string) =>
+    request<{ id: number; title: string }>(`/playbook/workspaces/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    }),
+  uploadPlaybookSource: (id: number, file: File, sourceRole = "supporting") => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("source_role", sourceRole);
+    // rawBody: the browser must set the multipart boundary itself.
+    return request<PbSource>(`/playbook/workspaces/${id}/sources`, {
+      method: "POST",
+      body: form,
+      rawBody: true,
+      timeoutMs: 120_000,
+    });
+  },
+  playbookExports: (
+    opts: {
+      q?: string;
+      modules?: string[];
+      period?: string;
+      sort?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ) => {
+    const query = new URLSearchParams();
+    if (opts.q) query.set("q", opts.q);
+    (opts.modules ?? []).forEach((m) => query.append("module", m));
+    if (opts.period) query.set("period", opts.period);
+    if (opts.sort) query.set("sort", opts.sort);
+    if (opts.limit) query.set("limit", String(opts.limit));
+    if (opts.offset) query.set("offset", String(opts.offset));
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<PbLibrary>(`/playbook/exports${suffix}`);
+  },
+  playbookExportPreview: (revisionId: number) =>
+    request<PbAnalysisPreview>(`/playbook/exports/revisions/${revisionId}`),
+  exportToPlaybook: (payload: PbExportRequest) =>
+    request<PbExportResult>("/playbook/exports", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      timeoutMs: 60_000,
+    }),
+  sendPlaybookMessage: (
+    id: number,
+    payload: {
+      text: string;
+      source_ids?: number[];
+      export_revision_ids?: number[];
+      formats?: string[];
+      artifact_id?: number | null;
+      base_version_id?: number | null;
+      idempotency_key?: string;
+    },
+  ) =>
+    // Authoring a report is minutes of work, not seconds, so this carries the
+    // longest timeout the client allows rather than the default.
+    request<PbSendResult>(`/playbook/workspaces/${id}/messages`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      timeoutMs: 900_000,
+    }),
+  playbookDownloadPath: (fileId: number) =>
+    `/playbook/artifact-files/${fileId}/download`,
 
   // ---- early warning ----
   earlyWarningTaxonomy: () =>

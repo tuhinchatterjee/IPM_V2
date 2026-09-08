@@ -317,3 +317,171 @@ def _slug(text: str) -> str:
 def content_hash(doc: D.Document) -> str:
     return hashlib.sha256(
         doc.plain_text().encode("utf-8")).hexdigest()
+
+
+# --------------------------------------------------------------------------
+# Sending a message
+# --------------------------------------------------------------------------
+
+
+def send_message(session, scope: repo.Scope, workspace_id: int, *,
+                 text: str,
+                 source_ids: list[int] | None = None,
+                 export_revision_ids: list[int] | None = None,
+                 formats: list[str] | None = None,
+                 artifact_id: int | None = None,
+                 base_version_id: int | None = None,
+                 idempotency_key: str = "",
+                 calculations: list | None = None,
+                 on_milestone=None,
+                 is_cancelled=None) -> dict:
+    """One turn: persist what was asked, do it, persist what came back.
+
+    The user's message and its attachments are written FIRST and committed with
+    the job row, so a generation that fails still leaves a thread showing what
+    was asked and what went wrong. A thread that loses the question when the
+    answer fails is a thread nobody can retry from.
+
+    `idempotency_key` is enforced by a unique constraint. A refresh, a
+    double-click or a retry after a dropped connection finds the job that is
+    already running rather than starting a second billable one.
+    """
+    from backend.models.playbook import PlaybookJob
+
+    ws = repo.get_workspace(session, scope, workspace_id)
+    formats = list(formats or DEFAULT_FORMATS)
+    key = idempotency_key or f"ws{ws.id}:{repo.next_sequence(session, ws.id)}"
+
+    existing = repo.jobs_by_key(session, key)
+    if existing is not None:
+        return {"job_id": existing.id, "state": existing.state,
+                "duplicate": True,
+                "message": "This request is already running." }
+
+    job = PlaybookJob(workspace_id=ws.id, tenant=scope.tenant,
+                      idempotency_key=key, state="queued",
+                      requested_by=scope.user_id)
+    session.add(job)
+    session.flush()
+
+    user_message = repo.add_message(
+        session, ws.id, role="user",
+        content={"text": text}, origin="user", author_id=scope.user_id)
+    for position, source_id in enumerate(source_ids or []):
+        repo.attach(session, ws.id, message_id=user_message.id,
+                    source_id=source_id, position=position)
+    for position, revision_id in enumerate(export_revision_ids or []):
+        # Resolved through the tenant-scoped lookup, so an id that was never
+        # exported — or belongs to somebody else — fails here rather than
+        # becoming evidence.
+        revision = repo.find_export_revision(session, scope, revision_id)
+        repo.attach(session, ws.id, message_id=user_message.id,
+                    export_revision_id=revision.id,
+                    position=len(source_ids or []) + position)
+
+    ledger = ledger_for(session, scope, ws.id, source_ids=source_ids,
+                        export_revision_ids=export_revision_ids,
+                        calculations=calculations)
+
+    def milestone(state: str, detail: str = "") -> None:
+        job.state = state if state in {"reviewing_sources", "drafting",
+                                       "rendering", "validating"} else job.state
+        job.milestones = list(job.milestones or []) + [
+            {"state": state, "detail": detail}]
+        if on_milestone:
+            on_milestone(state, detail)
+
+    try:
+        outcome = author_document(
+            session, scope, ws.id, instruction=text, ledger=ledger,
+            title=ws.title, formats=formats, artifact_id=artifact_id,
+            base_version_id=base_version_id,
+            on_milestone=milestone, is_cancelled=is_cancelled)
+    except provider.Cancelled as exc:
+        job.state = "cancelled"
+        job.finished_at = _now()
+        repo.add_message(session, ws.id, role="assistant",
+                         content={"text": "This generation was stopped. "
+                                          "Nothing was saved."},
+                         origin="system", job_id=job.id)
+        raise exc
+    except Exception as exc:
+        job.state = "failed"
+        job.error = str(exc)[:2000]
+        job.finished_at = _now()
+        repo.add_message(
+            session, ws.id, role="assistant",
+            content={"text": str(exc), "failed": True},
+            origin="system", job_id=job.id)
+        raise
+
+    job.state = "ready"
+    job.model = outcome.model_served
+    job.provider_request_ids = list(outcome.request_ids)
+    job.usage = {"requests": len(outcome.request_ids)}
+    job.finished_at = _now()
+
+    assistant = repo.add_message(
+        session, ws.id, role="assistant",
+        content={
+            "text": outcome.document.plain_text() if outcome.document else "",
+            "markdown": _markdown_of(outcome.document),
+            "artifact_id": outcome.artifact_id,
+            "version_id": outcome.version_id,
+            "version": outcome.version,
+            "notes": list(outcome.notes),
+            "grounding": outcome.grounding.as_dict() if outcome.grounding else {},
+            "evidence_complete": ledger.complete,
+            "evidence_gaps": list(ledger.omissions),
+        },
+        origin="assistant_live", model=outcome.model_served,
+        request_ids=list(outcome.request_ids), usage=outcome.usage()
+        if hasattr(outcome, "usage") else {}, job_id=job.id)
+
+    return {"job_id": job.id, "state": "ready", "duplicate": False,
+            "message_id": assistant.id, "artifact_id": outcome.artifact_id,
+            "version": outcome.version, "notes": list(outcome.notes)}
+
+
+def _now():
+    from sqlalchemy import func
+
+    return func.now()
+
+
+def _markdown_of(doc: D.Document | None) -> str:
+    """Re-render the stored document as the Markdown the thread displays.
+
+    Kept as a function rather than storing the model's raw reply, because what
+    the thread shows must be what was actually SAVED — after grounding removed
+    anything unsupported — not what the model first wrote.
+    """
+    if doc is None:
+        return ""
+    lines: list[str] = []
+    if doc.title:
+        lines.append(f"# {doc.title}")
+        lines.append("")
+    for section in doc.sections:
+        if section.heading:
+            lines.append(f"{'#' * min(section.level + 1, 6)} {section.heading}")
+            lines.append("")
+        for block in section.blocks:
+            if block.kind == D.TABLE:
+                columns = block.data.get("columns") or []
+                if columns:
+                    lines.append("| " + " | ".join(str(c) for c in columns) + " |")
+                    lines.append("| " + " | ".join("---" for _ in columns) + " |")
+                    for row in block.data.get("rows") or []:
+                        lines.append("| " + " | ".join(
+                            "" if v is None else str(v) for v in row) + " |")
+                    lines.append("")
+            elif block.kind in (D.BULLETS, D.NUMBERS):
+                for i, item in enumerate(block.data.get("items", []), start=1):
+                    lines.append(f"{i}. {item}" if block.kind == D.NUMBERS
+                                 else f"- {item}")
+                lines.append("")
+            elif block.text:
+                lines.append(block.text)
+                lines.append("")
+    return "\n".join(lines).strip()
