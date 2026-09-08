@@ -115,39 +115,72 @@ DEEP_LIMITS = Limits(
 LIMITS: dict[str, Limits] = {STANDARD: STANDARD_LIMITS, DEEP: DEEP_LIMITS}
 
 
+#: Which limits an administrator may raise, and the setting that does it.
+#: Deliberately NOT here: execution_submissions and analysis_rounds. Sections
+#: 1.7 and 9.2 state five and three as architectural invariants -- "neither
+#: limit resets" -- rather than as starting values, so there is no override for
+#: them at any level and no code path that can change them.
+OVERRIDABLE: dict[str, tuple[str, str]] = {
+    "max_input_tokens_per_call": ("cockpit_agentic_v3_standard_input_tokens",
+                                  "cockpit_agentic_v3_deep_input_tokens"),
+    "total_tokens": ("cockpit_agentic_v3_standard_total_tokens",
+                     "cockpit_agentic_v3_deep_total_tokens"),
+    "deadline_seconds": ("cockpit_agentic_v3_standard_deadline_seconds",
+                         "cockpit_agentic_v3_deep_deadline_seconds"),
+    "total_provider_requests": ("cockpit_agentic_v3_standard_model_requests",
+                                "cockpit_agentic_v3_deep_model_requests"),
+}
+
+#: Never overridable, at any level. Listed so the property is testable rather
+#: than merely absent.
+INVARIANT: tuple[str, ...] = ("execution_submissions", "analysis_rounds")
+
+
 def limits_for(mode: str) -> Limits:
-    """The mode's limits, with the one administrator override applied.
+    """The mode's limits, with any explicit administrator overrides applied.
 
-    Only the per-call INPUT cap is overridable, and only upward, and only from
-    configuration. Nothing else in section 9.1 can be moved: the five
-    submissions, the three rounds, the deadline, the token ceiling and the
-    spending ceiling are what they are, and code that could raise them to pass
-    a test would make the whole ledger decorative.
+    Section 9's rule is that neither the MODEL nor the BROWSER may raise a
+    limit, and nothing here lets them: an override comes only from deployment
+    configuration, only raises, and is reported. Section 9.6 contemplates
+    exactly this -- profile the packets during UAT and "request an explicit
+    administrative configuration change if necessary" -- and these settings are
+    where such a request lands.
 
-    The input cap is the exception because section 7.4 names it as one: where a
-    mandatory catalogue does not fit, the specification says to fix the
-    serialization or the configuration. The serialization was fixed as far as
-    it honestly goes; this is the configuration half, and it is inert unless an
-    administrator sets it.
+    The five execution submissions and three analysis rounds are not among
+    them. Sections 1.7 and 9.2 state those as invariants, and there is no
+    setting, no argument and no code path that changes either.
     """
     from backend.config import settings
 
     base = LIMITS.get(str(mode or STANDARD).lower(), STANDARD_LIMITS)
-    override = int(settings.cockpit_agentic_v3_deep_input_tokens
-                   if base.mode == DEEP
-                   else settings.cockpit_agentic_v3_standard_input_tokens)
-    if override > base.max_input_tokens_per_call:
-        return dataclasses.replace(base, max_input_tokens_per_call=override)
-    return base
+    changes: dict[str, Any] = {}
+    for field_name, (standard_setting, deep_setting) in OVERRIDABLE.items():
+        setting = deep_setting if base.mode == DEEP else standard_setting
+        configured = getattr(settings, setting, 0) or 0
+        current = getattr(base, field_name)
+        if configured and configured > current:
+            changes[field_name] = type(current)(configured)
+    return dataclasses.replace(base, **changes) if changes else base
+
+
+def overrides_in_force(mode: str) -> dict[str, dict[str, Any]]:
+    """Which limits this deployment is running raised, and by how much.
+
+    Surfaced in the diagnostics and in the UAT handoff, so a measured result is
+    never read as if it had been obtained under the specification's own
+    numbers.
+    """
+    base = LIMITS.get(str(mode or STANDARD).lower(), STANDARD_LIMITS)
+    effective = limits_for(mode)
+    return {
+        name: {"specification": getattr(base, name),
+               "configured": getattr(effective, name)}
+        for name in OVERRIDABLE
+        if getattr(effective, name) != getattr(base, name)}
 
 
 def input_cap_is_overridden(mode: str) -> bool:
-    """Whether this deployment is running a raised input cap. Reported in the
-    handoff and in the diagnostics, so a UAT result is never read as if it were
-    obtained under the specification's own limit."""
-    base = LIMITS.get(str(mode or STANDARD).lower(), STANDARD_LIMITS)
-    return limits_for(mode).max_input_tokens_per_call > \
-        base.max_input_tokens_per_call
+    return "max_input_tokens_per_call" in overrides_in_force(mode)
 
 
 # ------------------------------------------------------------ stop reasons
@@ -724,5 +757,6 @@ __all__ = ["BudgetExceeded", "CallRecord", "DEEP_LIMITS", "HARD_STOPS",
            "STANDARD_LIMITS", "STOP_CALLS", "STOP_CANCELLED", "STOP_DEADLINE",
            "STOP_INPUT_TOO_LARGE", "STOP_METADATA", "STOP_NO_PROGRESS",
            "STOP_ROUNDS", "STOP_SPEND", "STOP_STEPS", "STOP_SUBMISSIONS",
-           "STOP_TOKENS", "STORE", "input_cap_is_overridden", "limits_for",
+           "STOP_TOKENS", "STORE", "INVARIANT", "OVERRIDABLE",
+           "input_cap_is_overridden", "limits_for", "overrides_in_force",
            "prices_from_settings"]

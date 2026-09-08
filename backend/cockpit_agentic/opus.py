@@ -1,0 +1,634 @@
+"""
+Opus: ownership, planning, authorship, repair and review.
+Specification sections 6, 7.5, 7.8, 8 and 13.
+
+One conversation, not four calls
+--------------------------------
+The gate, the plan, every repair and the review are turns of ONE conversation.
+That is not an optimisation: section 8.1 requires every repair continuation to
+carry the full effective context, and threading the messages is how the
+catalogue, the approved ownership decision and the plan stay present without
+being re-serialized into each error. The assistant's own blocks go back
+verbatim, in order, because that is what the provider requires and what makes
+the continuation the same conversation rather than a new one.
+
+Section 6.2 permits the first response to carry both the functionality decision
+and a candidate plan, so long as the gate is logically first and CreditProbe
+approves before anything executes. It does, and it is: `runtime` checks
+`decision.may_execute` and issues a server-side permission before a single
+statement reaches the engine, and a referral response is required to carry no
+executable plan at all.
+
+What is not here
+----------------
+No method vocabulary, no template, no canned analysis. The schemas describe the
+SHAPE of a plan and a submission — subquestions, fields, steps, code — and say
+nothing about what the analysis should be. `AnalysisPlan.method_summary` is
+free text. That is the difference between a contract and the template this
+architecture removes.
+"""
+
+from __future__ import annotations
+
+import logging
+import uuid
+from typing import Any
+
+from backend.cockpit_agentic import UNTRUSTED_NOTE
+from backend.cockpit_agentic import contracts as K
+from backend.cockpit_agentic.context import CockpitContextPacket
+from backend.cockpit_agentic.ledger import Ledger
+from backend.cockpit_agentic.sonnet import prompt
+
+logger = logging.getLogger(__name__)
+
+OPUS_ROLE = "cockpit_opus"
+OPUS_FAMILY = "opus"
+
+
+class OpusUnavailable(RuntimeError):
+    """No provider, or the provider cannot hold a conversation.
+
+    Raised and reported. There is no deterministic substitute for a
+    model-authored analysis, and section 17 forbids inventing one.
+    """
+
+
+# ------------------------------------------------------------------ schemas
+
+_SCORE = {
+    "type": "object",
+    "properties": {
+        "functionality_id": {"type": "string"},
+        "score": {"type": "integer", "minimum": 0, "maximum": 100},
+        "justification": {"type": "string"},
+    },
+    "required": ["functionality_id", "score", "justification"],
+}
+
+_ALTERNATIVE = {
+    "type": "object",
+    "properties": {
+        "question": {"type": "string"},
+        "required_fields": {"type": "array", "items": {"type": "string"},
+                            "minItems": 1},
+        "available_periods": {"type": "array", "items": {"type": "string"}},
+        "limitation": {"type": "string"},
+    },
+    "required": ["question", "required_fields"],
+}
+
+_PLAN = {
+    "type": "object",
+    "properties": {
+        "plan_id": {"type": "string"},
+        "subquestions": {"type": "array", "items": {"type": "string"}},
+        "fields_required": {"type": "array", "items": {"type": "string"}},
+        "joins_required": {"type": "array", "items": {"type": "string"}},
+        "steps": {"type": "array", "items": {"type": "string"}},
+        "assumptions": {"type": "array", "items": {"type": "string"}},
+        "missingness_handling": {"type": "string"},
+        "expected_output_grain": {"type": "string"},
+        "expected_units": {"type": "string"},
+        # Free text on purpose. There is no method vocabulary and no enum:
+        # constraining this field would be the template this architecture
+        # exists to remove.
+        "method_summary": {"type": "string"},
+        "alternative_method": {"type": "string"},
+    },
+    "required": ["plan_id", "subquestions", "method_summary"],
+}
+
+_STEP = {
+    "type": "object",
+    "properties": {
+        "step_id": {"type": "string"},
+        "language": {"type": "string", "enum": ["sql"]},
+        "code": {"type": "string",
+                 "description": "Exactly one SELECT statement."},
+        "purpose": {"type": "string"},
+    },
+    "required": ["step_id", "language", "code"],
+}
+
+GATE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "scores": {"type": "array", "items": _SCORE, "minItems": 6},
+        "best_fit": {"type": "string"},
+        "requested_actions": {"type": "array", "items": {"type": "string"}},
+        "relevant_exclusions": {"type": "array", "items": {"type": "string"}},
+        "decision": {"type": "string",
+                     "enum": list(K.DECISIONS)},
+        "mixed_scope": {"type": "boolean"},
+        "mixed_scope_explanation": {"type": "string"},
+        "public_explanation": {"type": "string"},
+        "referral_destination": {"type": "string"},
+        "referral_reason": {"type": "string"},
+        "alternatives": {"type": "array", "items": _ALTERNATIVE,
+                         "maxItems": 3},
+        "clarification_question": {"type": "string"},
+        "clarification_options": {"type": "array", "items": {"type": "string"}},
+        "plan": _PLAN,
+        "steps": {"type": "array", "items": _STEP},
+    },
+    "required": ["scores", "decision", "public_explanation"],
+}
+
+REPAIR_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "action": {"type": "string",
+                   "enum": ["submit_repaired_code", "revise_the_analysis_plan",
+                            "ask_a_targeted_clarification",
+                            "explain_and_stop"]},
+        "what_went_wrong": {"type": "string"},
+        "plan": _PLAN,
+        "steps": {"type": "array", "items": _STEP},
+        "clarification_question": {"type": "string"},
+        "clarification_options": {"type": "array", "items": {"type": "string"}},
+        "explanation": {"type": "string"},
+    },
+    "required": ["action"],
+}
+
+_TABLE = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "columns": {"type": "array", "items": {"type": "string"}},
+        "rows": {"type": "array", "items": {"type": "array"}},
+        "units": {"type": "object", "additionalProperties": {"type": "string"}},
+        "fact_ids": {"type": "array", "items": {"type": "string"}},
+        "note": {"type": "string"},
+    },
+    "required": ["title", "columns", "rows"],
+}
+
+_CHART = {
+    "type": "object",
+    "properties": {
+        "kind": {"type": "string",
+                 "enum": ["bar", "line", "waterfall", "scatter"]},
+        "title": {"type": "string"},
+        "series": {"type": "array", "items": {"type": "object",
+                                              "additionalProperties": True}},
+        "x_label": {"type": "string"},
+        "y_label": {"type": "string"},
+        "unit": {"type": "string"},
+        "fact_ids": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["kind", "title"],
+}
+
+REVIEW_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "decision": {"type": "string", "enum": list(K.REVIEW_DECISIONS)},
+        "per_subquestion": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "subquestion": {"type": "string"},
+                    "answered": {"type": "boolean"},
+                    "evidence_fact_ids": {"type": "array",
+                                          "items": {"type": "string"}},
+                    "gap": {"type": "string"},
+                },
+                "required": ["subquestion", "answered"],
+            }},
+        "gap_addressed": {"type": "string"},
+        "plan": _PLAN,
+        "steps": {"type": "array", "items": _STEP},
+        "clarification_question": {"type": "string"},
+        "clarification_options": {"type": "array", "items": {"type": "string"}},
+        "answer": {
+            "type": "object",
+            "properties": {
+                "narrative": {"type": "string"},
+                "complete": {"type": "boolean"},
+                "approximate": {"type": "boolean"},
+                "tables": {"type": "array", "items": _TABLE},
+                "charts": {"type": "array", "items": _CHART},
+                "limitations": {"type": "array", "items": {"type": "string"}},
+                "assumptions": {"type": "array", "items": {"type": "string"}},
+                "hypotheses": {
+                    "type": "array", "items": {"type": "string"},
+                    "description": "Claims the evidence supports only as "
+                                   "association. Never stated as cause."},
+                "fact_ids": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["narrative"],
+        },
+    },
+    "required": ["decision"],
+}
+
+
+# ----------------------------------------------------------- the conversation
+
+class Conversation:
+    """One Opus conversation for one user request.
+
+    Holds the message list and threads the assistant's own blocks back into it
+    verbatim. Nothing here interprets a block: the provider gave it, the
+    provider gets it back.
+    """
+
+    def __init__(self, *, provider: Any, ledger: Ledger,
+                 packet: CockpitContextPacket) -> None:
+        if provider is None or not hasattr(provider, "converse"):
+            raise OpusUnavailable(
+                "This runtime has no provider that can hold a multi-turn "
+                "conversation, so the Cockpit cannot plan, author or repair an "
+                "analysis. This is reported rather than substituted: there is "
+                "no deterministic stand-in for a model-authored analysis, and "
+                "presenting one would misrepresent what the system did.")
+        self.provider = provider
+        self.ledger = ledger
+        self.packet = packet
+        self.messages: list[dict[str, Any]] = []
+        self.turns: list[dict[str, Any]] = []
+        self._system_cache: list[dict[str, Any]] | None = None
+
+    # -- the system prompt, cached across turns ------------------------
+
+    def system(self, contract: str) -> list[dict[str, Any]]:
+        """System blocks with the stable prefix marked for caching.
+
+        The context packet is the stable prefix: it does not change across the
+        repair turns of one request. Caching it lowers cost and latency and
+        does NOT lower the logical token count -- section 9.3 -- so the ledger
+        counts it either way.
+        """
+        return [
+            {"type": "text", "text": prompt(contract)},
+            {"type": "text",
+             "text": ("THE FACTUAL CONTEXT FOR THIS REQUEST.\n"
+                      "Everything you may rely on is here. It does not change "
+                      "while this request is running.\n\n"
+                      + self.packet.serialize()),
+             "cache_control": {"type": "ephemeral"}},
+            {"type": "text", "text": UNTRUSTED_NOTE},
+        ]
+
+    # -- one turn ------------------------------------------------------
+
+    def ask(self, *, contract: str, user: str, schema: dict[str, Any],
+            tool_name: str, description: str, purpose: str,
+            max_tokens: int = 0, finalization: bool = False
+            ) -> dict[str, Any]:
+        """One reserved, settled turn that must answer through the tool."""
+        from backend.llm import roles
+
+        role = roles.role(OPUS_ROLE)
+        limit = max_tokens or self.ledger.limits.max_opus_output_tokens
+        system_blocks = self.system(contract)
+        estimated = (self.packet.estimated_tokens
+                     + sum(len(str(m)) for m in self.messages) // 4
+                     + len(user) // 4 + 1)
+
+        reservation = self.ledger.reserve(
+            role=OPUS_ROLE, family=OPUS_FAMILY, purpose=purpose,
+            input_tokens=estimated, max_output_tokens=limit,
+            finalization=finalization)
+
+        self.messages.append({"role": "user", "content": user})
+        tool = {"name": tool_name, "description": description,
+                "input_schema": schema}
+        try:
+            result = self.provider.converse(
+                system=system_blocks, messages=self.messages, tools=[tool],
+                max_tokens=limit, model=role.model, purpose=purpose,
+                role=OPUS_ROLE, effort=role.effort,
+                timeout=max(1.0, self.ledger.remaining_seconds))
+        except Exception as e:                              # noqa: BLE001
+            self.ledger.settle(reservation, output_tokens=0, error=str(e),
+                               uncertain=True)
+            raise
+
+        self.ledger.settle(
+            reservation, input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+            cache_read_tokens=result.cache_read_tokens,
+            cache_write_tokens=result.cache_write_tokens)
+
+        # The assistant's own blocks go back verbatim, in order. A tool_use
+        # block MUST be answered by a matching tool_result on the next turn,
+        # which `answer_tool` does.
+        if result.assistant_blocks:
+            self.messages.append({"role": "assistant",
+                                  "content": result.assistant_blocks})
+
+        self.turns.append({"purpose": purpose, "stop_reason": result.stop_reason,
+                           "tool_calls": len(result.tool_calls),
+                           "truncated": result.truncated})
+
+        if result.truncated:
+            # Section 9.1: a truncated output is INCOMPLETE, not a shorter
+            # answer. Treating half a plan as a plan is how a confident wrong
+            # analysis gets built.
+            raise OpusUnavailable(
+                f"The model's response was cut off at its {limit}-token output "
+                f"limit, so the {purpose} is incomplete. A truncated plan is "
+                f"half a plan, not a smaller one.")
+
+        for call in result.tool_calls:
+            if call["name"] == tool_name:
+                self._pending = call["id"]
+                return dict(call["input"])
+
+        raise OpusUnavailable(
+            f"The model answered in prose rather than through {tool_name}: "
+            f"{result.text[:200] or '(nothing)'}")
+
+    def answer_tool(self, payload: str) -> None:
+        """Pair the last tool_use with its tool_result, in order.
+
+        Required by the provider and required by section 8.1's "keep the
+        assistant tool-use and corresponding tool-result blocks paired and
+        ordered correctly".
+        """
+        pending = getattr(self, "_pending", "")
+        if not pending:
+            return
+        self.messages.append({
+            "role": "user",
+            "content": [{"type": "tool_result", "tool_use_id": pending,
+                         "content": payload}]})
+        self._pending = ""
+
+
+# ------------------------------------------------------------- the three jobs
+
+def gate_and_plan(conversation: Conversation, packet: CockpitContextPacket
+                  ) -> tuple[K.FunctionalityDecision, K.AnalysisPlan | None,
+                             K.ExecutionSubmission | None]:
+    """Opus's first responsibility: who owns this, and only then, how.
+
+    Returns the decision, and a plan and submission ONLY on the PROCEED branch.
+    A referral or a clarification carries no executable plan -- section 7.5 --
+    and this function drops one if the model supplies it anyway rather than
+    letting it reach the validator.
+    """
+    request = packet.payload["A_request"]
+    user = "\n\n".join([
+        "Decide who owns this request, and only then how to answer it.",
+        f"ORIGINAL: {request['original_question']}",
+        f"BUSINESS REQUEST: {request['business_request']}",
+        "SUBQUESTIONS:\n" + "\n".join(f"- {s}" for s in request["subquestions"]),
+        ("UNRESOLVED AMBIGUITY (do not resolve it by guessing):\n"
+         + "\n".join(f"- {a}" for a in request["unresolved_ambiguity"])
+         if request["unresolved_ambiguity"] else
+         "No ambiguity was flagged by the preprocessing passes."),
+        ("Score every functionality in the registry. If the Cockpit is not the "
+         "unique highest scorer, or the action is outside its ownership, refer "
+         "or clarify and include NO executable plan. If it is, include your "
+         "analysis plan and the SQL for its first step."),
+    ])
+
+    data = conversation.ask(
+        contract="opus_gate_and_plan", user=user, schema=GATE_SCHEMA,
+        tool_name="functionality_decision",
+        description="Which functionality owns this request, and -- only if it "
+                    "is the Cockpit -- the analysis plan and its SQL.",
+        purpose="opus_gate_and_plan")
+
+    scores = [K.SuitabilityScore(
+        functionality_id=str(s.get("functionality_id") or ""),
+        score=int(s.get("score") or 0),
+        justification=str(s.get("justification") or ""))
+        for s in (data.get("scores") or [])]
+
+    alternatives = [K.AlternativeQuestion(
+        question=str(a.get("question") or ""),
+        required_fields=[str(f) for f in (a.get("required_fields") or [])],
+        available_periods=[str(p) for p in (a.get("available_periods") or [])],
+        limitation=str(a.get("limitation") or ""))
+        for a in (data.get("alternatives") or [])[:3]
+        if a.get("question") and a.get("required_fields")]
+
+    destination = str(data.get("referral_destination") or "")
+    route, enabled = "", False
+    if destination:
+        from backend.cockpit_agentic import registry
+
+        try:
+            target = registry.entry(destination)
+            route, enabled = target.route, target.enabled
+        except LookupError:
+            route, enabled = "", False
+
+    decision = K.FunctionalityDecision(
+        decision=str(data.get("decision") or K.CLARIFY_FUNCTIONALITY),
+        scores=scores, best_fit=str(data.get("best_fit") or ""),
+        requested_actions=[str(a) for a in (data.get("requested_actions") or [])],
+        relevant_exclusions=[str(x) for x in
+                             (data.get("relevant_exclusions") or [])],
+        mixed_scope=bool(data.get("mixed_scope")),
+        mixed_scope_explanation=str(data.get("mixed_scope_explanation") or ""),
+        referral_destination=destination,
+        referral_reason=str(data.get("referral_reason") or ""),
+        referral_route=route, referral_enabled=enabled,
+        alternatives=alternatives,
+        clarification_question=str(data.get("clarification_question") or ""),
+        clarification_options=[str(o) for o in
+                               (data.get("clarification_options") or [])],
+        public_explanation=str(data.get("public_explanation") or ""))
+
+    if not decision.may_execute:
+        # Section 7.5: a referral response contains no executable analysis
+        # plan. If one arrived anyway it is discarded HERE, before anything
+        # downstream could act on it.
+        if data.get("steps") or data.get("plan"):
+            logger.info("A non-proceeding decision carried an executable plan; "
+                        "it was discarded at the gate.")
+        return decision, None, None
+
+    plan = _plan_from(data.get("plan"), decision)
+    submission = _submission_from(data.get("steps"), plan=plan,
+                                  analysis_round=1, submission_number=0)
+    return decision, plan, submission
+
+
+def _plan_from(raw: Any, decision: K.FunctionalityDecision
+               ) -> K.AnalysisPlan | None:
+    if not isinstance(raw, dict):
+        return None
+    return K.AnalysisPlan(
+        plan_id=str(raw.get("plan_id") or f"plan-{uuid.uuid4().hex[:6]}"),
+        subquestions=[str(s) for s in (raw.get("subquestions") or [])]
+        or ["(unstated)"],
+        fields_required=[str(f) for f in (raw.get("fields_required") or [])],
+        joins_required=[str(j) for j in (raw.get("joins_required") or [])],
+        steps=[str(s) for s in (raw.get("steps") or [])],
+        assumptions=[str(a) for a in (raw.get("assumptions") or [])],
+        missingness_handling=str(raw.get("missingness_handling") or ""),
+        expected_output_grain=str(raw.get("expected_output_grain") or ""),
+        expected_units=str(raw.get("expected_units") or ""),
+        method_summary=str(raw.get("method_summary") or ""),
+        alternative_method=str(raw.get("alternative_method") or ""))
+
+
+def _submission_from(raw: Any, *, plan: K.AnalysisPlan | None,
+                     analysis_round: int, submission_number: int
+                     ) -> K.ExecutionSubmission | None:
+    if not raw or not isinstance(raw, list):
+        return None
+    steps = [K.ExecutionStep(
+        step_id=str(s.get("step_id") or f"step-{i + 1}"),
+        language=str(s.get("language") or "sql"),
+        code=str(s.get("code") or ""),
+        purpose=str(s.get("purpose") or ""))
+        for i, s in enumerate(raw) if str(s.get("code") or "").strip()]
+    if not steps:
+        return None
+    return K.ExecutionSubmission(
+        submission_id=f"sub-{uuid.uuid4().hex[:8]}",
+        plan_id=plan.plan_id if plan else "plan-1",
+        analysis_round=analysis_round, submission_number=submission_number,
+        steps=steps, authored_by="opus")
+
+
+def repair(conversation: Conversation, packet_failure: K.ExecutionFailurePacket,
+           *, plan: K.AnalysisPlan | None, analysis_round: int
+           ) -> dict[str, Any]:
+    """Hand back the facts and let Opus author the next candidate.
+
+    Everything in this function is a report. Nothing in it is a repair, and
+    there is no branch that writes SQL.
+    """
+    import json
+
+    conversation.answer_tool(json.dumps(packet_failure.to_dict(), default=str))
+
+    user = "\n\n".join([
+        "Your query did not run. The exact failure is in the tool result "
+        "above, with the fields that DO exist, the valid filter values, the "
+        "results you already have and what you have already tried.",
+        "CreditProbe has not edited your SQL and will not. The next candidate "
+        "comes from you.",
+        f"Permitted next actions: "
+        f"{', '.join(packet_failure.permitted_next_actions)}.",
+        (f"Submissions remaining: "
+         f"{packet_failure.budget.get('submissions_remaining')}. "
+         f"Analysis rounds remaining: "
+         f"{packet_failure.budget.get('analysis_rounds_remaining')}. "
+         f"Seconds remaining: "
+         f"{packet_failure.budget.get('seconds_remaining')}."),
+        ("Do not resubmit the same query: an identical candidate is blocked "
+         "before execution. Do not change the user's question to make it "
+         "executable."),
+    ])
+
+    data = conversation.ask(
+        contract="opus_repair", user=user, schema=REPAIR_SCHEMA,
+        tool_name="repair_decision",
+        description="What you make of the failure, and the next candidate if "
+                    "there is one.",
+        purpose="opus_repair")
+
+    revised_plan = _plan_from(data.get("plan"), None) or plan
+    submission = _submission_from(data.get("steps"), plan=revised_plan,
+                                  analysis_round=analysis_round,
+                                  submission_number=0)
+    return {"action": str(data.get("action") or "explain_and_stop"),
+            "what_went_wrong": str(data.get("what_went_wrong") or ""),
+            "plan": revised_plan, "submission": submission,
+            "clarification_question": str(
+                data.get("clarification_question") or ""),
+            "clarification_options": [
+                str(o) for o in (data.get("clarification_options") or [])],
+            "explanation": str(data.get("explanation") or "")}
+
+
+def review(conversation: Conversation, result: K.ExecutionResultPacket, *,
+           plan: K.AnalysisPlan | None, analysis_round: int
+           ) -> K.AnalysisReviewDecision:
+    """Sufficiency review, and the final answer when the evidence supports one."""
+    import json
+
+    conversation.answer_tool(json.dumps(result.to_dict(), default=str))
+
+    user = "\n\n".join([
+        "The results are in the tool result above. Decide whether they answer "
+        "the question, subquestion by subquestion.",
+        ("A zero-row result means nothing matched. It does not mean the "
+         "quantity is zero. A clipped table is not a complete aggregate."),
+        ("Every figure in your answer must come from a result you were given. "
+         "Report anything the evidence supports only as association as a "
+         "hypothesis, never as a cause."),
+        (f"Analysis rounds remaining: "
+         f"{result.budget.get('analysis_rounds_remaining')}. Submissions "
+         f"remaining: {result.budget.get('submissions_remaining')}. If you "
+         f"revise, include the changed plan and the new SQL."),
+    ])
+
+    data = conversation.ask(
+        contract="opus_review_and_answer", user=user, schema=REVIEW_SCHEMA,
+        tool_name="review_and_answer",
+        description="Whether the evidence suffices, and the answer if it does.",
+        purpose="opus_review")
+
+    per_subquestion = [K.SubquestionEvidence(
+        subquestion=str(s.get("subquestion") or ""),
+        answered=bool(s.get("answered")),
+        evidence_fact_ids=[str(f) for f in (s.get("evidence_fact_ids") or [])],
+        gap=str(s.get("gap") or ""))
+        for s in (data.get("per_subquestion") or [])]
+
+    decision = str(data.get("decision") or K.INSUFFICIENT_DATA)
+    revised_plan = _plan_from(data.get("plan"), None) or plan
+    submission = _submission_from(data.get("steps"), plan=revised_plan,
+                                  analysis_round=analysis_round + 1,
+                                  submission_number=0)
+
+    envelope = None
+    raw_answer = data.get("answer")
+    if isinstance(raw_answer, dict) and raw_answer.get("narrative"):
+        envelope = K.AnswerEnvelope(
+            kind="answer", narrative=str(raw_answer["narrative"]),
+            complete=bool(raw_answer.get("complete", True)),
+            approximate=bool(raw_answer.get("approximate", False)),
+            tables=[K.AnswerTable(
+                title=str(t.get("title") or ""),
+                columns=[str(c) for c in (t.get("columns") or [])],
+                rows=[list(r) for r in (t.get("rows") or [])],
+                units={str(k): str(v) for k, v in
+                       (t.get("units") or {}).items()},
+                fact_ids=[str(f) for f in (t.get("fact_ids") or [])],
+                note=str(t.get("note") or ""))
+                for t in (raw_answer.get("tables") or [])],
+            charts=[K.AnswerChart(
+                kind=str(c.get("kind") or "bar"),
+                title=str(c.get("title") or ""),
+                series=[dict(s) for s in (c.get("series") or [])],
+                x_label=str(c.get("x_label") or ""),
+                y_label=str(c.get("y_label") or ""),
+                unit=str(c.get("unit") or ""),
+                fact_ids=[str(f) for f in (c.get("fact_ids") or [])])
+                for c in (raw_answer.get("charts") or [])],
+            limitations=[str(x) for x in (raw_answer.get("limitations") or [])],
+            assumptions=[str(x) for x in (raw_answer.get("assumptions") or [])],
+            hypotheses=[str(x) for x in (raw_answer.get("hypotheses") or [])],
+            fact_ids=[str(f) for f in (raw_answer.get("fact_ids") or [])])
+
+    if decision == K.REVISE_ANALYSIS and submission is None:
+        # The contract refuses a revision with no code, and refusing it here
+        # with a clear reason beats letting the dataclass raise later.
+        decision = K.INSUFFICIENT_DATA
+
+    return K.AnalysisReviewDecision(
+        decision=decision, per_subquestion=per_subquestion,
+        revised_plan=revised_plan, revised_submission=submission,
+        gap_addressed=str(data.get("gap_addressed") or ""),
+        clarification_question=str(data.get("clarification_question") or ""),
+        clarification_options=[str(o) for o in
+                               (data.get("clarification_options") or [])],
+        answer=envelope)
+
+
+__all__ = ["Conversation", "GATE_SCHEMA", "OPUS_ROLE", "OpusUnavailable",
+           "REPAIR_SCHEMA", "REVIEW_SCHEMA", "gate_and_plan", "repair",
+           "review"]

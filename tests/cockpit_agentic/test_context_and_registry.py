@@ -142,11 +142,24 @@ def packet(built, *, mode="standard", exchanges=None, **kw):
 
 
 def with_cap(built, tokens: int):
+    """Set the input cap and clear every other override.
+
+    Explicit rather than incremental, because the runtime tests configure a
+    raised deployment in a session-scoped fixture and a leaked override would
+    make these assertions accidentally true.
+    """
     from backend import config
 
     config.settings = dataclasses.replace(
-        built["settings"], cockpit_agentic_v3_standard_input_tokens=tokens,
-        cockpit_agentic_v3_deep_input_tokens=tokens)
+        built["settings"],
+        cockpit_agentic_v3_standard_input_tokens=tokens,
+        cockpit_agentic_v3_deep_input_tokens=tokens,
+        cockpit_agentic_v3_standard_total_tokens=0,
+        cockpit_agentic_v3_deep_total_tokens=0,
+        cockpit_agentic_v3_standard_deadline_seconds=0.0,
+        cockpit_agentic_v3_deep_deadline_seconds=0.0,
+        cockpit_agentic_v3_standard_model_requests=0,
+        cockpit_agentic_v3_deep_model_requests=0)
 
 
 def test_the_specification_cap_does_not_fit_and_that_is_reported(built):
@@ -165,19 +178,56 @@ def test_the_specification_cap_does_not_fit_and_that_is_reported(built):
     assert "CONTEXT_SIZING.md" in message
 
 
-def test_no_other_guardrail_can_be_overridden(built):
-    """Only the input cap moves, and only from configuration."""
-    with_cap(built, 36_000)
+def test_five_submissions_and_three_rounds_have_no_override_at_all(built):
+    """Sections 1.7 and 9.2 state these as invariants, not starting values.
+
+    Every other numeric limit is a configurable starting value an administrator
+    may raise with measured evidence (section 9.6). These two are not: there is
+    no setting for them, and applying every override that does exist leaves
+    them untouched.
+    """
+    import dataclasses as dc
+
+    from backend import config
+
+    assert set(L.INVARIANT) == {"execution_submissions", "analysis_rounds"}
+    assert not (set(L.INVARIANT) & set(L.OVERRIDABLE))
+
+    # Set every override that exists, generously, and check what moved.
+    config.settings = dc.replace(
+        built["settings"],
+        cockpit_agentic_v3_standard_input_tokens=99_000,
+        cockpit_agentic_v3_standard_total_tokens=999_000,
+        cockpit_agentic_v3_standard_deadline_seconds=9_999.0,
+        cockpit_agentic_v3_standard_model_requests=999)
     limits = L.limits_for("standard")
-    assert limits.max_input_tokens_per_call == 36_000
     assert limits.execution_submissions == 5
     assert limits.analysis_rounds == 3
-    assert limits.deadline_seconds == 60.0
-    assert limits.total_tokens == 35_000
-    assert limits.spend_ceiling_usd == 1.00
+    assert limits.max_input_tokens_per_call == 99_000
+    assert limits.total_tokens == 999_000
+    with_cap(built, 0)
+
+
+def test_an_override_is_reported_never_silent(built):
+    """Section 9.6: report the measured coverage and the configuration change.
+    A result obtained under a raised limit must not read as if it were obtained
+    under the specification's own."""
+    with_cap(built, 0)
+    assert L.overrides_in_force("standard") == {}
+    assert L.input_cap_is_overridden("standard") is False
+
+    with_cap(built, 36_000)
+    reported = L.overrides_in_force("standard")
+    assert reported["max_input_tokens_per_call"] == {
+        "specification": 12_000, "configured": 36_000}
     assert L.input_cap_is_overridden("standard") is True
     with_cap(built, 0)
-    assert L.input_cap_is_overridden("standard") is False
+
+
+def test_an_override_can_only_raise_a_limit_never_lower_it(built):
+    with_cap(built, 500)
+    assert L.limits_for("standard").max_input_tokens_per_call == 12_000
+    with_cap(built, 0)
 
 
 def test_with_an_explicitly_configured_cap_the_packet_assembles(built):

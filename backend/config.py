@@ -105,15 +105,24 @@ class Settings:
     #: defaulted to a magic string, because artifact keys, cache keys and the
     #: release's own rows all carry it and a mismatch must be visible.
     cockpit_agentic_v3_default_tenant: str
-    #: Explicit administrator overrides for the two per-call input caps. Zero
-    #: means "use the specification's value" (12,000 Standard / 20,000 Deep).
-    #: They exist because the specification's own section 7.4 says that where a
-    #: mandatory catalogue does not fit, the fix is a serialization or
-    #: CONFIGURATION change -- and a configuration change has to be something
-    #: an administrator can actually make, explicitly, rather than something
-    #: the code does to itself to pass a test.
+    #: Explicit administrator overrides for the numeric budget limits. Zero
+    #: means "use the specification's value". Section 9 forbids the MODEL and
+    #: the BROWSER from raising a limit, and section 9.6 explicitly
+    #: contemplates the other case: profile the packets during UAT and
+    #: "request an explicit administrative configuration change if necessary".
+    #: These are that request's destination. They are inert unless set, every
+    #: override is reported in the diagnostics and the handoff, and the five
+    #: submissions and three analysis rounds have no override at all because
+    #: sections 1.7 and 9.2 state them as architectural invariants rather than
+    #: as starting values.
     cockpit_agentic_v3_standard_input_tokens: int
     cockpit_agentic_v3_deep_input_tokens: int
+    cockpit_agentic_v3_standard_total_tokens: int
+    cockpit_agentic_v3_deep_total_tokens: int
+    cockpit_agentic_v3_standard_deadline_seconds: float
+    cockpit_agentic_v3_deep_deadline_seconds: float
+    cockpit_agentic_v3_standard_model_requests: int
+    cockpit_agentic_v3_deep_model_requests: int
     #: USD per million input/output tokens for the two Cockpit roles. Spending
     #: ceilings are only meaningful against configured prices; when these are
     #: zero the ledger reports cost as UNKNOWN and refuses to claim the cost
@@ -192,6 +201,18 @@ def _load() -> Settings:
             "COCKPIT_AGENTIC_V3_STANDARD_INPUT_TOKENS", 0),
         cockpit_agentic_v3_deep_input_tokens=_int(
             "COCKPIT_AGENTIC_V3_DEEP_INPUT_TOKENS", 0),
+        cockpit_agentic_v3_standard_total_tokens=_int(
+            "COCKPIT_AGENTIC_V3_STANDARD_TOTAL_TOKENS", 0),
+        cockpit_agentic_v3_deep_total_tokens=_int(
+            "COCKPIT_AGENTIC_V3_DEEP_TOTAL_TOKENS", 0),
+        cockpit_agentic_v3_standard_deadline_seconds=_float(
+            "COCKPIT_AGENTIC_V3_STANDARD_DEADLINE_SECONDS", 0.0),
+        cockpit_agentic_v3_deep_deadline_seconds=_float(
+            "COCKPIT_AGENTIC_V3_DEEP_DEADLINE_SECONDS", 0.0),
+        cockpit_agentic_v3_standard_model_requests=_int(
+            "COCKPIT_AGENTIC_V3_STANDARD_MODEL_REQUESTS", 0),
+        cockpit_agentic_v3_deep_model_requests=_int(
+            "COCKPIT_AGENTIC_V3_DEEP_MODEL_REQUESTS", 0),
         cockpit_agentic_v3_sonnet_input_usd_per_mtok=_float(
             "COCKPIT_AGENTIC_V3_SONNET_INPUT_USD_PER_MTOK", 0.0),
         cockpit_agentic_v3_sonnet_output_usd_per_mtok=_float(
