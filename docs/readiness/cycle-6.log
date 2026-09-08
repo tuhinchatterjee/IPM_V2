@@ -15,3 +15,599 @@ All checks passed!
     PASS (2s)
 
 === eslint
+    PASS (27s)
+
+=== What-If unit and invariant suites
+........................................................................ [ 13%]
+........................................................................ [ 27%]
+........................................................................ [ 41%]
+........................................................................ [ 55%]
+.........................s.............................................. [ 68%]
+........................................................................ [ 82%]
+........................................................................ [ 96%]
+..................                                                       [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/starlette/testclient.py:53
+  /home/user/IPM_V2/.venv/lib/python3.12/site-packages/starlette/testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+tests/whatif/test_whatif_schema_contract.py::TestAMissingRequiredFieldIsNamed::test_it_refuses_by_name_not_by_binder_error
+  /home/user/IPM_V2/.venv/lib/python3.12/site-packages/_pytest/fixtures.py:1313: PytestRemovedIn10Warning: Class-scoped fixture defined as instance method is deprecated.
+  Instance attributes set in this fixture will NOT be visible to test methods,
+  as each test gets a new instance while the fixture runs only once per class.
+  Use @classmethod decorator and set attributes on cls instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#class-scoped-fixture-as-instance-method
+    fixturefunc = resolve_fixture_function(fixturedef, request)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+    PASS (159s)
+
+=== the evaluation corpus
+........................................................................ [  2%]
+........................................................................ [  5%]
+........................................................................ [  8%]
+........................................................................ [ 11%]
+........................................................................ [ 14%]
+........................................................................ [ 17%]
+........................................................................ [ 20%]
+........................................................................ [ 22%]
+........................................................................ [ 25%]
+........................................................................ [ 28%]
+........................................................................ [ 31%]
+........................................................................ [ 34%]
+........................................................................ [ 37%]
+........................................................................ [ 40%]
+........................................................................ [ 42%]
+........................................................................ [ 45%]
+........................................................................ [ 48%]
+........................................................................ [ 51%]
+........................................................................ [ 54%]
+........................................................................ [ 57%]
+........................................................................ [ 60%]
+........................................................................ [ 63%]
+........................................................................ [ 65%]
+........................................................................ [ 68%]
+........................................................................ [ 71%]
+........................................................................ [ 74%]
+........................................................................ [ 77%]
+........................................................................ [ 80%]
+........................................................................ [ 83%]
+........................................................................ [ 85%]
+........................................................................ [ 88%]
+........................................................................ [ 91%]
+........................................................................ [ 94%]
+........................................................................ [ 97%]
+.................................................................        [100%]
+    PASS (7s)
+
+=== the API surface
+........................................................................ [  6%]
+........................................................................ [ 13%]
+........................................................................ [ 20%]
+........................................................................ [ 27%]
+........................................................................ [ 34%]
+........................................................................ [ 41%]
+........................................................................ [ 48%]
+........................................................................ [ 55%]
+........................................................................ [ 62%]
+........................................................................ [ 69%]
+........................................................................ [ 76%]
+........................................................................ [ 83%]
+........................................................................ [ 90%]
+....................................ss.................................. [ 97%]
+........................                                                 [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/starlette/testclient.py:53
+  /home/user/IPM_V2/.venv/lib/python3.12/site-packages/starlette/testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+    PASS (140s)
+
+=== the red team
+......................................................                   [100%]
+    PASS (22s)
+
+=== the fifteen browser journeys
+
+== Journey 1 — Rating Movement
+    PASS  What-If Analysis is the page title
+    PASS  the umbrella is not called Stress Testing
+    PASS  six guided journeys are offered
+    PASS  the rating profile opens
+    PASS  the nineteen governed grades plus a Total are shown — 20 rows
+    PASS  the 20 x 20 migration matrix is shown
+    PASS  the migration offers an exposure view
+    PASS  the methodology gate is asked before any ECL figure
+    PASS  no result is shown while the gate is open
+    PASS  a result appears once the methodology is chosen
+    PASS  the result names the period
+    PASS  the result names the methodology
+    PASS  the result shows the baseline and the What-If ECL
+    PASS  the result names the rule set that staged the reported book
+    PASS  and the rule set that staged the What-If
+  JOURNEY PASSED (3332ms)
+
+== Journey 2 — Risk Parameters, layered
+    PASS  the parameter profile opens
+    PASS  the methodology gate is asked before any ECL figure
+    PASS  no result is shown while the gate is open
+    PASS  a result appears once the methodology is chosen
+    PASS  one step is on the scenario
+    PASS  the second shock layers onto the first — 2 steps
+    PASS  the layered result is calculated without asking the gate again — 2 results
+  JOURNEY PASSED (8344ms)
+
+== Journey 3 — Stage Migration
+    PASS  the stage profile opens
+    PASS  the historical 3 x 3 migration is shown
+    PASS  the methodology gate is asked before any ECL figure
+    PASS  no result is shown while the gate is open
+    PASS  a result appears once the methodology is chosen
+    PASS  the result reports stage movement
+    PASS  deterioration is shown
+  JOURNEY PASSED (2499ms)
+
+== Journey 4 — Macroeconomic Shock
+    PASS  the macro variables are shown
+    PASS  all ten CreditProbe V1 variables are shown — 10
+    PASS  the synthetic-macro limitation is disclosed
+    PASS  the methodology gate is asked before any ECL figure
+    PASS  no result is shown while the gate is open
+    PASS  a result appears once the methodology is chosen
+    PASS  a PD shock layers onto the macro shock
+  JOURNEY PASSED (8333ms)
+
+== Journey 5 — Sector Stress
+    PASS  the sector profile opens
+    PASS  real sectors are listed
+    PASS  the methodology gate is asked before any ECL figure
+    PASS  no result is shown while the gate is open
+    PASS  a result appears once the methodology is chosen
+  JOURNEY PASSED (2194ms)
+
+== Journey 6 — Borrower Stress
+    PASS  the top Stage 2 borrowers are shown
+    PASS  ten borrowers are listed — 10
+    PASS  the methodology gate is asked before any ECL figure
+    PASS  no result is shown while the gate is open
+    PASS  a result appears once the methodology is chosen
+    PASS  the book-level impact is reported
+    PASS  the movement is drawn, not only tabulated — ecl=2 exposure=2
+    PASS  the movement is attributed to the drivers that caused it
+    PASS  the attribution names the method
+    PASS  the rating driver is on the table
+    PASS  the Stage migration is kept apart from the rating move — What moved the provisionExact Shapley (order-neutral, sums to the total) · v1.1.0DriverEffect on ECLShareBorrowers movedRating migrationSAR 35.4k+71.07%3,112Mea
+    PASS  the table says whether it reconciles
+    PASS  the charts carry a baseline and a What-If series
+  JOURNEY PASSED (2245ms)
+
+== Journey 7 — Save and reopen
+    PASS  the methodology gate is asked before any ECL figure
+    PASS  no result is shown while the gate is open
+    PASS  a result appears once the methodology is chosen
+    PASS  the save is confirmed
+    PASS  the saved What-If appears on the landing page
+    PASS  reopening restores the scenario
+    PASS  the reopened What-If names the same period
+  JOURNEY PASSED (4187ms)
+
+== Journey 8 — ML model configuration
+    PASS  an active model is shown, not an empty page
+    PASS  the limitations are stated
+    PASS  the macro collinearity is disclosed
+    PASS  out-of-time metrics are shown
+    PASS  the artifact format is stated
+    PASS  SHAP is shown
+    PASS  feature importance is shown
+    PASS  Client X is scored by the real model
+    PASS  the retrain prompt names the periods
+    PASS  the stage-design study is on the model card
+    PASS  it says which design was chosen
+    PASS  it reports the governed Stage 1 to 2 step and both models against it
+    PASS  it reports each Stage's share of the ECL
+    PASS  the Stage interaction is shown
+    PASS  Stage 1 and Stage 2 responses are both reported
+    PASS  and the finding is stated in words
+    PASS  versions are listed
+  JOURNEY PASSED (3112ms)
+
+== Journey 9 — A complex scenario typed directly
+    PASS  a typed scenario opens a thread without clicking a card
+    PASS  the methodology gate is asked before any ECL figure
+    PASS  no result is shown while the gate is open
+    PASS  a result appears once the methodology is chosen
+    PASS  the ML methodology is named on the result
+    PASS  the model version is on the result
+    PASS  the follow-up layers onto the same scenario
+  JOURNEY PASSED (8514ms)
+
+== Journey 10 — Staging criteria, composed on screen
+    PASS  the staging control is on the thread
+    PASS  the What-If rule set is shown
+    PASS  the reported-book rule set is shown beside it
+    PASS  the two are labelled apart
+    PASS  Rule A is on by default
+    PASS  Rule B is on by default
+    PASS  Rule A is described as an assumption, not a requirement
+    PASS  Rule A is a two-notch rule
+    PASS  the reported set's rules are not switchable
+    PASS  Rule A is off in the reported set
+    PASS  the default rule set names itself — 1.0.0+what-if-default
+    PASS  editing a threshold gives the rule set a new version — 1.0.0+what-if-default -> 1.0.0+0de54e97f7431216
+    PASS  a rule can be switched off
+    PASS  the rules can be combined with ALL as well as ANY
+    PASS  a rule can be composed on screen
+    PASS  the added rule joins the set — 6 rules
+    PASS  the added rule is named as the person named it
+    PASS  the added rule can be removed again
+    PASS  a governed rule cannot be removed
+    PASS  reset returns the thread to the What-If default
+  JOURNEY PASSED (16997ms)
+
+== Journey 11 — A staging override changes the answer
+    PASS  the methodology gate is asked before any ECL figure
+    PASS  no result is shown while the gate is open
+    PASS  a result appears once the methodology is chosen
+    PASS  the result names BOTH rule sets
+    PASS  the reported book is staged by the reported-book policy
+    PASS  the What-If is staged by the What-If default
+    PASS  the override produced a second result — 2
+    PASS  the second result carries the overridden rule set, not the default — What-If staged 1.0.0+0e0b08bc58fd7d16
+    PASS  and the reported book is still staged by the reported policy
+  JOURNEY PASSED (17324ms)
+
+== Journey 12 — A macro variable, checked and overridden
+    PASS  the macro lab is on the macro journey
+    PASS  all ten governed variables have a card — 10
+    PASS  selecting a variable measures it against the book
+    PASS  the configured multiplier is shown beside the estimated one
+    PASS  the small sample is stated rather than hidden
+    PASS  the recommendation is keeping the configured sensitivity
+    PASS  all three choices are offered
+    PASS  a person may define their own relationship
+    PASS  the override is put in force for the thread
+    PASS  and the governed reference is said to be unchanged — In force for this thread: PD ×1.45, LGD +0.75pp per adverse unit (User-Defined Sensitivity
+    PASS  it is labelled user-defined, never empirical or approved
+    PASS  the methodology gate is asked before any ECL figure
+    PASS  no result is shown while the gate is open
+    PASS  a result appears once the methodology is chosen
+    PASS  the result's provenance line names the override
+    PASS  and says the governed matrix still applies elsewhere
+  JOURNEY PASSED (3255ms)
+
+== Journey 13 — The reading, and the figures behind it
+    PASS  the methodology gate is asked before any ECL figure
+    PASS  no result is shown while the gate is open
+    PASS  a result appears once the methodology is chosen
+    PASS  the result carries a reading, not only a number
+    PASS  the reading says who wrote it
+    PASS  the reading states it does not add a view the numbers do not carry
+    PASS  a follow-up the result makes worth asking is offered
+  JOURNEY PASSED (2295ms)
+
+== Journey 14 — The other methodology, from either side
+    PASS  the methodology gate is asked before any ECL figure
+    PASS  no result is shown while the gate is open
+    PASS  a result appears once the methodology is chosen
+    PASS  asking for the other model prices the scenario both ways
+    PASS  both methodologies are shown with their versions
+    PASS  the direction the reader arrived from is named
+    PASS  it says neither figure is the right one
+    PASS  it does not recommend one
+    PASS  where the difference sits is shown, or the two are said to agree
+  JOURNEY PASSED (3689ms)
+
+== Journey 15 — The audit workbook comes down
+    PASS  the methodology gate is asked before any ECL figure
+    PASS  no result is shown while the gate is open
+    PASS  a result appears once the methodology is chosen
+    PASS  the detailed workbook is offered on the result
+    PASS  clicking it produces a file
+    PASS  named as a workbook — what-if-ifrs_9_risk_parameter_adjustment-q2_2026.xlsx
+    PASS  and the name carries no path — what-if-ifrs_9_risk_parameter_adjustment-q2_2026.xlsx
+  JOURNEY PASSED (7676ms)
+
+================================================================
+15/15 journeys passed · 153/153 checks passed
+    PASS (95s)
+
+=== the manual-failure journeys
+
+== A — Rating migration percentages are ROW shares
+    PASS  the matrix declares its normalisation — row
+    PASS  and says how to read a cell — % of the borrowers that STARTED the period on this grade
+    PASS  and names the denominator explicitly — the origin grade's own total
+    PASS  the displayed shape is 20 x 20 on the nineteen governed grades — 20 x 20
+    PASS  a percentage view is published
+    PASS  some origin grades hold borrowers — 18 populated rows
+    PASS  every populated row sums to 100% of its own origin grade
+    PASS  the grand total is not what the cells are shares of — grand_total 100
+    PASS  the matrix renders
+    PASS  the screen says what the percentages are OF — % of the borrowers that STARTED the period on this grade
+  JOURNEY PASSED (2374ms)
+
+== B — Back navigation exists on every What-If screen
+    PASS  the thread offers a Back control
+    PASS  the thread Back points at the What-If index
+    PASS  the thread Back returns to the What-If index — http://127.0.0.1:3000/what-if
+    PASS  the Delta model page offers a Back control
+    PASS  the Delta model page Back points at the What-If index
+    PASS  the Delta model page Back returns to the What-If index — http://127.0.0.1:3000/what-if
+    PASS  the ML model page offers a Back control
+    PASS  the ML model page Back points at the What-If index
+    PASS  the ML model page Back returns to the What-If index — http://127.0.0.1:3000/what-if
+  JOURNEY PASSED (4415ms)
+
+== C — Follow-up questions are answered, and change nothing
+    PASS  the methodology gate is asked before any ECL figure
+    PASS  a result appears once the methodology is chosen
+    PASS  "Why did the ECL increase?" is answered
+    PASS  "Why did the ECL increase?" says the scenario is unchanged
+    PASS  "Why did the ECL increase?" is not answered with a stack trace
+    PASS  "Which borrowers contributed most?" is answered
+    PASS  "Which borrowers contributed most?" says the scenario is unchanged
+    PASS  "Which borrowers contributed most?" is not answered with a stack trace
+    PASS  "Show this by sector." is answered
+    PASS  "Show this by sector." says the scenario is unchanged
+    PASS  "Show this by sector." is not answered with a stack trace
+    PASS  "Why did Stage 3 ECL increase?" is answered
+    PASS  "Why did Stage 3 ECL increase?" says the scenario is unchanged
+    PASS  "Why did Stage 3 ECL increase?" is not answered with a stack trace
+    PASS  "How much of this is the measurement basis changing?" is answered
+    PASS  "How much of this is the measurement basis changing?" says the scenario is unchanged
+    PASS  "How much of this is the measurement basis changing?" is not answered with a stack trace
+    PASS  no new ECL result was produced by asking questions — 1 vs 1
+    PASS  and the figure being asked about did not move — What-If ECLSAR 64.8kDelta Model v1.0.0 -> What-If ECLSAR 64.8kDelta Model v1.0.0
+  JOURNEY PASSED (4313ms)
+
+== D — The ML methodology is runnable or refused in words
+    PASS  the model page reports the runtime it needs — {"available":true,"version":"3.1.2","platform":"Linux x86_64","reason":"","cause":"","command":"","then":"","message":"X
+    PASS  with a message a person can act on
+    PASS  and never a dynamic-linker path
+    PASS  the screen shows no traceback
+    PASS  and no raw linker error
+    PASS  the gate lists the ML option
+  JOURNEY PASSED (2390ms)
+
+== E — The risk-parameter screens are read, not dumped
+    PASS  the PD screen opens
+    PASS  no raw JSON on screen — What-If AnalysisWhat-If AnalysisIFRS 9 Risk Parameter AdjustmentAll What-IfsReporting periodQ3 2022Q4 2022Q1 2023Q2 2023Q3 2023Q4 2023Q1 2024Q2 2024Q3 2024Q4 20
+    PASS  the measurement basis per Stage is stated
+    PASS  a distribution is shown rather than implied
+    PASS  the LGD screen shows no raw JSON
+    PASS  the CCF screen shows no raw JSON
+  JOURNEY PASSED (64379ms)
+
+== F — A stated filter survives into the population
+    PASS  the screen restates what it understood before calculating
+    PASS  and names the sector filter
+    PASS  and names the exposure filter
+    PASS  the methodology gate is asked before any ECL figure
+    PASS  a result appears once the methodology is chosen
+    PASS  the result is not priced on the whole book — Population: in Contracting with exposure at default above SAR 100m — 196 borrowers
+    PASS  the population is a fraction of the book, not all of it — 196
+  JOURNEY PASSED (2739ms)
+
+== G — A Stage migration names the measurement basis
+    PASS  the methodology gate is asked before any ECL figure
+    PASS  a result appears once the methodology is chosen
+    PASS  the movement is attributed to drivers
+    PASS  the measurement basis is a driver of its own — What moved the provisionExact Shapley (order-neutral, sums to the total) · v1.1.0DriverEffect on ECLShareBorrowers movedMeasurement basis: 12-month PD to lifetime PDSAR 238+100.00%60Total movementSAR 
+    PASS  it is not collapsed into an opaque Stage effect
+    PASS  and the question about it is answered
+    PASS  in the terms a lender uses, not as a bare percentage — ExplanationAnswered from the result already computed — the scenario is unchanged.60 borrower(s) carrying 11,839 of exposure moved from Stage 1 to Stage 2. Their expected credit loss is now measured on
+  JOURNEY PASSED (2342ms)
+
+== H — The gate is confirmed and the result is READ, not only shown
+    PASS  the methodology gate is asked before any ECL figure
+    PASS  and no result is on screen while it is open
+    PASS  a result appears once the methodology is chosen
+    PASS  the choice is confirmed in words, not only recorded
+    PASS  the result carries a reading of what it MEANS
+    PASS  with follow-up questions offered as buttons — 4
+    PASS  a suggested question is answered when clicked
+  JOURNEY PASSED (2379ms)
+
+================================================================
+8/8 journeys passed · 71/71 checks passed
+    PASS (87s)
+
+=== performance against budget
+what                             median     best    worst   budget  status
+read the book (cold)               1.06     1.06     1.06      8.0  ok
+read the book (warm)               0.02     0.02     0.02      1.0  ok
+price a scenario — Delta           0.54     0.49     0.55      3.0  ok
+price a scenario — ML              0.63     0.58     1.28      6.0  ok
+attribution (5 shocks)             0.59     0.58     0.61      6.0  ok
+plausibility (cold)                2.29     2.29     2.29      8.0  ok
+plausibility (warm)                0.10     0.09     0.10      1.0  ok
+macro fit                          0.41     0.39     0.43      5.0  ok
+both methodologies                 1.33     1.24     1.43     10.0  ok
+detailed workbook                  5.42     5.39     5.45     30.0  ok
+
+Wrote /home/user/IPM_V2/docs/whatif_performance.json
+    PASS (26s)
+
+=== the book's economic coherence
+Corporate IFRS 9 economic validation — 16 quarters, Q3 2022 to Q2 2026
+
+== 1. Rating economics, the 19-point scale
+  PASS     TTC PD rises through the performing scale
+  PASS     PIT 12m PD rises through the performing scale
+  PASS     lifetime PD rises through the performing scale
+  PASS     the ECL rate rises through the scale
+  PASS     Stage 2 incidence rises with weakness
+  PASS     LGD does not simply track the rating
+  PASS     the D grade is exactly the defaulted population
+
+== 2. TTC / PIT / lifetime PD economics
+  PASS     TTC PD is a fixed property of the grade
+  PASS     PIT PD reacts to the cycle
+  PASS     the portfolio's weighted TTC moves only by migration
+  PASS     lifetime PD is never below the 12-month PD
+
+== 3. Stage economics
+  PASS     provision intensity escalates Stage 1 < 2 < 3
+  PASS     credit quality worsens Stage 1 -> 2 -> 3
+  PASS     Stage 3 is exactly the credit-impaired population
+
+== 4. Stage migration economics
+  PASS     Stage 2 does not cure implausibly fast
+  PASS     Stage 3 does not cure back within a quarter
+  PASS     Stage 2 entry moves with the cycle without a jump
+  PASS     the Stage 2 population never dominates the book
+
+== 5. Rating migration economics
+  PASS     a rating is carried, not recomputed each quarter
+  PASS     multi-notch downgrades are uncommon
+  PASS     strong grades are at least as stable as weak ones
+  PASS     the ends of the scale are not one-way streets
+
+== 6. ECL economics
+  PASS     Downside ECL >= Base ECL >= Upside ECL
+  PASS     the weighted figure reconciles to the scenario weights
+  PASS     no impossible provision
+  PASS     Stage 3 loss is severe rather than nominal
+  PASS     no unexplained portfolio-wide provision jump
+
+== 7. LGD and collateral economics
+  PASS     LGD falls as collateral coverage rises
+  PASS     no impossible collateral position
+  PASS     the haircut on secured exposure is worth having
+
+== 8. CCF and EAD economics
+  PASS     EAD is drawn plus CCF times undrawn
+  PASS     CCF is reported by stage
+
+== 9. Quarter-to-quarter continuity, borrower by borrower
+  PASS     a borrower's exposure does not lurch
+  PASS     the rating is the slowest-moving thing on the record
+
+== 10. Twenty random borrowers
+  PASS     every sampled borrower's trajectory reads sensibly
+
+== 11. Sector economics
+  PASS     sectors differentiate risk
+  PASS     sectors do not all respond to the cycle alike
+
+== 12. Segment economics
+  PASS     segments differentiate risk
+  PASS     segments are reported for cyclicality, not held to it
+
+== 13. Macro and the point-in-time PD
+  PASS     the point-in-time PD worsens as the cycle turns down
+  PASS     the Stage 2 share worsens as the cycle turns down
+  PASS     the provision rate worsens as the cycle turns down
+  PASS     the cycle is not counted twice
+
+== 14. Default and Stage 3 logic
+  PASS     Stage 3 and the default population are the same names
+
+====================================================================
+ECONOMIC VALIDATION: PASS
+  44 passed · 0 partial · 0 failed of 44 checks
+
+Wrote /home/user/IPM_V2/docs/what_if_ifrs9_economic_validation.json
+    PASS (6s)
+
+=== What-If scenario economics
+What-If scenario economics — Q2 2026
+
+== A. Stage 1 PD +20%
+  PASS     the provision moves in the expected direction
+  PASS     the movement is carried by the expected driver
+  PASS     no borrower is cured by an adverse scenario
+  PASS     the effect lands only where the scenario pointed
+  PASS     the model does not reverse the direction
+  PASS     the model shades the arithmetic rather than replacing it
+  PASS     the model does not price a crossing above the rest
+  PASS     the boundary behaviour is disclosed on the comparison
+  PASS     a borrower outside the model's training range is disclosed
+
+== B. Contracting downgraded two notches
+  PASS     the provision moves in the expected direction
+  PASS     the movement is carried by the expected driver
+  PASS     no borrower is cured by an adverse scenario
+  PASS     the effect lands only where the scenario pointed
+  PASS     the model does not reverse the direction
+  PASS     the model shades the arithmetic rather than replacing it
+  PASS     the model does not price a crossing above the rest
+  PASS     the boundary behaviour is disclosed on the comparison
+  PASS     a borrower outside the model's training range is disclosed
+
+== C. Half of Stage 1 Transport & Logistics into Stage 2
+  PASS     the provision moves in the expected direction
+  PASS     the movement is carried by the expected driver
+  PASS     staging deteriorates as the scenario asked
+  PASS     the effect lands only where the scenario pointed
+  PASS     a forced migration moves the basis, not the riskiness
+  PASS     the model does not reverse the direction
+  PASS     the model shades the arithmetic rather than replacing it
+  PASS     the model does not price a crossing above the rest
+  PASS     the boundary behaviour is disclosed on the comparison
+  PASS     a borrower outside the model's training range is disclosed
+
+== D. LGD +5 percentage points
+  PASS     the provision moves in the expected direction
+  PASS     the movement is carried by the expected driver
+  PASS     staging does not move
+  PASS     the model does not reverse the direction
+  PASS     the model shades the arithmetic rather than replacing it
+  PASS     the model does not price a crossing above the rest
+  PASS     a borrower outside the model's training range is disclosed
+
+== E. CCF +20%
+  PASS     the provision moves in the expected direction
+  PASS     the movement is carried by the expected driver
+  PASS     staging does not move
+  PASS     the model does not reverse the direction
+  PASS     the model shades the arithmetic rather than replacing it
+  PASS     the model does not price a crossing above the rest
+  PASS     a borrower outside the model's training range is disclosed
+
+== F. Unemployment +1pp
+  PASS     the provision moves in the expected direction
+  PASS     the movement is carried by the expected driver
+  PASS     no borrower is cured by an adverse scenario
+  PASS     the model does not reverse the direction
+  PASS     the model shades the arithmetic rather than replacing it
+  PASS     the model does not price a crossing above the rest
+  PASS     the boundary behaviour is disclosed on the comparison
+  PASS     a borrower outside the model's training range is disclosed
+
+====================================================================
+SCENARIO ECONOMICS: PASS
+  50/50 checks passed across 6 scenarios
+
+Wrote /home/user/IPM_V2/docs/what_if_scenario_economics.json
+    PASS (16s)
+
+=== the integration contract against the book on disk
+What-If can run on this book with nothing missing.
+    PASS (0s)
+
+=== the schema contract against the book on disk
+healthy: True
+    PASS (1s)
+
+================================================================
+step                                                     result
+the API is reachable                                     PASS (0s)
+the web app is reachable                                 PASS (0s)
+ruff                                                     PASS (0s)
+typecheck                                                PASS (2s)
+eslint                                                   PASS (27s)
+What-If unit and invariant suites                        PASS (159s)
+the evaluation corpus                                    PASS (7s)
+the API surface                                          PASS (140s)
+the red team                                             PASS (22s)
+the fifteen browser journeys                             PASS (95s)
+the manual-failure journeys                              PASS (87s)
+performance against budget                               PASS (26s)
+the book's economic coherence                            PASS (6s)
+What-If scenario economics                               PASS (16s)
+the integration contract against the book on disk        PASS (0s)
+the schema contract against the book on disk             PASS (1s)
+
+CYCLE 6: every step passed.
