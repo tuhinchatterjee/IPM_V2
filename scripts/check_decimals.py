@@ -59,6 +59,16 @@ class Allowed:
 #: the number never reaches a reader as a figure.
 ALLOWLIST: tuple[Allowed, ...] = (
     Allowed(
+        "backend/whatif/macrolab.py",
+        "PD sensitivity multipliers, at three decimals, and the third one is "
+        "the finding. A macro relationship is a MULTIPLIER on a probability, "
+        "so the quantity a reader is comparing is how far it sits from one: "
+        "an estimated 1.003 against a configured 1.000 is a relationship "
+        "worth nothing, and at two decimals both read 1.00 and the comparison "
+        "the whole screen exists for disappears. The same argument the "
+        "scorecard statistics make. Money, percentages and counts in this "
+        "module go through the contract as everywhere else."),
+    Allowed(
         "backend/scorecard/metrics.py",
         "Model-validation statistics on the unit interval: AUC, Gini, KS, "
         "PSI, CSI, Brier. These DO reach a reader, at four decimals, and "

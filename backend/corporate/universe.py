@@ -1484,31 +1484,28 @@ UNSECURED_LGD_MEAN = 0.68
 DEFAULTED_LGD_UPLIFT = 0.07
 
 
-#: How many consecutive clear quarters a Stage 2 borrower needs before it is
-#: allowed back into Stage 1.
-#:
-#: Every IFRS 9 book of any size operates a probation like this, and the
-#: reason is the one this generator ran into: a trigger evaluated afresh each
-#: quarter lets a borrower oscillate between Stages on a PD that moved by a
-#: hundredth, and the provision oscillates with it. Two quarters is the
-#: shortest probation that means anything.
-STAGE_2_PROBATION_QUARTERS = 2
-
-
-def _staged_with_probation(measured: np.ndarray,
-                           borrower: np.ndarray) -> np.ndarray:
-    """The stage a book carries, given the stage its triggers measure.
+def _staged_with_probation(measured: np.ndarray, borrower: np.ndarray
+                           ) -> tuple[np.ndarray, np.ndarray]:
+    """The stage a book carries, and how much probation is served.
 
     Deterioration is immediate — a borrower that trips a trigger is in Stage 2
     (or 3) that quarter. Improvement is not: the borrower has to stay clear for
-    `STAGE_2_PROBATION_QUARTERS` consecutive quarters before it returns.
+    `policy.STAGE_2_PROBATION_QUARTERS` consecutive quarters before it returns.
+
+    Returns the carried stage AND the quarters served, because the second one
+    has to be on the book. Without it a single quarter's row cannot be staged
+    at all: a borrower measured Stage 1 and carried at Stage 2 is
+    indistinguishable from one that has just cured, and the governed rule set
+    would stop reproducing the book it staged — which is the tie every What-If
+    baseline column rests on.
 
     Expects the rows sorted by borrower and then by period, which is what the
     caller does immediately before calling.
     """
     out = np.asarray(measured, dtype=np.int64).copy()
+    served = np.zeros(len(out), dtype=np.int64)
     if not len(out):
-        return out
+        return out, served
     held = out[0]
     clear = 0
     current = borrower[0]
@@ -1517,6 +1514,8 @@ def _staged_with_probation(measured: np.ndarray,
             current = borrower[i]
             held = out[i]
             clear = 0
+            out[i] = held
+            served[i] = 0
             continue
         want = out[i]
         if want >= held:
@@ -1525,11 +1524,20 @@ def _staged_with_probation(measured: np.ndarray,
             clear = 0
         else:
             clear += 1
-            if clear >= STAGE_2_PROBATION_QUARTERS:
+            if clear >= policy.STAGE_2_PROBATION_QUARTERS:
                 held = want
-                clear = 0
+        # The count is recorded AFTER the increment and is NOT reset by the
+        # cure, because the row has to carry the number that DROVE the
+        # decision. Resetting it here wrote a zero on the quarter a borrower
+        # cured, and a rule set reading that row back saw "no probation
+        # served" and held the borrower where it was — so the governed rules
+        # stopped reproducing the book they staged.
+        #
+        # It needs no reset: once the borrower has cured, `held` equals `want`
+        # and the next quarter takes the branch above.
         out[i] = held
-    return out
+        served[i] = clear
+    return out, served
 
 
 def build_ifrs9(entities: pd.DataFrame, spine_df: pd.DataFrame,
@@ -1718,18 +1726,17 @@ def build_ifrs9(entities: pd.DataFrame, spine_df: pd.DataFrame,
 
     # And then the probation. A borrower whose SICR trigger stops firing does
     # not return to Stage 1 the same quarter: it has to stay clear for
-    # STAGE_2_PROBATION_QUARTERS consecutive quarters first.
+    # policy.STAGE_2_PROBATION_QUARTERS consecutive quarters first.
     #
     # This is not a smoothing device. It is the curing rule IFRS 9 books
     # actually operate, and without it a third of Stage 2 exposure returned to
     # Stage 1 every quarter — an average Stage 2 sojourn under three quarters,
     # which is a staging rule measuring noise rather than credit.
-    frame["measured_stage"] = measured_stage
+    frame["stage_measured"] = measured_stage
     frame = frame.sort_values(
         ["borrower_id", "period_end_date"]).reset_index(drop=True)
-    frame["stage"] = _staged_with_probation(
-        frame["measured_stage"].to_numpy(), frame["borrower_id"].to_numpy())
-    frame = frame.drop(columns=["measured_stage"])
+    frame["stage"], frame["sicr_clear_quarters"] = _staged_with_probation(
+        frame["stage_measured"].to_numpy(), frame["borrower_id"].to_numpy())
     frame["prior_stage"] = (frame.groupby("borrower_id")["stage"]
                             .shift(1).fillna(frame["stage"]).astype(int))
     frame["stage_moved"] = frame["stage"] - frame["prior_stage"]

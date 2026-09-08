@@ -75,6 +75,16 @@ NUMERIC: tuple[str, ...] = (
     "rating_change_notches", "collateral_coverage_pct",
     "secured_share", "collateral_to_ead", "drawn_share", "undrawn_share",
     "ccf", "log_ead", "facility_count", "covenants_breached",
+    # What the triggers SAY, and how much cure probation has been served.
+    #
+    # The book's staging has a memory: a borrower whose trigger stops firing
+    # is carried at Stage 2 until it has served its probation. So `stage` — the
+    # stage the book carries — and `stage_measured` — the stage the triggers
+    # give this quarter — are different columns, and the difference between
+    # them is exactly the population a feature-based model otherwise cannot
+    # tell apart from Stage 1. Without both, the model under-steps the Stage 1
+    # to Stage 2 crossing, which is the crossing a What-If exists to price.
+    "stage_measured", "sicr_clear_quarters",
     "minimum_headroom_pct", "leverage", "net_leverage", "dscr",
     "interest_coverage", "ebitda_margin", "revenue_growth",
     "watchlist_flag", "restructure_flag", "forbearance_flag", "default_flag",

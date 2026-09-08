@@ -282,6 +282,8 @@ def compare(state: Any, *, source: Any = None, ran: str = "") -> dict[str, Any]:
         body["borrowers_priced_lower_by_ml"] = lower
         body["borrowers_priced_the_same"] = int(len(frame) - higher - lower)
 
+    body["boundary"] = _boundary(delta, frame)
+
     ml_body = dict(getattr(ml, "ml", {}) or {})
     body["ml"] = {k: v for k, v in ml_body.items()
                   if k in ("model_version", "mean_factor",
@@ -292,6 +294,67 @@ def compare(state: Any, *, source: Any = None, ran: str = "") -> dict[str, Any]:
         for o in outside][:TOP_N]
     body["warnings"] = list(getattr(ml, "warnings", []) or [])
     return body
+
+
+def _boundary(delta: Any, frame: pd.DataFrame) -> dict[str, Any]:
+    """How the two price the borrowers whose measurement basis just changed.
+
+    The one place a fitted model and the governed arithmetic are expected to
+    part company, and the reason is structural rather than a defect: the Stage
+    1 to Stage 2 step is a change of MEASUREMENT BASIS — twelve-month to
+    lifetime — which is a discontinuity in the arithmetic, not something a
+    borrower's features cause. A gradient-boosted model fits a continuous
+    surface and smooths across it, so it under-prices a crossing.
+
+    A reader comparing two figures on a migration scenario deserves to be told
+    that, on THIS scenario, rather than to find it in a model card.
+    """
+    if frame.empty or not isinstance(getattr(delta, "borrowers", None),
+                                     pd.DataFrame):
+        return {"available": False}
+    moved = delta.borrowers
+    if not {"stage_baseline", "stage_stressed"} <= set(moved.columns):
+        return {"available": False}
+    crossed = set(moved.loc[moved["stage_stressed"] != moved["stage_baseline"],
+                            "borrower_id"].astype(str))
+    if not crossed:
+        return {"available": True, "crossings": 0,
+                "note": "No borrower changed stage under this scenario, so "
+                        "there is no measurement-basis crossing for the two "
+                        "methodologies to disagree about."}
+
+    base = frame["ecl_stressed_delta"]
+    usable = base.abs() > 1e-9
+    ratio = (frame["ecl_stressed_ml"][usable] / base[usable])
+    is_crossed = frame["borrower_id"].astype(str).isin(crossed)[usable]
+    if not is_crossed.any() or is_crossed.all():
+        return {"available": True, "crossings": len(crossed)}
+
+    crossing = float(ratio[is_crossed].median())
+    holding = float(ratio[~is_crossed].median())
+    gap = crossing - holding
+    return {
+        "available": True,
+        "crossings": len(crossed),
+        "ml_over_delta_for_crossings": _round(crossing, 4),
+        "ml_over_delta_for_the_rest": _round(holding, 4),
+        "gap": _round(gap, 4),
+        "note": (
+            f"The model prices the {len(crossed):,} borrower(s) that changed "
+            f"stage at {crossing:.2f} times the Delta figure, against "
+            f"{holding:.2f} for those that did not."
+            + (" It therefore UNDER-prices the crossings relative to the "
+               "governed arithmetic. That is structural: the Stage 1 to "
+               "Stage 2 step is a change of measurement basis from a "
+               "twelve-month to a lifetime PD, which is a discontinuity, and "
+               "a model fitting a continuous surface smooths across it."
+               if gap < -0.05 else
+               " It therefore OVER-prices the crossings relative to the "
+               "governed arithmetic, which is worth understanding before "
+               "either figure is used."
+               if gap > 0.05 else
+               " The two treat a crossing and a non-crossing alike.")),
+    }
 
 
 def packet(body: dict[str, Any]) -> dict[str, Any]:
@@ -323,6 +386,7 @@ def packet(body: dict[str, Any]) -> dict[str, Any]:
             "matched": body.get("matched_borrowers"),
         },
         "ML_MODEL": body.get("ml") or {},
+        "AT_THE_STAGE_BOUNDARY": body.get("boundary") or {},
         "OUTSIDE_WHAT_THE_MODEL_SAW": body.get("out_of_distribution") or [],
         "WARNINGS": body.get("warnings") or [],
         "WHAT_NEITHER_FIGURE_IS": body.get("statement"),
@@ -352,6 +416,9 @@ def compose(body: dict[str, Any]) -> dict[str, Any]:
             lines.append(
                 f"The model priced {higher:,} borrowers above the Delta "
                 f"figure and {lower:,} below it.")
+    boundary = body.get("boundary") or {}
+    if boundary.get("note") and boundary.get("crossings"):
+        lines.append(str(boundary["note"]))
     outside = body.get("out_of_distribution") or []
     if outside:
         lines.append(

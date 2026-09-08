@@ -84,6 +84,13 @@ step "the manual-failure journeys" \
   node "${ROOT}/scripts/acceptance/whatif_manual_failures.mjs"
 
 step "performance against budget" "${PY}" "${ROOT}/scripts/whatif_performance.py"
+# The book's ECONOMICS, not only its schema. A cycle that checked the columns
+# were present and the totals tied would have passed every one of the four
+# defects this step exists to catch.
+step "the book's economic coherence" \
+  "${PY}" "${ROOT}/scripts/whatif_economic_validation.py"
+step "What-If scenario economics" \
+  "${PY}" "${ROOT}/scripts/whatif_scenario_economics.py"
 step "the integration contract against the book on disk" \
   bash -c "curl -sf -H 'X-IPM-Role: ANALYST' '${API}/api/v1/whatif/integration/readiness' \
     | ${PY} -c 'import json,sys; b=json.load(sys.stdin); print(b[\"verdict\"]); sys.exit(0 if b[\"ready\"] else 1)'"

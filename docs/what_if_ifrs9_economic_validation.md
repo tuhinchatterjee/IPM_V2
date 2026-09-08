@@ -1,6 +1,6 @@
 # Corporate IFRS 9 — economic coherence validation
 
-**ECONOMIC VALIDATION: PASS** — 44 of 44 checks, plus 46 of 46 What-If
+**ECONOMIC VALIDATION: PASS** — 44 of 44 checks, plus 50 of 50 What-If
 scenario checks.
 
 > The shipped Corporate IFRS 9 book has been validated not only for schema,
@@ -91,6 +91,65 @@ ratio. This changes nothing for a rating or PD shock and is the whole answer
 for an exposure one.
 
 **Now:** 1.06× the Delta answer, inside the 0.4–2.5× band.
+
+### The governed rule set stopped reproducing the book
+
+**Found — by the fix above, not by the original review.** Giving the book a
+cure probation gave its staging a *memory*, and the governed rule set that
+reproduces the reported book evaluates triggers on a single quarter's row. So
+`reported().stage(frame)` and the book disagreed on 90–211 borrowers in every
+quarter from Q1 2023 on.
+
+That is the most serious thing in this document, because the baseline column of
+every What-If is the reported book staged by that rule set. If the two disagree,
+the baseline stops tying to the accounts — and every scenario is a movement from
+the wrong starting point.
+
+**Fixed.** The book now carries the probation state — the stage its triggers
+measured, and how many consecutive quarters it has been clear — so a single
+row carries everything needed to reproduce its own stage. The rule set reads
+them where they are present and returns the measured stage where they are not,
+rather than inventing a history.
+
+The constant lives in `backend/ifrs9/policy.py`, imported by both the generator
+and the rule set. Two copies of it would be the defect this codebase was
+already burned by once.
+
+A first attempt got this wrong in an instructive way: the counter was reset to
+zero on the quarter a borrower cured, so a rule set reading that row back saw
+"no probation served" and held the borrower where it was. The row has to carry
+the number that *drove* the decision, not the state after it.
+
+**Now:** zero mismatches across all sixteen quarters.
+
+### The model smooths the boundary, and now says so
+
+**Found.** Both ML designs under-price the Stage 1 → Stage 2 crossing — the
+champion by 3.6%, the per-Stage challenger by 6.0% — against a governed step of
+4.09.
+
+This is **structural, not a defect**. The step is a change of measurement basis
+from a twelve-month to a lifetime PD: a discontinuity in the arithmetic, not
+something a borrower's features cause. A gradient-boosted model fits a
+continuous surface and cannot reproduce a jump. The cure probation widened the
+gap by design, because Stage 2 now holds borrowers whose triggers have stopped
+firing and who therefore resemble Stage 1 names.
+
+Giving the model both the measured stage and the probation served did **not**
+close it, which is the evidence that this is structure rather than missing
+information.
+
+**Fixed — by disclosing it.** The comparison now measures, on the reader's own
+scenario and over the whole population, how the model prices the borrowers that
+crossed a stage against those that did not, and says which way it leans and
+why. Over-pricing a crossing is manufacturing provision and is held to a tight
+bound; under-pricing is the smoothing, and is required to be *stated*.
+
+Measured over the full population on scenario A, the gap is +0.02 — the model
+treats a crossing and a non-crossing alike. An earlier version of this check
+derived the gap from the twelve most-disagreeing borrowers and reported a jump
+of −0.35; a sample selected for being the largest disagreements is not a
+measurement of the book.
 
 ### The committee override was a coin toss
 
@@ -198,7 +257,7 @@ Stage 3 is audited in every quarter: every borrower flagged, rated D and at
 least 93 days past due, and no triggered borrower left outside Stage 3.
 
 **Stage migration, quarterly means:** S1→S2 6.9%, S1→S3 0.25%, S2→S3 2.1%,
-S2→S1 cure 20.5% of exposure. No borrower leaves Stage 3 within a quarter —
+S2→S1 cure 20.9% of exposure. No borrower leaves Stage 3 within a quarter —
 this generator seasons a default before it may cure or be written off.
 
 **Rating migration, quarterly means:** 86.5% stable, 4.1% down one notch, 4.2%
@@ -279,11 +338,12 @@ and the PD leg is within 5% of zero. **D** and **E** move the provision while
 moving *no borrower's stage at all*: a shock to recovery or to exposure says
 nothing about whether the borrower pays, and staging keys off PD.
 
-**Delta against XGBoost.** For every scenario the model kept the direction,
-stayed inside 0.4–2.5× of the arithmetic, and did not jump at the stage
-boundary — the median ML/Delta ratio for borrowers that crossed a stage is
-within 0.25 of the ratio for those that did not. Features outside the model's
-training range are disclosed on the comparison rather than absorbed into it.
+**Delta against XGBoost.** For every scenario the model kept the direction and
+stayed inside 0.4–2.5× of the arithmetic. At the stage boundary it does not
+price a crossing above the rest — the property that would mean manufacturing
+provision at exactly the point a What-If exists to price — and where it prices
+one below, the comparison says so on the reader's own scenario. Features
+outside the model's training range are disclosed rather than absorbed.
 
 ---
 

@@ -1,0 +1,963 @@
+{
+  "activated_at": "2026-09-08T09:43:31+00:00",
+  "activated_by": "economic validation",
+  "algorithm": "XGBoost regressor (gradient-boosted trees)",
+  "artifact_bytes": 1236847,
+  "artifact_format": "xgboost-native-json",
+  "artifact_sha256": "bf5dab91d4449744da3653c608b9bca86a2cf1dbec90d8d8969570c47938e562",
+  "built_at": "2026-09-08T09:43:31+00:00",
+  "built_by": "economic coherence: probation state on the book and in the features",
+  "design": "single_stage_aware",
+  "encoding": {
+    "maps": {
+      "sector": {
+        "Agriculture & Food": 0,
+        "Contracting": 1,
+        "Education": 2,
+        "Financial Services": 3,
+        "Government-Related Entities": 4,
+        "Healthcare": 5,
+        "Hospitality & Tourism": 6,
+        "Manufacturing": 7,
+        "Mining & Metals": 8,
+        "Oil & Gas": 9,
+        "Petrochemicals": 10,
+        "Real Estate": 11,
+        "Shipping": 12,
+        "Telecommunications": 13,
+        "Transport & Logistics": 14,
+        "Utilities": 15,
+        "Wholesale & Retail Trade": 16
+      },
+      "segment": {
+        "Commercial": 0,
+        "Financial Institution": 1,
+        "Large Corporate": 2,
+        "Mid Corporate": 3,
+        "Public Sector": 4
+      }
+    }
+  },
+  "feature_count": 33,
+  "features": [
+    "pd_12m",
+    "pd_lifetime",
+    "pd_at_origination_pct",
+    "lgd",
+    "ttc_pd_pct",
+    "stage",
+    "current_dpd",
+    "max_dpd_12m",
+    "internal_rating_numeric",
+    "rating_change_notches",
+    "collateral_coverage_pct",
+    "secured_share",
+    "collateral_to_ead",
+    "drawn_share",
+    "undrawn_share",
+    "ccf",
+    "log_ead",
+    "facility_count",
+    "covenants_breached",
+    "sicr_clear_quarters",
+    "minimum_headroom_pct",
+    "leverage",
+    "net_leverage",
+    "dscr",
+    "interest_coverage",
+    "ebitda_margin",
+    "revenue_growth",
+    "watchlist_flag",
+    "restructure_flag",
+    "forbearance_flag",
+    "default_flag",
+    "sector_code",
+    "segment_code"
+  ],
+  "hyperparameters": {
+    "colsample_bytree": 0.8,
+    "learning_rate": 0.05,
+    "max_depth": 5,
+    "min_child_weight": 5,
+    "n_estimators": 400,
+    "n_jobs": 4,
+    "objective": "reg:squarederror",
+    "random_state": 20260906,
+    "reg_lambda": 1.0,
+    "subsample": 0.8,
+    "tree_method": "hist"
+  },
+  "importance": [],
+  "limitations": [
+    "On this book the reported ECL is close to a closed form \u2014 applicable PD x LGD x EAD x the scenario weighting, plus a management overlay on a small share of rows. A model given PD, LGD and Stage can therefore reproduce the rate almost exactly, so a very high R-squared here is MECHANICAL and is not evidence of predictive skill.",
+    "The observed macroeconomic series in this installation are generated from a single latent cycle factor, so GDP growth, the oil price and the policy rate move together by construction. There are effectively sixteen independent macro observations, not fifty thousand. Macro variables are therefore NOT model features, and the ten-variable macro What-If runs on declared sensitivities instead.",
+    "The model estimates a rate, not a cash flow. There is no contractual cash-flow projection, no lifetime PD term structure and no effective-interest discounting.",
+    "It is anchored to the reported ECL and can only move it. It never restates the book."
+  ],
+  "out_of_time": {
+    "count": 6500,
+    "exposure_weighted_mae": 0.00132314,
+    "mae": 0.00156763,
+    "mean_actual": 0.04314649,
+    "mean_predicted": 0.04320587,
+    "r2": 0.997245,
+    "rmse": 0.00680269,
+    "wape": 3.6333
+  },
+  "predecessor": "2026.09.08.3",
+  "ranges": {
+    "ccf": {
+      "max": 0.41379310344827924,
+      "min": 0.0,
+      "p01": 0.19441956882254585,
+      "p99": 0.4003115995508564
+    },
+    "collateral_coverage_pct": {
+      "max": 373.25,
+      "min": 0.0,
+      "p01": 0.0,
+      "p99": 224.49059999999997
+    },
+    "collateral_to_ead": {
+      "max": 4.020189379089895,
+      "min": 0.0,
+      "p01": 0.0,
+      "p99": 2.269095809011304
+    },
+    "covenants_breached": {
+      "max": 4.0,
+      "min": 0.0,
+      "p01": 0.0,
+      "p99": 2.0
+    },
+    "current_dpd": {
+      "max": 640.0,
+      "min": 0.0,
+      "p01": 0.0,
+      "p99": 148.05999999999767
+    },
+    "default_flag": {
+      "max": 1.0,
+      "min": 0.0,
+      "p01": 0.0,
+      "p99": 1.0
+    },
+    "drawn_share": {
+      "max": 1.0000000000000002,
+      "min": 0.04850421144350857,
+      "p01": 0.43198017188156884,
+      "p99": 0.9990074428063064
+    },
+    "dscr": {
+      "max": 47.08,
+      "min": 0.0,
+      "p01": 0.48,
+      "p99": 4.86
+    },
+    "ebitda_margin": {
+      "max": 47.17,
+      "min": 0.0,
+      "p01": 2.6188000000000002,
+      "p99": 42.71059999999998
+    },
+    "facility_count": {
+      "max": 9.0,
+      "min": 1.0,
+      "p01": 1.0,
+      "p99": 6.0
+    },
+    "forbearance_flag": {
+      "max": 1.0,
+      "min": 0.0,
+      "p01": 0.0,
+      "p99": 1.0
+    },
+    "interest_coverage": {
+      "max": 90.96,
+      "min": -12.47,
+      "p01": -0.42060000000000003,
+      "p99": 10.16
+    },
+    "internal_rating_numeric": {
+      "max": 19.0,
+      "min": 1.0,
+      "p01": 2.0,
+      "p99": 19.0
+    },
+    "leverage": {
+      "max": 9.07,
+      "min": 0.0,
+      "p01": 1.37,
+      "p99": 6.92
+    },
+    "lgd": {
+      "max": 95.0,
+      "min": 7.91,
+      "p01": 17.1788,
+      "p99": 81.57119999999995
+    },
+    "log_ead": {
+      "max": 9.040736402755178,
+      "min": 0.2851789422336624,
+      "p01": 2.3397072162561607,
+      "p99": 8.027373131113643
+    },
+    "max_dpd_12m": {
+      "max": 640.0,
+      "min": 0.0,
+      "p01": 0.0,
+      "p99": 187.0
+    },
+    "minimum_headroom_pct": {
+      "max": 1768.69,
+      "min": -2800.89,
+      "p01": -102.26,
+      "p99": 450.7735999999905
+    },
+    "net_leverage": {
+      "max": 8.97,
+      "min": 0.0,
+      "p01": 1.02,
+      "p99": 6.49
+    },
+    "pd_12m": {
+      "max": 99.0,
+      "min": 0.0075,
+      "p01": 0.0154,
+      "p99": 99.0
+    },
+    "pd_at_origination_pct": {
+      "max": 62.2235,
+      "min": 0.004,
+      "p01": 0.013,
+      "p99": 15.242227999999933
+    },
+    "pd_lifetime": {
+      "max": 99.9,
+      "min": 0.0425,
+      "p01": 0.0925,
+      "p99": 99.9
+    },
+    "rating_change_notches": {
+      "max": 14.0,
+      "min": -2.0,
+      "p01": -2.0,
+      "p99": 2.0
+    },
+    "restructure_flag": {
+      "max": 1.0,
+      "min": 0.0,
+      "p01": 0.0,
+      "p99": 1.0
+    },
+    "revenue_growth": {
+      "max": 26.76,
+      "min": -16.35,
+      "p01": -5.97,
+      "p99": 19.98
+    },
+    "sector_code": {
+      "max": 16.0,
+      "min": 0.0,
+      "p01": 0.0,
+      "p99": 16.0
+    },
+    "secured_share": {
+      "max": 1.0,
+      "min": 0.0,
+      "p01": 0.0,
+      "p99": 0.9961031042766058
+    },
+    "segment_code": {
+      "max": 4.0,
+      "min": 0.0,
+      "p01": 0.0,
+      "p99": 4.0
+    },
+    "sicr_clear_quarters": {
+      "max": 2.0,
+      "min": 0.0,
+      "p01": 0.0,
+      "p99": 2.0
+    },
+    "stage": {
+      "max": 3.0,
+      "min": 1.0,
+      "p01": 1.0,
+      "p99": 3.0
+    },
+    "ttc_pd_pct": {
+      "max": 100.0,
+      "min": 0.01,
+      "p01": 0.02,
+      "p99": 100.0
+    },
+    "undrawn_share": {
+      "max": 2.3789144050104385,
+      "min": 0.0,
+      "p01": 0.00479069493425414,
+      "p99": 1.4211476319027565
+    },
+    "watchlist_flag": {
+      "max": 1.0,
+      "min": 0.0,
+      "p01": 0.0,
+      "p99": 1.0
+    }
+  },
+  "reason": "Final book with reproducible staging.",
+  "rows": {
+    "out_of_time": 6500,
+    "train": 33295,
+    "validation": 13194
+  },
+  "seed": 20260906,
+  "shap": {},
+  "slices": {
+    "lgd_band": [
+      {
+        "count": 1685,
+        "exposure": 764604.82,
+        "exposure_weighted_mae": 0.00081474,
+        "label": "under 30%",
+        "mae": 0.00128764,
+        "mean_actual": 0.0185358,
+        "mean_predicted": 0.01898824,
+        "r2": 0.992914,
+        "rmse": 0.00393077,
+        "wape": 6.9468
+      },
+      {
+        "count": 3569,
+        "exposure": 1895792.72,
+        "exposure_weighted_mae": 0.00096944,
+        "label": "30 to 45%",
+        "mae": 0.00129324,
+        "mean_actual": 0.02944759,
+        "mean_predicted": 0.02969832,
+        "r2": 0.99642,
+        "rmse": 0.00458339,
+        "wape": 4.3917
+      },
+      {
+        "count": 4657,
+        "exposure": 2076925.55,
+        "exposure_weighted_mae": 0.0012849,
+        "label": "45 to 60%",
+        "mae": 0.00183516,
+        "mean_actual": 0.04909026,
+        "mean_predicted": 0.04902978,
+        "r2": 0.996678,
+        "rmse": 0.00704587,
+        "wape": 3.7383
+      },
+      {
+        "count": 3283,
+        "exposure": 996212.25,
+        "exposure_weighted_mae": 0.00345347,
+        "label": "60% and above",
+        "mae": 0.00332644,
+        "mean_actual": 0.10960186,
+        "mean_predicted": 0.1091334,
+        "r2": 0.99771,
+        "rmse": 0.0108366,
+        "wape": 3.035
+      }
+    ],
+    "out_of_time_period": [
+      {
+        "count": 3259,
+        "exposure": 1424487.18,
+        "exposure_weighted_mae": 0.00131172,
+        "label": "Q1 2026",
+        "mae": 0.00162215,
+        "mean_actual": 0.04324125,
+        "mean_predicted": 0.04318861,
+        "r2": 0.996868,
+        "rmse": 0.007328,
+        "wape": 3.7514
+      },
+      {
+        "count": 3241,
+        "exposure": 1414949.7599999998,
+        "exposure_weighted_mae": 0.00133464,
+        "label": "Q2 2026",
+        "mae": 0.0015128,
+        "mean_actual": 0.0430512,
+        "mean_predicted": 0.04322322,
+        "r2": 0.99764,
+        "rmse": 0.00622995,
+        "wape": 3.514
+      }
+    ],
+    "out_of_time_stage": [
+      {
+        "count": 4879,
+        "exposure": 2233392.33,
+        "exposure_weighted_mae": 0.00021595,
+        "label": "1",
+        "mae": 0.00028614,
+        "mean_actual": 0.00348031,
+        "mean_predicted": 0.00351165,
+        "r2": 0.986274,
+        "rmse": 0.00062184,
+        "wape": 8.2217
+      },
+      {
+        "count": 1361,
+        "exposure": 508448.16000000003,
+        "exposure_weighted_mae": 0.00285641,
+        "label": "2",
+        "mae": 0.00300961,
+        "mean_actual": 0.07584772,
+        "mean_predicted": 0.07561944,
+        "r2": 0.993236,
+        "rmse": 0.00588732,
+        "wape": 3.968
+      },
+      {
+        "count": 260,
+        "exposure": 97596.45,
+        "exposure_weighted_mae": 0.01867223,
+        "label": "3",
+        "mae": 0.01806696,
+        "mean_actual": 0.61631911,
+        "mean_predicted": 0.61841049,
+        "r2": 0.966542,
+        "rmse": 0.03111629,
+        "wape": 2.9314
+      }
+    ],
+    "pd_band": [
+      {
+        "count": 4679,
+        "exposure": 2518117.08,
+        "exposure_weighted_mae": 0.00014461,
+        "label": "0 to 0.5%",
+        "mae": 0.00017006,
+        "mean_actual": 0.00137524,
+        "mean_predicted": 0.0013481,
+        "r2": 0.943498,
+        "rmse": 0.00034967,
+        "wape": 12.3661
+      },
+      {
+        "count": 4186,
+        "exposure": 1747370.4499999997,
+        "exposure_weighted_mae": 0.0004751,
+        "label": "0.5 to 2%",
+        "mae": 0.00050723,
+        "mean_actual": 0.00813092,
+        "mean_predicted": 0.00810764,
+        "r2": 0.987124,
+        "rmse": 0.00095895,
+        "wape": 6.2383
+      },
+      {
+        "count": 2091,
+        "exposure": 758164.41,
+        "exposure_weighted_mae": 0.00152934,
+        "label": "2 to 5%",
+        "mae": 0.00153918,
+        "mean_actual": 0.03494841,
+        "mean_predicted": 0.03484431,
+        "r2": 0.99226,
+        "rmse": 0.00240637,
+        "wape": 4.4041
+      },
+      {
+        "count": 1226,
+        "exposure": 373409.92,
+        "exposure_weighted_mae": 0.00377329,
+        "label": "5 to 13%",
+        "mae": 0.00387749,
+        "mean_actual": 0.10120248,
+        "mean_predicted": 0.10123325,
+        "r2": 0.989473,
+        "rmse": 0.00624125,
+        "wape": 3.8314
+      },
+      {
+        "count": 1012,
+        "exposure": 336473.48,
+        "exposure_weighted_mae": 0.01428656,
+        "label": "13% and above",
+        "mae": 0.01517892,
+        "mean_actual": 0.48136892,
+        "mean_predicted": 0.4816081,
+        "r2": 0.989211,
+        "rmse": 0.02541058,
+        "wape": 3.1533
+      }
+    ],
+    "period": [
+      {
+        "count": 3329,
+        "exposure": 1442332.4499999997,
+        "exposure_weighted_mae": 0.00180214,
+        "label": "Q1 2025",
+        "mae": 0.00247305,
+        "mean_actual": 0.06451714,
+        "mean_predicted": 0.06442411,
+        "r2": 0.996923,
+        "rmse": 0.00850635,
+        "wape": 3.8332
+      },
+      {
+        "count": 3309,
+        "exposure": 1433460.52,
+        "exposure_weighted_mae": 0.00151078,
+        "label": "Q2 2025",
+        "mae": 0.00187394,
+        "mean_actual": 0.05696208,
+        "mean_predicted": 0.0570513,
+        "r2": 0.998246,
+        "rmse": 0.00615423,
+        "wape": 3.2898
+      },
+      {
+        "count": 3291,
+        "exposure": 1433254.49,
+        "exposure_weighted_mae": 0.00148945,
+        "label": "Q3 2025",
+        "mae": 0.00193029,
+        "mean_actual": 0.05192827,
+        "mean_predicted": 0.05186113,
+        "r2": 0.997289,
+        "rmse": 0.0075006,
+        "wape": 3.7172
+      },
+      {
+        "count": 3265,
+        "exposure": 1424487.88,
+        "exposure_weighted_mae": 0.00117244,
+        "label": "Q4 2025",
+        "mae": 0.00167414,
+        "mean_actual": 0.04612757,
+        "mean_predicted": 0.04614994,
+        "r2": 0.997152,
+        "rmse": 0.00713848,
+        "wape": 3.6294
+      }
+    ],
+    "sector": [
+      {
+        "count": 523,
+        "exposure": 101061.9,
+        "exposure_weighted_mae": 0.00088197,
+        "label": "Agriculture & Food",
+        "mae": 0.00091883,
+        "mean_actual": 0.02060665,
+        "mean_predicted": 0.02070389,
+        "r2": 0.998083,
+        "rmse": 0.00333726,
+        "wape": 4.4589
+      },
+      {
+        "count": 1256,
+        "exposure": 330774.95,
+        "exposure_weighted_mae": 0.00680483,
+        "label": "Contracting",
+        "mae": 0.00606933,
+        "mean_actual": 0.17510359,
+        "mean_predicted": 0.17565402,
+        "r2": 0.997304,
+        "rmse": 0.01351838,
+        "wape": 3.4661
+      },
+      {
+        "count": 266,
+        "exposure": 32079.750000000004,
+        "exposure_weighted_mae": 0.00029701,
+        "label": "Education",
+        "mae": 0.00029708,
+        "mean_actual": 0.0040877,
+        "mean_predicted": 0.00410949,
+        "r2": 0.984372,
+        "rmse": 0.00066526,
+        "wape": 7.2677
+      },
+      {
+        "count": 928,
+        "exposure": 363239.81000000006,
+        "exposure_weighted_mae": 0.00076906,
+        "label": "Financial Services",
+        "mae": 0.00059955,
+        "mean_actual": 0.02059254,
+        "mean_predicted": 0.0205746,
+        "r2": 0.999649,
+        "rmse": 0.00171908,
+        "wape": 2.9115
+      },
+      {
+        "count": 729,
+        "exposure": 761004.95,
+        "exposure_weighted_mae": 0.00013228,
+        "label": "Government-Related Entities",
+        "mae": 0.00011373,
+        "mean_actual": 0.00125033,
+        "mean_predicted": 0.00118185,
+        "r2": 0.99938,
+        "rmse": 0.00038449,
+        "wape": 9.096
+      },
+      {
+        "count": 633,
+        "exposure": 108625.97,
+        "exposure_weighted_mae": 0.00070532,
+        "label": "Healthcare",
+        "mae": 0.00071403,
+        "mean_actual": 0.02063491,
+        "mean_predicted": 0.02087495,
+        "r2": 0.9985,
+        "rmse": 0.0038593,
+        "wape": 3.4603
+      },
+      {
+        "count": 433,
+        "exposure": 53402.259999999995,
+        "exposure_weighted_mae": 0.00400164,
+        "label": "Hospitality & Tourism",
+        "mae": 0.00377568,
+        "mean_actual": 0.09318003,
+        "mean_predicted": 0.09230282,
+        "r2": 0.996176,
+        "rmse": 0.01045981,
+        "wape": 4.052
+      },
+      {
+        "count": 1169,
+        "exposure": 433483.83,
+        "exposure_weighted_mae": 0.00151381,
+        "label": "Manufacturing",
+        "mae": 0.00164765,
+        "mean_actual": 0.04603144,
+        "mean_predicted": 0.04605677,
+        "r2": 0.99691,
+        "rmse": 0.00601378,
+        "wape": 3.5794
+      },
+      {
+        "count": 610,
+        "exposure": 286995.02,
+        "exposure_weighted_mae": 0.00125745,
+        "label": "Mining & Metals",
+        "mae": 0.00135409,
+        "mean_actual": 0.04312228,
+        "mean_predicted": 0.0430223,
+        "r2": 0.998642,
+        "rmse": 0.0039271,
+        "wape": 3.1401
+      },
+      {
+        "count": 798,
+        "exposure": 842865.23,
+        "exposure_weighted_mae": 0.00102111,
+        "label": "Oil & Gas",
+        "mae": 0.00097456,
+        "mean_actual": 0.0267339,
+        "mean_predicted": 0.02669712,
+        "r2": 0.997611,
+        "rmse": 0.00529026,
+        "wape": 3.6454
+      },
+      {
+        "count": 918,
+        "exposure": 851421.9099999999,
+        "exposure_weighted_mae": 0.0007285,
+        "label": "Petrochemicals",
+        "mae": 0.0007046,
+        "mean_actual": 0.01415577,
+        "mean_predicted": 0.01425613,
+        "r2": 0.997429,
+        "rmse": 0.00208681,
+        "wape": 4.9775
+      },
+      {
+        "count": 1423,
+        "exposure": 331597.02999999997,
+        "exposure_weighted_mae": 0.0030634,
+        "label": "Real Estate",
+        "mae": 0.00351973,
+        "mean_actual": 0.09337834,
+        "mean_predicted": 0.09339731,
+        "r2": 0.996097,
+        "rmse": 0.0109049,
+        "wape": 3.7693
+      },
+      {
+        "count": 533,
+        "exposure": 127396.83000000002,
+        "exposure_weighted_mae": 0.00386574,
+        "label": "Shipping",
+        "mae": 0.00384416,
+        "mean_actual": 0.1007264,
+        "mean_predicted": 0.09994444,
+        "r2": 0.995466,
+        "rmse": 0.01181704,
+        "wape": 3.8164
+      },
+      {
+        "count": 375,
+        "exposure": 234824.51,
+        "exposure_weighted_mae": 0.00032711,
+        "label": "Telecommunications",
+        "mae": 0.00066447,
+        "mean_actual": 0.01055447,
+        "mean_predicted": 0.01010046,
+        "r2": 0.990437,
+        "rmse": 0.00739863,
+        "wape": 6.2956
+      },
+      {
+        "count": 763,
+        "exposure": 165124.83000000002,
+        "exposure_weighted_mae": 0.00149319,
+        "label": "Transport & Logistics",
+        "mae": 0.00123491,
+        "mean_actual": 0.03552202,
+        "mean_predicted": 0.03546658,
+        "r2": 0.997735,
+        "rmse": 0.00426915,
+        "wape": 3.4765
+      },
+      {
+        "count": 656,
+        "exposure": 332968.01,
+        "exposure_weighted_mae": 0.00040348,
+        "label": "Utilities",
+        "mae": 0.00031959,
+        "mean_actual": 0.00865707,
+        "mean_predicted": 0.0087704,
+        "r2": 0.999039,
+        "rmse": 0.0021004,
+        "wape": 3.6916
+      },
+      {
+        "count": 1181,
+        "exposure": 376668.55000000005,
+        "exposure_weighted_mae": 0.00288304,
+        "label": "Wholesale & Retail Trade",
+        "mae": 0.00229322,
+        "mean_actual": 0.06925805,
+        "mean_predicted": 0.06915704,
+        "r2": 0.997676,
+        "rmse": 0.00733939,
+        "wape": 3.3111
+      }
+    ],
+    "stage": [
+      {
+        "count": 9469,
+        "exposure": 4390294.65,
+        "exposure_weighted_mae": 0.00030236,
+        "label": "1",
+        "mae": 0.00041197,
+        "mean_actual": 0.00577042,
+        "mean_predicted": 0.0057009,
+        "r2": 0.986509,
+        "rmse": 0.00100163,
+        "wape": 7.1394
+      },
+      {
+        "count": 3118,
+        "exposure": 1112778.5999999999,
+        "exposure_weighted_mae": 0.00306437,
+        "label": "2",
+        "mae": 0.00362704,
+        "mean_actual": 0.09128164,
+        "mean_predicted": 0.09126389,
+        "r2": 0.993004,
+        "rmse": 0.00754119,
+        "wape": 3.9735
+      },
+      {
+        "count": 607,
+        "exposure": 230462.08999999997,
+        "exposure_weighted_mae": 0.01662934,
+        "label": "3",
+        "mae": 0.01819142,
+        "mean_actual": 0.63510922,
+        "mean_predicted": 0.6360173,
+        "r2": 0.973026,
+        "rmse": 0.0295745,
+        "wape": 2.8643
+      }
+    ]
+  },
+  "split": {
+    "by": "chronological",
+    "excluded": [],
+    "out_of_time": [
+      "Q1 2026",
+      "Q2 2026"
+    ],
+    "train": [
+      "Q3 2022",
+      "Q4 2022",
+      "Q1 2023",
+      "Q2 2023",
+      "Q3 2023",
+      "Q4 2023",
+      "Q1 2024",
+      "Q2 2024",
+      "Q3 2024",
+      "Q4 2024"
+    ],
+    "validation": [
+      "Q1 2025",
+      "Q2 2025",
+      "Q3 2025",
+      "Q4 2025"
+    ],
+    "why": "A random split of a panel puts the same borrower on both sides and scores memorisation as skill."
+  },
+  "stage_study": {
+    "available": true,
+    "because": [
+      "A Stage 1 to Stage 2 crossing is worth 4.09x on the governed measurement. The single stage-aware model reproduces it at 3.98x (+2.8%); separate models jump 3.85x (+6.0%), because two models fitted apart do not share a calibration level and the difference lands on exactly the borrowers a scenario moves.",
+      "Book level, out of time: r2 0.997245 vs 0.997135 (single); rmse 0.00680269 vs 0.00693777 (single); exposure_weighted_mae 0.00132314 vs 0.0011878 (separate); wape 3.6333 vs 3.2557 (separate)."
+    ],
+    "boundary": {
+      "available": true,
+      "challenger_step": 3.846752643585205,
+      "challenger_step_error_pct": -6.020621457279585,
+      "champion_step": 3.979074239730835,
+      "champion_step_error_pct": -2.787894394809265,
+      "governed_step": 4.0931879985103095,
+      "rows": 4879
+    },
+    "challenger_book": {
+      "count": 6500,
+      "exposure_weighted_mae": 0.0011878,
+      "mae": 0.00140472,
+      "mean_actual": 0.04314649,
+      "mean_predicted": 0.04321394,
+      "r2": 0.997135,
+      "rmse": 0.00693777,
+      "wape": 3.2557
+    },
+    "challenger_by_stage": {
+      "1": {
+        "count": 4879,
+        "exposure_weighted_mae": 9.214e-05,
+        "fitted": true,
+        "mae": 0.00012908,
+        "mean_actual": 0.00348031,
+        "mean_predicted": 0.00350132,
+        "r2": 0.992328,
+        "rmse": 0.0004649,
+        "training_rows": 26323,
+        "wape": 3.7089
+      },
+      "2": {
+        "count": 1361,
+        "exposure_weighted_mae": 0.00235558,
+        "fitted": true,
+        "mae": 0.00249426,
+        "mean_actual": 0.07584772,
+        "mean_predicted": 0.07590873,
+        "r2": 0.994264,
+        "rmse": 0.00542147,
+        "training_rows": 6369,
+        "wape": 3.2885
+      },
+      "3": {
+        "count": 260,
+        "exposure_weighted_mae": 0.02017695,
+        "fitted": true,
+        "mae": 0.01963927,
+        "mean_actual": 0.61631911,
+        "mean_predicted": 0.61729198,
+        "r2": 0.963875,
+        "rmse": 0.0323327,
+        "training_rows": 603,
+        "wape": 3.1865
+      }
+    },
+    "champion_book": {
+      "count": 6500,
+      "exposure_weighted_mae": 0.00132314,
+      "mae": 0.00156763,
+      "mean_actual": 0.04314649,
+      "mean_predicted": 0.04320587,
+      "r2": 0.997245,
+      "rmse": 0.00680269,
+      "wape": 3.6333
+    },
+    "champion_by_stage": {
+      "1": {
+        "champion": {
+          "count": 4879,
+          "exposure_weighted_mae": 0.00021595,
+          "mae": 0.00028614,
+          "mean_actual": 0.00348031,
+          "mean_predicted": 0.00351165,
+          "r2": 0.986274,
+          "rmse": 0.00062184,
+          "wape": 8.2217
+        },
+        "ecl": 5819.5315,
+        "exposure": 2233392.33,
+        "rows": 4879
+      },
+      "2": {
+        "champion": {
+          "count": 1361,
+          "exposure_weighted_mae": 0.00285641,
+          "mae": 0.00300961,
+          "mean_actual": 0.07584772,
+          "mean_predicted": 0.07561944,
+          "r2": 0.993236,
+          "rmse": 0.00588732,
+          "wape": 3.968
+        },
+        "ecl": 33578.822100000005,
+        "exposure": 508448.16000000003,
+        "rows": 1361
+      },
+      "3": {
+        "champion": {
+          "count": 260,
+          "exposure_weighted_mae": 0.01867223,
+          "mae": 0.01806696,
+          "mean_actual": 0.61631911,
+          "mean_predicted": 0.61841049,
+          "r2": 0.966542,
+          "rmse": 0.03111629,
+          "wape": 2.9314
+        },
+        "ecl": 59488.206000000006,
+        "exposure": 97596.45,
+        "rows": 260
+      }
+    },
+    "chosen": "One model with Stage as a feature.",
+    "design": "single_stage_aware"
+  },
+  "state": "ACTIVE",
+  "target": "ecl_rate",
+  "target_definition": "final_ecl / ead \u2014 the reported ECL over the exposure it is held against. This is the ratio the book itself reports as ecl_coverage, expressed as a fraction.",
+  "training": {
+    "count": 33295,
+    "exposure_weighted_mae": null,
+    "mae": 0.00085396,
+    "mean_actual": 0.03451668,
+    "mean_predicted": 0.03451456,
+    "r2": 0.999448,
+    "rmse": 0.00254,
+    "wape": 2.474
+  },
+  "validation": {
+    "count": 13194,
+    "exposure_weighted_mae": 0.00149469,
+    "mae": 0.00198971,
+    "mean_actual": 0.0549316,
+    "mean_predicted": 0.05491929,
+    "r2": 0.997409,
+    "rmse": 0.00737553,
+    "wape": 3.6222
+  },
+  "version": "2026.09.08.4",
+  "warnings": []
+}

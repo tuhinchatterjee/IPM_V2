@@ -61,18 +61,18 @@
     {
      "question": "the model does not reverse the direction",
      "status": "PASS",
-     "detail": "Delta +1,320.6 against ML +1,296.0",
+     "detail": "Delta +1,320.6 against ML +1,323.8",
      "evidence": {
       "delta": 1320.6,
-      "ml": 1296.02
+      "ml": 1323.85
      }
     },
     {
      "question": "the model shades the arithmetic rather than replacing it",
      "status": "PASS",
-     "detail": "the ML movement is 0.98x the Delta movement; the band is 0.4-2.5x",
+     "detail": "the ML movement is 1.00x the Delta movement; the band is 0.4-2.5x",
      "evidence": {
-      "ratio": 0.9814,
+      "ratio": 1.0025,
       "band": [
        0.4,
        2.5
@@ -80,13 +80,21 @@
      }
     },
     {
-     "question": "the model does not jump at the stage boundary",
+     "question": "the model does not price a crossing above the rest",
      "status": "PASS",
-     "detail": "median ML/Delta ratio 1.05 for borrowers that changed stage against 1.11 for those that did not \u2014 a gap of 0.06",
+     "detail": "median ML/Delta ratio 1.02 for the 55 borrowers that changed stage against 1.00 for those that did not",
      "evidence": {
-      "crossed": 1.0502,
-      "held": 1.1069,
-      "gap": 0.0567
+      "crossed": 1.0188,
+      "held": 1.0,
+      "gap": 0.0188
+     }
+    },
+    {
+     "question": "the boundary behaviour is disclosed on the comparison",
+     "status": "PASS",
+     "detail": "The model prices the 55 borrower(s) that changed stage at 1.02 times the Delta figure, against 1.00 for those that did not. The two treat a crossing and a non-crossing alike.",
+     "evidence": {
+      "disclosed": true
      }
     },
     {
@@ -224,9 +232,9 @@
     }
    ],
    "comparison": {
-    "spread": -24.58,
-    "spread_pct": -0.55,
-    "agree": false,
+    "spread": 3.25,
+    "spread_pct": 0.073,
+    "agree": true,
     "rows": [
      {
       "method": "delta",
@@ -240,9 +248,9 @@
       "method": "ml",
       "label": "ML Model \u2014 XGBoost",
       "available": true,
-      "whatif_ecl": 4445.18,
-      "absolute_change": 1296.02,
-      "percentage_change": 41.155
+      "whatif_ecl": 4473.0,
+      "absolute_change": 1323.85,
+      "percentage_change": 42.038
      }
     ]
    }
@@ -301,18 +309,18 @@
     {
      "question": "the model does not reverse the direction",
      "status": "PASS",
-     "detail": "Delta +6,232.6 against ML +5,815.1",
+     "detail": "Delta +6,232.6 against ML +6,232.6",
      "evidence": {
       "delta": 6232.62,
-      "ml": 5815.09
+      "ml": 6232.59
      }
     },
     {
      "question": "the model shades the arithmetic rather than replacing it",
      "status": "PASS",
-     "detail": "the ML movement is 0.93x the Delta movement; the band is 0.4-2.5x",
+     "detail": "the ML movement is 1.00x the Delta movement; the band is 0.4-2.5x",
      "evidence": {
-      "ratio": 0.933,
+      "ratio": 1.0,
       "band": [
        0.4,
        2.5
@@ -320,13 +328,21 @@
      }
     },
     {
-     "question": "the model does not jump at the stage boundary",
+     "question": "the model does not price a crossing above the rest",
      "status": "PASS",
-     "detail": "median ML/Delta ratio 0.81 for borrowers that changed stage against 0.86 for those that did not \u2014 a gap of 0.05",
+     "detail": "median ML/Delta ratio 0.98 for the 167 borrowers that changed stage against 1.03 for those that did not",
      "evidence": {
-      "crossed": 0.8103,
-      "held": 0.8564,
-      "gap": 0.0461
+      "crossed": 0.9765,
+      "held": 1.0274,
+      "gap": -0.0509
+     }
+    },
+    {
+     "question": "the boundary behaviour is disclosed on the comparison",
+     "status": "PASS",
+     "detail": "The model prices the 167 borrower(s) that changed stage at 0.98 times the Delta figure, against 1.03 for those that did not. It therefore UNDER-prices the crossings relative to the governed arithmetic. That is structural: the Stage 1 to Stage 2 step is a change of measurement basis from a twelve-month to a lifetime PD, which is a discontinuity, and a model fitting a continuous surface smooths across it.",
+     "evidence": {
+      "disclosed": true
      }
     },
     {
@@ -424,9 +440,9 @@
     }
    ],
    "comparison": {
-    "spread": -417.53,
-    "spread_pct": -2.635,
-    "agree": false,
+    "spread": -0.03,
+    "spread_pct": -0.0,
+    "agree": true,
     "rows": [
      {
       "method": "delta",
@@ -440,9 +456,9 @@
       "method": "ml",
       "label": "ML Model \u2014 XGBoost",
       "available": true,
-      "whatif_ecl": 15427.57,
-      "absolute_change": 5815.09,
-      "percentage_change": 60.495
+      "whatif_ecl": 15845.07,
+      "absolute_change": 6232.59,
+      "percentage_change": 64.839
      }
     ]
    }
@@ -509,18 +525,18 @@
     {
      "question": "the model does not reverse the direction",
      "status": "PASS",
-     "detail": "Delta +237.7 against ML +242.7",
+     "detail": "Delta +237.7 against ML +253.3",
      "evidence": {
       "delta": 237.72,
-      "ml": 242.66
+      "ml": 253.32
      }
     },
     {
      "question": "the model shades the arithmetic rather than replacing it",
      "status": "PASS",
-     "detail": "the ML movement is 1.02x the Delta movement; the band is 0.4-2.5x",
+     "detail": "the ML movement is 1.07x the Delta movement; the band is 0.4-2.5x",
      "evidence": {
-      "ratio": 1.0208,
+      "ratio": 1.0656,
       "band": [
        0.4,
        2.5
@@ -528,10 +544,22 @@
      }
     },
     {
-     "question": "the model does not jump at the stage boundary",
+     "question": "the model does not price a crossing above the rest",
      "status": "PASS",
-     "detail": "no borrower in the reported sample changed stage, so there is no boundary to jump",
-     "evidence": {}
+     "detail": "median ML/Delta ratio 1.05 for the 60 borrowers that changed stage against 1.00 for those that did not",
+     "evidence": {
+      "crossed": 1.0483,
+      "held": 1.0,
+      "gap": 0.0483
+     }
+    },
+    {
+     "question": "the boundary behaviour is disclosed on the comparison",
+     "status": "PASS",
+     "detail": "The model prices the 60 borrower(s) that changed stage at 1.05 times the Delta figure, against 1.00 for those that did not. The two treat a crossing and a non-crossing alike.",
+     "evidence": {
+      "disclosed": true
+     }
     },
     {
      "question": "a borrower outside the model's training range is disclosed",
@@ -627,8 +655,8 @@
     }
    ],
    "comparison": {
-    "spread": 4.93,
-    "spread_pct": 1.268,
+    "spread": 15.6,
+    "spread_pct": 4.01,
     "agree": false,
     "rows": [
      {
@@ -643,9 +671,9 @@
       "method": "ml",
       "label": "ML Model \u2014 XGBoost",
       "available": true,
-      "whatif_ecl": 393.99,
-      "absolute_change": 242.66,
-      "percentage_change": 160.348
+      "whatif_ecl": 404.66,
+      "absolute_change": 253.32,
+      "percentage_change": 167.396
      }
     ]
    }
@@ -695,18 +723,18 @@
     {
      "question": "the model does not reverse the direction",
      "status": "PASS",
-     "detail": "Delta +4,752.7 against ML +4,366.1",
+     "detail": "Delta +4,752.7 against ML +5,423.7",
      "evidence": {
       "delta": 4752.73,
-      "ml": 4366.07
+      "ml": 5423.74
      }
     },
     {
      "question": "the model shades the arithmetic rather than replacing it",
      "status": "PASS",
-     "detail": "the ML movement is 0.92x the Delta movement; the band is 0.4-2.5x",
+     "detail": "the ML movement is 1.14x the Delta movement; the band is 0.4-2.5x",
      "evidence": {
-      "ratio": 0.9186,
+      "ratio": 1.1412,
       "band": [
        0.4,
        2.5
@@ -714,9 +742,9 @@
      }
     },
     {
-     "question": "the model does not jump at the stage boundary",
+     "question": "the model does not price a crossing above the rest",
      "status": "PASS",
-     "detail": "no borrower in the reported sample changed stage, so there is no boundary to jump",
+     "detail": "no borrower changed stage under this scenario, so there is no measurement-basis crossing to disagree about",
      "evidence": {}
     },
     {
@@ -854,8 +882,8 @@
     }
    ],
    "comparison": {
-    "spread": -386.66,
-    "spread_pct": -0.707,
+    "spread": 671.01,
+    "spread_pct": 1.227,
     "agree": false,
     "rows": [
      {
@@ -870,9 +898,9 @@
       "method": "ml",
       "label": "ML Model \u2014 XGBoost",
       "available": true,
-      "whatif_ecl": 54308.48,
-      "absolute_change": 4366.07,
-      "percentage_change": 8.742
+      "whatif_ecl": 55366.15,
+      "absolute_change": 5423.74,
+      "percentage_change": 10.86
      }
     ]
    }
@@ -921,18 +949,18 @@
     {
      "question": "the model does not reverse the direction",
      "status": "PASS",
-     "detail": "Delta +8,192.7 against ML +11,479.1",
+     "detail": "Delta +8,192.7 against ML +10,389.0",
      "evidence": {
       "delta": 8192.71,
-      "ml": 11479.09
+      "ml": 10389.04
      }
     },
     {
      "question": "the model shades the arithmetic rather than replacing it",
      "status": "PASS",
-     "detail": "the ML movement is 1.40x the Delta movement; the band is 0.4-2.5x",
+     "detail": "the ML movement is 1.27x the Delta movement; the band is 0.4-2.5x",
      "evidence": {
-      "ratio": 1.4011,
+      "ratio": 1.2681,
       "band": [
        0.4,
        2.5
@@ -940,9 +968,9 @@
      }
     },
     {
-     "question": "the model does not jump at the stage boundary",
+     "question": "the model does not price a crossing above the rest",
      "status": "PASS",
-     "detail": "no borrower in the reported sample changed stage, so there is no boundary to jump",
+     "detail": "no borrower changed stage under this scenario, so there is no measurement-basis crossing to disagree about",
      "evidence": {}
     },
     {
@@ -1080,8 +1108,8 @@
     }
    ],
    "comparison": {
-    "spread": 3286.37,
-    "spread_pct": 5.653,
+    "spread": 2196.33,
+    "spread_pct": 3.778,
     "agree": false,
     "rows": [
      {
@@ -1096,9 +1124,9 @@
       "method": "ml",
       "label": "ML Model \u2014 XGBoost",
       "available": true,
-      "whatif_ecl": 61421.5,
-      "absolute_change": 11479.09,
-      "percentage_change": 22.985
+      "whatif_ecl": 60331.45,
+      "absolute_change": 10389.04,
+      "percentage_change": 20.802
      }
     ]
    }
@@ -1148,18 +1176,18 @@
     {
      "question": "the model does not reverse the direction",
      "status": "PASS",
-     "detail": "Delta +3,052.7 against ML +2,910.0",
+     "detail": "Delta +3,052.7 against ML +4,112.6",
      "evidence": {
       "delta": 3052.73,
-      "ml": 2909.97
+      "ml": 4112.57
      }
     },
     {
      "question": "the model shades the arithmetic rather than replacing it",
      "status": "PASS",
-     "detail": "the ML movement is 0.95x the Delta movement; the band is 0.4-2.5x",
+     "detail": "the ML movement is 1.35x the Delta movement; the band is 0.4-2.5x",
      "evidence": {
-      "ratio": 0.9532,
+      "ratio": 1.3472,
       "band": [
        0.4,
        2.5
@@ -1167,13 +1195,21 @@
      }
     },
     {
-     "question": "the model does not jump at the stage boundary",
+     "question": "the model does not price a crossing above the rest",
      "status": "PASS",
-     "detail": "median ML/Delta ratio 0.79 for borrowers that changed stage against 1.01 for those that did not \u2014 a gap of 0.22",
+     "detail": "median ML/Delta ratio 1.00 for the 30 borrowers that changed stage against 1.00 for those that did not",
      "evidence": {
-      "crossed": 0.7861,
-      "held": 1.0093,
-      "gap": 0.2233
+      "crossed": 1.001,
+      "held": 1.0,
+      "gap": 0.001
+     }
+    },
+    {
+     "question": "the boundary behaviour is disclosed on the comparison",
+     "status": "PASS",
+     "detail": "The model prices the 30 borrower(s) that changed stage at 1.00 times the Delta figure, against 1.00 for those that did not. The two treat a crossing and a non-crossing alike.",
+     "evidence": {
+      "disclosed": true
      }
     },
     {
@@ -1311,8 +1347,8 @@
     }
    ],
    "comparison": {
-    "spread": -142.76,
-    "spread_pct": -0.269,
+    "spread": 1059.84,
+    "spread_pct": 2.0,
     "agree": false,
     "rows": [
      {
@@ -1327,9 +1363,9 @@
       "method": "ml",
       "label": "ML Model \u2014 XGBoost",
       "available": true,
-      "whatif_ecl": 52852.38,
-      "absolute_change": 2909.97,
-      "percentage_change": 5.827
+      "whatif_ecl": 54054.98,
+      "absolute_change": 4112.57,
+      "percentage_change": 8.235
      }
     ]
    }

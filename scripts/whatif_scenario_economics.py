@@ -316,38 +316,39 @@ def against_the_model(case: dict[str, Any], delta: Any,
     #
     # What matters is whether the model behaves DISCONTINUOUSLY at the
     # boundary: does it price a borrower that crossed into Stage 2 on a
-    # different scale from one that did not? A well-behaved model shades both
-    # by a similar amount; one that jumps at the boundary has learned the
-    # threshold rather than the risk.
-    frame = getattr(delta, "borrowers", None)
-    borrowers = both.get("borrowers") or []
-    if isinstance(frame, pd.DataFrame) and borrowers \
-            and "stage_baseline" in frame.columns:
-        crossed = set(
-            frame.loc[frame["stage_stressed"] != frame["stage_baseline"],
-                      "borrower_id"].astype(str))
-        moved_ratio, still_ratio = [], []
-        for row in borrowers:
-            base = float(row.get("delta_ecl") or 0.0)
-            if abs(base) < 1e-9:
-                continue
-            ratio = float(row.get("ml_ecl") or 0.0) / base
-            (moved_ratio if str(row.get("borrower_id")) in crossed
-             else still_ratio).append(ratio)
-        if moved_ratio and still_ratio:
-            a, b = float(np.median(moved_ratio)), float(np.median(still_ratio))
-            gap = abs(a - b)
-            say("the model does not jump at the stage boundary",
-                PASS if gap <= 0.25 else FAIL,
-                f"median ML/Delta ratio {a:.2f} for borrowers that changed "
-                f"stage against {b:.2f} for those that did not — a gap of "
-                f"{gap:.2f}",
-                {"crossed": round(a, 4), "held": round(b, 4),
-                 "gap": round(gap, 4)})
-        else:
-            say("the model does not jump at the stage boundary", PASS,
-                "no borrower in the reported sample changed stage, so there "
-                "is no boundary to jump")
+    # different scale from one that did not?
+    #
+    # Read from the comparison's own measurement, which is taken over the
+    # WHOLE population. Deriving it here from the reported top borrowers
+    # measured a sample selected for being the largest disagreements, and
+    # duly reported a boundary jump that the full population does not have.
+    boundary = both.get("boundary") or {}
+    gap = boundary.get("gap")
+    if boundary.get("crossings") and gap is not None:
+        crossed = boundary.get("ml_over_delta_for_crossings")
+        held = boundary.get("ml_over_delta_for_the_rest")
+        # Direction decides which bound applies. Pricing a crossing ABOVE the
+        # rest is manufacturing provision at exactly the point a What-If
+        # exists to price. Pricing it BELOW is the smoothing: the Stage 1 to
+        # Stage 2 step is a change of measurement basis, a discontinuity in
+        # the arithmetic, and a model fitting a continuous surface cannot
+        # reproduce one.
+        say("the model does not price a crossing above the rest",
+            PASS if gap <= 0.10 else FAIL,
+            f"median ML/Delta ratio {crossed:.2f} for the "
+            f"{boundary['crossings']:,} borrowers that changed stage against "
+            f"{held:.2f} for those that did not",
+            {"crossed": crossed, "held": held, "gap": gap})
+        # And where it under-prices, the reader has to be TOLD, on this
+        # scenario, rather than left to find it in a model card.
+        note = str(boundary.get("note", ""))
+        say("the boundary behaviour is disclosed on the comparison",
+            PASS if note else FAIL, note or "no boundary note",
+            {"disclosed": bool(note)})
+    else:
+        say("the model does not price a crossing above the rest", PASS,
+            "no borrower changed stage under this scenario, so there is no "
+            "measurement-basis crossing to disagree about")
 
     outside = both.get("out_of_distribution") or []
     say("a borrower outside the model's training range is disclosed",

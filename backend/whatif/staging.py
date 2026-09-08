@@ -493,7 +493,36 @@ class StagingPolicy:
                 >= policy.DEFAULT_DPD_DAYS).to_numpy() \
             if dpd_column in frame.columns else np.zeros(rows, dtype=bool)
         deemed = self.sicr(frame, dpd_column=dpd_column, **columns)
-        return np.where(defaulted | late, 3, np.where(deemed, 2, 1))
+        measured = np.where(defaulted | late, 3, np.where(deemed, 2, 1))
+        return (self._carried(frame, measured)
+                if self.scope == SCOPE_REPORTED else measured)
+
+    def _carried(self, frame: pd.DataFrame,
+                 measured: np.ndarray) -> np.ndarray:
+        """The reported book's stage, which has a memory.
+
+        A borrower whose trigger stops firing does not return to Stage 1 the
+        same quarter — it serves a probation first, which is the curing rule an
+        IFRS 9 book operates and the reason its Stage 2 population does not
+        oscillate on a PD that moved by a hundredth.
+
+        That makes the stage a function of history, so a single quarter's row
+        can only be staged if it CARRIES that history. The book stores it: the
+        stage it was carrying last quarter, and how many consecutive quarters
+        it has been clear. Where a frame does not carry them — a hypothetical,
+        a hand-built row, an older extract — the measured stage is returned and
+        the rule set says as much rather than inventing a history.
+        """
+        if not {"prior_stage", "sicr_clear_quarters"} <= set(frame.columns):
+            return measured
+        prior = (pd.to_numeric(frame["prior_stage"], errors="coerce")
+                 .fillna(pd.Series(measured, index=frame.index)).to_numpy())
+        served = (pd.to_numeric(frame["sicr_clear_quarters"], errors="coerce")
+                  .fillna(0).to_numpy())
+        # Deterioration lands at once; an improvement waits for its probation.
+        improving = measured < prior
+        return np.where(improving & (served < policy.STAGE_2_PROBATION_QUARTERS),
+                        prior, measured).astype(int)
 
     def reasons(self, frame: pd.DataFrame, index: int, **columns: str) -> tuple[str, ...]:
         """Why one borrower is where it is, in a reader's words."""

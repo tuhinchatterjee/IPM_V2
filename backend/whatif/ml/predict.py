@@ -94,9 +94,21 @@ def _shocked_frame(work: pd.DataFrame) -> pd.DataFrame:
                             ("lgd_stressed", "lgd"),
                             ("ead_stressed", "ead"),
                             ("stage_stressed", "stage"),
+                            # Under a scenario the carried stage and the
+                            # measured one are the same thing: the engine
+                            # evaluates the triggers against the shocked book
+                            # and never cures, so there is no probation to
+                            # serve. Leaving `stage_measured` at its reported
+                            # value would show the model a borrower the book
+                            # has moved to Stage 2 whose triggers still read
+                            # Stage 1 — a combination it never saw in training.
+                            ("stage_stressed", "stage_measured"),
                             ("ccf_stressed", "ccf")):
         if stressed in moved.columns:
             moved[plain] = moved[stressed]
+    # And no probation stands under a hypothetical.
+    if "stage_stressed" in moved.columns and "sicr_clear_quarters" in moved.columns:
+        moved["sicr_clear_quarters"] = 0
     # The lifetime PD follows the twelve-month PD under a shock; the governed
     # extension is the same one the measurement uses.
     if "pd_stressed" in moved.columns:

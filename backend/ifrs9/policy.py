@@ -53,6 +53,25 @@ SICR_DPD_DAYS = 30
 #: Days past due at which default is presumed.
 DEFAULT_DPD_DAYS = 90
 
+#: How many consecutive clear quarters a Stage 2 borrower serves before it is
+#: allowed back into Stage 1.
+#:
+#: Deterioration is immediate; improvement has to be sustained. Every IFRS 9
+#: book of any size operates a probation like this, and the reason is the one
+#: this book ran into without it: a trigger evaluated afresh each quarter let a
+#: third of the Stage 2 population cure every quarter on a PD that had moved by
+#: a hundredth, and the provision oscillated with it. An average Stage 2
+#: sojourn under three quarters is a staging rule measuring noise rather than
+#: credit, and it is the pattern supervisors look for because it suppresses
+#: provisions.
+#:
+#: Two quarters is the shortest probation that means anything. It lives here,
+#: with the triggers, because the generator that stages the book and the rule
+#: set that reproduces it must not hold separate copies — a rule set that cured
+#: faster than the book would stop reproducing it, and the baseline column of
+#: every What-If rests on that tie.
+STAGE_2_PROBATION_QUARTERS = 2
+
 #: Scenario probability weights, and the ECL multiplier each scenario carries.
 #: The reported ECL is the probability-weighted one, so every measurement here
 #: carries the same factor and the base reproduces the book.

@@ -64,6 +64,13 @@ IFRS9_FIELDS: tuple[str, ...] = (
     "borrower_id", "period", "pd_at_origination_pct",
     "sicr_trigger_pd", "sicr_trigger_dpd", "sicr_trigger_watchlist",
     "prior_stage", "stage_moved",
+    # The staging has a memory: a borrower whose trigger stops firing serves a
+    # cure probation before it returns to Stage 1. Without these two the
+    # governed rule set cannot reproduce the book it staged, because a
+    # borrower measured at Stage 1 and carried at Stage 2 is indistinguishable
+    # from one that has just cured — and the baseline column of every What-If
+    # rests on that reproduction.
+    "stage_measured", "sicr_clear_quarters",
 )
 
 
