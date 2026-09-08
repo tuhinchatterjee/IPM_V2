@@ -50,6 +50,8 @@ class RollingSummary:
     customer_id: str = ""
     customer_name: str = ""
     segment: str = ""
+    sector: str = ""
+    region: str = ""
     band: str = ""
     layer: str = ""
     sub_category: str = ""
@@ -75,7 +77,9 @@ class RollingSummary:
             "filters": dict(self.filters),
             "customer_id": self.customer_id,
             "customer_name": self.customer_name,
-            "segment": self.segment, "band": self.band, "layer": self.layer,
+            "segment": self.segment, "sector": self.sector,
+            "region": self.region,
+            "band": self.band, "layer": self.layer,
             "sub_category": self.sub_category, "signal": self.signal,
             "confirmed": list(self.confirmed),
             "evidence_opened": list(self.evidence_opened),
@@ -137,7 +141,7 @@ def update(previous: RollingSummary | None, *, question: str,
     # band filter with the answer to a different question. Two things with
     # one name is exactly how a thread starts describing the wrong scope, so
     # these come from the selection only.
-    for key in ("segment", "band"):
+    for key in ("segment", "sector", "region", "band"):
         value = inherited.get(key) or ui.get(key)
         if value:
             setattr(out, key, str(value))

@@ -40,6 +40,7 @@ COVERED_BY: dict[str, tuple[str, ...]] = {
     "concentration": (plan_mod.CONCENTRATION,),
     "comparison": (plan_mod.COMPARISON, plan_mod.GROUPING),
     "grouping": (plan_mod.GROUPING,),
+    "ranking": (plan_mod.RANKING, plan_mod.BORROWER),
     "evidence": (plan_mod.EVIDENCE,),
     "methodology": (plan_mod.METHODOLOGY,),
 }

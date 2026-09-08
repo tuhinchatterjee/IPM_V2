@@ -27,11 +27,19 @@ import { TrendChart, CategoryBarChart } from "@/components/analytics/charts";
  */
 export function EarlyWarningChat({
   customerId,
+  uiState,
   onOpenBorrower,
 }: {
   /** The obligor the screen is currently about, so "what should I do?"
    *  is answered about that obligor rather than about the book. */
   customerId?: string | null;
+  /**
+   * Where the reader is: the band filter, the level, the selected segment.
+   * Navigation context, sent alongside the analytical summary rather than
+   * folded into it — a screen rebuilt from a prose summary is sometimes
+   * wrong, and this one already knows exactly where it is.
+   */
+  uiState?: Record<string, unknown>;
   onOpenBorrower?: (customerId: string) => void;
 }) {
   const suggestions = useAsync(() => api.earlyWarningV2Suggestions(), []);
@@ -41,6 +49,17 @@ export function EarlyWarningChat({
   const [turns, setTurns] = React.useState<
     { question: string; answer: EarlyWarningV2Answer }[]
   >([]);
+  /**
+   * The thread's analytical context, as the server last wrote it, handed
+   * straight back on the next turn. Stored rather than reconstructed: the
+   * server is what decided it, and a client that rebuilt its own version
+   * would be a second thread quietly disagreeing with the first.
+   */
+  const summary = React.useRef<Record<string, unknown> | undefined>(undefined);
+  // `useId` rather than a random string: a ref initialiser runs on every
+  // render, so `Math.random()` there is a new thread id each time React
+  // decides to re-render and the server sees a different conversation.
+  const threadId = React.useId();
 
   const ask = React.useCallback(
     async (text: string) => {
@@ -52,7 +71,11 @@ export function EarlyWarningChat({
         const answer = await api.earlyWarningV2Ask({
           question: trimmed,
           customerId: customerId ?? undefined,
+          uiState: { ...(uiState ?? {}), customer_id: customerId ?? undefined },
+          rollingSummary: summary.current,
+          threadId,
         });
+        if (answer.rolling_summary) summary.current = answer.rolling_summary;
         setTurns((prior) => [...prior, { question: trimmed, answer }]);
         setQuestion("");
       } catch (e) {
@@ -65,7 +88,7 @@ export function EarlyWarningChat({
         setBusy(false);
       }
     },
-    [busy, customerId],
+    [busy, customerId, uiState, threadId],
   );
 
   return (
@@ -113,12 +136,24 @@ function Answer({
   const rows = answer.facts?.rows ?? [];
   const kind = answer.answered ? chartFor(scope) : null;
 
+  if (answer.redirected) {
+    return (
+      <RedirectCard question={question} answer={answer} onAsk={onAsk} />
+    );
+  }
+
   return (
     <Card className="space-y-3 p-4">
       <p className="text-xs text-text-muted">{question}</p>
       <p className="text-[15px] font-medium leading-relaxed text-text-primary">
         {answer.direct}
       </p>
+      {answer.complete === false && (
+        <p className="rounded-md border border-warning/40 bg-warning-muted/30 px-2.5 py-1.5 text-xs text-text-secondary">
+          This answer is partial. The parts it could not cover are named in the
+          limits below, rather than left for you to notice.
+        </p>
+      )}
       {answer.interpretation && (
         <div className="border-l-2 border-accent/50 pl-3">
           <p className="meta mb-1 text-text-muted">CreditProbe interpretation</p>
@@ -240,4 +275,64 @@ function AnswerChart({
     );
   }
   return null;
+}
+
+/**
+ * Another functionality owns this question.
+ *
+ * Rendered as its own kind of answer rather than as a thin one, because it
+ * IS a different thing: nothing was analysed, and the reader needs to see
+ * that rather than wonder whether the numbers are missing or absent. The
+ * alternatives are the useful half — each one is a question this domain can
+ * answer, checked against the live field dictionary before it was offered,
+ * so clicking one always lands somewhere.
+ */
+function RedirectCard({
+  question,
+  answer,
+  onAsk,
+}: {
+  question: string;
+  answer: EarlyWarningV2Answer;
+  onAsk: (question: string) => void;
+}) {
+  return (
+    <Card className="space-y-3 border-accent/30 p-4">
+      <p className="text-xs text-text-muted">{question}</p>
+      <div className="flex items-baseline gap-2">
+        <Badge variant="info">{answer.selected_name ?? "Another product"}</Badge>
+        <p className="text-[15px] font-medium leading-relaxed text-text-primary">
+          {answer.direct}
+        </p>
+      </div>
+      {answer.interpretation && (
+        <p className="text-sm leading-relaxed text-text-secondary">
+          {answer.interpretation}
+        </p>
+      )}
+      {answer.alternatives && answer.alternatives.length > 0 && (
+        <div className="space-y-1.5 border-t border-border pt-2.5">
+          <p className="meta text-text-muted">What I can answer instead</p>
+          {answer.alternatives.map((option) => (
+            <button
+              key={option.question}
+              type="button"
+              onClick={() => onAsk(option.question)}
+              className="block w-full rounded-md border border-border px-2.5 py-1.5 text-left text-xs transition-colors hover:border-accent hover:bg-surface-hover"
+            >
+              <span className="text-accent">{option.question}</span>
+              <span className="mt-0.5 block text-text-muted">
+                {option.because}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      {answer.caveats && answer.caveats.length > 0 && (
+        <p className="text-[11px] leading-relaxed text-text-muted">
+          {answer.caveats.join(" ")}
+        </p>
+      )}
+    </Card>
+  );
 }

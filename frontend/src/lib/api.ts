@@ -3346,6 +3346,26 @@ export interface EarlyWarningV2Reading {
   caveats?: string[];
 }
 
+/** One alternative the domain offers when another functionality owns the question. */
+export interface EarlyWarningV2Alternative {
+  question: string;
+  requires: string[];
+  because: string;
+}
+
+/** Which CreditProbe functionality owns the question, and how sure. */
+export interface EarlyWarningV2Routing {
+  selected_functionality: string;
+  selected_name: string;
+  fit_scores: Record<string, number>;
+  confidence: number;
+  ownership_rationale: string;
+  active_product_is_best: boolean;
+  ambiguous: boolean;
+  required_clarification: string;
+  engine: string;
+}
+
 export interface EarlyWarningV2Answer extends EarlyWarningV2Reading {
   answered: boolean;
   scope: string;
@@ -3353,6 +3373,29 @@ export interface EarlyWarningV2Answer extends EarlyWarningV2Reading {
   drivers?: { code: string; name: string; score: number; band: string; reason: string }[];
   chart?: { kind?: string; reason?: string };
   facts?: { rows?: Record<string, unknown>[]; caveats?: string[] };
+  /** True when another functionality owns the question and nothing was run. */
+  redirected?: boolean;
+  selected_name?: string;
+  alternatives?: EarlyWarningV2Alternative[];
+  /** Whether every part of the request had evidence behind it. */
+  complete?: boolean;
+  presentation?: string;
+  routing?: EarlyWarningV2Routing;
+  /** The stages the turn actually ran, in order. */
+  stages?: string[];
+  budget?: {
+    mode: string;
+    spent: Record<string, number>;
+    remaining: Record<string, number>;
+    elapsed_seconds: number;
+  };
+  /**
+   * The thread's analytical context. Handed straight back on the next turn
+   * so "escalate it" still knows what "it" is — the client stores it rather
+   * than reconstructing it, because the server is what decided it.
+   */
+  rolling_summary?: Record<string, unknown>;
+  request_id?: string;
 }
 
 export interface EarlyWarningV2LevelRow {
@@ -4489,6 +4532,12 @@ export const api = {
     question: string;
     period?: string;
     customerId?: string;
+    /** Where the reader is: the band filter, the level, the selection. */
+    uiState?: Record<string, unknown>;
+    /** The previous turn's summary, handed back unchanged. */
+    rollingSummary?: Record<string, unknown>;
+    threadId?: string;
+    mode?: "standard" | "deep";
   }) =>
     request<EarlyWarningV2Answer>("/early-warning/v2/ask", {
       method: "POST",
@@ -4496,6 +4545,10 @@ export const api = {
         question: payload.question,
         period: payload.period ?? null,
         customer_id: payload.customerId ?? null,
+        ui_state: payload.uiState ?? null,
+        rolling_summary: payload.rollingSummary ?? null,
+        thread_id: payload.threadId ?? null,
+        mode: payload.mode ?? "standard",
       }),
       timeoutMs: 60_000,
     }),

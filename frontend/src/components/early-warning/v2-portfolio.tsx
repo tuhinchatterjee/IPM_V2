@@ -149,6 +149,11 @@ export function EarlyWarningV2Portfolio() {
     <div className="space-y-5">
       <EarlyWarningChat
         customerId={selection.customer}
+        uiState={{
+          band: selection.band ?? undefined,
+          segment: selection.segment ?? undefined,
+          level: selection.level ?? undefined,
+        }}
         onOpenBorrower={(id) => selection.patch({ customer: id })}
       />
 

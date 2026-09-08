@@ -181,20 +181,29 @@ def build(request: Any, package: grain_mod.GrainPackage) -> Plan:
         return Plan(steps=steps, output_grain="methodology",
                     intent=analysis, notes=notes)
 
-    if getattr(request, "escalation_requested", False) or \
-            getattr(request, "report_requested", False):
-        steps.append(Step(
-            analysis=ACTION, period=period, customer_id=customer_id,
-            rationale=("The question asks for a workflow action rather than "
-                       "an analysis. It goes through permissions and the "
-                       "deterministic escalation engine.")))
+    wants_action = (getattr(request, "escalation_requested", False)
+                    or getattr(request, "report_requested", False)
+                    or getattr(request, "remediation_requested", False))
+    if wants_action:
+        # "What should I do?" and "escalate it" are different questions and
+        # get different readings: one is the governed action library, the
+        # other is the deterministic escalation route. Both need the
+        # obligor's position underneath them, so it is read first.
+        intent = ("escalation" if getattr(request, "escalation_requested", False)
+                  else "action")
         if customer_id:
             steps.append(Step(
                 analysis=BORROWER, period=period, customer_id=customer_id,
                 measures=list(BASE_MEASURES),
                 rationale="The obligor's position, which the action is about."))
+        steps.append(Step(
+            analysis=ACTION, period=period, customer_id=customer_id,
+            rationale=("The question asks what to do or whom to tell. Both "
+                       "come from governed sources — the action library and "
+                       "the escalation matrix — rather than from the "
+                       "answer layer.")))
         return Plan(steps=steps, output_grain="customer_latest",
-                    intent="action", notes=notes)
+                    intent=intent, notes=notes)
 
     if ("evidence" in analyses or getattr(request, "requested_evidence", False)) \
             and customer_id:
@@ -221,8 +230,13 @@ def build(request: Any, package: grain_mod.GrainPackage) -> Plan:
                 rationale=("The question is about movement, so the anchor and "
                            "the notches are read apart: a score that fell "
                            "while its anchor rose has not improved.")))
+        # A movement question about an obligor is a MOVEMENT reading, whatever
+        # else it also asks. "Why did its score move?" reads as a diagnosis
+        # and a movement, and answering it with the obligor's current
+        # position answers the question before it.
         return Plan(steps=steps, output_grain="customer_month",
-                    intent=analysis or "borrower", notes=notes)
+                    intent=("movement" if "movement" in analyses
+                            else analysis or "borrower"), notes=notes)
 
     if "grouping" in analyses or grouping:
         resolved = _resolve_grouping(grouping, package)
@@ -239,10 +253,26 @@ def build(request: Any, package: grain_mod.GrainPackage) -> Plan:
 
     # The population is the ground every remaining reading stands on, so it
     # is always the first step.
+    filters = dict(_population_filters(inherited, scope))
     steps.append(Step(
         analysis=POPULATION, period=period, measures=list(BASE_MEASURES),
-        filters=dict(_population_filters(inherited, scope)),
+        filters=dict(filters),
         rationale="The population the question is about."))
+
+    if "ranking" in analyses:
+        # "Which names drive it?" points INTO the current scope. Ordered by
+        # exposure at high severity rather than by score alone: the reader
+        # asking which names drive a population is asking which ones matter,
+        # and a very high score on a small exposure does not.
+        steps.append(Step(
+            analysis=RANKING, period=period,
+            filters={**filters, "high_plus": True},
+            measures=["ews_score", "ews_band", "exposure",
+                      "dominant_subcategory", "dominant_driver"],
+            order_by="exposure", limit=10,
+            rationale=("The question asks which obligors drive the "
+                       "population, so the population is opened rather than "
+                       "restated.")))
 
     # Then one step per part the request asked for. Composed rather than
     # selected: a question with three parts gets three steps, and the
@@ -279,6 +309,8 @@ def _population_filters(inherited: dict[str, Any], scope: str
     """The slice of the book the question is about, from the screen."""
     out: dict[str, Any] = {}
     for key, column in (("segment", "segment"), ("sector", "sector"),
+                        ("region", "region"),
+                        ("internal_rating", "internal_rating"),
                         ("band", "ews_band")):
         value = inherited.get(key)
         if value:

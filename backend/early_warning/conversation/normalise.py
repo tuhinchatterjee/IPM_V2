@@ -240,7 +240,12 @@ _ANALYSIS: tuple[tuple[str, str], ...] = (
      "evidence"),
     (r"\bgroup\w*\b[^.?]*\bby\b|\bbroken? down by\b|\bsplit by\b|"
      r"\bcut by\b|\bby (the )?(internal )?(segment|sector|grade|rating|"
-     r"stage|region|band|severity|layer|utilisation|relationship manager)\b",
+     r"stage|region|band|severity|layer|utilisation|relationship manager)\b|"
+     # "Which segments have deteriorated most?" names no "by" and is still a
+     # grouping: the reader wants the book cut that way and ranked. Answering
+     # it with the portfolio answers a different question entirely.
+     r"\bwhich (segments?|sectors?|grades?|ratings?|regions?|stages?|"
+     r"bands?|layers?)\b",
      "grouping"),
 )
 
@@ -250,6 +255,58 @@ _PERIOD_PHRASES: tuple[tuple[str, int], ...] = (
     (r"last (three|3) months?|last quarter", 3),
     (r"last month|since last month|month on month", 1),
 )
+
+
+#: "Which names drive it?" — a request to see INTO the current scope.
+_WANTS_NAMES = re.compile(
+    r"\bwhich (names?|borrowers?|obligors?|customers?)\b|\bwho\b|"
+    r"\bname the\b|\blist the\b|\bshow me the (names?|borrowers?|obligors?)\b|"
+    r"\bdriv\w* it\b|\bdriving it\b", re.I)
+
+#: "Open the weakest one" — a request to resolve one obligor from that scope.
+_WANTS_WEAKEST = re.compile(
+    r"\b(open|show|take|drill into)\b[^.?]*\b(the )?(weakest|worst|"
+    r"first|top|riskiest|highest)\b|\bthe (weakest|worst|riskiest) one\b",
+    re.I)
+
+
+def _named_group(text: str) -> dict[str, str] | None:
+    """The segment, sector or region the question names, if it names one."""
+    try:
+        from backend.early_warning import ask as ask_mod
+
+        found = ask_mod.resolve_group(text)
+        if not found:
+            return None
+        field, value = found
+        return {"field": field, "value": str(value)}
+    except Exception:  # noqa: BLE001 - a resolver failure must not lose the turn
+        return None
+
+
+def _weakest_in(scope: dict[str, Any]) -> dict[str, str] | None:
+    """The highest-scoring obligor in whatever the thread is looking at.
+
+    Scoped, not global: "open the weakest one" after a Contracting question
+    means the weakest in Contracting, and returning the weakest in the book
+    would silently change the subject.
+    """
+    try:
+        from backend.early_warning import v2_service as svc
+
+        frame = svc.borrower_month()
+        for field in ("segment", "sector", "region", "internal_rating"):
+            value = scope.get(field)
+            if value:
+                frame = frame[frame[field].astype(str).str.lower()
+                              == str(value).lower()]
+        if frame.empty:
+            return None
+        row = frame.sort_values("ews_score", ascending=False).iloc[0]
+        return {"customer_id": str(row["customer_id"]),
+                "customer_name": str(row["customer_name"])}
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _named_obligor(text: str) -> dict[str, str] | None:
@@ -319,6 +376,14 @@ def read(cleaned: Cleaned, *, ui_state: dict[str, Any] | None = None,
             r"\bby (?:the )?((?:internal |ifrs ?9 )?\w+(?: \w+)?)", lowered)
         if grouped:
             grouping = grouped.group(1).strip()
+        else:
+            # The "which segments..." form names the grouping as its subject
+            # rather than after a "by".
+            plural = re.search(
+                r"\bwhich (segments?|sectors?|grades?|ratings?|regions?|"
+                r"stages?|bands?|layers?)\b", lowered)
+            if plural:
+                grouping = plural.group(1).rstrip("s")
 
     comparison = ""
     for pattern, months in _PERIOD_PHRASES:
@@ -331,8 +396,9 @@ def read(cleaned: Cleaned, *, ui_state: dict[str, Any] | None = None,
     # one and is RESOLVED here, because here is where the context exists.
     inherited: dict[str, Any] = {}
     referential = bool(_REFERENTIAL.search(text))
-    for key in ("customer_id", "customer_name", "segment", "period", "band",
-                "level", "layer", "sub_category", "signal"):
+    for key in ("customer_id", "customer_name", "segment", "sector", "region",
+                "internal_rating", "period", "band", "level", "layer",
+                "sub_category", "signal"):
         value = ui.get(key) or summary.get(key)
         if value:
             inherited[key] = value
@@ -352,11 +418,40 @@ def read(cleaned: Cleaned, *, ui_state: dict[str, Any] | None = None,
         if named["customer_name"] not in entities:
             entities.append(named["customer_name"])
 
+    # A GROUP named in the question does the same thing at population level:
+    # "how is the Contracting sector doing?" is about Contracting, and
+    # answering it with the whole book answers a different question. Resolved
+    # against the domain's own values, so a sector that does not exist stays
+    # unresolved rather than being invented.
+    group = _named_group(text)
+    if group and not named:
+        inherited[group["field"]] = group["value"]
+        if group["value"] not in entities:
+            entities.append(group["value"])
+
+    # "Open the weakest one" and "which names drive it" both point INTO the
+    # current scope rather than away from it. Recorded so the planner can
+    # rank within whatever the thread is already about.
+    wants_names = bool(_WANTS_NAMES.search(text))
+    wants_weakest = bool(_WANTS_WEAKEST.search(text))
+
     ambiguities: list[str] = []
     if referential and not inherited:
         ambiguities.append(
             "The question points at something — 'it', 'that', 'the weakest "
             "one' — and neither the screen nor the thread says what.")
+
+    # Opening the weakest name in the current scope resolves it to an
+    # obligor, which is what makes the next turn's "why did ITS score move?"
+    # answerable at all.
+    if wants_weakest and not inherited.get("customer_id"):
+        weakest = _weakest_in(inherited)
+        if weakest:
+            inherited.update(weakest)
+            entities.append(weakest["customer_name"])
+
+    if wants_names and "ranking" not in analyses:
+        analyses.insert(0, "ranking")
 
     return BusinessRequest(
         normalized_business_request=text,

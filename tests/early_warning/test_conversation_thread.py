@@ -240,3 +240,67 @@ def test_a_partial_answer_says_that_it_is_partial():
     reviewed = suff.review(request, thin, empty, can_revise=False)
     assert reviewed.recommend_partial
     assert reviewed.uncovered
+
+
+def test_the_whole_seven_turn_journey_resolves(a_real_group):
+    """Section 37, Journey 7, end to end.
+
+    Not one question after the first is complete on its own. Each is
+    answered against what came before, and the assertions below are the
+    specific resolutions a reader would notice failing.
+    """
+    turns, summary = _thread([
+        f"How is the {a_real_group} sector doing?",
+        "Which names drive it?",
+        "Open the weakest one.",
+        "Why did its score move?",
+        "Show the evidence.",
+        "What should I do?",
+        "Escalate it.",
+    ])
+    scopes = [t.answer.get("scope") for t in turns]
+
+    assert scopes[0] == "group", "the named sector was not opened"
+    # "which names drive it" stays IN that sector rather than widening to
+    # the book, and it actually names them.
+    assert scopes[1] == "group", f"the sector was lost: {scopes}"
+    named = " ".join(turns[1].answer.get("points") or [])
+    assert "largest exposure first" in named, (
+        "the reader asked which names and was given a population summary")
+
+    assert scopes[2] == "borrower", "'the weakest one' resolved to nothing"
+    obligor = summary["customer_name"]
+    assert obligor, "the thread carries no obligor"
+
+    # "Why did its score move?" is a movement reading, not the position.
+    moved = turns[3].answer["direct"]
+    assert moved.startswith(("No.", "Yes.", "The score")), moved
+
+    assert scopes[4] == "evidence", "'show the evidence' did not open one"
+    # And the action and escalation readings are their own, not the position.
+    assert "actions are indicated" in turns[5].answer["direct"], (
+        turns[5].answer["direct"])
+    assert "decision sits with" in turns[6].answer["direct"], (
+        turns[6].answer["direct"])
+
+
+def test_the_weakest_one_is_the_weakest_in_scope(a_real_group):
+    """Not the weakest in the book.
+
+    "Open the weakest one" after a sector question means the weakest in that
+    sector; returning the weakest overall would silently change the subject
+    while looking like it answered.
+    """
+    from backend.early_warning import v2_service as svc
+    from backend.early_warning.conversation import normalise as norm
+
+    frame = svc.borrower_month()
+    within = frame[frame["sector"].astype(str) == a_real_group]
+    if within.empty or len(within) == len(frame):
+        pytest.skip("this sector is the whole book, so the test is vacuous")
+    expected = str(within.sort_values("ews_score", ascending=False)
+                   .iloc[0]["customer_id"])
+
+    request = norm.read(norm.clean("Open the weakest one."),
+                        rolling_summary={"sector": a_real_group})
+    assert request.inherited_context.get("customer_id") == expected

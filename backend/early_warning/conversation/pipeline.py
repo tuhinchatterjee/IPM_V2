@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import logging
 import time
 import uuid
@@ -135,6 +136,68 @@ class Turn:
         }
 
 
+#: A request to read a dataset this domain does not hold, however it is
+#: phrased. Refused rather than answered, because answering it with a
+#: portfolio summary answers a question nobody asked and quietly implies the
+#: refusal did not happen.
+_OTHER_DOMAIN = re.compile(
+    r"\b(ifrs\s?9|ifrs9|ratings? table|transactions? table|financials? table|"
+    r"collateral register|facility book|general ledger|core banking|"
+    r"cockpit (data|domain|dataset)|what.if (data|domain)|"
+    r"scorecard (data|domain))\b", re.I)
+
+#: An instruction aimed at the controls rather than at the data. Recorded
+#: because a reader who typed it deserves to be told the controls held,
+#: rather than receiving an answer that looks like compliance.
+_OVERRIDE_ATTEMPT = re.compile(
+    r"\bignore (the |your |all )?(rules?|instructions?|restrictions?|"
+    r"constraints?|guardrails?)\b|\bbypass\b|\boverride the (lock|rules?)\b|"
+    r"\bdisregard (the |your )?(rules?|instructions?)\b|"
+    r"\bquery .* directly\b", re.I)
+
+
+def _refuses_to_leave_the_domain(text: str) -> dict[str, Any] | None:
+    """Whether the request asks this domain to read another one.
+
+    Answering such a request with whatever this domain DOES hold is the
+    subtle failure: the reader asked for IFRS 9, received a portfolio
+    summary, and has no way to tell whether the boundary held or whether
+    that summary came from IFRS 9. So it is refused by name.
+    """
+    named = _OTHER_DOMAIN.search(text or "")
+    pushed = _OVERRIDE_ATTEMPT.search(text or "")
+    if not named and not pushed:
+        return None
+    what = named.group(0) if named else "another domain"
+    direct = (f"Early Warning does not read {what}, and asking it to does not "
+              f"change that.")
+    reading = (
+        "The upstream systems — IFRS 9 staging, the ratings feed, the "
+        "facility book — have already fed this domain: their values are "
+        "materialised into the monthly snapshots and scored there. Reading "
+        "them again at answer time would be reading the same fact from two "
+        "places that can disagree, which is why the boundary is enforced in "
+        "the validator and in the executor rather than requested in a "
+        "prompt. Nothing was run for this question."
+        if named else
+        "The domain boundary is enforced in the validator and in the "
+        "executor, not in an instruction that a request can argue with. "
+        "Nothing was run for this question.")
+    return {
+        "answered": False, "scope": "refused",
+        "direct": direct, "interpretation": reading,
+        "follow_ups": [
+            "Which obligors carry the strongest credit-event signals?",
+            "Show me the evidence behind a node, including its source system.",
+            "How does the Early Warning model work?",
+        ],
+        "caveats": [
+            "Early Warning answers from its own monthly snapshots. Where a "
+            "figure came from upstream, the evidence answer names the source "
+            "system so it can be verified there."],
+    }
+
+
 def _hash(value: Any) -> str:
     return hashlib.sha256(
         json.dumps(value, sort_keys=True, default=str).encode()).hexdigest()[:16]
@@ -217,6 +280,18 @@ def answer(question: str, *, thread_id: str = "",
             request.normalized_business_request, selection)
         emit(REDIRECT_ANSWER, to=selection.selected,
              alternatives=len(turn.answer.get("alternatives") or []))
+        return _finish(turn, request, prior, ledger, ui_state, emit)
+
+    # Early Warning owns the subject, but the request asks it to read
+    # somewhere it does not read. Refused by name rather than answered with
+    # whatever this domain happens to hold — a reader who asked for IFRS 9
+    # and received a portfolio summary cannot tell which of those two things
+    # happened.
+    refusal = _refuses_to_leave_the_domain(
+        f"{turn.question} {request.normalized_business_request}")
+    if refusal is not None:
+        turn.answer = refusal
+        emit(STOPPED_HONESTLY, reason="request_names_another_domain")
         return _finish(turn, request, prior, ledger, ui_state, emit)
 
     # ---- Early Warning won. Only now does a plan exist. ----------------
@@ -365,8 +440,15 @@ def _compose(turn: Turn, request: Any, packet: packet_mod.ResultPacket,
     """The answer, written from the packet and from nothing else."""
     from backend.early_warning import compose as cp
 
-    writer = compose or cp.compose
+    # The intent decides WHICH reading, not just whether there is one. The
+    # product already has a composer per question shape — the action library
+    # reading, the escalation route reading, the movement decomposition —
+    # and routing every intent through the generic one would answer "what
+    # should I do?" with the obligor's position, which is the question
+    # before it.
     pack = packet.primary
+    intent = str((packet.plan or {}).get("intent") or "")
+    writer = compose or _writer_for(intent, pack)
     if pack is None:
         return {
             "answered": False, "scope": "no_evidence",
@@ -377,12 +459,21 @@ def _compose(turn: Turn, request: Any, packet: packet_mod.ResultPacket,
             "caveats": list(packet.caveats),
         }
     written = writer(pack)
+    points = list(written.points)
+
+    # A reader who asked "which names drive it?" needs the names. The
+    # ranking step returned them; without this they sit in the packet while
+    # the answer restates the population the reader was already looking at.
+    ranked = _ranked_obligors(packet)
+    if ranked:
+        points.insert(0, ranked)
+
     out = {
         "answered": True,
         "scope": pack.scope,
         "direct": written.direct,
         "interpretation": written.interpretation,
-        "points": list(written.points),
+        "points": points,
         "drivers": list(written.drivers),
         "follow_ups": list(written.follow_ups),
         "caveats": list(written.caveats),
@@ -399,6 +490,55 @@ def _compose(turn: Turn, request: Any, packet: packet_mod.ResultPacket,
             f"this turn's budget."]
     del turn, request
     return out
+
+
+def _ranked_obligors(packet: packet_mod.ResultPacket) -> str:
+    """The obligors a ranking step named, largest exposure first.
+
+    Ordered by exposure rather than by score: a reader asking which names
+    drive a population is asking which ones matter, and a very high score on
+    a small exposure does not.
+    """
+    from backend.early_warning import units
+
+    step = next((s for s in packet.steps
+                 if s.get("analysis") == plan_mod.RANKING), None)
+    if not step or not step.get("rows"):
+        return ""
+    named = []
+    for row in step["rows"][:5]:
+        name = str(row.get("customer_name") or row.get("customer_id") or "")
+        if not name:
+            continue
+        score = row.get("ews_score")
+        exposure = row.get("exposure")
+        piece = name
+        if score is not None:
+            piece += f" at {float(score):.0f}"
+        if exposure is not None:
+            piece += f" on {units.money(float(exposure))}"
+        named.append(piece)
+    if not named:
+        return ""
+    more = (f", and {len(step['rows']) - len(named)} more"
+            if len(step["rows"]) > len(named) else "")
+    return (f"The names carrying it, largest exposure first: "
+            f"{'; '.join(named)}{more}.")
+
+
+def _writer_for(intent: str, pack: Any) -> Callable[..., Any]:
+    """The composer whose reading answers THIS question."""
+    from backend.early_warning import compose as cp
+
+    if pack is None or getattr(pack, "scope", "") != "borrower":
+        return cp.compose
+    if intent == "escalation":
+        return cp.escalation
+    if intent == "action":
+        return cp.action
+    if intent == "movement":
+        return cp.borrower_movement
+    return cp.compose
 
 
 def _refused(checked: val.Result, turn: Turn) -> dict[str, Any]:
