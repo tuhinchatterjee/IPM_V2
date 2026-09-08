@@ -836,7 +836,7 @@ export default function WhatIfThreadPage() {
                       <DownloadDetail
                         runId={result.run_id}
                         state={state}
-                        methodology={context.ecl_methodology ?? ""}
+                        methodology={context.methodology ?? state.methodology ?? ""}
                       />
                     ) : null}
                     {result.interpretation ? (

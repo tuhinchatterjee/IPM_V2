@@ -4772,6 +4772,12 @@ export interface WhatIfContext {
   staging_note?: string;
   ecl_methodology: string;
   ecl_methodology_version: string;
+  /** The governed VALUE — "delta" or "ml". This is what travels on a request.
+   *  `ecl_methodology` beside it is display text and must never be sent where
+   *  a value belongs: "ML Model — XGBoost" is eighteen characters, and sending
+   *  it to the export failed a contract that allowed sixteen. */
+  methodology?: string;
+  model_version?: string;
   methodology_stamp: string;
   macro_version: string;
   /** Macro relationships overridden FOR THIS THREAD. Empty when every

@@ -111,8 +111,16 @@ class WhatIfResult:
                 "governed corporate policy. The What-If column is staged by "
                 "this thread's rule set. No What-If rule changes the reported "
                 "book."),
+            # The VALUE and the LABEL, separately and both named for what
+            # they are. A caller that needs to send the methodology back —
+            # the export, a saved What-If, a comparison — sends `methodology`.
+            # `ecl_methodology` is display text and is eighteen characters of
+            # it for the ML model, which is how it came to fail a governed
+            # contract that allowed sixteen.
+            "methodology": self.choice.method,
             "ecl_methodology": self.choice.label,
             "ecl_methodology_version": self.choice.version,
+            "model_version": self.state.model_version or "",
             "methodology_stamp": self.choice.stamp,
             "macro_version": mc.MACRO_VERSION,
             # A figure computed on somebody's own assumption must not be

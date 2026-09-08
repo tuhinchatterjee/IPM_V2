@@ -360,7 +360,7 @@ class StateIn(BaseModel):
     thread_id: str | None = Field(default="", max_length=64)
     steps: list[StepIn] = Field(default_factory=list, max_length=40)
     staging: StagingIn | None = None
-    methodology: str | None = Field(default="", max_length=16)
+    methodology: str | None = Field(default="", max_length=48)
     model_version: str | None = Field(default="", max_length=32)
     #: Macro relationships this thread has overridden. Without this field the
     #: state posted back after /macro/configure lost them silently, and a
@@ -374,7 +374,7 @@ class StateIn(BaseModel):
 class ExecuteIn(BaseModel):
     state: StateIn
     #: The methodology the person just chose, if they are answering the gate.
-    methodology: str = Field(default="", max_length=16)
+    methodology: str = Field(default="", max_length=48)
     instruction: str = Field(default="", max_length=1000)
     limit: int = Field(default=200, ge=1, le=MAX_ROWS)
 
@@ -382,7 +382,7 @@ class ExecuteIn(BaseModel):
 class SaveIn(BaseModel):
     state: StateIn
     name: str = Field(default="", max_length=180)
-    methodology: str = Field(default="", max_length=16)
+    methodology: str = Field(default="", max_length=48)
     instruction: str = Field(default="", max_length=1000)
 
 
@@ -940,7 +940,7 @@ class ExportIn(BaseModel):
     run_id: str = Field(default="", max_length=32)
     #: The scenario to run and export, where nothing is held any more.
     state: StateIn = Field(default_factory=StateIn)
-    methodology: str = Field(default="", max_length=16)
+    methodology: str = Field(default="", max_length=48)
 
 
 @router.post("/export")

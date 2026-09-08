@@ -43,7 +43,39 @@ ML = "ml"
 METHODS: tuple[str, ...] = (DELTA, ML)
 
 #: The names each methodology is offered and recognised under.
+#:
+#: `DELTA` and `ML` are the CONTRACT — the values that travel on a scenario
+#: state, an API body, a saved What-If, a workbook and a model card. The labels
+#: below are what a person reads, and they are not interchangeable with the
+#: values: "ML Model — XGBoost" is eighteen characters of display text, and
+#: sending it where a value belongs failed the detailed export with "Check:
+#: methodology" before it reached any code that could have said what was
+#: actually wrong.
 LABELS: dict[str, str] = {DELTA: "Delta Model", ML: "ML Model — XGBoost"}
+
+#: Every string that resolves to a methodology, so a caller sending a label —
+#: an older client, a copied state, a person typing into an API console — is
+#: understood rather than refused on a length check.
+_ALIASES: dict[str, str] = {
+    **{value: value for value in (DELTA, ML)},
+    **{label.casefold(): value for value, label in LABELS.items()},
+    "ml model": ML, "xgboost": ML, "ml_xgboost": ML, "ml-xgboost": ML,
+    "delta model": DELTA, "delta_model": DELTA,
+}
+
+
+def canonical(said: str) -> str:
+    """The governed value for whatever a caller sent, or "" for nothing.
+
+    One place turns a methodology into its contract value. A label reaching a
+    validator is a bug in the caller, but refusing it there produces "Check:
+    methodology" and nothing a reader can act on, so it is normalised here and
+    the caller is fixed separately.
+    """
+    text = str(said or "").strip()
+    if not text:
+        return ""
+    return _ALIASES.get(text.casefold(), "")
 
 _SAYS_DELTA = re.compile(
     r"\bdelta\b|\bdeterministic\b|\btransparent\s+model\b", re.IGNORECASE)
@@ -117,6 +149,12 @@ def read(text: str) -> str:
     return ""
 
 
+def refusal(said: str) -> str:
+    """Why this is not a methodology, in words a reader can act on."""
+    return (f"'{said}' is not an ECL methodology. The choices are "
+            + ", ".join(f"{LABELS[m]} ({m})" for m in METHODS) + ".")
+
+
 def resolve(*, requested: str = "", instruction: str = "",
             active: str = "", model_version: str = "") -> Choice | None:
     """The methodology to run on, or None when the gate must be asked.
@@ -126,18 +164,17 @@ def resolve(*, requested: str = "", instruction: str = "",
     they said it in their own words. The thread's active choice comes last, and
     only carries forward — it never overrides something newly stated.
     """
-    chosen = str(requested or "").strip().lower()
-    if chosen:
-        if chosen not in METHODS:
-            raise MethodologyError(
-                f"'{requested}' is not an ECL methodology. The choices are "
-                f"{', '.join(LABELS[m] for m in METHODS)}.")
-        return Choice(chosen, version_of(chosen, model_version=model_version), "asked")
+    if str(requested or "").strip():
+        chosen = canonical(requested)
+        if not chosen:
+            raise MethodologyError(refusal(requested))
+        return Choice(chosen, version_of(chosen, model_version=model_version),
+                      "asked")
     spoken = read(instruction)
     if spoken:
         return Choice(spoken, version_of(spoken, model_version=model_version), "stated")
-    carried = str(active or "").strip().lower()
-    if carried in METHODS:
+    carried = canonical(active)
+    if carried:
         return Choice(carried, version_of(carried, model_version=model_version), "carried")
     return None
 

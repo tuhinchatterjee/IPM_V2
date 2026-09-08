@@ -936,3 +936,101 @@ class TestTheDetailedExportOverHttp:
                            json={"run_id": "0" * 32, "state": self.EMPTY})
         assert body.status_code == 422
         assert "no What-If to export" in body.json()["detail"]["message"]
+
+
+# ================================== the methodology identifier, end to end
+
+
+class TestOneMethodologyIdentifier:
+    """A VALUE travels; a LABEL is read. They are not interchangeable.
+
+    The detailed export failed in UAT with "Check: methodology" because the
+    screen sent `context.ecl_methodology` — display text — where the contract
+    wanted a value. "ML Model — XGBoost" is eighteen characters against a
+    sixteen-character field, so the request died on a length check before
+    reaching any code that could say what was actually wrong.
+    """
+
+    def test_the_values_are_short_stable_identifiers(self) -> None:
+        assert me.METHODS == ("delta", "ml")
+        for value in me.METHODS:
+            assert value.islower() and " " not in value
+
+    def test_a_label_is_not_a_value(self) -> None:
+        for value, label in me.LABELS.items():
+            assert label != value
+            assert me.canonical(value) == value
+
+    def test_a_label_is_understood_rather_than_refused(self) -> None:
+        """A stale client, a copied body or a hand-written request sends the
+        label. Refusing it produces a message nobody can act on."""
+        for value, label in me.LABELS.items():
+            assert me.canonical(label) == value
+            assert me.canonical(label.upper()) == value
+
+    def test_something_that_is_not_a_methodology_names_the_ones_that_are(
+            self) -> None:
+        assert me.canonical("quantum") == ""
+        said = me.refusal("quantum")
+        for value, label in me.LABELS.items():
+            assert value in said and label in said
+
+    def test_a_state_stores_the_value_whatever_it_was_given(self) -> None:
+        for given in ("ml", "ML Model — XGBoost", "xgboost", "ML"):
+            state = sp.ScenarioState.from_dict({"methodology": given})
+            assert state.methodology == "ml", given
+
+    @needs_lake
+    def test_the_result_context_carries_the_value_beside_the_label(
+            self) -> None:
+        state = sp.ScenarioState(period=dm.latest_period()).add(
+            sp.Step(sp.PD, (sc.Shock(sc.PD, 10.0, sc.RELATIVE),),
+                    interpreted="PD +10%"))
+        context = rn.execute(state, requested=me.DELTA,
+                             plausible=False).context()
+        assert context["methodology"] == "delta"
+        assert context["ecl_methodology"] == me.LABELS["delta"]
+
+    @needs_lake
+    def test_the_export_accepts_the_value_and_survives_the_label(
+            self, client) -> None:
+        """Both branches of the UAT failure, asserted."""
+        empty = {"period": "", "steps": [], "staging": None,
+                 "methodology": "", "methodology_version": "", "title": "",
+                 "sensitivities": []}
+        read = client.post("/api/v1/whatif/interpret", headers=ANALYST,
+                           json={"instruction": "Increase PD for Stage 1 BB "
+                                                "rating by 10%",
+                                 "state": empty})
+        assert read.status_code == 200, read.json()
+        state = read.json()["state"]
+        for method in me.METHODS:
+            run = client.post("/api/v1/whatif/execute", headers=ANALYST,
+                              json={"state": state, "methodology": method})
+            assert run.status_code == 200, run.json()
+            body = run.json()
+            for sent in (body["context"]["methodology"],
+                         body["context"]["ecl_methodology"]):
+                got = client.post("/api/v1/whatif/export", headers=ANALYST,
+                                  json={"run_id": body["run_id"],
+                                        "state": body["state"],
+                                        "methodology": sent})
+                assert got.status_code == 200, (method, sent, got.json())
+                assert got.content[:2] == b"PK"
+
+    @needs_lake
+    def test_a_real_mistake_is_still_refused_and_says_what_is_valid(
+            self, client) -> None:
+        empty = {"period": "", "steps": [], "staging": None,
+                 "methodology": "", "methodology_version": "", "title": "",
+                 "sensitivities": []}
+        read = client.post("/api/v1/whatif/interpret", headers=ANALYST,
+                           json={"instruction": "increase PD by 10%",
+                                 "state": empty}).json()
+        got = client.post("/api/v1/whatif/export", headers=ANALYST,
+                          json={"state": read["state"],
+                                "methodology": "quantum"})
+        assert got.status_code == 422
+        message = got.json()["detail"]["message"]
+        assert "quantum" in message
+        assert "delta" in message and "ml" in message

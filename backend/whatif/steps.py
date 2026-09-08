@@ -164,6 +164,18 @@ APPLY_ORDER: tuple[str, ...] = (RATING, MACRO, FINANCIAL, STAGE, PD, LGD,
                                 CCF, COLLATERAL, HAIRCUT, EAD)
 
 
+def _methodology(said: Any) -> str:
+    """A methodology as its governed VALUE, whatever form it arrived in.
+
+    One contract for the identifier, so a label that reaches a state — from an
+    older client, a copied body, a hand-written request — is understood here
+    rather than refused three calls later by a length check.
+    """
+    from backend.whatif import methodology as me
+
+    return me.canonical(said)
+
+
 @dataclass(frozen=True)
 class ScenarioState:
     """Everything a What-If thread has settled."""
@@ -271,7 +283,8 @@ class ScenarioState:
         return replace(self, staging=staging)
 
     def with_methodology(self, method: str, version: str = "") -> ScenarioState:
-        return replace(self, methodology=str(method or ""), model_version=version)
+        return replace(self, methodology=_methodology(method),
+                       model_version=version)
 
     def with_period(self, period: str) -> ScenarioState:
         return replace(self, period=str(period or ""))
@@ -341,7 +354,10 @@ class ScenarioState:
             period=str(body.get("period") or ""),
             steps=tuple(Step.from_dict(s) for s in (body.get("steps") or [])),
             staging=st.StagingPolicy.from_dict(body.get("staging")),
-            methodology=str(body.get("methodology") or ""),
+            # Canonicalised on the way in: a state carrying a display label
+            # instead of a governed value is a state whose next request fails
+            # a contract check rather than running.
+            methodology=_methodology(body.get("methodology")),
             model_version=str(body.get("model_version") or ""),
             thread_id=str(body.get("thread_id") or ""),
             title=str(body.get("title") or ""),
