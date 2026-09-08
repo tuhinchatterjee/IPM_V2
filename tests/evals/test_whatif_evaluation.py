@@ -31,8 +31,26 @@ from backend.whatif import investigate as iv
 from backend.whatif import language as lg
 from backend.whatif import run as rn
 
-CASES = json.loads(
-    (pathlib.Path(__file__).parent / "whatif_cases.json").read_text())["cases"]
+_CORPUS = json.loads(
+    (pathlib.Path(__file__).parent / "whatif_cases.json").read_text())
+CASES = _CORPUS["cases"]
+#: Questions the product does not yet read the way it should, kept in the file
+#: rather than deleted. A corpus containing only what the classifier already
+#: gets right measures nothing.
+GAPS = _CORPUS.get("known_gaps", [])
+
+
+def _read(case: dict):
+    """Classify a case in the thread state the case describes.
+
+    The same sentence is a different intent depending on what is on screen:
+    "increase PD by 20%" OPENS a scenario in an empty thread and MODIFIES one
+    in a thread that already has steps. A corpus that ignored that would be
+    testing half the classifier.
+    """
+    return iv.classify(case["question"],
+                       has_result=bool(case.get("has_result")),
+                       has_steps=bool(case.get("has_steps")))
 
 
 def _id(case: dict) -> str:
@@ -41,7 +59,7 @@ def _id(case: dict) -> str:
 
 class TestTheCorpusItself:
     def test_it_is_large_enough_to_be_evidence(self) -> None:
-        assert len(CASES) >= 75, (
+        assert len(CASES) >= 100, (
             "a handful of questions is a demonstration, not an evaluation")
 
     def test_every_intent_is_represented(self) -> None:
@@ -54,16 +72,70 @@ class TestTheCorpusItself:
         questions = [c["question"] for c in CASES]
         assert len(questions) == len(set(questions))
 
+    def test_every_intent_is_exercised_in_the_state_it_needs(self) -> None:
+        """An intent that only exists after a result must be tested after one,
+        and one that opens a thread must be tested from an empty one."""
+        after = {iv.EXPLAIN, iv.VIEW, iv.MODIFY, iv.COMPARISON,
+                 iv.EXPLAINABILITY, iv.EXPORT}
+        for case in CASES:
+            if case["intent"] in after:
+                assert case.get("has_result"), case["question"]
+            if case["intent"] == iv.SCENARIO:
+                assert not case.get("has_steps"), case["question"]
+
+
+class TestTheKnownGaps:
+    """What the product does NOT do, written down where it can be checked.
+
+    A gap that is only in somebody's head gets fixed by accident or not at
+    all. Each of these says what happens today and what should — so when one
+    is closed, this test fails and the record is updated with the fix.
+    """
+
+    def test_each_gap_names_what_happens_and_what_should(self) -> None:
+        for gap in GAPS:
+            assert gap["question"] and gap["why"], gap
+            assert gap["reads_as"] in iv.INTENTS, gap
+            assert gap["should_be"] in iv.INTENTS, gap
+
+    def test_each_gap_still_reads_the_way_it_is_recorded(self) -> None:
+        """The record is only useful while it is true."""
+        for gap in GAPS:
+            found = iv.classify(gap["question"], has_result=True,
+                                has_steps=True)
+            assert found.intent == gap["reads_as"], (
+                f"{gap['question']!r} now reads as {found.intent}, not "
+                f"{gap['reads_as']}. If that is the fix, remove the gap.")
+
+    def test_no_gap_silently_changes_the_scenario(self) -> None:
+        """A capability the product lacks must fail safe: answering the wrong
+        question is recoverable, quietly moving a number is not."""
+        for gap in GAPS:
+            found = iv.classify(gap["question"], has_result=True,
+                                has_steps=True)
+            if found.intent != gap["should_be"]:
+                assert not found.changes_state, gap["question"]
+
 
 @pytest.mark.parametrize("case", CASES, ids=_id)
 class TestEveryCase:
     def test_the_intent_is_read_correctly(self, case) -> None:
-        reading = iv.classify(case["question"])
+        reading = _read(case)
         assert reading.intent == case["intent"], (
             f"{case['question']!r} was read as {reading.intent}")
 
+    def test_the_family_follows_the_intent(self, case) -> None:
+        reading = _read(case)
+        assert reading.family == iv.FAMILY[case["intent"]]
+
+    def test_only_a_scenario_change_may_move_the_thread(self, case) -> None:
+        """The invariant the whole taxonomy exists to protect: a question
+        never changes a number."""
+        reading = _read(case)
+        assert reading.changes_state is (reading.family == iv.CHANGES)
+
     def test_only_a_modification_may_change_state(self, case) -> None:
-        reading = iv.classify(case["question"])
+        reading = _read(case)
         expected = case.get("changes_state")
         if expected is None:
             return
@@ -73,20 +145,19 @@ class TestEveryCase:
         wanted = case.get("topic")
         if not wanted:
             return
-        assert iv.classify(case["question"]).topic == wanted
+        assert _read(case).topic == wanted
 
     def test_the_dimension_is_recognised(self, case) -> None:
         wanted = case.get("dimension")
         if not wanted:
             return
-        assert iv.classify(case["question"]).dimension == wanted
+        assert _read(case).dimension == wanted
 
     def test_a_view_of_the_result_is_told_from_a_question_about_the_book(
             self, case) -> None:
         if "about_the_result" not in case:
             return
-        assert (iv.classify(case["question"]).about_the_result
-                is case["about_the_result"])
+        assert _read(case).about_the_result is case["about_the_result"]
 
     def test_the_scenario_reader_agrees_about_whether_this_is_a_scenario(
             self, case) -> None:

@@ -2828,6 +2828,9 @@ async function download(
   path: string,
   fallback: string,
   timeoutMs = 180_000,
+  /** A body makes this a POST. A What-If has no run id in a URL — it is a
+   *  scenario state, which is far too large to put in a query string. */
+  body?: unknown,
 ): Promise<DownloadedFile> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -2837,7 +2840,12 @@ async function download(
     response = await fetch(`${API_BASE_URL}${API_PREFIX}${path}`, {
       signal: controller.signal,
       credentials: "include",
-      headers: { "X-IPM-Role": activeRole },
+      method: body === undefined ? "GET" : "POST",
+      headers: {
+        "X-IPM-Role": activeRole,
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch (error) {
     const aborted =
@@ -4766,6 +4774,10 @@ export interface WhatIfContext {
   ecl_methodology_version: string;
   methodology_stamp: string;
   macro_version: string;
+  /** Macro relationships overridden FOR THIS THREAD. Empty when every
+   *  relationship used was the governed CreditProbe reference sensitivity. */
+  sensitivities?: WhatIfSensitivity[];
+  sensitivity_note?: string;
   baseline_ecl: number;
   whatif_ecl: number;
   absolute_change: number;
@@ -5087,6 +5099,90 @@ export interface WhatIfMacro {
   observed_period: string;
   limitation: string;
   variables: WhatIfMacroVariable[];
+}
+
+/**
+ * A sensitivity: what a macro variable is assumed to do to PD and LGD.
+ *
+ * The `source` is load-bearing. A CreditProbe reference sensitivity is a
+ * declared assumption, an estimated one is what this installation's history
+ * shows, and a user-defined one is what somebody chose to assume — and the
+ * three must never be shown looking the same.
+ */
+export interface WhatIfSensitivity {
+  variable: string;
+  source: "reference" | "empirical" | "user";
+  source_label: string;
+  name: string;
+  pd_response_kind: "multiplier" | "absolute_pp";
+  pd_response: number;
+  lgd_response_kind: "multiplier" | "absolute_pp";
+  lgd_response: number;
+  sectors: string[];
+  segments: string[];
+  rating_bands: string[];
+  stages: number[];
+  scoped: boolean;
+  pd_ceiling_pct: number;
+  lgd_ceiling_pct: number;
+  description: string;
+  note?: string;
+}
+
+/** What this installation's history actually shows for one variable. */
+export interface WhatIfMacroFit {
+  variable: string;
+  variable_name: string;
+  unit: string;
+  slope_pct_per_unit: number;
+  intercept_pct: number;
+  correlation: number;
+  r_squared: number;
+  points: number;
+  implied_pd_multiplier: number;
+  configured_pd_multiplier: number;
+  direction_agrees: boolean;
+  strength: string;
+  series: { period: string; macro: number; weighted_pd_pct: number }[];
+  scatter: { from: string; to: string; macro_adverse_units: number;
+             pd_change_pct: number }[];
+  cuts: Record<string, unknown>;
+  note: string;
+  /** Why fifteen changes is evidence and not a calibration. Always shown. */
+  small_sample: string;
+  source: string;
+  source_label: string;
+}
+
+export interface WhatIfMacroAnalysis {
+  fit: WhatIfMacroFit;
+  configured: WhatIfSensitivity;
+  estimated: WhatIfSensitivity;
+  recommendation: { recommends: string; because: string; options: string[] };
+  population: string;
+  choices: { choice: string; label: string; available?: boolean }[];
+}
+
+export interface WhatIfMacroCard {
+  variable: WhatIfMacroVariable;
+  configured: WhatIfSensitivity;
+  method: WhatIfMacroMethod;
+}
+
+export interface WhatIfMacroMethod {
+  version: string;
+  sources: { source: string; label: string }[];
+  response_kinds: { kind: string; means: string }[];
+  small_sample: string;
+  statement: string;
+}
+
+export interface WhatIfSensitivityInForce {
+  sensitivity: WhatIfSensitivity;
+  in_force_for: string;
+  reference_unchanged: WhatIfSensitivity;
+  message: string;
+  state: WhatIfState;
 }
 
 export interface WhatIfMigrationView {
@@ -6349,6 +6445,29 @@ export const api = {
       `/whatif/profile/parameter/${encodeURIComponent(parameter)}${qs({ period })}`),
   whatIfMacroProfile: (period = "") =>
     request<WhatIfMacro>(`/whatif/profile/macro${qs({ period })}`),
+  /** The audit-grade workbook for a What-If.
+   *
+   *  Prefers the held result, so the file carries exactly the figures that
+   *  were on the screen rather than a second run of the same scenario. The
+   *  state is sent as well so an expired hold still produces a workbook. */
+  downloadWhatIfDetail: (runId: string, state: WhatIfState,
+                         methodology = "") =>
+    download("/whatif/export", "CreditProbe_what_if_detail.xlsx", 180_000,
+             { run_id: runId, state, methodology }),
+  whatIfMacroMethod: () =>
+    request<WhatIfMacroMethod>("/whatif/macro/method"),
+  whatIfMacroVariable: (variable: string) =>
+    request<WhatIfMacroCard>(`/whatif/macro/${encodeURIComponent(variable)}`),
+  /** Measure this variable against the book. Reads; changes nothing. */
+  whatIfMacroAnalyse: (variable: string, state: WhatIfState) =>
+    request<WhatIfMacroAnalysis>("/whatif/macro/analyse", {
+      method: "POST", body: JSON.stringify({ variable, state }) }),
+  /** Put a relationship in force FOR THIS THREAD. The governed reference
+   *  matrix is never edited by this. */
+  whatIfMacroConfigure: (sensitivity: Partial<WhatIfSensitivity>,
+                         state: WhatIfState) =>
+    request<WhatIfSensitivityInForce>("/whatif/macro/configure", {
+      method: "POST", body: JSON.stringify({ sensitivity, state }) }),
   whatIfBorrowers: (period = "", limit = 10) =>
     request<WhatIfBorrowerList>(
       `/whatif/profile/borrowers${qs({ period, limit: String(limit) })}`),

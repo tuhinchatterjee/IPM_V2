@@ -27,8 +27,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs } from "@/components/ui/tabs";
+import { MacroLab } from "@/components/whatif/macro-lab";
 import {
   BeforeAfterChart,
+  DownloadDetail,
   DriverAttribution,
   Composer,
   EclHeadline,
@@ -641,46 +643,14 @@ export default function WhatIfThreadPage() {
       ) : null}
 
       {macro ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-[14px]">
-              Macroeconomic variables — v{macro.version}
-            </CardTitle>
-            <p className="mt-0.5 text-[11px] text-text-muted">{macro.basis}</p>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {macro.variables.map((variable) => (
-                <div
-                  key={variable.key}
-                  data-macro={variable.key}
-                  className="rounded-md border border-border bg-surface p-3"
-                >
-                  <div className="text-[12px] font-medium text-text-primary">
-                    {variable.name}
-                  </div>
-                  <div className="mt-1 text-[11px] text-text-muted">
-                    {variable.has_observed_level
-                      ? `Latest ${variable.observed_level} ${variable.unit}`
-                      : "No observed level in this installation"}
-                  </div>
-                  <div className="mt-2 flex gap-3 text-[11px]">
-                    <span className="text-text-secondary">
-                      PD ×{variable.pd_multiplier}
-                    </span>
-                    <span className="text-text-secondary">
-                      LGD +{variable.lgd_change_pp}pp
-                    </span>
-                  </div>
-                  <div className="mt-0.5 text-[10px] text-text-muted">
-                    {variable.adverse_label}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p className="text-[11px] text-warning">{macro.limitation}</p>
-          </CardContent>
-        </Card>
+        <MacroLab
+          macro={macro}
+          state={state}
+          onState={(next, message) => {
+            setState(next);
+            say({ kind: "replied", text: message, tone: "note" });
+          }}
+        />
       ) : null}
 
       {borrowers ? (
@@ -831,6 +801,13 @@ export default function WhatIfThreadPage() {
                     <EclHeadline context={context} currency={context.currency} />
                     {result.confirmation ? (
                       <p className="text-[12px] text-text-secondary">{result.confirmation}</p>
+                    ) : null}
+                    {result.run_id ? (
+                      <DownloadDetail
+                        runId={result.run_id}
+                        state={state}
+                        methodology={context.ecl_methodology ?? ""}
+                      />
                     ) : null}
                     {result.interpretation ? (
                       <ResultInterpretation

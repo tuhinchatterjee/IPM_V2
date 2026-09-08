@@ -19,6 +19,7 @@ import * as React from "react";
 import { useState } from "react";
 
 import { CategoryBarChart } from "@/components/analytics/charts";
+import { save } from "@/components/exports/download";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { api } from "@/lib/api";
 import type {
   WhatIfAttribution,
   WhatIfContext,
@@ -45,8 +47,11 @@ import type {
   WhatIfStaging,
   WhatIfStagingKind,
   WhatIfStagingRuleIn,
+  WhatIfState,
   WhatIfStepState,
 } from "@/lib/api";
+import type { DownloadPhase } from "@/lib/downloads";
+import { captionFor } from "@/lib/downloads";
 import { cn } from "@/lib/utils";
 import { readWhatIfError } from "@/lib/whatif-errors";
 
@@ -149,6 +154,23 @@ export function ResultContext({ context }: { context: WhatIfContext }) {
         <span className="text-text-muted">Population: </span>
         {context.population} — {count(context.population_count)} borrowers
       </div>
+      {/* A figure computed on somebody's own assumption must never be
+          mistakable for one computed on the governed matrix, so an override
+          is named on the provenance line and not only on the step that used
+          it. */}
+      {context.sensitivities?.length ? (
+        <div
+          className="mt-2 flex flex-wrap items-center gap-2 text-[12px]"
+          data-testid="whatif-sensitivity-override"
+        >
+          {context.sensitivities.map((s) => (
+            <Badge key={s.variable} variant="negative">
+              {s.name}: {s.description}
+            </Badge>
+          ))}
+          <span className="text-text-muted">{context.sensitivity_note}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -943,6 +965,66 @@ export function ResultInterpretation({
         <p className="mt-1 text-[11px] text-text-muted" data-testid="whatif-reading-author">
           Written by {interpretation.written_by}
           {interpretation.verified ? "; every figure checked against the evidence." : ""}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The detailed workbook, as a download.
+ *
+ * A fetch rather than a link: a link cannot send the role header the endpoint
+ * authorises against, and a 403 arriving through one is a browser page rather
+ * than a message in the product. The phase is in the label as well as the
+ * icon, because a spinner alone tells a screen reader nothing.
+ */
+export function DownloadDetail({
+  runId,
+  state,
+  methodology = "",
+}: {
+  runId: string;
+  state: WhatIfState;
+  methodology?: string;
+}) {
+  const [phase, setPhase] = useState<DownloadPhase>("idle");
+  const [error, setError] = useState("");
+
+  async function go() {
+    setPhase("working");
+    setError("");
+    try {
+      const file = await api.downloadWhatIfDetail(runId, state, methodology);
+      save(file.blob, file.filename);
+      setPhase("done");
+    } catch (e) {
+      setPhase("failed");
+      setError(readWhatIfError(e).message);
+    }
+  }
+
+  return (
+    <div className="space-y-1">
+      <Button
+        size="sm"
+        variant="outline"
+        data-testid="whatif-download-detail"
+        disabled={phase === "working"}
+        onClick={() => void go()}
+      >
+        {captionFor(phase, "Download the detailed workbook")}
+      </Button>
+      {phase === "idle" ? (
+        <p className="text-[11px] text-text-muted">
+          Every borrower before and after, the facility allocation, the driver
+          attribution, the reconciliation tests and the state that reproduces
+          this run.
+        </p>
+      ) : null}
+      {error ? (
+        <p className="text-[11px] text-negative" role="alert">
+          {error}
         </p>
       ) : null}
     </div>

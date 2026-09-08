@@ -145,7 +145,19 @@ _HELP = re.compile(
     r"|\bwhat\s+(?:kind\s+of\s+)?scenarios?\s+can\s+i\b"
     r"|\bwhat\s+can\s+i\s+(?:do|ask|run|change|shock)\b"
     r"|\bwhat\s+are\s+my\s+options\b|\bwhere\s+do\s+i\s+start\b"
-    r"|\bexplain\s+what[- ]if\b|\bhow\s+does\s+(?:this|what[- ]if)\s+work\b",
+    r"|\bexplain\s+what[- ]if\b"
+    r"|\bhow\s+does\s+(?:what[- ]if|(?:this|the)"
+    r"(?:\s+(?:screen|tool|feature|page))?)\s+work\b"
+    r"|\bwhat\s+(?:can|does)\s+(?:this|the)\s+(?:feature|tool|screen|page)"
+    r"\s+do\b"
+    r"|\bwhat\s+is\s+(?:this|the)\s+(?:tool|feature|screen|page)\s+for\b"
+    r"|\bwhat\s+(?:kinds?\s+of\s+)?scenarios?\s+can\s+i\b"
+    r"|\b(?:walk|talk)\s+me\s+through\b"
+    r"|\bshow\s+me\s+how\s+to\b|\bhow\s+to\s+get\s+started\b"
+    r"|\bwhere\s+(?:do|should)\s+i\s+(?:begin|start)\b"
+    r"|\bwhat\s+am\s+i\s+(?:supposed\s+to\s+do|meant\s+to\s+do)\b"
+    r"|\bi\s+am\s+new\b|\bi'?m\s+new\b"
+    r"|^\s*help[\s.!?]*$",
     re.IGNORECASE)
 
 #: About the DATA DOMAIN. Which datasets, which book, which period.
@@ -158,7 +170,17 @@ _DATA = re.compile(
     r"data\s+come\s+from\b"
     r"|\bwhat\s+(?:is\s+the\s+)?(?:latest|current|most\s+recent)\s+"
     r"(?:reporting\s+)?period\b|\bwhich\s+periods?\b|\bwhat\s+periods?\b"
-    r"|\bhow\s+many\s+quarters\b|\bwhat\s+quarters\b",
+    r"|\bhow\s+many\s+quarters\b|\bwhat\s+quarters\b"
+    r"|\bwhich\s+quarters?\b|\bwhat\s+data\s+does\s+this\s+run\s+on\b"
+    r"|\bwhere\s+does\s+(?:this|the)\s+(?:book|data|portfolio)\s+come\s+"
+    r"from\b"
+    r"|\bwhat\s+is\s+the\s+(?:grain|source)\b|\bwhat\s+grain\b"
+    r"|\b(?:facility|borrower|obligor)\s+level\s+or\b"
+    r"|\bhow\s+many\s+borrowers?\s+(?:are|is)\b"
+    r"|\bwhich\s+portfolio\b|\bwhat\s+portfolio\b"
+    r"|\bhow\s+(?:current|fresh|old|recent)\s+is\s+(?:this|the)\s+data\b"
+    r"|\bwhat\s+currency\b|\bwhich\s+currency\b"
+    r"|\bsource\s+of\s+(?:these|the)\s+numbers?\b",
     re.IGNORECASE)
 
 #: About the FIELD CATALOGUE. What is there, and what may be shocked or filtered.
@@ -171,7 +193,15 @@ _FIELDS = re.compile(
     r"|\bcan\s+i\s+(?:shock|change|filter\s+(?:on|by)|adjust)\s+"
     r"(?:the\s+)?(?:pd|lgd|ccf|ead|rating|stage|collateral|exposure)\b"
     r"|\bwhat\s+can\s+i\s+filter\b|\bwhat\s+is\s+shockable\b"
-    r"|\bshow\s+(?:me\s+)?(?:all\s+)?technical\s+fields\b",
+    r"|\bshow\s+(?:me\s+)?(?:all\s+)?technical\s+fields\b"
+    r"|\b(?:list|show\s+me)\s+(?:the\s+)?fields?\b"
+    r"|\bfields?\s+i\s+can\b|\bcolumns?\s+(?:are\s+)?available\b"
+    r"|\bwhich\s+columns?\b|\bwhat\s+columns?\b"
+    r"|\bwhat\s+attributes?\b|\bwhat\s+variables?\s+are\b"
+    r"|\bcan\s+i\s+(?:shock|use|filter\s+(?:on|by))\s+\w+\b"
+    r"|\bdo\s+you\s+have\s+an?\s+\w+\s+field\b"
+    r"|\bwhich\s+fields?\s+carr\w+\b"
+    r"|\bfield\s+catalogue?\b",
     re.IGNORECASE)
 
 #: About the METHOD rather than about a result. "What is the Delta Model?" is a
@@ -179,13 +209,25 @@ _FIELDS = re.compile(
 #: request to run something, and `_COMPARISON` below catches that first.
 _METHODOLOGY_Q = re.compile(
     r"\bwhat\s+is\s+the\s+(?:delta|ml|xgboost)\b"
-    r"|\bhow\s+does\s+(?:the\s+)?(?:delta|ml|xgboost)\s+(?:model\s+)?work\b"
+    r"|\bhow\s+does\s+(?:the\s+)?(?:delta|ml|xgboost)"
+    r"(?:\s+(?:model|methodolog\w+))?\s+work\b"
     r"|\bwhat\s+(?:ecl\s+)?methodolog\w+\s+(?:do|are|can)\b"
     r"|\bwhich\s+methodolog\w+\s+(?:should|do|can)\b"
     r"|\bdifference\s+between\s+(?:the\s+)?delta\s+and\b"
     r"|\bwhen\s+should\s+i\s+use\s+(?:the\s+)?(?:delta|ml)\b"
     r"|\bwhat\s+(?:model|models)\s+do\s+you\s+(?:use|have|support)\b"
-    r"|\bhow\s+was\s+the\s+model\s+trained\b|\bmodel\s+version\b",
+    r"|\bhow\s+was\s+the\s+model\s+trained\b|\bmodel\s+version\b"
+    r"|\bhow\s+(?:is|are|do\s+you)\s+.{0,30}\b(?:calculat\w+|derived?|"
+    r"measured?|comput\w+|determined?|applied)\b"
+    r"|\bhow\s+do\s+you\s+(?:decide|assign|set)\b"
+    r"|\bwhat\s+(?:is|are)\s+the\s+(?:sicr|staging)\s+(?:trigger|rule|"
+    r"criteri)\w*\b"
+    r"|\bwhat\s+is\s+the\s+scenario\s+weight\w*\b"
+    r"|\bhow\s+does\s+the\s+masterscale\b"
+    r"|\bwhy\s+does\s+a\s+(?:downgrade|upgrade)\s+change\b"
+    r"|\bdifference\s+between\s+the\s+two\s+methodolog\w+"
+    r"|\bwhat\s+is\s+(?:the\s+)?(?:delta|ml|xgboost|lifetime\s+pd|"
+    r"masterscale|sicr)\b",
     re.IGNORECASE)
 
 #: About what the book has DONE. Not about the result on screen.
@@ -198,7 +240,17 @@ _PLAUSIBILITY = re.compile(
     r"|\bhow\s+often\s+(?:has|did|does)\b|\bhow\s+unusual\b"
     r"|\bcompared?\s+(?:to|with|against)\s+history\b"
     r"|\bwhy\s+(?:did\s+you\s+call|is\s+(?:this|that))\s+.{0,20}severe\b"
-    r"|\bwhat\s+does\s+history\s+say\b|\bhave\s+we\s+seen\s+this\b",
+    r"|\bwhat\s+does\s+history\s+say\b|\bhave\s+we\s+seen\s+this\b"
+    r"|\b(?:is|was)\s+(?:this|that|it|a\s+shock)\b.{0,40}\b(?:plausible|"
+    r"realistic|reasonable|supported|credible)\b"
+    r"|\bsupported\s+by\s+(?:the\s+)?histor\w+\b"
+    r"|\bdoes\s+(?:the\s+)?histor\w+\s+support\b"
+    r"|\bhas\s+the\s+book\s+ever\b|\bever\s+moved\s+this\s+much\b"
+    r"|\bhave\s+we\s+(?:ever\s+)?observed\b"
+    r"|\bagainst\s+(?:past|historical)\s+experience\b"
+    r"|\bwithin\s+historical\s+experience\b"
+    r"|\bcompared\s+with\s+what\s+the\s+book\b"
+    r"|\brealistic\s+assumption\b",
     re.IGNORECASE)
 
 #: The empirical macro relationship. Reads history; changes no configuration.
@@ -211,7 +263,19 @@ _MACRO_ANALYSIS = re.compile(
     r"|\bempirical\s+(?:sensitivity|relationship)\b"
     r"|\bestimate\s+the\s+(?:sensitivity|relationship)\b"
     r"|\bcorrelation\s+between\b|\bregress\w*\b"
-    r"|\bhistorical\s+sensitivity\b",
+    r"|\bhistorical\s+sensitivity\b"
+    r"|\bwhat\s+does\s+(?:the\s+)?histor\w+\s+show\s+for\b"
+    r"|\bhow\s+correlated\b|\bcorrelated\s+(?:is|are|with)\b"
+    r"|\bestimate\s+the\s+sensitivit\w+\s+to\b"
+    r"|\brelationship\s+(?:does\s+)?this\s+book\b"
+    r"|\bmeasure\s+\w+\s+against\s+the\s+book\b"
+    r"|\bempirical\s+relationship\s+for\b"
+    r"|\bhow\s+strong\s+is\s+the\s+link\b"
+    r"|\bsixteen\s+quarters\s+tell\s+us\b"
+    r"|\bfit\s+a\s+relationship\b"
+    r"|\bsupported\s+by\s+our\s+(?:own\s+)?histor\w+\b"
+    r"|\bhow\s+well\s+does\s+\w+\s+explain\b"
+    r"|\bfrom\s+our\s+own\s+data\b",
     re.IGNORECASE)
 
 #: Setting a macro relationship for this thread. Changes configuration.
@@ -222,7 +286,20 @@ _MACRO_CONFIG = re.compile(
     r"|\buse\s+(?:the\s+)?(?:estimated|empirical|configured|reference)\s+"
     r"(?:sensitivity|relationship)\b"
     r"|\bset\s+(?:the\s+)?(?:pd|lgd)\s+(?:response|sensitivity)\b"
-    r"|\boverride\s+the\s+sensitivity\b|\bkeep\s+the\s+configured\b",
+    r"|\boverride\s+the\s+(?:\w+\s+){0,3}?(?:sensitivity|relationship|"
+    r"assumption)\b"
+    r"|\bkeep\s+the\s+configured\b"
+    r"|\bset\s+the\s+\w+(?:\s+\w+)?\s+(?:multiplier|sensitivity|"
+    r"assumption|response|relationship)\b"
+    r"|\bchange\s+the\s+\w+(?:\s+\w+)?\s+(?:assumption|sensitivity|"
+    r"multiplier|relationship)\b"
+    r"|\breplace\s+the\s+\w*\s*(?:configured\s+)?\w*\s*relationship\b"
+    r"|\bdefine\s+an?\s+(?:custom|own)\b|\bcustom\s+macro\b"
+    r"|\bconfigure\s+my\s+own\b|\bmy\s+own\s+(?:sensitivity|"
+    r"relationship|assumption)\b"
+    r"|\bdifferent\s+multiplier\s+for\b"
+    r"|\bset\s+the\s+(?:pd|lgd)\s+response\b"
+    r"|\blet\s+me\s+set\b",
     re.IGNORECASE)
 
 #: Running the same scenario on the other methodology.
@@ -234,7 +311,16 @@ _COMPARISON = re.compile(
     r"(?:delta|ml|xgboost)\b"
     r"|\bwhat\s+would\s+(?:the\s+)?(?:delta|ml|xgboost)\s+say\b"
     r"|\bcompare\s+(?:the\s+two\s+)?methodolog\w+"
-    r"|\bcompare\s+both\s+models?\b|\bboth\s+methodolog\w+",
+    r"|\bcompare\s+both\s+models?\b|\bboth\s+methodolog\w+"
+    r"|\bwhat\s+would\s+the\s+(?:ml|delta|other|machine[- ]learning)\b"
+    r"|\bdifference\s+between\s+the\s+two\s+models?\b"
+    r"|\bwould\s+the\s+other\s+(?:model|methodolog\w+)\b"
+    r"|\b(?:machine[- ]learning|ml)\s+model\s+(?:make\s+of|agree|say)\b"
+    r"|\bboth\s+models?\s+side\s+by\s+side\b"
+    r"|\bhow\s+far\s+apart\s+are\s+the\s+two\b"
+    r"|\bprice\s+(?:this|it)\s+with\s+the\s+other\b"
+    r"|\brun\s+(?:this|it)\s+under\s+both\b"
+    r"|\bside\s+by\s+side\b.{0,20}\bmodels?\b",
     re.IGNORECASE)
 
 #: Asking the MODEL why, rather than asking the scenario why.
@@ -244,15 +330,27 @@ _EXPLAINABILITY = re.compile(
     r"(?:see|learn|weight|use)\b"
     r"|\bwhy\s+(?:did\s+)?the\s+(?:ml\s+)?model\s+(?:predict|say|think)\b"
     r"|\bmodel\s+explanation\b|\bexplain\s+the\s+(?:ml\s+)?model\b"
-    r"|\bout\s+of\s+distribution\b|\bfeature\s+contributions?\b",
+    r"|\bout\s+of\s+distribution\b|\bfeature\s+contributions?\b"
+    r"|\bmodel\s+explainab\w+\b"
+    r"|\bwhat\s+is\s+the\s+model\s+paying\s+attention\s+to\b"
+    r"|\bwhich\s+(?:inputs?|variables?|features?)\b.{0,30}\bmodel\b"
+    r"|\bmodel\b.{0,20}\b(?:using|weight\w*|paying)\b"
+    r"|\bwhat\s+features?\s+moved\s+the\s+model\b"
+    r"|\b(?:break|split)\s+the\s+model\s+prediction\b"
+    r"|\bmodel'?s\s+(?:prediction|output)\b"
+    r"|\bexplain\s+the\s+model'?s?\b",
     re.IGNORECASE)
 
 #: Asking for the workbook.
 _EXPORT = re.compile(
     r"\bdownload\b|\bexport\b|\bexcel\b|\bxlsx\b|\bspreadsheet\b"
     r"|\bworkbook\b|\bcsv\b|\bgive\s+me\s+the\s+(?:file|detail)\b"
-    r"|\baccount[- ]level\s+results?\b|\bsave\s+(?:it\s+)?(?:to|as)\s+"
-    r"(?:a\s+)?(?:file|excel)\b",
+    r"|\baccount[- ]level\s+results?\b"
+    r"|\bsave\s+(?:it|this)?\s*(?:to|as)\s+(?:a\s+)?"
+    r"(?:file|excel|spreadsheet)\b"
+    r"|\bgive\s+me\s+the\s+(?:file|detail|workbook)\b"
+    r"|\bi\s+need\s+this\s+in\s+excel\b"
+    r"|\bsend\s+me\s+the\s+workbook\b",
     re.IGNORECASE)
 
 #: Asking WHY, WHO, HOW MUCH about a result that already exists. These never

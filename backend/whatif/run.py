@@ -115,6 +115,19 @@ class WhatIfResult:
             "ecl_methodology_version": self.choice.version,
             "methodology_stamp": self.choice.stamp,
             "macro_version": mc.MACRO_VERSION,
+            # A figure computed on somebody's own assumption must not be
+            # mistakable for one computed on the governed matrix, so the
+            # overrides travel on the provenance line itself — which is what
+            # the header, the saved What-If and the workbook all read.
+            "sensitivities": [x.to_dict() for x in self.state.sensitivities
+                              if hasattr(x, "to_dict")],
+            "sensitivity_note": (
+                "One or more macro relationships were overridden for this "
+                "thread. The CreditProbe reference matrix is unchanged and "
+                "still applies everywhere else."
+                if self.state.sensitivities else
+                "Every macro relationship used here is the governed "
+                "CreditProbe reference sensitivity."),
             "baseline_ecl": self.summary.get("baseline_ecl", 0.0),
             "whatif_ecl": self.summary.get("stressed_ecl", 0.0),
             "absolute_change": self.summary.get("incremental_ecl", 0.0),

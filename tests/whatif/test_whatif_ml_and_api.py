@@ -675,3 +675,225 @@ class TestTheHttpSurface:
         assert len(body["journeys"]) == 6
         assert {j["key"] for j in body["journeys"]} == {
             "rating", "parameters", "stage", "macro", "sector", "borrower"}
+
+
+# ================================================== the macro lab over HTTP
+
+
+@needs_lake
+class TestTheMacroLabOverHttp:
+    """Three things a person may do with a macro variable, and the one thing
+    the product may not do to them: substitute an assumption quietly."""
+
+    EMPTY = {"period": "", "steps": [], "staging": None, "methodology": "",
+             "methodology_version": "", "title": "", "sensitivities": []}
+
+    OWN = {"variable": "gdp_growth", "source": "user", "name": "GDP Growth Rate",
+           "pd_response_kind": "multiplier", "pd_response": 1.35,
+           "lgd_response_kind": "absolute_pp", "lgd_response": 1.2}
+
+    def test_a_viewer_may_not_analyse_or_configure(self, client) -> None:
+        analyse = client.post("/api/v1/whatif/macro/analyse", headers=VIEWER,
+                              json={"variable": "gdp_growth",
+                                    "state": self.EMPTY})
+        assert analyse.status_code == 403
+        configure = client.post("/api/v1/whatif/macro/configure",
+                                headers=VIEWER,
+                                json={"sensitivity": self.OWN,
+                                      "state": self.EMPTY})
+        assert configure.status_code == 403
+
+    def test_every_variable_has_a_card_with_the_relationship_in_force(
+            self, client) -> None:
+        for key in ("gdp_growth", "unemployment", "house_price_index",
+                    "inflation", "current_account", "equity_index",
+                    "policy_rate", "fx_depreciation", "oil_price",
+                    "credit_spread"):
+            body = client.get(f"/api/v1/whatif/macro/{key}",
+                              headers=ANALYST).json()
+            assert body["variable"]["key"] == key
+            assert body["configured"]["source"] == "reference"
+            assert body["configured"]["description"], key
+
+    def test_a_variable_it_does_not_have_names_the_ones_it_does(
+            self, client) -> None:
+        body = client.get("/api/v1/whatif/macro/the_vibes", headers=ANALYST)
+        assert body.status_code == 422
+        assert "Unemployment Rate" in body.json()["detail"]["message"]
+
+    def test_an_estimate_is_offered_beside_the_configured_one_never_instead(
+            self, client) -> None:
+        body = client.post("/api/v1/whatif/macro/analyse", headers=ANALYST,
+                           json={"variable": "gdp_growth",
+                                 "state": self.EMPTY}).json()
+        assert body["configured"]["source"] == "reference"
+        assert body["estimated"]["source"] == "empirical"
+        # However the estimate came out, the configured sensitivity is what is
+        # recommended, and the reasoning is stated rather than implied.
+        assert body["recommendation"]["recommends"] == "reference"
+        assert body["recommendation"]["because"]
+        assert body["fit"]["small_sample"]
+
+    def test_the_estimate_is_on_a_credible_scale_for_every_variable(
+            self, client) -> None:
+        """A fit that implies a PD multiplier of 46 is a unit bug, not a
+        finding, and it must not reach a screen looking like evidence."""
+        for key in ("gdp_growth", "policy_rate", "credit_spread",
+                    "oil_price", "house_price_index", "equity_index",
+                    "fx_depreciation", "unemployment", "inflation",
+                    "current_account"):
+            fit = client.post("/api/v1/whatif/macro/analyse", headers=ANALYST,
+                              json={"variable": key,
+                                    "state": self.EMPTY}).json()["fit"]
+            assert 0.2 < fit["implied_pd_multiplier"] < 5.0, key
+            assert fit["points"] >= 8, key
+
+    def test_an_override_is_in_force_for_the_thread_and_says_so(
+            self, client) -> None:
+        body = client.post("/api/v1/whatif/macro/configure", headers=ANALYST,
+                           json={"sensitivity": self.OWN,
+                                 "state": self.EMPTY}).json()
+        assert body["in_force_for"] == "this thread only"
+        assert body["sensitivity"]["source_label"] == "User-Defined Sensitivity"
+        # The governed matrix is not edited by this, and the response proves it.
+        assert body["reference_unchanged"]["pd_response"] == pytest.approx(1.10)
+        assert "unchanged" in body["message"]
+        assert body["state"]["sensitivities"][0]["variable"] == "gdp_growth"
+
+    def test_a_user_defined_relationship_is_never_called_empirical(
+            self, client) -> None:
+        body = client.post("/api/v1/whatif/macro/configure", headers=ANALYST,
+                           json={"sensitivity": self.OWN,
+                                 "state": self.EMPTY}).json()
+        said = (body["sensitivity"]["source_label"] + " "
+                + body["sensitivity"]["description"] + " " + body["message"])
+        for word in ("required", "regulatory", "approved", "empirical",
+                     "estimated"):
+            assert word not in said.lower(), word
+
+    def test_an_override_changes_the_figure_and_is_stamped_on_it(
+            self, client) -> None:
+        """The whole point of allowing one. If it did not move the number it
+        would be decoration, and if it moved it silently it would be a trap."""
+        read = client.post("/api/v1/whatif/interpret", headers=ANALYST,
+                           json={"instruction": "reduce GDP growth by 1 "
+                                                "percentage point",
+                                 "state": self.EMPTY})
+        assert read.status_code == 200, read.json()
+        state = read.json()["state"]
+        assert state["steps"], "the macro shock was not read into the scenario"
+
+        reference = client.post("/api/v1/whatif/execute", headers=ANALYST,
+                                json={"state": state, "methodology": "delta"})
+        assert reference.status_code == 200, reference.json()
+        plain = reference.json()["context"]
+        assert plain["sensitivities"] == []
+        assert "governed CreditProbe reference" in plain["sensitivity_note"]
+
+        configured = client.post("/api/v1/whatif/macro/configure",
+                                 headers=ANALYST,
+                                 json={"sensitivity": self.OWN,
+                                       "state": state}).json()["state"]
+        overridden = client.post("/api/v1/whatif/execute", headers=ANALYST,
+                                 json={"state": configured,
+                                       "methodology": "delta"})
+        assert overridden.status_code == 200, overridden.json()
+        stamped = overridden.json()["context"]
+        assert stamped["whatif_ecl"] != pytest.approx(plain["whatif_ecl"])
+        assert [s["source"] for s in stamped["sensitivities"]] == ["user"]
+        assert "overridden for this thread" in stamped["sensitivity_note"]
+        # And the step that used it says which relationship it applied.
+        applied = " ".join(str(s) for s in overridden.json()["steps"])
+        assert "user-defined sensitivity" in applied
+        assert "NOT the governed CreditProbe reference sensitivity" in applied
+
+    def test_the_three_kinds_of_relationship_are_described_for_the_screen(
+            self, client) -> None:
+        body = client.get("/api/v1/whatif/macro/method", headers=ANALYST).json()
+        assert {s["source"] for s in body["sources"]} == {
+            "reference", "empirical", "user"}
+        assert "never called required, regulatory, approved or empirical" in (
+            body["statement"])
+
+
+# ============================================== the detailed export over HTTP
+
+
+@needs_lake
+class TestTheDetailedExportOverHttp:
+    """A workbook carries the whole book at borrower grain, so who may have
+    one — and whose result they get — is a security question, not a feature."""
+
+    EMPTY = {"period": "", "steps": [], "staging": None, "methodology": "",
+             "methodology_version": "", "title": "", "sensitivities": []}
+
+    def _run(self, client) -> dict:
+        read = client.post("/api/v1/whatif/interpret", headers=ANALYST,
+                           json={"instruction": "increase PD by 20%",
+                                 "state": self.EMPTY}).json()
+        run = client.post("/api/v1/whatif/execute", headers=ANALYST,
+                          json={"state": read["state"],
+                                "methodology": "delta"})
+        assert run.status_code == 200, run.json()
+        return run.json()
+
+    def test_a_viewer_may_not_download_the_book(self, client) -> None:
+        body = client.post("/api/v1/whatif/export", headers=VIEWER,
+                           json={"state": self.EMPTY})
+        assert body.status_code == 403
+
+    def test_it_serves_a_workbook_a_browser_will_save(self, client) -> None:
+        run = self._run(client)
+        got = client.post("/api/v1/whatif/export", headers=ANALYST,
+                          json={"run_id": run["run_id"]})
+        assert got.status_code == 200
+        assert got.headers["content-type"].startswith(
+            "application/vnd.openxmlformats")
+        assert "attachment;" in got.headers["content-disposition"]
+        assert ".xlsx" in got.headers["content-disposition"]
+        # A workbook is a point-in-time record; a cached one is yesterday's
+        # numbers under today's filename.
+        assert "no-store" in got.headers["cache-control"]
+        assert got.headers["x-creditprobe-whatif-methodology"] == "delta"
+        assert int(got.headers["x-creditprobe-whatif-rows"]) > 0
+        assert got.content[:2] == b"PK", "that is not a workbook"
+
+    def test_the_filename_cannot_carry_a_path(self, client) -> None:
+        """A scenario title is user text and reaches the Content-Disposition."""
+        state = dict(self.EMPTY, title="../../etc/passwd: a \\ title")
+        read = client.post("/api/v1/whatif/interpret", headers=ANALYST,
+                           json={"instruction": "increase PD by 20%",
+                                 "state": state}).json()
+        got = client.post("/api/v1/whatif/export", headers=ANALYST,
+                          json={"state": read["state"],
+                                "methodology": "delta"})
+        assert got.status_code == 200
+        disposition = got.headers["content-disposition"]
+        for unsafe in ("..", "/", "\\", ":"):
+            assert unsafe not in disposition.split('filename="')[1], unsafe
+
+    def test_it_refuses_rather_than_exporting_an_empty_scenario(
+            self, client) -> None:
+        body = client.post("/api/v1/whatif/export", headers=ANALYST,
+                           json={"state": self.EMPTY})
+        assert body.status_code == 422
+        assert "Build a scenario" in body.json()["detail"]["message"]
+
+    def test_a_held_result_is_never_readable_by_another_person(self) -> None:
+        """The cache is what the export trusts, so this is where it matters."""
+        from backend.whatif import cache as ch
+
+        run_id = ch.put(object(), owner=101)
+        assert ch.get(run_id, owner=101) is not None
+        assert ch.get(run_id, owner=202) is None, (
+            "one analyst's held result reached another analyst")
+        assert ch.get(run_id, owner=None) is None
+
+    def test_an_expired_run_id_does_not_silently_export_something_else(
+            self, client) -> None:
+        """A run_id that does not resolve must not quietly become a new run
+        of an empty scenario dressed up as the one that was asked for."""
+        body = client.post("/api/v1/whatif/export", headers=ANALYST,
+                           json={"run_id": "0" * 32, "state": self.EMPTY})
+        assert body.status_code == 422
+        assert "no What-If to export" in body.json()["detail"]["message"]

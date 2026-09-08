@@ -11,10 +11,11 @@ can argue with is one nobody should believe.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import replace
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 
 from backend.api.auth import Principal
@@ -323,6 +324,25 @@ class StepIn(BaseModel):
     detail: dict[str, Any] = Field(default_factory=dict)
 
 
+class SensitivityIn(BaseModel):
+    """A macro relationship somebody wants to use for this thread."""
+
+    variable: str = Field(min_length=1, max_length=48)
+    source: str = Field(default="user", max_length=16)
+    pd_response_kind: str = Field(default="multiplier", max_length=16)
+    pd_response: float = Field(default=1.0, ge=-1000.0, le=1000.0)
+    lgd_response_kind: str = Field(default="absolute_pp", max_length=16)
+    lgd_response: float = Field(default=0.0, ge=-100.0, le=100.0)
+    sectors: list[str] = Field(default_factory=list, max_length=40)
+    segments: list[str] = Field(default_factory=list, max_length=20)
+    rating_bands: list[str] = Field(default_factory=list, max_length=20)
+    stages: list[int] = Field(default_factory=list, max_length=3)
+    pd_ceiling_pct: float = Field(default=99.0, ge=0.0, le=100.0)
+    lgd_ceiling_pct: float = Field(default=95.0, ge=0.0, le=100.0)
+    name: str = Field(default="", max_length=120)
+    note: str | None = Field(default="", max_length=400)
+
+
 class StateIn(BaseModel):
     """The scenario state, as the browser holds it.
 
@@ -340,6 +360,13 @@ class StateIn(BaseModel):
     staging: StagingIn | None = None
     methodology: str | None = Field(default="", max_length=16)
     model_version: str | None = Field(default="", max_length=32)
+    #: Macro relationships this thread has overridden. Without this field the
+    #: state posted back after /macro/configure lost them silently, and a
+    #: user-defined sensitivity was unreachable from the browser: the
+    #: configure call returned a state carrying it and the next execute threw
+    #: it away.
+    sensitivities: list[SensitivityIn] = Field(default_factory=list,
+                                               max_length=10)
 
 
 class ExecuteIn(BaseModel):
@@ -453,7 +480,23 @@ def _state_from(body: StateIn) -> sp.ScenarioState:
         thread_id=body.thread_id or "",
         steps=tuple(steps), staging=_staging_from(body.staging),
         methodology=body.methodology or "",
-        model_version=body.model_version or "")
+        model_version=body.model_version or "",
+        sensitivities=tuple(_sensitivity_from(x) for x in body.sensitivities))
+
+
+def _sensitivity_from(body: SensitivityIn) -> Any:
+    """One overridden macro relationship, rebuilt from what the browser holds.
+
+    A relationship the contract cannot read is REFUSED rather than dropped: a
+    scenario silently priced on the governed matrix when somebody asked for
+    their own assumption is the worst of the three outcomes.
+    """
+    from backend.whatif import macrolab as mlab_
+
+    try:
+        return mlab_.Sensitivity.from_dict(body.model_dump())
+    except mlab_.MacroLabError as e:
+        raise _refused(str(e)) from e
 
 
 def _owner(principal: Principal) -> int | None:
@@ -887,6 +930,93 @@ def execute(body: ExecuteIn,
     return payload
 
 
+class ExportIn(BaseModel):
+    """A request for the detailed workbook."""
+
+    #: The held result to export. Preferred: it exports exactly the figures
+    #: that were on the screen rather than a second run of the same scenario.
+    run_id: str = Field(default="", max_length=32)
+    #: The scenario to run and export, where nothing is held any more.
+    state: StateIn = Field(default_factory=StateIn)
+    methodology: str = Field(default="", max_length=16)
+
+
+@router.post("/export")
+def export(body: ExportIn,
+           principal: Principal = RequireAnalyst) -> Response:
+    """The audit-grade workbook for a What-If, as a download.
+
+    Access is the same rule the rest of the thread obeys: a held result is
+    readable only by the person who ran it, so a run_id guessed or copied from
+    somebody else's session returns nothing. Every download is audited.
+    """
+    from backend.exports import audit as ax
+    from backend.exports.contract import XLSX_MIME, slug
+    from backend.whatif import workbook as wbk
+
+    owner = _owner(principal)
+    started = time.monotonic()
+    result = ch.get(body.run_id, owner=owner) if body.run_id else None
+    recomputed = False
+    if result is None:
+        if body.run_id:
+            # Said, not silently recomputed from a state the caller supplied:
+            # a run_id that does not resolve for THIS user is either expired
+            # or somebody else's, and those are different problems.
+            logger.info("Export asked for a result this user cannot read")
+        try:
+            state = _state_from(body.state)
+        except (stg.StagingError, sp.StepError) as e:
+            raise _refused(str(e)) from e
+        if not state.active:
+            raise _refused(
+                "There is no What-If to export yet. Build a scenario and run "
+                "it first.")
+        try:
+            result = rn.execute(state, requested=body.methodology or
+                                state.methodology, limit=MAX_ROWS)
+        except (rn.RunError, dm.DomainError, ValueError) as e:
+            raise _refused(str(e)) from e
+        recomputed = True
+
+    try:
+        content = wbk.build(result, owner=owner,
+                            requested_by=str(principal.role or ""),
+                            interpretation=nr.interpret(result))
+    except wbk.WorkbookError as e:
+        raise _refused(str(e)) from e
+
+    name = slug(result.state.title or result.state.describe() or "what-if")
+    filename = f"what-if-{name}-{slug(result.period)}.xlsx"
+    ax.record(ax.Entry(
+        kind="whatif_detail", object_type="whatif_run",
+        object_id=body.run_id or "recomputed", user_id=owner,
+        role=str(principal.role or ""), filename=filename,
+        content_hash=ax.content_hash(content), size_bytes=len(content),
+        row_count=result.population,
+        duration_ms=int((time.monotonic() - started) * 1000),
+        datasets=[dm.IFRS9, dm.SNAPSHOT, dm.FACILITIES],
+        detail={"period": result.period,
+                "methodology": result.choice.method,
+                "recomputed": recomputed,
+                "workbook_version": wbk.WORKBOOK_VERSION}))
+    return Response(
+        content=content, media_type=XLSX_MIME,
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{filename}"; '
+                f"filename*=UTF-8''{filename}"),
+            "Content-Length": str(len(content)),
+            # A workbook is a point-in-time record. Caching one and serving it
+            # after the scenario changed hands somebody the wrong figures
+            # under the right filename.
+            "Cache-Control": "no-store, max-age=0",
+            "X-CreditProbe-WhatIf-Period": result.period,
+            "X-CreditProbe-WhatIf-Methodology": result.choice.method,
+            "X-CreditProbe-WhatIf-Rows": str(result.population),
+        })
+
+
 class InvestigateIn(BaseModel):
     """A follow-up question about a result that already exists."""
 
@@ -1004,24 +1134,6 @@ def product_fields(_: Any = RequireAnalyst) -> dict[str, Any]:
 def investigate_intents(_: Any = RequireAnalyst) -> dict[str, Any]:
     """What a thread does with a message, and which kind may change state."""
     return iv.describe()
-
-
-class SensitivityIn(BaseModel):
-    """A macro relationship somebody wants to use for this thread."""
-
-    variable: str = Field(min_length=1, max_length=48)
-    source: str = Field(default="user", max_length=16)
-    pd_response_kind: str = Field(default="multiplier", max_length=16)
-    pd_response: float = Field(default=1.0, ge=-1000.0, le=1000.0)
-    lgd_response_kind: str = Field(default="absolute_pp", max_length=16)
-    lgd_response: float = Field(default=0.0, ge=-100.0, le=100.0)
-    sectors: list[str] = Field(default_factory=list, max_length=40)
-    segments: list[str] = Field(default_factory=list, max_length=20)
-    rating_bands: list[str] = Field(default_factory=list, max_length=20)
-    stages: list[int] = Field(default_factory=list, max_length=3)
-    pd_ceiling_pct: float = Field(default=99.0, ge=0.0, le=100.0)
-    lgd_ceiling_pct: float = Field(default=95.0, ge=0.0, le=100.0)
-    name: str = Field(default="", max_length=120)
 
 
 class MacroAnalyseIn(BaseModel):

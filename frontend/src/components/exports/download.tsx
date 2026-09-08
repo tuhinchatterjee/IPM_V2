@@ -55,7 +55,7 @@ export interface DownloadProps {
  * has not started reading it when the click handler returns, and revoking
  * synchronously produces a download that silently never happens.
  */
-function save(blob: Blob, filename: string): void {
+export function save(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
