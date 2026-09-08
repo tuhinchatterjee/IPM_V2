@@ -113,9 +113,20 @@ class TestTheThreeIntents:
         assert iv.classify("Stage 3 provision").intent == iv.EXPLAIN
 
     def test_a_sentence_with_neither_signal_but_a_magnitude_is_a_scenario(self):
+        """A magnitude with no result behind it OPENS a scenario.
+
+        The same sentence arriving after a result is a modification of it.
+        Both change the state; which one it is decides whether the thread
+        starts a scenario or adds a step to one.
+        """
         said = "PD up 20% for Contracting"
         assert lang.read(said).scenario is not None
-        assert iv.classify(said).intent == iv.MODIFY
+        opening = iv.classify(said)
+        assert opening.intent == iv.SCENARIO
+        assert opening.family == iv.CHANGES
+        assert opening.changes_state
+        assert iv.classify(said, has_result=True,
+                           has_steps=True).intent == iv.MODIFY
 
     def test_the_named_stage_is_read_out_of_the_question(self):
         assert iv.classify("Why did Stage 3 ECL increase?").stage == 3
@@ -123,10 +134,29 @@ class TestTheThreeIntents:
 
     def test_the_intents_are_described_for_the_product(self):
         described = iv.describe()
-        assert {row["intent"] for row in described["intents"]} == set(iv.INTENTS)
-        changes = {row["intent"]: row["changes_state"]
-                   for row in described["intents"]}
-        assert changes == {iv.EXPLAIN: False, iv.VIEW: False, iv.MODIFY: True}
+        assert {row["intent"] for row in described["all_intents"]} == set(
+            iv.INTENTS)
+        # Only the CHANGES family may move the thread's state, and every
+        # intent belongs to exactly one family.
+        for row in described["all_intents"]:
+            assert row["changes_state"] == (row["family"] == iv.CHANGES), row
+            assert row["family"] in {iv.ASKS, iv.READS, iv.CHANGES}, row
+        assert {row["family"] for row in described["families"]} == {
+            iv.ASKS, iv.READS, iv.CHANGES}
+
+    def test_every_intent_carries_a_label_and_a_family(self):
+        for intent in iv.INTENTS:
+            assert iv.LABELS.get(intent), intent
+            assert iv.FAMILY.get(intent), intent
+
+    def test_an_intent_that_needs_a_result_degrades_rather_than_refuses(self):
+        """Asked before there is anything to export or compare, the thread
+        answers the question it CAN answer instead of stopping."""
+        for question in ("Export this to Excel.",
+                         "Compare the two methodologies."):
+            reading = iv.classify(question)
+            assert reading.family == iv.ASKS, question
+            assert not reading.changes_state, question
 
 
 # ============================================ answering without recomputing

@@ -577,9 +577,37 @@ def macro_factor(rng: np.random.Generator,
     ])[:len(periods)]
     noise = rng.normal(0.0, 0.05, len(path))
     factor = path + noise
-    oil = 84.0 + 18.0 * factor + rng.normal(0.0, 2.0, len(path))
-    gdp = 2.4 + 2.6 * factor + rng.normal(0.0, 0.25, len(path))
-    rate = 5.6 - 1.1 * factor + rng.normal(0.0, 0.12, len(path))
+    n = len(path)
+    oil = 84.0 + 18.0 * factor + rng.normal(0.0, 2.0, n)
+    gdp = 2.4 + 2.6 * factor + rng.normal(0.0, 0.25, n)
+    rate = 5.6 - 1.1 * factor + rng.normal(0.0, 0.12, n)
+
+    # The other SEVEN governed variables.
+    #
+    # The macro screen offers ten variables and a sensitivity for each, and the
+    # book published three of them. The other seven read "no observed level",
+    # which is ambiguous in exactly the way that matters — it looks like a
+    # broken variable rather than a configured one — and it made the empirical
+    # relationship journey unavailable on seven of the ten cards.
+    #
+    # They are derived from the SAME latent factor as the first three, with
+    # their own loading, lag and noise. That is honest rather than convenient:
+    # this installation has one macro degree of freedom, the limitation on the
+    # macro screen says so in those words, and generating seven independent
+    # series would be manufacturing information the demonstration does not
+    # have. The lag is what stops them being exact multiples of each other.
+    lagged = np.concatenate([[factor[0]], factor[:-1]])
+    unemployment = 5.8 - 1.9 * lagged + rng.normal(0.0, 0.18, n)
+    house_prices = 100.0 * np.cumprod(
+        1.0 + (0.012 + 0.045 * factor + rng.normal(0.0, 0.006, n)))
+    inflation = 2.3 + 1.4 * lagged + rng.normal(0.0, 0.20, n)
+    current_account = 3.1 + 4.4 * factor + rng.normal(0.0, 0.45, n)
+    equities = 100.0 * np.cumprod(
+        1.0 + (0.015 + 0.090 * factor + rng.normal(0.0, 0.020, n)))
+    fx = 100.0 * np.cumprod(
+        1.0 + (-0.001 - 0.020 * factor + rng.normal(0.0, 0.004, n)))
+    spread = 165.0 - 95.0 * factor + rng.normal(0.0, 8.0, n)
+
     return pd.DataFrame({
         "period": periods,
         "period_end_date": [quarter_end(p) for p in periods],
@@ -587,6 +615,13 @@ def macro_factor(rng: np.random.Generator,
         "oil_price_usd": _round(oil, 2),
         "real_gdp_growth_pct": _round(gdp, 2),
         "policy_rate_pct": _round(rate, 2),
+        "unemployment_rate_pct": _round(np.clip(unemployment, 2.0, 14.0), 2),
+        "house_price_index": _round(house_prices, 2),
+        "inflation_rate_pct": _round(np.clip(inflation, -1.0, 12.0), 2),
+        "current_account_pct_gdp": _round(current_account, 2),
+        "equity_index": _round(equities, 2),
+        "fx_index": _round(fx, 2),
+        "corporate_credit_spread_bps": _round(np.clip(spread, 40.0, 900.0), 1),
         "origin": ORIGIN,
     })
 

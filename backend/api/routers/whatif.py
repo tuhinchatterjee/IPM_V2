@@ -28,9 +28,13 @@ from backend.whatif import engine as wf
 from backend.whatif import investigate as iv
 from backend.whatif import language as lg
 from backend.whatif import macro as mc
+from backend.whatif import macrolab as mlab
 from backend.whatif import masterscale as ms
 from backend.whatif import methodology as me
 from backend.whatif import migration as mg
+from backend.whatif import narrative as nr
+from backend.whatif import plausibility as pl
+from backend.whatif import product as pd_
 from backend.whatif import profiles as pf
 from backend.whatif import run as rn
 from backend.whatif import scenarios as sc
@@ -692,6 +696,10 @@ def methodology_gate(active: str = Query(default="", max_length=16),
 class InterpretIn(BaseModel):
     instruction: str = Field(min_length=1, max_length=1000)
     state: StateIn = Field(default_factory=StateIn)
+    #: Whether the thread already has a computed result. It changes the
+    #: reading: "download the detailed Excel" on an empty thread is somebody
+    #: finding out that exports exist, not an export.
+    has_result: bool = False
 
 
 @router.post("/interpret")
@@ -717,21 +725,39 @@ def interpret(body: InterpretIn, _: Any = RequireAnalyst) -> dict[str, Any]:
     except (stg.StagingError, sp.StepError) as e:
         raise _refused(str(e)) from e
 
-    # What KIND of message this is decides whether the scenario may be touched.
-    #
-    # An EXPLAIN is always about the result. A VIEW is only about the result
-    # when it POINTS at it — "show this by sector" is a cut of the scenario,
-    # while "show Stage 1 PD by sector" is a question about the reported book
+    # What KIND of message this is decides everything: what answers it, and
+    # whether the scenario may be touched at all.
+    intent = iv.classify(said, has_result=bool(body.has_result),
+                         has_steps=bool(state.active))
+
+    # A question about the PRODUCT, the DATA, the FIELDS or the METHOD is
+    # answered here and now. It reads no book, prices nothing, and must never
+    # reach the scenario builder — "what can you do?" names no magnitude, so
+    # the builder asked how big it should be.
+    if intent.intent in (iv.HELP, iv.DATA, iv.FIELDS, iv.METHODOLOGY):
+        answered = pd_.answer(intent.intent, said)
+        return {
+            "understood": True,
+            "intent": intent.intent,
+            "changes_state": False,
+            "opens_whatif": False,
+            "informational": True,
+            "answers_directly": True,
+            "reading": intent.to_dict(),
+            "product": answered,
+            "message": answered["paragraphs"][0] if answered["paragraphs"] else "",
+            "state": state.to_dict(),
+        }
+
+    # A question about the RESULT, the BOOK's history or the MODEL. An EXPLAIN
+    # is always about the result; a VIEW is only about it when it POINTS at it,
+    # because "show Stage 1 PD by sector" is a question about the reported book
     # and belongs on the profile screens, which answer it without an ECL
     # calculation and therefore without a methodology.
-    #
-    # Both need a result to be about. On an empty thread there is nothing to
-    # explain, so the message goes to the builder like any other.
-    intent = iv.classify(said)
-    explains = bool(state.active) and (
-        intent.intent == iv.EXPLAIN
-        or (intent.intent == iv.VIEW and intent.about_the_result))
-    if explains:
+    reads = intent.family == iv.READS and (
+        intent.intent != iv.VIEW or intent.about_the_result
+        or not intent.needs_a_result)
+    if reads and (bool(state.active) or not intent.needs_a_result):
         return {
             "understood": True,
             "intent": intent.intent,
@@ -854,7 +880,10 @@ def execute(body: ExecuteIn,
     # The borrower-level frame is held so a follow-up question is answered
     # from THIS result rather than from a second run of the same scenario.
     payload["run_id"] = ch.put(result, owner=owner)
-    payload["interpretation"] = rn.interpret(result)
+    # §74: the engine calculated; the model explains. The reading is
+    # written from an evidence packet and re-read against it, and it
+    # falls back to the composed one rather than going silent.
+    payload["interpretation"] = nr.interpret(result)
     return payload
 
 
@@ -929,10 +958,203 @@ def investigate(body: InvestigateIn,
     return body_out
 
 
+class ProductAskIn(BaseModel):
+    """A question about the product rather than about the book."""
+
+    question: str = Field(min_length=1, max_length=1000)
+    intent: str = Field(default="", max_length=24)
+
+
+@router.post("/product/ask")
+def product_ask(body: ProductAskIn, _: Any = RequireAnalyst) -> dict[str, Any]:
+    """Answer a product, data, field or methodology question.
+
+    Reads no book and prices nothing, so there is no methodology gate and no
+    period to resolve. Where an intent is not supplied it is read from the
+    question, and anything that is NOT one of the four is refused here rather
+    than answered from the wrong evidence.
+    """
+    said = body.question.strip()
+    intent = (body.intent or "").strip().lower() or iv.classify(said).intent
+    if intent not in (iv.HELP, iv.DATA, iv.FIELDS, iv.METHODOLOGY):
+        raise _refused(
+            f"'{intent}' is not a question about the product. This endpoint "
+            "answers what the product does, what data it reads, what fields it "
+            "carries and how its methodologies differ.")
+    return pd_.answer(intent, said)
+
+
+@router.get("/product")
+def product_surface(_: Any = RequireAnalyst) -> dict[str, Any]:
+    """Everything the product can say about itself, without being asked."""
+    return {
+        **pd_.describe(),
+        "capabilities": pd_.capabilities(),
+        "methodologies": pd_.methodologies(),
+    }
+
+
+@router.get("/product/fields")
+def product_fields(_: Any = RequireAnalyst) -> dict[str, Any]:
+    """The field catalogue, grouped and business-readable."""
+    return pd_.fields()
+
+
 @router.get("/investigate/intents")
 def investigate_intents(_: Any = RequireAnalyst) -> dict[str, Any]:
     """What a thread does with a message, and which kind may change state."""
     return iv.describe()
+
+
+class SensitivityIn(BaseModel):
+    """A macro relationship somebody wants to use for this thread."""
+
+    variable: str = Field(min_length=1, max_length=48)
+    source: str = Field(default="user", max_length=16)
+    pd_response_kind: str = Field(default="multiplier", max_length=16)
+    pd_response: float = Field(default=1.0, ge=-1000.0, le=1000.0)
+    lgd_response_kind: str = Field(default="absolute_pp", max_length=16)
+    lgd_response: float = Field(default=0.0, ge=-100.0, le=100.0)
+    sectors: list[str] = Field(default_factory=list, max_length=40)
+    segments: list[str] = Field(default_factory=list, max_length=20)
+    rating_bands: list[str] = Field(default_factory=list, max_length=20)
+    stages: list[int] = Field(default_factory=list, max_length=3)
+    pd_ceiling_pct: float = Field(default=99.0, ge=0.0, le=100.0)
+    lgd_ceiling_pct: float = Field(default=95.0, ge=0.0, le=100.0)
+    name: str = Field(default="", max_length=120)
+
+
+class MacroAnalyseIn(BaseModel):
+    variable: str = Field(min_length=1, max_length=48)
+    state: StateIn = Field(default_factory=StateIn)
+
+
+class MacroConfigureIn(BaseModel):
+    sensitivity: SensitivityIn
+    state: StateIn = Field(default_factory=StateIn)
+
+
+@router.get("/macro/method")
+def macro_method(_: Any = RequireAnalyst) -> dict[str, Any]:
+    """What a macro relationship can be, and how the three kinds differ."""
+    return mlab.describe()
+
+
+@router.get("/macro/{variable}")
+def macro_variable(variable: str, _: Any = RequireAnalyst) -> dict[str, Any]:
+    """One variable's card, and the relationship currently in force."""
+    found = mc.variable(variable)
+    if found is None:
+        raise _refused(
+            f"'{variable}' is not one of the ten governed macro variables. "
+            "They are: " + ", ".join(v.name for v in mc.VARIABLES) + ".")
+    described = mc.describe(dm.macro(), dm.latest_period())
+    card = next((v for v in described["variables"] if v["key"] == found.key), {})
+    return {
+        "variable": card,
+        "configured": mlab.configured(found.key).to_dict(),
+        "method": mlab.describe(),
+    }
+
+
+@router.post("/macro/analyse")
+def macro_analyse(body: MacroAnalyseIn,
+                  _: Any = RequireAnalyst) -> dict[str, Any]:
+    """Align this variable's history to the book's PD, and measure the two.
+
+    Reads the book; changes nothing. The estimate is reported with its
+    uncertainty and with the sample it came from, because sixteen quarterly
+    observations are directional evidence and not a calibration.
+    """
+    try:
+        state = _state_from(body.state)
+    except (stg.StagingError, sp.StepError) as e:
+        raise _refused(str(e)) from e
+    population = state.scenario().population if state.active else None
+    try:
+        fit = mlab.estimate(body.variable, population=population)
+    except (mlab.MacroLabError, dm.DomainError) as e:
+        raise _refused(str(e)) from e
+    return {
+        "fit": fit.to_dict(),
+        "configured": mlab.configured(fit.variable).to_dict(),
+        "estimated": mlab.from_fit(fit).to_dict(),
+        "recommendation": mlab.recommend(fit),
+        "population": (population.describe() if population
+                       else "the whole corporate book"),
+        "choices": [
+            {"choice": mlab.REFERENCE,
+             "label": "Keep the configured sensitivity"},
+            {"choice": mlab.EMPIRICAL,
+             "label": "Use the estimated relationship for this thread",
+             "available": fit.strength != "insufficient"},
+            {"choice": mlab.USER, "label": "Define my own relationship"},
+        ],
+    }
+
+
+@router.post("/macro/configure")
+def macro_configure(body: MacroConfigureIn,
+                    _: Any = RequireAnalyst) -> dict[str, Any]:
+    """Put a relationship in force FOR THIS THREAD.
+
+    The governed reference matrix is never edited by this. The override is
+    carried on the state, stamped on every result it produces, saved with the
+    What-If and written into the workbook, so a figure computed on somebody's
+    own assumption cannot be mistaken for one computed on the governed matrix.
+    """
+    try:
+        state = _state_from(body.state)
+    except (stg.StagingError, sp.StepError) as e:
+        raise _refused(str(e)) from e
+    if mc.variable(body.sensitivity.variable) is None:
+        raise _refused(
+            f"'{body.sensitivity.variable}' is not one of the ten governed "
+            "macro variables.")
+    try:
+        sensitivity = mlab.Sensitivity.from_dict(
+            body.sensitivity.model_dump())
+    except mlab.MacroLabError as e:
+        raise _refused(str(e)) from e
+    updated = state.with_sensitivity(sensitivity)
+    return {
+        "sensitivity": sensitivity.to_dict(),
+        "in_force_for": "this thread only",
+        "reference_unchanged": mlab.configured(sensitivity.variable).to_dict(),
+        "message": (
+            f"{sensitivity.label} in force for {sensitivity.name or sensitivity.variable} "
+            f"on this thread: {sensitivity.describe()}. The CreditProbe "
+            "reference sensitivity is unchanged and still applies everywhere "
+            "else."),
+        "state": updated.to_dict(),
+    }
+
+
+class PlausibilityIn(BaseModel):
+    state: StateIn = Field(default_factory=StateIn)
+
+
+@router.post("/plausibility")
+def plausibility(body: PlausibilityIn, _: Any = RequireAnalyst) -> dict[str, Any]:
+    """Where this scenario sits in what the book has actually done.
+
+    Not a forecast and not a probability. A severe scenario is never refused
+    here — it is labelled, and calculated if the caller asks.
+    """
+    try:
+        state = _state_from(body.state)
+    except (stg.StagingError, sp.StepError) as e:
+        raise _refused(str(e)) from e
+    try:
+        return pl.assess(state)
+    except (dm.DomainError, ValueError) as e:
+        raise _refused(str(e)) from e
+
+
+@router.get("/plausibility/method")
+def plausibility_method(_: Any = RequireAnalyst) -> dict[str, Any]:
+    """The six controlled labels, and what earns each."""
+    return pl.describe()
 
 
 @router.post("/compare-methodologies")

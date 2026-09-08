@@ -59,8 +59,19 @@ import pandas as pd
 from backend.ifrs9 import policy
 from backend.orchestration import decomposition as dc
 
-ATTRIBUTION_VERSION = "1.0.0"
+ATTRIBUTION_VERSION = "1.1.0"
 ATTRIBUTION_METHOD = "Exact Shapley (order-neutral, sums to the total)"
+
+#: Below this share of the movement, the difference between the engine's own
+#: measurement and the priced figure is arithmetic, not a finding.
+#:
+#: The two are summed over thousands of rows from figures the lake stores to
+#: two decimal places, so they agree to about six significant figures and no
+#: further. Reporting that last part as a line on the bridge put "ML model
+#: adjustment: 0.009" on a Delta run — an ML attribution on a result no model
+#: touched. A residual is disclosed when it is large enough to change a
+#: reading, and always shown in the reconciliation whatever its size.
+RESIDUAL_MATERIALITY = 1e-4
 
 #: Below this a factor is treated as "did not move". A driver that did not move
 #: gets an effect of exactly zero from Shapley anyway; dropping it first keeps
@@ -235,7 +246,8 @@ def basis_movement(frame: pd.DataFrame) -> dict[str, Any]:
 def attribute(frame: pd.DataFrame, tracked: dict[str, dict[str, Any]], *,
               baseline: str = "ecl_baseline",
               stressed: str = "ecl_stressed",
-              currency: str = "SAR") -> dict[str, Any]:
+              currency: str = "SAR",
+              methodology: str = "") -> dict[str, Any]:
     """Split the ECL movement across the drivers that caused it.
 
     The result reconciles by construction: the effects sum to the movement,
@@ -323,7 +335,7 @@ def attribute(frame: pd.DataFrame, tracked: dict[str, dict[str, Any]], *,
     # same calculation and the gap is floating-point noise on a nine-figure
     # number. Anything above this is a real difference between the two
     # methodologies and has to be shown.
-    if abs(model_gap) > max(abs(actual_total), 1.0) * 1e-6:
+    if abs(model_gap) > max(abs(actual_total), 1.0) * 1e-12:
         # WHY the two differ decides what this line is called. A cap that
         # bounded a provision at the exposure it provides against is not a
         # model disagreement, and labelling it one would credit a methodology
@@ -334,22 +346,43 @@ def attribute(frame: pd.DataFrame, tracked: dict[str, dict[str, Any]], *,
                                                    frame.get("ead")),
                                          errors="coerce").fillna(0.0) - 1e-6
                         ).any()) if "ecl_stressed" in frame.columns else False
-        body["model_adjustment"] = {
-            "key": "limits" if bounded and model_gap < 0 else "model",
-            "label": ("Bounded by exposure at default"
-                      if bounded and model_gap < 0 else "ML model adjustment"),
-            "effect": float(model_gap),
-            "note": (
+        capped = bounded and model_gap < 0
+        # A model can only be credited with a difference on a run that used
+        # one. Naming the line after the methodology that actually priced the
+        # book is what stops a Delta result carrying an ML label.
+        modelled = str(methodology or "").lower() == "ml"
+        if capped:
+            key, label = "limits", "Bounded by exposure at default"
+            note = (
                 "The drivers above attribute the GOVERNED measurement "
                 "movement. Some borrowers reached an expected credit loss "
                 "above their own exposure and were capped at it; the part the "
                 "cap removed is shown here rather than taken off a driver "
-                "that did not cause it."
-                if bounded and model_gap < 0 else
+                "that did not cause it.")
+        elif modelled:
+            key, label = "model", "ML model adjustment"
+            note = (
                 "The drivers above attribute the GOVERNED measurement "
-                "movement. The chosen ECL methodology priced the same shocked "
-                "book differently, and the difference is shown here rather "
-                "than attributed to a driver that did not cause it."),
+                "movement. The ML methodology priced the same shocked book "
+                "differently, and the difference is shown here rather than "
+                "attributed to a driver that did not cause it.")
+        else:
+            key, label = "residual", "Pricing residual"
+            note = (
+                "The drivers above attribute the GOVERNED measurement "
+                "movement. Carrying it onto the reported book left this much "
+                "unexplained. It is disclosed rather than spread across the "
+                "drivers, which would credit them with an effect they did not "
+                "have.")
+        body["model_adjustment"] = {
+            "key": key, "label": label, "effect": float(model_gap),
+            "note": note,
+            # The bridge always reconciles through this figure, so it is
+            # always here for a caller adding the drivers back up. Whether it
+            # is worth a LINE is a separate question, and the answer is no
+            # when it is the last digit of a nine-figure sum.
+            "material": bool(abs(model_gap) > max(abs(actual_total), 1.0)
+                             * RESIDUAL_MATERIALITY),
         }
 
     body["reconciliation"] = {
@@ -361,6 +394,13 @@ def attribute(frame: pd.DataFrame, tracked: dict[str, dict[str, Any]], *,
         "reconciles": bool(
             abs(sum(effects) + model_gap - actual_total)
             <= max(abs(actual_total), 1.0) * 1e-6),
+        "materiality": RESIDUAL_MATERIALITY,
+        "note": ("The reconciliation always carries the residual, and so does "
+                 "the adjustment line, so the bridge always adds up. The line "
+                 "is only SHOWN when it exceeds "
+                 f"{RESIDUAL_MATERIALITY:.4%} of the movement, below which it "
+                 "is the arithmetic of summing thousands of two-decimal "
+                 "figures rather than a difference in method."),
     }
     return body
 

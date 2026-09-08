@@ -1,11 +1,17 @@
 {
-  "active": "2026.09.07",
+  "active": "2026.09.08",
   "models": [
     {
       "built_at": "2026-09-07T19:52:53+00:00",
       "predecessor": "",
-      "state": "ACTIVE",
+      "state": "RETIRED",
       "version": "2026.09.07"
+    },
+    {
+      "built_at": "2026-09-08T05:50:07+00:00",
+      "predecessor": "2026.09.07",
+      "state": "ACTIVE",
+      "version": "2026.09.08"
     }
   ],
   "registry_version": "1.0.0"

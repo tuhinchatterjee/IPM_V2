@@ -601,7 +601,8 @@ def _observed_level(variable: Any) -> float | None:
 
 
 def _apply_macro(work: pd.DataFrame, shock: sc.Shock,
-                 steps: list[dict[str, Any]], rows: list[dict[str, Any]]) -> None:
+                 steps: list[dict[str, Any]], rows: list[dict[str, Any]],
+                 sensitivity: Any = None) -> None:
     """Move a macro variable, and let PD and LGD follow its declared sensitivity.
 
     The governed ten (`backend.whatif.macro`) are tried first: those are the
@@ -610,14 +611,61 @@ def _apply_macro(work: pd.DataFrame, shock: sc.Shock,
     sensitivity matrix is still consulted for targets only it carries, so
     scenarios written against it keep working.
 
-    Nothing here is fitted. The sensitivities are declared assumptions and the
-    step says so, because a screen that showed "unemployment +1pp raises PD by
-    12%" without saying where that came from would invite a committee to
-    believe a coefficient nobody measured.
+    Nothing here is fitted by default. The sensitivities are declared
+    assumptions and the step says so, because a screen that showed
+    "unemployment +1pp raises PD by 12%" without saying where that came from
+    would invite a committee to believe a coefficient nobody measured.
+
+    `sensitivity` is the thread's own relationship where it set one — its own
+    estimate, or its own assumption. It applies HERE and nowhere else: the
+    governed matrix is untouched, and the step records whose relationship
+    produced the movement, because a figure computed on somebody's own
+    assumption must never be mistaken for one computed on the governed one.
     """
     from backend.whatif import macro as mc
+    from backend.whatif import macrolab as ml
 
     governed = mc.variable(shock.target)
+    override = (sensitivity if (sensitivity is not None
+                                and getattr(sensitivity, "source", "") != ml.REFERENCE)
+                else None)
+    if governed is not None and override is not None:
+        unit = {sc.RELATIVE: mc.RELATIVE, sc.ABSOLUTE_PP: mc.ABSOLUTE_PP,
+                sc.BASIS_POINTS: mc.BASIS_POINTS}.get(shock.unit, mc.ABSOLUTE_PP)
+        level = None
+        if unit == mc.RELATIVE and governed.unit != "percent":
+            level = _observed_level(governed)
+        try:
+            units = governed.units_for(shock.magnitude, unit, level=level)
+        except mc.MacroError as e:
+            steps.append({"step": f"{governed.name} — not applied",
+                          "detail": str(e), "affected": 0})
+            return
+        factor = (float(override.pd_response) ** units
+                  if override.pd_response_kind == ml.MULTIPLIER
+                  else 1.0 + (override.pd_response * units) / 100.0)
+        lgd_delta = (override.lgd_response * units
+                     if override.lgd_response_kind == ml.ABSOLUTE_PP else 0.0)
+        work["pd_stressed"] = mc.apply_pd(work["pd_stressed"], factor)
+        if lgd_delta:
+            work["lgd_stressed"] = mc.apply_lgd(work["lgd_stressed"], lgd_delta)
+        rows.append({"key": governed.key, "name": governed.name,
+                     "units": round(units, 4), "pd_factor": round(factor, 6),
+                     "lgd_delta_pp": round(lgd_delta, 4),
+                     "source": override.source,
+                     "source_label": override.label})
+        steps.append({
+            "step": f"{governed.name} — {override.label.lower()}",
+            "detail": (
+                f"{units:+.2f} adverse unit(s) of {governed.name}, applied "
+                f"through {override.describe()}. This is NOT the governed "
+                f"CreditProbe reference sensitivity (v{mc.MACRO_VERSION}), "
+                "which is unchanged: this relationship applies to this thread "
+                "only, and every figure it produced carries its label."),
+            "affected": int(len(work)),
+        })
+        return
+
     if governed is not None:
         unit = {sc.RELATIVE: mc.RELATIVE, sc.ABSOLUTE_PP: mc.ABSOLUTE_PP,
                 sc.BASIS_POINTS: mc.BASIS_POINTS}.get(shock.unit, mc.ABSOLUTE_PP)
@@ -701,12 +749,18 @@ def _apply_macro_legacy(work: pd.DataFrame, shock: sc.Shock,
 
 
 def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
-        staging: Any = None) -> Result:
+        staging: Any = None,
+        sensitivities: dict[str, Any] | None = None) -> Result:
     """Run one scenario over the book, borrower by borrower.
 
     `staging` is the thread's staging criteria. Left as None it is the
     governed corporate policy, which is what produced the reported book, so an
     unmodified thread reproduces it exactly.
+
+    `sensitivities` are the thread's own macro relationships, keyed by variable.
+    Left empty every macro shock runs on the governed reference matrix. A
+    thread-level relationship applies here and nowhere else — the matrix is
+    never edited by a scenario.
     """
     frame, settled, schema_notes = _read(period or scenario.period, source)
     work = select(frame, scenario.population)
@@ -814,7 +868,8 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
             if kind == sc.RATING:
                 _apply_rating(work, int(shock.magnitude), steps)
             elif kind == sc.MACRO:
-                _apply_macro(work, shock, steps, rows)
+                _apply_macro(work, shock, steps, rows,
+                             sensitivity=(sensitivities or {}).get(shock.target))
             elif kind == sc.FINANCIAL:
                 _apply_financial(work, shock, steps)
             elif kind == sc.PD:

@@ -573,7 +573,11 @@ export function DriverAttribution({
   }
   const drivers = attribution.drivers ?? [];
   if (!drivers.length) return null;
-  const model = attribution.model_adjustment;
+  // An immaterial residual still reconciles the bridge; it does not earn a
+  // row. Showing "Pricing residual: 0.009" beside a SAR 4bn movement
+  // spends a reader's attention on arithmetic.
+  const adjustment = attribution.model_adjustment;
+  const model = adjustment?.material === false ? undefined : adjustment;
   const check = attribution.reconciliation;
   return (
     <Card data-testid="whatif-attribution">
@@ -875,6 +879,10 @@ export function ResultInterpretation({
       : interpretation.materiality === "immaterial"
         ? "muted"
         : "accent";
+  // The written reading is preferred where one exists; the composed findings
+  // then move underneath it as the figures it was written from, so nothing a
+  // reader could have checked before is taken away.
+  const written = (interpretation.paragraphs ?? []).filter(Boolean);
   return (
     <div className="rounded-md border border-border bg-surface-sunken p-4">
       <div className="mb-2 flex items-center gap-2">
@@ -883,13 +891,37 @@ export function ResultInterpretation({
           {interpretation.materiality}
         </Badge>
       </div>
-      <ul className="space-y-1.5">
-        {interpretation.findings.map((finding, i) => (
-          <li key={i} className="text-[12px] leading-relaxed text-text-secondary">
-            {finding}
-          </li>
-        ))}
-      </ul>
+      {written.length ? (
+        <div className="space-y-2" data-testid="whatif-written-reading">
+          {written.map((paragraph, i) => (
+            <p key={i} className="text-[12px] leading-relaxed text-text-secondary">
+              {paragraph}
+            </p>
+          ))}
+        </div>
+      ) : (
+        <ul className="space-y-1.5">
+          {interpretation.findings.map((finding, i) => (
+            <li key={i} className="text-[12px] leading-relaxed text-text-secondary">
+              {finding}
+            </li>
+          ))}
+        </ul>
+      )}
+      {written.length && interpretation.findings.length ? (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-[11px] text-text-muted">
+            The figures this reading was written from
+          </summary>
+          <ul className="mt-2 space-y-1.5 border-l border-border pl-3">
+            {interpretation.findings.map((finding, i) => (
+              <li key={i} className="text-[12px] leading-relaxed text-text-secondary">
+                {finding}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
       {interpretation.next_questions.length ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {interpretation.next_questions.map((question) => (
@@ -907,6 +939,12 @@ export function ResultInterpretation({
         </div>
       ) : null}
       <p className="mt-3 text-[11px] text-text-muted">{interpretation.statement}</p>
+      {interpretation.written_by ? (
+        <p className="mt-1 text-[11px] text-text-muted" data-testid="whatif-reading-author">
+          Written by {interpretation.written_by}
+          {interpretation.verified ? "; every figure checked against the evidence." : ""}
+        </p>
+      ) : null}
     </div>
   );
 }

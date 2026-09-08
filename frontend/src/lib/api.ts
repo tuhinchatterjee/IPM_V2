@@ -4840,6 +4840,19 @@ export interface WhatIfInterpretation {
   findings: string[];
   next_questions: string[];
   statement: string;
+  /** The written reading. Present when a model wrote it from the evidence
+   *  packet and every figure in the prose was found in that packet. Absent
+   *  when no provider was reachable, in which case `findings` stands alone. */
+  paragraphs?: string[];
+  /** The model that wrote it, or "composed from the result". */
+  written_by?: string;
+  /** True once the prose has been re-read against the evidence packet. */
+  verified?: boolean;
+  version?: string;
+  /** The only thing the writer was allowed to know. Shown on request, so a
+   *  reader can check any sentence against the figures behind it. */
+  evidence?: Record<string, unknown>;
+  used_evidence?: string[];
 }
 
 export type WhatIfIntent = "explain" | "view" | "modify";
@@ -5222,7 +5235,14 @@ export interface WhatIfAttribution {
   total?: number;
   measured_total?: number;
   attributed_total?: number;
-  model_adjustment?: { key: string; label: string; effect: number; note: string };
+  /** The part of the movement the drivers do not explain. Always present
+   *  when non-zero so the bridge adds up; `material` says whether it is
+   *  large enough to be worth a line rather than the last digit of a
+   *  nine-figure sum. */
+  model_adjustment?: {
+    key: string; label: string; effect: number; note: string;
+    material?: boolean;
+  };
   reconciliation?: {
     attributed: number; measured_movement: number; model_adjustment: number;
     reported_movement: number; difference: number; reconciles: boolean;

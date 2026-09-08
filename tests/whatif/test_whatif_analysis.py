@@ -490,6 +490,69 @@ class TestTheMacroMatrix:
             mc.resolve("interest rates on Mars")
         assert "Unemployment Rate" in str(raised.value)
 
+    def test_every_adverse_unit_is_signed_the_way_the_label_reads(self) -> None:
+        """A fall, a deterioration and a depreciation are all NEGATIVE moves.
+
+        The current account was written +2.0 "per 2pp deterioration", so the
+        engine applied the adverse sensitivity to a 2pp IMPROVEMENT — a shock
+        that made the book better while calling itself a stress.
+        """
+        falls = {"gdp_growth", "house_price_index", "current_account",
+                 "equity_index", "oil_price"}
+        for variable in mc.VARIABLES:
+            if variable.key in falls:
+                assert variable.adverse_unit < 0, (
+                    f"{variable.name} is adverse when it falls, so its "
+                    f"adverse unit must be negative")
+            else:
+                assert variable.adverse_unit > 0, (
+                    f"{variable.name} is adverse when it rises")
+
+    def test_a_deterioration_of_the_current_account_raises_pd(self) -> None:
+        worse = mc.applied("current_account", -2.0, mc.ABSOLUTE_PP)
+        assert worse.units == pytest.approx(1.0)
+        assert worse.pd_factor == pytest.approx(1.03)
+        better = mc.applied("current_account", 2.0, mc.ABSOLUTE_PP)
+        assert better.pd_factor < 1.0
+
+    @pytest.mark.parametrize("key,before,after,expected", [
+        # A column in the declared unit is simply differenced.
+        ("gdp_growth", 2.4, 1.9, -0.5),
+        ("unemployment", 5.8, 6.3, 0.5),
+        ("credit_spread", 180.0, 240.0, 60.0),
+        # A LEVEL column against a unit declared in percent is a percentage
+        # move, not a difference of levels: oil from 84 to 63 is -25%, not -21.
+        ("oil_price", 84.0, 63.0, -25.0),
+        ("equity_index", 100.0, 80.0, -20.0),
+        ("house_price_index", 100.0, 90.0, -10.0),
+        ("fx_depreciation", 100.0, 110.0, 10.0),
+        # A rate column in percent against a unit declared in basis points.
+        ("policy_rate", 5.6, 7.6, 200.0),
+    ])
+    def test_an_observed_move_is_read_in_the_declared_unit(
+            self, key, before, after, expected) -> None:
+        """The unit mismatch that made the empirical fit meaningless.
+
+        Differencing `policy_rate_pct` raw and dividing by an adverse unit of
+        200 basis points shrank every observed move by a hundred, and the
+        fitted slope came back implying a PD multiplier of 46.
+        """
+        assert mc.BY_KEY[key].observed_move(before, after) == pytest.approx(
+            expected)
+
+    def test_an_observed_move_reconciles_with_the_stated_magnitude(
+            self) -> None:
+        """One adverse unit observed is one adverse unit applied."""
+        for key, before, after, magnitude, unit in (
+                ("oil_price", 100.0, 80.0, -20.0, mc.RELATIVE),
+                ("policy_rate", 5.0, 7.0, 200.0, mc.BASIS_POINTS),
+                ("gdp_growth", 2.4, 1.4, -1.0, mc.ABSOLUTE_PP),
+                ("current_account", 3.1, 1.1, -2.0, mc.ABSOLUTE_PP)):
+            variable = mc.BY_KEY[key]
+            observed = variable.observed_move(before, after)
+            assert (observed / variable.adverse_unit) == pytest.approx(
+                variable.units_for(magnitude, unit, level=before))
+
 
 # ========================================================== the Delta model
 
@@ -950,7 +1013,11 @@ class TestTheDriverAttribution:
                                     interpreted="PD +20%"))
         delta = rn.execute(state, requested=me.DELTA).attribution
         ml = rn.execute(state, requested=me.ML).attribution
-        assert "model_adjustment" not in delta
+        # A Delta run may leave a residual, but it is never called a model
+        # adjustment: no model priced it. "ML model adjustment: 0.009" on a
+        # Delta result is the bug this line exists for.
+        assert delta.get("model_adjustment", {}).get("key") != "model"
+        assert "ML" not in delta.get("model_adjustment", {}).get("label", "")
         assert "model_adjustment" in ml, (
             "the ML methodology priced it differently and the difference has "
             "to be visible")

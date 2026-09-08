@@ -27,6 +27,7 @@ answer and a rumour.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -43,7 +44,9 @@ from backend.whatif import methodology as me
 from backend.whatif import staging as st
 from backend.whatif import steps as sp
 
-RUN_VERSION = "1.0.0"
+logger = logging.getLogger(__name__)
+
+RUN_VERSION = "1.1.0"
 
 
 class RunError(ValueError):
@@ -73,6 +76,11 @@ class WhatIfResult:
     warnings: list[str] = field(default_factory=list)
     #: About the installation, not about this result. Shown quietly.
     notes: list[str] = field(default_factory=list)
+    #: Where the proposed shock sits in what this book has actually done. Not
+    #: a forecast and not a probability — a comparison against sixteen quarters
+    #: of observed movement, so a 20% PD rise and a 200% one stop being
+    #: presented identically.
+    plausibility: dict[str, Any] = field(default_factory=dict)
 
     @property
     def population(self) -> int:
@@ -127,6 +135,7 @@ class WhatIfResult:
             "ml": dict(self.ml),
             "warnings": list(self.warnings),
             "notes": list(self.notes),
+            "plausibility": dict(self.plausibility),
             "borrowers": {
                 "columns": list(table.columns),
                 "rows": table.to_dict(orient="records"),
@@ -142,7 +151,8 @@ class WhatIfResult:
         }
 
 
-def _attribution(work: pd.DataFrame, engine_result: Any) -> dict[str, Any]:
+def _attribution(work: pd.DataFrame, engine_result: Any,
+                 methodology: str = "") -> dict[str, Any]:
     """The driver split, or a stated reason there is not one.
 
     An attribution that cannot be computed says so on the result. It never
@@ -151,7 +161,7 @@ def _attribution(work: pd.DataFrame, engine_result: Any) -> dict[str, Any]:
     """
     try:
         return at.attribute(work, getattr(engine_result, "tracked", {}) or {},
-                            currency=dm.CURRENCY)
+                            currency=dm.CURRENCY, methodology=methodology)
     except at.AttributionError as e:
         return {"available": False, "why": str(e)}
 
@@ -229,7 +239,7 @@ def _rating_movement(frame: pd.DataFrame) -> dict[str, Any]:
 
 def execute(state: sp.ScenarioState, *, requested: str = "",
             instruction: str = "", source: Any = None,
-            limit: int = 200) -> WhatIfResult:
+            limit: int = 200, plausible: bool = True) -> WhatIfResult:
     """Run the thread's scenario on the methodology it has settled on.
 
     Raises if the methodology gate has not been answered. That is deliberate:
@@ -258,7 +268,10 @@ def execute(state: sp.ScenarioState, *, requested: str = "",
     # None here when it happened to be the default was how the two scenario
     # rules got quietly switched off.
     engine_result = wf.run(scenario, period=period, source=source,
-                           staging=state.staging)
+                           staging=state.staging,
+                           sensitivities={
+                               getattr(x, "variable", ""): x
+                               for x in state.sensitivities})
     frame = engine_result.frame
     # The engine bounds its OWN measurement and says so. This function prices
     # the reported figure afterwards and bounds that, so the engine's sentence
@@ -336,8 +349,9 @@ def execute(state: sp.ScenarioState, *, requested: str = "",
         if "opening_rating" in work.columns else wf._group(work, "internal_rating"),
         by_stage=wf._group(work, "stage_baseline", label="Opening stage"),
         stage_movement=_movement(work), rating_movement=_rating_movement(work),
-        attribution=_attribution(work, engine_result),
-        ml=ml_body, warnings=warnings, notes=notes)
+        attribution=_attribution(work, engine_result, choice.method),
+        ml=ml_body, warnings=warnings, notes=notes,
+        plausibility=_plausibility(state, source) if plausible else {})
 
 
 def _materiality(pct: float) -> str:
@@ -411,6 +425,22 @@ def interpret(result: WhatIfResult) -> dict[str, Any]:
             "moved and what caused it; it does not add a view the numbers do "
             "not carry."),
     }
+
+
+def _plausibility(state: sp.ScenarioState, source: Any = None) -> dict[str, Any]:
+    """Where this shock sits in the book's own experience, or why it does not.
+
+    Never allowed to cost the caller their result. A history the lake cannot
+    serve is a missing comparison, not a failed calculation.
+    """
+    from backend.whatif import plausibility as pl
+
+    try:
+        return pl.assess(state, source=source)
+    except Exception as e:  # noqa: BLE001 - the figure is the answer, not this
+        logger.warning("Could not assess plausibility", exc_info=True)
+        return {"available": False,
+                "why": f"The historical comparison could not be built: {e}"}
 
 
 def compare_methodologies(state: sp.ScenarioState, *, source: Any = None

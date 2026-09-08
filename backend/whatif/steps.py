@@ -178,6 +178,13 @@ class ScenarioState:
     title: str = ""
     #: Every state this thread has been in, most recent last, for undo.
     history: tuple[tuple[Step, ...], ...] = ()
+    #: Macro sensitivities this thread has overridden, by variable key. A
+    #: thread-level override NEVER changes the global reference sensitivity:
+    #: it applies here, it is labelled as whose it is, and it is carried onto
+    #: the result, the trace, the saved What-If and the workbook so a figure
+    #: computed on somebody's own assumption can never be mistaken for one
+    #: computed on the governed matrix.
+    sensitivities: tuple[Any, ...] = ()
 
     # ------------------------------------------------------------ identity
 
@@ -320,6 +327,8 @@ class ScenarioState:
             "methodology": self.methodology or None,
             "model_version": self.model_version or None,
             "macro_version": mc.MACRO_VERSION,
+            "sensitivities": [x.to_dict() for x in self.sensitivities],
+            "sensitivity_overrides": len(self.sensitivities),
             "description": self.describe(),
             "can_undo": bool(self.history) or bool(self.steps),
         }
@@ -335,7 +344,38 @@ class ScenarioState:
             methodology=str(body.get("methodology") or ""),
             model_version=str(body.get("model_version") or ""),
             thread_id=str(body.get("thread_id") or ""),
-            title=str(body.get("title") or ""))
+            title=str(body.get("title") or ""),
+            sensitivities=tuple(_sensitivity(x)
+                                for x in (body.get("sensitivities") or [])))
+
+    def sensitivity(self, variable: str) -> Any:
+        """The relationship this thread uses for a variable.
+
+        The thread's own where it set one, and the governed reference
+        otherwise. Never a silent substitution in either direction.
+        """
+        from backend.whatif import macrolab as ml
+
+        for found in self.sensitivities:
+            if getattr(found, "variable", "") == variable:
+                return found
+        return ml.configured(variable)
+
+    def with_sensitivity(self, sensitivity: Any) -> ScenarioState:
+        """This thread, using that relationship for that variable."""
+        variable = getattr(sensitivity, "variable", "")
+        kept = tuple(x for x in self.sensitivities
+                     if getattr(x, "variable", "") != variable)
+        return replace(self, sensitivities=(*kept, sensitivity))
+
+
+def _sensitivity(body: Any) -> Any:
+    """A stored sensitivity, back as the object the engine applies."""
+    from backend.whatif import macrolab as ml
+
+    if isinstance(body, ml.Sensitivity):
+        return body
+    return ml.Sensitivity.from_dict(dict(body or {}))
 
 
 def _merge_populations(populations: list[sc.Population]) -> sc.Population:
