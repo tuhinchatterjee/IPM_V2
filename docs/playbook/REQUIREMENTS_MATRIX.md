@@ -34,7 +34,7 @@ A plan entry or a screenshot alone is not proof of a backend behaviour.
 | PB-013 | A supplied methodology can be checked against a prior report with a sourced coverage matrix and no unauthorized edit. | prompts.COVERAGE_CHECK; seeded coverage exchange | seeded IFRS 9 thread; live check BLOCKED without a provider | BLOCKED |
 | PB-014 | Current/prior numerical comparisons reconcile to files, preserve units, and handle percentage/basis-point distinctions. | backend/playbook/calc.py; fixtures/ecl_oracle.py | test_calc_oracle.py (25) incl. pp vs percent vs bps | PASS |
 | PB-015 | A detailed no-template report can be generated from selected evidence; missing tests are not invented. | prompts.CREATE_WITHOUT_TEMPLATE; service.author_document | test_service.py with scripted author; live BLOCKED | BLOCKED |
-| PB-016 | “Apply 1, 2, 3 but not 4 or 5” changes only the authorized scope, with stable IDs and dependency handling. | playbook_change_items.stable_id; seeded partial approval | test_seed.py partial-approval tests; live apply BLOCKED | BLOCKED |
+| PB-016 | “Apply 1, 2, 3 but not 4 or 5” changes only the authorized scope, with stable IDs and dependency handling. | service.decide_changes and approved_instruction; GET/POST /workspaces/{id}/change-sets; components/playbook/change-set-panel.tsx | test_change_sets.py (13); test_api.py decision tests (5); playbook-changes.test.ts (12); browser acceptance: approve 1, 2 and 5, hold 3 and 4, survives a reload. Applying the approved instruction to a document needs a provider and is BLOCKED. | PASS |
 | PB-017 | Directly requested editorial edits work without a redundant approval loop and preserve facts/risk meaning. | prompts.SCOPED_EDIT; seeded editorial turns | seeded threads; live scoped edit BLOCKED | BLOCKED |
 | PB-018 | Selected analysis can be inserted as substantive narrative and editable report tables, not merely linked titles. | evidence.from_export; document tables | test_seed.py figure reconciliation across artefacts | PASS |
 | PB-019 | A report can become a useful editable presentation with consistent quantitative claims and sources. | render/pptx_writer.py; seeded decks | test_render_and_validate.py editable-deck test; artifact verifier | PASS |
@@ -58,7 +58,7 @@ A plan entry or a screenshot alone is not proof of a backend behaviour.
 | PB-037 | Foreign-tenant IDs, unauthorized previews/downloads, and malicious direct API requests are rejected. | repository tenant scoping; router 404s | test_security.py tenant tests; browser acceptance API boundary | PASS |
 | PB-038 | Streaming, cancellation, retry, refresh, and duplicate submission do not corrupt state or create duplicate final versions. | playbook_jobs.idempotency_key unique | test_messages.py duplicate-send tests | PASS |
 | PB-039 | Parsing/generation failures preserve prior valid artifacts and provide an actionable recovery. | author_document writes no version on failure | test_service.py; test_security.py validation-failure test | PASS |
-| PB-040 | Every visible control is exercised; keyboard/focus behavior and laptop layout are verified. | scripts/acceptance/playbook_browser_acceptance.py | 63 checks at 2 viewports; Escape/focus; no console errors | PASS |
+| PB-040 | Every visible control is exercised; keyboard/focus behavior and laptop layout are verified. | scripts/acceptance/playbook_browser_acceptance.py | 73 checks at 2 viewports; Escape/focus; the change panel driven end to end; no console errors | PASS |
 | PB-041 | Office/PDF outputs are parsed back and visually reviewed for content completeness, clipping, and readability. | scripts/acceptance/verify_playbook_artifacts.py | 62 checks over 14 files; PDF pages rasterised and inspected | PASS |
 | PB-042 | Available-module regression and repository lint/type/build checks pass or have exact baseline-supported classifications. | ruff, pytest, tsc, eslint, next build, npm test | see docs/playbook/UAT_REPORT.md for counts | PASS |
 | PB-043 | Fresh prompts not present in seeds succeed through the live path; mocked tests are reported separately. | fresh prompts through the live path | no provider configured — not run | BLOCKED |
@@ -69,9 +69,9 @@ A plan entry or a screenshot alone is not proof of a backend behaviour.
 
 | Status | Count |
 |---|---:|
-| PASS | 38 |
+| PASS | 39 |
 | FAIL | 0 |
-| BLOCKED | 7 |
+| BLOCKED | 6 |
 | SKIPPED | 0 |
 | DEFERRED-INTEGRATION | 0 |
 

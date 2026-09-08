@@ -485,3 +485,126 @@ def _markdown_of(doc: D.Document | None) -> str:
                 lines.append(block.text)
                 lines.append("")
     return "\n".join(lines).strip()
+
+
+# --------------------------------------------------------------------------
+# Deciding proposed changes
+# --------------------------------------------------------------------------
+
+
+class DependencyConflict(RuntimeError):
+    """An approved change materially depends on one that was rejected.
+
+    Raised rather than resolved. §9 is explicit: the dependency is explained and
+    a specific resolution is sought — the exclusion is never silently
+    overridden, and neither is the approval silently dropped.
+    """
+
+    def __init__(self, message: str, *, conflicts: list[dict]) -> None:
+        super().__init__(message)
+        self.conflicts = conflicts
+
+
+def decide_changes(session, scope: repo.Scope, workspace_id: int,
+                   change_set_id: int, *, approve: list[str],
+                   reject: list[str] | None = None,
+                   force: bool = False) -> dict:
+    """Record which proposed changes the user accepted.
+
+    Takes STABLE IDS, not display numbers. The user says "1, 2 and 3" and the
+    interface resolves that to stable ids before it gets here, because display
+    numbers renumber and an instruction must not start meaning something else
+    after a refresh.
+
+    Recording a decision does not rewrite the document. The next generation
+    applies exactly what was approved, which is what keeps "apply 1, 2 and 3"
+    true after a reload rather than only in the moment.
+    """
+    from backend.models.playbook import PlaybookChangeSet
+
+    ws = repo.get_workspace(session, scope, workspace_id)
+    change_set = session.get(PlaybookChangeSet, change_set_id)
+    if change_set is None or change_set.workspace_id != ws.id:
+        raise repo.NotFound(f"No change set {change_set_id} in this workspace.")
+
+    items = repo.change_items(session, change_set.id)
+    known = {i.stable_id for i in items}
+    unknown = sorted((set(approve) | set(reject or [])) - known)
+    if unknown:
+        raise repo.NotFound(
+            "These are not changes in this proposal: " + ", ".join(unknown))
+
+    approved = set(approve)
+    rejected = set(reject or []) or (known - approved)
+
+    # A change that depends on one being rejected cannot simply be applied.
+    conflicts = [
+        {"stable_id": item.stable_id,
+         "display_number": item.display_number,
+         "target_section": item.target_section,
+         "depends_on": sorted(set(item.depends_on or []) & rejected)}
+        for item in items
+        if item.stable_id in approved
+        and set(item.depends_on or []) & rejected
+    ]
+    if conflicts and not force:
+        lines = "; ".join(
+            f"change {c['display_number']} depends on "
+            + ", ".join(c["depends_on"]) for c in conflicts)
+        raise DependencyConflict(
+            "Some approved changes depend on changes that were excluded: "
+            f"{lines}. Nothing has been applied. Either include the changes "
+            "they depend on, or drop them.", conflicts=conflicts)
+
+    if change_set.base_version_id is not None:
+        from backend.models.playbook import PlaybookArtifact, PlaybookArtifactVersion
+
+        base = session.get(PlaybookArtifactVersion, change_set.base_version_id)
+        artifact = (session.get(PlaybookArtifact, base.artifact_id)
+                    if base else None)
+        if artifact is not None and artifact.current_version_id != base.id:
+            raise repo.StaleBaseVersion(
+                "This proposal was made against an earlier version of the "
+                "document, which has since been revised. Nothing was applied.")
+
+    for item in items:
+        item.status = "approved" if item.stable_id in approved else "rejected"
+        item.decided_by = scope.user_id
+        item.decided_at = _now()
+    change_set.status = "decided"
+    session.flush()
+
+    return {
+        "change_set_id": change_set.id,
+        "approved": sorted(approved),
+        "rejected": sorted(rejected),
+        "conflicts": conflicts,
+        "base_version_id": change_set.base_version_id,
+    }
+
+
+def approved_instruction(session, change_set_id: int) -> str:
+    """The instruction that applies exactly what was approved, and nothing else.
+
+    Built from the persisted decisions rather than from the chat, so it survives
+    a refresh and says the same thing on the second attempt as on the first.
+    """
+    items = repo.change_items(session, change_set_id)
+    approved = [i for i in items if i.status == "approved"]
+    rejected = [i for i in items if i.status != "approved"]
+    if not approved:
+        return ""
+
+    lines = ["Apply ONLY the following approved changes to the current "
+             "document. Everything else must be returned unchanged."]
+    for item in approved:
+        lines.append(
+            f"{item.display_number}. {item.target_section} — "
+            f"{item.rationale}")
+    if rejected:
+        lines.append("")
+        lines.append("The following were considered and NOT approved. Do not "
+                     "make them, and do not make them partially:")
+        for item in rejected:
+            lines.append(f"- {item.target_section}: {item.rationale}")
+    return "\n".join(lines)

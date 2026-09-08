@@ -5,6 +5,7 @@ import { use } from "react";
 import { Download, FileSpreadsheet, FileText, Presentation } from "lucide-react";
 
 import { AnalysisPicker } from "@/components/playbook/analysis-picker";
+import { ChangeSetPanel } from "@/components/playbook/change-set-panel";
 import { Composer, type Attachment } from "@/components/playbook/composer";
 import { MarkdownView } from "@/components/playbook/markdown-view";
 import { BackLink } from "@/components/layout/back-link";
@@ -17,6 +18,7 @@ import {
   type PbAnalysisCard,
   type PbArtifact,
   type PbCapabilities,
+  type PbChangeSet,
   type PbWorkspace,
 } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
@@ -26,6 +28,7 @@ import {
   formatBytes,
   moduleLabel,
   nextSteps,
+  openChangeSet,
   roleLabel,
   sourceStatus,
 } from "@/lib/playbook";
@@ -57,6 +60,10 @@ export default function PlaybookThreadPage({
     [workspaceId, refresh],
   );
   const caps = useAsync<PbCapabilities>(() => api.playbookCapabilities(), []);
+  const changeSets = useAsync<{ change_sets: PbChangeSet[] }>(
+    () => api.playbookChangeSets(workspaceId),
+    [workspaceId, refresh],
+  );
 
   const [prompt, setPrompt] = React.useState("");
   const [attachments, setAttachments] = React.useState<Attachment[]>([]);
@@ -114,6 +121,13 @@ export default function PlaybookThreadPage({
   }
 
   const steps = nextSteps(data);
+  const proposal = openChangeSet(changeSets.data?.change_sets ?? []);
+  // A decided proposal stays on screen: "which of the five did we hold?" is a
+  // question asked long after the decision.
+  const lastDecided = [...(changeSets.data?.change_sets ?? [])]
+    .reverse()
+    .find((c) => c.items.length > 0 && !c.items.some((i) => i.status === "proposed"));
+  const shown = proposal ?? lastDecided ?? null;
 
   return (
     <div className="space-y-6">
@@ -124,7 +138,7 @@ export default function PlaybookThreadPage({
           <h1 className="text-lg font-semibold text-text-primary">
             {data.title}
           </h1>
-          {data.demo && <Badge variant="warning">Demo · synthetic</Badge>}
+          {data.demo && <Badge variant="warning">Synthetic data</Badge>}
         </div>
         {data.state_summary && (
           <p className="text-sm text-text-muted">{data.state_summary}</p>
@@ -148,7 +162,7 @@ export default function PlaybookThreadPage({
                     Playbook
                     {message.origin === "seed_fixture" && (
                       <span className="ml-2 text-warning">
-                        Demo · synthetic, not model-written
+                        Synthetic — written for this workspace, not by a model
                       </span>
                     )}
                     {message.model && message.origin === "assistant_live" && (
@@ -187,6 +201,21 @@ export default function PlaybookThreadPage({
               )}
             </article>
           ))}
+
+          {shown && (
+            <ChangeSetPanel
+              key={shown.id}
+              workspaceId={data.id}
+              changeSet={shown}
+              onDecided={(instruction) => {
+                // The decision is recorded; the instruction goes into the
+                // composer so the user sends it, rather than a generation
+                // starting from a tick box.
+                setPrompt(instruction);
+                setRefresh((n) => n + 1);
+              }}
+            />
+          )}
 
           {steps.length > 0 && (
             <ul className="flex flex-wrap gap-2 pt-2">

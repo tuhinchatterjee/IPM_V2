@@ -12,6 +12,8 @@ import type {
   PbAnalysisPreview,
   PbArtifact,
   PbCapabilities,
+  PbChangeItem,
+  PbChangeSet,
   PbSource,
   PbWorkspace,
 } from "./api";
@@ -332,4 +334,106 @@ export function currentVersion(artifact: PbArtifact) {
 /** Whether a thread is a seeded demonstration rather than live work. */
 export function isSeeded(workspace: PbWorkspace): boolean {
   return workspace.demo || workspace.messages.some((m) => m.origin === "seed_fixture");
+}
+
+
+// --------------------------------------------------- deciding proposed changes
+
+/**
+ * Whether a proposal is still open for a decision.
+ *
+ * A decided proposal is kept on screen rather than removed, because "which of
+ * the five did we hold?" is a question asked long after the decision.
+ */
+export function isOpen(changeSet: PbChangeSet): boolean {
+  return changeSet.items.some((i) => i.status === "proposed");
+}
+
+/** The one proposal a workspace is currently waiting on, if any. */
+export function openChangeSet(sets: PbChangeSet[]): PbChangeSet | null {
+  return [...sets].reverse().find(isOpen) ?? null;
+}
+
+export interface DependencyWarning {
+  stable_id: string;
+  number: number;
+  target_section: string;
+  /** The display numbers of the excluded changes it rests on. */
+  requires: number[];
+}
+
+/**
+ * Which of the currently ticked changes rest on ones that are not ticked.
+ *
+ * Computed on the client so the conflict is visible BEFORE the request, which
+ * is the difference between explaining a dependency and reporting an error.
+ * The server checks it again; this is not the enforcement.
+ */
+export function dependencyWarnings(
+  items: PbChangeItem[],
+  selected: string[],
+): DependencyWarning[] {
+  const chosen = new Set(selected);
+  const number = new Map(items.map((i) => [i.stable_id, i.number]));
+  return items
+    .filter((i) => chosen.has(i.stable_id))
+    .map((i) => ({
+      stable_id: i.stable_id,
+      number: i.number,
+      target_section: i.target_section,
+      requires: (i.depends_on ?? [])
+        .filter((d) => !chosen.has(d) && number.has(d))
+        .map((d) => number.get(d) as number)
+        .sort((a, b) => a - b),
+    }))
+    .filter((w) => w.requires.length > 0);
+}
+
+/**
+ * Ticking a change also ticks what it depends on.
+ *
+ * The alternative — letting the user tick change 2 alone and only then
+ * explaining that it cannot stand without change 1 — is a worse interface for
+ * the same rule. Dependencies outside this proposal (a source the user has not
+ * supplied) are left alone: nothing here can satisfy them.
+ */
+export function withDependencies(
+  items: PbChangeItem[],
+  selected: string[],
+): string[] {
+  const known = new Set(items.map((i) => i.stable_id));
+  const by = new Map(items.map((i) => [i.stable_id, i]));
+  const out = new Set<string>();
+  const walk = (id: string) => {
+    if (out.has(id) || !known.has(id)) return;
+    out.add(id);
+    for (const dep of by.get(id)?.depends_on ?? []) walk(dep);
+  };
+  for (const id of selected) walk(id);
+  return items.filter((i) => out.has(i.stable_id)).map((i) => i.stable_id);
+}
+
+/**
+ * What the decision did, in the user's own terms.
+ *
+ * Numbers rather than stable ids: the ids exist so the instruction survives a
+ * refresh, and the numbers exist so a person can read it.
+ */
+export function decisionSummary(
+  items: PbChangeItem[],
+  approved: string[],
+): string {
+  const chosen = new Set(approved);
+  const yes = items.filter((i) => chosen.has(i.stable_id)).map((i) => i.number);
+  const no = items.filter((i) => !chosen.has(i.stable_id)).map((i) => i.number);
+  if (yes.length === 0) return "No changes approved. The document is unchanged.";
+  const list = (ns: number[]) =>
+    ns.length === 1
+      ? `${ns[0]}`
+      : `${ns.slice(0, -1).join(", ")} and ${ns[ns.length - 1]}`;
+  const applied = `Applying ${yes.length === 1 ? "change" : "changes"} ${list(yes)}`;
+  if (no.length === 0) return `${applied}.`;
+  return `${applied}. ${no.length === 1 ? "Change" : "Changes"} ${list(no)} ${
+    no.length === 1 ? "is" : "are"
+  } held and will not be made.`;
 }

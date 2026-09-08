@@ -3854,6 +3854,38 @@ export interface PbWorkspace {
   artifacts: PbArtifact[];
 }
 
+export interface PbChangeItem {
+  stable_id: string;
+  number: number;
+  target_section: string;
+  rationale: string;
+  evidence: Record<string, unknown>;
+  depends_on: string[];
+  status: "proposed" | "approved" | "rejected" | "applied" | "superseded";
+}
+
+export interface PbChangeSet {
+  id: number;
+  status: string;
+  base_version_id: number | null;
+  items: PbChangeItem[];
+}
+
+export interface PbDecision {
+  change_set_id: number;
+  approved: string[];
+  rejected: string[];
+  conflicts: {
+    stable_id: string;
+    display_number: number;
+    target_section: string;
+    depends_on: string[];
+  }[];
+  base_version_id: number | null;
+  /** What the next generation will be told to do, and only that. */
+  instruction: string;
+}
+
 export interface PbCapabilities {
   formats: { format: string; mime: string; routes: string[];
     description: string }[];
@@ -4396,6 +4428,19 @@ export const api = {
     ),
   playbookWorkspace: (id: number) =>
     request<PbWorkspace>(`/playbook/workspaces/${id}`),
+  playbookChangeSets: (id: number) =>
+    request<{ change_sets: PbChangeSet[] }>(
+      `/playbook/workspaces/${id}/change-sets`,
+    ),
+  decidePlaybookChanges: (
+    workspaceId: number,
+    changeSetId: number,
+    payload: { approve: string[]; reject?: string[]; force?: boolean },
+  ) =>
+    request<PbDecision>(
+      `/playbook/workspaces/${workspaceId}/change-sets/${changeSetId}/decide`,
+      { method: "POST", body: JSON.stringify(payload) },
+    ),
   createPlaybookWorkspace: (payload: {
     title: string;
     document_family?: string;

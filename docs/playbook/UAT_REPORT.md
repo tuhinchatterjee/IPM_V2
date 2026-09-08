@@ -10,7 +10,7 @@ check that could not run is `BLOCKED` rather than a pass.
 | Standalone implementation | **complete** for the scope that does not need a provider |
 | Deterministic demo and downloads | **passed** — 3 workspaces, 30 exports, 14 real files |
 | Live Claude workflows | **BLOCKED** — no `ANTHROPIC_API_KEY` in this environment |
-| Browser and artifact UAT | **passed** — 63 browser checks, 62 artifact checks |
+| Browser and artifact UAT | **passed** — 73 browser checks, 62 artifact checks |
 | Cross-module integration | Cockpit, Early Warning, Scorecard Validation, Lenses **verified**; What If **DEFERRED-INTEGRATION** |
 | Human UAT | **pending** — the developer cannot award the user's sign-off |
 | Git handoff | committed and pushed to the feature branch; **not merged** |
@@ -31,17 +31,23 @@ CANNOT RUN: ANTHROPIC_API_KEY is not set. …
 Live generation is therefore UNVERIFIED, not passed.
 ```
 
-Seven of the forty-five requirements are BLOCKED on this and only this:
-PB-013, PB-015, PB-016, PB-017, PB-029, PB-030, PB-043.
+Six of the forty-five requirements are BLOCKED on this and only this:
+PB-013, PB-015, PB-017, PB-029, PB-030, PB-043.
+
+PB-016 is **PASS**. Deciding a numbered proposal — approving some changes and
+holding others, with stable ids that survive a reload and a dependency that is
+explained rather than resolved quietly — is implemented, tested at three levels
+and driven through a real browser. What still needs a provider is *applying* the
+resulting instruction to a document, and that is the same blocker as PB-015.
 
 ## Test counts
 
 | Suite | Command | Result |
 |---|---|---|
-| Playbook backend | `pytest tests/playbook` | **196 passed** |
+| Playbook backend | `pytest tests/playbook` | **216 passed** |
 | Affected backend | `pytest tests/playbook tests/demo tests/api tests/services` | **830 passed** |
 | Full backend | `pytest -q` | see PROGRESS.md |
-| Frontend units | `npm test` | **430 passed, 0 failed** |
+| Frontend units | `npm test` | **442 passed, 0 failed** |
 | Frontend types | `tsc --noEmit` | clean |
 | Frontend lint | `eslint` | clean |
 | Frontend build | `next build` | succeeds; `/playbook`, `/playbook/[id]`, `/playbook/library` emitted |
@@ -50,7 +56,7 @@ PB-013, PB-015, PB-016, PB-017, PB-029, PB-030, PB-043.
 ## Browser acceptance
 
 `scripts/acceptance/playbook_browser_acceptance.py` — real Chromium, real front
-end, real backend, at 1366×768 and 1600×900. **63 passed, 0 failed.**
+end, real backend, at 1366×768 and 1600×900. **73 passed, 0 failed.**
 
 What it proved, rather than what it looked at:
 
@@ -68,6 +74,11 @@ What it proved, rather than what it looked at:
 - A real .docx uploads through the composer, appears as a chip and can be
   removed; with no provider configured Send is refused and the reason is on
   screen, rather than a button that fails after it is pressed.
+- A five-item proposal is decided in the interface: changes 1, 2 and 5 are
+  approved and 3 and 4 held; ticking change 3 pulls in change 2, which it rests
+  on, rather than accepting an approval that could not stand; the resulting
+  instruction names the approved sections and names the held ones as held; and
+  after a reload the panel still says the same thing.
 - The API refuses an id that was never exported (404), a foreign workspace
   (404), a greeting as an export (422) and Project Planner as a module (422).
 - The monitoring Playbooks feature still answers 200.
@@ -106,7 +117,7 @@ one held back**, and version 2 does not contain the held change.
 |---|---|
 | 1 — Home and seeded history | **passed** (browser acceptance) |
 | 2 — Picker and export boundary | **passed** (browser acceptance + API boundary) |
-| 3 — Prior report + methodology + new results | **partial** — sources, gap manifest and partial approval verified; the live gap review is BLOCKED |
+| 3 — Prior report + methodology + new results | **partial** — sources, gap manifest and partial approval verified in the browser; the live gap review is BLOCKED |
 | 4 — No-template report | **BLOCKED** — needs the live path |
 | 5 — Continue, revise, present | **partial** — versions, lineage and a real PPTX verified from the seed; live revision BLOCKED |
 | 6 — Fail safely | **passed** — provider-not-configured, validation failure, stale base, duplicate send, cancellation |
@@ -129,8 +140,19 @@ one held back**, and version 2 does not contain the held change.
    from 15 provider calls to 16; the PowerShell mirror still said 15. Caught by
    `test_the_cost_table_matches_the_python_side`.
 5. **Test isolation.** The first Playbook DB fixture committed. Now each test
-   runs in a rolled-back transaction, and the API tests truncate what they
-   create. Two consecutive full runs leave zero rows.
+   runs in a rolled-back transaction, and the API tests remove what they create.
+   Two consecutive full runs leave zero rows.
+6. **A test suite that wiped the demonstration.** The API tests shared the
+   developer's database with the seeded workspaces and cleaned up by truncating
+   the Playbook tables, so running them destroyed the demonstration they were
+   testing against. Found when the browser acceptance reported nought seeded
+   playbooks. Fixed: the tests record a high-water mark and delete only above
+   it.
+7. **A stale acceptance assertion.** The browser check looked for the word
+   "Demo" on the thread page. The product-copy rule forbids that word, so the
+   label a user sees is "Synthetic data" — the check was asserting the copy the
+   repository bans. Fixed to assert both the badge and the per-message note that
+   the reply was not written by a model.
 
 ## Known limitation, stated rather than discovered later
 

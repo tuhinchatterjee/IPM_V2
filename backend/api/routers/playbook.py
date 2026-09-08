@@ -25,6 +25,7 @@ import logging
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from backend.api.permissions import Principal, RequireAnalyst
 from backend.exports import playbook_contract as contract
@@ -128,6 +129,21 @@ class MessageIn(BaseModel):
     #: Supplied by the client so a refresh or a double-click resolves to the
     #: same job rather than to a second billable generation.
     idempotency_key: str = Field(default="", max_length=120)
+
+
+class DecisionIn(BaseModel):
+    """Which proposed changes to accept, by stable id.
+
+    Stable ids rather than display numbers: the interface resolves "1, 2 and 3"
+    to ids before it gets here, because display numbers renumber and an
+    instruction must not start meaning something else after a refresh.
+    """
+
+    approve: list[str] = Field(default_factory=list)
+    reject: list[str] = Field(default_factory=list)
+    #: Set only after the user has been shown a dependency conflict and has
+    #: chosen to proceed anyway. Never a default.
+    force: bool = False
 
 
 # --------------------------------------------------------------------------
@@ -381,6 +397,83 @@ def send_message(workspace_id: int, body: MessageIn,
             detail={"error": "authoring_failed", "message": str(exc),
                     "category": getattr(exc, "category", "")},
         ) from exc
+    except repo.StorageUnavailable as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.get("/workspaces/{workspace_id}/change-sets")
+def list_change_sets(workspace_id: int,
+                     principal: Principal = RequireAnalyst) -> dict:
+    """Proposed changes and what has been decided about them."""
+    from backend.models.playbook import PlaybookChangeSet
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            ws = repo.get_workspace(session, scope, workspace_id)
+            rows = session.execute(
+                select(PlaybookChangeSet)
+                .where(PlaybookChangeSet.workspace_id == ws.id)
+                .order_by(PlaybookChangeSet.id)
+            ).scalars().all()
+            return {"change_sets": [
+                {
+                    "id": cs.id,
+                    "status": cs.status,
+                    "base_version_id": cs.base_version_id,
+                    "items": [
+                        {"stable_id": i.stable_id,
+                         "number": i.display_number,
+                         "target_section": i.target_section,
+                         "rationale": i.rationale,
+                         "evidence": i.evidence,
+                         "depends_on": i.depends_on,
+                         "status": i.status}
+                        for i in repo.change_items(session, cs.id)
+                    ],
+                }
+                for cs in rows
+            ]}
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except repo.StorageUnavailable as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/change-sets/{change_set_id}/decide")
+def decide_change_set(workspace_id: int, change_set_id: int, body: DecisionIn,
+                      principal: Principal = RequireAnalyst) -> dict:
+    """Accept some proposed changes and not others.
+
+    Records the decision; it does not rewrite the document. The next generation
+    applies exactly what was approved, which is what makes "apply 1, 2 and 3"
+    still true after a reload.
+    """
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            result = service.decide_changes(
+                session, scope, workspace_id, change_set_id,
+                approve=body.approve, reject=body.reject, force=body.force)
+            result["instruction"] = service.approved_instruction(
+                session, change_set_id)
+            return result
+    except service.DependencyConflict as exc:
+        # 409 rather than 422: the request is well formed and the document is
+        # in a state that refuses it. The conflicts travel so the interface can
+        # say which change depends on which.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": "dependency_conflict", "message": str(exc),
+                    "conflicts": exc.conflicts},
+        ) from exc
+    except repo.StaleBaseVersion as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": "stale_base_version", "message": str(exc)},
+        ) from exc
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
     except repo.StorageUnavailable as exc:
         raise _unavailable(exc) from exc
 

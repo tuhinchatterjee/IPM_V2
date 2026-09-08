@@ -138,8 +138,15 @@ async def journey(page, viewport: str) -> None:
           articles >= 12, f"{articles} messages")
 
     body = await page.locator("body").inner_text()
+    # The product-copy rule forbids the word "Demo" on screen, so the label a
+    # user actually sees is "Synthetic data" and the per-message note says who
+    # wrote it. Both must be there: the badge alone would not tell the reader
+    # that the assistant's replies are fixtures rather than model output.
     check(f"[{viewport}] seeded history is labelled synthetic",
-          "Demo" in body and "synthetic" in body.lower())
+          # Lower-cased because the per-message note sits in a `.meta` line,
+          # which CSS renders in capitals.
+          "Synthetic data" in body
+          and "not by a model" in body.lower())
     check(f"[{viewport}] the thread states the seeded ECL figure",
           "22.77" in body)
     check(f"[{viewport}] both artifact versions are recorded",
@@ -262,6 +269,133 @@ async def journey(page, viewport: str) -> None:
           "; ".join(real_errors[:2]))
 
 
+def _open_proposal() -> tuple[int, int]:
+    """A workspace with an UNDECIDED five-item proposal, created directly.
+
+    The seeded proposals are already decided, which is the right thing for a
+    demonstration and the wrong thing for testing the decision. The route that
+    creates one runs a generation, so this writes it through the repository —
+    the interface under test is the panel, not the way the proposal arrived.
+    """
+    from backend.db.engine import get_session
+    from backend.playbook import repository as repo
+
+    with get_session() as session:
+        ws = repo.create_workspace(
+            session, repo.Scope(tenant="default", user_id=None),
+            title="Acceptance — deciding proposed changes",
+            document_family="ifrs9_committee_report")
+        change_set = repo.create_change_set(
+            session, ws.id, message_id=None, base_version_id=None, items=[
+                {"stable_id": "acc-exec", "display_number": 1,
+                 "target_section": "1. Executive summary",
+                 "rationale": "Every figure is from the prior period."},
+                {"stable_id": "acc-scenario", "display_number": 2,
+                 "target_section": "2. Scenario results",
+                 "rationale": "The table shows only the prior period."},
+                {"stable_id": "acc-coverage", "display_number": 3,
+                 "target_section": "3. Coverage",
+                 "rationale": "Coverage must follow the restated table.",
+                 "depends_on": ["acc-scenario"]},
+                {"stable_id": "acc-monitoring", "display_number": 4,
+                 "target_section": "4. Model monitoring",
+                 "rationale": "The methodology asks for evidence in the paper."},
+                {"stable_id": "acc-limitations", "display_number": 5,
+                 "target_section": "5. Limitations",
+                 "rationale": "Post-model adjustments are named but not treated."},
+            ])
+        session.commit()
+        return ws.id, change_set.id
+
+
+def _drop_workspace(workspace_id: int) -> None:
+    from sqlalchemy import text
+
+    from backend.db.engine import get_session
+
+    with get_session() as session:
+        session.execute(
+            text("DELETE FROM playbook_workspaces WHERE id = :i"),
+            {"i": workspace_id})
+        session.commit()
+
+
+async def change_set_journey(page) -> None:
+    """PB-016. Approving some proposed changes and not others."""
+    await page.set_extra_http_headers({"X-IPM-Role": "ADMIN"})
+    workspace_id, _ = _open_proposal()
+    try:
+        await page.goto(f"{WEB}/playbook/{workspace_id}", wait_until="networkidle")
+        await page.wait_for_timeout(900)
+
+        panel = page.locator('[data-testid="playbook-change-set"]')
+        check("the proposal is shown as a numbered list",
+              await panel.count() == 1)
+        boxes = panel.locator('input[type="checkbox"]')
+        check("every proposed change carries its own control",
+              await boxes.count() == 5, f"{await boxes.count()} controls")
+
+        text_before = await panel.inner_text()
+        check("the changes are numbered, not merely listed",
+              all(f"{n}." in text_before for n in range(1, 6)))
+        check("nothing is selected before the user decides",
+              "0 of 5 selected" in text_before)
+
+        # Approve 1, 2 and 5. Leave 3 and 4.
+        for label in ("Change 1: 1. Executive summary",
+                      "Change 2: 2. Scenario results",
+                      "Change 5: 5. Limitations"):
+            await panel.locator(f'input[aria-label="{label}"]').check()
+        await page.wait_for_timeout(200)
+        summary = await panel.inner_text()
+        check("the pending decision is stated in the user's own terms",
+              "Applying changes 1, 2 and 5" in summary
+              and "Changes 3 and 4 are held" in summary, summary[-200:])
+
+        # Ticking a dependent change pulls in what it rests on.
+        await panel.locator(
+            'input[aria-label="Change 3: 3. Coverage"]').check()
+        await page.wait_for_timeout(200)
+        check("a change that rests on another cannot be approved alone",
+              await panel.locator(
+                  'input[aria-label="Change 2: 2. Scenario results"]'
+              ).is_checked())
+        await panel.locator(
+            'input[aria-label="Change 3: 3. Coverage"]').uncheck()
+        await page.wait_for_timeout(200)
+
+        await panel.locator(
+            '[data-testid="playbook-apply-selected"]').click()
+        await page.wait_for_timeout(1200)
+
+        composer = page.locator("textarea").first
+        instruction = await composer.input_value()
+        check("the approved changes become the instruction, and only those",
+              "1. Executive summary" in instruction
+              and "2. Scenario results" in instruction
+              and "5. Limitations" in instruction
+              and "NOT approved" in instruction,
+              instruction[:120])
+        held = instruction.split("NOT approved")[-1]
+        check("the held changes are named as held rather than dropped",
+              "3. Coverage" in held and "4. Model monitoring" in held)
+
+        await page.screenshot(path=str(SHOTS / "change-set.png"), full_page=True)
+
+        # And it still says the same thing after a reload.
+        await page.reload(wait_until="networkidle")
+        await page.wait_for_timeout(900)
+        after = await page.locator(
+            '[data-testid="playbook-change-set"]').inner_text()
+        check("the decision survives a reload",
+              "Applying changes 1, 2 and 5" in after
+              and "Changes 3 and 4 are held" in after, after[-200:])
+        check("a decided proposal is kept on screen rather than removed",
+              "1. Executive summary" in after and "3. Coverage" in after)
+    finally:
+        _drop_workspace(workspace_id)
+
+
 async def api_boundary(page) -> None:
     """The backend half of PB-005 and PB-037, exercised over HTTP."""
     unexported = await page.request.get(
@@ -340,6 +474,8 @@ async def main() -> int:
 
             context = await browser.new_context()
             page = await context.new_page()
+            print("\n-- Proposed changes " + "-" * 40)
+            await change_set_journey(page)
             print("\n-- API boundary " + "-" * 44)
             await api_boundary(page)
             await context.close()

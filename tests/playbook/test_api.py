@@ -31,7 +31,7 @@ def client():
 
 @pytest.fixture(autouse=True)
 def _clean_playbook_rows():
-    """Remove what these tests created.
+    """Remove what these tests created, and only that.
 
     The API tests go through the real application, so they commit — the
     transaction-rollback fixture used elsewhere in this suite cannot help here.
@@ -39,20 +39,27 @@ def _clean_playbook_rows():
     reason it matters is written down in backend/demo/workspace.py: a
     development database that accumulates test rows is one nobody can
     demonstrate from.
+
+    It deletes above a high-water mark rather than truncating, because these
+    tests share the developer's database with the seeded demonstration and a
+    test suite that wipes the demonstration is a worse problem than the one it
+    was solving.
     """
-    yield
     from sqlalchemy import text
 
     from backend.db.engine import get_session
 
+    tables = ("analysis_exports", "playbook_workspaces")
     with get_session() as session:
-        session.execute(text(
-            "TRUNCATE analysis_export_revisions, analysis_exports, "
-            "playbook_artifact_files, playbook_artifact_versions, "
-            "playbook_artifacts, playbook_attachments, playbook_change_items, "
-            "playbook_change_sets, playbook_jobs, playbook_messages, "
-            "playbook_source_chunks, playbook_sources, playbook_workspaces "
-            "RESTART IDENTITY CASCADE"))
+        before = {t: session.execute(
+            text(f"SELECT COALESCE(MAX(id), 0) FROM {t}")).scalar_one()
+            for t in tables}
+    yield
+    with get_session() as session:
+        for table, high_water in before.items():
+            session.execute(text(f"DELETE FROM {table} WHERE id > :i"),
+                            {"i": high_water})
+        session.commit()
 
 
 @pytest.fixture
@@ -261,3 +268,89 @@ class TestTheMonitoringPlaybooksFeatureIsUntouched:
         paths = set(create_app().openapi()["paths"])
         assert "/api/v1/playbooks" in paths
         assert "/api/v1/playbook/home" in paths
+
+
+class TestDecidingProposedChangesOverHTTP:
+    """PB-016. The change set is created directly because the route that
+    proposes one runs a generation; what is under test here is the decision."""
+
+    @pytest.fixture
+    def change_set_id(self, workspace_id) -> int:
+        from backend.db.engine import get_session
+        from backend.playbook import repository as repo
+
+        with get_session() as session:
+            change_set = repo.create_change_set(
+                session, workspace_id, message_id=None, base_version_id=None,
+                items=[
+                    {"stable_id": "chg_a", "display_number": 1,
+                     "target_section": "3. Staging", "rationale": "Restate."},
+                    {"stable_id": "chg_b", "display_number": 2,
+                     "target_section": "4. Coverage", "rationale": "Recompute.",
+                     "depends_on": ["chg_a"]},
+                    {"stable_id": "chg_c", "display_number": 3,
+                     "target_section": "1. Summary", "rationale": "Reword."},
+                ])
+            session.commit()
+            return change_set.id
+
+    def test_the_proposal_is_listed_with_its_stable_ids(
+            self, client, workspace_id, change_set_id):
+        body = client.get(
+            f"/api/v1/playbook/workspaces/{workspace_id}/change-sets").json()
+        items = body["change_sets"][0]["items"]
+        assert [i["number"] for i in items] == [1, 2, 3]
+        assert [i["stable_id"] for i in items] == ["chg_a", "chg_b", "chg_c"]
+        assert items[1]["depends_on"] == ["chg_a"]
+
+    def test_approving_some_records_the_rest_as_rejected(
+            self, client, workspace_id, change_set_id):
+        response = client.post(
+            f"/api/v1/playbook/workspaces/{workspace_id}"
+            f"/change-sets/{change_set_id}/decide",
+            json={"approve": ["chg_a", "chg_c"]})
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["approved"] == ["chg_a", "chg_c"]
+        assert body["rejected"] == ["chg_b"]
+        assert "3. Staging" in body["instruction"]
+        assert "4. Coverage" in body["instruction"].split("NOT approved")[1]
+
+    def test_a_dependency_conflict_is_a_409_that_names_the_dependency(
+            self, client, workspace_id, change_set_id):
+        response = client.post(
+            f"/api/v1/playbook/workspaces/{workspace_id}"
+            f"/change-sets/{change_set_id}/decide",
+            json={"approve": ["chg_b"]})
+        assert response.status_code == 409
+        detail = response.json()["detail"]
+        assert detail["error"] == "dependency_conflict"
+        assert detail["conflicts"][0]["depends_on"] == ["chg_a"]
+
+        listed = client.get(
+            f"/api/v1/playbook/workspaces/{workspace_id}/change-sets").json()
+        assert all(i["status"] == "proposed"
+                   for i in listed["change_sets"][0]["items"])
+
+    def test_the_decision_survives_a_reload(
+            self, client, workspace_id, change_set_id):
+        client.post(
+            f"/api/v1/playbook/workspaces/{workspace_id}"
+            f"/change-sets/{change_set_id}/decide",
+            json={"approve": ["chg_c"]})
+        listed = client.get(
+            f"/api/v1/playbook/workspaces/{workspace_id}/change-sets").json()
+        statuses = {i["stable_id"]: i["status"]
+                    for i in listed["change_sets"][0]["items"]}
+        assert statuses == {"chg_a": "rejected", "chg_b": "rejected",
+                            "chg_c": "approved"}
+
+    def test_a_change_set_in_another_workspace_is_not_decidable(
+            self, client, workspace_id, change_set_id):
+        other = client.post("/api/v1/playbook/workspaces",
+                            json={"title": "Somebody else's"}).json()["id"]
+        response = client.post(
+            f"/api/v1/playbook/workspaces/{other}"
+            f"/change-sets/{change_set_id}/decide",
+            json={"approve": ["chg_c"]})
+        assert response.status_code == 404

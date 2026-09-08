@@ -103,12 +103,12 @@ re-checked against the provider's current documentation.
 
 | What | Result |
 |---|---|
-| `pytest tests/playbook` | 196 passed |
+| `pytest tests/playbook` | 216 passed |
 | `pytest tests/playbook tests/demo tests/api tests/services` | 830 passed |
-| `npm test` | 430 passed |
+| `npm test` | 442 passed |
 | `tsc --noEmit`, `eslint`, `next build` | clean |
 | `ruff check .` | clean repository-wide |
-| `scripts/acceptance/playbook_browser_acceptance.py` | 63 passed, 0 failed |
+| `scripts/acceptance/playbook_browser_acceptance.py` | 73 passed, 0 failed |
 | `scripts/acceptance/verify_playbook_artifacts.py` | 14 files, 62 checks, 0 failed |
 | `scripts/playbook_live_slice.py` | **exit 2 — cannot run, no credential** |
 
@@ -119,6 +119,26 @@ pushing this branch. Actions appear to be disabled on this repository, so CI has
 never run and did not run on this work either. That is a fact about the
 repository, not about this branch — and it means CI is not a source of
 verification here. Everything above was run locally.
+
+## Deciding proposed changes (PB-016)
+
+The last piece of interactive behaviour to land. A numbered proposal now has a
+panel: tick the changes to make, leave the rest, and the decision is recorded
+against stable ids rather than display numbers, so "hold 4" still means change 4
+after a reload.
+
+Three things it deliberately does:
+
+- **It refuses rather than resolves.** A change approved while the change it
+  rests on is excluded produces a 409 that names the dependency, and nothing is
+  written. In the interface the same rule appears earlier and more kindly:
+  ticking a dependent change ticks what it rests on and says so.
+- **It does not rewrite the document.** Recording a decision produces an
+  instruction — "apply only these, return everything else unchanged, and do not
+  make these others even partially" — which the user sends. A tick box does not
+  start a generation.
+- **It keeps a decided proposal on screen.** "Which of the five did we hold?" is
+  a question asked long after the decision.
 
 ## Next action
 

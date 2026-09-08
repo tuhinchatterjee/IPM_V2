@@ -1,6 +1,6 @@
 # Full-system feature verification matrix
 
-Generated from the build at `08922e9` by `scripts/feature_matrix.py`.
+Generated from the build at `9d844ee` by `scripts/feature_matrix.py`.
 
 This inventory is enumerated, not remembered. Every row comes from a page that exists on disk or an endpoint in the live OpenAPI spec, so a route added and forgotten appears here anyway. Three columns cannot be generated and are curated by hand - expected behaviour, defect and remaining limitation - because each is a claim somebody is accountable for, and deriving them from the code would produce a document that agrees with the code by construction and therefore establishes nothing.
 
@@ -8,12 +8,12 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | | |
 |---|---|
-| Pages | 44 |
-| Reviewed | 44 |
+| Pages | 47 |
+| Reviewed | 47 |
 | Not yet reviewed | 0 |
 | Carrying a known defect | 2 |
-| Not fully OK | 5 |
-| API endpoints | 418 across 34 areas |
+| Not fully OK | 7 |
+| API endpoints | 442 across 36 areas |
 | Browser-crawled routes | 91 |
 
 ## Pages
@@ -49,13 +49,13 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/borrower-360` | Every role can open it; the relationship graph is Administrator, Data Steward or Analyst; the named natural persons behind a borrower are Administrator or Data Steward; the export is separate again. | Borrower 360: one corporate borrower and everything the bank knows about it, across thirteen tabs, with eleven views of its relationship network, the six ways of grouping it shown side by side rather than reconciled, its hidden-relationship candidates, the graph data-quality register, and a seventeen-sheet export. | none | - | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Every figure is computed over synthetic demonstration data marked SYNTHETIC_DEMO, which describes no real company and no real ownership structure. The connected counterparty groups are CANDIDATES for assessment, not determinations - graph connectivity is not regulatory connectedness. The Network Risk Score is a relative ranking within this population and is not a probability, a rating, an IFRS 9 stage or an expected credit loss. The group and single-name limit thresholds are UNVERIFIED REGULATORY PARAMETERS. A quarter the derivation has not been run for reads NOT COMPUTED rather than showing a blank. |
+| `/borrower-360` | Every role can open it; the relationship graph is Administrator, Data Steward or Analyst; the named natural persons behind a borrower are Administrator or Data Steward; the export is separate again. | Borrower 360: one corporate borrower and everything the bank knows about it, across thirteen tabs, with eleven views of its relationship network, the six ways of grouping it shown side by side rather than reconciled, its hidden-relationship candidates, the graph data-quality register, and a seventeen-sheet export. | none | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Every figure is computed over synthetic demonstration data marked SYNTHETIC_DEMO, which describes no real company and no real ownership structure. The connected counterparty groups are CANDIDATES for assessment, not determinations - graph connectivity is not regulatory connectedness. The Network Risk Score is a relative ranking within this population and is not a probability, a rating, an IFRS 9 stage or an expected credit loss. The group and single-name limit thresholds are UNVERIFIED REGULATORY PARAMETERS. A quarter the derivation has not been run for reads NOT COMPUTED rather than showing a blank. |
 
 ### cockpit
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/` | any signed-in role | The Cockpit: ask a question, see recent investigations, and see what requires attention. Counts reflect what actually moved this period. | `ask` (7) | 9 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Requires Attention shows Portfolio and Data as empty at Q2 2026 because nothing moved at those levels. Nothing is invented to fill a filter. |
+| `/` | any signed-in role | The Cockpit: ask a question, see recent investigations, and see what requires attention. Counts reflect what actually moved this period. | `ask` (8) | 9 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | Requires Attention shows Portfolio and Data as empty at Q2 2026 because nothing moved at those levels. Nothing is invented to fill a filter. |
 
 ### data-builder
 
@@ -80,9 +80,9 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/early-warning/lab` | Administrator | The signal's specification, weights and out-of-time backtest. Model internals are labelled technical. | `early-warning` (15) | - | ADMIN pass | OK | - | - |
-| `/early-warning` | Administrator, Analyst | The Forward Risk Signal: which facilities are deteriorating and what is driving each score. | `early-warning` (15) | 3 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/early-warning/signals` | Administrator, Analyst | The governed early-warning taxonomy, borrower by borrower: which named conditions fire, in which families, with the threshold each crossed and who owns it. Deliberately carries no score, and names both what could not be tested and what this deployment cannot watch for at all. | `early-warning` (15) | 1 file(s) | - | OK | - | - |
+| `/early-warning/lab` | Administrator | The signal's specification, weights and out-of-time backtest. Model internals are labelled technical. | `early-warning` (17) | - | ADMIN pass | OK | - | - |
+| `/early-warning` | Administrator, Analyst | The Forward Risk Signal: which facilities are deteriorating and what is driving each score. | `early-warning` (17) | 4 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/early-warning/signals` | Administrator, Analyst | The governed early-warning taxonomy, borrower by borrower: which named conditions fire, in which families, with the threshold each crossed and who owns it. Deliberately carries no score, and names both what could not be tested and what this deployment cannot watch for at all. | `early-warning` (17) | 1 file(s) | - | OK | - | - |
 
 ### engine-builder
 
@@ -108,11 +108,19 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 | `/lenses/cro` | Administrator, Analyst | The CRO Lens: the executive story. | `lenses` (9) | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 | `/lenses` | any signed-in role | Saved dashboards of governed analyses. | `lenses` (9) | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | PARTIAL | A Viewer sees the Lenses link and gets a dashboard of refusals: every tile runs an analysis and running one requires an Analyst. | The permission is deliberate; the invitation is the rough edge. Sign in as Analyst or Administrator. |
 
+### playbook
+
+| Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
+|---|---|---|---|---|---|---|---|---|
+| `/playbook/[id]` | any signed-in role | One workspace: its conversation, its parsed sources with what was and was not read of each, and every artifact version with its files. | `playbook` (14) | 5 file(s) | - | PARTIAL | - | New generation needs a configured provider; the history and every generated file reopen without one. |
+| `/playbook/library` | any signed-in role | Every analysis explicitly exported to Playbook, searchable and previewable in full. Nothing appears here that was not exported. | `playbook` (14) | - | - | OK | - | - |
+| `/playbook` | any signed-in role | Create and refine reports, presentations and workbooks by describing what you want, from uploaded documents and from analyses explicitly exported here. Composer, quick prompts, recent workspaces, then the exported-analysis library. | `playbook` (14) | 5 file(s) | - | PARTIAL | - | Generation needs a configured provider. Without one the seeded workspaces, their sources and their Word, PDF and PowerPoint files stay readable and the composer says so rather than offering a control that fails. |
+
 ### playbooks
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/playbooks` | any signed-in role | Saved sequences of governed analyses. | `playbooks` (8) | - | ADMIN pass, ANALYST pass, VIEWER pass | PARTIAL | - | Manual and on-publication triggers run; scheduled triggers are not wired to a scheduler. |
+| `/playbooks` | any signed-in role | Saved sequences of governed analyses. | `playbooks` (8) | 1 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | PARTIAL | - | Manual and on-publication triggers run; scheduled triggers are not wired to a scheduler. |
 
 ### projects
 
@@ -186,17 +194,17 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `ai` | 6 |
 | `analyses` | 7 |
 | `analysis-runs` | 3 |
-| `ask` | 7 |
+| `ask` | 8 |
 | `auth` | 3 |
 | `brain` | 24 |
 | `build` | 1 |
 | `catalog` | 1 |
 | `continuous-learning` | 14 |
-| `corporate` | 16 |
+| `corporate` | 17 |
 | `data-builder` | 51 |
 | `demo` | 1 |
 | `domain-intelligence` | 3 |
-| `early-warning` | 15 |
+| `early-warning` | 17 |
 | `engine` | 7 |
 | `feedback` | 11 |
 | `health` | 1 |
@@ -204,6 +212,8 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `investigations` | 16 |
 | `learning` | 24 |
 | `lenses` | 9 |
+| `metadata` | 6 |
+| `playbook` | 14 |
 | `playbooks` | 8 |
 | `projects` | 7 |
 | `readiness` | 1 |
