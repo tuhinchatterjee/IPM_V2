@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,8 +15,8 @@ import {
 } from "@/lib/api";
 import { money } from "@/lib/format";
 import { useAsync } from "@/lib/hooks";
-import { borrower360Href } from "@/lib/borrower-link";
-import Link from "next/link";
+import { BorrowerDrilldown } from "@/components/early-warning/borrower-drilldown";
+import { InterpretationPanel } from "@/components/early-warning/interpretation-panel";
 
 /**
  * Early Warning V2 — the consolidated portfolio view.
@@ -49,6 +50,40 @@ function BandBadge({ band }: { band: string }) {
   );
 }
 
+/**
+ * Selection state lives in the URL query string (`?band=&segment=&customer=`)
+ * — the same convention the legacy Early Warning screen already proves out
+ * with `?facility=`. That is what lets Back, Forward and a shared link carry
+ * a reader from the portfolio into a band, into a segment, into a borrower,
+ * and back out again, with no bespoke history machinery of its own.
+ */
+function useUrlSelection() {
+  const query = useSearchParams();
+  const [state, setState] = React.useState(() => ({
+    band: query.get("band"),
+    segment: query.get("segment"),
+    customer: query.get("customer"),
+  }));
+
+  const patch = React.useCallback(
+    (next: Partial<{ band: string | null; segment: string | null; customer: string | null }>) => {
+      setState((current) => {
+        const merged = { ...current, ...next };
+        const url = new URL(window.location.href);
+        (["band", "segment", "customer"] as const).forEach((key) => {
+          if (merged[key]) url.searchParams.set(key, merged[key]!);
+          else url.searchParams.delete(key);
+        });
+        window.history.replaceState(window.history.state, "", url);
+        return merged;
+      });
+    },
+    [],
+  );
+
+  return { ...state, patch };
+}
+
 export function EarlyWarningV2Portfolio() {
   const overview = useAsync<EarlyWarningV2Overview>(
     () => api.earlyWarningV2Overview(),
@@ -58,7 +93,8 @@ export function EarlyWarningV2Portfolio() {
     () => api.earlyWarningV2Segments(),
     [],
   );
-  const [filterBand, setFilterBand] = React.useState<string | null>(null);
+  const selection = useUrlSelection();
+  const filterBand = selection.band;
 
   if (overview.loading) {
     return <Skeleton className="h-96 w-full" />;
@@ -123,7 +159,7 @@ export function EarlyWarningV2Portfolio() {
             key={band.band}
             type="button"
             onClick={() =>
-              setFilterBand((current) => (current === band.band ? null : band.band))
+              selection.patch({ band: filterBand === band.band ? null : band.band })
             }
             className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
               filterBand === band.band
@@ -141,6 +177,10 @@ export function EarlyWarningV2Portfolio() {
           </button>
         ))}
       </div>
+
+      {filterBand && (
+        <InterpretationPanel band={filterBand} label={`${BAND_LABEL[filterBand]} risk`} />
+      )}
 
       <Card>
         <CardHeader>
@@ -164,15 +204,18 @@ export function EarlyWarningV2Portfolio() {
             </thead>
             <tbody>
               {filteredRows.map((row: EarlyWarningV2BorrowerRow) => (
-                <tr key={row.customer_id} className="border-b border-border/60">
-                  <td className="py-1.5 pr-3">
-                    <Link
-                      href={borrower360Href(row.customer_id)}
-                      className="font-medium text-accent hover:underline"
-                    >
-                      {row.customer_name}
-                    </Link>
-                  </td>
+                <tr
+                  key={row.customer_id}
+                  className={`cursor-pointer border-b border-border/60 hover:bg-surface-hover ${
+                    selection.customer === row.customer_id ? "bg-accent-muted/40" : ""
+                  }`}
+                  onClick={() =>
+                    selection.patch({
+                      customer: selection.customer === row.customer_id ? null : row.customer_id,
+                    })
+                  }
+                >
+                  <td className="py-1.5 pr-3 font-medium text-accent">{row.customer_name}</td>
                   <td className="py-1.5 pr-3 text-text-secondary">{row.segment}</td>
                   <td className="py-1.5 pr-3">{money(row.exposure)}</td>
                   <td className="py-1.5 pr-3">{row.dpd}</td>
@@ -203,6 +246,13 @@ export function EarlyWarningV2Portfolio() {
         </CardContent>
       </Card>
 
+      {selection.customer && (
+        <BorrowerDrilldown
+          customerId={selection.customer}
+          onClose={() => selection.patch({ customer: null })}
+        />
+      )}
+
       {segments.data && (
         <Card>
           <CardHeader>
@@ -221,7 +271,17 @@ export function EarlyWarningV2Portfolio() {
               </thead>
               <tbody>
                 {segments.data.segments.map((seg) => (
-                  <tr key={seg.segment} className="border-b border-border/60">
+                  <tr
+                    key={seg.segment}
+                    className={`cursor-pointer border-b border-border/60 hover:bg-surface-hover ${
+                      selection.segment === seg.segment ? "bg-accent-muted/40" : ""
+                    }`}
+                    onClick={() =>
+                      selection.patch({
+                        segment: selection.segment === seg.segment ? null : seg.segment,
+                      })
+                    }
+                  >
                     <td className="py-1.5 pr-3 font-medium">{seg.segment}</td>
                     <td className="py-1.5 pr-3">{seg.borrower_count}</td>
                     <td className="py-1.5 pr-3">{money(seg.exposure)}</td>
@@ -233,6 +293,10 @@ export function EarlyWarningV2Portfolio() {
             </table>
           </CardContent>
         </Card>
+      )}
+
+      {selection.segment && (
+        <InterpretationPanel segment={selection.segment} label={selection.segment} />
       )}
     </div>
   );

@@ -3338,6 +3338,43 @@ export interface EarlyWarningV2BorrowerDetail {
   fired_signals: { signal_key: string; signal_score: number; causal_chain_id: string }[];
 }
 
+export interface EarlyWarningV2SignalRow {
+  signal_key: string;
+  signal_score: number;
+  causal_chain_id: string;
+}
+
+export interface EarlyWarningV2SubCategoryNode {
+  code: string;
+  name: string;
+  score: number;
+  band: string;
+  reason: string;
+  signals: EarlyWarningV2SignalRow[];
+}
+
+export interface EarlyWarningV2LayerNode {
+  layer: string;
+  ta_score?: number;
+  c_score?: number;
+  sub_categories: EarlyWarningV2SubCategoryNode[];
+}
+
+export interface EarlyWarningV2ExternalEvent {
+  trigger_code?: string;
+  event_date?: string;
+  source_tier?: number;
+  scenario_status?: string;
+  [key: string]: unknown;
+}
+
+export interface EarlyWarningV2BorrowerTree {
+  customer_id: string;
+  period: string;
+  tree: EarlyWarningV2LayerNode[];
+  external_events: EarlyWarningV2ExternalEvent[];
+}
+
 export interface EarlyWarningV2Methodology {
   methodology_version: string;
   layers: { code: string; name: string }[];
@@ -4394,13 +4431,21 @@ export const api = {
     request<EarlyWarningV2Segments>(
       `/early-warning/v2/segments${period ? `?period=${encodeURIComponent(period)}` : ""}`,
     ),
-  earlyWarningV2Diagnose: (period?: string) =>
-    request<EarlyWarningV2Diagnosis>(
-      `/early-warning/v2/diagnose${period ? `?period=${encodeURIComponent(period)}` : ""}`,
-    ),
+  earlyWarningV2Diagnose: (opts: { period?: string; band?: string; segment?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (opts.period) query.set("period", opts.period);
+    if (opts.band) query.set("band", opts.band);
+    if (opts.segment) query.set("segment", opts.segment);
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<EarlyWarningV2Diagnosis>(`/early-warning/v2/diagnose${suffix}`);
+  },
   earlyWarningV2Borrower: (customerId: string) =>
     request<EarlyWarningV2BorrowerDetail>(
       `/early-warning/v2/borrower/${encodeURIComponent(customerId)}`,
+    ),
+  earlyWarningV2BorrowerTree: (customerId: string) =>
+    request<EarlyWarningV2BorrowerTree>(
+      `/early-warning/v2/borrower/${encodeURIComponent(customerId)}/tree`,
     ),
   earlyWarningV2Methodology: () =>
     request<EarlyWarningV2Methodology>("/early-warning/v2/methodology"),
@@ -4522,12 +4567,15 @@ export const api = {
       projectId?: number;
       includeArchived?: boolean;
       scope?: "standalone" | "project" | "all";
+      /** Narrow to threads locked to this governed domain (e.g. "early_warning"). */
+      domain?: string;
     } = {},
   ) => {
     const query = new URLSearchParams();
     if (opts.projectId !== undefined)
       query.set("project_id", String(opts.projectId));
     if (opts.scope) query.set("scope", opts.scope);
+    if (opts.domain) query.set("domain", opts.domain);
     if (opts.includeArchived) query.set("include_archived", "true");
     const suffix = query.toString() ? `?${query}` : "";
     return request<{ investigations: ThreadSummary[] }>(
@@ -4542,6 +4590,9 @@ export const api = {
     ask?: boolean;
     fromPeriod?: string;
     toPeriod?: string;
+    /** Seeds the thread's stored context — {domain: "early_warning"} locks
+     * every turn of this thread to that domain's own datasets. */
+    context?: Record<string, unknown>;
   }) =>
     request<ThreadTurn>("/investigations", {
       method: "POST",
@@ -4552,6 +4603,7 @@ export const api = {
         ask: payload.ask ?? true,
         from_period: payload.fromPeriod ?? null,
         to_period: payload.toPeriod ?? null,
+        context: payload.context ?? {},
       }),
       timeoutMs: 120_000,
     }),

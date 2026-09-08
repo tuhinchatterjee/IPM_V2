@@ -232,6 +232,14 @@ def list_threads(project_id: int | None = None, owner_id: int | None = None,
                          "all: everything."
                      ),
                  ),
+                 domain: str | None = Query(
+                     default=None,
+                     description=(
+                         "Narrow to threads locked to this governed domain "
+                         "(e.g. early_warning) — an additional view onto the "
+                         "same rows, not a separate store."
+                     ),
+                 ),
                  limit: int = Query(default=50, ge=1, le=200)) -> dict:
     """Investigations, scoped.
 
@@ -243,7 +251,7 @@ def list_threads(project_id: int | None = None, owner_id: int | None = None,
     try:
         return {"investigations": th.listing(
             project_id=project_id, owner_id=owner_id, scope=scope,
-            include_archived=include_archived, limit=limit,
+            include_archived=include_archived, domain=domain, limit=limit,
         ), "scope": scope}
     except ValueError as e:
         raise _refused(e, "invalid_scope") from e

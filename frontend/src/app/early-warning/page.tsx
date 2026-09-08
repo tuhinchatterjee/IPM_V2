@@ -6,6 +6,7 @@ import * as React from "react";
 import {
   ChevronDown,
   FlaskConical,
+  MessageSquare,
   Radar,
   Sparkles,
   TriangleAlert,
@@ -84,11 +85,13 @@ function EarlyWarning() {
     <div className="space-y-7">
       <PageHeader
         title="Early Warning"
-        description="Four intelligence layers, 123 governed signals, 35 classifiers and 67 dynamic triggers, scored against the CreditProbe Early Warning Framework Version 2 workbook: what is happening now (Trigger &amp; Accelerator), read in the context of how vulnerable the borrower structurally is (Classifier), producing one explainable score."
+        description="Four intelligence layers, 123 governed signals, 23 classifiers and 67 dynamic triggers, scored against the CreditProbe Early Warning Framework Version 2 workbook: what is happening now (Trigger &amp; Accelerator), read in the context of how vulnerable the borrower structurally is (Classifier), combined through a published anchor matrix and five governance notches into one explainable score."
         status="live"
       />
 
       <EarlyWarningV2Portfolio />
+
+      <RecentEarlyWarningInvestigations />
 
       <details className="rounded-lg border border-border">
         <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-text-secondary hover:text-text-primary">
@@ -165,6 +168,67 @@ function EarlyWarning() {
         </div>
       </details>
     </div>
+  );
+}
+
+/* ---------------------------------------------------- recent investigations */
+
+/**
+ * Recent Early Warning Investigations.
+ *
+ * Mirrors the Cockpit's own "Continue where you left off" panel
+ * (`app/page.tsx`), narrowed server-side to threads whose stored context
+ * locked them to the Early Warning domain — an additional, domain-scoped
+ * view onto the same rows, not a separate store: a saved Early Warning
+ * investigation still appears in the general Investigations list too.
+ */
+function RecentEarlyWarningInvestigations() {
+  const threads = useAsync(
+    () => api.threads({ scope: "all", domain: "early_warning" }),
+    [],
+  );
+  const items = threads.data?.investigations ?? [];
+
+  if (!threads.loading && items.length === 0) return null;
+
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h2 className="meta text-text-muted">Recent Early Warning Investigations</h2>
+        {items.length > 0 && (
+          <Link
+            href="/investigations"
+            className="text-[11px] text-text-muted underline-offset-4 hover:text-accent hover:underline"
+          >
+            All investigations
+          </Link>
+        )}
+      </div>
+      {threads.loading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : (
+        <Card className="divide-y divide-border">
+          {items.slice(0, 6).map((thread) => (
+            <Link
+              key={thread.id}
+              href={`/investigations/${thread.id}`}
+              className="group flex items-baseline gap-3 px-4 py-2.5 transition-colors hover:bg-surface-hover"
+            >
+              <MessageSquare
+                className="size-3.5 shrink-0 text-text-muted"
+                aria-hidden
+              />
+              <span className="min-w-0 flex-1 truncate text-[13px] text-text-secondary group-hover:text-text-primary">
+                {thread.title}
+              </span>
+              <span className="mono shrink-0 text-[10px] text-text-muted">
+                {thread.message_count}
+              </span>
+            </Link>
+          ))}
+        </Card>
+      )}
+    </section>
   );
 }
 

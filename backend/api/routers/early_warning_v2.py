@@ -214,19 +214,31 @@ def segments(period: str | None = Query(None),
         raise _not_built(exc)
 
 
-@router.get("/diagnose", summary="Descriptive driver diagnosis over the high-risk population")
+_EWS_BANDS = ("VERY_LOW", "LOW", "MEDIUM", "HIGH", "VERY_HIGH")
+
+
+@router.get("/diagnose", summary="Descriptive driver diagnosis over a selected population")
 def diagnose(period: str | None = Query(None), band: str = Query("HIGH_PLUS"),
+             segment: str | None = Query(None),
              principal: Principal = RequireEarlyWarningView) -> dict:
-    """Descriptive, not predictive (spec Section AO): what the current
-    high-risk population has in common. Never used as approval/decline
-    logic."""
+    """Descriptive, not predictive (spec Section AO): what a selected
+    population has in common — the whole book, one exact band, the
+    HIGH-or-worse population, or one segment (composable with a band).
+    Never used as approval/decline logic."""
     try:
         bm = svc.borrower_month(period)
     except EarlyWarningDataNotBuilt as exc:
         raise _not_built(exc)
     if bm.empty:
         return {"population": 0, "drivers": [], "note": "descriptive only, not predictive"}
-    pop = bm[bm["ews_band"].isin(("HIGH", "VERY_HIGH"))] if band == "HIGH_PLUS" else bm
+    if band == "HIGH_PLUS":
+        pop = bm[bm["ews_band"].isin(("HIGH", "VERY_HIGH"))]
+    elif band in _EWS_BANDS:
+        pop = bm[bm["ews_band"] == band]
+    else:
+        pop = bm
+    if segment:
+        pop = pop[pop["segment"] == segment]
     if pop.empty:
         return {"population": 0, "drivers": [], "note": "descriptive only, not predictive"}
     driver_counts = pop["dominant_driver"].dropna().value_counts().head(10)
