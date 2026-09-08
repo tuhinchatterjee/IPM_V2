@@ -33,6 +33,12 @@ GENERATOR_VERSION = "creditprobe-exports/1.0"
 
 RESULTS = "results"
 CALCULATION_PACK = "calculation_pack"
+#: A Playbook evidence snapshot. Not a workbook — no bytes are produced and
+#: nothing leaves the product. It carries what the analysis already shows,
+#: into a workspace inside the same tenant, so it takes the same
+#: authorization bar as the Results Workbook and not the stronger one the
+#: Full Calculation Pack takes.
+PLAYBOOK_SNAPSHOT = "playbook_snapshot"
 
 XLSX_MIME = (
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

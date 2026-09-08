@@ -7,6 +7,8 @@ read through the Data Access Layer (docs/ARCHITECTURE.md §4.1).
 
   platform.py   projects, chats, analysis runs, trace graphs, engine and data
                 catalogue definitions, workflow
+  playbook.py   the Playbook workspace: exported-analysis library, workspace
+                threads, sources, artifacts and their immutable versions
 
 The existing backend/db/models.py (dataset versions, users, AI usage) is retained
 unchanged and shares the same declarative Base, so both sets of tables live in one
