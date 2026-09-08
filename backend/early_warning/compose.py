@@ -822,6 +822,27 @@ def borrower_movement(pack: ff.FactPack) -> Composed:
         # the difference between nothing happening and two things cancelling.
         paras.append(f"Of that, {_list_of(parts)}." if change else
                      f"Underneath the unchanged score {_list_of(parts)}.")
+    elif not change:
+        # Nothing moved, and neither component moved either. Saying so is the
+        # useful fact: it separates a genuinely static position from two
+        # things that cancelled, and the two call for different attention.
+        held = f.get("overrides_applied") or []
+        paras.append(
+            f"Neither part moved: the anchor is unchanged at "
+            f"{f.get('anchor_score', 0):.0f} and the notches are unchanged at "
+            f"{f.get('net_notches', 0):+d}. This is a static position rather "
+            f"than two movements that cancelled, so there is nothing recent "
+            f"to investigate — what there is to act on is the level it has "
+            f"been sitting at.")
+        if held:
+            # And where a rule is what holds it there, the rule is the thing
+            # to read: the score cannot come down while it applies, however
+            # the anchor and the notches move underneath it.
+            paras.append(
+                f"The level itself is set by rule rather than by the "
+                f"roll-up: {_list_of(list(held))} "
+                f"{'is' if len(held) == 1 else 'are'} in force. That is what "
+                f"has to stop applying before the score can move at all.")
 
     # An override sets the band by rule, and when one is in force the anchor
     # and the notches do not add up to the movement. Saying "the anchor moved

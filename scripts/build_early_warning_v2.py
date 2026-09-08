@@ -101,10 +101,45 @@ DEFAULT_BORROWER_COUNT = 300
 RANDOM_SEED = 20260630
 DAYS_PER_MONTH = 30
 
-#: 15 months, April 2025 through June 2026 — anchored on this deployment's
-#: own latest quarter (Q2 2026).
-MONTHS: list[pd.Timestamp] = list(pd.date_range("2025-04-30", "2026-06-30", freq="ME"))
-assert len(MONTHS) == 15
+#: The twenty month-ends the domain PUBLISHES, November 2024 through June
+#: 2026 — anchored on this deployment's own latest quarter (Q2 2026).
+VISIBLE_MONTHS: list[pd.Timestamp] = list(
+    pd.date_range("2024-11-30", "2026-06-30", freq="ME"))
+assert len(VISIBLE_MONTHS) == 20
+
+#: How many months are computed BEFORE the first published one.
+#:
+#: Not padding. `trailing_baseline` averages up to twelve prior months and
+#: falls back to the current value when there are none, so the first month of
+#: a cold build compares every borrower against itself and no L1 trigger can
+#: fire on it. The decay clock, the recurrence counter and the
+#: direction-of-travel notch have the same problem: each reads state the build
+#: accumulated, and each is simply absent in month one.
+#:
+#: Twelve months of warm-up means the earliest PUBLISHED month is scored the
+#: same way as every month after it — against a full trailing baseline, with a
+#: decay clock that has been running and a recurrence count that has had time
+#: to count something. The warm-up months are computed and then discarded;
+#: they are never published, so nothing reads a score that was itself produced
+#: from a cold start.
+PRE_HISTORY_MONTHS = 12
+
+#: Every month the build COMPUTES, warm-up first and published last. The
+#: scoring loop walks all of these; only the visible tail is written.
+MONTHS: list[pd.Timestamp] = list(pd.date_range(
+    VISIBLE_MONTHS[0] - pd.DateOffset(months=PRE_HISTORY_MONTHS),
+    VISIBLE_MONTHS[-1], freq="ME"))
+assert MONTHS[-len(VISIBLE_MONTHS):] == VISIBLE_MONTHS
+assert len(MONTHS) == len(VISIBLE_MONTHS) + PRE_HISTORY_MONTHS
+
+#: The published months as `YYYY-MM`, for the write filter and the tests.
+VISIBLE_MONTH_KEYS: frozenset[str] = frozenset(
+    m.strftime("%Y-%m") for m in VISIBLE_MONTHS)
+
+
+def is_published(month: pd.Timestamp) -> bool:
+    """Whether a computed month is one the domain publishes."""
+    return month.strftime("%Y-%m") in VISIBLE_MONTH_KEYS
 
 #: The 28 L3 triggers eligible for synthetic event generation, with a
 #: relative firing weight (rarer for severe events) and a source tier
@@ -749,7 +784,11 @@ def main(argv: list[str] | None = None) -> int:
     full_universe = corp._load(corp.SNAPSHOT)
     universe = load_universe()
     borrower_ids = select_borrowers(universe, args.borrowers)
-    print(f"> {len(borrower_ids)} borrowers selected across {len(MONTHS)} months")
+    print(f"> {len(borrower_ids)} borrowers selected across "
+          f"{len(VISIBLE_MONTHS)} published months "
+          f"({VISIBLE_MONTHS[0]:%Y-%m} to {VISIBLE_MONTHS[-1]:%Y-%m}), "
+          f"computed over {len(MONTHS)} with {PRE_HISTORY_MONTHS} months of "
+          f"warm-up before the first published one")
 
     print("> Computing sector EBITDA margin medians (cross-sectional)")
     sector_medians = build_sector_medians(full_universe)
@@ -815,10 +854,19 @@ def main(argv: list[str] | None = None) -> int:
                 borrower_extra, sector_medians, events_this_month,
             )
             row["snapshot_month"] = month_str
-            borrower_month_rows.append(row)
+            # The warm-up months are scored so the published ones inherit a
+            # real trailing baseline, a running decay clock and a recurrence
+            # count. They are not written: a reader must never see a month
+            # that was itself produced from a cold start.
+            published = is_published(month)
+            if published:
+                borrower_month_rows.append(row)
+            # History feeds the direction-of-travel notch and is accumulated
+            # across the whole computed range, which is the point of the
+            # warm-up.
             ews_history.append(row["ews_score"])
 
-            for f in fired:
+            for f in (fired if published else ()):
                 # The explanation is flattened alongside the score rather than
                 # nested: a reader asking "why is this signal at 80?" is
                 # answered by reading one row, and the report's lineage table

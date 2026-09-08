@@ -490,7 +490,7 @@
   {
    "id": "borrower-partial-name-is-a-question",
    "group": "borrower",
-   "question": "Why is Rawabi flagged?",
+   "question": "Why is {shared_name} flagged?",
    "expect_scope": "ambiguous",
    "must_say": [
     "\\bobligors carry the\\b",
@@ -504,26 +504,26 @@
   {
    "id": "borrower-full-name-resolves",
    "group": "borrower",
-   "question": "Why is Rawabi Group 2 flagged?",
+   "question": "Why is {weakest} flagged?",
    "expect_scope": "borrower",
    "must_say": [
-    "Rawabi Group 2"
+    "{weakest}"
    ],
    "must_not_say": [
     "which one did you mean"
    ],
-   "note": "A reader who typed more was being more specific, and the longer match has to win outright or the extra words are discarded."
+   "note": "A reader who typed the obligor's full name was being more specific, and the longer match has to win outright or the extra words are discarded. The name is substituted from live data: a case that hard-codes a generated name tests the generator, not the resolver."
   },
   {
    "id": "borrower-override-is-declared",
    "group": "borrower",
-   "question": "Did Rawabi Group 2 improve when its score fell?",
+   "question": "Did {overridden} improve when its score fell?",
    "expect_scope": "borrower",
    "must_say": [
     "\\bin force\\b|\\bset by rule\\b"
    ],
    "must_not_say": [],
-   "note": "Where an override sets the band, the anchor and the notches do not sum to the movement. Decomposing it and stopping there presents an incomplete decomposition as a complete one, which is worse than not decomposing it at all."
+   "note": "Where an override sets the band, the anchor and the notches do not sum to the movement. Decomposing it and stopping there presents an incomplete decomposition as a complete one. The obligor is resolved from live data as one that actually carries an override."
   },
   {
    "id": "model-grade-scale-is-the-books-own",

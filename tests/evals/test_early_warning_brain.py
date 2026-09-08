@@ -52,16 +52,64 @@ def _require_the_domain():
 
 
 @pytest.fixture(scope="module")
-def answered():
+def live_names() -> dict[str, str]:
+    """Obligor names resolved from the published data, not hard-coded.
+
+    A case that names a generated obligor tests the generator: rebuild the
+    domain with a different window and the case fails while the behaviour it
+    was written to protect is untouched. So the cases carry placeholders and
+    the harness fills them from whatever the book actually contains.
+    """
+    from collections import Counter
+
+    from backend.early_warning import v2_service as svc
+
+    frame = svc.borrower_month()
+    ordered = frame.sort_values("ews_score", ascending=False)
+
+    # A family name several obligors share, for the ambiguity case.
+    families = Counter(str(n).split()[0] for n in frame["customer_name"])
+    shared = next((name for name, count in families.most_common()
+                   if count > 1), "")
+
+    # An obligor that actually carries an override, for the override case.
+    def has_override(value) -> bool:
+        return bool(str(value or "").strip())
+
+    overridden = next(
+        (str(row.customer_name) for row in ordered.itertuples()
+         if has_override(getattr(row, "overrides_applied", ""))),
+        str(ordered.iloc[0]["customer_name"]))
+
+    return {
+        "weakest": str(ordered.iloc[0]["customer_name"]),
+        "shared_name": shared,
+        "overridden": overridden,
+    }
+
+
+def _filled(text: str, names: dict[str, str], *, as_regex: bool = False) -> str:
+    """Substitute the live names. Escaped when the result is a pattern —
+    an obligor called "Al-Rajhi (Holdings)" would otherwise break its own
+    case with a regex group nobody wrote."""
+    out = str(text or "")
+    for key, value in names.items():
+        out = out.replace("{" + key + "}",
+                          re.escape(value) if as_regex else value)
+    return out
+
+
+@pytest.fixture(scope="module")
+def answered(live_names):
     """Every case answered once, and scored once."""
     from backend.early_warning import ask
     from backend.orchestration import rubric
 
     out = {}
     for case in CASES:
-        answer = ask.answer(case["question"])
-        assessment = (rubric.assess_early_warning(answer,
-                                                  question=case["question"])
+        answer = ask.answer(_filled(case["question"], live_names))
+        assessment = (rubric.assess_early_warning(
+            answer, question=_filled(case["question"], live_names))
                       if answer is not None else None)
         out[case["id"]] = (answer, assessment)
     return out
@@ -137,13 +185,15 @@ def test_the_question_reaches_the_right_facts(answered, case_id):
 
 
 @pytest.mark.parametrize("case_id", IDS)
-def test_the_answer_says_what_this_case_requires(answered, case_id):
+def test_the_answer_says_what_this_case_requires(answered, case_id, request):
     case = _case(case_id)
     answer, _ = answered[case_id]
     if answer is None:
         return
     prose = _prose(answer)
-    for pattern in case.get("must_say") or []:
+    for raw in case.get("must_say") or []:
+        pattern = _filled(raw, request.getfixturevalue("live_names"),
+                          as_regex=True)
         assert re.search(pattern, prose, re.I | re.M), (
             f"{case_id}: nothing matched {pattern!r}. {case['note']}\n"
             f"{prose[:400]}")

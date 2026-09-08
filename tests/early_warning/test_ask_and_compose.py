@@ -224,11 +224,30 @@ def test_a_notch_driven_fall_is_never_called_an_improvement():
 
 
 def test_an_evidence_answer_names_the_source_system(worst):
+    """The system an analyst would go to in order to verify the reading.
+
+    That is the UPSTREAM system — the core portfolio, the ratings feed, the
+    external intelligence feed — not this domain. Early Warning is where the
+    signal was scored; it is not where the observation came from, and telling
+    an analyst to verify a receivable-ageing reading "in Early Warning" sends
+    them to the place that already believes it.
+
+    An earlier version of this test asserted the literal string
+    "early_warning" and passed only because the highest-scoring obligor
+    happened to carry an L3 signal from this domain's own synthetic feed. It
+    was asserting a coincidence.
+    """
     found = ask.answer(f"Show me the evidence behind {worst['customer_name']}.")
     if found.scope != "evidence":
         pytest.skip("no signal fired for this obligor")
     blob = found.composed.direct + " " + found.composed.interpretation
-    assert "early_warning" in blob or "Early Warning" in blob
+    source = str(found.pack.figures.get("source_domain") or "")
+    dataset = str(found.pack.figures.get("source_dataset") or "")
+    assert source, "the observation carries no source system"
+    assert source in blob, (
+        f"the answer does not name {source!r}, which is where an analyst "
+        f"would verify it")
+    assert dataset in blob, "the answer does not name the source dataset"
     assert "half-life" in blob
 
 
