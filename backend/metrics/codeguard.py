@@ -933,9 +933,24 @@ def compiled(code: MetricCode, *, period: str = "") -> tuple[str, list[str], str
         problems: list[str] = []
         for leg, side in ((code.composite.numerator, "numerator"),
                           (code.composite.denominator, "denominator")):
-            if leg is None or leg.formula is None:
+            if leg is None:
                 continue
-            sql, leg_params, why = render(leg.formula, side)
+            formula = leg.formula
+            if formula is None and leg.metric_id:
+                # A leg naming a governed metric still RUNS something, and
+                # "the statement CreditProbe will actually run" is exactly
+                # that metric's own compiled query. Skipping it left the
+                # compiled statement empty for the shape §14 asks the builder
+                # to prefer — a metric assembled entirely out of governed
+                # metrics showed a person no executable statement at all.
+                try:
+                    formula = _resolve_metric(leg.metric_id).formula
+                except Exception as e:  # noqa: BLE001 - reported, not raised
+                    problems.append(f"{side}: {e}")
+                    continue
+            if formula is None:
+                continue
+            sql, leg_params, why = render(formula, side)
             if why:
                 problems.append(f"{side}: {why}")
                 continue

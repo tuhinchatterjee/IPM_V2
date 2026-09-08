@@ -172,15 +172,21 @@ def _features(changes: list[PanelChange], domain: str) -> list[dict[str, Any]]:
     for change in changes:
         if not change.material:
             continue
-        if change.domains and domain not in change.domains:
+        # The metric's own domain decides which story it belongs to. Using
+        # the field-level lineage put every metric that filters on an Early
+        # Warning field and measures a Cockpit one into BOTH lists, which
+        # made §41's corroboration true by construction.
+        belongs = change.primary_domain or (
+            change.domains[0] if change.domains else "")
+        if belongs and belongs != domain:
+            continue
+        if not belongs and domain not in change.domains:
             continue
         name = (change.title or change.metric_id).lower()
         feature = next((label for word, label in vocabulary if word in name),
                        "")
-        if not feature and change.domains == [domain]:
-            feature = "other"
         if not feature:
-            continue
+            feature = "other"
         out.append({
             "feature": feature,
             "metric": change.title or change.metric_id,
@@ -318,7 +324,9 @@ def build(lens: dict[str, Any], rendered: dict[str, Any], current: Refresh,
              "current": _figure(c.current, c.unit, c.decimals),
              **_change_text(c),
              "definition_changed": c.definition_changed,
-             "domains": [domains.LABELS.get(d, d) for d in c.domains]}
+             "domains": [domains.LABELS.get(d, d) for d in c.domains],
+             "belongs_to": domains.LABELS.get(c.primary_domain,
+                                              c.primary_domain)}
             for c in material],
         "source_data_changed": delta.source_changed,
 

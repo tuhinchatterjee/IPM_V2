@@ -163,7 +163,10 @@ class PanelSnapshot:
     metric_definition_version: str = ""
     definition_hash: str = ""
     coverage: dict[str, Any] = field(default_factory=dict)
+    #: Every Lens domain this element's fields touch. The lineage.
     domains: list[str] = field(default_factory=list)
+    #: Which domain's story it belongs to. See lens_domains.primary_domain.
+    primary_domain: str = ""
     series: list[dict[str, Any]] = field(default_factory=list)
     query_version: str = ""
     data_version: str = ""
@@ -180,6 +183,7 @@ class PanelSnapshot:
             "metric_definition_version": self.metric_definition_version,
             "definition_hash": self.definition_hash,
             "coverage": dict(self.coverage), "domains": list(self.domains),
+            "primary_domain": self.primary_domain,
             "series": list(self.series), "query_version": self.query_version,
             "data_version": self.data_version, "status": self.status,
             "diagnostics": dict(self.diagnostics),
@@ -322,11 +326,19 @@ def _row_versions(datasets: list[str], period: str) -> dict[str, str]:
     """A digest of what each dataset actually CONTAINS for this period.
 
     The catalogue's version number changes when a steward republishes a
-    definition. It does not change when the same dataset is reloaded with
-    restated figures, which is exactly the case §21's first two
-    classifications have to tell apart — so the row count and the period list
-    are folded in. Cheap: both are metadata reads DuckDB answers from the
-    Parquet footer, not scans.
+    DEFINITION. It does not change when the same dataset is reloaded with
+    restated figures, and neither does the row count — a restatement that
+    corrects values in place leaves both identical. That is precisely the case
+    §21's first two classifications exist to tell apart, and it is the case
+    that made this function wrong on its first draft: a demonstration that
+    moved 220 facilities from stage 1 to stage 2 was classified NO SOURCE
+    CHANGE, because nothing it looked at had moved.
+
+    So the storage layer is asked directly, through `DataSource.freshness` —
+    a token that changes when the stored data changes and which only the
+    storage layer can produce cheaply. The row count and period list stay
+    beside it, because rows appearing and periods being added are facts worth
+    keeping separately visible.
     """
     from backend.data_access import get_data_source
 
@@ -338,7 +350,11 @@ def _row_versions(datasets: list[str], period: str) -> dict[str, str]:
         try:
             rows = source.row_count(dataset, period or None)
             periods = source.periods(dataset)
-            out[dataset] = _digest({"rows": rows, "periods": periods})
+            stored = ""
+            if hasattr(source, "freshness"):
+                stored = source.freshness(dataset, period or None) or ""
+            out[dataset] = _digest({"rows": rows, "periods": periods,
+                                    "stored": stored})
         except Exception:  # noqa: BLE001 - reported as unknown, not fatal
             out[dataset] = "unknown"
     return out
@@ -390,6 +406,7 @@ def capture(lens: dict[str, Any], rendered: dict[str, Any], *,
                 "available": bool(panel.get("value") is not None),
             },
             domains=list(metric.get("lens_domains") or []),
+            primary_domain=str(metric.get("lens_domain") or ""),
             series=_series_of(panel),
             query_version=str(metric.get("version") or ""),
             status=("succeeded" if status == "succeeded"
@@ -586,6 +603,7 @@ class PanelChange:
     status: str = "succeeded"
     previous_status: str = ""
     domains: list[str] = field(default_factory=list)
+    primary_domain: str = ""
     reporting_period: str = ""
     previous_reporting_period: str = ""
     series_change: list[dict[str, Any]] = field(default_factory=list)
@@ -601,6 +619,7 @@ class PanelChange:
             "definition_changed": self.definition_changed,
             "status": self.status, "previous_status": self.previous_status,
             "domains": list(self.domains),
+            "primary_domain": self.primary_domain,
             "reporting_period": self.reporting_period,
             "previous_reporting_period": self.previous_reporting_period,
             "series_change": list(self.series_change),
@@ -663,6 +682,7 @@ def compare(current: Refresh, comparison: Comparison) -> Delta:
                 title=snapshot.title, unit=snapshot.unit,
                 decimals=snapshot.decimals, current=snapshot.value,
                 status=snapshot.status, domains=list(snapshot.domains),
+                primary_domain=snapshot.primary_domain,
                 reporting_period=snapshot.reporting_period))
         return delta
 
@@ -678,6 +698,7 @@ def compare(current: Refresh, comparison: Comparison) -> Delta:
             title=snapshot.title, unit=snapshot.unit,
             decimals=snapshot.decimals, current=snapshot.value,
             status=snapshot.status, domains=list(snapshot.domains),
+            primary_domain=snapshot.primary_domain,
             reporting_period=snapshot.reporting_period)
         if earlier is None:
             change.note = "Added to this Lens since the previous refresh."

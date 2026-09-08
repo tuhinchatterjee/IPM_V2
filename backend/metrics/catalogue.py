@@ -276,6 +276,22 @@ class MetricDefinition:
                 if self.formula.denominator else ""),
             "domain": self.domain,
             "portfolio": self.portfolio,
+            # Which of the two domains a Lens may read this metric reaches:
+            # cockpit, ews, or both. A FACT about the definition, computed
+            # from the fields it actually names rather than from the library
+            # category it was filed under — see backend.metrics.lens_domains.
+            #
+            # On the panel rather than only in the builder because a refresh
+            # snapshot records it, and a "what changed" reading that cannot
+            # tell a Cockpit movement from an Early Warning one cannot report
+            # the corroboration between them, which is most of its value.
+            "lens_domains": list(_lens_domains(self)),
+            # …and which domain's STORY it belongs to. "Watchlist Exposure"
+            # touches both and IS an Early Warning metric; reporting only the
+            # lineage put every such metric in both domains' change lists and
+            # made "Cockpit and Early Warning moved together" true by
+            # construction.
+            "lens_domain": _primary_domain(self),
             "datasets": list(self.datasets),
             # What one row of the source IS. Any metric is clearer for it, and
             # a COUNT metric is unreadable without it: "Retail Accounts —
@@ -306,6 +322,26 @@ class MetricDefinition:
 
     def to_dict(self, *, catalog: Any = None) -> dict[str, Any]:
         return self.panel(catalog=catalog)
+
+
+def _primary_domain(metric: Any) -> str:
+    try:
+        from backend.metrics import lens_domains
+
+        return lens_domains.primary_domain(metric)
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _lens_domains(metric: Any) -> tuple[str, ...]:
+    """Which Lens domains a metric reads. Imported late to avoid a cycle:
+    `lens_domains` reads metric definitions, and this module defines them."""
+    try:
+        from backend.metrics import lens_domains
+
+        return lens_domains.metric_domains(metric)
+    except Exception:  # noqa: BLE001 - a panel is not worth a crash
+        return ()
 
 
 # ---------------------------------------------------------------------------

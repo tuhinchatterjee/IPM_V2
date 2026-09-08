@@ -279,8 +279,14 @@ def _domains_changed(delta: refresh_mod.Delta | None) -> tuple[bool, bool]:
 
     if delta is None:
         return False, False
-    cockpit = any(domains.COCKPIT in c.domains for c in delta.material_changes)
-    ews = any(domains.EWS in c.domains for c in delta.material_changes)
+    def belongs(change: Any, domain: str) -> bool:
+        primary = change.primary_domain or (
+            change.domains[0] if change.domains else "")
+        return primary == domain if primary else domain in change.domains
+
+    cockpit = any(belongs(c, domains.COCKPIT)
+                  for c in delta.material_changes)
+    ews = any(belongs(c, domains.EWS) for c in delta.material_changes)
     return cockpit, ews
 
 

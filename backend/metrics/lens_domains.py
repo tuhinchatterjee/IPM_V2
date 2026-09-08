@@ -385,6 +385,48 @@ def metric_domains(metric: Any) -> tuple[str, ...]:
     return (mapped,) if mapped else ()
 
 
+def primary_domain(metric: Any) -> str:
+    """Which domain's STORY a metric belongs to, as opposed to which domains
+    its fields touch.
+
+    The two are different and both are needed. "Watchlist Exposure" measures
+    a Cockpit field (`exposure`) filtered by an Early Warning one
+    (`watchlist`), so its LINEAGE is both — which is what the preview and the
+    boundary check want. But it is an Early Warning metric: the watchlist is
+    the point of it, and the exposure is how it is sized.
+
+    Reporting the lineage where the story is wanted made §41's corroboration
+    vacuous: every such metric appeared in both the Cockpit changes and the
+    Early Warning changes, so "the two domains moved together" was true by
+    construction and said nothing. The primary domain is the governed library
+    CATEGORY — a curated statement of what a metric is for — falling back to
+    the lineage where the category says nothing.
+    """
+    # A metric whose every FILTER is an Early Warning field is an Early
+    # Warning metric, whatever category it was filed under. The filter is what
+    # makes it one: "exposure WHERE watchlist" is not a portfolio metric that
+    # happens to mention the watchlist, it is a watchlist metric sized in
+    # exposure.
+    #
+    # Three shipped metrics are in exactly that position — the watchlist rate
+    # and the two risk-appetite breach metrics, all filed under a portfolio
+    # category. Left alone, the watchlist AMOUNT reported as Early Warning and
+    # the watchlist RATE as Cockpit, which is the same movement counted under
+    # two different stories on one screen.
+    filters = [c.field for t in getattr(metric.formula, "terms", ()) or ()
+               for c in (getattr(t, "where", ()) or ()) if c.field]
+    if filters:
+        signal = EWS_FIELDS.get("portfolio_facility", frozenset())
+        if all(f in signal for f in filters):
+            return EWS
+
+    mapped = LIBRARY_DOMAINS.get(getattr(metric, "domain", ""))
+    if mapped:
+        return mapped
+    found = metric_domains(metric)
+    return found[0] if found else ""
+
+
 def metric_permitted(metric: Any) -> bool:
     return bool(metric_domains(metric))
 
@@ -401,5 +443,6 @@ __all__ = [
     "domains_of", "domain_of_field", "permitted", "refusal", "check_datasets",
     "require", "permitted_datasets", "datasets_in",
     "formula_domains", "check_formula", "metric_domains", "metric_permitted",
+    "primary_domain",
     "within_boundary",
 ]
