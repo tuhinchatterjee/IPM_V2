@@ -65,7 +65,12 @@ DEFINITION = "definition"
 #: What is missing, stale or not available.
 DATA_QUALITY = "data_quality"
 
-ALL_OUTPUTS = (ECL_FACTOR_DECOMPOSITION, PD_IMPACT, COMPOSITION,
+#: The question asks the Cockpit to read outside its domain. Answered by
+#: stating the scope, never by reaching for the other domain and never by
+#: pretending the request was not made.
+SCOPE_STATEMENT = "scope_statement"
+
+ALL_OUTPUTS = (SCOPE_STATEMENT, ECL_FACTOR_DECOMPOSITION, PD_IMPACT, COMPOSITION,
                MOVEMENT_BY_DIMENSION, SCENARIO_COMPARISON,
                PARAMETER_PRODUCT_CHECK, RATIO_MOVEMENT, METRIC_HISTORY,
                RATING_REVIEW, COVENANT_REVIEW, COLLATERAL_REVIEW,
@@ -104,7 +109,9 @@ _TOPIC_WORDS: dict[str, tuple[str, ...]] = {
     RATING_REVIEW: ("rating", "downgrade", "upgrade", "notch", "grade",
                     "dscr", "ratio", "ebitda", "leverage", "coverage ratio",
                     "cash generation", "financial", "quick ratio",
-                    "current ratio", "inventory", "stale rating"),
+                    "current ratio", "inventory", "stale rating",
+                    "repayment capacity", "debt service", "creditworth",
+                    "fundamentals"),
     COVENANT_REVIEW: ("covenant", "breach", "breached", "headroom", "waiver",
                       "waived", "threshold", "test date", "cure"),
     COLLATERAL_REVIEW: ("collateral", "security", "secured", "unsecured",
@@ -112,12 +119,18 @@ _TOPIC_WORDS: dict[str, tuple[str, ...]] = {
                         "property", "charge", "lien"),
     STAGE_REVIEW: ("stage 1", "stage 2", "stage 3", "staging", "sicr",
                    "migration", "migrated", "moved from stage",
+                   "changed stage", "change stage", "stage change",
                    "credit-impaired", "credit impaired", "npl",
-                   "non-performing", "default", "write-off", "written off"),
+                   # "default" alone matches "default risk" and "probability
+                   # of default", which are PD questions, not staging ones.
+                   "in default", "defaulted", "default definition",
+                   "non-performing", "write-off", "written off"),
     CONCENTRATION: ("concentration", "concentrated", "connected group",
                     "group exposure", "largest borrowers", "top borrowers",
                     "portfolio composition", "exposure by"),
-    MACRO_DEPENDENCY: ("macro", "macroeconomic", "gdp", "inflation",
+    MACRO_DEPENDENCY: ("macro", "macroeconomic", "economic series",
+                       "economic variable", "drive default risk",
+                       "drives default", "gdp", "inflation",
                        "unemployment", "policy rate", "bond yield",
                        "exchange rate", "property price", "oil price",
                        "industrial production", "household income",
@@ -126,7 +139,9 @@ _TOPIC_WORDS: dict[str, tuple[str, ...]] = {
                           "weighted ecl", "scenario weight", "probability "
                           "weight"),
     DATA_QUALITY: ("missing", "stale", "not available", "unavailable",
-                   "data quality", "gaps", "no statement"),
+                   "data quality", "gaps", "no statement",
+                   "no usable financial", "usable financial statement",
+                   "without a statement", "not been filed"),
 }
 
 _DEFINITION_PATTERNS = (
@@ -135,6 +150,12 @@ _DEFINITION_PATTERNS = (
     re.compile(r"\bwhat does\s+\w+\s+mean\b", re.I),
     re.compile(r"^\s*explain\s+(what\s+)?\w+\s+(is|are|means)\b", re.I),
     re.compile(r"\bin plain english\b", re.I),
+    # "Explain lifetime PD versus twelve-month PD" is a definition request;
+    # "Explain the ECL increase as caused by management fraud" is not, and a
+    # bare `^explain` pattern turned the second into a glossary lookup. So the
+    # bare form must also carry a comparison or a plain-English request.
+    re.compile(r"^\s*explain\b.{0,60}?\b(versus|vs\.?|in plain (english|terms)|"
+               r"in simple terms)\b", re.I),
 )
 
 _NO_CHART = re.compile(
@@ -304,6 +325,14 @@ def read(text: str, *, previous: "Request | None" = None) -> Request:
                       subquestions=_subquestions(utterance),
                       is_followup=previous is not None)
 
+    if re.search(r"\b(scorecard|early warning|ews|playbook|planner|lens(es)?|"
+                 r"what-?if)\b.{0,40}\b(domain|dataset|data|read|show|tell)\b"
+                 r"|\b(read|open|query|access)\b.{0,30}\b(scorecard|early "
+                 r"warning|ews|playbook|planner|lens(es)?)\b", lower):
+        outputs_scope_statement = True
+    else:
+        outputs_scope_statement = False
+
     for pattern, name, note in _LOADED_ASSERTIONS:
         if pattern.search(utterance):
             request.loaded_assertions.append({"assertion": name, "note": note})
@@ -357,11 +386,21 @@ def read(text: str, *, previous: "Request | None" = None) -> Request:
 
     # ---- what is actually being asked for
     outputs: list[str] = []
-    definition_like = (any(p.search(utterance) for p in _DEFINITION_PATTERNS)
-                       and len(utterance) < 220)
+    #: "What is CCF?" is a definition. "What is the allowance at the latest
+    #: quarter and how is it spread across stages?" is not, and treating it as
+    #: one returned a glossary miss instead of a composition. So a definition
+    #: needs BOTH the shape of a definition question and a term the governed
+    #: glossary actually holds.
+    term = _definition_term(utterance)
+    definition_like = (
+        (any(p.search(utterance) for p in _DEFINITION_PATTERNS)
+         or re.search(r"\bexplain\b.{0,30}\bin plain (english|terms)\b", lower)
+         or re.search(r"\bwhat does\b.{0,30}\bmean\b", lower))
+        and len(utterance) < 220
+        and bool(definition(term)[0]))
     if definition_like:
         outputs.append(DEFINITION)
-        request.term = _definition_term(utterance)
+        request.term = term
 
     asks_movement = _contains(lower, _MOVEMENT_WORDS)
     asks_decomposition = _contains(lower, _DECOMPOSITION_WORDS)
@@ -372,24 +411,48 @@ def read(text: str, *, previous: "Request | None" = None) -> Request:
         r"\ballowance\b", lower))
     mentions_factor = _contains(lower, _FACTOR_WORDS)
 
+    #: A question can be about the allowance without using the word. "The book
+    #: shrank after a write-off — did credit quality improve?" and "exposure
+    #: rose but weighted PD fell" are both ECL movement questions.
+    about_the_book = bool(re.search(
+        r"\bcredit quality\b|\bthe book\b|\bwrite-?off\b|\bweighted pd\b|"
+        r"\bwhat moved it\b|\bwhat drove\b|\bunderneath\b", lower))
+
     if mentions_ecl and asks_decomposition and not denies_movement:
         outputs.append(ECL_FACTOR_DECOMPOSITION)
     elif mentions_ecl and asks_movement and not denies_movement:
         outputs.append(ECL_FACTOR_DECOMPOSITION)
+    elif about_the_book and asks_movement and not denies_movement:
+        outputs.append(ECL_FACTOR_DECOMPOSITION)
+
+    # "Did the scenario WEIGHTS change, or the losses inside the scenarios?" is
+    # a factor question: the weights are one of the factor groups.
+    if re.search(r"\bscenario weights?\b.*\b(change|changed|move|moved)\b|"
+                 r"\b(did|have)\b.*\bweights?\b.*\bchange", lower):
+        outputs.append(ECL_FACTOR_DECOMPOSITION)
 
     if re.search(r"\bimpact of pd\b|\bpd (impact|effect|contribution)\b|"
-                 r"\bimpact of the pd\b|\bpd effect\b|\brole of pd\b", lower):
+                 r"\bimpact of the pd\b|\bpd effect\b|\brole of pd\b|"
+                 r"\beffect of (the )?probability of default\b|"
+                 r"\bcontribution of (the )?pd\b|\bquantify the pd\b|"
+                 r"\bhow much (of it )?(was|is) pd\b", lower):
         outputs.append(PD_IMPACT)
         if ECL_FACTOR_DECOMPOSITION not in outputs:
             outputs.append(ECL_FACTOR_DECOMPOSITION)
 
-    if (denies_movement or _contains_word(lower, _COMPOSITION_WORDS)) and mentions_ecl:
+    wants_composition = (
+        (denies_movement or _contains_word(lower, _COMPOSITION_WORDS))
+        and (mentions_ecl or "composition" in lower))
+    if wants_composition:
         if ECL_FACTOR_DECOMPOSITION in outputs and denies_movement:
             outputs.remove(ECL_FACTOR_DECOMPOSITION)
         outputs.append(COMPOSITION)
 
     if re.search(r"\breproduce\b.*\bweighted\b|\bmultiply\w*\b.*\bweighted\b|"
-                 r"\bweighted pd\b.*\bweighted lgd\b", lower):
+                 r"\bweighted pd\b.*\bweighted lgd\b|"
+                 r"\baverag\w+ the parameters?\b|"
+                 r"\bparameters?\b.*\bsame answer as the model\b|"
+                 r"\bshortcut\b.*\bweighted\b", lower):
         outputs.append(PARAMETER_PRODUCT_CHECK)
 
     if re.search(r"\bnpl ratio\b|\bcoverage ratio\b.*\b(rose|fell|change)\b|"
@@ -441,16 +504,44 @@ def read(text: str, *, previous: "Request | None" = None) -> Request:
     if borrower:
         request.entity = borrower.group(1).upper()
 
+    if outputs_scope_statement:
+        outputs.insert(0, SCOPE_STATEMENT)
+
     # ---- deduplicate, preserving the order they were asked in
     seen: set[str] = set()
     request.outputs = [o for o in outputs
                        if not (o in seen or seen.add(o))]
 
-    if not request.outputs:
-        # Nothing matched. Rather than guess, offer the two readings that are
-        # actually different — the current composition and the movement — and
-        # let the user choose. A question with a selected quarter and an
-        # explicit change word never reaches here.
+    # A short definition question gets a definition and nothing else. Brief
+    # A10.46: no irrelevant chart and no full investigation. "What is loss
+    # given default?" was pulling in a staging review because it contains the
+    # word "default".
+    if (DEFINITION in request.outputs and len(utterance) < 140
+            and not re.search(r"\bthen show\b|\band show\b|\bfor (this|the) "
+                              r"(book|portfolio|borrower)\b", lower)):
+        request.outputs = [DEFINITION]
+
+    # A follow-up that only narrows the scope — "only Construction", "now
+    # exclude new facilities", "and the previous quarter?" — INHERITS the
+    # intent of the turn before it. Brief §7.1: the relevant intent is
+    # preserved, incompatible filters are reset, and the new scope is shown.
+    # Without this, "Only Construction." after an ECL decomposition silently
+    # became a composition of Construction, which answers a different question.
+    if previous is not None and not request.outputs and previous.outputs:
+        request.outputs = list(previous.outputs)
+        request.dimension = request.dimension or previous.dimension
+        request.measure = request.measure or previous.measure
+
+    if not request.outputs and not asks_movement:
+        # Nothing matched and nothing suggests a movement. "Give me the
+        # numbers and interpretation" is a request for the current position,
+        # and asking which reading was meant would be asking a question the
+        # visible selection already answers. Brief §7.1.
+        request.outputs = [COMPOSITION]
+    elif not request.outputs:
+        # A change is asked about but the subject did not resolve. Here the two
+        # readings really are different, so offer both plus free text rather
+        # than guessing.
         request.ambiguities.append({
             "question": ("Would you like the current position, or what has "
                          "changed since the previous quarter?"),
@@ -483,6 +574,28 @@ _TERMS: dict[str, tuple[str, str]] = {
             "horizon is part of the measure: a twelve-month PD and a lifetime "
             "PD are different numbers and this demo never reports one without "
             "saying which it is."),
+    "loss given default": ("Loss given default",
+            "The proportion of exposure expected to be lost if default "
+            "occurs, after recoveries and the cost and timing of realising "
+            "them."),
+    "probability of default": ("Probability of default",
+            "The chance a borrower defaults within a stated horizon. The "
+            "horizon is part of the measure."),
+    "significant increase in credit risk": ("Significant increase in credit risk",
+            "The test that moves an account from Stage 1 to Stage 2. In this "
+            "demo it fires on three or more notches of downgrade since "
+            "origination, a doubling of lifetime PD above an absolute floor, "
+            "or thirty days past due as a backstop."),
+    "exposure at default": ("Exposure at default",
+            "The exposure expected at the moment of default: drawn balance "
+            "plus the credit conversion factor applied to the undrawn "
+            "commitment."),
+    "credit conversion factor": ("Credit conversion factor",
+            "The proportion of an undrawn commitment assumed to be drawn by "
+            "the time a borrower defaults."),
+    "expected credit loss": ("Expected credit loss",
+            "The probability-weighted estimate of credit losses over the "
+            "measurement window."),
     "lgd": ("Loss given default",
             "The proportion of exposure expected to be lost if default "
             "occurs, after recoveries and the cost and timing of realising "
@@ -497,6 +610,16 @@ _TERMS: dict[str, tuple[str, str]] = {
              "demo it fires on three or more notches of downgrade since "
              "origination, a doubling of lifetime PD above an absolute floor, "
              "or thirty days past due as a backstop."),
+    "lifetime pd": ("Lifetime PD",
+            "The cumulative probability of default over the remaining "
+            "measurement window. It is the SUM OF MARGINAL default "
+            "probabilities from the survival recursion, never an annual PD "
+            "multiplied by a number of years, and it exceeds the twelve-month "
+            "PD because it covers a longer window in which default can occur."),
+    "twelve-month pd": ("Twelve-month PD",
+            "The probability of default within the next twelve months. A "
+            "different measure from lifetime PD, and the horizon is part of "
+            "the measure rather than a footnote to it."),
     "lifetime ecl": ("Lifetime ECL",
                      "Expected credit loss measured over the whole remaining "
                      "life of the instrument. Twelve-month ECL restricts the "
@@ -551,7 +674,7 @@ def macro_predictor(text: str) -> str:
     return ""
 
 
-__all__ = ["ALL_OUTPUTS", "COLLATERAL_REVIEW", "COMPOSITION", "CONCENTRATION",
+__all__ = ["ALL_OUTPUTS", "SCOPE_STATEMENT", "COLLATERAL_REVIEW", "COMPOSITION", "CONCENTRATION",
            "COVENANT_REVIEW", "DATA_QUALITY", "DEFINITION",
            "ECL_FACTOR_DECOMPOSITION", "MACRO_DEPENDENCY", "METRIC_HISTORY",
            "MOVEMENT_BY_DIMENSION", "PARAMETER_PRODUCT_CHECK", "PD_IMPACT",

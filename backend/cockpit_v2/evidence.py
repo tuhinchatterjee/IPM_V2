@@ -46,6 +46,21 @@ _ATTRIBUTION = re.compile(
     r"\bunder this decomposition\b|\bcontributed\b|\bcontribution\b|"
     r"\ballocated to\b|\battribut\w+\b|\bthis method assigns\b", re.I)
 
+#: Sentences whose "because" explains the PRODUCT — why a figure is missing,
+#: why a test could not run, why a ratio is not meaningful, which rule applied.
+#: These are statements about data availability and method, not claims about
+#: what happened in the book, and the causal rule must not delete them. Without
+#: this exemption "11 could not be tested because the observed value was not
+#: available" was discarded as an unlicensed cause, which is the opposite of
+#: the honesty the rule exists to enforce.
+_ABOUT_THE_DATA = re.compile(
+    r"\bnot available\b|\bnot meaningful\b|\bcould not be (tested|run|"
+    r"computed|produced)\b|\bno statement\b|\bis reported as\b|"
+    r"\bwas not knowable\b|\bunder the (stated|configured|demo) \w+ "
+    r"(policy|rule|method)\b|\bthe policy\b|\bthis demonstration\b|"
+    r"\bnot loaded\b|\bnot published\b|\bwithheld\b|"
+    r"\bthreshold\b|\bbackstop\b", re.I)
+
 
 @dataclass
 class Observation:
@@ -318,13 +333,26 @@ def validate(text: str, ledger: Ledger, *,
     rather than by the figure check.
     """
     result = Validation(ok=True)
-    known: list[float] = []
+    raw: list[float] = []
     for observation in ledger.observations:
-        known.extend(observation.figures.values())
+        raw.extend(v for v in observation.figures.values()
+                   if isinstance(v, (int, float)) and not isinstance(v, bool))
         for row in observation.rows:
-            known.extend(v for v in row.values()
-                         if isinstance(v, (int, float))
-                         and not isinstance(v, bool))
+            raw.extend(v for v in row.values()
+                       if isinstance(v, (int, float))
+                       and not isinstance(v, bool))
+
+    # A ratio is stored as a fraction and READ as a percentage or as basis
+    # points. "a weight of 0.20" and "weighted at 20%" are the same fact, and
+    # requiring the prose to quote the stored form failed nineteen evaluation
+    # cases for saying "20%" about a figure of 0.2. So each stored fraction
+    # grounds its percentage and basis-point renderings too.
+    known: list[float] = []
+    for value in raw:
+        known.append(value)
+        if abs(value) <= 1.5:
+            known.append(value * 100.0)
+            known.append(value * 10_000.0)
     entities = {e.lower() for e in ledger.entities()}
 
     licensing = [o for o in ledger.observations
@@ -343,7 +371,11 @@ def validate(text: str, ledger: Ledger, *,
                 # percentages of a whole rather than statements about the book.
                 continue
             result.checked_figures += 1
-            if not any(abs(value - candidate)
+            # Magnitudes count. A bridge line of -2.77 is legitimately written
+            # as "removing 2.77", and requiring the sign to match deleted that
+            # whole sentence from the first full-scale answer.
+            if not any(min(abs(value - candidate),
+                           abs(abs(value) - abs(candidate)))
                        <= max(tolerance, abs(candidate) * tolerance)
                        for candidate in known):
                 result.ok = False
@@ -359,7 +391,8 @@ def validate(text: str, ledger: Ledger, *,
                     sentence[:200], "unknown_entity",
                     f"{match.group(1)} does not appear in the evidence"))
 
-        if _CAUSAL.search(sentence) and not _ATTRIBUTION.search(sentence):
+        if (_CAUSAL.search(sentence) and not _ATTRIBUTION.search(sentence)
+                and not _ABOUT_THE_DATA.search(sentence)):
             if licensing:
                 result.licensed_by.extend(
                     o.observation_id for o in licensing

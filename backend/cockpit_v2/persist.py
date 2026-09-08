@@ -66,6 +66,12 @@ def write_lake(build: Build, *, require_flag: bool = True) -> dict[str, Any]:
     from backend.data_access.catalog import reload_catalog
     reload_catalog()
 
+    # A reseed invalidates every rebuilt measurement. The cache key already
+    # carries the dataset checksum, so this is belt and braces rather than the
+    # only thing standing between a new dataset and a stale answer.
+    from backend.cockpit_v2 import reader as reader_mod
+    reader_mod.clear_cache()
+
     return {**manifest, "manifest_path": str(manifest_path),
             "data_version": DATA_VERSION}
 

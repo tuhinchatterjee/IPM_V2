@@ -67,9 +67,17 @@ def money(value: float | None, *, unit: str = AMOUNT_UNIT,
     return f"{value:,.{places}f} {unit}"
 
 
-def pct(value: float | None, places: int = 1) -> str:
+def pct(value: float | None, places: int | None = None) -> str:
+    """A percentage, with enough precision that it is still the same number.
+
+    One decimal place turned a coverage of 0.4598% into "0.5%", which is a
+    different figure from the one in the evidence and was rejected by the claim
+    validator — correctly. Small percentages therefore get two decimals.
+    """
     if value is None:
         return "not available"
+    if places is None:
+        places = 2 if abs(value) < 10 else 1
     return f"{value:.{places}f}%"
 
 
@@ -162,6 +170,59 @@ class Answer:
 
 
 # ------------------------------------------------------------------ helpers
+
+
+def _policy_observation(ledger: ev.Ledger, principal: Any,
+                        quarter: str) -> None:
+    """The governed constants and population counts the prose may quote.
+
+    Policy thresholds — three notches, thirty days past due, ninety days to
+    default, the staleness windows — and the size of the population in scope
+    are FACTS with a source, and an answer that states them is not making an
+    unsupported claim. Before this observation existed the claim validator
+    rejected forty evaluation cases for quoting the SICR notch threshold, which
+    is exactly the kind of correct sentence a grounding check must not delete.
+    """
+    try:
+        snap = reader.snapshot(quarter, principal)
+        population = {
+            "facilities_in_scope": float(len(snap)),
+            "borrowers_in_scope": float(snap["borrower_id"].nunique()),
+            "groups_in_scope": float(snap["group_id"].nunique()),
+            "sectors_in_scope": float(snap["sector"].nunique()),
+        }
+    except Exception:  # noqa: BLE001 - the policy block still stands
+        population = {}
+
+    ledger.add(ev.Observation(
+        observation_id="obs-policy-1", tool="get_policy_definition",
+        scope="the governed demonstration policy set", unit="policy units",
+        reporting_date=cal.iso(quarter), policy_version=POLICY_VERSION,
+        model_version=MODEL_VERSION, data_version=DATA_VERSION,
+        figures={
+            "sicr_notch_threshold": float(policy.SICR_NOTCH_THRESHOLD),
+            "sicr_relative_pd_increase": float(policy.SICR_RELATIVE_PD_INCREASE),
+            "sicr_absolute_pd_floor_pct": policy.SICR_ABSOLUTE_PD_FLOOR * 100.0,
+            "sicr_dpd_backstop": float(policy.SICR_DPD_BACKSTOP),
+            "default_dpd": float(policy.DEFAULT_DPD),
+            "covenant_cure_days": float(policy.COVENANT_CURE_DAYS),
+            "stale_valuation_days": float(policy.STALE_VALUATION_DAYS),
+            "stale_statement_days": float(policy.STALE_STATEMENT_DAYS),
+            "stale_rating_days": float(policy.STALE_RATING_DAYS),
+            "macro_predictor_count": float(len(policy.MACRO_PREDICTORS)),
+            "scenario_count": float(len(policy.SCENARIOS)),
+            "impaired_recovery_lag_years": policy.IMPAIRED_RECOVERY_LAG_YEARS,
+            **{f"scenario_weight_{k}": v
+               for k, v in policy.SCENARIO_WEIGHT.items()},
+            **population},
+        rows=[{"policy": "SICR notch threshold",
+               "value": policy.SICR_NOTCH_THRESHOLD, "unit": "notches"},
+              {"policy": "Past-due backstop",
+               "value": policy.SICR_DPD_BACKSTOP, "unit": "days"},
+              {"policy": "Default definition",
+               "value": policy.DEFAULT_DPD, "unit": "days"}],
+        rows_total=3,
+        limitations=[policy.SYNTHETIC_ASSUMPTION]))
 
 
 def _apply_filters(frame: pd.DataFrame, filters: dict[str, Any]) -> pd.DataFrame:
@@ -549,7 +610,13 @@ def _composition_section(request: understand_mod.Request, principal: Any,
         reporting_date=cal.iso(quarter), data_version=DATA_VERSION,
         filters=dict(request.filters),
         figures={"reported_ecl": total, "exposure": exposure,
-                 "coverage_pct": (total / exposure * 100) if exposure else 0.0},
+                 "coverage_pct": (total / exposure * 100) if exposure else 0.0,
+                 "facilities": float(len(snap)),
+                 **{f"member_ecl_{r['Member']}": r["Reported ECL"]
+                    for r in rows},
+                 **{f"member_share_{r['Member']}":
+                    (r["Reported ECL"] / total * 100.0) if total else 0.0
+                    for r in rows}},
         entities=sorted({str(r["Member"]) for r in rows}),
         rows=rows, rows_total=len(rows),
         coverage={"facilities": len(snap),
@@ -590,7 +657,7 @@ def _scenario_section(request: understand_mod.Request, principal: Any,
         f"{money(contributions[dominant])}"
         + (f" — the downturn scenario is only "
            f"{weights['downturn']:.0%} likely but its loss is "
-           f"{totals['downturn'] / totals['base']:.1f} times the base case, so "
+           f"{totals['downturn'] / totals['base']:.2f} times the base case, so "
            f"it pulls the weighted figure well above the base scenario"
            if totals.get("base") and totals["downturn"] > totals["base"]
            else "") + ".")
@@ -642,10 +709,44 @@ def _scenario_section(request: understand_mod.Request, principal: Any,
                  "reported_ecl": reported, "naive_parameter_product": naive,
                  "gap": weighted - naive,
                  "downturn_multiple": (totals["downturn"] / totals["base"]
-                                       if totals.get("base") else 0.0)},
+                                       if totals.get("base") else 0.0),
+                 **{f"weight_pct_{s}": weights[s] * 100.0
+                    for s in policy.SCENARIO_IDS}},
         rows=section.table["rows"], rows_total=len(section.table["rows"])))
     present.update({"scenario_ecls", "weights", "weighted_result",
                     "parameter_product_check"})
+    return section
+
+
+def _scope_section(request: understand_mod.Request, principal: Any,
+                   ledger: ev.Ledger, present: set[str]) -> Section:
+    """The question asked the Cockpit to read outside its domain. Brief §3.4."""
+    digest = scope_mod.describe(principal)
+    datasets = digest["scope"]["datasets"]
+    section = Section(understand_mod.SCOPE_STATEMENT, "Read scope")
+    section.paragraphs.append(
+        f"The Cockpit reads its own certified demonstration domain and "
+        f"nothing else. That is enforced in the backend, as the intersection "
+        f"of this capability scope and your own dataset permissions, so a "
+        f"request cannot widen it — not by naming another domain, not by a "
+        f"flag in the request, and not by an instruction in a data field. "
+        f"The {len(datasets)} dataset(s) readable here are "
+        f"{', '.join(datasets[:6])}"
+        f"{' and others in the same domain' if len(datasets) > 6 else ''}. "
+        f"Anything held in Early Warning, Scorecards, Planner, Lenses, "
+        f"Playbook or What-if stays in those features, which have their own "
+        f"access policies that this branch does not change.")
+    section.findings.append(
+        f"Cockpit read scope: {len(datasets)} dataset(s) in {digest['domain']}")
+    section.limitations.append(scope_mod.UNTRUSTED_NOTE)
+    ledger.add(ev.Observation(
+        observation_id="obs-scope-1", tool="describe_scope",
+        scope=digest["domain"], unit="", reporting_date="",
+        data_version=DATA_VERSION,
+        figures={"datasets_in_scope": float(len(datasets))},
+        entities=list(datasets),
+        rows=[{"dataset": name} for name in datasets],
+        rows_total=len(datasets)))
     return section
 
 
@@ -750,8 +851,19 @@ def _macro_section(request: understand_mod.Request, ledger: ev.Ledger,
         scope=sector or "all sectors", unit="log-odds per standard deviation",
         reporting_date="", model_version=policy.MACRO_MODEL_ID,
         policy_version=POLICY_VERSION, data_version=DATA_VERSION,
-        figures={f"coefficient_{s.sector}_{s.predictor}_{s.target}":
-                 s.coefficient for s in (pd_links + lgd_links)},
+        figures={**{f"coefficient_{s.sector}_{s.predictor}_{s.target}":
+                    s.coefficient for s in (pd_links + lgd_links)},
+                 "predictors_total": float(len(policy.MACRO_PREDICTORS)),
+                 "predictors_in_pd_model": float(
+                     len({s.predictor for s in pd_links})),
+                 "predictors_in_lgd_model": float(len(lgd_links)),
+                 "predictors_not_in_model": float(
+                     len(policy.MACRO_PREDICTOR_IDS)
+                     - len({s.predictor for s in pd_links})),
+                 "sensitivities_total": float(
+                     len(policy.active_sensitivities())),
+                 "sectors_with_sensitivities": float(
+                     len({s.sector for s in policy.active_sensitivities()}))},
         entities=[s.predictor for s in (pd_links + lgd_links)],
         rows=rows, rows_total=len(rows)))
     present.update({"declared_sensitivities", "model_version"})
@@ -842,6 +954,7 @@ def _covenant_section(request: understand_mod.Request, principal: Any,
         reporting_date=cal.iso(quarter), policy_version=POLICY_VERSION,
         data_version=DATA_VERSION, filters=dict(request.filters),
         figures={"breached": float(len(breached)),
+                 "breached_borrowers": float(breached["borrower_id"].nunique()),
                  "with_valid_waiver": float(len(covered)),
                  "expiring_waiver": float(len(expiring)),
                  "uncovered": float(len(uncovered)),
@@ -882,6 +995,7 @@ def _collateral_section(request: understand_mod.Request, principal: Any,
         f"after allocation across the facilities that share an asset, so a "
         f"property securing three facilities is counted once and not three "
         f"times.")
+    over = allocation.iloc[0:0]
     if shared_assets:
         totals = allocation.groupby("collateral_id").agg(
             allocated=("allocated_recognised_amount", "sum"),
@@ -937,7 +1051,9 @@ def _collateral_section(request: understand_mod.Request, principal: Any,
         reporting_date=cal.iso(quarter), policy_version=POLICY_VERSION,
         data_version=DATA_VERSION, filters=dict(request.filters),
         figures={"exposure": exposure, "secured": secured,
-                 "unsecured": unsecured,
+                 "unsecured": unsecured, "facilities": float(len(snap)),
+                 "allocation_over_allocations": float(len(over))
+                 if shared_assets else 0.0,
                  "unsecured_pct": (unsecured / exposure * 100) if exposure else 0.0,
                  "shared_assets": float(shared_assets),
                  "stale_valuations": float(stale),
@@ -994,7 +1110,13 @@ def _rating_section(request: understand_mod.Request, principal: Any,
                 f"{int(r['rating_notch_change'])} notch(es) to "
                 f"{r['rating_approved_grade']})"
                 for _, r in top.iterrows()) + ".")
-        weak = snap[snap["ratio_dscr"].notna()].nsmallest(5, "ratio_dscr")
+        # Deduplicated to BORROWER grain before ranking. A borrower financial
+        # repeats across that borrower's facility rows, so ranking the rows
+        # listed the same name twice — which is the exact fan-out the semantic
+        # rules forbid, showing up in the prose rather than in a sum.
+        weak = (snap[snap["ratio_dscr"].notna()]
+                .drop_duplicates("borrower_id")
+                .nsmallest(5, "ratio_dscr"))
         if not weak.empty:
             section.paragraphs.append(
                 "On the financial inputs behind those grades, the weakest "
@@ -1004,7 +1126,23 @@ def _rating_section(request: understand_mod.Request, principal: Any,
                             for _, r in weak.iterrows())
                 + ". DSCR here is cash available for debt service over "
                   "scheduled principal plus cash interest, annualised from "
-                  "the latest available statement.")
+                  "the latest available statement, and it is ranked per "
+                  "borrower rather than per facility so a borrower with two "
+                  "facilities is named once.")
+            ledger.add(ev.Observation(
+                observation_id="obs-weakest-dscr-1", tool="rating_review",
+                scope="weakest debt service coverage, per borrower",
+                unit="times", reporting_date=cal.iso(quarter),
+                data_version=DATA_VERSION,
+                figures={f"dscr_{r['borrower_id']}": float(r["ratio_dscr"])
+                         for _, r in weak.iterrows()},
+                entities=sorted(set(weak["borrower_id"].astype(str))),
+                rows=[{"borrower_id": r["borrower_id"],
+                       "dscr": round(float(r["ratio_dscr"]), 4),
+                       "exposure": round(float(r["exposure"]), 4)}
+                      for _, r in weak.iterrows()],
+                rows_total=int(snap["borrower_id"].nunique()),
+                truncated=True))
     else:
         section.paragraphs.append(
             f"No rating downgrade is recorded in this scope"
@@ -1057,6 +1195,32 @@ def _rating_section(request: understand_mod.Request, principal: Any,
             f"date, so their ratios are not available and their grade uses "
             f"the stated policy fallback rather than the model.")
 
+    if not downgrades.empty:
+        merged_rows = downgrades.merge(
+            snap[["facility_id", "exposure", "rating_approved_grade",
+                  "borrower_id"]], on="facility_id", how="left",
+            suffixes=("", "_snap"))
+        ledger.add(ev.Observation(
+            observation_id="obs-rating-movements-1", tool="rating_review",
+            scope="rating movements between the two periods", unit=AMOUNT_UNIT,
+            reporting_date=cal.iso(quarter),
+            comparison_date=(cal.iso(periods["opening"])
+                             if periods.get("available") else ""),
+            data_version=DATA_VERSION,
+            figures={f"downgrade_exposure_{r['facility_id']}":
+                     float(r["exposure"]) for _, r in merged_rows.iterrows()
+                     if pd.notna(r["exposure"])},
+            entities=sorted(set(merged_rows["borrower_id"].astype(str))
+                            | set(merged_rows["facility_id"].astype(str))),
+            rows=[{"facility_id": r["facility_id"],
+                   "borrower_id": r["borrower_id"],
+                   "exposure": (None if pd.isna(r["exposure"])
+                                else round(float(r["exposure"]), 4)),
+                   "notch_change": int(r["rating_notch_change"]),
+                   "grade": r["rating_approved_grade"]}
+                  for _, r in merged_rows.iterrows()],
+            rows_total=len(merged_rows)))
+
     ledger.add(ev.Observation(
         observation_id="obs-ratings-1", tool="rating_review",
         scope=_scope_text(request, quarter, len(snap)), unit=AMOUNT_UNIT,
@@ -1065,6 +1229,11 @@ def _rating_section(request: understand_mod.Request, principal: Any,
         filters=dict(request.filters),
         figures={"downgrades": float(len(downgrades)),
                  "upgrades": float(len(upgrades)),
+                 "downgraded_exposure": (
+                     float(downgrades.merge(
+                         snap[["facility_id", "exposure"]], on="facility_id",
+                         how="left")["exposure"].sum())
+                     if not downgrades.empty else 0.0),
                  "overrides": float(overrides),
                  "stale_statements": float(stale_statements),
                  "missing_statements": float(missing),
@@ -1170,7 +1339,11 @@ def _stage_section(request: understand_mod.Request, principal: Any,
         reporting_date=cal.iso(quarter), policy_version=POLICY_VERSION,
         data_version=DATA_VERSION, filters=dict(request.filters),
         figures={f"stage_{s}": float(counts.get(s, 0)) for s in (1, 2, 3)}
-                | {"transitions": float(len(transitions))},
+                | {"transitions": float(len(transitions)),
+                   "one_notch_accounts": float(len(one_notch)),
+                   "one_notch_in_stage_2": float(
+                       (one_notch["stage"] == 2).sum()) if len(one_notch) else 0.0,
+                   "facilities": float(len(snap))},
         entities=sorted(set(snap["facility_id"].astype(str))),
         rows=rows, rows_total=len(snap), truncated=len(rows) < len(snap)))
     present.update({"population", "reporting_date"})
@@ -1250,6 +1423,14 @@ def _concentration_section(request: understand_mod.Request, principal: Any,
         filters=dict(request.filters),
         figures={"total_exposure": total, "top_five_share":
                  (top5 / total * 100) if total else 0.0,
+                 "largest_group_share_pct": (
+                     float(top_group["exposure"]) / total * 100.0
+                     if top_group is not None and total else 0.0),
+                 "borrowers": float(snap["borrower_id"].nunique()),
+                 "facilities": float(len(snap)),
+                 **{f"sector_share_{r['sector']}":
+                    float(r["exposure"]) / total * 100.0 if total else 0.0
+                    for _, r in by_sector.iterrows()},
                  "largest_group_exposure": float(top_group["exposure"])
                  if top_group is not None else 0.0,
                  "groups": float(len(by_group))},
@@ -1315,8 +1496,12 @@ def _history_section(request: understand_mod.Request, principal: Any,
         method="latest against preceding observations only",
         filters=dict(request.filters),
         figures={"latest": found["latest"] or 0.0,
+                 "prior": found["prior"] or 0.0,
+                 "change": found["change"] or 0.0,
                  "mean": found["mean"] or 0.0,
+                 "std_dev": found["std_dev"] or 0.0,
                  "z_score": found["z_score"] or 0.0,
+                 "comparator_periods": float(found["comparator_periods"]),
                  "observations": float(found["observations"])},
         rows=[{"period": p["period"], "value": p["value"]}
               for p in found["points"]],
@@ -1377,7 +1562,8 @@ def _data_quality_section(request: understand_mod.Request, principal: Any,
         scope=_scope_text(request, quarter, len(snap)), unit="count",
         reporting_date=cal.iso(quarter), data_version=DATA_VERSION,
         filters=dict(request.filters),
-        figures={"missing_statement": float(missing_statement),
+        figures={"facilities": float(len(snap)),
+                 "missing_statement": float(missing_statement),
                  "stale_statement": float(stale_statement),
                  "stale_rating": float(stale_rating),
                  "stale_valuation": float(stale_valuation),
@@ -1523,10 +1709,10 @@ def _ratio_section(request: understand_mod.Request, principal: Any,
     section.paragraphs.append(
         f"{name} moved from {found['opening_ratio'] * 100:.3f}% to "
         f"{found['closing_ratio'] * 100:.3f}%, a change of "
-        f"{found['change_scaled']:+.1f} basis points. Splitting that exactly "
+        f"{found['change_scaled']:+.2f} basis points. Splitting that exactly "
         f"into a numerator and a denominator effect: the numerator "
-        f"contributed {found['numerator_effect_scaled']:+.1f} bp and the "
-        f"denominator {found['denominator_effect_scaled']:+.1f} bp. "
+        f"contributed {found['numerator_effect_scaled']:+.2f} bp and the "
+        f"denominator {found['denominator_effect_scaled']:+.2f} bp. "
         f"{'The numerator did the work' if numerator_bigger else 'The denominator did the work'}"
         f" — the ratio moved mainly because "
         f"{'the numerator changed' if numerator_bigger else 'the book itself changed size'}"
@@ -1565,6 +1751,8 @@ def _ratio_section(request: understand_mod.Request, principal: Any,
         data_version=DATA_VERSION, filters=dict(request.filters),
         figures={"opening_ratio": found["opening_ratio"],
                  "closing_ratio": found["closing_ratio"],
+                 "opening_ratio_pct": found["opening_ratio"] * 100.0,
+                 "closing_ratio_pct": found["closing_ratio"] * 100.0,
                  "change_bp": found["change_scaled"],
                  "numerator_effect_bp": found["numerator_effect_scaled"],
                  "denominator_effect_bp": found["denominator_effect_scaled"],
@@ -1632,7 +1820,9 @@ def _parameter_product_section(request: understand_mod.Request, principal: Any,
         data_version=DATA_VERSION,
         figures={"naive_parameter_product": naive,
                  "weighted_model_ecl": modelled,
-                 "difference": modelled - naive},
+                 "difference": modelled - naive,
+                 "difference_pct": (abs(modelled - naive) / modelled * 100.0
+                                    if modelled else 0.0)},
         rows=section.table["rows"], rows_total=5))
     present.add("parameter_product_check")
     return section
@@ -1729,6 +1919,13 @@ def compose(question: str, principal: Any = None, *,
     answer.scope_note = scope_mod.describe(principal)["domain"]
     present: set[str] = set()
     capabilities: list[str] = []
+    try:
+        _policy_observation(
+            answer.ledger, principal,
+            (request.to_period and cal.parse(request.to_period).label)
+            or reader.latest_quarter(principal))
+    except Exception:  # noqa: BLE001 - an answer without it still validates
+        logger.debug("Cockpit V2 could not add the policy observation")
 
     if request.ambiguities and not request.outputs:
         answer.clarification = request.ambiguities[0]
@@ -1763,6 +1960,9 @@ def compose(question: str, principal: Any = None, *,
                 section = _pd_section(request, found, principal,
                                       answer.ledger, present, periods)
                 capabilities.append("pd_impact")
+            elif output == understand_mod.SCOPE_STATEMENT:
+                section = _scope_section(request, principal, answer.ledger,
+                                         present)
             elif output == understand_mod.DEFINITION:
                 section = _definition_section(request, answer.ledger, present)
                 capabilities.append("definition")

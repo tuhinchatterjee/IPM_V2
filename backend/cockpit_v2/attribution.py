@@ -187,6 +187,34 @@ def _switched(opening: ecl_mod.FacilityMeasurement,
         method=opening.method, model_version=opening.model_version)
 
 
+def _group_moved(opening: ecl_mod.FacilityMeasurement,
+                 closing: ecl_mod.FacilityMeasurement, group: str,
+                 tolerance: float = 1e-15) -> bool:
+    """Whether one factor group's inputs differ between the two dates."""
+    if group == FACTOR_STAGING:
+        return opening.horizon_periods != closing.horizon_periods
+    by_id = {s.scenario_id: s for s in closing.scenarios}
+    attribute = {FACTOR_PD: "hazard", FACTOR_LGD: "lgd", FACTOR_EAD: "ead",
+                 FACTOR_DISCOUNT: "discount"}.get(group)
+    for open_s in opening.scenarios:
+        close_s = by_id.get(open_s.scenario_id)
+        if close_s is None:
+            return True
+        if group == FACTOR_WEIGHTS:
+            if abs(open_s.weight - close_s.weight) > tolerance:
+                return True
+            continue
+        if attribute is None:
+            return True
+        before = getattr(open_s, attribute)
+        after = getattr(close_s, attribute)
+        if len(before) != len(after):
+            return True
+        if any(abs(a - b) > tolerance for a, b in zip(before, after)):
+            return True
+    return False
+
+
 def _shapley_weights(n: int) -> dict[int, float]:
     """`|S|! (n-|S|-1)! / n!` for each subset size, computed once per n."""
     total = math.factorial(n)
@@ -403,7 +431,18 @@ def decompose_ecl_factors(
         def value(subset: frozenset[str], _o=o, _c=c) -> float:
             return ecl_mod.measure(_switched(_o, _c, subset)).weighted_model_ecl
 
-        contributions = shapley_contributions(value, groups)
+        # Only the factor groups whose inputs actually MOVED on this facility
+        # need evaluating. A group identical at both dates has a marginal
+        # contribution of exactly zero in every coalition, so its Shapley value
+        # is zero and — because the coalition function does not depend on it at
+        # all — the values of the remaining groups are exactly what they would
+        # be with it included. This is an exact reduction, not an
+        # approximation, and it takes a typical facility from 64 evaluations to
+        # four or eight. `test_factor_attribution.py` holds the two paths to
+        # the same numbers.
+        moved = tuple(g for g in groups if _group_moved(o, c, g))
+        contributions = {g: 0.0 for g in groups}
+        contributions.update(shapley_contributions(value, moved) if moved else {})
         for g, amount in contributions.items():
             totals[g] += amount
 

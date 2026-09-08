@@ -365,6 +365,19 @@ def create_app() -> FastAPI:
 
     domain_status.install()
 
+    # Cockpit Intelligence V2's governed tools. `install()` returns an empty
+    # list and changes nothing when COCKPIT_INTELLIGENCE_V2 is off, so a
+    # deployment without the switch keeps exactly the tool registry it had.
+    try:
+        from backend.cockpit_v2 import tools as cockpit_v2_tools
+
+        installed = cockpit_v2_tools.install()
+        if installed:
+            logger.info("Cockpit Intelligence V2 is ON; registered %d "
+                        "governed tool(s)", len(installed))
+    except Exception:  # noqa: BLE001 - a partial deployment is not a failure
+        logger.warning("Cockpit V2 tools could not be registered", exc_info=True)
+
     logger.info("CreditProbe API ready (env=%s, cors=%s)", settings.env, list(settings.cors_origins))
     return app
 

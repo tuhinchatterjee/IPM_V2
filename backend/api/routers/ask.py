@@ -59,6 +59,11 @@ class AskIn(BaseModel):
     #: and "no, the movement since last quarter" are different answers to the
     #: same words and neither is served from the other's cache entry.
     clarification: str | None = Field(default=None, max_length=2000)
+    #: The conversation so far, oldest first, as {question, answer}. The client
+    #: holds the transcript and passes it back, which is how a follow-up like
+    #: "only Construction" keeps the intent of the turn before it. Bounded so a
+    #: caller cannot make the request unbounded.
+    turns: list[dict[str, str]] | None = Field(default=None, max_length=12)
 
 
 class ModifyIn(BaseModel):
@@ -209,6 +214,28 @@ def posture() -> dict:
     return analyst_route.posture()
 
 
+@router.get("/cockpit-v2/diagnostics",
+            summary="Which backend and which data the Cockpit is using")
+def cockpit_v2_diagnostics(principal: Principal = RequireAnalyst) -> dict:
+    """The Cockpit V2 diagnostic badge. Brief §1.3.
+
+    Branch, commit, dataset version and checksum, published quarters, the
+    selected default and the isolation state — enough to PROVE which backend
+    and which data the browser is talking to. Paths are reduced to their last
+    two segments and the database appears by NAME; no connection string, no
+    credential and no key is returned.
+    """
+    try:
+        from backend.cockpit_v2 import service as cockpit_v2_service
+
+        return cockpit_v2_service.diagnostics(principal)
+    except Exception as e:  # noqa: BLE001 - the badge is not load-bearing
+        logger.warning("Cockpit V2 diagnostics unavailable: %s", e)
+        return {"cockpit_intelligence_v2": False, "available": False,
+                "reason": "Cockpit Intelligence V2 is not installed in this "
+                          "deployment."}
+
+
 @router.post("/investigate", summary="Investigate a question as an analyst")
 def investigate(payload: AskIn, principal: Principal = RequireAnalyst) -> dict:
     """The analyst path on its own. §2.
@@ -341,6 +368,7 @@ def _cockpit_v2_view(payload: AskIn,
     try:
         return cockpit_v2_service.answer(
             payload.question, principal,
+            turns=[dict(t) for t in (payload.turns or [])],
             clarification=payload.clarification or "",
             to_period=payload.to_period or "",
             from_period=payload.from_period or "")
