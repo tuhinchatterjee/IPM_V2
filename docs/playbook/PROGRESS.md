@@ -172,6 +172,31 @@ substitute for the file — the download stays the authoritative artifact and is
 offered inside the preview — it is how somebody reads version 1 before deciding
 whether to bring it back.
 
+## The task framings, and the document a revision is revising
+
+Two gaps the first pass left. `backend/playbook/prompts.py` carried all six of
+§8's framings — create, update, coverage, propose, edit, present — and nothing
+called them: every instruction went to the author as written. And no request
+ever carried the CURRENT DOCUMENT.
+
+The second is the more serious of the two. A revision that never sees what it
+is revising cannot leave the other sections alone; it can only write them again
+from memory, which is how a scoped edit quietly rewrites a figure three
+sections away. The document now travels with every run against an existing
+artifact, framed so it cannot be mistaken for evidence, and it says plainly
+that anything omitted is deleted.
+
+The framing carries the rules that make one job different from another: return
+the complete document, never soften a negative finding, produce a coverage
+matrix and do not revise the report, propose changes and do not apply them. An
+unknown or absent framing passes the instruction through untouched rather than
+guessing — guessing would apply "return the complete document" to a request
+that was never about a document.
+
+`task` and `scope` are optional on the message API, and the follow-up chips
+carry theirs, so a chip's meaning does not depend on the wording of its
+sentence. Typing over the chip's text clears the framing with it.
+
 ## Next action
 
 M7: the handoff summary. The only outstanding verification is the live

@@ -200,6 +200,29 @@ quantitative claim consistent with the report it came from. Preserve material \
 caveats — on the slide where they fit, in the speaker notes where they do not."""
 
 
+CURRENT_DOCUMENT = """\
+=== CURRENT DOCUMENT (version {version}) ===
+This is the document as it stands. It is the thing you are being asked to \
+change. Return the complete revised document; anything you omit is deleted.
+
+{markdown}
+=== END OF CURRENT DOCUMENT ==="""
+
+
+def current_document(markdown: str, *, version: int) -> str:
+    """The document the request is about, framed so it cannot be mistaken.
+
+    Sent whenever there is one. A revision that never sees the document it is
+    revising cannot leave the other sections alone — it can only write them
+    again from memory, which is how a scoped edit quietly rewrites a figure
+    three sections away.
+    """
+    return CURRENT_DOCUMENT.format(version=version, markdown=markdown)
+
+
+TASKS = ("create", "update", "coverage", "propose", "edit", "present")
+
+
 def task(kind: str, **kwargs: str) -> str:
     return {
         "create": CREATE_WITHOUT_TEMPLATE,

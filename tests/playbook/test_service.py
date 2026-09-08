@@ -326,3 +326,96 @@ class TestRestoringAnEarlierVersion:
         other = repo.Scope(tenant="somebody-else", user_id=None)
         with pytest.raises(repo.NotFound):
             service.restore_version(db, other, first.artifact_id, 1)
+
+
+class TestTheInstructionIsFramedForTheJob:
+    """PB-013, PB-015, PB-017. What actually reaches the author."""
+
+    def test_a_scoped_edit_names_its_scope_and_forbids_the_rest(
+            self, db, scope, workspace, ledger, scripted_author):
+        state = scripted_author(REPORT_MD)
+        service.author_document(
+            db, scope, workspace.id,
+            instruction="Say 'increased' rather than 'deteriorated'.",
+            ledger=ledger, title="IFRS 9 Committee Report",
+            task_kind="edit", task_scope="1. Executive summary")
+
+        prompt = state["last_user"]
+        assert "Revise ONLY the following part" in prompt
+        assert "1. Executive summary" in prompt
+        assert "byte-for-byte unchanged" in prompt
+        assert "Never soften a negative finding" in prompt
+        assert "Say 'increased' rather than 'deteriorated'." in prompt
+
+    def test_a_coverage_check_forbids_writing_the_report(
+            self, db, scope, workspace, ledger, scripted_author):
+        state = scripted_author(REPORT_MD)
+        service.author_document(
+            db, scope, workspace.id,
+            instruction="Check the methodology against the report.",
+            ledger=ledger, title="IFRS 9 Committee Report",
+            task_kind="coverage")
+
+        prompt = state["last_user"]
+        assert "COVERAGE MATRIX ONLY" in prompt
+        assert "Do not write or revise the report" in prompt
+
+    def test_a_proposal_says_propose_and_do_not_apply(
+            self, db, scope, workspace, ledger, scripted_author):
+        state = scripted_author(REPORT_MD)
+        service.author_document(
+            db, scope, workspace.id, instruction="What should change?",
+            ledger=ledger, title="IFRS 9 Committee Report",
+            task_kind="propose")
+
+        prompt = state["last_user"]
+        assert "Propose changes. Do not apply them." in prompt
+
+    def test_a_new_report_is_told_not_to_invent_a_test_it_lacks(
+            self, db, scope, workspace, ledger, scripted_author):
+        state = scripted_author(REPORT_MD)
+        service.author_document(
+            db, scope, workspace.id, instruction="Write it.",
+            ledger=ledger, title="IFRS 9 Committee Report", task_kind="create")
+
+        prompt = state["last_user"]
+        assert "ifrs9 committee report" in prompt
+        assert "Do not describe an absent test as performed" in prompt
+
+    def test_an_unknown_task_passes_the_instruction_through_untouched(
+            self, db, scope, workspace, ledger, scripted_author):
+        state = scripted_author(REPORT_MD)
+        service.author_document(
+            db, scope, workspace.id, instruction="Just do this.",
+            ledger=ledger, title="IFRS 9 Committee Report",
+            task_kind="not-a-task")
+
+        prompt = state["last_user"]
+        assert prompt.startswith("Just do this.")
+        assert "Revise ONLY" not in prompt
+
+    def test_a_revision_is_shown_the_document_it_is_revising(
+            self, db, scope, workspace, ledger, scripted_author):
+        state = scripted_author(REPORT_MD)
+        first = _run(db, scope, workspace, ledger)
+
+        state = scripted_author(REPORT_MD)
+        service.author_document(
+            db, scope, workspace.id, instruction="Reword the summary.",
+            ledger=ledger, title="IFRS 9 Committee Report",
+            task_kind="edit", task_scope="1. Executive summary",
+            artifact_id=first.artifact_id, base_version_id=first.version_id)
+
+        prompt = state["last_user"]
+        assert "CURRENT DOCUMENT (version 1)" in prompt
+        assert "anything you omit is deleted" in prompt
+        # Every section of the document as it stands, not just the one being
+        # revised — that is the point.
+        assert "2. Scenario results" in prompt
+        assert "3. Limitations" in prompt
+
+    def test_a_first_draft_is_not_shown_a_document_that_does_not_exist(
+            self, db, scope, workspace, ledger, scripted_author):
+        state = scripted_author(REPORT_MD)
+        _run(db, scope, workspace, ledger)
+        assert "CURRENT DOCUMENT" not in state["last_user"]

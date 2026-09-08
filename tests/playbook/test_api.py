@@ -518,3 +518,26 @@ class TestReadingAVersionWithoutDownloadingIt:
         assert client.get(
             "/api/v1/playbook/artifacts/99999999/versions/1/preview"
         ).status_code == 404
+
+
+class TestTheTaskFramingOverHTTP:
+    """PB-017. The route accepts a task and its scope."""
+
+    def test_a_task_and_scope_are_accepted(self, client, workspace_id):
+        response = client.post(
+            f"/api/v1/playbook/workspaces/{workspace_id}/messages",
+            json={"text": "Say 'increased' rather than 'deteriorated'.",
+                  "task": "edit", "scope": "1. Executive summary",
+                  "idempotency_key": f"ws{workspace_id}:framed"})
+        # With no provider configured this is a 503, not a 422: the request was
+        # understood and the deployment cannot serve it.
+        assert response.status_code == 503, response.text
+        assert response.json()["detail"]["error"] == "provider_not_configured"
+
+    def test_a_task_longer_than_any_task_name_is_refused(self, client,
+                                                         workspace_id):
+        response = client.post(
+            f"/api/v1/playbook/workspaces/{workspace_id}/messages",
+            json={"text": "Do it.", "task": "x" * 40,
+                  "idempotency_key": f"ws{workspace_id}:long-task"})
+        assert response.status_code == 422

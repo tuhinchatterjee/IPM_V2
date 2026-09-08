@@ -198,6 +198,18 @@ export interface NextStep {
   id: string;
   label: string;
   prompt: string;
+  /**
+   * Which of the backend's task framings this is, when it is one of them.
+   *
+   * "Sharpen the executive summary" and "draft this report" are different jobs
+   * and carry different rules — return the complete document, never soften a
+   * negative finding, propose rather than apply. Sending the framing with the
+   * prompt is what keeps a chip's meaning from depending on the wording of its
+   * sentence.
+   */
+  task?: "create" | "update" | "coverage" | "propose" | "edit" | "present";
+  /** For `edit`: the part of the document that may change. */
+  scope?: string;
 }
 
 /**
@@ -225,6 +237,7 @@ export function nextSteps(workspace: {
         id: "draft",
         label: "Draft the report from these sources",
         prompt: "Draft the report from the attached sources.",
+        task: "create",
       });
     }
     return steps;
@@ -237,6 +250,8 @@ export function nextSteps(workspace: {
       "Sharpen the executive summary: more concise and more direct, in a " +
       "formal committee register. Preserve every figure, caveat and " +
       "conclusion, and change nothing else.",
+    task: "edit",
+    scope: "the executive summary",
   });
 
   const deckIsCurrent = decks.some(
@@ -251,6 +266,7 @@ export function nextSteps(workspace: {
       prompt:
         "Turn the latest version of this report into a committee " +
         "presentation with editable text and tables.",
+      task: "present",
     });
   }
 

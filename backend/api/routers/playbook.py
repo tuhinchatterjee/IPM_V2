@@ -129,6 +129,13 @@ class MessageIn(BaseModel):
     #: Supplied by the client so a refresh or a double-click resolves to the
     #: same job rather than to a second billable generation.
     idempotency_key: str = Field(default="", max_length=120)
+    #: One of §8's task framings — create, update, coverage, propose, edit,
+    #: present. Absent means the instruction travels as written, which is right
+    #: for a request that is not one of those jobs.
+    task: str = Field(default="", max_length=16)
+    #: For `edit`: which part of the document may change. Everything else must
+    #: come back unchanged.
+    scope: str = Field(default="", max_length=200)
 
 
 class DecisionIn(BaseModel):
@@ -369,6 +376,7 @@ def send_message(workspace_id: int, body: MessageIn,
                 artifact_id=body.artifact_id,
                 base_version_id=body.base_version_id,
                 idempotency_key=body.idempotency_key,
+                task_kind=body.task, task_scope=body.scope,
             )
     except repo.NotFound as exc:
         raise _not_found(exc) from exc

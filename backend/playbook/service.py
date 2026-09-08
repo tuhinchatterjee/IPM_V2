@@ -193,9 +193,23 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
                     artifact_id: int | None = None,
                     base_version_id: int | None = None,
                     change_summary: str = "",
+                    task_kind: str = "",
+                    task_scope: str = "",
                     on_milestone=None,
                     is_cancelled=None) -> Outcome:
-    """One complete authoring run, from instruction to persisted version."""
+    """One complete authoring run, from instruction to persisted version.
+
+    `task_kind` selects one of §8's framings — create, update, coverage,
+    propose, edit, present. It is not decoration: "revise the executive summary"
+    and "write this report" are different jobs, and the framing is what carries
+    the rules that make them different (return the complete document; never
+    soften a negative finding; propose, do not apply).
+
+    When the run revises an existing artifact, the CURRENT DOCUMENT travels with
+    the request. A revision that never sees what it is revising cannot leave the
+    other sections alone — it can only write them again from memory, which is
+    how a scoped edit quietly rewrites a figure three sections away.
+    """
     formats = list(formats or DEFAULT_FORMATS)
     for fmt in formats:
         capabilities.require(fmt)
@@ -204,7 +218,12 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
     outcome = Outcome(workspace_id=ws.id)
 
     system = prompts.system(formats=formats)
-    user = "\n\n".join([instruction, ledger.render()])
+    parts = [_framed(task_kind, instruction, task_scope, ws.document_family)]
+    current = _current_document(session, artifact_id)
+    if current is not None:
+        parts.append(prompts.current_document(current[0], version=current[1]))
+    parts.append(ledger.render())
+    user = "\n\n".join(p for p in parts if p)
 
     result = provider.author(
         system=system,
@@ -308,6 +327,42 @@ def _persist(session, scope: repo.Scope, ws, outcome: Outcome, *, title: str,
     outcome.version = version.version
 
 
+def _framed(kind: str, instruction: str, scope: str, family: str) -> str:
+    """The instruction, inside its task framing.
+
+    An unknown or absent kind passes the instruction through untouched rather
+    than guessing at one. Guessing would apply "return the complete document"
+    to a request that was never about a document.
+    """
+    if kind not in prompts.TASKS:
+        return instruction
+    if kind == "edit":
+        return prompts.task("edit", scope=scope or "the section named below",
+                            instruction=instruction)
+    if kind == "create":
+        framing = prompts.task(
+            "create", family=(family or "report").replace("_", " "))
+    else:
+        framing = prompts.task(kind)
+    return f"{framing}\n\n{instruction}" if instruction else framing
+
+
+def _current_document(session, artifact_id: int | None
+                      ) -> tuple[str, int] | None:
+    """The artifact's current version as Markdown, or None if there is none."""
+    if not artifact_id:
+        return None
+    from backend.models.playbook import PlaybookArtifact, PlaybookArtifactVersion
+
+    artifact = session.get(PlaybookArtifact, artifact_id)
+    if artifact is None or artifact.current_version_id is None:
+        return None
+    version = session.get(PlaybookArtifactVersion, artifact.current_version_id)
+    if version is None:
+        return None
+    return _markdown_of(D.Document.from_dict(version.content or {})), version.version
+
+
 def _slug(text: str) -> str:
     keep = [c.lower() if c.isalnum() else "-" for c in (text or "report")]
     slug = "".join(keep)
@@ -334,6 +389,8 @@ def send_message(session, scope: repo.Scope, workspace_id: int, *,
                  artifact_id: int | None = None,
                  base_version_id: int | None = None,
                  idempotency_key: str = "",
+                 task_kind: str = "",
+                 task_scope: str = "",
                  calculations: list | None = None,
                  on_milestone=None,
                  is_cancelled=None) -> dict:
@@ -405,6 +462,7 @@ def send_message(session, scope: repo.Scope, workspace_id: int, *,
             session, scope, ws.id, instruction=text, ledger=ledger,
             title=ws.title, formats=formats, artifact_id=artifact_id,
             base_version_id=base_version_id,
+            task_kind=task_kind, task_scope=task_scope,
             on_milestone=milestone, is_cancelled=is_cancelled)
     except provider.Cancelled as exc:
         job.state = "cancelled"

@@ -4564,6 +4564,10 @@ export const api = {
       artifact_id?: number | null;
       base_version_id?: number | null;
       idempotency_key?: string;
+      /** One of §8's task framings, when the request is one of those jobs. */
+      task?: string;
+      /** For `edit`: the part of the document that may change. */
+      scope?: string;
     },
   ) =>
     // Authoring a report is minutes of work, not seconds, so this carries the

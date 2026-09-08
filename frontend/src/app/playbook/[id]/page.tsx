@@ -74,6 +74,13 @@ export default function PlaybookThreadPage({
   );
 
   const [prompt, setPrompt] = React.useState("");
+  // Which task framing the composer's current text came from, if any. Cleared
+  // as soon as the user types something else, because a framing that outlives
+  // the sentence it belongs to is worse than none.
+  const [task, setTask] = React.useState<{ kind: string; scope: string }>({
+    kind: "",
+    scope: "",
+  });
   const [attachments, setAttachments] = React.useState<Attachment[]>([]);
   const [chosen, setChosen] = React.useState<PbAnalysisCard[]>([]);
   const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
@@ -142,6 +149,8 @@ export default function PlaybookThreadPage({
         text: prompt.trim(),
         source_ids: sourceIds,
         export_revision_ids: chosen.map((c) => c.revision_id),
+        task: task.kind,
+        scope: task.scope,
         artifact_id: report?.id ?? null,
         base_version_id: report?.current_version_id ?? null,
         // Derived from the thread's own length, so pressing send twice or
@@ -149,6 +158,7 @@ export default function PlaybookThreadPage({
         idempotency_key: key,
       });
       setPrompt("");
+      setTask({ kind: "", scope: "" });
       setAttachments([]);
       setChosen([]);
       setPendingFiles([]);
@@ -277,7 +287,13 @@ export default function PlaybookThreadPage({
                   <li key={step.id}>
                     <button
                       type="button"
-                      onClick={() => setPrompt(step.prompt)}
+                      onClick={() => {
+                        setPrompt(step.prompt);
+                        setTask({
+                          kind: step.task ?? "",
+                          scope: step.scope ?? "",
+                        });
+                      }}
                       className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-text-secondary hover:bg-surface-hover"
                     >
                       {step.label}
@@ -301,7 +317,10 @@ export default function PlaybookThreadPage({
           <div className="sticky bottom-0 bg-canvas pb-4 pt-2">
             <Composer
               value={prompt}
-              onChange={setPrompt}
+              onChange={(next) => {
+                setPrompt(next);
+                setTask({ kind: "", scope: "" });
+              }}
               onSend={send}
               attachments={attachments}
               onRemoveAttachment={(key) => {

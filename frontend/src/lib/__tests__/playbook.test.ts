@@ -245,3 +245,31 @@ test("byte sizes are readable", () => {
   assert.equal(formatBytes(2048), "2 KB");
   assert.equal(formatBytes(3 * 1024 * 1024), "3.0 MB");
 });
+
+test("a follow-up chip carries the task framing its sentence belongs to", () => {
+  const steps = nextSteps({
+    sources: [source()],
+    artifacts: [
+      {
+        id: 1,
+        kind: "report",
+        title: "Report",
+        current_version_id: 10,
+        derived_from_artifact_id: null,
+        derived_from_version_id: null,
+        versions: [],
+      },
+    ],
+  });
+  const sharpen = steps.find((s) => s.id === "sharpen");
+  assert.equal(sharpen?.task, "edit");
+  assert.equal(sharpen?.scope, "the executive summary");
+  assert.equal(steps.find((s) => s.id === "present")?.task, "present");
+});
+
+test("a chip that is not one of the task framings does not claim to be", () => {
+  const steps = nextSteps({ sources: [source()], artifacts: [] });
+  const draft = steps.find((s) => s.id === "draft");
+  assert.equal(draft?.task, "create");
+  assert.equal(draft?.scope, undefined);
+});

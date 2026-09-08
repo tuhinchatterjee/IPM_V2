@@ -44,10 +44,10 @@ resulting instruction to a document, and that is the same blocker as PB-015.
 
 | Suite | Command | Result |
 |---|---|---|
-| Playbook backend | `pytest tests/playbook` | **216 passed** |
+| Playbook backend | `pytest tests/playbook` | **269 passed** |
 | Affected backend | `pytest tests/playbook tests/demo tests/api tests/services` | **830 passed** |
 | Full backend | `pytest -q` | see PROGRESS.md |
-| Frontend units | `npm test` | **442 passed, 0 failed** |
+| Frontend units | `npm test` | **444 passed, 0 failed** |
 | Frontend types | `tsc --noEmit` | clean |
 | Frontend lint | `eslint` | clean |
 | Frontend build | `next build` | succeeds; `/playbook`, `/playbook/[id]`, `/playbook/library` emitted |
