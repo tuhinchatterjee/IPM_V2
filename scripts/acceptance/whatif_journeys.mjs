@@ -1,5 +1,5 @@
 /**
- * What-If Analysis — the fifteen browser journeys.
+ * What-If Analysis — the nineteen browser journeys.
  *
  *     node scripts/acceptance/whatif_journeys.mjs [--json]
  *
@@ -640,6 +640,209 @@ async function main() {
         const name = file.suggestedFilename();
         check("named as a workbook", name.endsWith(".xlsx"), name);
         check("and the name carries no path", !/[\\/:]|\.\./.test(name), name);
+      }
+    });
+
+  /* ------------------------ 16. The rating order, as a person reads it */
+  await journey("Journey 16 — Nineteen grades, in order, ending in C",
+    async (page, check) => {
+      await page.goto(`${WEB}/what-if/thread?journey=rating`,
+        { waitUntil: "networkidle" });
+      check("the rating profile opens", await appears(page, "table", 60_000));
+
+      const labels = await page.$$eval("[data-row]",
+        (nodes) => nodes.map((n) => n.getAttribute("data-row")));
+      const expected = ["AAA", "AA+", "AA", "AA-", "A+", "A", "A-",
+                        "BBB+", "BBB", "BBB-", "BB+", "BB", "BB-",
+                        "B+", "B", "B-", "CCC", "CC", "C"];
+      const scale = labels.slice(0, 19);
+      check("the first nineteen rows are the governed scale, in order",
+        JSON.stringify(scale) === JSON.stringify(expected),
+        scale.join(" "));
+      check("the scale ends in C and not in D",
+        scale[18] === "C", scale[18]);
+      check("default follows the scale as its own row",
+        labels[19] === "D", labels[19]);
+      check("the order is not alphabetical",
+        JSON.stringify(scale) !== JSON.stringify([...scale].sort()));
+
+      const matrix = await appears(page, '[data-testid="migration-matrix"]',
+        60_000);
+      check("the rating migration matrix is shown", matrix);
+      if (matrix) {
+        const heads = await page.$$eval(
+          '[data-testid="migration-matrix"] thead th',
+          (nodes) => nodes.map((n) => n.textContent.trim()));
+        const columns = heads.slice(1);
+        check("its columns are the same nineteen grades plus a Total",
+          columns.length === 20 && columns[19] === "Total"
+          && JSON.stringify(columns.slice(0, 19)) === JSON.stringify(expected),
+          `${columns.length} columns: ${columns.join(" ")}`);
+        const rows = await page.$$eval(
+          '[data-testid="migration-matrix"] tbody tr th, ' +
+          '[data-testid="migration-matrix"] tbody tr td:first-child',
+          (nodes) => nodes.map((n) => n.textContent.trim()));
+        check("and its rows use the same order as its columns",
+          JSON.stringify(rows.slice(0, 19)) === JSON.stringify(expected),
+          rows.slice(0, 19).join(" "));
+      }
+    });
+
+  /* --------------- 17. A question about the book, answered in the thread */
+  await journey("Journey 17 — Quick analysis before any shock",
+    async (page, check) => {
+      await page.goto(`${WEB}/what-if/thread?journey=rating`,
+        { waitUntil: "networkidle" });
+      await appears(page, '[data-testid="whatif-composer"]', 60_000);
+
+      // The exact sentence that was redirected to a profile screen in UAT.
+      await say(page, "Can you give me the rating-wise PDs, getting rid of stages?");
+      const answered = await appears(page, '[data-testid="whatif-analysis"]',
+        190_000);
+      check("the question is answered in the thread rather than redirected",
+        answered);
+      if (!answered) return;
+
+      const card = page.locator('[data-testid="whatif-analysis"]').last();
+      const text = await card.textContent();
+      check("the answer is not a redirect to a profile view",
+        !/profile views answer it/i.test(text));
+      check("it names the period it read", /Q[1-4] 20\d\d/.test(text));
+      check("it carries the PD columns that were asked for",
+        text.includes("TTC PD") && text.includes("Lifetime PD")
+        && text.includes("Applicable PD"));
+
+      const rows = await card.locator("[data-row]").count();
+      check("it shows the whole scale", rows >= 19, `${rows} rows`);
+      const first = await card.locator("[data-row]").first()
+        .getAttribute("data-row");
+      check("starting at AAA", first === "AAA", first);
+
+      check("no methodology gate was raised for a question that prices nothing",
+        (await page.locator('button[data-methodology="delta"]').count()) === 0);
+      check("and no result was computed",
+        (await page.locator('[data-testid="whatif-result"]').count()) === 0);
+
+      // A follow-up narrows the table it is looking at.
+      await say(page, "Only show BBB- and weaker.");
+      const narrowed = await appears(page,
+        '[data-testid="whatif-analysis"]', 190_000);
+      check("a follow-up is answered too", narrowed);
+      if (narrowed) {
+        const after = page.locator('[data-testid="whatif-analysis"]').last();
+        const labels = await after.$$eval("[data-row]",
+          (nodes) => nodes.map((n) => n.getAttribute("data-row")));
+        check("and it narrowed rather than starting again",
+          labels.includes("BBB-") && !labels.includes("AAA"),
+          labels.join(" "));
+      }
+
+      // And a question about how far to move something gets magnitudes.
+      await say(page,
+        "I want to stress BBB borrowers but what would be a sensible PD shock?");
+      const suggested = await appears(page,
+        '[data-analysis="suggestion"]', 190_000);
+      check("a question about shock size returns measured magnitudes",
+        suggested);
+      if (suggested) {
+        const said = await page.locator('[data-analysis="suggestion"]')
+          .last().textContent();
+        check("with a severity ladder drawn from the book's own history",
+          said.includes("Typical quarter") && said.includes("Severe"));
+        check("and it says the magnitudes were measured rather than chosen",
+          /percentile|actually done|measured/i.test(said));
+      }
+    });
+
+  /* --------------------------- 18. Sign in, move around, and stay signed in */
+  await journey("Journey 18 — The session holds across the whole product",
+    async (page, check) => {
+      const offline = [];
+      page.on("console", (message) => {
+        const said = message.text();
+        if (/backend did not answer/i.test(said)) offline.push(said);
+      });
+      const banner = async () => {
+        const said = await page.content();
+        return /backend did not answer/i.test(said);
+      };
+
+      await page.goto(`${WEB}/what-if`, { waitUntil: "networkidle" });
+      check("the landing page loads without a backend-offline banner",
+        !(await banner()));
+
+      for (const [label, path] of [
+        ["the rating journey", "/what-if/thread?journey=rating"],
+        ["the parameters journey", "/what-if/thread?journey=parameters"],
+        ["the macro journey", "/what-if/thread?journey=macro"],
+        ["the Delta model page", "/what-if/models/delta"],
+        ["the ML model page", "/what-if/models/ml"],
+      ]) {
+        await page.goto(`${WEB}${path}`, { waitUntil: "networkidle" });
+        await appears(page, "h1", 60_000);
+        check(`${label} loads with the session intact`, !(await banner()));
+      }
+
+      // Back to a thread, then reload mid-thread: the session must survive.
+      await page.goto(`${WEB}/what-if/thread?journey=parameters`,
+        { waitUntil: "networkidle" });
+      await appears(page, '[data-testid="whatif-composer"]', 60_000);
+      await say(page, "Show LGD by sector.");
+      check("a question is answered",
+        await appears(page, '[data-testid="whatif-analysis"]', 190_000));
+      await page.reload({ waitUntil: "networkidle" });
+      check("the page comes back after a reload",
+        await appears(page, '[data-testid="whatif-composer"]', 60_000));
+      check("and still without a backend-offline banner", !(await banner()));
+
+      // The health endpoint is green throughout, which is the point: it was
+      // green during the UAT failure too.
+      const health = await fetch(`${API}/api/v1/health`);
+      check("the health endpoint is 200 throughout", health.status === 200);
+      check("nothing anywhere claimed the backend did not answer",
+        offline.length === 0, offline.slice(0, 2).join(" | "));
+    });
+
+  /* ------------------------------- 19. The export, both methodologies */
+  await journey("Journey 19 — Stage 1 BB PD +10%, exported both ways",
+    async (page, check) => {
+      for (const method of ["ml", "delta"]) {
+        await page.goto(`${WEB}/what-if/thread?journey=parameters`,
+          { waitUntil: "networkidle" });
+        await appears(page, '[data-testid="whatif-composer"]', 60_000);
+        await say(page, "Increase PD for Stage 1 BB rating by 10%");
+
+        const filters = await appears(page, '[data-testid="whatif-thread"]',
+          60_000);
+        check(`${method}: the thread accepted the instruction`, filters);
+        const ran = await chooseMethodology(page, check, method);
+        check(`${method}: the scenario calculated`, ran);
+        if (!ran) continue;
+
+        const said = await page.textContent('[data-testid="whatif-result"]');
+        check(`${method}: the population is Stage 1 and BB`,
+          /BB/.test(said) && /Stage 1/.test(said));
+
+        const button = page.locator('[data-testid="whatif-download-detail"]');
+        check(`${method}: the detailed workbook is offered`,
+          (await button.count()) > 0);
+        if ((await button.count()) === 0) continue;
+
+        const waiting = page.waitForEvent("download", { timeout: 190_000 })
+          .catch(() => null);
+        await button.first().click();
+        const file = await waiting;
+        check(`${method}: the workbook downloads`, Boolean(file));
+        if (file) {
+          check(`${method}: it is named as a workbook`,
+            file.suggestedFilename().endsWith(".xlsx"),
+            file.suggestedFilename());
+        }
+        const page_text = await page.content();
+        check(`${method}: "Check: methodology" never appears`,
+          !/Check:\s*methodology/i.test(page_text));
+        check(`${method}: and no backend-offline banner appears`,
+          !/backend did not answer/i.test(page_text));
       }
     });
 

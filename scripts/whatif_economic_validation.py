@@ -43,6 +43,7 @@ import pandas as pd
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+from backend.corporate import ratingscale as rs  # noqa: E402
 from backend.corporate.ratingscale import ALL_STATES, PERFORMING  # noqa: E402
 from backend.ifrs9 import policy  # noqa: E402
 from backend.whatif import domain as dm  # noqa: E402
@@ -1318,6 +1319,169 @@ def default_logic(review: Review, books: dict[str, pd.DataFrame]) -> None:
 # ---------------------------------------------------------------- the run
 
 
+# =================================== 15. is this a scale a risk person reads?
+
+
+def scale_review(review: Review, latest: pd.DataFrame, period: str) -> None:
+    """The table §42 asks for, printed, and the properties it must show.
+
+    The instruction is "a senior risk professional should see intuitive credit
+    deterioration down the scale", which is a judgement rather than a
+    threshold. So this prints the whole scale — count, exposure, all three PDs,
+    Stage composition, ECL rate — for that judgement to be made on, and asserts
+    only the properties that would make the judgement impossible: the order,
+    the endpoints, and whether risk actually rises.
+    """
+    print("\n== 15. Is this a scale a risk professional would recognise?")
+    g = latest.groupby("internal_rating")
+    rows = []
+    for grade in ALL_STATES:
+        if grade not in g.groups:
+            rows.append((grade, 0, 0.0, float("nan"), float("nan"),
+                         float("nan"), float("nan"), float("nan")))
+            continue
+        part = g.get_group(grade)
+        rows.append((
+            grade, int(len(part)),
+            float(pd.to_numeric(part["ead"], errors="coerce").sum()),
+            _w(part, "ttc_pd_pct"), _w(part, "pit_pd_12m_pct"),
+            _w(part, "pd_lifetime"),
+            float((pd.to_numeric(part["stage"], errors="coerce") >= 2).mean() * 100),
+            _rate(part)))
+    total_ead = sum(r[2] for r in rows) or 1.0
+    print(f"  {period}  (exposure-weighted; NaN where the book holds none)")
+    print(f"  {'Grade':5s} {'Names':>6s} {'Exposure %':>10s} {'TTC PD':>8s} "
+          f"{'PIT PD':>8s} {'Life PD':>8s} {'St2+3 %':>8s} {'ECL %':>7s}")
+    for grade, n, ead, ttc, pit, life, staged, rate in rows:
+        print(f"  {grade:5s} {n:6d} {ead / total_ead * 100:10.2f} "
+              f"{ttc:8.3f} {pit:8.3f} {life:8.2f} {staged:8.1f} {rate:7.3f}")
+    review.tables["scale_review"] = [
+        {"grade": g_, "borrowers": n, "exposure": e, "ttc_pd": t,
+         "pit_pd": p_, "lifetime_pd": l_, "stage_2_or_3_pct": s_,
+         "ecl_rate_pct": r_}
+        for g_, n, e, t, p_, l_, s_, r_ in rows]
+
+    section = "15. business-sensible scale"
+
+    # The order itself. Not "nineteen values exist" — the exact sequence.
+    expected = ("AAA", "AA+", "AA", "AA-", "A+", "A", "A-", "BBB+", "BBB",
+                "BBB-", "BB+", "BB", "BB-", "B+", "B", "B-", "CCC", "CC", "C")
+    review.say(
+        section,
+        "Is the performing scale the governed nineteen grades, in order, "
+        "ending in C?",
+        PASS if tuple(PERFORMING) == expected else FAIL,
+        f"The scale is {' '.join(PERFORMING)}.",
+        {"scale": list(PERFORMING)},
+        basis="The authoritative order, written out rather than counted.")
+
+    review.say(
+        section, "Is default a separate state rather than the scale's last "
+                 "grade?",
+        PASS if ("D" not in PERFORMING and ALL_STATES[-1] == "D"
+                 and rs.DEFAULT_ORDINAL == 20) else FAIL,
+        f"Default is {rs.DEFAULT_GRADE} at ordinal {rs.DEFAULT_ORDINAL}, "
+        f"outside the {len(PERFORMING)} performing grades.",
+        basis="A scale ending in D makes its weakest grade's default rate "
+              "100% by construction, which is unmeasurable rather than severe.")
+
+    graded = latest["internal_rating"].astype(str)
+    stranger = sorted(set(graded) - set(ALL_STATES))
+    review.say(
+        section, "Does every borrower carry a grade the scale defines?",
+        PASS if not stranger else FAIL,
+        "Every rating is on the governed scale." if not stranger
+        else f"Off-scale ratings found: {stranger}.",
+        {"off_scale": stranger})
+
+    ordinal = pd.to_numeric(latest.get("internal_rating_ordinal"),
+                            errors="coerce")
+    agree = graded.map(rs.ORDINAL)
+    mismatched = int((ordinal != agree).sum())
+    review.say(
+        section, "Does internal_rating_ordinal agree with internal_rating on "
+                 "every record?",
+        PASS if mismatched == 0 else FAIL,
+        f"{mismatched} record(s) disagree." if mismatched
+        else f"All {len(latest):,} records agree.",
+        {"mismatched": mismatched},
+        basis="They are written from the same index, so a disagreement means "
+              "one of them was recomputed somewhere it should not have been.")
+
+    # Does risk actually rise? Measured by rank correlation against the
+    # ordinal, over the grades the book populates, so an empty grade is not
+    # counted as evidence either way.
+    live = [(rs.ORDINAL[g_], t, p_, l_, s_, r_)
+            for g_, n, _e, t, p_, l_, s_, r_ in rows
+            if n >= 20 and g_ in rs.ORDINAL and g_ != "D"]
+    order = pd.Series([x[0] for x in live])
+    for index, (label, floor) in enumerate(
+            ((("TTC PD"), 0.999), ("PIT 12m PD", RANK_STRONG),
+             ("lifetime PD", RANK_STRONG), ("Stage 2 or 3 share", RANK_STRONG),
+             ("ECL rate", RANK_STRONG)), start=1):
+        values = pd.Series([x[index] for x in live])
+        rho = _spearman(order, values)
+        review.say(
+            section,
+            f"Does {label} rise as the grade weakens, across the grades the "
+            "book populates?",
+            PASS if rho >= floor else (PARTIAL if rho >= 0.85 else FAIL),
+            f"Spearman rank correlation with the rating ordinal is "
+            f"{rho:.3f} over {len(live)} populated grades.",
+            {"rho": round(rho, 4), "grades": len(live)},
+            basis="Rank correlation rather than strict monotonicity: two "
+                  "adjacent grades holding a few dozen names each can cross "
+                  "on their own mix, which is sampling and not a broken "
+                  "scale. TTC carries no such noise and is held to 0.999.")
+
+    # The endpoints, in the terms the requirement uses.
+    strongest = next((r for r in rows if r[0] == "AAA"), None)
+    weakest = next((r for r in rows if r[0] == "C"), None)
+    defaulted = next((r for r in rows if r[0] == "D"), None)
+    review.say(
+        section, "Is C plainly the weakest PERFORMING grade and plainly not "
+                 "default?",
+        PASS if (weakest and defaulted and weakest[3] < 100.0
+                 and defaulted[3] == 100.0) else FAIL,
+        f"C carries a TTC PD of {rs.TTC_PD_PCT['C']:.3f}% against the 100% "
+        "that belongs to default alone.",
+        {"c_ttc_pd": rs.TTC_PD_PCT["C"], "default_pd": rs.DEFAULT_PD_PCT})
+    review.say(
+        section, "Is the investment-grade end low enough to be worth having?",
+        PASS if rs.TTC_PD_PCT["AAA"] < 0.05 and rs.TTC_PD_PCT["BBB-"] < 0.5
+        else FAIL,
+        f"AAA {rs.TTC_PD_PCT['AAA']:.5f}%, BBB- {rs.TTC_PD_PCT['BBB-']:.5f}%.",
+        {"aaa": rs.TTC_PD_PCT["AAA"], "bbb_minus": rs.TTC_PD_PCT["BBB-"],
+         "populated_aaa": strongest[1] if strongest else 0})
+
+    # Stage 3 is measured at 100% and its provision is its LGD.
+    stage_three = latest[pd.to_numeric(latest["stage"], errors="coerce") == 3]
+    applicable = pd.to_numeric(stage_three.get("pd_applicable"),
+                               errors="coerce")
+    review.say(
+        section, "Is every Stage 3 exposure measured at a PD of 100%?",
+        PASS if len(stage_three) and (applicable == 100.0).all() else FAIL,
+        f"{len(stage_three):,} Stage 3 borrower(s); applicable PD ranges "
+        f"{applicable.min():.2f}% to {applicable.max():.2f}%.",
+        {"stage_3": int(len(stage_three)),
+         "min": float(applicable.min()) if len(applicable) else None,
+         "max": float(applicable.max()) if len(applicable) else None})
+    ead3 = pd.to_numeric(stage_three["ead"], errors="coerce")
+    lgd3 = pd.to_numeric(stage_three["lgd"], errors="coerce")
+    ecl3 = pd.to_numeric(stage_three["ecl_before_overlay"], errors="coerce")
+    gap = float((ecl3 - lgd3 / 100.0 * ead3).abs().max()) if len(ead3) else 0.0
+    review.say(
+        section, "Is a Stage 3 provision its LGD rather than its exposure?",
+        PASS if gap < 1.0 else FAIL,
+        f"The largest gap between the provision and LGD x EAD is {gap:.4f}. "
+        f"Coverage runs {(ecl3 / ead3 * 100).min():.1f}% to "
+        f"{(ecl3 / ead3 * 100).max():.1f}%, tracking LGD.",
+        {"largest_gap": gap},
+        basis="PD of 100% is not LGD of 100%. A defaulted borrower with "
+              "collateral still recovers, and the scenario weighting does not "
+              "apply to a default that has already resolved.")
+
+
 def main() -> int:
     quick = "--quick" in sys.argv
     periods = dm.periods()
@@ -1346,6 +1510,7 @@ def main() -> int:
     segment_economics(review, books)
     macro_relationship(review, books)
     default_logic(review, books)
+    scale_review(review, latest, latest_period)
 
     passed = sum(1 for f in review.findings if f.status == PASS)
     partial = sum(1 for f in review.findings if f.status == PARTIAL)

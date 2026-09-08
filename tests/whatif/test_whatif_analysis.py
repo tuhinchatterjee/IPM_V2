@@ -1136,3 +1136,107 @@ class TestAReportIsNotAScenario:
         """"12-month PD" names a measure. The 12 is not the size of a move."""
         assert not lang.read("Borrowers with rising 12-month PD").is_scenario_question
         assert lang.read("Increase 12-month PD by 20%").scenario is not None
+
+
+@needs_lake
+class TestStageThreeIsMeasuredAtOneHundredEverywhere:
+    """The convention, checked where a reader would actually meet it.
+
+    `tests/corporate/test_rating_scale.py` proves the governed function returns
+    100. These prove the product does not quietly recover a performing PD
+    somewhere between that function and a screen — which is exactly what a
+    99.9% convention did before, and what a rating-linked PD would do again if
+    any one of these paths kept its own copy of the rule.
+    """
+
+    def test_the_book_measures_every_defaulted_borrower_at_one_hundred(self, period):
+        frame, _ = dm.book(period)
+        stage_three = frame[pd.to_numeric(frame["stage"], errors="coerce") == 3]
+        assert len(stage_three) > 0, "this book has no Stage 3 to check"
+        applicable = pf.stage_appropriate_pd(stage_three)
+        assert (applicable == 100.0).all()
+
+    def test_the_stage_profile_says_what_stage_three_is_measured_on(self, period):
+        body = pf.stage_profile(period)
+        row = next(r for r in body["rows"] if r["stage"] == 3)
+        assert row["avg_pd_applicable"] == 100.0
+        assert row["weighted_pd_applicable"] == 100.0
+        assert "100%" in row["measured_on"]
+        assert "already happened" in row["measured_on"]
+
+    def test_a_hundred_per_cent_pd_is_not_a_hundred_per_cent_loss(self, period):
+        """The distinction the product has to keep visible."""
+        frame, _ = dm.book(period)
+        stage_three = frame[pd.to_numeric(frame["stage"], errors="coerce") == 3]
+        exposure = pd.to_numeric(stage_three["ead"], errors="coerce")
+        provision = pd.to_numeric(stage_three["final_ecl"], errors="coerce")
+        lgd = pd.to_numeric(stage_three["lgd"], errors="coerce")
+        live = exposure > 0
+        coverage = (provision[live] / exposure[live]) * 100.0
+        # The provision is the LGD, near enough — not the exposure.
+        assert (coverage < 99.5).any(), (
+            "every defaulted borrower provisioning its whole exposure would "
+            "mean LGD had been confused with PD")
+        assert coverage.max() <= 100.0 + 1e-6
+        # And it tracks LGD rather than being a fixed rate.
+        assert coverage.corr(lgd[live]) > 0.95
+
+    def test_the_reported_ecl_of_a_defaulted_borrower_is_lgd_times_ead(self, period):
+        """No scenario weighting on a default that has already resolved."""
+        frame, _ = dm.book(period)
+        stage_three = frame[pd.to_numeric(frame["stage"], errors="coerce") == 3]
+        exposure = pd.to_numeric(stage_three["ead"], errors="coerce")
+        lgd = pd.to_numeric(stage_three["lgd"], errors="coerce") / 100.0
+        expected = lgd * exposure
+        provision = pd.to_numeric(stage_three["ecl_before_overlay"],
+                                  errors="coerce")
+        assert (provision - expected).abs().max() < 1.0, (
+            "a resolved default multiplied by the 1.082 scenario weighting "
+            "would assert a loss rate above the borrower's own LGD")
+
+    def test_a_pd_shock_does_not_move_a_defaulted_borrower(self, period):
+        """A default has happened. What is left to argue about is recovery."""
+        state = sp.ScenarioState(period=period).add(
+            sp.Step(sp.PD, (sc.Shock(sc.PD, 50.0, sc.RELATIVE),),
+                    interpreted="PD +50%"))
+        result = rn.execute(state, requested=me.DELTA)
+        frame = result.borrowers
+        defaulted = frame[pd.to_numeric(frame["stage_baseline"],
+                                        errors="coerce") == 3]
+        assert len(defaulted) > 0
+        before = pd.to_numeric(defaulted["ecl_baseline"], errors="coerce")
+        after = pd.to_numeric(defaulted["ecl_stressed"], errors="coerce")
+        assert (after - before).abs().max() < 1.0
+
+    def test_an_lgd_shock_does_move_a_defaulted_borrower(self, period):
+        """The other half of the same fact: severity is still live."""
+        state = sp.ScenarioState(period=period).add(
+            sp.Step(sp.LGD, (sc.Shock(sc.LGD, 10.0, sc.ABSOLUTE_PP),),
+                    interpreted="LGD +10pp"))
+        result = rn.execute(state, requested=me.DELTA)
+        frame = result.borrowers
+        defaulted = frame[pd.to_numeric(frame["stage_baseline"],
+                                        errors="coerce") == 3]
+        before = pd.to_numeric(defaulted["ecl_baseline"], errors="coerce").sum()
+        after = pd.to_numeric(defaulted["ecl_stressed"], errors="coerce").sum()
+        assert after > before
+
+    def test_a_stage_one_shock_leaves_the_stage_three_population_alone(self, period):
+        state = sp.ScenarioState(period=period).add(
+            sp.Step(sp.PD, (sc.Shock(sc.PD, 25.0, sc.RELATIVE),),
+                    population=sc.Population(stages=(1,)),
+                    interpreted="Stage 1 PD +25%"))
+        result = rn.execute(state, requested=me.DELTA)
+        frame = result.borrowers
+        opening = pd.to_numeric(frame["stage_baseline"], errors="coerce")
+        closing = pd.to_numeric(frame["stage_stressed"], errors="coerce")
+        assert int((opening == 3).sum()) == int((closing == 3).sum()), (
+            "a Stage 1 shock manufactured or cured a default")
+
+    def test_the_quick_analysis_reports_it_as_one_hundred_too(self, period):
+        from backend.whatif import analysis as ay
+
+        body = ay.run(ay.read("Show applicable PD by stage.", period=period))
+        row = next(r for r in body["rows"] if r["label"] == "Stage 3")
+        assert row["cells"]["applicable_pd"]["value"] == 100.0
+        assert row["cells"]["applicable_pd"]["weighted"] == 100.0
