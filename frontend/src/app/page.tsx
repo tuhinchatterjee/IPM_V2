@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { CockpitV2Badge } from "@/components/ask/cockpit-v2";
+import {
+  CockpitV3Answer,
+  CockpitV3Badge,
+  CockpitV3Progress,
+} from "@/components/ask/cockpit-agentic";
 import { Composer, useGreeting } from "@/components/ask/composer";
 import { PendingOfficer } from "@/components/agentic/pending";
 import { RequiresAttention } from "@/components/attention/requires-attention";
@@ -15,7 +20,11 @@ import { Card } from "@/components/ui/card";
 import { InfoPopover } from "@/components/ui/info-popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, api } from "@/lib/api";
-import type { CockpitV2Diagnostics } from "@/lib/api";
+import type {
+  CockpitV2Diagnostics,
+  CockpitV3Answer as CockpitV3AnswerPayload,
+  CockpitV3Diagnostics,
+} from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import { fromCockpit, linkBack, useReturnTo } from "@/lib/return-to";
 
@@ -141,6 +150,69 @@ function Cockpit() {
     };
   }, []);
 
+  // Cockpit Agentic V3. Its own state, its own endpoint, and — the point of
+  // the whole branch — no path from here back into the deterministic answer
+  // path or the legacy analyst. When the switch is off none of this renders.
+  const [cockpitV3, setCockpitV3] =
+    React.useState<CockpitV3Diagnostics | null>(null);
+  const [v3Answer, setV3Answer] =
+    React.useState<CockpitV3AnswerPayload | null>(null);
+  const [v3Steps, setV3Steps] = React.useState<string[]>([]);
+  const [v3Running, setV3Running] = React.useState(false);
+  const [v3Mode, setV3Mode] = React.useState<string>("standard");
+  const v3RequestId = React.useRef<string>("");
+
+  React.useEffect(() => {
+    let live = true;
+    api
+      .cockpitV3Diagnostics()
+      .then((found) => {
+        if (live) {
+          setCockpitV3(found);
+          if (found?.default_mode) setV3Mode(found.default_mode);
+        }
+      })
+      .catch(() => {
+        // A deployment without the agentic Cockpit has no such endpoint. That
+        // is the ordinary case, not an error the reader needs to see.
+        if (live) setCockpitV3(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const askV3 = React.useCallback(
+    async (text: string) => {
+      if (!cockpitV3?.available) return;
+      const requestId = `req-${Date.now().toString(36)}`;
+      v3RequestId.current = requestId;
+      setV3Running(true);
+      setV3Answer(null);
+      setV3Steps(["Reading the question"]);
+      try {
+        const found = await api.cockpitV3Ask({
+          question: text,
+          mode: v3Mode,
+          thread_id: "cockpit-web",
+          request_id: requestId,
+        });
+        setV3Answer(found);
+        // The progress the server actually recorded, not a guess made here.
+        setV3Steps(found.states?.progress ?? []);
+      } catch {
+        setV3Steps([]);
+      } finally {
+        setV3Running(false);
+      }
+    },
+    [cockpitV3, v3Mode],
+  );
+
+  const cancelV3 = React.useCallback(() => {
+    if (v3RequestId.current) void api.cockpitV3Cancel(v3RequestId.current);
+  }, []);
+
   return (
     <div className="space-y-10">
       {/* A Back control only where there is somewhere to go back to. The
@@ -171,12 +243,63 @@ function Cockpit() {
           selectedQuarter={cockpitV2Quarter}
           onSelectQuarter={setCockpitV2Quarter}
         />
+        <CockpitV3Badge diagnostics={cockpitV3} />
+
+        {cockpitV3?.available && (
+          <div className="mb-3 flex items-center gap-2 text-[11px] text-slate-600">
+            <span>Depth</span>
+            {(cockpitV3.modes ?? ["standard", "deep"]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setV3Mode(m)}
+                className={`rounded border px-2 py-0.5 capitalize ${
+                  v3Mode === m
+                    ? "border-slate-800 bg-slate-800 text-white"
+                    : "border-slate-300 bg-white text-slate-700"
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+            <span className="text-slate-400">
+              Deep is never selected for you.
+            </span>
+          </div>
+        )}
+
+        <CockpitV3Progress
+          steps={v3Steps}
+          running={v3Running}
+          onCancel={cancelV3}
+        />
+
+        {v3Answer && (
+          <div className="mb-5 rounded-lg border border-slate-200 bg-white p-4">
+            <CockpitV3Answer
+              payload={v3Answer}
+              onAsk={(q) => {
+                setQuestion(q);
+                void askV3(q);
+              }}
+              onNavigate={(route) => {
+                window.location.href = route;
+              }}
+            />
+          </div>
+        )}
 
         <div className="mt-5">
           <Composer
             value={question}
             onChange={setQuestion}
-            onSubmit={(q) => void start(q)}
+            onSubmit={(q) => {
+              if (cockpitV3?.available) {
+                void askV3(q);
+                return;
+              }
+              void start(q);
+            }}
             busy={opening || !canRun}
             readOnlyNote={
               canRun

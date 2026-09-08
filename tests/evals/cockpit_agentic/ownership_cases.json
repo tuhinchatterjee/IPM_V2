@@ -1,0 +1,257 @@
+{
+  "version": "3.0.0",
+  "purpose": "The labelled ownership benchmark of specification section 14.2. Each case names the functionality that OWNS the request. Routing correctness is the model's job, so these are only meaningful against a live provider; the runner reports BLOCKED when no credential is configured rather than passing on a mock.",
+  "labelling": "Labelled by hand against the registry's ownership contract. 'clarify' means no single owner is determined; 'unsupported' means no functionality owns it.",
+  "cases": [
+    {
+      "case_id": "O01",
+      "question": "Show this borrower's stored rating history over the last eight quarters.",
+      "expected_owner": "cockpit",
+      "requested_action": "read_stored_rating",
+      "note": "Reading a recorded rating is Cockpit's.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": false
+    },
+    {
+      "case_id": "O02",
+      "question": "Assign this borrower a new credit score.",
+      "expected_owner": "credit_scoring",
+      "requested_action": "generate_score",
+      "note": "Generating a score is excluded from Cockpit and this deployment has no scoring module, so the referral must say so honestly.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": true
+    },
+    {
+      "case_id": "O03",
+      "question": "Compare DSCR and recorded covenant breaches over four quarters.",
+      "expected_owner": "cockpit",
+      "requested_action": "compare_history",
+      "note": "A historical comparison is not an EWS request merely because it could inform monitoring.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": false
+    },
+    {
+      "case_id": "O04",
+      "question": "Explain why this borrower's early warning alert score increased.",
+      "expected_owner": "ews",
+      "requested_action": "explain_alert_score",
+      "note": "The EWS score and its drivers are EWS's.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": true
+    },
+    {
+      "case_id": "O05",
+      "question": "Compare the two recorded quarterly ECL values and explain the drivers the evidence supports.",
+      "expected_owner": "cockpit",
+      "requested_action": "compare_and_explain",
+      "note": "Retrospective attribution over stored results is Cockpit's.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": false
+    },
+    {
+      "case_id": "O06",
+      "question": "Increase PD by 20% and recalculate ECL.",
+      "expected_owner": "what_if",
+      "requested_action": "shock_parameter",
+      "note": "A new hypothetical parameter change belongs to Stress Testing.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": true
+    },
+    {
+      "case_id": "O07",
+      "question": "Compare the already-stored baseline and downside IFRS 9 outputs for this facility.",
+      "expected_owner": "cockpit",
+      "requested_action": "compare_stored_scenarios",
+      "note": "The source already computed and recorded these; reading them is not a new what-if run.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": false
+    },
+    {
+      "case_id": "O08",
+      "question": "Create a new downside shock and show the effect on provisions.",
+      "expected_owner": "what_if",
+      "requested_action": "create_scenario",
+      "note": "A new shock is Stress Testing's.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": true
+    },
+    {
+      "case_id": "O09",
+      "question": "Validate the application scorecard's discrimination and calibration.",
+      "expected_owner": "scorecard_validation",
+      "requested_action": "validate_model",
+      "note": "No validation computation happens in Cockpit.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": true
+    },
+    {
+      "case_id": "O10",
+      "question": "Open the CRO lens and add a tile for sector exposure.",
+      "expected_owner": "lenses",
+      "requested_action": "build_lens",
+      "note": "The Lenses workflow is Lenses'.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": true
+    },
+    {
+      "case_id": "O11",
+      "question": "Show stage 2 exposure by sector this quarter, excluding Construction.",
+      "expected_owner": "cockpit",
+      "requested_action": "aggregate",
+      "note": "The negation must survive: excluding Construction is not Construction.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": false
+    },
+    {
+      "case_id": "O12",
+      "question": "Show me the stage-two exposre by secter for the lastest quater.",
+      "expected_owner": "cockpit",
+      "requested_action": "aggregate",
+      "note": "Misspellings must not change the request.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": false
+    },
+    {
+      "case_id": "O13",
+      "question": "पिछली तिमाही में ECL कितना बढ़ा?",
+      "expected_owner": "cockpit",
+      "requested_action": "compare_history",
+      "note": "Hindi. The English technical term ECL is kept as written.",
+      "language": "hi",
+      "mixed_scope": false,
+      "expects_alternatives": false
+    },
+    {
+      "case_id": "O14",
+      "question": "গত চার প্রান্তিকে DSCR কেমন ছিল?",
+      "expected_owner": "cockpit",
+      "requested_action": "trend",
+      "note": "Bengali.",
+      "language": "bn",
+      "mixed_scope": false,
+      "expects_alternatives": false
+    },
+    {
+      "case_id": "O15",
+      "question": "ما هو إجمالي التعرض في المرحلة الثانية لهذا الربع؟",
+      "expected_owner": "cockpit",
+      "requested_action": "aggregate",
+      "note": "Arabic.",
+      "language": "ar",
+      "mixed_scope": false,
+      "expects_alternatives": false
+    },
+    {
+      "case_id": "O16",
+      "question": "Iska ECL kitna badha hai last quarter mein?",
+      "expected_owner": "cockpit",
+      "requested_action": "compare_history",
+      "note": "Hinglish in Latin script.",
+      "language": "mixed",
+      "mixed_scope": false,
+      "expects_alternatives": false
+    },
+    {
+      "case_id": "O17",
+      "question": "Is borrower ka naya credit score nikaal ke batao.",
+      "expected_owner": "credit_scoring",
+      "requested_action": "generate_score",
+      "note": "Hinglish, and still an excluded action. The language must not change the ownership decision.",
+      "language": "mixed",
+      "mixed_scope": false,
+      "expects_alternatives": true
+    },
+    {
+      "case_id": "O18",
+      "question": "Show the stored PD history for this borrower and then stress it by 200 basis points.",
+      "expected_owner": "cockpit",
+      "requested_action": "mixed",
+      "note": "Half Cockpit, half Stress Testing. The excluded half must be named, not silently dropped.",
+      "language": "en",
+      "mixed_scope": true,
+      "expects_alternatives": true
+    },
+    {
+      "case_id": "O19",
+      "question": "Give me the covenant breach history and tell me which borrowers to put on the watchlist.",
+      "expected_owner": "cockpit",
+      "requested_action": "mixed",
+      "note": "History is Cockpit's; watchlist prioritisation is EWS's.",
+      "language": "en",
+      "mixed_scope": true,
+      "expects_alternatives": true
+    },
+    {
+      "case_id": "O20",
+      "question": "Score the portfolio.",
+      "expected_owner": "clarify",
+      "requested_action": "ambiguous",
+      "note": "Genuinely ambiguous between reading stored ratings and generating scores. A tie or an unresolved ownership is a clarification, never a silent Cockpit execution.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": true
+    },
+    {
+      "case_id": "O21",
+      "question": "What is the weather in Mumbai tomorrow?",
+      "expected_owner": "unsupported",
+      "requested_action": "unrelated",
+      "note": "Wholly unrelated. No functionality owns it, and no Cockpit alternative is meaningful, so offering none is correct.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": false
+    },
+    {
+      "case_id": "O22",
+      "question": "Show me total stage 2 exposure for 2019Q1.",
+      "expected_owner": "cockpit",
+      "requested_action": "aggregate",
+      "note": "In scope but outside the twenty-quarter window. This is a Cockpit data-coverage limitation, NOT grounds for a referral elsewhere.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": false
+    },
+    {
+      "case_id": "O23",
+      "question": "Summarise the attached credit memo and pull out the covenants.",
+      "expected_owner": "lenses",
+      "requested_action": "interpret_document",
+      "note": "Document interpretation is not Cockpit's, and document access must not become a way round the restricted domain.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": true
+    },
+    {
+      "case_id": "O24",
+      "question": "Recalibrate the PD model weights using the last eight quarters.",
+      "expected_owner": "scorecard_validation",
+      "requested_action": "recalibrate",
+      "note": "Recalibrating a model is excluded from Cockpit. If the owning workflow does not exist, say so rather than doing it here.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": true
+    },
+    {
+      "case_id": "O25",
+      "question": "Show the recorded rating and the allocated net collateral coverage for the two selected quarters.",
+      "expected_owner": "cockpit",
+      "requested_action": "compare_history",
+      "note": "Both are recorded fields at declared grains.",
+      "language": "en",
+      "mixed_scope": false,
+      "expects_alternatives": false
+    }
+  ]
+}

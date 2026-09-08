@@ -4023,6 +4023,29 @@ export const api = {
     }),
 
   /** The Cockpit V2 diagnostic badge. Empty payload when the switch is off. */
+  cockpitV3Diagnostics: () =>
+    request<CockpitV3Diagnostics>("/cockpit/diagnostics"),
+
+  cockpitV3Ask: (body: {
+    question: string;
+    mode?: string;
+    thread_id?: string;
+    dataset_release_id?: string;
+    filters?: Record<string, unknown>;
+    request_id?: string;
+    recent_pairs?: number;
+  }) =>
+    request<CockpitV3Answer>("/cockpit/ask", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  cockpitV3Cancel: (requestId: string) =>
+    request<{ request_id: string; cancelled: boolean; note: string }>(
+      `/cockpit/cancel/${encodeURIComponent(requestId)}`,
+      { method: "POST" },
+    ),
+
   cockpitV2Diagnostics: () =>
     request<CockpitV2Diagnostics>("/ask/cockpit-v2/diagnostics"),
 
@@ -8141,4 +8164,156 @@ export type Borrower360Lineage = {
   lineage_version: string;
   authoritative_field_count: number;
   note: string;
+};
+
+// ---------------------------------------------------------------- Cockpit V3
+// The agentic Cockpit. Every field here is rendered exactly as the backend
+// sent it; nothing on this side computes, formats a figure or fills a gap.
+
+export type CockpitV3AnswerKind = "answer" | "referral" | "clarification"
+  | "stop";
+
+export type CockpitV3Table = {
+  title: string;
+  columns: string[];
+  rows: unknown[][];
+  units: Record<string, string>;
+  fact_ids: string[];
+  note: string;
+};
+
+export type CockpitV3Chart = {
+  kind: "bar" | "line" | "waterfall" | "scatter";
+  title: string;
+  series: Record<string, unknown>[];
+  x_label: string;
+  y_label: string;
+  unit: string;
+  fact_ids: string[];
+};
+
+export type CockpitV3Alternative = {
+  question: string;
+  required_fields: string[];
+  available_periods: string[];
+  limitation: string;
+};
+
+export type CockpitV3Referral = {
+  destination: string;
+  reason: string;
+  /** Null when the destination is not implemented in this deployment. A
+   *  referral must never offer a link that goes nowhere. */
+  route: string | null;
+  enabled: boolean;
+  navigation_available: boolean;
+};
+
+export type CockpitV3Envelope = {
+  kind: CockpitV3AnswerKind;
+  narrative: string;
+  status: string;
+  complete: boolean;
+  approximate: boolean;
+  tables: CockpitV3Table[];
+  charts: CockpitV3Chart[];
+  limitations: string[];
+  assumptions: string[];
+  /** Claims the evidence supports only as association. Never shown as cause. */
+  hypotheses: string[];
+  fact_ids: string[];
+  referral: CockpitV3Referral | Record<string, never>;
+  alternatives: CockpitV3Alternative[];
+  clarification_question: string;
+  clarification_options: string[];
+  stop_reason: string;
+  what_was_understood: string;
+  what_was_tried: string[];
+  what_would_help: string;
+};
+
+export type CockpitV3Score = {
+  functionality_id: string;
+  score: number;
+  justification: string;
+};
+
+export type CockpitV3Decision = {
+  decision: string;
+  scores: CockpitV3Score[];
+  best_fit: string;
+  may_execute: boolean;
+  public_explanation: string;
+};
+
+export type CockpitV3Budget = {
+  mode: string;
+  submissions_used: number;
+  submissions_remaining: number;
+  analysis_rounds_used: number;
+  analysis_rounds_remaining: number;
+  model_requests_used: number;
+  tokens_used: number;
+  seconds_remaining: number;
+  spend_usd: number | string;
+  cost_enforced: boolean;
+  stopped: string;
+};
+
+export type CockpitV3Answer = {
+  request_id: string;
+  domain_id: string;
+  status: string;
+  answer: CockpitV3Envelope;
+  functionality_decision: CockpitV3Decision | null;
+  plan: Record<string, unknown> | null;
+  results: Record<string, unknown>[];
+  failures: Record<string, unknown>[];
+  budget: CockpitV3Budget & Record<string, unknown>;
+  states: { state: string; history: { state: string; why: string }[];
+            progress: string[] };
+  thread_id: string;
+  history: Record<string, unknown>;
+  summary_updated: boolean;
+};
+
+export type CockpitV3Diagnostics = {
+  cockpit_agentic_v3: boolean;
+  available: boolean;
+  domain_id: string;
+  dataset_release_id: string;
+  namespace: string;
+  default_mode: string;
+  modes: string[];
+  functionality_routes: {
+    verified: boolean;
+    results: Record<string, { enabled: boolean; route: string | null;
+                              route_exists: boolean | null;
+                              unavailable_reason?: string }>;
+  };
+  python_execution: { available: boolean; reason: string };
+  standard_limits: Record<string, number | string>;
+  deep_limits: Record<string, number | string>;
+  standard_overrides_in_force: Record<
+    string, { specification: number; configured: number }>;
+  deep_overrides_in_force: Record<
+    string, { specification: number; configured: number }>;
+  guardrails_note: string;
+  model_roles: Record<string, { role: string; model: string; effort: string;
+                                inherited: boolean; purpose: string }>;
+  provider: { configured: boolean; note: string };
+  cost_enforced: boolean;
+  cost_note?: string;
+  release: {
+    reporting_quarters?: string[];
+    populated_quarters?: string[];
+    missing_quarters?: string[];
+    built_at?: string;
+    data_version?: string;
+    origin?: string;
+    not_client_data?: string;
+    rows?: Record<string, number>;
+    available?: boolean;
+    reason?: string;
+  };
 };

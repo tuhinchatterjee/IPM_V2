@@ -1,0 +1,7 @@
+{
+  "status": "BLOCKED",
+  "reason": "No model credential is configured in this environment, so routing was not exercised against a live provider. Routing correctness is the model's job; a score obtained from a mock would say nothing about it and is not produced.",
+  "cases_available": 25,
+  "started_at": "2026-09-08T20:43:14+00:00",
+  "live_verified": false
+}
