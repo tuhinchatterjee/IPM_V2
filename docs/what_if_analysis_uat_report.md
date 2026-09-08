@@ -18,6 +18,16 @@ The bar this is written against:
 
 **READY FOR UAT.**
 
+> **Superseded in part.** A later manual UAT pass found six defects — the
+> rating scale ending in D, the Stage 3 PD convention, a client-side timeout
+> reported as a backend outage, analytical questions redirected instead of
+> answered, and the detailed Excel refusing a display label where the contract
+> wanted a value. All six are fixed, the book was rebuilt and the model
+> retrained. The current record is
+> **`docs/what_if_uat_correction_pass.md`**, and the figures below predate it:
+> economic validation is now 57 of 57, the browser journeys 19 of 19, and the
+> scale is nineteen performing grades ending in C.
+
 **ECONOMIC VALIDATION: PASS** — 44 of 44 book checks and 50 of 50 What-If
 scenario checks. The shipped Corporate IFRS 9 book has been validated not only
 for schema, ranges and arithmetic reconciliation, but also for longitudinal

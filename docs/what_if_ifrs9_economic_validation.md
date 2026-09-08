@@ -1,7 +1,14 @@
 # Corporate IFRS 9 — economic coherence validation
 
-**ECONOMIC VALIDATION: PASS** — 44 of 44 checks, plus 50 of 50 What-If
+**ECONOMIC VALIDATION: PASS** — 57 of 57 checks, plus 50 of 50 What-If
 scenario checks.
+
+Section 15, added in the final UAT correction pass, prints the whole scale —
+names, exposure share, all three PDs, Stage composition and ECL rate — and
+asserts the order, that default sits outside the performing grades, that
+`internal_rating_ordinal` agrees with `internal_rating` on every record, that
+each measure rises with the ordinal by rank correlation, and that a Stage 3
+provision is its LGD. See `docs/what_if_uat_correction_pass.md`.
 
 > The shipped Corporate IFRS 9 book has been validated not only for schema,
 > ranges and arithmetic reconciliation, but also for longitudinal credit-risk
