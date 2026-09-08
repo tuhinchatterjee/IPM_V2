@@ -442,6 +442,26 @@ def report_portfolio(period: str | None = Query(None),
                      headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
+@router.get("/reports/segments", summary="All-segment Word report")
+def report_all_segments(period: str | None = Query(None),
+                        principal: Principal = RequireEarlyWarningReport) -> Response:
+    """Every segment, each on its own terms.
+
+    Distinct from the portfolio report's single segment table, which answers
+    "which is worst" and nothing else: this gives each segment its own
+    reading, obligor list and chart, because whether a segment's average
+    reflects a common condition or one or two names decides whether the
+    response is a sector action or a workout.
+    """
+    try:
+        data = ews_reports.generate_docx("all_segments", period=period)
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+    return Response(content=data, media_type=DOCX_MIME,
+                     headers={"Content-Disposition":
+                              'attachment; filename="early-warning-all-segments.docx"'})
+
+
 @router.get("/reports/segment/{segment}", summary="Segment Word report")
 def report_segment(segment: str, period: str | None = Query(None),
                     principal: Principal = RequireEarlyWarningReport) -> Response:

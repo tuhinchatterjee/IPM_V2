@@ -393,6 +393,17 @@ def test_segment_report_download(client, domain_built):
     assert r.status_code == 200
 
 
+def test_all_segment_report_download(client, domain_built):
+    """Every segment on its own terms, which the portfolio report's single
+    segment table cannot give: it answers which is worst and nothing else."""
+    _require_domain(domain_built)
+    r = client.get("/api/v1/early-warning/v2/reports/segments",
+                    headers=headers("ANALYST"))
+    assert r.status_code == 200
+    assert len(r.content) > 50_000
+    assert "all-segments" in r.headers["content-disposition"]
+
+
 def test_multi_borrower_report_download(client, domain_built):
     _require_domain(domain_built)
     overview = client.get("/api/v1/early-warning/v2", headers=headers("ANALYST")).json()

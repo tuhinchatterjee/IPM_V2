@@ -20,6 +20,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from backend.early_warning import actions as act
+from backend.early_warning import compose
+from backend.early_warning import diagnosis as dg
+from backend.early_warning import escalation as esc
+from backend.early_warning import facts
 from backend.early_warning import v2_service as svc
 from backend.reporting import writers
 
@@ -34,6 +39,94 @@ def _section(key: str, title: str, narrative: str, table: dict | None = None,
              findings: list[dict] | None = None, chart: dict | None = None) -> dict:
     return {"key": key, "title": title, "narrative": narrative, "table": table,
             "chart": chart, "findings": findings or []}
+
+
+def _actions_section(drivers: list[dict], *, key: str = "actions",
+                      title: str = "Recommended Actions") -> dict | None:
+    """The recommendations, as a SECTION rather than a top-level key.
+
+    `writers.py` renders `sections` and ignores a report's `actions` and
+    `remediation` keys entirely, so an action list set there reaches the
+    writer and is silently dropped — which is what used to happen to every
+    Early Warning report. Actions are keyed to the drivers rather than to
+    the score, and each carries the owner, the date and the evidence that
+    closes it, because a recommendation missing any of those is advice.
+    """
+    recommended = act.for_drivers([d["code"] for d in drivers])
+    if not recommended:
+        return None
+    first = act.single_highest_value(recommended)
+    narrative = (
+        "Actions are keyed to the driving sub-categories rather than to the "
+        "score, and each carries an owner, a timeframe and a closing evidence "
+        "test. A case cannot be closed until the evidence is attached.")
+    if first is not None and len(recommended) > 1:
+        narrative += (
+            f" If only one action is taken: {first.action.lower()}. It "
+            f"preserves the bank's position at the least cost, and the others "
+            f"remain available afterwards.")
+    return _section(
+        key, title, narrative,
+        table={"columns": ["#", "Driver", "Recommended action", "Owner", "By",
+                            "Evidence to close"],
+               "rows": [[str(i), a.sub_category, a.action, a.owner_title,
+                          a.timeframe, a.evidence_to_close]
+                         for i, a in enumerate(recommended, start=1)]})
+
+
+def _limitations_section() -> dict:
+    """What these figures cannot support, said in the report that quotes them.
+
+    Every one of these is a real constraint of this build rather than
+    boilerplate: an uncalibrated model, a deliberately conservative
+    combination rule, collinearity reduced rather than removed, network
+    readings that depend on relationship data banks rarely hold, and a
+    Layer 3 feed that is governed synthetic demonstration data in this
+    deployment.
+    """
+    return _section(
+        "limitations", "Basis of Preparation and Limitations",
+        "Scores were produced by the CreditProbe Early Warning framework, "
+        "version 2. Classifier boundaries are anchored to published rules "
+        "where those exist. Every figure is computed from the live monthly "
+        "domain and reconciles to the corresponding screen.",
+        findings=[
+            _finding("The model is not calibrated. No default data was "
+                     "available: every weight, band and multiplier is a "
+                     "documented starting calibration, not an estimate.",
+                     severity="MEDIUM"),
+            _finding("Worst-of combination is conservative by construction. "
+                     "It scores higher than a weighted average on the same "
+                     "inputs — intentional for early warning, inappropriate "
+                     "for a capital model.", severity="LOW"),
+            _finding("Collinearity was reduced, not removed. Default "
+                     "proximity and leverage remain correlated across "
+                     "sub-categories, which is why the layer weights are "
+                     "deliberately coarse.", severity="LOW"),
+            _finding("Notches can cross a band boundary. The anchor is "
+                     "reported alongside the final score for that reason, and "
+                     "every notch is recorded with its own reason.",
+                     severity="MEDIUM"),
+            _finding("Layer 4 depends on relationship data. Supplier and "
+                     "customer edges are rarely held in bank systems; check "
+                     "edge confidence before relying on a network driver.",
+                     severity="LOW"),
+            _finding("Layer 3 in this deployment is governed synthetic "
+                     "demonstration data, not a live external intelligence "
+                     "feed.", severity="MEDIUM"),
+        ])
+
+
+def _common_drivers(frame, limit: int = 6) -> list[str]:
+    """The sub-categories most often driving a population.
+
+    Read from the frame rather than from a projected row set, because the
+    ranked views do not carry the dominant sub-category.
+    """
+    if "dominant_subcategory" not in getattr(frame, "columns", []):
+        return []
+    found = frame["dominant_subcategory"].dropna().value_counts().head(limit)
+    return [str(code) for code in found.index if str(code)]
 
 
 def _methodology_section() -> dict:
@@ -53,6 +146,69 @@ def _methodology_section() -> dict:
         "dimensions together."
     )
     return _section("methodology", "The Early Warning Model", narrative)
+
+
+def _composition_section(pack) -> dict:
+    """How the score was reached, step by step.
+
+    The reference report puts this immediately after the position because a
+    final score alone cannot be challenged: a committee needs the anchor and
+    the notches separately to know which half to argue with.
+    """
+    f = pack.figures
+    lvs = f["live_versus_structural"]
+    return _section(
+        "composition", "Score Composition",
+        "Each step is a published table read in order, so the final figure "
+        "can be reconstructed by hand.",
+        table={"columns": ["Step", "Result", "How it was reached"], "rows": [
+            ["Trigger and accelerator", lvs["ta_band"].replace("_", " ").title(),
+             f"Score {lvs['ta_score']:.2f} of 100."],
+            ["Classifier", lvs["classifier_band"].replace("_", " ").title(),
+             f"Score {lvs['classifier_score']:.2f} of 100."],
+            ["Anchor from the matrix", f"{f['anchor_score']:.0f}",
+             f"T&A {lvs['ta_band'].replace('_', ' ').lower()} read against "
+             f"classifier {lvs['classifier_band'].replace('_', ' ').lower()}."],
+            ["Net notches", f"{f['net_notches']:+d}",
+             "Sum of the five modifiers, capped at plus or minus two, eight "
+             "points each."],
+            ["Final", f"{f['ews_score']:.0f} "
+                      f"({f['ews_band'].replace('_', ' ').title()})",
+             "Anchor plus notches, then caps and overrides."],
+        ]})
+
+
+def _lineage_section(pack, observations) -> dict:
+    """The audit trail: what each node came from and the decay applied to it.
+
+    The persistence hold is the entry worth reading twice — a signal can be
+    a hundred days old and still carry a decay factor of 1.00, because the
+    clock only starts on cure.
+    """
+    rows = []
+    for _, o in observations.iterrows():
+        rows.append([
+            str(o.get("sub_category") or ""), str(o.get("signal_key") or ""),
+            str(o.get("source_domain") or ""), str(o.get("decay_class") or ""),
+            f"{o.get('half_life_days') or '—'}",
+            f"{float(o.get('decay_factor') or 0):.2f}",
+            "cured" if bool(o.get("cured")) else "uncured",
+        ])
+    uncured = [r for r in rows if r[-1] == "uncured"]
+    narrative = (
+        "Every scored node names the system it came from and the decay state "
+        "applied to it. This is the trail an analyst or a reviewer follows to "
+        "verify the score.")
+    if uncured:
+        narrative += (
+            " Note the persistence hold: the uncured signals below carry a "
+            "decay factor of 1.00 however old they are, because the decay "
+            "clock only starts on cure.")
+    return _section(
+        "evidence", "Evidence and Data Lineage", narrative,
+        table=({"columns": ["Node", "Signal", "Source system", "Signal class",
+                             "Half-life (days)", "Decay applied", "State"],
+                "rows": rows} if rows else None))
 
 
 def borrower_report(customer_id: str, *, prepared_by: str = "") -> dict:
@@ -110,29 +266,61 @@ def borrower_report(customer_id: str, *, prepared_by: str = "") -> dict:
         "data": [(h["snapshot_month"], h["ews_score"], h["ta_score"], h["classifier_score"])
                  for h in history],
     }
-    trend = _section(
-        "trend", "Twelve-Month Movement",
-        f"Score history over the {len(history)} months on record. "
-        f"{'The score has moved into higher severity over this window.' if len(history) >= 2 and history[-1]['ews_score'] > history[0]['ews_score'] else 'The score has been broadly stable or improving over this window.'}",
-        table=history_table, chart=trend_chart,
-    )
+    # The movement note has to distinguish the score moving from the obligor
+    # moving. A fall produced by notching is not an improvement, and a reader
+    # who takes it as one draws exactly the wrong conclusion.
+    pack = facts.borrower(customer_id)
+    moved = pack.figures.get("movement_12m") or pack.figures.get("movement_1m")
+    movement_note = f"Score history over the {len(history)} months on record."
+    if moved and moved.get("ews_change"):
+        if moved["driven_by_notches"] and not moved["condition_improved"]:
+            movement_note += (
+                f" The score moved {moved['ews_change']:+.0f} points between "
+                f"{moved['from_period']} and {moved['to_period']}, but the "
+                f"anchor is unchanged at {moved['anchor_after']:.0f}: the move "
+                f"came from notching, not from the underlying signals. A "
+                f"reader who treats it as an improvement will draw the wrong "
+                f"conclusion.")
+        elif moved["condition_improved"]:
+            movement_note += (
+                f" The score moved {moved['ews_change']:+.0f} points and the "
+                f"anchor moved with it, from {moved['anchor_before']:.0f} to "
+                f"{moved['anchor_after']:.0f} — a genuine change in the "
+                f"underlying reading rather than a notch effect.")
+    else:
+        movement_note += " No material movement over this window."
+    trend = _section("trend", "Twelve-Month Movement", movement_note,
+                     table=history_table, chart=trend_chart)
 
-    fired = detail.get("fired_signals", [])
-    evidence_table = None
-    if fired:
-        evidence_table = {
-            "columns": ["Signal", "Score", "Causal chain"],
-            "rows": [[f["signal_key"], f"{f['signal_score']:.1f}", f["causal_chain_id"]]
-                     for f in fired],
-        }
-    evidence = _section(
-        "evidence", "Evidence and Data Lineage",
-        f"{len(fired)} signal(s) fired this period. Every field in this report traces back to "
-        "the governed source domain recorded in the Early Warning field-level lineage "
-        "(GET /early-warning/v2/lineage) — ratings and PD from Corporate Ratings, IFRS 9 stage "
-        "and ECL from the IFRS 9 domain, exposure and collateral from Core Portfolio / Facility.",
-        table=evidence_table,
-    )
+    observations = svc.signal_observations(customer_id)
+    evidence = _lineage_section(pack, observations)
+    composition = _composition_section(pack)
+    drivers = pack.figures.get("drivers") or []
+    actions_section = _actions_section(drivers)
+    route = esc.route_with_actions(
+        pack.figures["ews_band"], float(pack.figures["exposure"]),
+        [d["code"] for d in drivers])
+    to = route.get("escalated_to_roles") or []
+    escalation_section = _section(
+        "escalation", "Escalation Status",
+        (f"At {pack.figures['ews_band'].replace('_', ' ').lower()} severity on "
+         f"SAR {pack.figures['exposure']:,.0f}m of exposure — the "
+         f"{route['exposure_tier']} tier — the decision sits with "
+         f"{' and '.join(to)}. Severity decides how quickly the decision is "
+         f"needed; materiality decides how high it goes."
+         if to else
+         "No escalation is required at this severity; the obligor stays in "
+         "periodic monitoring."),
+        table={"columns": ["Field", "Detail"], "rows": [
+            ["Severity", pack.figures["ews_band"]],
+            ["Exposure tier", route["exposure_tier"]],
+            ["Escalated to", ", ".join(to) or "—"],
+            ["Notified in parallel", ", ".join(route.get("notified_roles") or []) or "—"],
+            ["Acknowledgement", f"{route.get('ack_sla_days')} day(s)"
+             if route.get("ack_sla_days") is not None else "—"],
+            ["Decision", f"{route.get('decision_sla_days')} working day(s)"
+             if route.get("decision_sla_days") is not None else "—"],
+        ]})
 
     return {
         "type": "ews_borrower", "title": f"Early Warning — {latest.get('customer_name', customer_id)}",
@@ -143,7 +331,10 @@ def borrower_report(customer_id: str, *, prepared_by: str = "") -> dict:
         "quarter": latest.get("snapshot_month", ""), "quarter_label": latest.get("snapshot_month", ""),
         "generated_at": datetime.now(UTC).strftime("%d %b %Y %H:%M UTC"),
         "prepared_by": prepared_by or "CreditProbe AI — Early Warning System",
-        "sections": [exec_summary, _methodology_section(), position, trend, evidence],
+        "sections": [s for s in [
+            exec_summary, _methodology_section(), position, composition, trend,
+            evidence, escalation_section, actions_section,
+            _limitations_section()] if s],
         "findings": findings, "actions": [], "remediation": [],
         "high_severity_count": sum(1 for f in findings if f["severity"] == "HIGH"),
         "classification": CLASSIFICATION,
@@ -204,6 +395,72 @@ def portfolio_report(*, period: str | None = None, prepared_by: str = "") -> dic
     watch_section = _section("watchlist", "Watchlist", "The highest-scoring obligors this period.",
                               table=watch_table, chart=watch_chart)
 
+    pack = facts.portfolio(period)
+
+    # Where risk is being DETECTED, which is a different question from where
+    # it is highest. Obligors whose risk arrives through Layer 4 do not yet
+    # look alarming on their own behaviour or fundamentals.
+    mix = pack.figures.get("dominant_layer_mix") or []
+    layer_section = _section(
+        "layers", "Where the Risk Sits — By Intelligence Layer",
+        "The dominant layer is the one carrying an obligor's trigger-side "
+        "risk. Obligors dominated by Layer 4 are the finding worth pausing "
+        "on: their own behaviour and fundamentals do not yet look alarming, "
+        "and the risk is arriving through a supplier, a customer, a parent "
+        "or a guarantor.",
+        table={"columns": ["Dominant layer", "Obligors", "Share of the book"],
+               "rows": [[m["layer"], m["obligors"],
+                          f"{100.0 * m['obligors'] / max(summary['borrower_count'], 1):.1f}%"]
+                         for m in mix]} if mix else None)
+
+    # Grade against early warning, and the divergence that is itself the alert.
+    grade = facts.level("internal_rating", period)
+    divergent = (grade.figures.get("divergence") or {}).get("rows") or []
+    grade_section = _section(
+        "grades", "Where the Risk Sits — By Internal Grade",
+        "The internal grade is a classifier and moves on a review cycle; the "
+        "early warning score is trigger-led and moves monthly. They are not "
+        "expected to track each other, and where they diverge materially "
+        "either the grade is stale or the trigger is a false positive. The "
+        "divergence is itself what to investigate — it is not a reason to "
+        "change a grade from this report.",
+        table={"columns": ["Grade", "Obligors", "Exposure (SAR mn)",
+                            "Portfolio EWS", "Severity", "High+"],
+               "rows": [[r["internal_rating"], r["obligors"], f"{r['exposure']:.1f}",
+                          f"{r['portfolio_ews']:.1f}", r["band"], r["high_plus_count"]]
+                         for r in grade.rows]},
+        findings=[_finding(
+            f"{d['customer_name']} is graded {d['internal_rating']} and scores "
+            f"{d['ews_score']:.1f} ({d['ews_band']}).", severity="MEDIUM")
+            for d in divergent[:5]])
+
+    # What the high-risk population has in common, and what that does not
+    # license anyone to do with it.
+    tree = dg.tree(period, band="HIGH_PLUS")
+    diagnosis_section = _section(
+        "diagnosis", "Diagnosis — What the High-Risk Population Has in Common",
+        tree["reading"],
+        table={"columns": ["Population", "Obligors", "Exposure (SAR mn)",
+                            "Mean EWS", "High or above"],
+               "rows": [[n["label"], n["obligors"], f"{n['exposure']:.1f}",
+                          f"{n['mean_ews']:.1f}", n["high_plus"]]
+                         for n in tree.get("leaves") or []]}
+        if tree.get("leaves") else None,
+        findings=[_finding(c, severity="LOW") for c in tree["caveats"]])
+
+    # Actions across the book, keyed to the drivers the worst names carry —
+    # read from the frame because `top_high_risk` does not project the
+    # dominant sub-category.
+    bm = svc.borrower_month(period)
+    high = bm[bm["ews_band"].isin(("HIGH", "VERY_HIGH"))]
+    common_drivers = [
+        str(code) for code in
+        high["dominant_subcategory"].dropna().value_counts().head(6).index
+        if str(code)]
+    actions_section = _actions_section(
+        [{"code": c} for c in common_drivers],
+        title="Recommended Actions")
+
     return {
         "type": "ews_portfolio", "title": "Early Warning — Portfolio Report",
         "short_title": "Early Warning", "audience": "Credit Risk Committee",
@@ -212,7 +469,10 @@ def portfolio_report(*, period: str | None = None, prepared_by: str = "") -> dic
         "quarter": summary["period"], "quarter_label": summary["period"],
         "generated_at": datetime.now(UTC).strftime("%d %b %Y %H:%M UTC"),
         "prepared_by": prepared_by or "CreditProbe AI — Early Warning System",
-        "sections": [exec_summary, _methodology_section(), position, trend_section, seg_section, watch_section],
+        "sections": [s for s in [
+            exec_summary, _methodology_section(), position, trend_section,
+            layer_section, seg_section, grade_section, diagnosis_section,
+            watch_section, actions_section, _limitations_section()] if s],
         "findings": [], "actions": [], "remediation": [],
         "high_severity_count": summary["high_plus_count"],
         "classification": CLASSIFICATION,
@@ -258,7 +518,10 @@ def segment_report(segment: str, *, period: str | None = None, prepared_by: str 
         "quarter": rows["snapshot_month"].iloc[0], "quarter_label": rows["snapshot_month"].iloc[0],
         "generated_at": datetime.now(UTC).strftime("%d %b %Y %H:%M UTC"),
         "prepared_by": prepared_by or "CreditProbe AI — Early Warning System",
-        "sections": [exec_summary, _methodology_section(), borrowers_section],
+        "sections": [x for x in [
+            exec_summary, _methodology_section(), borrowers_section,
+            _actions_section([{"code": c} for c in _common_drivers(rows)]),
+            _limitations_section()] if x],
         "findings": [], "actions": [], "remediation": [],
         "high_severity_count": len(high_plus),
         "classification": CLASSIFICATION,
@@ -293,6 +556,11 @@ def multi_borrower_report(customer_ids: list[str], *, prepared_by: str = "") -> 
         f"{len(details)} borrowers selected, SAR {total_exposure:.1f} million of combined "
         f"exposure, {high_plus} at High severity or above.",
         table=comparison_table,
+        chart={"kind": "ews_layer_bars",
+               "title": "Selected borrowers by Early Warning score",
+               "data": [(r.get("customer_name", ""), r.get("ews_score", 0.0))
+                        for r in sorted(rows, key=lambda x: x.get("ews_score", 0.0),
+                                        reverse=True)[:10]]},
     )
 
     sections = [comparison, _methodology_section()]
@@ -320,6 +588,10 @@ def multi_borrower_report(customer_ids: list[str], *, prepared_by: str = "") -> 
             f"({latest.get('classifier_score', 0):.1f}), T&A {latest.get('ta_band')} "
             f"({latest.get('ta_score', 0):.1f}).",
             table=history_table, findings=section_findings,
+            chart={"kind": "ews_score_trend",
+                   "title": f"{latest.get('customer_name', cid)} — score by month",
+                   "data": [(h["snapshot_month"], h["ews_score"], h["ta_score"],
+                             h["classifier_score"]) for h in detail["history"]]},
         ))
 
     return {
@@ -331,15 +603,85 @@ def multi_borrower_report(customer_ids: list[str], *, prepared_by: str = "") -> 
         "quarter_label": rows[0].get("snapshot_month", "") if rows else "",
         "generated_at": datetime.now(UTC).strftime("%d %b %Y %H:%M UTC"),
         "prepared_by": prepared_by or "CreditProbe AI — Early Warning System",
-        "sections": sections, "findings": findings, "actions": [], "remediation": [],
+        "sections": [*sections, _limitations_section()], "findings": findings,
+        "actions": [], "remediation": [],
         "high_severity_count": sum(1 for f in findings if f["severity"] == "HIGH"),
+        "classification": CLASSIFICATION,
+    }
+
+
+def all_segments_report(*, period: str | None = None,
+                         prepared_by: str = "") -> dict:
+    """Every segment, each with its own section rather than one flat table.
+
+    A single table of ten segments ranked by score answers "which is worst"
+    and nothing else. What a reader needs per segment is whether its average
+    reflects a common condition or one or two names, which layer is carrying
+    it, and which borrower to open — and that cannot be said in a row.
+    """
+    period = period or svc.latest_period()
+    level = facts.level("segment", period)
+    summary = svc.portfolio_summary(period)
+
+    exec_summary = _section(
+        "executive_summary", "Executive Summary",
+        f"{len(level.rows)} segments across {summary['borrower_count']} obligors "
+        f"and SAR {summary['total_exposure']:,.0f} million. The weakest is "
+        f"{level.figures['weakest_group']}. Each segment below is reported on "
+        f"its own terms: a segment whose high-risk exposure sits in a minority "
+        f"of obligors is a single-name problem wearing a segment's label, and "
+        f"is answered with borrower intervention rather than a sector limit.",
+        table={"columns": ["Segment", "Obligors", "Exposure (SAR mn)",
+                            "Portfolio EWS", "Severity", "High+", "Weakest obligor"],
+               "rows": [[r["segment"], r["obligors"], f"{r['exposure']:.1f}",
+                          f"{r['portfolio_ews']:.1f}", r["band"],
+                          r["high_plus_count"], r["weakest_obligor"]]
+                         for r in level.rows]},
+        chart={"kind": "ews_layer_bars", "title": "Segments by Early Warning score",
+               "data": [(r["segment"], r["portfolio_ews"]) for r in level.rows]})
+
+    sections = [exec_summary, _methodology_section()]
+    for idx, row in enumerate(level.rows, start=1):
+        pack = facts.group("segment", row["segment"], period)
+        written = compose.group(pack)
+        sections.append(_section(
+            f"segment_{idx}", row["segment"],
+            f"{written.direct} {written.interpretation}",
+            table={"columns": ["Customer", "Exposure", "DPD", "EWS", "Band",
+                                "Dominant driver"],
+                   "rows": [[b["customer_name"], f"{b['exposure']:.1f}",
+                              str(b["dpd"]), f"{b['ews_score']:.1f}",
+                              b["ews_band"], b.get("dominant_driver") or "—"]
+                             for b in pack.rows[:15]]},
+            chart={"kind": "ews_layer_bars",
+                   "title": f"{row['segment']} — obligors by score",
+                   "data": [(b["customer_name"], b["ews_score"])
+                            for b in pack.rows[:10]]}))
+
+    bm = svc.borrower_month(period)
+    actions_section = _actions_section(
+        [{"code": c} for c in _common_drivers(
+            bm[bm["ews_band"].isin(("HIGH", "VERY_HIGH"))])])
+    return {
+        "type": "ews_all_segments", "title": "Early Warning — All Segments",
+        "short_title": "Early Warning", "audience": "Credit Risk Committee",
+        "purpose": "Prepared for internal credit risk use. Every figure is "
+                   "computed from the live Early Warning V2 monthly domain.",
+        "quarter": period, "quarter_label": period,
+        "generated_at": datetime.now(UTC).strftime("%d %b %Y %H:%M UTC"),
+        "prepared_by": prepared_by or "CreditProbe AI — Early Warning System",
+        "sections": [s for s in [*sections, actions_section,
+                                  _limitations_section()] if s],
+        "findings": [], "actions": [], "remediation": [],
+        "high_severity_count": summary["high_plus_count"],
         "classification": CLASSIFICATION,
     }
 
 
 def generate_docx(scope: str, identifier: str | None = None, *, period: str | None = None,
                    customer_ids: list[str] | None = None) -> bytes:
-    """scope in {"borrower", "portfolio", "segment", "multi_borrower"}."""
+    """scope in {"borrower", "portfolio", "segment", "all_segments",
+    "multi_borrower"}."""
     if scope == "borrower":
         if not identifier:
             raise ValueError("borrower report needs a customer_id")
@@ -348,6 +690,8 @@ def generate_docx(scope: str, identifier: str | None = None, *, period: str | No
         if not identifier:
             raise ValueError("segment report needs a segment name")
         report = segment_report(identifier, period=period)
+    elif scope == "all_segments":
+        report = all_segments_report(period=period)
     elif scope == "portfolio":
         report = portfolio_report(period=period)
     elif scope == "multi_borrower":
