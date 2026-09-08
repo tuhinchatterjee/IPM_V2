@@ -256,6 +256,15 @@ it, so Back and a shared link both work. Zero console errors.
   every answer, screen and report that leans on it.
 - The five legacy Forward Risk Signal tests need quarterly data that is not built in this
   sandbox. They are untouched by this work.
-- The KPI tiles render exposure in millions without a unit prefix while the prose writes
-  "SAR 15.5bn". Both are the same figure; the tiles use the app-wide `money()` helper,
-  so aligning them is a change with a blast radius beyond Early Warning.
+
+The money convention is now consistent: one writer per side, mirrored character for
+character, with tables naming their unit once in the header. See `EARLY_WARNING_V2_UAT.md`
+§10 for what was wrong and what replaced it.
+
+---
+
+**Readiness:** `EARLY_WARNING_V2_UAT.md` carries the UAT record — model invariants
+confirmed from the engine, the four journeys and browser history verified live, the eight
+AI questions with their actual answers and grades, Escalate/Inform into Messages, the
+investigations round trip, report reconciliation, and every remaining non-pass classified
+against a measured branch-point baseline.
